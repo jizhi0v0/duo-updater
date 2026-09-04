@@ -472,6 +472,23 @@ public struct VendorProbeRecipe: Sendable {
     ///    `CapCutProbeRecipeTests` pins both directions against captured bodies.
     public let transientBodyPattern: String?
 
+    /// The body says, in the vendor's own words, that this track has no current
+    /// build.
+    ///
+    /// Distinct from the pattern simply not matching, and the distinction is the
+    /// whole point: a miss is "the recipe stopped working, a human should look",
+    /// while this is "the vendor is between releases on this track, nobody has
+    /// anything to fix". They arrive identically — no version — and only the
+    /// vendor can tell them apart, so this asks the vendor rather than inferring.
+    ///
+    /// Reported as ``ProbeFailure/notApplicable(_:)``, which returns nil instead
+    /// of throwing: no red row, no entry in the failed-check banner, no Retry
+    /// button that could never have worked.
+    ///
+    /// Consulted **only** when the version pattern already failed to match. A
+    /// track that is publishing cannot be talked into looking closed.
+    public let trackClosedPattern: String?
+
     /// Where to send the user to download the update by hand. Defaults to `url`.
     /// Probed updates are always manual (no trusted in-place install path), so
     /// this is the link surfaced to the user.
@@ -666,6 +683,7 @@ public struct VendorProbeRecipe: Sendable {
         mode: Mode,
         versionPattern: String,
         transientBodyPattern: String? = nil,
+        trackClosedPattern: String? = nil,
         downloadURL: URL? = nil,
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
@@ -696,6 +714,7 @@ public struct VendorProbeRecipe: Sendable {
         self.mode = mode
         self.versionPattern = versionPattern
         self.transientBodyPattern = transientBodyPattern
+        self.trackClosedPattern = trackClosedPattern
         self.downloadURL = downloadURL
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
@@ -760,6 +779,15 @@ public struct VendorProbeRecipe: Sendable {
     /// typo before it ships.
     func matchesTransientBody(_ body: String) -> Bool {
         guard let pattern = transientBodyPattern,
+              let regex = try? NSRegularExpression(pattern: pattern)
+        else { return false }
+        return regex.firstMatch(
+            in: body, options: [], range: NSRange(body.startIndex..., in: body)) != nil
+    }
+
+    /// Whether the vendor states this track has no current build.
+    func matchesTrackClosed(_ body: String) -> Bool {
+        guard let pattern = trackClosedPattern,
               let regex = try? NSRegularExpression(pattern: pattern)
         else { return false }
         return regex.firstMatch(
@@ -5593,12 +5621,19 @@ public enum VendorProbeRegistry {
         // are always three-segment, so a two-segment `version_code` can never
         // collide with an answer.
         //
-        // TRAP, `channel`: `capcutpc_beta` is a REAL CapCut channel token and is
-        // the wrong thing to send here — the endpoint returns no `update_reminder`
-        // at all for it (measured). `capcutpc_0` is what a stable install sends and
-        // what returns BOTH tracks, so both recipes send it. The channel a recipe
-        // serves is decided by which `lastest_*` key it reads, not by this
+        // TRAP, `channel`: `capcutpc_beta` is a REAL CapCut channel token, and
+        // both recipes deliberately send `capcutpc_0` instead. The channel a
+        // recipe serves is decided by which `lastest_*` key it reads, not by this
         // parameter.
+        //
+        // The reason recorded here on 2026-08-27 — "the endpoint returns no
+        // `update_reminder` at all for `capcutpc_beta`" — **is no longer true**,
+        // re-measured 2026-09-04: both tokens now return a 26-field
+        // `update_reminder`, and the two bodies agree field for field. So the
+        // token is now inert rather than harmful. Left as `capcutpc_0` because it
+        // is the value with the longer measured history, not because the old
+        // hazard still exists; anyone changing it should re-measure rather than
+        // trust either version of this paragraph.
         //
         // Version scheme: the `lastest_*_version` integers are nibble-packed
         // (590592 = 0x090300 = 9.3.0), which no regex can decode, so the version is
@@ -5713,10 +5748,25 @@ public enum VendorProbeRegistry {
             channel: .stable, urlKey: "lastest_stable_url",
             packageToken: "capcutpc_0", patchSegment: #"[0-9]+"#,
             versionIsBuild: false),
+        // The beta track is not always open. When a beta graduates and no new one
+        // has started, `lastest_url` carries the STABLE artifact — the pattern
+        // pins `capcutpc_beta` inside the filename, so it correctly refuses to
+        // read a stable build as a beta one, and the probe finds nothing.
+        //
+        // `lastest_beta_number` is the vendor saying so in their own data: "4"
+        // while beta4 was current (2026-08-27), empty once 9.4.0 shipped and no
+        // beta replaced it (2026-09-04, with `lastest_url` == `lastest_stable_url`
+        // == the 9.4.0 stable dmg). Without this the row went red with "no match
+        // in 436155-byte body" and a Retry that could not work until ByteDance
+        // opened the next beta.
+        //
+        // Anchored to the key so it cannot be satisfied by an empty string
+        // anywhere else in a ~436 KB body.
         capCutRecipe(
             channel: .beta, urlKey: "lastest_url",
             packageToken: "capcutpc_beta", patchSegment: #"[0-9]+(?:-beta[0-9]+)?"#,
-            versionIsBuild: true),
+            versionIsBuild: true,
+            trackClosedPattern: ##""lastest_beta_number"\s*:\s*"""##),
 
         // 百度网盘 (Baidu Netdisk) — reads the endpoint the vendor's own download
         // page is built from: `pan.baidu.com/disk/cmsdata?do=client` answers a small
@@ -6466,7 +6516,8 @@ public enum VendorProbeRegistry {
         urlKey: String,
         packageToken: String,
         patchSegment: String,
-        versionIsBuild: Bool
+        versionIsBuild: Bool,
+        trackClosedPattern: String? = nil
     ) -> VendorProbeRecipe {
         let host = #"https://sf16-web-tos-buz\.capcutstatic\.com"#
         return VendorProbeRecipe(
@@ -6483,6 +6534,7 @@ public enum VendorProbeRegistry {
             // settings were returned"; the message text is an internal stack trace
             // and is not matched on. See `transientBodyPattern`.
             transientBodyPattern: #"^\s*\{\s*"data"\s*:\s*\{\s*\}"#,
+            trackClosedPattern: trackClosedPattern,
             downloadURL: URL(string: "https://www.capcut.com/tools/desktop-video-editor"),
             versionIsBuild: versionIsBuild,
             install: VendorInstallSpec(

@@ -103,30 +103,27 @@ import CryptoKit
     if !retried.isEmpty {
         log("↻ retried after a first-pass miss: \(retried.map(\.description).joined(separator: ", "))")
     }
-    // Tracks the vendor is currently between releases on.
+    // Tracks the vendor is currently between releases on — derived from the
+    // registry, never hand-listed.
     //
     // A channel recipe that resolves nothing is normally rot, which is what this
-    // sweep exists to catch. It is not rot when the vendor has simply closed a
-    // track: CapCut's beta graduated to stable 9.4.0 and no new beta has opened,
-    // so `lastest_url` now carries `…_capcutpc_0_…` — a stable artifact — and the
-    // recipe's pattern refuses it rather than offering a stable build to beta
-    // users. Refusing is the recipe working. (Measured 2026-09-04: the endpoint
-    // answers 200 with 436 KB, `lastest_beta_number` is empty, and the only
-    // `capcutpc_beta` artifact left is an OLDER 9.3.5-beta1 that the recipe is
-    // pinned away from because taking it would silently downgrade the track.)
+    // sweep exists to catch. It is not rot when the vendor has closed a track,
+    // and the recipe says which tracks can be closed by carrying a
+    // `trackClosedPattern` — the vendor's own statement that nothing is
+    // published there (CapCut empties `lastest_beta_number` between betas).
     //
-    // Each entry is checked below for still being dormant, so this cannot become
-    // a permanent exemption: the day the vendor opens the next beta, the entry
-    // stops matching and the build fails until somebody removes it.
-    let dormantTracks: Set<ChannelProofKey> = [
-        ChannelProofKey("com.lemon.lvoverseas", .beta),
-    ]
+    // Reading it off the registry rather than repeating the key here is the
+    // difference between one source of truth and two that drift: a hand-written
+    // list goes on exempting a recipe whose declaration was removed.
+    let dormantTracks = Set(
+        byKey.values.filter { $0.trackClosedPattern != nil }
+            .map { ChannelProofKey($0.bundleID, $0.channel) })
 
     for key in targets {
         let remote = results[key] ?? nil
         if dormantTracks.contains(key) {
             #expect(remote?.downloadURL == nil,
-                    "\(key) resolves again — the vendor reopened this track, so drop it from dormantTracks")
+                    "\(key) resolves again — the vendor reopened this track, so drop its trackClosedPattern")
             log("• \(key): dormant — vendor publishes no current build on this track")
             continue
         }
@@ -207,6 +204,14 @@ import CryptoKit
 @Test func channelAnchorSurfaceCoversEveryRecipeField() {
     let recipe = VendorProbeRegistry.recipes[0]
     let labels = Mirror(reflecting: recipe).children.compactMap(\.label)
+    // 24 since `trackClosedPattern` (2026-09-04). It stays IN, and unlike its
+    // sibling `transientBodyPattern` it is not channel-neutral: only the beta
+    // recipe carries one, and the string it holds names a beta-specific key
+    // (`lastest_beta_number`). That makes it a field a proof could legitimately
+    // name — it is part of what the recipe reads — without being tautological
+    // the way `channel` is. Useful or not as an anchor, the rule for
+    // `nonAnchorFields` is tautology, and this is not one.
+    //
     // 23 since `transientBodyPattern` (2026-09-01), which stays IN for the same
     // reason `buildNamespace` did (22, 2026-08-30): `nonAnchorFields` is for
     // fields that would make a channel anchor tautological — a `.beta` recipe
@@ -217,7 +222,7 @@ import CryptoKit
     // is a bad proof, not a tautological one, and a proof must name the fields it
     // relies on anyway (#110). Useless as an anchor, harmless in the surface,
     // same as every other Bool here.
-    #expect(labels.count == 23,
+    #expect(labels.count == 24,
             "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
     // A renamed field would turn its exclusion into a silent no-op, quietly
     // widening the surface instead of narrowing it. Same class of bug, other

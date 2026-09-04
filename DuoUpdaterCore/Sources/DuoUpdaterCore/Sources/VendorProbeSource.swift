@@ -593,6 +593,24 @@ public struct VendorProbeSource: UpdateSource {
                     .vendorErrorEnvelope(sampleBytes: body.text.utf8.count),
                     status: body.status, sample: sample)
             }
+            // Ask the vendor before blaming the recipe. A track between releases
+            // and a recipe that stopped working both arrive here with no version,
+            // and only the vendor can tell them apart — CapCut states it by
+            // emptying `lastest_beta_number` when no beta is open. Reported as
+            // `.notApplicable`, which returns nil rather than throwing: no red
+            // row and no Retry button, because there is nothing to retry until
+            // the vendor opens the track again.
+            //
+            // Checked here, after the pattern already failed, so a publishing
+            // track can never be talked into looking closed.
+            if recipe.matchesTrackClosed(body.text) {
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: vendor publishes no current build on this track")
+                return fail(
+                    .notApplicable(
+                        "no current build on the \(recipe.channel.rawValue) track"),
+                    status: body.status, sample: sample)
+            }
             // Symmetric with `GitHubReleasesSource`, which has logged its
             // pattern misses since day one. A probe that fetched fine and matched
             // nothing is the exact shape of a vendor rewriting their page, and

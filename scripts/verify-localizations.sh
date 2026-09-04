@@ -42,13 +42,23 @@ for lang in $langs; do
 done
 
 if [ -n "$missing" ]; then
+    # The caller exports DERIVED_DATA, so name the directory rather than printing
+    # a shell expansion the reader has to resolve. It used to print
+    # `${DERIVED_DATA:-/tmp/duo-dd}` literally, which a reader pastes into a shell
+    # where that variable is unset — so the fix deleted a fixed path that the
+    # build being complained about need never have used.
+    if [ -n "${DERIVED_DATA:-}" ]; then
+        remedy="rm -rf \"$DERIVED_DATA\" && make install"
+    else
+        remedy="rm -rf the derived-data directory this build used, then make install"
+    fi
     die "the string catalog did not compile into this build — missing or empty:$missing
 
    Every string would fall back to English, in every language.
    This is what an incremental build does after Localizable.xcstrings changes.
    Delete the derived-data directory and build again:
 
-       rm -rf \"\${DERIVED_DATA:-/tmp/duo-dd}\" && make install"
+       $remedy"
 fi
 
 printf '   %s\n' "$langs"

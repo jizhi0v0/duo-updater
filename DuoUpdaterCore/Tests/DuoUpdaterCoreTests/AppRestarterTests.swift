@@ -88,13 +88,25 @@ import Foundation
     /// operation. If this regressed, the call would take the operation's 30s
     /// rather than the timeout's 50ms — which is exactly the wedged-launch
     /// behaviour the timeout was added to prevent.
+    ///
+    /// The bound is 15s, not the 50ms the call should actually take, because this
+    /// measures WALL CLOCK and therefore also measures however long this task
+    /// spent unscheduled. It failed at 5.926s on a 3-core CI runner with the whole
+    /// suite running in parallel — with the property intact, since the regression
+    /// takes 30s and nothing near 5.9s can be it. A bound that a loaded machine
+    /// trips is not measuring the property; it is measuring the machine.
+    ///
+    /// 15s keeps a 2× margin to the failure mode, which is the only distinction
+    /// this test can make. Tightening it back toward the real 50ms would look
+    /// stricter and buy nothing: there is no regression between 50ms and 30s to
+    /// catch, because the abandoned operation's sleep is the only other outcome.
     @Test func givingUpDoesNotWaitForTheAbandonedOperation() async {
         let started = ContinuousClock.now
         _ = await AppRestarter.firstToFinish(timeout: .milliseconds(50), fallback: false) {
             try? await Task.sleep(for: .seconds(30))
             return true
         }
-        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(ContinuousClock.now - started < .seconds(15))
     }
 
     /// `onTimeout` is the log line, so it must fire only when the budget really

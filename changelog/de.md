@@ -4,9 +4,15 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.3.83
 
+**Das Fenster „Download Traffic“ heißt jetzt „Network“ und hat einen zweiten Tab.** „Downloads“ ist die Aufstellung, die Sie schon kannten — was jedes Update als Datei gekostet hat. „Requests“ ist neu: jeder Abruf, den Duo Updater für Sie macht, wofür er war, zu welcher App er gehörte und was er gekostet hat, mit einem Filterfeld, um das Protokoll zu befragen statt es zu durchscrollen. Die Zahlen oben beantworten das, wonach Sie gerade gefiltert haben — nicht die Gesamtsumme.
+
+**Die Update-Prüfung für Spotify braucht kaum noch Netzwerk.** Spotify veröffentlicht nirgends eine Versionsdatei, also liest die Prüfung die Version aus einem zwei Megabyte großen Installer-Stub — und holte sich jedes Mal die ganze Datei, rund um die Uhr. Sie fragt jetzt zuerst, ob sich die Datei geändert hat, und lädt sie nicht herunter, wenn nicht.
+
 **PDF Expert findet jetzt seine Updates und zeigt, was sich geändert hat.** Es las eine Versionsliste, die der Hersteller seit 2022 nicht mehr ergänzt hat, und meldete sich deshalb als aktuell — ganz gleich, welche Version installiert war. Jetzt folgt es der Liste, die der eigene Updater der App verwendet, und zeigt auch die Hinweise zu früheren Versionen, nicht nur zur neuesten.
 
 **UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** Bisher wurde eine Vorschauversion am finalen Zweig gemessen und stillschweigend als aktuell gemeldet; sie folgt nun ihrem eigenen Zweig und wechselt zurück auf den finalen Zweig, sobald sie dessen finale Fassung übernimmt.
+
+**Unter der Haube.** Die aufgezeichneten Anfragen liegen jetzt im selben Speicher wie die Download-Aufstellung, sodass die beiden Abrechnungen desselben Downloads nicht mehr auseinanderlaufen können. Ihre bestehende Aufstellung wird unverändert übernommen.
 
 ## 0.3.82
 

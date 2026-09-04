@@ -103,8 +103,33 @@ import CryptoKit
     if !retried.isEmpty {
         log("↻ retried after a first-pass miss: \(retried.map(\.description).joined(separator: ", "))")
     }
+    // Tracks the vendor is currently between releases on.
+    //
+    // A channel recipe that resolves nothing is normally rot, which is what this
+    // sweep exists to catch. It is not rot when the vendor has simply closed a
+    // track: CapCut's beta graduated to stable 9.4.0 and no new beta has opened,
+    // so `lastest_url` now carries `…_capcutpc_0_…` — a stable artifact — and the
+    // recipe's pattern refuses it rather than offering a stable build to beta
+    // users. Refusing is the recipe working. (Measured 2026-09-04: the endpoint
+    // answers 200 with 436 KB, `lastest_beta_number` is empty, and the only
+    // `capcutpc_beta` artifact left is an OLDER 9.3.5-beta1 that the recipe is
+    // pinned away from because taking it would silently downgrade the track.)
+    //
+    // Each entry is checked below for still being dormant, so this cannot become
+    // a permanent exemption: the day the vendor opens the next beta, the entry
+    // stops matching and the build fails until somebody removes it.
+    let dormantTracks: Set<ChannelProofKey> = [
+        ChannelProofKey("com.lemon.lvoverseas", .beta),
+    ]
+
     for key in targets {
         let remote = results[key] ?? nil
+        if dormantTracks.contains(key) {
+            #expect(remote?.downloadURL == nil,
+                    "\(key) resolves again — the vendor reopened this track, so drop it from dormantTracks")
+            log("• \(key): dormant — vendor publishes no current build on this track")
+            continue
+        }
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"
         let sum = remote?.expectedSHA512 != nil ? "sha512✓" : "—"
         // `versionIsBuild` recipes (Outlook) put the build in `version` and leave

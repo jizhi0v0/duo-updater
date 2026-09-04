@@ -23,13 +23,13 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The Download Traffic window is now Network, and it has a second tab.** Downloads is the ledger you already had — what each update cost as a file. Requests is new: every fetch Duo Updater makes on your behalf, what it was for, which app it belonged to, and what it cost, with a filter field for asking the log questions rather than scrolling it. The figures at the top answer whatever you have filtered to, not the lifetime total.
 
-**Checking Spotify for updates no longer re-downloads its installer every time.** Spotify publishes no version file anywhere, so the check reads the version out of a two-megabyte installer stub — and was fetching the whole thing on every check, around the clock. It now asks whether that file has changed and downloads nothing when it has not.
+**Checking Spotify for updates barely uses the network now.** Spotify publishes no version file anywhere, so the check reads the version out of a two-megabyte installer stub — and was fetching the whole thing every time, around the clock. It now asks whether that file has changed and skips the download when it has not.
 
 **PDF Expert now finds its updates, and shows what changed.** It was reading a release list its maker stopped adding to in 2022, so it called itself up to date whatever version you had. It now follows the list the app's own updater uses, and it now carries the release notes for past versions too, not only the newest.
 
 **UTM preview builds now get their own updates, install with one click, and show the matching release notes.** A preview copy used to be measured against the final track and silently told it was up to date; it now follows its own line, and once it takes that line's final release it moves back to the final track.
 
-Under the hood: the recorded requests moved into the same store as the download ledger, so the two accounts of one download can no longer drift apart. Your existing ledger carries across untouched.
+**Under the hood.** The recorded requests moved into the same store as the download ledger, so the two accounts of one download can no longer drift apart. Your existing ledger carries across untouched.
 
 ## 0.3.82
 

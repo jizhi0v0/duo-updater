@@ -4,9 +4,15 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.3.83
 
+**La ventana «Download Traffic» ahora se llama «Network» y tiene una segunda pestaña.** «Downloads» es el registro que ya tenía: lo que costó cada actualización como archivo. «Requests» es nuevo: cada petición que Duo Updater hace por usted, para qué era, a qué app pertenecía y lo que costó, con un campo de filtro para preguntarle cosas al registro en lugar de recorrerlo. Las cifras de arriba responden a lo que tenga filtrado, no al total histórico.
+
+**Comprobar si Spotify tiene actualizaciones casi no usa red.** Spotify no publica ningún archivo de versión, así que la comprobación lee la versión de un instalador reducido de dos megabytes, y se lo descargaba entero cada vez, a todas horas. Ahora pregunta primero si ese archivo ha cambiado y se salta la descarga cuando no.
+
 **PDF Expert ya encuentra sus actualizaciones y muestra qué ha cambiado.** Leía una lista de versiones que su fabricante dejó de ampliar en 2022, así que se declaraba actualizado tuvieras la versión que tuvieras. Ahora sigue la lista que usa el propio actualizador de la aplicación y ahora muestra también las notas de versiones anteriores, no solo de la última.
 
 **Las versiones preliminares de UTM ahora reciben sus propias actualizaciones, se instalan con un clic y muestran las notas correspondientes.** Antes una copia preliminar se comparaba con el canal final y se le decía, sin avisar, que estaba al día; ahora sigue su propia línea y vuelve al canal final en cuanto recibe la versión final de esa línea.
+
+**Por dentro.** Las peticiones registradas pasaron al mismo almacén que el registro de descargas, así que las dos cuentas de una misma descarga ya no pueden separarse. Su registro actual se conserva intacto.
 
 ## 0.3.82
 

@@ -451,6 +451,84 @@ stable 轨没走这条 harness（本机 channel 解析成 beta），但同一 Te
 不是从文件名习惯推的：`capcutpc_beta` 是挂载 beta dmg 后从它自己的
 `Contents/Resources/PackageConfig.plist` → `Channel Name` 读出来的厂商 token。
 
+## 2026-09-04 复测：beta 轨进入空窗期
+
+厂商侧变了四处，其中一处**推翻了 8-27 记录里的一条实测**。同一条 URL、同样的
+`version_code=9.99`，只换 `channel`：
+
+| 字段 | 2026-08-27 | 2026-09-04 |
+|---|---|---|
+| `lastest_url` | `…9_4_0-beta4_4531_capcutpc_**beta**…` | `…9_4_0_4556_capcutpc_**0**…` |
+| `lastest_stable_url` | `…9_3_0_4490…` | `…9_4_0_4556…` |
+| `lastest_sync_url` | `…9_3_5-beta1_4468_capcutpc_beta…` | 不变 |
+| `update_version` | 590848 (9.4.0) | 590848 (9.4.0) |
+| **`lastest_beta_number`** | `"4"` | **`""`** |
+| `channel=capcutpc_beta` 的应答 | 「没有 `update_reminder`」 | **有，26 个字段，与 `capcutpc_0` 逐字段相同** |
+
+读法：**9.4.0 转正了，新一轮 beta 还没开。** `lastest_url` 的语义是「跨轨最新」，
+不是「beta 的」—— 这个假设只在 beta 比 stable 新时成立，8-27 恰好成立，今天不成立。
+
+### 关轨前配方是好的 —— 有「之前」的证据
+
+不是事后推理：**2026-09-02/03 的界面截图里，beta 行是
+`9.4.0-beta7 → 9.4.0-beta8`，带 BETA 徽标，Update 按钮可用。** 也就是说 beta 轨还开着
+的时候，同一条配方、同一个 pattern 正常解析出了 beta8。
+
+这排除了「配方腐坏」这个解释，只剩「厂商关了轨」：beta8 之后 9.4.0 转正（build 4556），
+新一轮 beta 未开，`lastest_url` 于是落回 stable 包。
+
+### 配方是对的，红的是错误分类
+
+beta pattern 把 `capcutpc_beta` 钉在文件名**里面**，所以 `lastest_url` 变成 stable 包时
+它匹配不到、拒绝把 stable 当 beta 给 beta 用户；它也不去读 `lastest_sync_url` 上那个
+更旧的 beta（4468 < 装机 4548），因为那是静默降级。两件都是设计意图。
+
+问题在于「匹配不到」当时只有一种归宿：`versionPatternNoMatch` → 行变红 → 计入
+「N 个 app 检查失败」横幅 → 给一个永远不会成功的 Retry。而这不是失败，是**厂商这条轨
+现在没有东西可发**。
+
+**修法（2026-09-04）**：新增 `VendorProbeRecipe.trackClosedPattern`，只在版本 pattern
+已经匹配失败之后咨询，命中则报 `ProbeFailure.notApplicable` —— 该分类让 source 返回 nil
+而不是抛错，所以不红行、不进横幅、不给 Retry。beta 配方声明的是**厂商自己的字段**：
+
+```
+trackClosedPattern: "lastest_beta_number"\s*:\s*""
+```
+
+锚在 key 上，否则一个空串能在 436 KB 里匹配到上千处，会把真正坏掉的配方一起吞掉。
+stable 配方**不声明**：`lastest_stable_url` 恒有值，给它一个空窗状态等于把真实故障
+说成「厂商没发」。
+
+`vendorResolvesInstallPlans` 的豁免名单**从 registry 推导**（`trackClosedPattern != nil`），
+不手写；并且反过来断言这条轨确实仍解析不出东西 —— 厂商开新 beta 那天豁免失效、构建变红，
+逼人回来删掉它。
+
+### 厂商自己怎么处理这个空窗
+
+CapCut 的更新窗口对 beta7 装机显示 `Current 9.4.0-beta7 → New 9.4.0`，**它跨轨推了
+stable**。所以「beta 轨空了就回退 stable」有厂商先例。跨轨版本比较也验过：
+
+| 比较 | 结果 |
+|---|---|
+| `9.4.0` newer than `9.4.0-beta7` | true（该提就提）|
+| `9.4.0-beta7` newer than `9.4.0` | false（不会降级）|
+| `9.5.0-beta1` newer than `9.4.0` | true（新 beta 一开自动切回）|
+
+**没有实现这条**，理由是它要动 `ChannelProofRegistry`：beta 行的证明当前要求产物名含
+`_capcutpc_beta_`，回退 stable 会产出 `capcutpc_0` 的包并被证明拒绝 —— 那个闸正是为
+「别把另一条轨的包装给这条轨的用户」存在的，为一个 app 的空窗期削弱它需要单独立项。
+现状是：空窗期该 app 静默不更新，用户可自行在 CapCut 里取消 beta 勾选切回 stable。
+
+### 顺带记下的两条厂商侧缺陷（与我们无关，但会被误当成我们的问题）
+
+- CapCut 更新窗口的 "What's new" 面板报 `Couldn't load resources`：那是 Lynx/H5 视图，
+  内容由 ByteDance 的 Gecko 资源分发投递，而 `channel=capcutpc_beta` 的 Gecko 应答是
+  `status 2000 / "[already the latest] or [no hit pkg]" / packages: []`。
+- 同一窗口显示 `Released on 1970-01-01`：`update_reminder` 里**没有任何日期字段**
+  （26 个键全部核对过），客户端把缺失的时间戳渲染成 epoch 0。
+
+两条都不影响我们：我们不读那个面板，`publishedAtPattern` 本来就没配。
+
 ## 已知问题 / 取舍
 
 - **我们会比 CapCut 自己的灰度更早给 beta —— 这是 registry 里唯一一个这样的配方。**

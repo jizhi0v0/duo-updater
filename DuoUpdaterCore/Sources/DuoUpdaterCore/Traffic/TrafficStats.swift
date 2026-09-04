@@ -205,4 +205,14 @@ public enum ByteFormat {
     public static func string(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
+
+    /// The same, except that nothing renders as an em dash.
+    ///
+    /// `ByteCountFormatter` renders zero as "Zero KB", which reads as a unit
+    /// error rather than as "none" — and the places that show a zero are exactly
+    /// the ones where the reader is deciding whether the figure is broken: an
+    /// empty month, a filter that matched nothing, a purpose that used no bytes.
+    public static func stringOrDash(_ bytes: Int64) -> String {
+        bytes > 0 ? string(bytes) : "—"
+    }
 }

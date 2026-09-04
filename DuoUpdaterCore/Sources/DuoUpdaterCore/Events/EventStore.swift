@@ -236,6 +236,9 @@ public actor EventStore {
     /// Drains ``staging`` first: an event handed over by a delegate callback may
     /// not have reached the actor yet, and a flush that skipped it would lose
     /// exactly the last request of a run.
+    /// How many events this process has committed. Part of ``changeToken()``.
+    private var writes: Int64 = 0
+
     public func flush() {
         absorbStaged()
         pendingFlush?.cancel()
@@ -388,6 +391,10 @@ public actor EventStore {
         if let request = event.request {
             bind(statement, 5, request.purpose.rawValue)
             bind(statement, 6, request.host)
+            // Same column as an install event's app, and deliberately so: "every
+            // byte that went anywhere for this app" is one query over both
+            // altitudes. `kind` is what keeps them from being added together.
+            if let appID = request.appID { bind(statement, 7, appID) }
             if let status = request.status {
                 sqlite3_bind_int64(statement, 8, Int64(status))
             }
@@ -407,7 +414,9 @@ public actor EventStore {
         }
         guard let payload = try? event.payloadJSON() else { return false }
         bind(statement, 11, payload)
-        return step(db, statement)
+        guard step(db, statement) else { return false }
+        writes &+= 1
+        return true
     }
 
     private func upsertTotal(
@@ -636,6 +645,179 @@ public actor EventStore {
                 client: client, kind: kind, payloadJSON: payload))
         }
         return rows.reversed()
+    }
+
+    // MARK: - The request log
+
+    /// Request events matching `query`, **newest first**.
+    ///
+    /// Newest first because this is a log being read, not a dump being replayed:
+    /// the row somebody is looking for after "why did that stop working" is the
+    /// last one. ``rawRows(_:)`` stays oldest-first for exactly the opposite
+    /// reason.
+    public func requestLog(_ query: RequestQuery, limit: Int = 500) -> [DuoEvent] {
+        requestRows(query, limit: limit).compactMap(DuoEvent.init(row:))
+    }
+
+    /// The same matches as stored rows.
+    ///
+    /// What an export writes. Separate from the decoded form for the reason
+    /// ``rawRows(_:)`` is: a dump must not launder rows through this build's
+    /// `RequestEvent`, or a newer writer's extra fields vanish on the way out.
+    public func requestRows(_ query: RequestQuery, limit: Int = 500) -> [EventRow] {
+        let (clause, values) = query.sqlPredicate()
+        let sql = """
+            SELECT id, at, client, kind, payload FROM events
+            WHERE \(clause) \(query.orderClause) LIMIT ?;
+            """
+        guard let db = open(), let statement = prepare(db, sql) else { return [] }
+        defer { sqlite3_finalize(statement) }
+        let column = bindAll(values, into: statement)
+        sqlite3_bind_int64(statement, column, Int64(limit))
+
+        var rows: [EventRow] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let id = text(statement, 0).flatMap(UUID.init(uuidString:)),
+                  let client = RequestClient(rawValue: text(statement, 2) ?? ""),
+                  let kind = text(statement, 3),
+                  let payload = text(statement, 4)
+            else { continue }
+            rows.append(EventRow(
+                id: id, date: Self.date(sqlite3_column_int64(statement, 1)),
+                client: client, kind: kind, payloadJSON: payload))
+        }
+        return rows
+    }
+
+    /// The headline figures for the same query the log is showing.
+    ///
+    /// Computed by the database over every matching row, not by summing the page
+    /// of rows the list happens to display — a strip that only added up the
+    /// visible 500 would quietly report a different total as you scrolled.
+    public func requestSummary(_ query: RequestQuery = .init()) -> RequestLogSummary {
+        guard let db = open() else { return .empty }
+        let (clause, values) = query.sqlPredicate()
+        let notCached = RequestQuery.notCached
+
+        var totals = RequestLogSummary.empty
+        let aggregate = """
+            SELECT COUNT(*), COALESCE(SUM(bytes_in), 0), COALESCE(SUM(bytes_out), 0),
+                   COALESCE(SUM(status = 304), 0),
+                   COALESCE(SUM(NOT (\(notCached))), 0),
+                   COALESCE(SUM(status >= 400 OR (status IS NULL AND \(notCached))), 0),
+                   MIN(at), MAX(at)
+            FROM events WHERE \(clause);
+            """
+        if let statement = prepare(db, aggregate) {
+            _ = bindAll(values, into: statement)
+            if sqlite3_step(statement) == SQLITE_ROW {
+                totals = RequestLogSummary(
+                    bytesReceived: sqlite3_column_int64(statement, 1),
+                    bytesSent: sqlite3_column_int64(statement, 2),
+                    requests: Int(sqlite3_column_int64(statement, 0)),
+                    notModified: Int(sqlite3_column_int64(statement, 3)),
+                    cached: Int(sqlite3_column_int64(statement, 4)),
+                    problems: Int(sqlite3_column_int64(statement, 5)),
+                    oldest: sqlite3_column_type(statement, 6) == SQLITE_NULL
+                        ? nil : Self.date(sqlite3_column_int64(statement, 6)),
+                    newest: sqlite3_column_type(statement, 7) == SQLITE_NULL
+                        ? nil : Self.date(sqlite3_column_int64(statement, 7)))
+            }
+            sqlite3_finalize(statement)
+        }
+
+        var purposes: [RequestPurpose: (Int, Int64)] = [:]
+        let byPurpose = """
+            SELECT purpose, COUNT(*), COALESCE(SUM(bytes_in), 0)
+            FROM events WHERE \(clause) GROUP BY purpose;
+            """
+        if let statement = prepare(db, byPurpose) {
+            _ = bindAll(values, into: statement)
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let raw = text(statement, 0),
+                      let purpose = RequestPurpose(rawValue: raw) else { continue }
+                purposes[purpose] = (Int(sqlite3_column_int64(statement, 1)),
+                                     sqlite3_column_int64(statement, 2))
+            }
+            sqlite3_finalize(statement)
+        }
+
+        var hosts: [RequestLogSummary.HostSlice] = []
+        let byHost = """
+            SELECT host, COUNT(*), COALESCE(SUM(status = 304), 0),
+                   COALESCE(SUM(bytes_in), 0)
+            FROM events WHERE \(clause) AND host IS NOT NULL
+            GROUP BY host ORDER BY 4 DESC, 2 DESC;
+            """
+        if let statement = prepare(db, byHost) {
+            _ = bindAll(values, into: statement)
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let host = text(statement, 0) else { continue }
+                hosts.append(RequestLogSummary.HostSlice(
+                    host: host,
+                    requests: Int(sqlite3_column_int64(statement, 1)),
+                    notModified: Int(sqlite3_column_int64(statement, 2)),
+                    bytesReceived: sqlite3_column_int64(statement, 3)))
+            }
+            sqlite3_finalize(statement)
+        }
+
+        // Declaration order, not byte order: the bar reads top-down as a story
+        // about what the updater does, and one that reshuffles itself between
+        // refreshes cannot be read at all.
+        let slices = RequestPurpose.allCases.compactMap { purpose -> RequestLogSummary.PurposeSlice? in
+            guard let (count, bytes) = purposes[purpose] else { return nil }
+            return RequestLogSummary.PurposeSlice(
+                purpose: purpose, requests: count, bytesReceived: bytes)
+        }
+
+        return RequestLogSummary(
+            bytesReceived: totals.bytesReceived, bytesSent: totals.bytesSent,
+            requests: totals.requests, notModified: totals.notModified,
+            cached: totals.cached, problems: totals.problems,
+            oldest: totals.oldest, newest: totals.newest,
+            byPurpose: slices, hosts: hosts)
+    }
+
+    /// A token that changes when the database has changed, from **any** writer.
+    ///
+    /// `PRAGMA data_version` is SQLite's documented primitive for exactly this:
+    /// "The integer values returned by two invocations of PRAGMA data_version
+    /// from the same connection will be different if changes were committed to
+    /// the database by any other connection in the interim. The PRAGMA
+    /// data_version value is unchanged for commits made on the same database
+    /// connection." (sqlite.org/pragma.html#pragma_data_version)
+    ///
+    /// The two halves of that are exactly what is needed, and why this is the
+    /// mechanism rather than a hook: SQLite has **no** cross-process push, and
+    /// our own writes are already known to us without asking the database. So
+    /// this catches `duo` writing from another process, and
+    /// ``didChangeNotification`` catches this process's own flushes with no
+    /// polling at all.
+    ///
+    /// Paired with `writes` because data_version deliberately ignores our own
+    /// commits — a viewer that only watched it would never see the app's own
+    /// requests arrive.
+    public func changeToken() -> Int64 {
+        guard let db = open(),
+              let statement = prepare(db, "PRAGMA data_version;")
+        else { return writes }
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return writes }
+        return sqlite3_column_int64(statement, 0) &* 1_000_000 &+ writes
+    }
+
+    /// Binds a compiled query's values from index 1, returning the next free index.
+    private func bindAll(_ values: [RequestQuery.SQLValue], into statement: OpaquePointer) -> Int32 {
+        var column: Int32 = 1
+        for value in values {
+            switch value {
+            case let .text(string): bind(statement, column, string)
+            case let .int(number): sqlite3_bind_int64(statement, column, number)
+            }
+            column += 1
+        }
+        return column
     }
 
     /// Per-app download totals, rebuilt from the install events, heaviest first.

@@ -291,9 +291,17 @@ import Foundation
 /// `boundBundleIDs` but forgotten in `resolve` would make the menu-bar app
 /// recheck that app on every launch, quit and preference write, and resolve
 /// nothing each time — a binding that reads as present and does nothing.
+///
+/// ⚠️ Asked through `hasResolver`, never by calling `resolve` and checking for nil.
+/// `resolve` returns nil for two unrelated reasons — no case, or a case whose
+/// resolver found nothing in THIS Mac's preferences — and this test only ever meant
+/// the first. Calling `resolve` made it pass for anyone with a licensed CleanShot
+/// and fail for everyone else, while reporting "resolve has no case for it" about a
+/// case that exists. It went unseen until the repository first ran its tests on a
+/// machine that was not the author's (2026-09-05).
 @Test func everyBoundIDHasAResolverBehindIt() {
     for id in ChannelBinding.boundBundleIDs {
-        #expect(ChannelBinding.resolve(bundleID: id) != nil,
+        #expect(ChannelBinding.hasResolver(bundleID: id),
                 "\(id) is in boundBundleIDs but ChannelBinding.resolve has no case for it")
     }
 }

@@ -117,6 +117,11 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
         let event = RequestEvent(
             purpose: .selfUpdate, method: "GET", scheme: item.fileURL?.scheme,
             host: host, port: item.fileURL?.port, path: item.fileURL?.path ?? "",
+            // Ours. The self-update is the one fetch that is unambiguously for a
+            // single app, and leaving it blank put our own downloads in the same
+            // column as the Homebrew catalog — which is blank because it is
+            // shared by every app, the opposite reason.
+            appID: Bundle.main.bundlePath,
             // A synthetic task with a single hop: Sparkle's own redirects are as
             // invisible to us as its byte counts, and inventing hops we did not
             // observe would be worse than recording the one we can attest to.

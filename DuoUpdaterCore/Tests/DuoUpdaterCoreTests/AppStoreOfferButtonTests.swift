@@ -113,8 +113,58 @@ struct AppStoreOfferButtonTests {
         let dingTalk = AppStoreAXInstaller.AppNames(
             bundle: "DingTalk", store: "DingDing: Redefine Work in AI")
         #expect(dingTalk.page == "DingDing: Redefine Work in AI")
-        // The Updates list lists what is installed, so that branch keeps the bundle name.
-        #expect(dingTalk.bundle == "DingTalk")
+        // Both are tried, the store's first: the lookup asks for no language, so the
+        // title we hold is the storefront's default while App Store renders the user's
+        // ("钉钉 - AI时代的工作方式" for this very app under lang=zh_cn). One needle would
+        // fail every poll on a non-English Mac.
+        #expect(dingTalk.needles == ["DingDing: Redefine Work in AI", "DingTalk"])
+    }
+
+    /// One needle when both names are the same string — a second pass over the same
+    /// text can only cost time, and on the Updates list it would also let a loose
+    /// match run twice before any other name got its exact one.
+    @Test func anAppNamedTheSameInBothPlacesIsLookedUpOnce() {
+        #expect(AppStoreAXInstaller.AppNames(bundle: "QQ", store: "QQ").needles == ["QQ"])
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil).needles == ["Keka"])
+    }
+
+    /// Invisible marks and stray spaces are not identity. `app.name` is already run
+    /// through `stripInvisibleMarks` (installed WhatsApp is "\u{200E}WhatsApp.app" on
+    /// disk), and the Updates list compares row strings with `==`, where one space is
+    /// the difference between a match and none.
+    @Test func aStoreTitleIsCleanedTheSameWayTheBundleNameIs() {
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  Keka  ").page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}").page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}Keka").page == "Keka")
+    }
+
+    /// An exact match on *any* needle beats a loose match on the first one, because a
+    /// contains-match here lands on whatever row happens to carry the substring. The
+    /// cn storefront really does carry both of these, both cn-only, so both take the
+    /// Updates-list path and can share one list.
+    @Test func aRowThatIsReallyOursNeverLosesToSomeoneElsesSubstring() {
+        // The rows are the real cn listings — "QQ" (451108668) and "QQ音乐 - #听我想听#"
+        // (595615424), both cn-only, so both reach this path and can share one list.
+        // The needles are the case that makes order decide: the store title we hold is
+        // not on the list as written (a different storefront or language renders it
+        // differently), while the bundle name is — and the title we hold is a substring
+        // of somebody else's row.
+        let rows = [["QQ音乐 - #听我想听#", "Today"], ["QQ", "Yesterday"]]
+        let hit = AppStoreAXInstaller.rowIndex(matching: ["QQ音乐", "QQ"], in: rows)
+        #expect(hit?.index == 1)       // QQ's own row…
+        #expect(hit?.exact == true)    // …because every exact is tried before any loose.
+        #expect(hit?.needle == "QQ")
+        // Trying each needle exact-then-loose instead would press QQ Music's button.
+    }
+
+    /// Loose is still the last resort — a label that carries decoration around the
+    /// name has to be reachable, or region-locked apps stop updating entirely.
+    @Test func aDecoratedLabelIsStillFoundWhenNothingMatchesExactly() {
+        let rows = [["Something Else", "Today"], ["WeChat — 微信", "Yesterday"]]
+        let hit = AppStoreAXInstaller.rowIndex(matching: ["WeChat"], in: rows)
+        #expect(hit?.index == 1)
+        #expect(hit?.exact == false)
+        #expect(AppStoreAXInstaller.rowIndex(matching: ["Nothing Here"], in: rows) == nil)
     }
 
     /// No store title (the lookup didn't supply one) leaves the bundle name as the

@@ -180,7 +180,7 @@ struct WorkbenchWindowView: View {
         }
         .navigationTitle("Duo Updater")
         .toolbar {
-            // Download traffic has its own window now (TrafficWindowView), so the
+            // Download traffic has its own window now (NetworkWindowView), so the
             // detail pane is always Release Notes and needs no lens switcher.
             ToolbarItem(placement: .primaryAction) {
                 Button {

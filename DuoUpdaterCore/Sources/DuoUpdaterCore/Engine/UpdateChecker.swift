@@ -93,13 +93,21 @@ public struct UpdateChecker: Sendable {
     /// The annotation is a separate step, and deliberately the LAST one, because
     /// the failure paths below all return `remote: nil` — the row that most needs
     /// its identity kept is the one that has no fresh evidence to carry it.
+    ///
+    /// Every request made along the way is filed against this app. This is the
+    /// one place that knows both the app and the whole span of work done for it
+    /// — a source may fetch a feed, follow a redirect and then probe a vendor
+    /// endpoint, and all of it belongs here. Setting the attribution any deeper
+    /// would mean threading an id through every update source.
     public func check(_ app: InstalledApp) async -> UpdateResult {
-        var result = await runSources(for: app)
-        if result.remote?.releaseChannel == nil,
-           let proven = await channelStore?.channel(for: app) {
-            result.provenChannel = proven
+        await RequestAttribution.withApp(app.id) {
+            var result = await runSources(for: app)
+            if result.remote?.releaseChannel == nil,
+               let proven = await channelStore?.channel(for: app) {
+                result.provenChannel = proven
+            }
+            return result
         }
-        return result
     }
 
     private func runSources(for app: InstalledApp) async -> UpdateResult {

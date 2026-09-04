@@ -99,7 +99,8 @@ public enum GitHubToken {
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
         do {
-            let (data, response) = try await URLSession.updates.data(for: request)
+            let (data, response) = try await URLSession.updates.countedData(
+                for: request, purpose: .versionCheck)
             guard let http = response as? HTTPURLResponse else {
                 return .failed(message: "Unexpected response from GitHub.")
             }

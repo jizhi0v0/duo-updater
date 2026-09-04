@@ -290,7 +290,7 @@ public actor BrewFormulaReleaseService {
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.countedData(for: request, purpose: .catalog)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             return nil  // 404 = tag has no GitHub release; treat as "no structured notes"
         }

@@ -126,7 +126,7 @@ public struct AlcoveUpdateSource: UpdateSource {
         request.httpBody = try JSONEncoder().encode(
             IssueTokenRequest(license_key: credentials.licenseKey, instance_id: credentials.instanceID))
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.countedData(for: request, purpose: .versionCheck)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             return nil
         }

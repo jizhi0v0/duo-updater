@@ -815,8 +815,42 @@ final class AppListModel {
     /// so a flurry of process events collapses to one `lsappinfo` read.
     @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
 
-    /// Per-app download traffic, tracked to the byte and persisted across runs.
-    private let trafficStore = TrafficStore()
+    /// Everything DuoUpdater did, as events: every request it made on its own —
+    /// version checks, changelog fetches, the cask catalog, its own self-update —
+    /// and every app update it downloaded and installed.
+    ///
+    /// The download ledger used to be its own `traffic.json`. It is one store now,
+    /// so the two accounts of one install cannot drift; the legacy file is read
+    /// once at launch and then left untouched as the user's own copy.
+    private let eventStore = EventStore.shared
+
+    /// What the Requests tab draws: the answer to the query it is currently
+    /// showing, not a lifetime total. Derived in Core (see ``RequestLogSummary``)
+    /// rather than in the view, because every figure on it is a rule and
+    /// `App/Sources` has no test target.
+    private(set) var requestSummary: RequestLogSummary = .empty
+    /// The matching rows, newest first, capped at ``requestLogLimit``.
+    private(set) var requestLog: [DuoEvent] = []
+    /// Everything the store is holding, filter or no filter — the footprint line,
+    /// which is about the file on disk and not about the question being asked.
+    private(set) var retainedEventCount = 0
+    /// Whether the log has been read at least once.
+    ///
+    /// Not the same as "the log is empty", and the window has to tell them
+    /// apart: before the first read both look identical, so a cold open painted
+    /// "Nothing recorded yet" for a frame and then replaced it with two hundred
+    /// rows.
+    private(set) var requestLogLoaded = false
+    private(set) var eventStoreBytes: Int64 = 0
+
+    /// How many matching rows the window will draw.
+    ///
+    /// A cap rather than the whole match set: an unfiltered log on a machine that
+    /// has been running for months is tens of thousands of rows, and the honest
+    /// thing is to show the newest screenful-and-then-some and say so in the
+    /// status bar — which is what makes the count beside it meaningful.
+    static let requestLogLimit = 500
+
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
     /// download. Sorted heaviest-app-first by the store.
     private(set) var trafficStats: [AppTrafficStat] = []
@@ -1205,7 +1239,15 @@ final class AppListModel {
         NotificationController.shared.register(model: self)
         // Load any previously recorded traffic so the stats view isn't empty on
         // launch before the first install of this session.
-        Task { await refreshTrafficStats() }
+        Task {
+            // Move `traffic.json` into the event store, once. Safe on every
+            // launch: it records that it ran, and every migrated event takes an id
+            // derived from its own content, so even a forced repeat replaces its
+            // own rows rather than doubling a lifetime total. The source file is
+            // never touched.
+            await eventStore.importLegacyTraffic()
+            await refreshTrafficStats()
+        }
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()
@@ -1283,14 +1325,62 @@ final class AppListModel {
     /// Pull the latest per-app traffic snapshot out of the store onto the main
     /// actor for the UI.
     private func refreshTrafficStats() async {
-        let snapshot = await trafficStore.snapshot()
-        let total = await trafficStore.totalBytes()
+        let snapshot = await eventStore.appTrafficStats()
+        let total = snapshot.reduce(Int64(0)) { $0 + $1.totalBytes }
         trafficStats = snapshot
         trafficTotalBytes = total
         trafficSummary = TrafficSummary(stats: snapshot)
         let partition = TrafficPartition(stats: snapshot)
         trafficPresent = partition.present
         trafficRemoved = partition.removed
+    }
+
+    /// Re-read the event store for the Network Activity panel.
+    ///
+    /// Pulled on demand rather than kept live: the store is written from a
+    /// delegate queue on every request, and a panel that refreshed on each of them
+    /// would rebuild its rollups a hundred times during one sweep to show numbers
+    /// Re-run the log query and the figures above it, together.
+    ///
+    /// One call for both so they cannot disagree: the strip is the answer to the
+    /// query the list is showing, and two separately-timed refreshes would let
+    /// them describe different questions for a frame.
+    func reloadRequestLog(_ query: RequestQuery) async {
+        // Anything still buffered belongs on screen: the last check's requests
+        // are exactly what someone opening this window wants to see, and they
+        // would otherwise wait out the coalescing timer.
+        await eventStore.flush()
+        requestSummary = await eventStore.requestSummary(query)
+        requestLog = await eventStore.requestLog(query, limit: Self.requestLogLimit)
+        // `kind: "request"` matters: install events live in the same table and
+        // are never pruned, so an unfiltered count would report the retained
+        // request window as the whole install history.
+        retainedEventCount = await eventStore.coverage(kind: "request").count
+        eventStoreBytes = await eventStore.databaseBytes()
+        requestLogLoaded = true
+    }
+
+    /// Cheap probe for "has the log changed", including from `duo` in another
+    /// process. See ``EventStore/changeToken()``.
+    func requestChangeToken() async -> String {
+        await eventStore.changeToken()
+    }
+
+    /// The matching rows exactly as stored, one JSON object per line.
+    func exportRequestLog(_ query: RequestQuery) async -> String {
+        await eventStore.requestRows(query, limit: 100_000)
+            .map(\.json).joined(separator: "\n") + "\n"
+    }
+
+    /// Discard every recorded request and every running total.
+    ///
+    /// The install ledger survives: ``EventStore/reset(includingInstalls:)``
+    /// defaults to keeping it, because it is not diagnostics — it is the answer
+    /// to what keeping this machine updated has cost, and the Downloads tab is
+    /// still showing it.
+    func resetRequestLog(_ query: RequestQuery) async {
+        await eventStore.reset()
+        await reloadRequestLog(query)
     }
 
     /// Re-read the traffic log from disk. The window calls this on appear: an app
@@ -1331,22 +1421,28 @@ final class AppListModel {
             onDisk: { InstalledBuild.read(at: result.app.path) },
             declared: declaredBuild)
 
-        await trafficStore.record(
+        // Into the event store, not `traffic.json`. One writer: the legacy file is
+        // left exactly as it was, as the user's own copy of a history this build
+        // has taken over, and is read once at launch to import it. A non-positive
+        // byte count is refused by the store, not here — that is a rule about the
+        // ledger and belongs where something executes it.
+        await eventStore.append(DuoEvent(payload: .install(InstallEvent(
             appID: result.app.id,
             appName: result.app.name,
             bundleID: result.app.bundleID,
             fromVersion: result.app.shortVersion,
             toVersion: result.remote?.displayVersion,
-            sourceName: result.remote?.sourceName,
-            bytes: bytes,
             // Several builds can ship under one marketing version — Surge put four
             // releases out as "6.9.0" — and the row reads "6.9.0 → 6.9.0" without
             // these. Both sides are measured off the same bundle, one before the
             // install and one after.
             fromBuild: fromBuild,
             toBuild: toBuild,
-            downloadKind: usedDelta ? .delta : .full
-        )
+            sourceName: result.remote?.sourceName,
+            bytes: bytes,
+            downloadKind: usedDelta ? .delta : .full,
+            applied: applied))))
+        await eventStore.flush()
         await refreshTrafficStats()
     }
 
@@ -1529,7 +1625,11 @@ final class AppListModel {
                 guard let self else { return }
                 self.changelogState[key] = .loaded(cached)
             }
-            let fresh = await ChangelogService.load(recipe, version: targetVersion)
+            // Attributed like a check is: release notes are fetched *for* an
+            // app, and the log's app column is the only thing that says which.
+            let fresh = await RequestAttribution.withApp(result.app.id) {
+                await ChangelogService.load(recipe, version: targetVersion)
+            }
             // A concurrent invalidate (app updated on disk) cancels this task and
             // clears the key; bail rather than resurrect stale notes or clobber the
             // task slot a fresh load may have installed.
@@ -1621,7 +1721,9 @@ final class AppListModel {
                     // fan out one fetch per recipe-backed app at once. Disk hits above
                     // skip the gate; only genuine network fetches queue through it.
                     await Self.prewarmNetworkGate.wait()
-                    changelog = await ChangelogService.load(recipe, version: targetVersion)
+                    changelog = await RequestAttribution.withApp(result.app.id) {
+                        await ChangelogService.load(recipe, version: targetVersion)
+                    }
                     await Self.prewarmNetworkGate.signal()
                     fetched = changelog != nil
                 }
@@ -1634,7 +1736,7 @@ final class AppListModel {
                 if fetched { self.changelogRevalidated.insert(key) }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
-                    self.prewarmImages(in: changelog)
+                    self.prewarmImages(in: changelog, for: result.app.id)
                 } else {
                     // Network miss during pre-warm: settle on `.failed` so the pane
                     // shows the web-view fallback rather than stranding on the spinner.
@@ -1655,7 +1757,7 @@ final class AppListModel {
     /// the instant the user opens it, not streamed in on appear. Fetches the bytes
     /// (disk-first via `ImageStore`) and decodes into the main-actor memory cache.
     /// Skips URLs already decoded in memory; cheap and idempotent.
-    private func prewarmImages(in changelog: Changelog) {
+    private func prewarmImages(in changelog: Changelog, for appID: String?) {
         let urls = changelog.entries
             .flatMap(\.content)
             .compactMap { block -> URL? in
@@ -1666,7 +1768,8 @@ final class AppListModel {
             // Detached so the NSImage decode in `store` runs off the main actor —
             // prewarming several full-res WeChat screenshots shouldn't hitch the UI.
             Task.detached(priority: .utility) {
-                guard let data = await ImageStore.shared.data(for: url) else { return }
+                guard let data = await ImageStore.shared.data(for: url, appID: appID)
+                else { return }
                 ImageMemoryCache.shared.store(data, for: url)
             }
         }

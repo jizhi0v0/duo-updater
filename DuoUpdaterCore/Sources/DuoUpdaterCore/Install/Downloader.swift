@@ -140,15 +140,50 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// triggers.
     private var pendingError: Error?
 
+    /// What the request ledger should call these bytes. Every current caller is
+    /// installing an app; carried as a parameter rather than hard-coded so a route
+    /// that downloads something else through this class has to say so.
+    private let ledgerPurpose: RequestPurpose
+    private let store: EventStore
+
     init(
         destinationDir: URL,
         configuration: URLSessionConfiguration = .default,
+        purpose: RequestPurpose = .install,
+        store: EventStore = .shared,
         onProgress: @escaping @Sendable (Double) -> Void
     ) {
         self.destinationDir = destinationDir
         self.onProgress = onProgress
         self.configuration = configuration
+        self.ledgerPurpose = purpose
+        self.store = store
         super.init()
+    }
+
+    /// File the transfer with the request ledger.
+    ///
+    /// Separate from `_bytesDownloaded`, which counts body bytes and becomes the
+    /// `install` event the Traffic window reads — the number the user sees against
+    /// an app. This one records the same transfer as *network activity*: per host,
+    /// including every redirect hop and the request/response headers. The two
+    /// answer different questions and are allowed to differ, which is why both are
+    /// kept rather than one being derived from the other. A resumed transfer
+    /// reports one transaction per attempt here, which is what actually happened.
+    ///
+    /// Unlike `URLSession.updates`, this session's tasks are delegate-driven, so
+    /// the callback would arrive either way; it is implemented here rather than via
+    /// a per-task delegate only because `self` is already the delegate.
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        didFinishCollecting metrics: URLSessionTaskMetrics
+    ) {
+        let events = RequestMetricsRecorder.events(
+            from: metrics, task: task, purpose: ledgerPurpose, appID: attributedApp)
+        guard !events.isEmpty else { return }
+        store.stage(events.map {
+            DuoEvent(date: $0.responseEnd ?? $0.fetchStart ?? Date(), payload: .request($0))
+        })
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.
@@ -157,6 +192,16 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// sit behind a WAF that only serves the file to browser-like requests (e.g.
     /// Oray's `dw.oray.com` requires a `Referer`; without it you get an anti-bot
     /// JS challenge page instead of the dmg). They override the default UA.
+    /// Which app this download is for, captured when `download` is called.
+    ///
+    /// Behind `bytesLock` for the same reason `_bytesDownloaded` is: it is
+    /// written on the caller's task and read on the session's delegate queue.
+    private var _attributedApp: String?
+    private var attributedApp: String? {
+        get { bytesLock.withLock { _attributedApp } }
+        set { bytesLock.withLock { _attributedApp = newValue } }
+    }
+
     func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {
         // Enforce TLS before a single byte moves: every installer routes through
         // here, so this one gate covers Sparkle, Vendor, GitHub, and pkg
@@ -164,6 +209,14 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // the later signature gates, so we refuse it outright.
         try SecureScheme.requireSecureDownload(url)
         bytesLock.withLock { _bytesDownloaded = 0 }
+        // Read here, in the calling task, and stored for the metrics callback —
+        // which runs on the session's delegate queue, outside this task's tree,
+        // where the task-local reads back as its default. This is the same trap
+        // `RequestMetricsRecorder` documents; the difference is that this class
+        // is its own session delegate rather than going through `countedData`,
+        // so it has to do the capture itself. Without it the biggest rows in the
+        // log — the installers — are the only ones with no app against them.
+        attributedApp = RequestAttribution.appID
 
         // Local files (only ever `file://` in tests) copy straight across: no
         // network, no range, no retry — and the byte count comes from the file

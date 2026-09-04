@@ -1019,7 +1019,8 @@ public struct VendorProbeSource: UpdateSource {
             if attempt > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(attempt) * 700_000_000)
             }
-            guard let (_, response) = try? await session.data(for: request("HEAD", range: false)),
+            guard let (_, response) = try? await session.countedData(
+                for: request("HEAD", range: false), purpose: .versionCheck),
                   let http = response as? HTTPURLResponse
             else { lastStatus = nil; continue }
             lastStatus = http.statusCode
@@ -1236,7 +1237,7 @@ public struct VendorProbeSource: UpdateSource {
                 request.timeoutInterval = 15
                 request.cachePolicy = URLRequest.versionFeedCachePolicy
                 request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-                guard let (_, response) = try? await session.data(for: request),
+                guard let (_, response) = try? await session.countedData(for: request, purpose: .versionCheck),
                       let http = response as? HTTPURLResponse
                 else { lastStatus = nil; continue }
                 lastStatus = http.statusCode

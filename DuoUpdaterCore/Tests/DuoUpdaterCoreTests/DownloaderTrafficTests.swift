@@ -300,6 +300,62 @@ struct DownloaderTrafficTests {
         #expect(RangeResumeServer.header("Range", in: server.requests[1]) == "bytes=\(Self.resumeDropAt)-")
     }
 
+    /// The installer download also lands in the event store.
+    ///
+    /// `bytesDownloaded` above and this are two different accounts of one
+    /// transfer and are *supposed* to disagree: that one is body bytes for the
+    /// per-app ``TrafficStore``, this one is network activity per host with
+    /// headers and every attempt included. Pinned because the store's whole claim
+    /// is that it sees all of our traffic, and the installer bytes are the largest
+    /// part of it — a `Downloader` that quietly stopped reporting would leave the
+    /// summary looking plausible and reading low by two orders of magnitude.
+    @Test func downloaderFilesTheTransferInTheEventStore() async throws {
+        let body = Self.resumeBody
+        let server = try RangeResumeServer(body: body, first: .truncated(at: Self.resumeDropAt))
+        defer { server.stop() }
+        let workDir = try makeWorkDir("events")
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("events-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(at: storeURL.deletingLastPathComponent()
+                    .appendingPathComponent(storeURL.lastPathComponent + suffix))
+            }
+        }
+        let store = EventStore(fileURL: storeURL, flushEventCount: 1,
+                               flushDelay: .milliseconds(10))
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
+        let downloader = Downloader(destinationDir: workDir, store: store) { _ in }
+        // Inside an attribution scope, because the installers are the biggest
+        // rows in the log and this class is the one path that does NOT go
+        // through `countedData`: it is its own session delegate, and the metrics
+        // callback runs on the delegate queue where the task-local reads back as
+        // nil. It captures the value in `download` instead — silently, if that
+        // capture is ever dropped, which is what this asserts.
+        try await RequestAttribution.withApp("/Applications/Amp.app") {
+            _ = try await downloader.download(url)
+        }
+
+        // Both attempts, since both really crossed the network.
+        for _ in 0..<100 {
+            if await store.appendedCount >= 2 { break }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        await store.flush()
+        let events = await store.events(EventQuery(limit: 100)).compactMap(\.request)
+        #expect(events.count == 2)
+        #expect(events.allSatisfy { $0.purpose == .install })
+        #expect(events.allSatisfy { $0.host == "127.0.0.1" })
+        #expect(events.allSatisfy { $0.appID == "/Applications/Amp.app" },
+                "the download rows must name the app they were for")
+        // And the rollup the events fed, in the same transaction: headers on top
+        // of the body, and never less than it.
+        let total = await store.totals().totals.first
+        #expect((total?.bytesReceived ?? 0) > Int64(body.count))
+    }
+
     // MARK: - #225: a 206 is only a resume if its Content-Range says so
 
     /// The parser the 206 branch stands on. The first six rows are what real

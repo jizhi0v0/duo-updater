@@ -615,8 +615,8 @@ struct MenuContentView: View {
             .font(.caption)
             .help("Release Log — when the apps you track shipped each version")
             Button {
-                openWindow(id: TrafficWindowView.windowID)
-                model.surfaceWindow(sceneID: TrafficWindowView.windowID)
+                openWindow(id: NetworkWindowView.windowID)
+                model.surfaceWindow(sceneID: NetworkWindowView.windowID)
             } label: {
                 Image(systemName: "chart.bar")
             }
@@ -645,7 +645,7 @@ struct MenuContentView: View {
     }
 
     private var footerTrafficHelp: String {
-        let title = String(localized: "Download Traffic — what keeping these apps updated has cost")
+        let title = String(localized: "Network — what keeping these apps updated has cost, and every request behind it")
         guard let month = model.trafficSummary.calendarMonths(1).last, month.bytes > 0 else {
             return title
         }

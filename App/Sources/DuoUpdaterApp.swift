@@ -56,8 +56,8 @@ struct DuoUpdaterApp: App {
         // The download ledger — how much bandwidth updating this machine has cost,
         // by app and by month. Aggregate data, so it gets its own window next to
         // the Release Log rather than living inside the app-centric workbench.
-        Window("Download Traffic", id: TrafficWindowView.windowID) {
-            TrafficWindowView(model: model)
+        Window("Network", id: NetworkWindowView.windowID) {
+            NetworkWindowView(model: model)
         }
         // Wide by default: the header is a four-column stat strip and every row
         // carries a name, a proportion bar, and three right-aligned figures — at

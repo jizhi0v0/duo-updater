@@ -49,14 +49,21 @@ actor ImageStore {
     /// Image bytes for `url`: disk hit, else download (via the shared update session,
     /// whose private cache also absorbs a repeat), persist, and return. nil on any
     /// network/decoding failure.
-    func data(for url: URL) async -> Data? {
+    /// - Parameter appID: whose release notes referenced this image. Passed in
+    ///   rather than read from a task-local because the fetch runs in a detached
+    ///   `Task` that a caller's attribution scope would not reach — these images
+    ///   are the largest thing the changelog pulls (6.5 MB on one Raycast note),
+    ///   and an unattributed row that size is the one people ask about.
+    func data(for url: URL, appID: String? = nil) async -> Data? {
         if let onDisk = try? Data(contentsOf: fileURL(for: url)) { return onDisk }
         if let task = inflight[url] { return await task.value }
         let task = Task<Data?, Never> { [directory] in
             var request = URLRequest(url: url)
             request.timeoutInterval = 15
-            guard let (data, response) = try? await URLSession.updates.countedData(
-                    for: request, purpose: .changelogImage),
+            guard let (data, response) = try? await RequestAttribution.withApp(appID, operation: {
+                    try await URLSession.updates.countedData(
+                        for: request, purpose: .changelogImage)
+                  }),
                   let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   NSImage(data: data) != nil   // only cache things that actually decode
             else { return nil }

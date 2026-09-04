@@ -5,14 +5,17 @@ import DuoUpdaterCore
 /// The download ledger: how much bandwidth keeping this machine up to date has
 /// actually cost, which apps spent it, and on which version transitions.
 ///
-/// Its own window, alongside the Release Log and What's New, because the data is
-/// aggregate — a cross-app, cross-time account. It previously lived as a per-app
-/// "lens" inside the workbench detail pane, which meant you had to pick an app
-/// before you could see anything, and then only saw that app's raw byte counts.
-/// The questions people actually ask ("what did updates cost me", "which app is
-/// the hog", "more or less than last month") all need the whole set at once.
-struct TrafficWindowView: View {
-    static let windowID = "traffic"
+/// One of the two tabs in ``NetworkWindowView``, alongside the request log. The
+/// two are the same question at different altitudes — this counts the file that
+/// landed on disk, that one counts what crossed the socket — which is why they
+/// share a window instead of being a window and a pane somewhere else.
+///
+/// The data is aggregate: a cross-app, cross-time account. It once lived as a
+/// per-app "lens" in the workbench detail pane, which meant picking an app
+/// before seeing anything, and then seeing only that app's byte count. The
+/// questions people actually ask ("what did updates cost me", "which app is the
+/// hog", "more or less than last month") all need the whole set at once.
+struct TrafficLedgerPane: View {
 
     @Bindable var model: AppListModel
 
@@ -47,7 +50,6 @@ struct TrafficWindowView: View {
                 ledger
             }
         }
-        .frame(minWidth: 560, minHeight: 460)
         // An app deleted or renamed since the last recorded download moves between
         // the present and removed groups. Nothing else re-reads the log, so without
         // this the split would only refresh after the next install.
@@ -483,9 +485,9 @@ private struct TrafficRow: View {
                     if let source = event.sourceName {
                         Text(source)
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(TrafficWindowView.color(forSource: source))
+                            .foregroundStyle(TrafficLedgerPane.color(forSource: source))
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(TrafficWindowView.color(forSource: source).opacity(0.13),
+                            .background(TrafficLedgerPane.color(forSource: source).opacity(0.13),
                                         in: RoundedRectangle(cornerRadius: 4))
                     }
                     if let evidence = stat.deltaEvidence(for: event) {

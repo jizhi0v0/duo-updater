@@ -27,6 +27,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
 
+**Audacity now shows the mark saying what it is built with.** It starts through a small launcher that hands off to the real program beside it, and the mark was being read from the launcher, which links nothing at all.
+
 **Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
 
 ## 0.3.83

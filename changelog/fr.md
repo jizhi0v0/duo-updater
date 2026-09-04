@@ -10,6 +10,8 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **« Copy URL » échappe désormais l’adresse qu’elle vous donne.** Les chemins comportant une espace — ceux des téléchargements de Firefox, Thunderbird et Bartender, entre autres — étaient copiés tels quels : un navigateur le corrige, la ligne de commande non.
 
+**Audacity affiche désormais la marque indiquant avec quoi elle est conçue.** Elle démarre par un petit lanceur qui passe la main au vrai programme placé à côté, et la marque était lue sur le lanceur, qui ne lie rien du tout.
+
 **Sous le capot.** Un identifiant présent dans le chemin d’une adresse web est désormais retiré avant l’enregistrement de la requête, comme l’était déjà celui d’une chaîne de requête.
 
 ## 0.3.83

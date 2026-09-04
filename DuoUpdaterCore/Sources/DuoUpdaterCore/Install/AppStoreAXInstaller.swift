@@ -157,7 +157,7 @@ public actor AppStoreAXInstaller {
         let note: String
     }
 
-    public enum AXError: LocalizedError {
+    public enum AXError: LocalizedError, Equatable {
         case notTrusted
         case appStoreUnavailable
         case offerButtonNotFound
@@ -165,6 +165,13 @@ public actor AppStoreAXInstaller {
         case cancelled
         case needsManualConfirmation
         case timedOut
+        /// We gave up waiting because the app never quit — payload is its name.
+        /// Distinct from `timedOut` because the two ask the user for opposite things:
+        /// a timeout says "something went wrong, try again", while this one says the
+        /// one remaining step is theirs. It deliberately does not claim the download
+        /// has finished: the percentage we watch is the same reading for a download and
+        /// for a swap (`progressFraction` matches either), so we do not know which.
+        case appStillOpen(String)
 
         public var errorDescription: String? {
             switch self {
@@ -187,6 +194,8 @@ public actor AppStoreAXInstaller {
                 return "This app needs confirmation in the App Store (e.g. a subscription or purchase). Open the App Store and update it there."
             case .timedOut:
                 return "Timed out waiting for the App Store."
+            case .appStillOpen(let appName):
+                return "Quit \(appName) to finish this update. The App Store won’t replace an app while it is open, and it is still open."
             }
         }
     }
@@ -642,9 +651,10 @@ public actor AppStoreAXInstaller {
             // liveness signal at all the count is not measuring a stall, it is a blind
             // stopwatch — and a blind stopwatch set to 90s is the very bug above. So the
             // cap is picked per poll from whether a percentage is readable at that
-            // moment: ~90s of a number that stopped moving really is a dead swap, while
-            // no number to read at all buys the generous one. Both stay under the 6-min
-            // poll cap below, which remains the backstop.
+            // moment: 225 polls of a number that stopped moving really is a dead swap,
+            // while no number to read at all buys the generous one. Both stay under the
+            // 900-poll cap below, which remains the backstop. (Polls, not seconds — see
+            // `swapHasStalled` for what one actually costs.)
             if continued {
                 postContinueTicks += 1
                 // This poll's reading, kept in a local: whether a percentage is readable
@@ -654,12 +664,17 @@ public actor AppStoreAXInstaller {
                 // on those would put a large region-locked app back under the 90s cap for
                 // the rest of a swap it can no longer report on.
                 let reading = installProgress(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
+                // The app being open is why the number is allowed to stand still, so
+                // the watchdog is told rather than left to read a frozen wait as a
+                // dead swap (see `swapWatchdog`).
+                let stillOpen = bundleID.map { isRunning($0) } ?? false
                 let watch = Self.swapWatchdog(
-                    progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks)
+                    progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks,
+                    appRunning: stillOpen)
                 lastInstallProgress = watch.last
                 stalledTicks = watch.stalledPolls
                 if Self.swapHasStalled(stalledPolls: stalledTicks, progressReadable: reading != nil) {
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap \(reading != nil ? "stalled ~90s on a frozen percentage" : "unreadable and silent ~5min", privacy: .public) (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap \(reading != nil ? "stalled 225 polls on a frozen percentage" : "unreadable and silent 750 polls", privacy: .public) (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(stillOpen))")
                     throw AXError.timedOut
                 }
             }
@@ -896,8 +911,11 @@ public actor AppStoreAXInstaller {
             // inside human reaction time for noticing an answer given in App Store.
             try await Task.sleep(for: .milliseconds(askedToQuit ? 1_500 : 400))
         }
-        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress))")
-        throw AXError.timedOut
+        // What a spent budget means depends on what is still true — see
+        // `exhaustedBudgetError`.
+        let stillOpen = bundleID.map { isRunning($0) } ?? false
+        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
+        throw Self.exhaustedBudgetError(appName: appName, continued: continued, appRunning: stillOpen)
     }
 
     /// Bring App Store to the front. Used only at the final swap step (after the user
@@ -948,9 +966,25 @@ public actor AppStoreAXInstaller {
     /// then wait up to ~12s for it to actually exit. Called after the user confirms the
     /// "Close this app to update" sheet: a backgrounded App Store presses Continue but
     /// doesn't reliably bring the app down to complete the swap, so we deliver the quit
-    /// it's waiting for. Graceful only — if the app puts up a save prompt and won't
-    /// exit, we leave it (the install then times out) rather than force-killing unsaved
-    /// work. App Store, seeing the app gone, swaps the new build in on its own.
+    /// it's waiting for. Graceful only — if the app won't exit we leave it rather than
+    /// force-killing unsaved work. App Store, seeing the app gone, swaps the new build
+    /// in on its own. An app that ignores our quit is not a failed install, just one
+    /// whose last step is the user's, so the caller keeps watching (`swapWatchdog`
+    /// stops counting a parked percentage while the app is open) and, if the poll cap
+    /// arrives with it still up, ends by asking for the quit by name
+    /// (`AXError.appStillOpen`) instead of reporting a timeout.
+    ///
+    /// It does **not** follow that the store waits indefinitely. The Spark measurement
+    /// above is the counter-example — a backgrounded App Store parked the sheet and
+    /// never swapped even once the app was gone — and on 2026-09-04 23:37 this same
+    /// WhatsApp update reverted its button to "Update" with the app still up. What we
+    /// can say is that the store did not act while the app was open in either run; the
+    /// watchdog is built so that a store which drops the swap says so by having no
+    /// percentage left to read, and that reading still counts.
+    ///
+    /// Measured 2026-09-05: WhatsApp ignored `terminate()` for the full 12s with no
+    /// save prompt behind it (System Events reported one ordinary window), stayed up
+    /// two more minutes, and the swap completed 14s after the user quit it by hand.
     private func terminateAndWait(bundleID: String, appName: String) async {
         for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
             app.terminate()
@@ -962,7 +996,7 @@ public actor AppStoreAXInstaller {
             }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        Log.install.error("appstore-ax: \(appName, privacy: .public) won't quit within 12s (likely a save prompt) — leaving it; install may time out")
+        Log.install.error("appstore-ax: \(appName, privacy: .public) won't quit within 12s — leaving it; the swap waits on the user now")
     }
 
     /// Parse a fraction (0…1) out of an offer-button title like "80% loaded" or
@@ -994,17 +1028,67 @@ public actor AppStoreAXInstaller {
         return (onScreen && !stillIgnoring, stillIgnoring)
     }
 
-    /// One poll of the swap watchdog, as a pure step so the rule that matters is
-    /// assertable: **movement resets the count**. A swap that keeps reporting new
-    /// percentages can run as long as it needs; only one that goes quiet accumulates.
+    /// One poll of the swap watchdog, as a pure step so the rules that matter are
+    /// assertable: **movement resets the count**, and **a percentage parked while the
+    /// app is still open doesn't advance it**. A swap that keeps reporting new
+    /// percentages can run as long as it needs; only one that goes quiet with nothing
+    /// left to wait for accumulates.
+    ///
+    /// The second rule is what the count was missing. App Store parks the swap at a
+    /// fixed percentage until the app closes — that number is frozen *because we are
+    /// waiting*, not because the swap died, so counting it measures the user's
+    /// decision instead of the store's liveness. Measured end to end 2026-09-05
+    /// (WhatsApp 26.34.72 → 26.34.74): Continue at 01:35:22; the app ignored our
+    /// graceful quit and was still up at 01:35:40; the button sat at 80%; at 01:37:43
+    /// the counter — which had been running the whole time the app was open — hit its
+    /// cap and we threw `.timedOut`, our own line reporting the app already gone. App
+    /// Store then finished on its own: installing phase from 01:37:50, the new build
+    /// on disk at 01:37:54, eleven seconds after we called it a failure.
+    ///
+    /// How much headroom the freeze buys is the interval between the quit and the
+    /// throw, and **that is the one number the logs do not hold**: appstoreagent saw
+    /// the process go `none-NotVisible` at 01:37:40.197, but nothing records when the
+    /// user pressed ⌘Q. What can be said is that the 225 counted polls all fell inside
+    /// the window the app was open, and that the swap needed 14 s from 01:37:40 to
+    /// land — comfortably inside a count that starts from zero at the quit.
+    ///
+    /// The freeze is deliberately narrow: it needs a percentage that is **parked**, not
+    /// merely an app that is open. No reading at all keeps counting exactly as before,
+    /// which matters in two places. The Updates-list route reads nil on every poll once
+    /// the row leaves the list, so freezing there would rest on no measurement — and it
+    /// is not a hidden-preference route: a region-locked app takes it whatever the
+    /// user's update strategy. And a store that *drops* a pending swap says so by
+    /// reverting the button to "Update" (observed 2026-09-04 23:37, WhatsApp, app still
+    /// running) — a reading that parses as no percentage. Freezing on nil would have
+    /// reclassified the one signal that says "nothing is coming" as "still waiting".
     ///
     /// - Parameters:
     ///   - progress: this poll's reading, or nil when the button shows no percentage.
     ///   - last: the previous reading, so an unchanged number counts as no movement.
-    static func swapWatchdog(progress: Double?, last: Double?, stalledPolls: Int)
+    ///   - appRunning: whether the app being updated is still open. A percentage parked
+    ///     on the same number while it is counts as nothing at all; the poll cap in
+    ///     `driveToCompletion` stays the backstop for an app that never quits.
+    static func swapWatchdog(progress: Double?, last: Double?, stalledPolls: Int, appRunning: Bool)
     -> (last: Double?, stalledPolls: Int) {
-        guard let progress, progress != last else { return (last, stalledPolls + 1) }
-        return (progress, 0)
+        guard let progress else { return (last, stalledPolls + 1) }
+        guard progress == last else { return (progress, 0) }
+        return (progress, appRunning ? stalledPolls : stalledPolls + 1)
+    }
+
+    /// Which failure a spent poll budget is, read off what is true when it runs out.
+    ///
+    /// Kept pure and separate for the same reason as the watchdog rules beside it: the
+    /// choice is a *statement to the user*, and it is made in a loop nothing can call.
+    ///
+    /// Once the stall counter stops running while the app is open, the only way to
+    /// spend the full 6 minutes after Continue is an app that never quit — App Store
+    /// holds the swap for exactly as long as that takes. That is not a timeout, it is
+    /// a finished download waiting on one keystroke, so it gets a message that names
+    /// the app and says so. Before Continue the budget can run out for the ordinary
+    /// reasons (a download that never finished, a press that never took) and those
+    /// keep the plain timeout, whether or not the app happens to be open.
+    static func exhaustedBudgetError(appName: String, continued: Bool, appRunning: Bool) -> AXError {
+        continued && appRunning ? .appStillOpen(appName) : .timedOut
     }
 
     /// Whether the post-Continue swap should be abandoned, expressed over *stalled*
@@ -1015,14 +1099,22 @@ public actor AppStoreAXInstaller {
     ///
     ///   * `progressReadable` — App Store is showing a percentage right now, so the count
     ///     really is measuring a stall: the number is there and it has stopped moving.
-    ///     ~90s of that (225 polls at 400ms) is a dead swap.
+    ///     225 polls of that is a dead swap.
     ///   * otherwise — there is no liveness signal at all and the count is a blind
     ///     stopwatch, not a stall. That is the Updates-list path's normal state: the row
     ///     leaves the list as it installs, so there is no button left to read a
     ///     percentage off (see `installProgress`). A blind 90s is exactly the flat cap
-    ///     that failed Word (2.73 GB, still installing at 66s), so give it ~5min (750
-    ///     polls) instead — still inside `driveToCompletion`'s 6-min poll cap, which
-    ///     stays the backstop.
+    ///     that failed Word (2.73 GB, still installing at 66s), so give it 750 polls
+    ///     instead — still inside `driveToCompletion`'s 900-poll cap, which stays the
+    ///     backstop.
+    ///
+    /// ⚠️ **These are polls, not seconds, and the two are not the 400 ms apart the sleep
+    /// suggests.** Each poll walks the AX tree two or three times. Measured on the run
+    /// of 2026-09-05: 225 polls took 129 s (01:35:34.304 → 01:37:43.441), i.e. ~575 ms
+    /// each, so the three caps are ~130 s, ~7 min and ~8.5 min rather than the ~90 s,
+    /// ~5 min and ~6 min the comments here used to claim. The cadence varies with how
+    /// much of the tree is there to walk, so treat any second-figure as measured on one
+    /// run, not as a setting.
     ///
     /// The caller passes THIS poll's reading, not "did we ever see one". Latching would
     /// hand a swap the strict cap on the strength of one percentage read seconds before
@@ -1030,6 +1122,14 @@ public actor AppStoreAXInstaller {
     ///
     /// Generous on purpose in both directions: the cost of waiting too long is a slow
     /// row, the cost of giving up too early is calling a finished update a failure.
+    ///
+    /// Neither cap sees a poll where a *readable* percentage stood still with the app
+    /// still open — `swapWatchdog` does not advance the count there, because a store
+    /// waiting for the app to close is not a store that has stopped. What bounds that
+    /// wait is the 900-poll cap in `driveToCompletion`, which ends it by naming the app
+    /// rather than by timing out. The cost of the change is that wait: an app the user
+    /// never quits now holds the single App Store install gate for ~8.5 min instead of
+    /// ~2, against the previous cost of failing an update that was about to succeed.
     static func swapHasStalled(stalledPolls: Int, progressReadable: Bool) -> Bool {
         stalledPolls >= (progressReadable ? 225 : 750)
     }
@@ -1044,21 +1144,43 @@ public actor AppStoreAXInstaller {
         return Self.progressFraction(text)
     }
 
-    /// One offer-button reading with its digits blanked, so two readings that differ
-    /// only by how far the download has got compare equal.
+    /// One offer-button reading with its numbers rounded down to tens, so two readings
+    /// a fraction of a percent apart compare equal while two that are a tenth of the
+    /// download apart do not.
     ///
-    /// This is what keeps the probe's `.notice` lines to the transitions that carry
-    /// information. Numbers are the only thing dropped — a title going from "Loading"
-    /// to "3% loaded" still differs (the word changed), and so does a button appearing
-    /// or vanishing, which is the reading that mattered most in the bug this probe was
-    /// written for.
+    /// This is what keeps the probe's `.notice` lines to the readings that carry
+    /// information. It used to blank digits entirely, and that threw away the one thing
+    /// the swap watchdog reasons about: **movement**. The WhatsApp download of
+    /// 2026-09-05 01:33 left exactly one percentage reading on disk ("0.3% loaded"),
+    /// because every later reading had the shape of the first. The 80% the timeout line
+    /// reported that night appears nowhere else, and neither does the fact that it never
+    /// moved — precisely the evidence that tells a dead swap from a waiting one. (The
+    /// two runs of 2026-09-04, 21 and 26 readings, are **not** the other side of this
+    /// comparison: `readingShape` did not exist yet, so they measure having no dedupe
+    /// at all. Nothing was ever measured against the blanking version but the one line.)
     ///
-    /// Known cost: a child progress ring whose `AXValue` is the numeric fraction also
-    /// collapses, so the dump says a ring exists without ever saying it moved. The
-    /// movement signal we actually act on is the button's own title, which is logged
-    /// with its digits intact on every change of kind.
+    /// Tens rather than every reading: a download ticks the percentage ~2×/s, so the
+    /// digits-intact version put thousands of lines on disk for one large app. Eleven
+    /// buckets per download is the whole shape of the curve at a hundredth of the cost.
+    /// Anything at or above 100 shares the top bucket, which keeps a count or an id
+    /// that wanders into a reading from turning the key into a unique string per poll —
+    /// the same collapse in the other direction.
     static func readingShape(_ dump: String) -> String {
-        dump.replacingOccurrences(of: #"[0-9]+(\.[0-9]+)?"#, with: "N", options: .regularExpression)
+        guard let re = try? NSRegularExpression(pattern: #"[0-9]+(?:\.[0-9]+)?"#) else { return dump }
+        let ns = dump as NSString
+        var out = ""
+        var cursor = 0
+        for m in re.matches(in: dump, range: NSRange(location: 0, length: ns.length)) {
+            out += ns.substring(with: NSRange(location: cursor, length: m.range.location - cursor))
+            // Clamp before converting, not after: `Int(_: Double)` traps on a value
+            // past `Int64.max`, and a long enough digit run reaches it (a 20-digit id
+            // wandering into a title would crash the installer's actor). Clamping the
+            // Double first makes the conversion total.
+            let value = Double(ns.substring(with: m.range)) ?? 0
+            out += "N\(Int(min(max(value / 10, 0), 10)))"
+            cursor = m.range.location + m.range.length
+        }
+        return out + ns.substring(from: cursor)
     }
 
     /// A transient pre-progress state ("Loading", "Opening…") shown right after the

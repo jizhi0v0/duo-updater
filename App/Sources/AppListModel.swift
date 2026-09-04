@@ -4782,9 +4782,9 @@ final class AppListModel {
     /// popping back up. It's still there, just not in front.
     ///
     /// An app that is *still running* when this fires never got the quit it was
-    /// asked for: its own save prompt outlasted the installer's ~12s terminate wait
-    /// and then the ~90s post-Continue cap, so we're here on the timeout path with
-    /// the app still up. Reopening a running app is a no-op, and consuming the entry
+    /// asked for: it outlasted the installer's ~12s terminate wait and then the whole
+    /// post-Continue poll budget, so we're here on the failure path with the app still
+    /// up — as `AXError.appStillOpen`, which asks the user for that quit by name. Reopening a running app is a no-op, and consuming the entry
     /// here is what made the late answer an orphan: the user dismisses the prompt
     /// minutes later, the app finally quits, App Store swaps — and by then nothing
     /// remembers that this app is only closed because we asked it to be. So hand it

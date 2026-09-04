@@ -360,11 +360,7 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 - `make install` / `make cli` 用的是**稳定的 Developer ID 签名**,这不是洁癖:macOS 把 TCC 授权(完全磁盘访问、辅助功能、App 管理)绑在代码身份上,ad-hoc 签名每次重编 CDHash 都变,授权就掉。别为了图快改成 ad-hoc。
 - `make notarize` → `dist/DuoUpdater-notarized.zip`;`make release` 才推 GitHub Release。
 - **`make release` 会在发布前跑一遍 gate 测试,那些用例要真下厂商的包**(下完校验 sha512 和
-  Team ID),所以耗时取决于当时的下行带宽。2026-09-02 傍晚实测经本机 Surge 代理只有
-  **~48 KB/s**,一个 VLC 量级的包就要几十分钟。**这不是稳定现象**——用户说可能是晚高峰,
-  有时候不会这样,所以别把它写成"代理一定会掐"(相关但不等同:memory 里那条
-  「本机代理会掐大文件,小请求照过」)。发版前先量一下实际速度再决定是等、是绕开代理、
-  还是 `SKIP_TESTS=1`。
+  Team ID),所以耗时取决于当时的下行带宽。真赶时间可以 `SKIP_TESTS=1`。
 - 顺带:`SKIP_NOTARIZE=1` 会复用 `dist/DuoUpdater-notarized.zip`,脚本自己会校验 zip 里的
   版本号和即将打的 tag 一致,所以中途失败重跑不必重新公证(公证一次好几分钟)。
   发布顺序是 **先克隆仓库更新 appcast,后 `gh release create`**,所以卡在克隆那步时

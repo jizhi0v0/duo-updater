@@ -332,6 +332,28 @@ struct AppStoreOfferButtonTests {
         }
     }
 
+    /// The freeze needs a *parked percentage*, not merely an open app. With no reading
+    /// at all there is nothing parked to reason about: the Updates-list route reads nil
+    /// on every poll once the row leaves the list (and a region-locked app takes that
+    /// route whatever the update strategy), and a store that drops a pending swap says
+    /// so by reverting the button to "Update", which also parses as nil. Freezing there
+    /// would reclassify the one signal that says "nothing is coming" as "still waiting"
+    /// and leave only the 900-poll cap.
+    ///
+    /// Mutation: widen the freeze back to `guard let progress, progress != last else {
+    /// return (last, appRunning ? stalledPolls : stalledPolls + 1) }` — red here.
+    @Test func anAppLeftOpenDoesNotFreezeACountWithNoReadingBehindIt() {
+        var last: Double?
+        var stalled = 0
+        for _ in 0..<750 {
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: nil, last: last, stalledPolls: stalled, appRunning: true)
+        }
+        #expect(stalled == 750)
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: false))
+        #expect(last == nil)
+    }
+
     /// No reading at all — normal right after Continue, before the install starts
     /// reporting — counts as no movement, so a swap that never starts still bails.
     @Test func pollsWithNoReadingCountAsStalled() {
@@ -353,9 +375,10 @@ struct AppStoreOfferButtonTests {
     /// which had run that whole time — hit its cap and threw. App Store then finished on
     /// its own, the new build on disk 11s after we called the update a failure.
     ///
-    /// Mutation: drop `appRunning ? stalledPolls :` from `swapWatchdog` — red here on
-    /// three expectations, and the second half still holds it honest the other way
-    /// (freezing unconditionally is `aFrozenPercentageCountsAsStalled`'s mutation).
+    /// Mutations: drop `appRunning ? stalledPolls :` from `swapWatchdog`, and replace it
+    /// with `appRunning ? 0 :` — the first is red on four expectations here, the second
+    /// only on the "frozen, not reset" one, which is why that one exists. Freezing
+    /// unconditionally is `aFrozenPercentageCountsAsStalled`'s mutation.
     @Test func aFrozenPercentageIsNotAStallWhileTheAppIsStillOpen() {
         var last: Double? = 0.8
         var stalled = 0
@@ -364,6 +387,12 @@ struct AppStoreOfferButtonTests {
                 progress: 0.8, last: last, stalledPolls: stalled, appRunning: true)
         }
         #expect(stalled == 0, "a store waiting for the app to close has not stalled")
+        // Frozen, not reset. A count already earned with the app closed must survive the
+        // app coming back for a poll — otherwise a swap that really is dead is handed a
+        // fresh 225 every time a login item or the user reopens the app. Nothing else
+        // here separates the two: every other case starts the freeze from zero.
+        #expect(AppStoreAXInstaller.swapWatchdog(
+            progress: 0.8, last: 0.8, stalledPolls: 200, appRunning: true).stalledPolls == 200)
         #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
 
         // The app quits: now the number really is the store's to move, and the swap gets
@@ -383,8 +412,10 @@ struct AppStoreOfferButtonTests {
     /// quietly become "never count anything", which would leave the 6-min cap as the
     /// only bound on a swap that died with the app up.
     ///
-    /// Mutation: add `!appRunning` to the guard, so a running app skips the reset — red
-    /// here alone.
+    /// Mutation: `guard progress == last || appRunning else { return (progress, 0) }`,
+    /// so a running app skips the reset — red here alone. (`guard progress == last,
+    /// !appRunning` is a different mutation: it is red on the replay case instead,
+    /// because it makes a frozen-and-closed poll reset rather than count.)
     @Test func movementIsStillMovementWhileTheAppIsOpen() {
         let (last, stalled) = AppStoreAXInstaller.swapWatchdog(
             progress: 0.5, last: 0.4, stalledPolls: 17, appRunning: true)

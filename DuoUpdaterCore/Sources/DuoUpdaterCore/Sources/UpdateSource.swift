@@ -27,9 +27,22 @@ public protocol UpdateSource: Sendable {
     /// calls this, for every source, before the per-app fan-out — and,
     /// defensively, before `prewarm`; see that call site for why no source
     /// today makes that ordering observable. Default
-    /// is a no-op, so only a source that actually memoizes anything needs to
-    /// implement it (see `MacAppStoreSource.invalidateMemo`, which drops
-    /// `AppStorePageCache` entries).
+    /// is a no-op — but read that as "opt in", NOT as "every memoizing source
+    /// already implements this". An earlier version of this comment said the
+    /// latter and it was false.
+    ///
+    /// Implemented by `MacAppStoreSource`, which drops `AppStorePageCache`
+    /// entries. DELIBERATELY NOT implemented by `HomebrewCaskSource`, which
+    /// memoizes far harder: `HomebrewCaskCatalog.shared` holds a parsed index
+    /// with a SIX-hour TTL and short-circuits the request entirely, so a user
+    /// who reads a cask's release announcement can be told the old version for
+    /// up to six hours with no way to insist. That is a real hole and it is
+    /// left open on purpose: the index arrives as one blob, measured at
+    /// 2007 KB a fetch (`formulae.brew.sh`, 2026-09-05), so dropping it on
+    /// every per-row recheck — a path that also fires from FSEvents and
+    /// running-app changes — would cost more than this whole branch saves.
+    /// Closing it properly means fetching the single cask rather than the
+    /// index; nobody has built that.
     func invalidateMemo(for apps: [InstalledApp]) async
 }
 

@@ -126,9 +126,13 @@ public actor AppStorePageCache {
     /// there is no lookup answer sitting behind it to make a stale page
     /// harmless. So a user who reads a release announcement and presses Check
     /// Now would have been told the same old version for up to an hour, with no
-    /// way to insist. Before this cache existed every check re-fetched. Five of
-    /// the twenty Mac App Store apps on the machine this was measured on take
-    /// that route (2026-09-05).
+    /// way to insist. Before this cache existed every check re-fetched. The
+    /// machine this was measured on has 21 Mac App Store apps that scrape a
+    /// product page (counted 2026-09-05 off the event store, `select
+    /// count(distinct app_id) ... where host='apps.apple.com'`); an earlier
+    /// version of this sentence said twenty. How many of those take the
+    /// `kind == "software"` route specifically is UNVERIFIED — the events do
+    /// not record which branch of `resolve` ran.
     ///
     /// Called from the one remaining full-wipe path: a refresh the user asked
     /// for (`RefreshIntent.restartsChangelogs`), which is about to re-check
@@ -149,15 +153,30 @@ public actor AppStorePageCache {
     }
 
     /// Drop the cached entries for exactly these bundleIDs, so an explicit
-    /// per-row recheck (`AppListModel.recheckMany`) forces a live scrape for
-    /// the rows it actually re-checked without paying for every other App
-    /// Store app's page too — see `invalidateAll`'s doc comment for the
-    /// incident this replaced.
+    /// per-row recheck (`AppListModel.recheckMany`) scrapes live for the rows
+    /// it actually re-checked without paying for every other App Store app's
+    /// page too — see `invalidateAll`'s doc comment for the incident this
+    /// replaced.
+    ///
+    /// ⚠️ "Forces a live scrape" only absent an overlapping sweep. A scheduled
+    /// check that missed the cache for app X and is still awaiting X's page
+    /// when this runs will `storeVersion` a fresh entry afterwards, and the
+    /// recheck's own fan-out then reads it — so a recheck racing a sweep can
+    /// still be answered from a memo. The window is one page fetch. This is
+    /// not new (`invalidateAll` lost the same race) and closing it needs a
+    /// per-key generation counter checked in `storeVersion`, which nobody has
+    /// written; the guarantee is stated here so the next reader doesn't take
+    /// the absolute wording at face value.
     ///
     /// `keysByBundleID`'s own entries are left in place (only the store
-    /// entries they point at are cleared): the index is bounded by the number
-    /// of installed MAS apps, and keeping it means this doesn't depend on
-    /// `note` having run again since the last invalidation.
+    /// entries they point at are cleared), so this doesn't depend on `note`
+    /// having run again since the last invalidation. Nothing prunes that index
+    /// — not this, not `invalidateAll` — so its real bound is "every MAS
+    /// bundleID resolved since launch, times the storefronts probed for it"
+    /// (up to 8: the home store plus the 7 fallbacks), and an uninstalled app
+    /// stays in it for the life of the process. That is memory only, and
+    /// trivial at this scale, but it is not the "bounded by the number of
+    /// installed MAS apps" this comment used to claim.
     ///
     /// A bundleID with no noted keys (never scraped, or not a MAS app at all)
     /// is a harmless no-op. A Universal Purchase app can have two bundleIDs

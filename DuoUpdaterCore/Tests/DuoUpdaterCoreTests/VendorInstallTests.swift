@@ -137,11 +137,25 @@ import CryptoKit
     // when its identity is actually absent here. A machine that has the app must
     // go on being covered, or the exemption quietly deletes the coverage it was
     // meant to preserve.
+    // `localReads`, not `identities`. That property exists precisely so guards
+    // derive from ONE list — its own doc records that splitting the rollout track
+    // out of `identities` broke two guards the day it happened, and enumerating
+    // `identities` here would have made this the third. A track selector with no
+    // fallback answers `.notApplicable("no rollout track at …")` the same way.
+    //
+    // The file being absent is NOT on its own the production rule. Production asks
+    // `identity.resolve(endpoint)`, which stands a declared `fallback` in for an
+    // unreadable value — so an identity with a fallback is fully addressable on a
+    // machine that has no such file, and exempting it here would hand a genuine
+    // vendor breakage a free pass. Neither identity-bearing recipe declares a
+    // fallback today, which is precisely why the predicate has to say so rather
+    // than encode today's registry.
     let unaddressableKeys = Set(
         byKey.values
             .filter { recipe in
-                !recipe.identities.isEmpty
-                    && recipe.identities.allSatisfy { $0.value() == nil }
+                let reads = recipe.localReads
+                return !reads.isEmpty
+                    && reads.allSatisfy { $0.value() == nil && $0.fallback == nil }
             }
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 

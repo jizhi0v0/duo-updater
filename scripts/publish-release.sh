@@ -283,8 +283,18 @@ PY
     while IFS= read -r d; do
         [ -n "$d" ] && delta_assets+=("$d")
     done < <(find "$appcast_archives_dir" -maxdepth 1 -name '*.delta' -type f | sort)
+    # Count the PATCHES, not the archives. The gate further up asks how many
+    # archives went in, which is the input to this question and not the question:
+    # `generate_appcast` skips a delta that is not meaningfully smaller, that it
+    # cannot sign, or that failed to build — printing a line and carrying on. Six
+    # archives in and zero patches out is exactly as silent as the one-archive
+    # case that shipped 0.3.84 with no patches at all.
     if [ ${#delta_assets[@]} -gt 0 ]; then
         say "Appcast: ${#delta_assets[@]} binary patches to upload alongside the archive"
+    elif [ "$count" -ge 2 ] && [ "${ALLOW_NO_DELTAS:-0}" != "1" ]; then
+        die "$count archives were available but generate_appcast produced no binary
+  patches, so every user would download the full archive. Look for its own
+  \"skipping delta\" lines above, or ALLOW_NO_DELTAS=1 to publish anyway."
     fi
 
     # What the regenerated feed has to look like. `$appcast_clone_dir/appcast.xml`
@@ -514,6 +524,9 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     say "SKIP_TESTS=1 — NOT running the test suite before publishing."
 else
     say "Running tests before publishing (SKIP_TESTS=1 to override)"
+    # Not the only gate any more — .github/workflows/ci.yml runs this same
+    # `make test` on every pull request — but still the only one that runs against
+    # the exact tree being published.
     # `make test`, not one package: this ran only DuoUpdaterCore, so a red CLI
     # suite published. Output is NOT swallowed — some of these tests hit the
     # network, and swallowing makes "the network blipped" and "the suite is red"
@@ -545,11 +558,25 @@ if [ -n "${CI_RUN_ID:-}" ]; then
     # here specifically — a self-hosted runner running as the desktop user is why
     # this repository deleted its previous workflow when it went public.
     say "Verifying the artifact's build provenance"
+    # `--source-digest` is the one that ties the binary to THIS release.
+    # `--signer-workflow` constrains the workflow path and nothing else: it does
+    # not look at the ref or the commit, so without this line an artifact built
+    # from any branch, at any commit, passes. That is not hypothetical — the first
+    # end-to-end run of this path verified an artifact built from
+    # `refs/heads/claude/ci-release-provenance` at a commit that was not the
+    # release commit, and every gate was green.
+    #
+    # The version check further down does NOT cover this. It compares
+    # CFBundleShortVersionString and CFBundleVersion, so every commit between two
+    # version bumps is identical to it: it catches a stale version, never a
+    # different commit.
     gh attestation verify "$ci_zip" --repo "$RELEASE_REPO" \
         --signer-workflow "$RELEASE_REPO/.github/workflows/release-build.yml" \
+        --source-digest "$RELEASE_COMMIT" \
         --deny-self-hosted-runners \
-        || die "the artifact from run $CI_RUN_ID has no valid provenance from
-  $RELEASE_REPO/.github/workflows/release-build.yml — refusing to publish it."
+        || die "the artifact from run $CI_RUN_ID has no valid provenance for commit
+  $RELEASE_COMMIT from $RELEASE_REPO/.github/workflows/release-build.yml.
+  Run that workflow on the commit you are releasing, and use ITS run id."
 
     # `notarize.sh` did not run here, so its gates have not run either. They are
     # not optional just because a green workflow produced the file: this script is
@@ -560,9 +587,18 @@ if [ -n "${CI_RUN_ID:-}" ]; then
     ci_unpack="$ci_dir/unpacked"
     mkdir -p "$ci_unpack"
     ditto -x -k "$ci_zip" "$ci_unpack" || die "could not unpack $ci_zip"
-    ci_app="$(find "$ci_unpack" -maxdepth 1 -name '*.app' -type d | head -n 1)"
-    [ -n "$ci_app" ] || die "no .app inside the artifact from run $CI_RUN_ID"
-    ci_sig="$(codesign -dvv "$ci_app" 2>&1)"
+    # No `| head`: under `pipefail` a closed pipe turns a benign multi-match into a
+    # silent non-zero exit. Count first, then take one, so "more than one .app"
+    # gets a sentence instead of an unexplained death.
+    ci_apps="$(find "$ci_unpack" -maxdepth 1 -name '*.app' -type d)"
+    ci_app_count="$(printf '%s\n' "$ci_apps" | grep -c . || true)"
+    [ "$ci_app_count" -eq 1 ] || die "expected exactly one .app in the artifact from
+  run $CI_RUN_ID, found $ci_app_count."
+    ci_app="$ci_apps"
+    # `|| true`: `codesign -dvv` exits non-zero for a COMPLETELY unsigned bundle,
+    # and under `set -e` that kills the script here with no message at all — before
+    # the four gates below can say which one failed.
+    ci_sig="$(codesign -dvv "$ci_app" 2>&1 || true)"
     case "$ci_sig" in *"adhoc"*) die "the CI artifact is AD-HOC signed";; esac
     case "$ci_sig" in
         *"TeamIdentifier=$ci_team"*) ;;
@@ -571,6 +607,14 @@ if [ -n "${CI_RUN_ID:-}" ]; then
     case "$ci_sig" in
         *"flags=0x10000(runtime)"*) ;;
         *) die "the CI artifact does not have the hardened runtime enabled";;
+    esac
+    # The fourth gate, and the one this path was missing while its own comment
+    # claimed to re-apply "notarize.sh's own gates": a build carrying
+    # get-task-allow is debuggable, which is exactly what must not ship.
+    ci_ents="$(codesign -d --entitlements :- "$ci_app" 2>&1 || true)"
+    case "$ci_ents" in
+        *"com.apple.security.get-task-allow"*)
+            die "the CI artifact carries the get-task-allow entitlement";;
     esac
     xcrun stapler validate "$ci_app" >/dev/null 2>&1 \
         || die "the CI artifact is not stapled — Gatekeeper would need the network to admit it"
@@ -868,8 +912,11 @@ fi
 # 0.3.84: neither branch ran, and the safeguard written because this step had been
 # forgotten twice was itself silently absent. `git worktree list` names the main
 # tree first, which is the one with a sibling site checkout.
+# `|| true` for the same reason the line below it has one: this is a pipeline
+# assignment under `set -e`, so a failing `git worktree list` would end the script
+# silently, right after a successful publish — the shape this block exists to fix.
 main_tree="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
-    | awk '/^worktree /{print $2; exit}')"
+    | awk '/^worktree /{print $2; exit}' || true)"
 site_repo="${DUO_SITE_REPO:-${main_tree:-$REPO_ROOT}/../duo-updater-site}"
 if [ -d "$site_repo/.git" ]; then
     synced="$(git -C "$site_repo" log -1 --pretty=%s 2>/dev/null || true)"

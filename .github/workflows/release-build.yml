@@ -53,12 +53,24 @@ jobs:
           kc="$RUNNER_TEMP/duo-build.keychain-db"
           kcpass="$(uuidgen)"
           security create-keychain -p "$kcpass" "$kc"
+          # Recorded IMMEDIATELY, not at the end of this step. Everything below
+          # can fail — a wrong -P password, a `security` quirk — and by then the
+          # private key is already imported. Writing this last meant the
+          # always-run cleanup found DUO_CI_KEYCHAIN unset and never deleted the
+          # keychain, which is the "someone else's cleanup" this step refuses to
+          # rely on.
+          echo "DUO_CI_KEYCHAIN=$kc" >> "$GITHUB_ENV"
           # -lut 21600: do NOT let the keychain auto-lock partway through a build
           # that can run for tens of minutes. A mid-build lock shows up as a
           # codesign failure with nothing pointing at the cause.
           security set-keychain-settings -lut 21600 "$kc"
           security unlock-keychain -p "$kcpass" "$kc"
           printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          # `-P` puts the password in the process's argv, where anything else in
+          # the job can read it out of `ps` for the duration of the call. There is
+          # no stdin form, so the exposure is inherent to `security import`; it is
+          # noted rather than hidden, and the window is one command long on a
+          # single-tenant runner.
           security import "$RUNNER_TEMP/cert.p12" -k "$kc" \
             -P "${CERT_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security
           rm -f "$RUNNER_TEMP/cert.p12"
@@ -66,9 +78,12 @@ jobs:
           # and the job hangs until its timeout rather than failing.
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$kcpass" "$kc" >/dev/null
+          # Unquoted on purpose — the existing list must word-split into separate
+          # arguments. Safe while runner keychain paths contain no spaces, which
+          # is the only reason it is written this way.
+          # shellcheck disable=SC2046
           security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
           security default-keychain -s "$kc"
-          echo "DUO_CI_KEYCHAIN=$kc" >> "$GITHUB_ENV"
           # Names only, never the identity's private material.
           security find-identity -v -p codesigning "$kc" | sed 's/) .*(/) …(/'
 

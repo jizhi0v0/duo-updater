@@ -164,15 +164,15 @@ public actor VendorInstaller {
         _ result: UpdateResult,
         download: DownloadedUpdate,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) throws {
+    ) async throws {
         guard download.appliedPatch != nil else {
-            return try applyVerified(result, download: download, onStage: onStage)
+            return try await applyVerified(result, download: download, onStage: onStage)
         }
         // Any failure on the patch route is recoverable by taking the full archive,
         // which is always published alongside it; the coordinator retries on this
         // type alone, so a real gate failure on the full route still stops.
         do {
-            try applyVerified(result, download: download, onStage: onStage)
+            try await applyVerified(result, download: download, onStage: onStage)
         } catch {
             // A liveness gate (OS floor, architecture) fails identically on the
             // full archive, so re-downloading it spends the bytes to learn
@@ -187,7 +187,7 @@ public actor VendorInstaller {
         _ result: UpdateResult,
         download: DownloadedUpdate,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) throws {
+    ) async throws {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
         }
@@ -223,8 +223,13 @@ public actor VendorInstaller {
 
             // 3. Unpack the .app.
             onStage(.extracting)
-            newApp = try ArchiveExtractor.extractApp(
-                from: download.archiveURL, workDir: download.workDir)
+            // Off the cooperative pool: `extractApp` shells out and blocks on
+            // `errDone.wait()` and `waitUntilExit()`. See `offCooperativePool`.
+            let archive = download.archiveURL
+            let work = download.workDir
+            newApp = try await offCooperativePool {
+                try ArchiveExtractor.extractApp(from: archive, workDir: work)
+            }
             // 3b. Some vendors ship an installer stub with the app inside it —
             // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
             // first proven the stub is the vendor's: the nested archive sits under
@@ -235,12 +240,14 @@ public actor VendorInstaller {
             // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
             // including the id pin, then runs against the payload itself.
             if let nested = remote.nestedArchivePath {
-                try SignatureVerifier.verifyCodeSignature(appAt: newApp)
-                try SignatureVerifier.verifyTeamIdentifierMatch(
-                    installedApp: result.app.path,
-                    downloadedApp: newApp
-                )
-                newApp = try unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
+                let outer = newApp
+                let installed = result.app.path
+                try await offCooperativePool {
+                    try SignatureVerifier.verifyCodeSignature(appAt: outer)
+                    try SignatureVerifier.verifyTeamIdentifierMatch(
+                        installedApp: installed, downloadedApp: outer)
+                }
+                newApp = try await unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
             }
         }
 
@@ -249,40 +256,49 @@ public actor VendorInstaller {
         // same-vendor but different app (or a different channel sharing the Team)
         // from being swapped in over this exact install.
         onStage(.verifyingCodeSignature)
-        try SignatureVerifier.verifyCodeSignature(appAt: newApp)
-        try SignatureVerifier.verifyTeamIdentifierMatch(
-            installedApp: result.app.path,
-            downloadedApp: newApp
-        )
-        try SignatureVerifier.verifyBundleIdentifierMatch(
-            installedApp: result.app.path,
-            downloadedApp: newApp
-        )
-        // Gate 5 — and it is a build this Mac can launch. The download was chosen
-        // by filename, which cannot see inside a Mach-O; this reads the real
-        // slices, so a mis-named artifact is refused instead of installed.
-        try SignatureVerifier.verifyRunnableArchitecture(appAt: newApp)
-        // Gate 5b — and it is not a WORSE build than what's already here. Must run
-        // AFTER gate 5, not before: a package that is both unrunnable and a
-        // downgrade (arm64 host, no Rosetta, Intel-only download) has to fail
-        // with gate 5's "cannot launch" message, the true and more severe
-        // problem — gate 5b's "this would run translated" is only correct once
-        // gate 5 has already confirmed the download CAN launch here. Runs
-        // identically for both routes above (full archive and delta
-        // reconstruction) — `DeltaApplier.reconstruct` states plainly that its
-        // output "goes through exactly the same gates a downloaded archive
-        // does", and this is one of them; the patch is cut by the vendor and
-        // nothing here assumes its architecture set matches the baseline's.
-        try SignatureVerifier.verifyNoArchitectureDowngrade(
-            installedApp: result.app.path,
-            downloadedApp: newApp
-        )
-        // Gate 6 — and this Mac is not below the OS floor the bundle declares.
-        // Same shape of claim as gate 5 and the same blind spot behind it: the
-        // download was selected from what a source published, and most sources
-        // publish no OS requirement at all, so the artifact's own plist is the
-        // first place the answer exists.
-        try SignatureVerifier.verifyRunnableSystemVersion(appAt: newApp)
+        // One hop for the whole gate sequence, not six: each of these blocks its
+        // thread inside Security, and on a narrow cooperative pool that is what
+        // stops the runtime dead (#351). They still run in order, in the same
+        // order, on one queue — the ordering below is load-bearing and a hop per
+        // gate would have been six chances to reorder it by accident.
+        let app = newApp
+        let installed = result.app.path
+        try await offCooperativePool {
+            try SignatureVerifier.verifyCodeSignature(appAt: app)
+            try SignatureVerifier.verifyTeamIdentifierMatch(
+                installedApp: installed,
+                downloadedApp: app
+            )
+            try SignatureVerifier.verifyBundleIdentifierMatch(
+                installedApp: installed,
+                downloadedApp: app
+            )
+            // Gate 5 — and it is a build this Mac can launch. The download was chosen
+            // by filename, which cannot see inside a Mach-O; this reads the real
+            // slices, so a mis-named artifact is refused instead of installed.
+            try SignatureVerifier.verifyRunnableArchitecture(appAt: app)
+            // Gate 5b — and it is not a WORSE build than what's already here. Must run
+            // AFTER gate 5, not before: a package that is both unrunnable and a
+            // downgrade (arm64 host, no Rosetta, Intel-only download) has to fail
+            // with gate 5's "cannot launch" message, the true and more severe
+            // problem — gate 5b's "this would run translated" is only correct once
+            // gate 5 has already confirmed the download CAN launch here. Runs
+            // identically for both routes above (full archive and delta
+            // reconstruction) — `DeltaApplier.reconstruct` states plainly that its
+            // output "goes through exactly the same gates a downloaded archive
+            // does", and this is one of them; the patch is cut by the vendor and
+            // nothing here assumes its architecture set matches the baseline's.
+            try SignatureVerifier.verifyNoArchitectureDowngrade(
+                installedApp: installed,
+                downloadedApp: app
+            )
+            // Gate 6 — and this Mac is not below the OS floor the bundle declares.
+            // Same shape of claim as gate 5 and the same blind spot behind it: the
+            // download was selected from what a source published, and most sources
+            // publish no OS requirement at all, so the artifact's own plist is the
+            // first place the answer exists.
+            try SignatureVerifier.verifyRunnableSystemVersion(appAt: app)
+        }
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,
@@ -302,7 +318,9 @@ public actor VendorInstaller {
     /// containment check `ArchiveExtractor` makes about the bundle it returns: a
     /// registry string is not user input, but a `..` in one would otherwise reach
     /// anywhere on disk, and this is two steps upstream of a privileged swap.
-    private func unwrapNestedPayload(at relativePath: String, inside stub: URL, workDir: URL) throws -> URL {
+    private func unwrapNestedPayload(
+        at relativePath: String, inside stub: URL, workDir: URL
+    ) async throws -> URL {
         let nested = stub.appendingPathComponent(relativePath).standardizedFileURL
         let root = stub.standardizedFileURL.path
         guard nested.path.hasPrefix(root + "/"),
@@ -315,7 +333,15 @@ public actor VendorInstaller {
         // already unpacked and the payload it is unpacking now.
         let inner = workDir.appendingPathComponent("nested-payload", isDirectory: true)
         try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
-        return try ArchiveExtractor.extractApp(from: nested, workDir: inner)
+        // Off the cooperative pool, like the outer extraction: this reaches the
+        // same blocking `ArchiveExtractor.run`. The hop is here rather than at the
+        // call site because this method is actor-isolated and the containment
+        // checks above must keep running under that isolation.
+        let payload = nested
+        let dir = inner
+        return try await offCooperativePool {
+            try ArchiveExtractor.extractApp(from: payload, workDir: dir)
+        }
     }
 
     // MARK: - Checksum

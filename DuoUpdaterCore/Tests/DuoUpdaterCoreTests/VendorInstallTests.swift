@@ -146,16 +146,28 @@ import CryptoKit
     // The file being absent is NOT on its own the production rule. Production asks
     // `identity.resolve(endpoint)`, which stands a declared `fallback` in for an
     // unreadable value — so an identity with a fallback is fully addressable on a
-    // machine that has no such file, and exempting it here would hand a genuine
-    // vendor breakage a free pass. Neither identity-bearing recipe declares a
-    // fallback today, which is precisely why the predicate has to say so rather
-    // than encode today's registry.
+    // machine that has no such file, and exempting it for that would hand a
+    // genuine vendor breakage a free pass.
+    //
+    // ANY unaddressable read, not all of them. `resolveEndpoint` substitutes the
+    // reads in order and returns `.notApplicable` at the FIRST one that resolves
+    // to nil, so one such read decides the whole probe and the rest are never
+    // consulted. `allSatisfy` was the first version of this line and it was wrong
+    // in the direction that costs a green build: codex declares two reads, and the
+    // second one — the plan_type claim — carries `fallback: "unknown"` by design,
+    // so "every read is unaddressable" is false on a machine that has neither
+    // file. CI failed on exactly that (2026-09-05, run 33946637714:
+    // `com.openai.codex [stable] resolved no installer URL`) while the author's
+    // Mac, which has both files, stayed green — the same everyone-but-me shape
+    // this exemption exists to remove. Measured on both sides:
+    //
+    //   author's Mac : bootstrap.json value=SET fallback=nil |
+    //                  ~/.codex/auth.json value=SET fallback=unknown  → probed
+    //   hosted runner: both value=nil                                 → exempt
     let unaddressableKeys = Set(
         byKey.values
             .filter { recipe in
-                let reads = recipe.localReads
-                return !reads.isEmpty
-                    && reads.allSatisfy { $0.value() == nil && $0.fallback == nil }
+                recipe.localReads.contains { $0.value() == nil && $0.fallback == nil }
             }
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 

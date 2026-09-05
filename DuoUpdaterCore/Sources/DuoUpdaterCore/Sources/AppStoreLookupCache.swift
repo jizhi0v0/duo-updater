@@ -45,6 +45,29 @@ actor AppStoreLookupCache {
         self.now = now
     }
 
+    /// The batch `prewarm(_:)` started, so a reader can wait for it instead of
+    /// the whole scan waiting for it.
+    ///
+    /// `prewarm` used to be awaited to completion before `UpdateChecker`'s
+    /// per-app fan-out began, which put one iTunes timeout in front of every
+    /// GitHub and Sparkle row as well. Holding the task here lets the fan-out
+    /// start immediately and lets `lookup` — the only thing that actually needs
+    /// the answer — be the one that waits.
+    private var inFlight: Task<Void, Never>?
+
+    func register(_ task: Task<Void, Never>) { inFlight = task }
+
+    /// Wait for a registered batch, if one is still running.
+    ///
+    /// Cleared after the first await so a later scan cannot join a task from an
+    /// earlier one. Awaiting an already-finished task returns immediately, so
+    /// the common path costs an actor hop.
+    func awaitInFlight() async {
+        guard let inFlight else { return }
+        await inFlight.value
+        self.inFlight = nil
+    }
+
     func lookup(bundleID: String, region: String, lang: String?) -> MacAppStoreSource.LookupResult?? {
         let key = Key(bundleID: bundleID, region: region, lang: lang)
         guard let entry = store[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {

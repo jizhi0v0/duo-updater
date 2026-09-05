@@ -418,9 +418,11 @@ struct MacAppStorePageCacheTests {
                                        pageCache: AppStorePageCache())
         let app = Self.nativeMacApp(bundleID: bundleID)
 
+        // The count is checked AFTER the lookup, not between: `prewarm` returns
+        // once the batch is started, so counting here would be racing it. The
+        // assertion is the same one either way — one iTunes request in total,
+        // the batch, with the per-app lookup served from its answer.
         await source.prewarm([app])
-        #expect(ScriptedHTTP.count(matching: { $0.host == "itunes.apple.com" }) == 1)
-
         let remote = try await source.latestVersion(for: app)
         #expect(remote?.shortVersion == "1.5.0")
         #expect(ScriptedHTTP.count(matching: { $0.host == "itunes.apple.com" }) == 1)  // no new lookup request
@@ -530,7 +532,12 @@ struct MacAppStorePageCacheTests {
 
         let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
                                        pageCache: AppStorePageCache())
-        await source.prewarm([Self.nativeMacApp(bundleID: bundleID)])
+        // `prewarm` returns once the batch is STARTED, so drive a lookup to
+        // join it — which is what the fan-out does, and the only way a caller
+        // can observe the batch at all now that it is not awaited in place.
+        let app = Self.nativeMacApp(bundleID: bundleID)
+        await source.prewarm([app])
+        _ = try await source.latestVersion(for: app)
 
         let expected = MacAppStoreSource.storeLanguage(
             preferred: Locale.preferredLanguages, storefront: "us")
@@ -561,6 +568,50 @@ struct MacAppStorePageCacheTests {
         #expect(await cache.lookup(bundleID: "com.example.x", region: "us", lang: "en_us") == nil,
                 "an entry keyed on one language must not answer for another")
     }
+
+    /// `prewarm` must NOT wait for its own batch.
+    ///
+    /// `UpdateChecker` drains prewarm before the per-app fan-out, so anything
+    /// this call waits on is waited on by every GitHub, Sparkle and Homebrew row
+    /// too. With a 15 s request timeout that made an unreachable
+    /// itunes.apple.com strictly worse than not having the optimisation — the
+    /// one thing it must never be. The batch is registered instead, and
+    /// `lookup` joins it, so only the rows that would otherwise pay for their
+    /// own lookup pay its latency.
+    ///
+    /// Mutation run: awaiting the task inside `prewarm` (instead of registering
+    /// it) turns this red — `prewarm` no longer returns before the request
+    /// lands.
+    @Test func prewarmDoesNotBlockOnItsOwnBatch() async throws {
+        ScriptedHTTP.reset()
+        let bundleID = "com.example.nonblocking"
+        let gate = AsyncGate()
+        ScriptedHTTP.serve { request in
+            guard let url = request.url, url.host == "itunes.apple.com" else { return nil }
+            gate.markRequestStarted()
+            return (200, Self.lookupJSON(
+                version: "1.0", trackId: 5301, trackViewUrl: "not-a-product-url", bundleId: bundleID))
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        await source.prewarm([Self.nativeMacApp(bundleID: bundleID)])
+        // If `prewarm` awaited the batch, the request would necessarily have
+        // been served by now. Returning before it is the property under test.
+        #expect(!gate.requestFinishedBeforePrewarmReturned,
+                "prewarm waited for its own batch — the fan-out is blocked behind it again")
+    }
+
+    /// Records whether the scripted request had already been served at the
+    /// moment `prewarm` returned. A plain counter would race; this only ever
+    /// moves one way and is read after the fact.
+    final class AsyncGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var started = false
+        func markRequestStarted() { lock.lock(); started = true; lock.unlock() }
+        var requestFinishedBeforePrewarmReturned: Bool {
+            lock.lock(); defer { lock.unlock() }; return started
+        }
 }
 
 // MARK: - Test doubles
@@ -622,4 +673,6 @@ private final class ScriptedHTTP: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 
 
+
+    }
 }

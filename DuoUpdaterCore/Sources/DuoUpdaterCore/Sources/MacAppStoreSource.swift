@@ -49,6 +49,18 @@ public struct MacAppStoreSource: UpdateSource {
     /// additive: a chunk that fails to fetch, or an app this never covers (a
     /// fallback-region probe, or a recheck that skips `prewarm` entirely), just
     /// falls through to the unchanged per-bundle path in `lookup(bundleID:region:)`.
+    /// ⚠️ **Returns as soon as the work is STARTED, not finished.** It used to
+    /// await it, and `UpdateChecker` drains this before its per-app fan-out —
+    /// so an unreachable itunes.apple.com put a 15 s timeout in front of every
+    /// GitHub, Sparkle and Homebrew row too. Before this hook existed that
+    /// timeout delayed only the App Store rows, and in parallel with the rest;
+    /// blocking here was strictly worse than not having the optimisation at
+    /// all, which is the one thing it must never be.
+    ///
+    /// The batch is registered with `prewarmCache` instead, and
+    /// `lookup(bundleID:region:)` awaits it before reading. So a slow batch now
+    /// delays exactly the rows that would otherwise each pay for their own
+    /// lookup, and nothing else — the pre-hook behaviour, with the saving.
     public func prewarm(_ apps: [InstalledApp]) async {
         let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
         guard !bundleIDs.isEmpty else { return }
@@ -65,6 +77,10 @@ public struct MacAppStoreSource: UpdateSource {
         let lang = await LanguageSupport.shared.isRejected
             ? nil
             : Self.storeLanguage(preferred: Locale.preferredLanguages, storefront: homeRegion)
+        // Unstructured on purpose: it must outlive this call. It inherits the
+        // task-locals of this scope (where `RequestAttribution.appID` is nil,
+        // which is what `batchLookup` wants) but not its lifetime.
+        let work = Task { [self] in
         await withTaskGroup(of: (region: String, lang: String?, batch: [String: LookupResult?])?.self) { group in
             for chunk in Self.chunked(bundleIDs, size: 20) {
                 group.addTask {
@@ -88,6 +104,8 @@ public struct MacAppStoreSource: UpdateSource {
                 await prewarmCache.store(result.batch, region: result.region, lang: result.lang)
             }
         }
+        }
+        await prewarmCache.register(work)
     }
 
     private static func chunked(_ items: [String], size: Int) -> [[String]] {
@@ -550,6 +568,9 @@ public struct MacAppStoreSource: UpdateSource {
         // renders on screen, so a hit carrying the storefront's default name
         // would break the AX route on every non-English Mac — with no error and
         // no changed version number to notice it by.
+        // Wait for the batch here rather than in `UpdateChecker`: only the rows
+        // that would otherwise pay for their own lookup should pay its latency.
+        await prewarmCache.awaitInFlight()
         if let cached = await prewarmCache.lookup(
             bundleID: bundleID, region: region, lang: lang) {
             return cached
@@ -620,8 +641,25 @@ public struct MacAppStoreSource: UpdateSource {
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
 
-        let (data, response) = try await session.versionFeedData(
-            for: request, label: "App Store prewarm lookup (\(bundleIDs.count))")
+        // Attributed to NO app, explicitly. One request answers twenty of them,
+        // so there is no honest per-app owner — the same reasoning that files
+        // the Homebrew catalog under nobody. Explicit rather than relying on
+        // this happening to run outside a `withApp` scope: `prewarm` is called
+        // from `UpdateChecker` today, and a future caller inside one would
+        // otherwise bill twenty apps' bytes to whichever one it happened to be.
+        //
+        // ⚠️ This CHANGES what a per-app traffic row means for a Mac App Store
+        // app. Its lookup bytes used to land on its own row; they are now in an
+        // unattributed pool, so those rows read lower for a reason that has
+        // nothing to do with the app. Kept as `.versionCheck` on purpose:
+        // `.catalog` would be a better-shaped bucket but it already means "the
+        // Homebrew index" to every stored row and every `duo requests` query,
+        // and redefining it retroactively would make the log lie about its own
+        // history.
+        let (data, response) = try await RequestAttribution.withApp(nil) {
+            try await session.versionFeedData(
+                for: request, label: "App Store prewarm lookup (\(bundleIDs.count))")
+        }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw MASError.badStatus(http.statusCode)
         }

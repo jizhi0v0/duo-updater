@@ -353,27 +353,54 @@ PY
 # Commit and push the appcast prepared above. Split from the preparation so
 # every check runs before the release exists.
 push_sparkle_appcast() {
+    # The branch the appcast lives on, read from the clone rather than assumed —
+    # `gh repo clone` checks out the remote's default branch, whatever it is.
+    local appcast_base
+    appcast_base="$(git -C "$appcast_clone_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
     cp "$appcast_archives_dir/appcast.xml" "$appcast_clone_dir/appcast.xml"
 
     if [ -n "$(git -C "$appcast_clone_dir" status --short -- appcast.xml)" ]; then
         say "Publishing Sparkle appcast to $RELEASE_REPO"
         git -C "$appcast_clone_dir" add appcast.xml
         git -C "$appcast_clone_dir" commit -m "Update Sparkle appcast for $TAG" >/dev/null
-        # The clone is taken before the release is created and the asset uploaded,
-        # so minutes pass before this runs and another push can land in between.
-        # (When this all lived in one function the window was too small to matter.)
-        local attempt
+        # Through a pull request, not a push to the default branch.
+        #
+        # That branch is protected so nobody can put a rewritten release workflow
+        # on it and dispatch it with the Apple signing key. This function and the
+        # mini's nightly baseline job were the two things that still needed the
+        # direct push; both go through a PR now, so the rule can be turned on.
+        #
+        # The retry keeps its original reason: the clone is taken before the
+        # release is created and the asset uploaded, so minutes pass before this
+        # runs and another commit can land in between. What used to be a rebase
+        # before re-pushing is now a rebase before opening a fresh PR — the
+        # failure it handles (somebody else moved the branch) is the same one.
+        local attempt branch
         for attempt in 1 2 3; do
-            if git -C "$appcast_clone_dir" push origin HEAD >/dev/null 2>&1; then
-                return 0
+            branch="appcast/${TAG}-$(date -u +%Y%m%dT%H%M%SZ)-$attempt"
+            if git -C "$appcast_clone_dir" push origin "HEAD:refs/heads/$branch" >/dev/null 2>&1 \
+                && gh pr create --repo "$RELEASE_REPO" --base "$appcast_base" --head "$branch" \
+                       --title "Update Sparkle appcast for $TAG" \
+                       --body "Published by scripts/publish-release.sh for $TAG." >/dev/null 2>&1
+            then
+                # `--auto` is what works once a required check exists; a PR with
+                # nothing pending is mergeable immediately and `--auto` refuses
+                # it, which is not a failure. Both forms delete the branch.
+                if gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch --auto >/dev/null 2>&1 \
+                    || gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch >/dev/null 2>&1; then
+                    return 0
+                fi
+                say "  appcast PR opened but did not merge (attempt $attempt)"
+            else
+                say "  appcast branch/PR failed (attempt $attempt) — rebasing onto the current head"
             fi
-            say "  appcast push rejected (attempt $attempt) — rebasing onto the current head"
             git -C "$appcast_clone_dir" fetch origin --quiet 2>/dev/null || true
-            git -C "$appcast_clone_dir" pull --rebase --quiet origin HEAD 2>/dev/null || true
+            git -C "$appcast_clone_dir" pull --rebase --quiet origin "$appcast_base" 2>/dev/null || true
         done
-        die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be pushed.
-  Users will not be offered it until the feed is updated. Re-run this script — the
-  release will be updated in place and the appcast retried."
+        die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be
+  merged. Users will not be offered it until the feed is updated. Look for an open
+  \"Update Sparkle appcast for $TAG\" pull request and merge it, or re-run this
+  script — the release will be updated in place and the appcast retried."
     else
         say "Sparkle appcast already up to date"
     fi

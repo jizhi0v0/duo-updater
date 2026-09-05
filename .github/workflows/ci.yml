@@ -57,6 +57,11 @@ jobs:
           echo "arch: $(uname -m)"
 
       - name: make test
+        # TEMPORARY, for #351: the gate is back on to reproduce the wedge with a
+        # watchdog armed, so `sample` can capture what every thread is waiting on.
+        # Revert to the commented-out form below once the cause is known.
+        env:
+          DUO_DOWNLOAD_GATE: "1"
         # DUO_DOWNLOAD_GATE is deliberately NOT set here — see #351. Setting it is
         # the intended end state (it moves the one test that fetches real vendor
         # builds off a metered connection onto free egress), and it was set, and it
@@ -65,3 +70,15 @@ jobs:
         # `test` is a required check, so that is every merge blocked for the full
         # 60-minute budget with no message. Turn this back on when #351 is fixed.
         run: make test
+
+      # #351 diagnostics. `sample` names what every thread is blocked on, which two
+      # runs' worth of "our own logging stopped here" could not.
+      - name: Hang diagnostics
+        if: always()
+        run: |
+          if [ -f /tmp/duo-hang-sample.txt ]; then
+            echo "=== WATCHDOG FIRED — thread stacks follow ==="
+            cat /tmp/duo-hang-sample.txt
+          else
+            echo "watchdog did not fire (no /tmp/duo-hang-sample.txt)"
+          fi

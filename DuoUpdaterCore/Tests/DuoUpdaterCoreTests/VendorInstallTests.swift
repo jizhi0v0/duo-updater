@@ -837,6 +837,12 @@ import CryptoKit
             """))
         return
     }
+    // Armed for the whole gate, not per app: the two wedges (#351) killed the
+    // entire process, so what has to be captured is the process, once.
+    let watchdog = armHangWatchdog(
+        after: 240, reportTo: "/tmp/duo-hang-sample.txt")
+    defer { watchdog.cancel() }
+
     for app in apps {
         // Bounded, because this now sits behind a required status check. Measured
         // 2026-09-05 (run 33950064978): the Firefox gate on a hosted runner printed
@@ -866,6 +872,46 @@ import CryptoKit
                 """))
         }
     }
+}
+
+/// A watchdog on a REAL thread, which after `seconds` captures every thread's
+/// stack with `sample(1)` and kills the process.
+///
+/// The `firstToFinish` bound below is an async timeout, and an async timeout
+/// cannot report a runtime that has stopped scheduling — it is itself a Task on
+/// the pool it would be reporting on. Measured 2026-09-05 (#351): with a
+/// five-minute bound in place, a hosted runner emitted nothing for sixteen
+/// minutes and the timer never fired. This thread is scheduled by the kernel, so
+/// it is not subject to whatever stopped the pool.
+///
+/// `sample` is the point. Two runs told us only WHERE our own code stopped
+/// printing; a stack for every thread says what it is actually waiting on, which
+/// is the difference between another hypothesis and an answer. The marker goes to
+/// a FILE as well as stderr, because "the process is wedged writing to a full
+/// pipe" is one of the candidates and stderr would be wedged with it.
+private func armHangWatchdog(after seconds: Int, reportTo path: String) -> Thread {
+    let thread = Thread {
+        let deadline = Date().addingTimeInterval(TimeInterval(seconds))
+        while !Thread.current.isCancelled, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        guard !Thread.current.isCancelled else { return }
+        let sample = Process()
+        sample.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
+        sample.arguments = [
+            String(ProcessInfo.processInfo.processIdentifier), "5", "-file", path,
+        ]
+        try? sample.run()
+        sample.waitUntilExit()
+        let note = "HANG WATCHDOG: fired after \(seconds)s — sample written to \(path)\n"
+        try? note.write(toFile: path + ".marker", atomically: true, encoding: .utf8)
+        FileHandle.standardError.write(Data(note.utf8))
+        exit(93)
+    }
+    thread.qualityOfService = .userInitiated
+    thread.name = "duo-hang-watchdog"
+    thread.start()
+    return thread
 }
 
 /// How long one app's gate may take before it is abandoned and reported.

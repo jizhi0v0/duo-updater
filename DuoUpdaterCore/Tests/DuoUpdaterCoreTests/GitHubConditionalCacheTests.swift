@@ -251,7 +251,11 @@ struct GitHubConditionalCacheTests {
         """
         try Data(legacy.utf8).write(to: file)
 
-        let cache = GitHubConditionalCache(fileURL: file)
+        // The clock is pinned a minute after the file's `storedAt`: with the
+        // real clock this test would have gone red on its own 24 hours after the
+        // fixture was written (`maxAge`), which is not what it measures.
+        let cache = GitHubConditionalCache(
+            fileURL: file, now: { Date(timeIntervalSinceReferenceDate: 810280008 + 60) })
         let validator = await cache.validator(for: endpoint, authFingerprint: "fp")
 
         #expect(validator?.etag == "\"legacy\"")

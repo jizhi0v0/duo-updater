@@ -76,7 +76,23 @@ public actor GitHubConditionalCache {
     /// source directly (the overwhelming majority of them) writes nothing to the
     /// real file. Only `SourceStack.make` and `duo verify`'s GitHub sweep wire
     /// this in.
-    public static let shared = GitHubConditionalCache()
+    public static var shared: GitHubConditionalCache {
+        sharedLock.lock(); defer { sharedLock.unlock() }
+        if let existing = sharedInstance { return existing }
+        let created = GitHubConditionalCache()
+        sharedInstance = created
+        return created
+    }
+    /// Whether anything has touched `shared` in this process — so a CLI exit
+    /// path can flush it without first loading a multi-megabyte file for a
+    /// command that never made a GitHub request (`duo list`). Same shape as
+    /// `EventStore.hasRecorded`, for the same reason.
+    public static var hasShared: Bool {
+        sharedLock.lock(); defer { sharedLock.unlock() }
+        return sharedInstance != nil
+    }
+    private static let sharedLock = NSLock()
+    nonisolated(unsafe) private static var sharedInstance: GitHubConditionalCache?
 
     /// One endpoint's cached validator, keyed by the endpoint URL string.
     ///
@@ -231,7 +247,9 @@ public actor GitHubConditionalCache {
     /// than the gap between one round's fetches and shorter than anything a
     /// user waits for; a process that exits inside the window loses at most
     /// that round's memos, which cost one unconditional fetch each next time —
-    /// `duo verify` flushes explicitly at the end of its sweep for that reason.
+    /// the `duo` CLI, which exits after one run, flushes explicitly before it
+    /// does (`duo verify` at the end of its sweep, every other subcommand at
+    /// exit beside the event store's flush).
     private func scheduleFlush() {
         guard flushTask == nil else { return }
         flushTask = Task { [weak self] in
@@ -241,6 +259,11 @@ public actor GitHubConditionalCache {
     }
 
     private func flushScheduled() {
+        // `flush()` cancels a pending task, but `try? await Task.sleep` returns
+        // early on cancellation instead of throwing out of the task, so a
+        // cancelled task still reaches this line. It must not touch the handle
+        // of whatever task was scheduled after it, nor write again.
+        guard !Task.isCancelled else { return }
         flushTask = nil
         flush()
     }
@@ -250,7 +273,8 @@ public actor GitHubConditionalCache {
     /// still ask for. Without this, a repo whose rule is deleted (renamed app,
     /// retired recipe) leaves its entry behind forever, since nothing else ever
     /// revisits that URL to notice it's dead. Bounded by construction: the set
-    /// this is pruned against has exactly two entries per registered rule.
+    /// this is pruned against has two entries per registered rule, three for a
+    /// rule that probes (`GitHubReleasesSource.validNonTagEndpoints`).
     public func prune(keeping validEndpoints: Set<String>) {
         let before = entries.count
         entries = entries.filter { validEndpoints.contains($0.key) }

@@ -448,4 +448,10 @@ let status = await run()
 // coalescing timer would fire. Only when something was actually recorded: a
 // command that touched no network should not open a database just to close it.
 if EventStore.hasRecorded { await EventStore.shared.flush() }
+// Same shape, same reason: the GitHub validator store coalesces its writes over
+// two seconds, and a `duo check <app>` is gone in milliseconds — without this
+// its memos would never reach disk and every run would fetch unconditionally.
+// Guarded like the event store: a command that never built a checker should
+// not load the file just to write it back.
+if GitHubConditionalCache.hasShared { await GitHubConditionalCache.shared.flush() }
 exit(status)

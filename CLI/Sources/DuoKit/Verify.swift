@@ -49,10 +49,12 @@ public enum Verify {
         let vendor = filtered(VendorProbeRegistry.recipes, options) { $0.bundleID }
         let github = filtered(GitHubReleaseRegistry.rules, options) { $0.bundleID }
         let changelog = filtered(ChangelogRecipeRegistry.recipes, options) { $0.bundleID }
+        let appStore = filtered(MacAppStoreProbeRegistry.cases, options) { $0.bundleID }
 
         let total = (options.registries.contains(.vendor) ? vendor.count : 0)
             + (options.registries.contains(.github) ? github.count : 0)
             + (options.registries.contains(.changelog) ? changelog.count : 0)
+            + (options.registries.contains(.appStore) ? appStore.count : 0)
         guard total > 0 else {
             die("nothing to verify — no recipe matches \(options.only.joined(separator: ", "))",
                 code: 2)
@@ -64,7 +66,8 @@ public enum Verify {
           duo verify
           \(options.registries.contains(.vendor) ? "\(vendor.count) vendor probes  " : "")\
         \(options.registries.contains(.github) ? "\(github.count) GitHub rules  " : "")\
-        \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs" : "")
+        \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs  " : "")\
+        \(options.registries.contains(.appStore) ? "\(appStore.count) App Store probes" : "")
           ─────────────────────────────────────────────
         """)
 
@@ -121,6 +124,9 @@ public enum Verify {
             let versions = changelogVersions(known: knownVersions, installed: installed)
             findings += await sweepChangelog(changelog, options: options, versions: versions)
         }
+        if options.registries.contains(.appStore) {
+            findings += await sweepAppStore(appStore, options: options)
+        }
 
         findings.sort { $0.recipeID < $1.recipeID }
 
@@ -140,7 +146,9 @@ public enum Verify {
         let live = Set(
             VendorProbeRegistry.recipes.map(\.recipeID)
                 + ChangelogRecipeRegistry.recipes.map(\.recipeID)
-                + GitHubReleaseRegistry.rules.map(\.recipeID))
+                + GitHubReleaseRegistry.rules.map(\.recipeID)
+                + MacAppStoreProbeRegistry.cases.map(\.recipeID)
+                + [MacAppStoreProbeRegistry.batchRecipeID])
         let pruned = baseline.prune(keeping: live)
         for id in pruned.removed {
             print("  baseline: dropped \(id) — no recipe produces this id any more")

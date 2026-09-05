@@ -1989,6 +1989,13 @@ final class AppListModel {
         if intent.restartsChangelogs {
             await ChangelogCache.shared.invalidateAll()
             changelogRevalidated = []
+            // Same gate, same reason: the user asked, so give them a live answer.
+            // Wiring this only into `recheckMany` — which is the post-install and
+            // per-row path — left the top-level Check for Updates button unable
+            // to get past an hour-old App Store page, which is exactly the case
+            // the cache's own doc comment says must not happen. `.scheduled`
+            // never reaches here, so the periodic sweep still keeps its cache.
+            await AppStorePageCache.shared.invalidateAll()
         }
         for (key, state) in changelogState
         where intent.dropsChangelogEntry(failed: state.isFailed) {
@@ -5912,13 +5919,25 @@ final class AppListModel {
         // that now resolves elsewhere reads as gone, not as a row under another id.
         let fresh = apps.filter { ids.contains($0.id) }
         guard !fresh.isEmpty else { return [] }
+        // A recheck is the user insisting, so it must not be answered out of the
+        // App Store page cache — for an iOS-on-Mac listing that page is the only
+        // version source, and its hour-long TTL would otherwise hand back the
+        // same answer the user just told us they don't believe. `freshening:
+        // true` scopes the drop to just `fresh`'s bundleIDs, not every App
+        // Store app: this path also fires from `recheckChannelSwitches`
+        // (FSEvents / running-app changes), so an unrelated app's channel flip
+        // must not force a live re-scrape of every OTHER App Store app too —
+        // see `AppStorePageCache.invalidateAll`'s doc comment for the incident
+        // this replaced. The checker drops the memo for exactly the array it
+        // is about to check — `fresh`, passed once — so the invalidated set and
+        // the checked set can no longer drift apart.
         let checker = UpdateChecker(
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             channelStore: ResolvedChannelStore.shared)
-        return await checker.check(fresh)
+        return await checker.check(fresh, freshening: true)
     }
 
     // MARK: - Failed checks

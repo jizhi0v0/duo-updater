@@ -261,7 +261,7 @@ struct GitHubChannelProofTests {
     @Test func channelAnchorSurfaceCoversEveryGitHubRuleField() {
         let rule = GitHubReleaseRegistry.rules[0]
         let labels = Mirror(reflecting: rule).children.compactMap(\.label)
-        #expect(labels.count == 11,
+        #expect(labels.count == 12,
                 "GitHubReleaseRule gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
         for excluded in GitHubReleaseRule.nonAnchorFields {
             #expect(labels.contains(excluded),

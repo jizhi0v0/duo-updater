@@ -113,6 +113,22 @@ public struct GitHubReleaseRule: Sendable {
     /// and what it measured.
     public let candidateScope: GitHubCandidateScope
 
+    /// Whether a `usePrereleases` rule with `.newest` scope first asks for a
+    /// page of ONE release and only pays for its full `listPageSize` page when
+    /// that one release cannot answer (wrong tag shape, draft, no macOS asset).
+    /// The list endpoint cannot be revalidated cheaply — it sends no
+    /// `Last-Modified` and its `ETag` churns with download counters, see
+    /// `GitHubConditionalCache` — so the newest release is the whole page
+    /// almost every round, and a page of one is 3-18 KB where the full page is
+    /// 17-75 KB (five installed repos, gzipped, 2026-09-05). Ignored for stable
+    /// rules (they read `/releases/latest`, already one release) and for
+    /// `.installedMajorLineOrNewestStable` (its answer is a window, not the
+    /// newest row). Set false for a rule whose newest release is usually NOT
+    /// the one it wants — Bitwarden's monorepo interleaves web, CLI and browser
+    /// releases ahead of the desktop tag — since the probe then only adds a
+    /// request. Defaults to true.
+    public let probesNewestFirst: Bool
+
     /// Prefix that turns the installed marketing version into its exact GitHub
     /// tag (`"v"` + `5.0.5` → `v5.0.5`). Non-nil only when stable and prerelease
     /// builds share every local identity signal. The source looks up that exact
@@ -153,10 +169,12 @@ public struct GitHubReleaseRule: Sendable {
         installedTagPrefix: String? = nil,
         installAssetPattern: String? = nil,
         installerKind: VendorInstallerKind? = nil,
-        channel: ReleaseChannel = .stable
+        channel: ReleaseChannel = .stable,
+        probesNewestFirst: Bool = true
     ) {
         self.bundleID = bundleID
         self.channel = channel
+        self.probesNewestFirst = probesNewestFirst
         self.owner = owner
         self.repo = repo
         self.usePrereleases = usePrereleases
@@ -180,7 +198,9 @@ public struct GitHubReleaseRule: Sendable {
     /// different reason: it's a request-shaping knob (how many rows to page
     /// through), not part of which repo/tag/asset the rule accepts, so an
     /// anchor could never legitimately be pinned to its digits.
-    static let nonAnchorFields: Set<String> = ["bundleID", "channel", "listPageSize"]
+    /// `probesNewestFirst` is the same kind of knob: it changes how many rows
+    /// the first request asks for, never which release or asset is accepted.
+    static let nonAnchorFields: Set<String> = ["bundleID", "channel", "listPageSize", "probesNewestFirst"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -485,10 +505,71 @@ public struct GitHubReleasesSource: UpdateSource {
     var validNonTagEndpoints: Set<String> {
         var out = Set<String>()
         for rule in rules.values.flatMap({ $0 }) {
-            out.insert("https://api.github.com/repos/\(rule.slug)/releases/latest")
-            out.insert("https://api.github.com/repos/\(rule.slug)/releases?per_page=\(rule.listPageSize)")
+            out.insert(Self.latestEndpoint(rule))
+            out.insert(Self.listEndpoint(rule, pageSize: rule.listPageSize))
+            // The probe page is a third endpoint with its own validator; a rule
+            // that never probes never fetches it, so it must not be kept either
+            // (a stale one-row body would sit on disk forever).
+            if Self.probesNewestFirst(rule) {
+                out.insert(Self.listEndpoint(rule, pageSize: Self.newestProbePageSize))
+            }
         }
         return out
+    }
+
+    /// The one place both URL shapes are spelled out. `fetchReleases` requests
+    /// exactly these strings and `validNonTagEndpoints` prunes against exactly
+    /// these strings; the two used to be written twice and drifted (see that
+    /// property's doc comment).
+    static func latestEndpoint(_ rule: GitHubReleaseRule) -> String {
+        "https://api.github.com/repos/\(rule.slug)/releases/latest"
+    }
+    static func listEndpoint(_ rule: GitHubReleaseRule, pageSize: Int) -> String {
+        "https://api.github.com/repos/\(rule.slug)/releases?per_page=\(pageSize)"
+    }
+
+    /// One row. The newest release IS the answer for a `.newest` prerelease
+    /// rule on every round that does not land between a platform-partial
+    /// release and the next real one, so one row is the page that pays for
+    /// itself; anything larger just moves the fallback threshold.
+    static let newestProbePageSize = 1
+
+    /// Whether `resolve` may open with a one-row page for this rule at all —
+    /// the static half of the decision. The dynamic half (has the full page
+    /// been fetched once, so the release history is seeded) lives in
+    /// `newestProbeSize(for:)`.
+    static func probesNewestFirst(_ rule: GitHubReleaseRule) -> Bool {
+        rule.usePrereleases && rule.candidateScope == .newest && rule.probesNewestFirst
+    }
+
+    /// The page size `resolve` opens with, or nil to fetch the rule's full page
+    /// straight away.
+    ///
+    /// The full page is fetched at least once before any probing, because it
+    /// is also the release HISTORY: `resolve` back-fills the timeline from
+    /// every release on the page, and the timeline records a version at first
+    /// sighting and keeps it (`ReleaseTimelineStore.record`), so one full page
+    /// seeds the history and one-row pages afterwards lose nothing already
+    /// recorded. "Fetched at least once" is read off the validator store — a
+    /// memo for the full-page endpoint under the current credential — which
+    /// is the only durable record of that. With no store wired in (tests, and
+    /// a source constructed directly) there is nothing to seed, so probing
+    /// starts immediately.
+    ///
+    /// What a one-row page does forgo, by design: a release that lands
+    /// BETWEEN two rounds and is no longer the newest by the next one never
+    /// reaches the timeline. At a five-minute interval that needs two releases
+    /// in five minutes; at the six-hour default it is likelier. The version
+    /// shown is unaffected — the newest release is on both pages.
+    private func newestProbeSize(for rule: GitHubReleaseRule) async -> Int? {
+        guard Self.probesNewestFirst(rule) else { return nil }
+        if let validatorCache {
+            let seeded = await validatorCache.validator(
+                for: Self.listEndpoint(rule, pageSize: rule.listPageSize),
+                authFingerprint: GitHubConditionalCache.authFingerprint(token)) != nil
+            guard seeded else { return nil }
+        }
+        return Self.newestProbePageSize
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -827,7 +908,7 @@ public struct GitHubReleasesSource: UpdateSource {
     /// for why `URLCache` alone doesn't revalidate these endpoints, and for why
     /// the tag lookup (`tag != nil`) never participates.
     private func fetchReleases(
-        _ rule: GitHubReleaseRule, list: Bool, tag: String? = nil
+        _ rule: GitHubReleaseRule, list: Bool, tag: String? = nil, pageSize: Int? = nil
     ) async throws -> [Release]? {
         let endpoint: String
         if let tag {
@@ -839,8 +920,8 @@ public struct GitHubReleasesSource: UpdateSource {
             endpoint = "https://api.github.com/repos/\(rule.slug)/releases/tags/\(escaped)"
         } else {
             endpoint = list
-                ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=\(rule.listPageSize)"
-                : "https://api.github.com/repos/\(rule.slug)/releases/latest"
+                ? Self.listEndpoint(rule, pageSize: pageSize ?? rule.listPageSize)
+                : Self.latestEndpoint(rule)
         }
         guard let url = URL(string: endpoint) else { return nil }
 
@@ -1051,10 +1132,46 @@ public struct GitHubReleasesSource: UpdateSource {
         preferring hostArch: HostArch = .current,
         allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) async throws -> Resolution {
-        guard var releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
+        // One row first, when the rule allows it — see `newestProbeSize(for:)`.
+        // A probe that cannot answer is not a recipe miss (the release it wants
+        // may simply sit below the newest row), so nothing is recorded against
+        // the rule until the full page has had its say. An arch-incompatible
+        // newest row IS the answer — the full page would break on the same
+        // row — so that one does not fall back either.
+        if let probeSize = await newestProbeSize(for: rule) {
+            guard let probed = try await fetchReleases(rule, list: true, pageSize: probeSize) else {
+                return Resolution(remote: nil, tags: [], archIncompatible: false)
+            }
+            let first = try await settle(
+                rule, releases: probed, anchoredTo: installedVersion,
+                preferring: hostArch, allowingIntelTranslation: canRunIntel,
+                recordingMisses: false)
+            if first.remote != nil || first.archIncompatible { return first }
+            Log.source.debug("GitHub \(rule.slug, privacy: .public): the newest release could not answer, paying for the full page of \(rule.listPageSize, privacy: .public)")
+        }
+        guard let releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
             return Resolution(remote: nil, tags: [], archIncompatible: false)
         }
+        return try await settle(
+            rule, releases: releases, anchoredTo: installedVersion,
+            preferring: hostArch, allowingIntelTranslation: canRunIntel,
+            recordingMisses: true)
+    }
 
+    /// Everything `resolve` does once it holds a page: scope ceiling, the
+    /// stable rule's missing-asset fallback, history, the asset walk. Split
+    /// from the fetch so a one-row probe and the full page run the identical
+    /// judgement; `recordingMisses` is the only difference, because a probe
+    /// that finds nothing is not evidence about the recipe.
+    private func settle(
+        _ rule: GitHubReleaseRule,
+        releases: [Release],
+        anchoredTo installedVersion: String?,
+        preferring hostArch: HostArch,
+        allowingIntelTranslation canRunIntel: Bool,
+        recordingMisses: Bool
+    ) async throws -> Resolution {
+        var releases = releases
         // Drafts are never releases, even when an authenticated token can see
         // them, and no scope should be able to offer one.
         releases = releases.filter { !$0.isDraft }
@@ -1217,6 +1334,9 @@ public struct GitHubReleasesSource: UpdateSource {
         // asset rename (tags matched fine, none carried the macOS file). Reported
         // as the same thing, the second reads like the first and gets fixed in
         // the wrong place.
+        guard recordingMisses else {
+            return Resolution(remote: nil, tags: releases.map(\.tag), archIncompatible: false)
+        }
         if !skippedForMissingAsset.isEmpty {
             let tags = skippedForMissingAsset.joined(separator: ", ")
             Log.source.error("GitHub \(rule.slug, privacy: .public): no release carries an asset matching /\(rule.installAssetPattern ?? "", privacy: .public)/ (walked \(tags, privacy: .public))")
@@ -2154,7 +2274,14 @@ public enum GitHubReleaseRegistry {
             listPageSize: 10,
             versionPattern: #"desktop-v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Bitwarden-[0-9.]+-universal\.dmg$"#,
-            installerKind: .dmg),
+            installerKind: .dmg,
+            // The newest release of this monorepo is a web/CLI/browser tag far
+            // more often than the desktop one (measured 2026-09-05: the one-row
+            // page was `web-v…`, and the same shape held across the newest 100
+            // releases, `desktop-v` tags at most 7 apart), so a one-row probe
+            // here would fall back to the full page most rounds and only add a
+            // request. Every other prerelease rule in this registry probes.
+            probesNewestFirst: false),
 
         // VSCodium — VS Code without the Microsoft build. Tags are bare
         // `1.126.04524` (the trailing group is VSCodium's own build stamp and IS

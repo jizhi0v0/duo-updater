@@ -454,11 +454,17 @@ struct GitHubConditionalCacheTests {
             usePrereleases: true)
         let source = GitHubReleasesSource(rules: [five, twenty])
 
+        // Both rules are prerelease `.newest` rules, so each also keeps its
+        // one-row probe page (`GitHubListProbeTests` pins when that third URL
+        // is and is not present); the point here is the middle URL of each
+        // triple carrying the rule's own page size.
         #expect(source.validNonTagEndpoints == [
             "https://api.github.com/repos/example/five/releases/latest",
             "https://api.github.com/repos/example/five/releases?per_page=5",
+            "https://api.github.com/repos/example/five/releases?per_page=1",
             "https://api.github.com/repos/example/twenty/releases/latest",
             "https://api.github.com/repos/example/twenty/releases?per_page=20",
+            "https://api.github.com/repos/example/twenty/releases?per_page=1",
         ])
     }
 }

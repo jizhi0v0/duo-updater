@@ -2,11 +2,25 @@ import Foundation
 
 /// TTL-memoized cache for the two things `MacAppStoreSource` scrapes off an App
 /// Store product page: the Mac-track version (+ "What's New" notes) and the
-/// `isIOSBinaryMacOSCompatible` flag. Both are read from more than one call site
-/// per app per check (`nativeMacVersion` and `iosOnMacVersion` both scrape a
-/// version page; `remoteVersion` scrapes a compatibility page), and a full scan
-/// revisits the same trackId/region on every pass — memoizing turns that into
-/// one fetch per hour instead of one per check.
+/// `isIOSBinaryMacOSCompatible` flag.
+///
+/// **All of the value is across scans, none of it within one.** An earlier
+/// version of this comment claimed the pages are "read from more than one call
+/// site per app per check" and justified the class on that. They are not:
+/// `resolve()` is a three-way dispatch with early returns, so exactly one of
+/// `nativeMacVersion` / `remoteVersion(checkMacCompat:)` / `iosOnMacVersion`
+/// runs per app per check — and the version and compatibility pages use
+/// different URLs *and* different dictionaries, so neither can serve the other.
+///
+/// What this actually removes is the SECOND scan's fetch, and the third's, up
+/// to the TTL. Which means the benefit is `1 − interval / ttl` and nothing
+/// else: at a five-minute interval eleven rounds in twelve are free (measured:
+/// 23.6 → 3.0 product-page requests a round), and at the six-hour default —
+/// which is what most installs run — an interval longer than the TTL means
+/// **every round is a cold miss and this class saves nothing at all**. What it
+/// still buys there is the second scan of an app launch: the scheduler ticks
+/// immediately on a cold start and opening the workbench forces another
+/// refresh, so the pair costs one round of pages instead of two.
 ///
 /// Deliberately caches a *parse failure* (2xx response, no version/flag found)
 /// the same as a *parse success* — an unparseable page costs full price again
@@ -56,9 +70,19 @@ public actor AppStorePageCache {
         let fetchedAt: Date
     }
 
-    /// How long a scraped page stays valid. Default is one hour: App Store
-    /// listings don't update more often than that, and a scan revisits the same
-    /// app every few minutes.
+    /// How long a scraped page stays valid.
+    ///
+    /// ⚠️ One hour was chosen on a machine set to check every five minutes, and
+    /// an earlier version of this comment wrote that setting down as a property
+    /// of the product ("a scan revisits the same app every few minutes"). It is
+    /// not: the default is six hours (`Preferences`), and at that interval this
+    /// TTL never spans two scans. The number is a staleness bound, not a
+    /// tuning: an iOS-on-Mac listing has no source but this page, so an hour is
+    /// how long a user can be told yesterday's answer — bounded now by
+    /// `invalidateAll`, which any user-present refresh calls.
+    ///
+    /// The claim that App Store listings don't change more often than an hour is
+    /// UNVERIFIED; nobody has measured it.
     let ttl: TimeInterval
     private let now: @Sendable () -> Date
 
@@ -84,9 +108,16 @@ public actor AppStorePageCache {
     /// the twenty Mac App Store apps on the machine this was measured on take
     /// that route (2026-09-05).
     ///
-    /// Called from the explicit-recheck path only. A periodic sweep must NOT
-    /// call it — that would put the cache back to fetching a page per app per
-    /// round, which is the cost it exists to remove.
+    /// Called from the user-present paths: a refresh the user asked for
+    /// (`RefreshIntent.restartsChangelogs`) and `recheckMany`. A periodic sweep
+    /// must NOT call it — that would put the cache back to fetching a page per
+    /// app per round, which is the cost it exists to remove.
+    ///
+    /// ⚠️ `recheckMany` is not purely "the user insisted": `recheckChannelSwitches`
+    /// reaches it from FSEvents on vendor preference paths and from
+    /// running-app changes, once per row whose channel actually flipped. Rare,
+    /// and it only costs a re-fetch, but it is not the guarantee the word
+    /// "explicit" suggests.
     public func invalidateAll() {
         versionStore.removeAll()
         compatStore.removeAll()

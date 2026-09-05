@@ -1989,6 +1989,13 @@ final class AppListModel {
         if intent.restartsChangelogs {
             await ChangelogCache.shared.invalidateAll()
             changelogRevalidated = []
+            // Same gate, same reason: the user asked, so give them a live answer.
+            // Wiring this only into `recheckMany` — which is the post-install and
+            // per-row path — left the top-level Check for Updates button unable
+            // to get past an hour-old App Store page, which is exactly the case
+            // the cache's own doc comment says must not happen. `.scheduled`
+            // never reaches here, so the periodic sweep still keeps its cache.
+            await AppStorePageCache.shared.invalidateAll()
         }
         for (key, state) in changelogState
         where intent.dropsChangelogEntry(failed: state.isFailed) {

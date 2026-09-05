@@ -21,6 +21,10 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 - 修 recipe 要先复现红:拿到坏掉的原始响应体(`--samples`),确认新规则在**那份真实响应**上过,再跑全量。
 - 新增/改 recipe **必须补一条回归测试**,而且用例要**从 registry 推导、覆盖全部 channel**,不要手写一份会漂移的清单(`RecipeHealthTests` / `RecipeVerificationTests` 是既有范式)。
 - 全量 `duo verify` 约 150 个请求 / 3 分钟,别为了省时间只验一个就宣布全绿。
+- **`make test` 本机一轮约 25 MB / 20 秒**,那道真下厂商包的闸默认关着(`DUO_DOWNLOAD_GATE`,
+  见「发布」和「CI」两节)。想在本机过一遍就 `DUO_DOWNLOAD_GATE=1 make test`,约 185 MB。
+- **卡住的时候用 `scripts/run-with-hang-report.sh 1800 make test`**,超时会抓线程栈再杀树
+  ——ci.yml 就是这么跑的。为什么必须在进程外面,见「CI」那节。
 
 ## 行状态:两个界面读同一份,改渲染要跑 gallery
 
@@ -326,6 +330,77 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
   给出的是同样被过滤的 40 行——那条提示是假的)。
 
+## 别在协作池上做阻塞调用
+
+Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不扩容**。所以一个同步的、会
+把线程停住的调用,占掉的是极少数线程之一;并发几个,整个运行时就**不再调度任何东西**
+——不是变慢,是停住。
+
+这在这个仓库里发生过,而且长在安装路径上。2026-09-05 在 3 核的 GitHub runner 上实测
+(#351、run 33959023008):三个并发的 `SecStaticCodeCheckValidity` 把三条协作线程全部
+压进 `Dispatch::Group::wait()`,**相隔 60 秒的两次采样显示两个进程各只烧了 0.00 秒和
+0.01 秒 CPU** —— 卡死,不是慢。整个测试进程此后一个字都不再输出。
+
+规矩:
+
+- **从 async 里调这些,必须走 `offCooperativePool`**(`Support/OffPool.swift`):
+  `SecStaticCode*` 全家(`verifyCodeSignature` / `teamIdentifier` / `signingIdentifier`)、
+  `Process.waitUntilExit()`、`DispatchGroup.wait()`、`DispatchSemaphore.wait()`、
+  `readDataToEndOfFile()` 配对的那种等待。`ArchiveExtractor.run` 一个函数里就有四个。
+- **`Task.detached` 不是替代品**,它仍然跑在协作池上。这条 `BrewFormulaReleaseService`
+  的注释早就写过,并且带着测量(23 路扇出,detached 让无关任务多停 0.95~1.07s,
+  `DispatchQueue.global` 只多 0.02~0.06s,墙钟相同)——**Dispatch 在线程阻塞时会扩池**。
+- **一段连续的闸序列用一次 hop,不要每个闸一次。** 顺序是承重的(gate 5 必须在 5b 前),
+  多次 hop 就是多次意外打乱它的机会。
+- ⚠️ **这不是 CI 专属问题。** `InstallPermits(applies: 2)` 意味着产品里就有两个并发 apply,
+  `recoverInterruptedSwapsOnce` 还从 `Task.detached` 再加。**CI 只是核数低到能撞上的地方。**
+- ⚠️ **修法能救池,不保证能救那个调用。** 那个 Security 的 group 到底在等什么,至今不知道
+  (栈里没有 XPC 帧,没有任何线程在推进校验)。所以它把「整进程死掉」换成「一个操作卡住」,
+  这已经是巨大的改善,但别把它说成"修好了那个调用"。
+
+**复现它需要核少的机器。** `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` 能把池宽钉到 1
+(用 8 个 CPU-bound 任务验过旋钮:不设比值 1.0,设了 8.0),但**那样复现不出来**——
+全套 2256 条在池宽 1 下 32.8 秒全绿。真正复现它的是把三个并发签名校验推到 3 核 runner 上,
+本机 14 核一次都没复现过。**核少的机器是更严格的测试环境,不是更差的。**
+
+## CI:存在了,而且 `test` 是合并门槛
+
+2026-09-05 起这个仓库有 CI,以前没有。写规矩之前先知道这些:
+
+- **`.github/workflows/ci.yml`** —— hosted runner(`macos-latest`,**arm64 3 核**)、
+  `pull_request` + `push: main` + `workflow_dispatch`、**不带任何 secret**、action 按 SHA 钉住。
+  公开仓库的标准 runner 免费不限量;单 job 上限 6 小时,我们自己设 60 分钟。
+- **`test` 是 main 的必需状态检查**,直推 main 被拒(实测退出码 1)。
+- ⚠️ **`[skip ci]` 会把 PR 永久焊死。** GitHub 文档明说:被 commit message / path filter /
+  branch filter 跳过的 workflow,它的 check **停在 Pending**,而要求它的 PR 无法合并。
+  实测:带 `[skip ci]` 的 PR `mergeStateStatus=BLOCKED`、`statusCheckRollup` 长度 0、
+  `gh pr merge` 退 1。**`paths-ignore` 同理,不能当豁免用。**
+- ⚠️ **`gh pr merge --auto` 成功 ≠ 已合并**,它在 check 还没报告时就返回 0。任何拿返回值
+  当"合并完成"的脚本,会在 CI 变红时静默丢东西。两处自动流程(mini 夜间基线、发版的
+  appcast)都改成轮询 PR 的 `state` 到 `MERGED`,上限 30 分钟。
+- **`make test` 经 `scripts/run-with-hang-report.sh` 跑**,超时会对每个候选进程抓
+  `sample(1)`、打两轮相隔 60 秒的 CPU 增量和线程栈、杀进程树、退 124。
+  ⚠️ **看门狗必须在进程外**:进程内的要靠跑到的代码上膛(上一版在下载闸里上膛,
+  结果闸关着那轮它根本不存在),而异步超时是**它要报告的那个池上的 Task**,
+  运行时停止调度时它永远不会触发——实测 5 分钟的 `firstToFinish` 坐穿了 16 分钟静默。
+- ⚠️ **必需检查验的是 PR 的头,不是合并结果。** `strict_required_status_checks_policy`
+  是 **false**,即不要求分支与 main 同步就能合。这是刻意的:开了它,每次 main 前进,那两条
+  自动 PR(mini 夜间基线、发版 appcast)都得 rebase —— 正是它们刚被重写来避开的失败,
+  而这个仓库常有多个 PR 并行。
+  **代价**:一个基于旧 main 验过的 PR 可以合进新 main,**这个组合从没被测过**。
+  真出了那种事再考虑打开,别把它当成"已经防住了"。
+- ⚠️ **发版那道闸验的是「工作树」,不是 main。** `publish-release.sh` 只要求提交
+  **在某个远端分支上**(`is on no remote branch, so GitHub cannot tag it`),**不要求在 main 上**。
+  而那道真下厂商包的闸只在 CI 上跑过 main。实际都是从 main 打 tag、差异为零,
+  **但那是惯例不是保证**。从侧分支发版时那棵树没被那道闸验过。
+- **还有一件「代码最新」也管不了的**:那道闸验的是厂商的**真实字节**,而厂商可以随时换
+  Team ID、改签名、坏掉。CI 每轮重新下当前的包,所以是持续覆盖的——但最后一轮 CI 到
+  发版之间的窗口不可能被覆盖。这是固有的,不是疏漏。
+- **`release-build.yml`** 只能 `workflow_dispatch`,Apple 的 secret 放在 `release`
+  Environment(只有 `main` 和 `v*` 能拿到,特性分支 dispatch 实测 2 秒 0 步骤失败),
+  产物带 Sigstore 证明,`publish-release.sh` 用 `gh attestation verify --signer-workflow
+  --source-digest --deny-self-hosted-runners` 消费。Sparkle 的 EdDSA 私钥**留在本机**。
+
 ## 供应商 recipe 的失效是常态
 
 vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。所以:
@@ -351,6 +426,13 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   杀完再查一遍(注意自己的轮询 shell 会因为命令行里含关键字而被 grep 命中,不是残留)。
 - **判断"卡住了"要看有没有在推进,不是看 CPU。** 我一度断言下载卡死,实测那个
   `.partial` 文件 20 秒涨了 966KB —— CPU 为 0 只是在等网络。量文件大小,别看 `%CPU`。
+  ⚠️ **反过来用是成立的,而且是唯一能区分"卡死"和"慢"的判据**:**间隔一分钟量两次
+  累计 CPU 时间**,不涨就是没在执行。2026-09-05 就是靠这个把 #351 定死的——两个进程
+  60 秒里各烧了 0.00 秒和 0.01 秒。单看一次栈做不到:慢的调用和卡住的调用长得一模一样。
+  `scripts/run-with-hang-report.sh` 把这套做成了工具,别再手搓。
+- ⚠️ **「输出停了」不等于「执行停了」。** CI 的日志是缓冲的,退出时才刷,实测偏差约
+  **235 秒**。我据此断言过"它从没到某一行",而那行其实早就印过了——只是还没刷出来。
+  要定位就插阶段行 + 拿栈,别拿最后一行日志当现场。
 
 ## 发布
 
@@ -359,12 +441,22 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 - ⚠️ 我在 0.3.80 那次先用中文重写了整节才发现:**这个文件历来是英文的**,而且会原样发给全量用户。改之前先看一眼相邻版本。
 - `make install` / `make cli` 用的是**稳定的 Developer ID 签名**,这不是洁癖:macOS 把 TCC 授权(完全磁盘访问、辅助功能、App 管理)绑在代码身份上,ad-hoc 签名每次重编 CDHash 都变,授权就掉。别为了图快改成 ad-hoc。
 - `make notarize` → `dist/DuoUpdater-notarized.zip`;`make release` 才推 GitHub Release。
-- **`make release` 会在发布前跑一遍 gate 测试,那些用例要真下厂商的包**(下完校验 sha512 和
-  Team ID),所以耗时取决于当时的下行带宽。2026-09-02 傍晚实测经本机 Surge 代理只有
-  **~48 KB/s**,一个 VLC 量级的包就要几十分钟。**这不是稳定现象**——用户说可能是晚高峰,
-  有时候不会这样,所以别把它写成"代理一定会掐"(相关但不等同:memory 里那条
-  「本机代理会掐大文件,小请求照过」)。发版前先量一下实际速度再决定是等、是绕开代理、
-  还是 `SKIP_TESTS=1`。
+- **发版不再在本机下厂商的包了,别再按旧说法预留那段等待。** `publish-release.sh` 跑的是
+  同一个 `make test`,而那道真下包的闸(`vendorDownloadPassesSignatureGate`)现在由
+  `DUO_DOWNLOAD_GATE` 控制,**只有 ci.yml 设它**。本机一轮实测从 **~185 MB 降到 ~25 MB**
+  ——数字来自仓库自己的请求账本(见下面「量流量」那条),不是估算。
+  这条以前写的是「gate 测试要真下厂商的包,所以耗时取决于下行带宽,2026-09-02 实测经
+  Surge 代理只有 ~48 KB/s」。那个场景**不会再发生**,除非你手动 `DUO_DOWNLOAD_GATE=1 make release`。
+- ⚠️ **缺口要知道**:`make release` 跑的是「即将发布的那棵树」,而那道闸只在 CI 上跑过 main。
+  发版都是从 main 打 tag、差异为零,**但那是惯例不是保证**。要在发版那一刻也过一遍就
+  `DUO_DOWNLOAD_GATE=1 make release`,代价是每次 +160 MB。
+- **量流量走仓库自己的账本,别用 `curl -sI` 估。** `Traffic/` 在调用点打 `RequestPurpose`、
+  用 `URLSessionTaskMetrics` 数真实字节。测试进程的账本被特意引到临时目录
+  (`EventStore.defaultFileURL()`,避免污染 `duo requests`),所以直接查:
+  `sqlite3 "${TMPDIR}duo-events-tests/com.duoupdater.app/events.sqlite"`,`at` 是**微秒**。
+  2026-09-05 拿它量出来:开着闸一轮 185 MB(install 169.1),关掉 ~25 MB;
+  而这套件一天累计下了 **8.4 GB**。我当时用 `curl -sI` 量两个 URL 得到的 "161 MB" 偏低,
+  漏掉了 ~150 个元数据请求。
 - 顺带:`SKIP_NOTARIZE=1` 会复用 `dist/DuoUpdater-notarized.zip`,脚本自己会校验 zip 里的
   版本号和即将打的 tag 一致,所以中途失败重跑不必重新公证(公证一次好几分钟)。
   发布顺序是 **先克隆仓库更新 appcast,后 `gh release create`**,所以卡在克隆那步时

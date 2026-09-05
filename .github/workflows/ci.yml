@@ -57,22 +57,24 @@ jobs:
           echo "arch: $(uname -m)"
 
       - name: make test
-        # TEMPORARY, for #351: the gate is back on to reproduce the wedge with a
-        # watchdog armed, so `sample` can capture what every thread is waiting on.
-        # Revert to the commented-out form below once the cause is known.
-        env:
-          DUO_DOWNLOAD_GATE: "1"
         # DUO_DOWNLOAD_GATE is deliberately NOT set here — see #351. Setting it is
-        # the intended end state (it moves the one test that fetches real vendor
-        # builds off a metered connection onto free egress), and it was set, and it
-        # wedged this job: the gate printed `· resolving version` and the entire
-        # test process stopped emitting for 46 and then 16 minutes across two runs.
-        # `test` is a required check, so that is every merge blocked for the full
-        # 60-minute budget with no message. Turn this back on when #351 is fixed.
+        # the intended end state, because it moves the one test that fetches real
+        # vendor builds off a metered connection onto free egress. It was set, and
+        # it wedged this job three times: the whole test process stopped emitting,
+        # for 46, 16 and 4 minutes. `test` is a required check, so that is every
+        # merge blocked with no message.
+        #
+        # The third of those runs had a watchdog armed and `sample(1)` named the
+        # cause: all three cooperative-pool threads — this runner is 3-core, so
+        # that is the entire pool — blocked in `SecStaticCodeCheckValidity` ->
+        # `Dispatch::Group::wait()`. Turn this back on once #351 has moved those
+        # blocking Security calls off that pool.
         run: make test
 
-      # #351 diagnostics. `sample` names what every thread is blocked on, which two
-      # runs' worth of "our own logging stopped here" could not.
+      # #351 diagnostics. Kept after the cause was found, because the watchdog is
+      # armed on any run that opts into the gate by hand, and because `sample`
+      # naming what every thread is blocked on is what ended two runs' worth of
+      # guessing. Prints one line and costs nothing when nothing wedged.
       - name: Hang diagnostics
         if: always()
         run: |

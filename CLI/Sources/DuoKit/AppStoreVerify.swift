@@ -26,7 +26,8 @@ extension Verify {
         let source = MacAppStoreSource(region: "us")
 
         // One batched lookup across every case's bundle id, in the same
-        // request shape `prewarm(_:)` makes — this is what check 5 (batch ≡
+        // request shape `prewarm(_:)` makes — `lang` included; see
+        // `verifyBatchLookup` for why that word has to stay true — this is what check 5 (batch ≡
         // single) compares each case's own single lookup against.
         //
         // ⚠️ It must SAY SO when it can't run. The first version used `try?`
@@ -45,8 +46,8 @@ extension Verify {
                 bundleIDs: cases.map(\.bundleID), region: "us")
             if fetched.isEmpty {
                 findings.append(Finding(
-                    recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: "-",
-                    channel: "-", status: FindingStatus.infra,
+                    recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: MacAppStoreProbeRegistry.batchRecipeID,
+                    channel: "batch", status: FindingStatus.infra,
                     failureDetail: "batched lookup returned nothing for \(cases.count) bundle ids — check 5 (batch ≡ single) did not run",
                     endpointHost: "itunes.apple.com", elapsedMs: 0))
             } else {
@@ -59,7 +60,12 @@ extension Verify {
                 // toward escalation through every good one that followed.
                 findings.append(Finding(
                     recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore,
-                    bundleID: "-", channel: "-", status: FindingStatus.ok,
+                    // Not "-": an issue body builds `duo verify --only <bundleID>`
+                    // as its reproduction command, and `Verify.filtered` matches
+                    // with `localizedCaseInsensitiveContains`, so a bare dash
+                    // selects most of the registry.
+                    bundleID: MacAppStoreProbeRegistry.batchRecipeID, channel: "batch",
+                    status: FindingStatus.ok,
                     endpointHost: "itunes.apple.com", elapsedMs: 0))
             }
         } catch {

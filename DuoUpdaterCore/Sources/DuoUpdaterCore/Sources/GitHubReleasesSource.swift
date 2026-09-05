@@ -64,7 +64,8 @@ public struct GitHubReleaseRule: Sendable {
     /// Defaults to 20, the size every rule used before this field existed.
     /// GitHub's `body` (release notes prose) is dead weight here — the version
     /// probe never reads it — and on six installed `usePrereleases` repos it was
-    /// measured at 6%–51% of each response's JSON. Two separate figures, and an
+    /// measured at 3.0%–47.4% of each response's JSON (re-measured 2026-09-05; an
+    /// earlier note said 6%–51%, and the lower bound was out by a factor of two). Two separate figures, and an
     /// earlier version of this comment wrongly presented one as a subset of the
     /// other: **421 KB** is what those six cost per scan round as counted in the
     /// request log, **481 KB** is the sum of their six responses fetched once
@@ -77,15 +78,27 @@ public struct GitHubReleaseRule: Sendable {
     /// this rule is looking for scrolls off the page, which reads as "no update"
     /// rather than as an error.
     ///
-    /// ⚠️ **The tag depth is not the only requirement.** For a rule with an
-    /// `installAssetPattern`, `resolve()` walks back past up to
-    /// `maxReleasesWithoutMacOSAsset` (5) matching releases that carry no macOS
-    /// artifact before it gives up — and it walks that back INSIDE this page. A
-    /// page sized only to the tag depth therefore silently moves the ceiling
-    /// from the guard to the page: the walk stops early, and the failure mode of
-    /// stopping early is a confident "up to date". So every size below is the
-    /// measured tag depth **plus 5**. A first pass sized them to the tag depth
-    /// alone and three rules landed under the guard's own limit. Set this only after walking the rule's own
+    /// ⚠️ **Running out of page is not dangerous, and a previous version of this
+    /// comment said it was.** It claimed the walk past assetless releases
+    /// (`maxReleasesWithoutMacOSAsset`) had to fit inside the page or the early
+    /// stop would read as a confident "up to date", and every size was inflated
+    /// by 5 on that basis. Both halves were wrong:
+    ///
+    /// - The guard's `break` and simply exhausting the page **land on the same
+    ///   exit** — `recordMiss` plus `Resolution(remote: nil)`, which surfaces as
+    ///   `.unknown` and a health miss, not as "up to date". Read the tail of
+    ///   `resolve()`: there is one `if !skippedForMissingAsset.isEmpty` and both
+    ///   paths reach it.
+    /// - The arithmetic didn't hold either. `skippedForMissingAsset` only counts
+    ///   releases the version pattern ACCEPTS, so reaching 5 of them takes about
+    ///   `1 + 5 × gap` entries, not `gap + 5`. At Bitwarden's gap of 7 that is 36.
+    ///
+    /// And the direction is backwards: releases come newest-first, so a smaller
+    /// page can only fail to find something, while a LARGER one is the side that
+    /// can hand back an older release as "the latest" — which is the risk
+    /// `maxReleasesWithoutMacOSAsset` exists to bound in the first place. The
+    /// sizes are back to the measured tag depth; the inflation cost 33.8 KB a
+    /// round (17% of the saving) for a hazard that isn't there. Set this only after walking the rule's own
     /// history (`versionPattern`, and for `.installedMajorLineOrNewestStable`,
     /// the ceiling logic in `lineAnchoredCeiling` — its depth requirement is NOT
     /// "first match" and must be measured separately) — see the per-rule
@@ -1275,7 +1288,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
             usePrereleases: true,
-            listPageSize: 9,
+            listPageSize: 5,
             versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#,
             installAssetPattern: #"^Zed-aarch64\.dmg$"#,
             installerKind: .dmg,
@@ -1575,7 +1588,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.github.GitHubClient",
             owner: "desktop", repo: "desktop",
             usePrereleases: true,
-            listPageSize: 10,
+            listPageSize: 8,
             versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+-beta[0-9]+)$"#,
             installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
             installerKind: .zip,
@@ -1704,7 +1717,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.vorssaint.utils",
             owner: "vorssaintapp", repo: "vorssaint-utils",
             usePrereleases: true,
-            listPageSize: 7,
+            listPageSize: 5,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+-beta\.[0-9]+\.dmg$"#,
             installerKind: .dmg,
@@ -1971,7 +1984,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.bitwarden.desktop",
             owner: "bitwarden", repo: "clients",
             usePrereleases: true,
-            listPageSize: 13,
+            listPageSize: 10,
             versionPattern: #"desktop-v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Bitwarden-[0-9.]+-universal\.dmg$"#,
             installerKind: .dmg),
@@ -2178,7 +2191,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.microsoft.Headlamp",
             owner: "kubernetes-sigs", repo: "headlamp",
             usePrereleases: true,
-            listPageSize: 10,
+            listPageSize: 8,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Headlamp-[0-9.]+-mac-arm64\.dmg$"#,
             installerKind: .dmg),
@@ -2606,7 +2619,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
             usePrereleases: true,
-            listPageSize: 8,
+            listPageSize: 5,
             versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^T3-Code-[0-9.]+-nightly\.[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg,

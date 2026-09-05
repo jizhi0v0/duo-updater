@@ -752,7 +752,18 @@ extension MacAppStoreSource {
     public func verifyBatchLookup(
         bundleIDs: [String], region: String
     ) async throws -> [String: AppStoreLookupShape?] {
-        let raw = try await batchLookup(bundleIDs: bundleIDs, region: region, lang: nil)
+        // The SAME shape `prewarm(_:)` sends, `lang` included. Verifying a
+        // request production no longer makes would leave the multi-id + `lang`
+        // combination — the one prewarm actually uses — unexercised, and its
+        // failure is silent by construction: `prewarm` logs a 400 and every app
+        // falls through to its own lookup, so the only symptom is traffic that
+        // never dropped. (`kind` and `trackId`, the two fields check 5 compares,
+        // are language-independent — measured 2026-09-05, same ids under
+        // `lang=zh_cn` and no lang — so this cannot introduce a false break.)
+        let lang = await LanguageSupport.shared.isRejected
+            ? nil
+            : Self.storeLanguage(preferred: Locale.preferredLanguages, storefront: region)
+        let raw = try await batchLookup(bundleIDs: bundleIDs, region: region, lang: lang)
         var out: [String: AppStoreLookupShape?] = [:]
         for (id, result) in raw {
             out[id] = result.map { AppStoreLookupShape(kind: $0.kind, trackId: $0.trackId) }

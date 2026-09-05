@@ -22,8 +22,9 @@ struct GitHubListPageSizeTests {
     /// worst observed run-length between two releases the rule's pattern
     /// accepts, plus 1 (the minimum depth that would have still caught the
     /// worse of the two). The `listPageSize` chosen in the registry carries
-    /// further headroom above this floor; this table only pins the floor a
-    /// value must clear, not the value itself.
+    /// headroom above this floor — margin against the gap growing, not against
+    /// any walk-back requirement. This table only pins the floor a value must
+    /// clear, not the value itself.
     ///
     /// Keyed by `bundleID/channel` since one bundle id can carry two rules
     /// (GitHub Desktop stable/beta, T3 Code alpha/nightly) — `bundleID` alone
@@ -39,20 +40,20 @@ struct GitHubListPageSizeTests {
     /// `ruleWithLineAnchoredScopeIsExcludedOnPurpose` pins that this is a
     /// decision, not an oversight.
     static let measuredMinimumDepth: [String: Int] = [
-        // tag gap + 1, PLUS `maxReleasesWithoutMacOSAsset` (5) for every rule
-        // with an `installAssetPattern` — all seven have one. See that constant
-        // and `listPageSize`'s doc: the walk past assetless releases happens
-        // inside this page, so a page sized to the tag depth alone moves the
-        // ceiling from the guard to the page, and stopping early there reads as
-        // a confident "up to date". Three rules were under the guard's limit
-        // until this term was added.
-        "dev.zed.Zed-Preview/preview": 9,     // gap 3 (v1.5.1-pre→v1.5.0-pre) +1 +5
-        "com.insomnia.app/stable": 15,        // gap 9 (core@11.0.0→core@10.3.1) +1 +5
-        "com.github.GitHubClient/beta": 10,   // gap 4 (release-3.4.16-beta1→…3.4.13-beta2) +1 +5
-        "com.vorssaint.utils/beta": 7,        // gap 1 (only 4 -beta. tags ever) +1 +5
-        "com.microsoft.Headlamp/stable": 10,  // gap 4 (v0.23.0→v0.22.0) +1 +5
-        "com.bitwarden.desktop/stable": 13,   // gap 7 (desktop-v2026.6.0→…2026.5.0) +1 +5
-        "com.t3tools.t3code/nightly": 8,      // gap 2 (…20260902.1252→…20260901.1250) +1 +5
+        // Tag gap + 1, and nothing else. An earlier version added
+        // `maxReleasesWithoutMacOSAsset` (5) to every floor, on the belief that
+        // the walk past assetless releases had to fit inside the page or the
+        // early stop would read as "up to date". It does not — that walk and a
+        // plain page exhaustion reach the same `recordMiss` / `.unknown` exit —
+        // and the arithmetic was wrong besides (5 skips need ~`1 + 5 × gap`
+        // entries, not `gap + 5`). See `listPageSize`'s doc comment.
+        "dev.zed.Zed-Preview/preview": 4,     // gap 3 (v1.5.1-pre→v1.5.0-pre), +1
+        "com.insomnia.app/stable": 10,        // gap 9 (core@11.0.0→core@10.3.1), +1
+        "com.github.GitHubClient/beta": 5,    // gap 4 (release-3.4.16-beta1→…3.4.13-beta2), +1
+        "com.vorssaint.utils/beta": 2,        // gap 1 (only 4 -beta. tags ever), +1
+        "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
+        "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
+        "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

@@ -33,7 +33,9 @@ public enum SourceStack {
             HomebrewCaskSource(),
             // GitHub Releases for apps distributed that way (detection only unless
             // a rule names an installable asset).
-            GitHubReleasesSource(token: githubToken, channelStore: channelStore),
+            GitHubReleasesSource(
+                token: githubToken, channelStore: channelStore,
+                validatorCache: GitHubConditionalCache.shared),
         ]
         // Alcove's licensed update channel, ahead of the vendor probe: it's the only
         // surface carrying release notes, an exact publish time and an installable

@@ -81,5 +81,10 @@ jobs:
         # branch wedged, one of them for the full job budget with no output at
         # all. See #351 and scripts/run-with-hang-report.sh for why this is out
         # here and not a watchdog inside the test process.
-        run: scripts/run-with-hang-report.sh 1800 make test
+        # TEMPORARY, for #351: the gate is on and the budget short, to reproduce
+        # the wedge deliberately and get the two-sample discriminator. Revert both
+        # numbers (gate off, 1800) once the question is answered.
+        env:
+          DUO_DOWNLOAD_GATE: "1"
+        run: scripts/run-with-hang-report.sh 600 make test
 

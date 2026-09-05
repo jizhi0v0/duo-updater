@@ -38,7 +38,34 @@ while kill -0 "$child" 2>/dev/null; do
         echo "=== HANG: '$*' exceeded ${budget}s ==============================" >&2
         # Sample every candidate, not just one: which of them is wedged is the
         # question, and a report naming the wrong process answers nothing.
+        # TWICE, sixty seconds apart, with the CPU time each process has burned in
+        # between. One sample cannot tell "wedged" from "slow" — it shows the stack
+        # at an instant, and a slow call looks identical to a stuck one. Two do:
+        # the same stack with no CPU accrued between them is blocked; anything else
+        # is working. That distinction decides whether moving a blocking call to
+        # another queue fixes the problem or merely hides it, and a review pointed
+        # out it was the measurement missing from every attempt so far.
         report="$(mktemp -t duo-hang-sample)"
+        for round in 1 2; do
+            if [ "$round" = 2 ]; then
+                echo "=== waiting 60s for the second sample ====================" >&2
+                sleep 60
+            fi
+            echo "=== SAMPLE ROUND $round ==================================" >&2
+            for pid in $(pgrep -f "$sample_targets" 2>/dev/null); do
+                [ "$pid" = "$$" ] && continue
+                comm="$(ps -o comm= -p "$pid" 2>/dev/null)"
+                case "${comm##*/}" in
+                    swiftpm-testing-helper|xctest|swift-test|xcodebuild|swift-frontend) ;;
+                    *) continue ;;
+                esac
+                # Accumulated CPU time. Frozen between the two rounds means the
+                # process is not executing, which is what "blocked" looks like from
+                # outside; advancing means it is doing work, however slowly.
+                echo "    pid $pid cputime=$(ps -o time= -p "$pid" 2>/dev/null | tr -d ' ')" >&2
+            done
+        done
+        echo "=== STACKS ===============================================" >&2
         for pid in $(pgrep -f "$sample_targets" 2>/dev/null); do
             [ "$pid" = "$$" ] && continue
             comm="$(ps -o comm= -p "$pid" 2>/dev/null)"

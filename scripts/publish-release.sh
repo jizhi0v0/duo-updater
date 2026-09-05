@@ -352,6 +352,26 @@ PY
 
 # Commit and push the appcast prepared above. Split from the preparation so
 # every check runs before the release exists.
+# Whether pull request `$1` actually reached MERGED, waiting up to 30 minutes for
+# the required status check to report.
+#
+# 30 minutes at 30s intervals: `make test` on a hosted runner takes about six, and
+# a bound means a wedged check costs a loud failure rather than a release script
+# that never returns. An empty number — `gh pr list` raced the create, or changed
+# shape — is "unknown", which is treated as not merged.
+appcast_pr_merged() {
+    local num="$1" state
+    [ -n "$num" ] || return 1
+    local i
+    for i in $(seq 1 60); do
+        state="$(gh pr view "$num" --repo "$RELEASE_REPO" --json state -q .state 2>/dev/null || echo "")"
+        [ "$state" = "MERGED" ] && return 0
+        [ "$state" = "CLOSED" ] && return 1
+        sleep 30
+    done
+    return 1
+}
+
 push_sparkle_appcast() {
     # The branch the appcast lives on, read from the clone rather than assumed —
     # `gh repo clone` checks out the remote's default branch, whatever it is.
@@ -383,12 +403,30 @@ push_sparkle_appcast() {
                        --title "Update Sparkle appcast for $TAG" \
                        --body "Published by scripts/publish-release.sh for $TAG." >/dev/null 2>&1
             then
+                # Read before a merge deletes the branch this looks up by.
+                local pr_num
+                pr_num="$(gh pr list --repo "$RELEASE_REPO" --head "$branch" \
+                              --json number -q '.[0].number' 2>/dev/null || echo "")"
                 # `--auto` is what works once a required check exists; a PR with
                 # nothing pending is mergeable immediately and `--auto` refuses
                 # it, which is not a failure. Both forms delete the branch.
                 if gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch --auto >/dev/null 2>&1 \
                     || gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch >/dev/null 2>&1; then
-                    return 0
+                    # ENABLING auto-merge is not merging. `--auto` returns success
+                    # the moment GitHub accepts the request, minutes before the
+                    # required check reports, so returning here would let the
+                    # release finish and report success over a feed that had not
+                    # been updated — and if the check then went red, nothing would
+                    # ever say so. The whole point of the die below is that this
+                    # failure is loud; it cannot be loud from a promise.
+                    if appcast_pr_merged "$pr_num"; then
+                        return 0
+                    fi
+                    # A pending or rejected check is not repaired by opening a
+                    # second pull request for the same commit, so stop retrying
+                    # and let the operator see it. The retry below exists for a
+                    # different failure — somebody else moved the branch.
+                    break
                 fi
                 say "  appcast PR opened but did not merge (attempt $attempt)"
             else
@@ -399,8 +437,10 @@ push_sparkle_appcast() {
         done
         die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be
   merged. Users will not be offered it until the feed is updated. Look for an open
-  \"Update Sparkle appcast for $TAG\" pull request and merge it, or re-run this
-  script — the release will be updated in place and the appcast retried."
+  \"Update Sparkle appcast for $TAG\" pull request — it may simply still be waiting
+  on the required \`test\` check, in which case it merges itself and nothing more is
+  needed; if that check went red, fix it and merge. Re-running this script also
+  works — the release is updated in place and the appcast retried."
     else
         say "Sparkle appcast already up to date"
     fi

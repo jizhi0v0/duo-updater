@@ -45,7 +45,7 @@ extension Verify {
                 bundleIDs: cases.map(\.bundleID), region: "us")
             if fetched.isEmpty {
                 findings.append(Finding(
-                    recipeID: "appStore:batch", registry: .appStore, bundleID: "-",
+                    recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: "-",
                     channel: "-", status: FindingStatus.infra,
                     failureDetail: "batched lookup returned nothing for \(cases.count) bundle ids — check 5 (batch ≡ single) did not run",
                     endpointHost: "itunes.apple.com", elapsedMs: 0))
@@ -54,7 +54,7 @@ extension Verify {
             }
         } catch {
             findings.append(Finding(
-                recipeID: "appStore:batch", registry: .appStore, bundleID: "-",
+                recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: "-",
                 channel: "-", status: FindingStatus.infra,
                 failureDetail: "batched lookup failed (\(error.localizedDescription)) — check 5 (batch ≡ single) did not run",
                 endpointHost: "itunes.apple.com", elapsedMs: 0))
@@ -129,11 +129,19 @@ extension Verify {
                 if let url = try await source.verifyTrackViewURL(
                     bundleID: probeCase.bundleID, region: probeCase.region) {
                     let hostOK = url.scheme == "https" && url.host == "apps.apple.com"
+                    let namesThisTrackId =
+                        url.path.split(separator: "/").last == "id\(probeCase.trackId)"
+                    let macMarker = (URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                        .queryItems ?? []).contains {
+                            ($0.name == "mt" && $0.value == "12")
+                                || ($0.name == "platform" && $0.value == "mac")
+                        }
                     let zeroRedirects = hostOK
                         ? try await source.verifyZeroRedirect(url).zeroRedirects
                         : false
                     trackViewCheck = AppStoreProbeObservation.TrackViewCheck(
-                        url: url, hostOK: hostOK, zeroRedirects: zeroRedirects)
+                        url: url, hostOK: hostOK, zeroRedirects: zeroRedirects,
+                        namesThisTrackId: namesThisTrackId, carriesMacMarker: macMarker)
                 }
             } catch {
                 return infra("trackViewUrl fetch threw: \(error)")
@@ -227,6 +235,18 @@ extension Verify {
                     "trackViewUrlHostChanged: \(trackViewCheck.url.absoluteString) is no longer an "
                         + "https apps.apple.com URL — validatedProductPageURL will reject it and fall "
                         + "back to the constructed URL, paying its redirect every time")
+            } else if !trackViewCheck.namesThisTrackId {
+                escalate(.warn)
+                warnings.append(
+                    "trackViewUrlNoLongerNamesThisId: \(trackViewCheck.url.absoluteString) does not "
+                        + "end in id\(probeCase.trackId) — validatedProductPageURL rejects it and "
+                        + "falls back to the constructed URL, paying its redirect every time")
+            } else if !trackViewCheck.carriesMacMarker {
+                escalate(.warn)
+                warnings.append(
+                    "trackViewUrlLostItsMacMarker: \(trackViewCheck.url.absoluteString) carries "
+                        + "neither mt=12 nor platform=mac — validatedProductPageURL rejects it and "
+                        + "falls back to the constructed URL, paying its redirect every time")
             } else if !trackViewCheck.zeroRedirects {
                 // Not `.broken`: `validatedProductPageURL` already falls back
                 // safely when this URL fails the check it does at request
@@ -273,5 +293,13 @@ struct AppStoreProbeObservation: Sendable {
         let url: URL
         let hostOK: Bool
         let zeroRedirects: Bool
+        /// Mirrors the OTHER two conditions `validatedProductPageURL` applies.
+        /// Host and zero-redirects alone left two thirds of the guard
+        /// unmonitored: a `trackViewUrl` that lost its `mt=12` stays on
+        /// apps.apple.com and stays zero-redirect, so this check would have
+        /// gone on passing while production rejected every URL and silently
+        /// paid the 301 the optimisation exists to save.
+        let namesThisTrackId: Bool
+        let carriesMacMarker: Bool
     }
 }

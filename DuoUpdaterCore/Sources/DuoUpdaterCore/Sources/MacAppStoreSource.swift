@@ -265,18 +265,30 @@ public struct MacAppStoreSource: UpdateSource {
         // `nativeMacVersion` prefers the page whenever it is strictly newer.
         //
         // ⚠️ The id alone does NOT discriminate, and a first attempt at this
-        // guard got that wrong. **A Universal Purchase app's iOS and Mac
-        // listings share one trackId** — they differ only by the QUERY, which
-        // `url.path` excludes by definition. Measured 2026-09-05, same id,
-        // same host, two answers:
+        // guard got that wrong. **One trackId serves two different product
+        // pages** — they differ only by the QUERY, which `url.path` excludes by
+        // definition. Measured 2026-09-05, same id, same host, two answers:
         //
         //     id1465439395 (Dark Noise)  default page 3.5.2   ?platform=mac 3.4.3
         //     id1593408455 (Anybox)      default page 2.13    ?platform=mac 2.14
         //
-        // Dark Noise is exactly the failure: the iOS track is AHEAD, so the
-        // default page wins the "strictly newer" test and offers 3.5.2 for a
-        // Mac copy that can only take 3.4.3. So the platform marker is the
-        // load-bearing half of this check, not the id.
+        // So the platform marker is the load-bearing half of this check, not
+        // the id: without it, a URL for the same app can still be the wrong
+        // page, and the iOS track running AHEAD is what would turn that into an
+        // update the Mac copy can never install.
+        //
+        // ⚠️ Those two apps are the EVIDENCE, not the failure. Both answer the
+        // lookup with `kind: "software"` in all nine storefronts this source
+        // probes, so `isNativeMac` is false and `resolve()` sends them to
+        // `iosOnMacVersion`, which builds its own URL and never reads
+        // `trackViewUrl` at all. They can not reach this function. An earlier
+        // version of this comment claimed one of them was a live failure here;
+        // it is not, and nobody should "fix" `iosOnMacVersion` on the strength
+        // of it. What is measured is that the id cannot tell two pages apart.
+        // That a `mac-software` lookup would ever hand back a non-Mac
+        // `trackViewUrl` is UNOBSERVED — 1094 `mac-software` listings sampled
+        // 2026-09-05 all carried `mt=12`, and 0 of 1865 iOS listings did. This
+        // guard is defence in depth against a shape Apple has not shown us.
         //
         // Exact last-component equality rather than `contains`, because Apple
         // ids are 9-10 digits and `id975937182` is a substring of ten distinct

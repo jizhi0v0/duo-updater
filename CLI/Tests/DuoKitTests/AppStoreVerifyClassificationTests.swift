@@ -34,8 +34,15 @@ import Foundation
         let single = AppStoreLookupShape(kind: probeCase.expectedKind, trackId: probeCase.trackId)
         let trackViewCheck = probeCase.route == .nativeMac
             ? AppStoreProbeObservation.TrackViewCheck(
-                url: URL(string: "https://apps.apple.com/us/app/x/id\(probeCase.trackId)")!,
-                hostOK: true, zeroRedirects: true)
+                // Carries `mt=12` and ends in `id<trackId>` because the
+                // baseline observation has to satisfy EVERY condition
+                // `validatedProductPageURL` applies — a fixture that only met
+                // the host check would make the two new branches of check 4
+                // unreachable from here, which is the tests-measuring-the-
+                // fixture trap rather than the code.
+                url: URL(string: "https://apps.apple.com/us/app/x/id\(probeCase.trackId)?mt=12&uo=4")!,
+                hostOK: true, zeroRedirects: true,
+                namesThisTrackId: true, carriesMacMarker: true)
             : nil
         return AppStoreProbeObservation(
             single: single, pageShape: .reachable(found: true),
@@ -127,7 +134,8 @@ import Foundation
         observation = AppStoreProbeObservation(
             single: observation.single, pageShape: observation.pageShape,
             trackViewCheck: .init(
-                url: URL(string: "https://example.com/redirected")!, hostOK: false, zeroRedirects: false),
+                url: URL(string: "https://example.com/redirected")!, hostOK: false, zeroRedirects: false,
+                namesThisTrackId: false, carriesMacMarker: false),
             batchEntry: observation.batchEntry)
         let verdict = Verify.classifyAppStore(probeCase, observation)
         #expect(verdict.status == .broken)
@@ -142,7 +150,8 @@ import Foundation
         var observation = passingObservation(for: probeCase)
         observation = AppStoreProbeObservation(
             single: observation.single, pageShape: observation.pageShape,
-            trackViewCheck: .init(url: observation.trackViewCheck!.url, hostOK: true, zeroRedirects: false),
+            trackViewCheck: .init(url: observation.trackViewCheck!.url, hostOK: true, zeroRedirects: false,
+                                  namesThisTrackId: true, carriesMacMarker: true),
             batchEntry: observation.batchEntry)
         let verdict = Verify.classifyAppStore(probeCase, observation)
         #expect(verdict.status == .warn)
@@ -228,12 +237,65 @@ import Foundation
             single: AppStoreLookupShape(kind: "software", trackId: probeCase.trackId),  // .broken cause
             pageShape: .reachable(found: true),
             trackViewCheck: .init(  // .warn cause, checked AFTER kind in classifyAppStore's source order
-                url: URL(string: "https://apps.apple.com/us/app/x/id\(probeCase.trackId)")!,
-                hostOK: true, zeroRedirects: false),
+                // The id and marker conditions must PASS here: they are checked
+                // before the redirect one, and this case asserts the redirect
+                // warning specifically.
+                url: URL(string: "https://apps.apple.com/us/app/x/id\(probeCase.trackId)?mt=12")!,
+                hostOK: true, zeroRedirects: false,
+                namesThisTrackId: true, carriesMacMarker: true),
             batchEntry: .some(AppStoreLookupShape(kind: "software", trackId: probeCase.trackId)))  // agrees, .ok
         let verdict = Verify.classifyAppStore(probeCase, observation)
         #expect(verdict.status == .broken)
         #expect(verdict.warnings.contains { $0.hasPrefix("kindMismatch:") })
         #expect(verdict.warnings.contains { $0.hasPrefix("trackViewUrlNowRedirects:") })
+    }
+
+    /// Check 4 must notice a `trackViewUrl` that stopped naming this listing.
+    ///
+    /// The guard in `validatedProductPageURL` grew from one condition (host) to
+    /// three; this and the case below are the two that were unmonitored when
+    /// it did. Without them a `trackViewUrl` that lost its id or its `mt=12`
+    /// would leave every check green while production rejected it and paid the
+    /// 301 on every single scrape — the optimisation silently switching itself
+    /// off, which is the failure this sweep exists to catch.
+    ///
+    /// Mutation run: deleting the `namesThisTrackId` branch in
+    /// `classifyAppStore` turns this red and leaves the rest green.
+    @Test func aTrackViewUrlThatStoppedNamingThisIdWarns() throws {
+        let probeCase = try nativeMacCase()
+        var observation = passingObservation(for: probeCase)
+        observation = AppStoreProbeObservation(
+            single: observation.single, pageShape: observation.pageShape,
+            trackViewCheck: .init(
+                url: URL(string: "https://apps.apple.com/us/app/x/id999999?mt=12")!,
+                hostOK: true, zeroRedirects: true,
+                namesThisTrackId: false, carriesMacMarker: true),
+            batchEntry: observation.batchEntry)
+        let verdict = Verify.classifyAppStore(probeCase, observation)
+        #expect(verdict.status == .warn)
+        #expect(verdict.warnings.contains { $0.hasPrefix("trackViewUrlNoLongerNamesThisId:") })
+    }
+
+    /// Check 4 must notice a `trackViewUrl` that lost its Mac platform marker.
+    ///
+    /// This is the load-bearing half of the guard: one trackId serves both the
+    /// iOS and the Mac product page, so the marker — not the id — is what says
+    /// which one a URL points at.
+    ///
+    /// Mutation run: deleting the `carriesMacMarker` branch turns this red and
+    /// leaves the rest green.
+    @Test func aTrackViewUrlThatLostItsMacMarkerWarns() throws {
+        let probeCase = try nativeMacCase()
+        var observation = passingObservation(for: probeCase)
+        observation = AppStoreProbeObservation(
+            single: observation.single, pageShape: observation.pageShape,
+            trackViewCheck: .init(
+                url: URL(string: "https://apps.apple.com/us/app/x/id\(probeCase.trackId)?uo=4")!,
+                hostOK: true, zeroRedirects: true,
+                namesThisTrackId: true, carriesMacMarker: false),
+            batchEntry: observation.batchEntry)
+        let verdict = Verify.classifyAppStore(probeCase, observation)
+        #expect(verdict.status == .warn)
+        #expect(verdict.warnings.contains { $0.hasPrefix("trackViewUrlLostItsMacMarker:") })
     }
 }

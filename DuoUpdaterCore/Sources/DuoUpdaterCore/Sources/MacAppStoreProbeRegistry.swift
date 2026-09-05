@@ -93,6 +93,23 @@ public struct MacAppStoreProbeCase: Sendable {
 /// model, so this doesn't need re-curating every few months the way an
 /// arbitrary installed-app sample would.
 public enum MacAppStoreProbeRegistry {
+
+    /// The id the sweep files a failed BATCH lookup under.
+    ///
+    /// It has to live here, next to the per-case ids, for one reason: `duo
+    /// verify` prunes its baseline against the set of ids the registries can
+    /// still produce, and it prunes BEFORE it saves. A synthetic id invented at
+    /// the call site is therefore created, dropped, and never persisted — so it
+    /// can never reach the `consecutiveInfra >= 3` escalation, can never fail a
+    /// run however many nights it breaks, and prints as "no recipe produces
+    /// this id any more", which reads as a recipe deletion rather than a
+    /// network failure. That is exactly the vanishing-guard shape the sweep's
+    /// own batch check was rewritten to remove; putting the id in the registry
+    /// is what stops it happening one layer down. Lowercase `appstore:` to
+    /// match `recipeID` — the first attempt used `appStore:` and fell out of
+    /// the live set on the casing alone.
+    public static let batchRecipeID = "appstore:batch"
+
     public static let cases: [MacAppStoreProbeCase] = [
         // Bear — Mac App Store–exclusive markdown notes app, continuously
         // maintained since 2016, no reason to expect delisting. Native Mac

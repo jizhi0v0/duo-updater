@@ -147,7 +147,8 @@ public enum Verify {
             VendorProbeRegistry.recipes.map(\.recipeID)
                 + ChangelogRecipeRegistry.recipes.map(\.recipeID)
                 + GitHubReleaseRegistry.rules.map(\.recipeID)
-                + MacAppStoreProbeRegistry.cases.map(\.recipeID))
+                + MacAppStoreProbeRegistry.cases.map(\.recipeID)
+                + [MacAppStoreProbeRegistry.batchRecipeID])
         let pruned = baseline.prune(keeping: live)
         for id in pruned.removed {
             print("  baseline: dropped \(id) — no recipe produces this id any more")

@@ -879,7 +879,8 @@ private func matches(
     let expected: [String: String] = [
         "com.ccswitch.desktop": "farion1231/cc-switch",
         "com.usebruno.app": "usebruno/bruno",
-        "com.vorssaint.utils": "vorssaintapp/vorssaint-utils",
+        // Renamed upstream; re-pinned 2026-09-05 (was vorssaintapp/vorssaint-utils). #340
+        "com.vorssaint.utils": "vorssaint/vorssaint-utils",
         "org.openlogi.openlogi": "AprilNEA/OpenLogi",
         "org.localsend.localsendApp": "localsend/localsend",
         "com.utmapp.UTM": "utmapp/UTM",

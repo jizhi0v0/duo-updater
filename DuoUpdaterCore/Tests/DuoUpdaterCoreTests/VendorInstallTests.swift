@@ -942,12 +942,28 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
 
     // Unpack + the mandatory gate.
     log("· extracting")
-    let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
+    // Off the cooperative pool, exactly as the installers do it (#351). This test
+    // reaches `ArchiveExtractor` and `SignatureVerifier` DIRECTLY rather than
+    // through an installer, so the fix in `VendorInstaller` does not cover it —
+    // and it was this test that wedged three CI runs. A gate test that blocks the
+    // pool would still hang while the code it exists to check no longer does,
+    // which reads as the fix having failed.
+    let dir = workDir
+    let source = archive          // `archive` is a var; a Sendable closure needs a let
+    let newApp = try await offCooperativePool {
+        try ArchiveExtractor.extractApp(from: source, workDir: dir)
+    }
     log("· verifying signature")
-    try SignatureVerifier.verifyCodeSignature(appAt: newApp)
-    let installedTeam = try SignatureVerifier.teamIdentifier(at: app.path)
-    let downloadedTeam = try SignatureVerifier.teamIdentifier(at: newApp)
+    let installedPath = app.path
+    let (installedTeam, downloadedTeam) = try await offCooperativePool {
+        try SignatureVerifier.verifyCodeSignature(appAt: newApp)
+        return (try SignatureVerifier.teamIdentifier(at: installedPath),
+                try SignatureVerifier.teamIdentifier(at: newApp))
+    }
     log("Team ID  installed: \(installedTeam ?? "nil")  downloaded: \(downloadedTeam ?? "nil")")
-    try SignatureVerifier.verifyTeamIdentifierMatch(installedApp: app.path, downloadedApp: newApp)
+    try await offCooperativePool {
+        try SignatureVerifier.verifyTeamIdentifierMatch(
+            installedApp: installedPath, downloadedApp: newApp)
+    }
     log("✅ gate passed — would swap safely (no swap performed)")
 }

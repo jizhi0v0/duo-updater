@@ -358,61 +358,173 @@ struct ArchitectureDowngradeWiringTests {
         }
     }
 
-    /// A real installed universal (`arm64 + x86_64`) app, small enough to copy
-    /// and zip twice per test without slowing the suite — or nil when this
-    /// machine has none, which the caller must treat as "nothing to prove with"
-    /// rather than a failure (this suite runs on whatever `/Applications`
-    /// happens to hold, same as `InstallPipelineSmokeTests.installPipelineDryRun`).
+    /// A real installed universal (`arm64 + x86_64`) app, signed by a team and
+    /// small enough to copy and zip twice per test — or nil, which is a failure.
+    ///
+    /// Searched in TWO passes, because a top-level `/Applications` entry is not the
+    /// only shape a complete signed bundle comes in, and on a hosted runner it is
+    /// not a shape that exists at all. Measured on `macos-latest` 2026-09-04 (run
+    /// 33930802607): zero candidates, so both tests below passed having executed
+    /// none of the code they exist for — #339. The image is not short of universal
+    /// apps; Chrome, Edge and Firefox all ship one. They are simply hundreds of
+    /// megabytes, and the size cap — added the day before to stop a 593-second
+    /// Xcode copy — rejected every one of them.
+    ///
+    /// A vendor's nested helper is the same thing an order of magnitude smaller: a
+    /// separately signed, complete bundle carrying its parent's Team ID. Measured
+    /// here 2026-09-05, `Google Chrome Helper.app` is 184 KB, `[x86_64 arm64]`,
+    /// team `EQHXZ8M8AV`, and drives both tests to Gate 5b's refusal in 0.657 s.
+    /// So pass 1 takes a small top-level app when one exists (the author's Mac),
+    /// and pass 2 descends into exactly the apps the cap rejected (the runner).
     private static func findUniversalFixture() -> URL? {
-        guard let apps = try? FileManager.default.contentsOfDirectory(
+        guard let entries = try? FileManager.default.contentsOfDirectory(
             at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil
-        ) else { return nil }
-        // Small enough MEASURED, not by name. The list here used to be
-        // ["NotchBadge.app", "AppCleaner.app", "Klack.app"] — the author's small
-        // apps — with everything else in whatever order the directory came back.
-        // A machine without those three takes the fallback, and on the first CI
-        // run that was Xcode: `vendorInstallerApplyRefusesTheDowngrade` spent 593
-        // seconds of a 60-minute budget copying it, twice. A hand-kept list of
-        // one machine's apps is exactly the kind of fixture choice this repository
-        // keeps getting wrong; the size is the actual requirement, so measure it.
-        for candidate in apps where candidate.pathExtension == "app" {
-            // Resolved first, because /Applications can hold SYMLINKS to apps and
-            // every step below behaves differently on one. Measured on a GitHub
-            // runner 2026-09-05: `/Applications/Xcode_26.2.0.app` is a link to
-            // `/Applications/Xcode_26.2.app`, and that single fact produced every
-            // symptom in #336 — `enumerator` does not descend a link, so a 20 GB
-            // Xcode passed a 200 MB cap with a measured size of zero; `cp -R` copies
-            // the link rather than the tree, so the "scratch copy" pointed back at
-            // the original and `lipo`/`removeItem`/`moveItem` were aimed at a real
-            // installed app; and `ditto -c -k` followed it, which is where 593
-            // seconds went. Resolving here fixes all three at the source, and the
-            // scratch guard in `makeDowngradeFixture` stays as the backstop.
-            let app = candidate.resolvingSymlinksInPath()
-            guard bundleIsUnder(sizeCap, at: app),
-                  SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel],
-                  (try? SignatureVerifier.teamIdentifier(at: app)) != nil
-            else { continue }
+        ) else {
+            Issue.record("ARCH DOWNGRADE FIXTURE: /Applications could not be listed.")
+            return nil
+        }
+        // Resolved before anything else, because /Applications can hold SYMLINKS to
+        // apps and every step below behaves differently on one. Measured on a
+        // GitHub runner 2026-09-05: `/Applications/Xcode_26.2.0.app` is a link to
+        // `/Applications/Xcode_26.2.app`, and that single fact produced every
+        // symptom in #336 — `enumerator` does not descend a link, so a 20 GB Xcode
+        // passed a 200 MB cap with a measured size of zero; `cp -R` copies the link
+        // rather than the tree, so the "scratch copy" pointed back at the original;
+        // and `ditto -c -k` followed it, which is where 593 seconds went.
+        //
+        // Sorted so two runs on one machine choose the SAME fixture. Directory
+        // order is not defined, and a suite that silently swaps its fixture between
+        // runs turns any fixture-shaped failure into a flake.
+        let candidates = entries
+            .filter { $0.pathExtension == "app" }
+            .map { $0.resolvingSymlinksInPath() }
+            .sorted { $0.path < $1.path }
+
+        // Pass 1 — a top-level app already under the copy budget.
+        var rejected: [URL] = []
+        for app in candidates {
+            guard bundleIsUnder(sizeCap, at: app), isUsableFixture(app) else {
+                rejected.append(app)
+                continue
+            }
             print("ARCH DOWNGRADE FIXTURE: \(app.lastPathComponent)")
             return app
         }
-        // Both callers treat nil as "nothing to prove with" and return, so this
-        // branch is the tests passing while executing none of the code they exist
-        // for. That is defensible — not every machine has a universal signed app —
-        // but it must not be SILENT, which it was: the size cap added above makes
-        // the empty case more reachable, and a fixture-shaped hole reads exactly
-        // like a green run. Say so where anyone reading a CI log will see it.
-        print("""
-            ARCH DOWNGRADE FIXTURE: none found under \(sizeCap / 1024 / 1024) MB in \
-            /Applications — the two downgrade-wiring tests PROVED NOTHING on this run.
+
+        // Pass 2 — descend into EVERYTHING pass 1 turned down, not only what the
+        // cap turned down. The narrower version was written first, on the reasoning
+        // that a small app rejected for its architecture or its signature has
+        // nothing usable inside it either, since a helper inherits its parent's
+        // team and architecture set. That reasoning is unmeasured, and it is the
+        // same shape of "throughout" claim this repository keeps getting wrong:
+        // nothing stops an arm64-only app from bundling a universal Sparkle
+        // updater, and one wrong guess here brings back the silent-hole this whole
+        // change exists to close. The small ones are under the cap by definition,
+        // so walking them costs almost nothing, and the budget bounds the rest.
+        var budget = nestedSearchBudget
+        for host in rejected {
+            guard let nested = firstUsableNestedFixture(in: host, budget: &budget)
+            else { continue }
+            print("""
+                ARCH DOWNGRADE FIXTURE: \(nested.lastPathComponent) \
+                (nested in \(host.lastPathComponent))
+                """)
+            return nested
+        }
+
+        // FAILS, where it used to print and return nil. Both callers treat nil as
+        // "nothing to prove with" and return, so that branch was the two tests
+        // passing while executing none of the code they exist for — and a green
+        // run is exactly what a fixture-shaped hole looks like from outside. The
+        // printed warning was not enough: it went by on 2026-09-04 and #339 was
+        // filed off a log nobody would have read otherwise.
+        //
+        // The honest cost: the fixture now comes from someone else's disk image,
+        // and `macos-latest` will eventually move to a newer one. If that image
+        // ships no universal team-signed bundle at any depth, this turns red for a
+        // reason unrelated to the code under test. That is the trade — a red that
+        // names its own cause, over a green that means nothing. The message says
+        // which pass came up empty so the next person does not have to rediscover
+        // this comment.
+        Issue.record("""
+            ARCH DOWNGRADE FIXTURE: none found. No universal, team-signed bundle \
+            under \(sizeCap / 1024 / 1024) MB among \(candidates.count) apps in \
+            /Applications, and none nested inside any of the \(rejected.count) \
+            turned down (\(nestedSearchBudget - budget) entries walked\
+            \(budget <= 0 ? ", BUDGET EXHAUSTED — raise nestedSearchBudget" : "")). \
+            The two downgrade-wiring tests can prove nothing without one, so this \
+            fails rather than passing silently — see #339.
             """)
         return nil
     }
+
+    /// Universal AND signed by a real team — both halves are requirements of the
+    /// gate under test, not conveniences.
+    ///
+    /// Team ID matters because Gate 3 runs BEFORE the gate these tests aim at, so a
+    /// teamless fixture is refused upstream and the tests fail naming the wrong
+    /// reason (measured 2026-09-05: `noTeamIdentifier(which: "installed")` from
+    /// both installers, on the hermetic ad-hoc fixture #339 proposed). It is also
+    /// the only thing keeping Safari out: `/Applications/Safari.app` is a symlink
+    /// into `/System/Volumes/Preboot/Cryptexes/App/…`, and the real bundle behind
+    /// it reads as `[x86_64, arm64]` and sits under the cap — it clears every other
+    /// filter here and is excluded solely by answering nil for a team.
+    private static func isUsableFixture(_ app: URL) -> Bool {
+        SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel]
+            && (try? SignatureVerifier.teamIdentifier(at: app)) != nil
+    }
+
+    /// The first nested `.app` inside `host` that would serve as a fixture,
+    /// charging what it walks against a shared `budget`.
+    ///
+    /// FIRST, not smallest: picking the smallest means evaluating every candidate,
+    /// which is a full walk of an app the cap already called too big — most of what
+    /// the cap exists to avoid. The cap is re-applied to each nested bundle, so
+    /// "first" is still bounded by the same copy budget.
+    private static func firstUsableNestedFixture(in host: URL, budget: inout Int) -> URL? {
+        guard let walk = FileManager.default.enumerator(
+            at: host, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+        else { return nil }
+        for case let entry as URL in walk {
+            guard budget > 0 else { return nil }
+            budget -= 1
+            guard entry.pathExtension == "app" else { continue }
+            // Do not descend into a bundle already being considered. This prune is
+            // most of why the walk is cheap: with it, Chrome costs 1,122 entries
+            // instead of its whole tree.
+            walk.skipDescendants()
+            let nested = entry.resolvingSymlinksInPath()
+            guard bundleIsUnder(sizeCap, at: nested), isUsableFixture(nested) else { continue }
+            return nested
+        }
+        return nil
+    }
+
+    /// Directory entries pass 2 may visit in total, across every oversized app.
+    ///
+    /// A bound rather than a target: pass 2 stops at the first usable bundle, so
+    /// this only decides how long a fruitless search may run. Measured here
+    /// 2026-09-05 with nested `.app` descendants pruned — Google Chrome 1,122
+    /// entries / 0.03 s, CapCut 6,148, Microsoft Word 50,582, and the worst case on
+    /// the machine, Xcode-beta, 164,777 / 3.56 s. 400,000 lets even that finish and
+    /// still holds the whole pass near ten seconds however many such apps are
+    /// installed. Exhausting it is reported in the failure message, because
+    /// "searched everywhere and found nothing" and "ran out of budget" are
+    /// different problems with different fixes.
+    private static let nestedSearchBudget = 400_000
 
     /// The copy budget for a fixture: it is copied twice and zipped once per test,
     /// by two tests. 200 MB of that is already generous; Xcode is a hundred times
     /// it. Measured on the author's Mac 2026-09-05: 55 universal signed candidates
     /// in /Applications, 17 of them under 50 MB, the largest 2.8 GB — so the cap
     /// removes the tail without emptying the population.
+    ///
+    /// On a hosted runner it DID empty the population, which is #339 — every
+    /// universal app on the image is over it. That does not make the cap wrong,
+    /// and raising it is the wrong repair: 593 seconds of a copy is what it was
+    /// added to prevent. Its job simply grew a second half — it now also decides
+    /// which apps pass 2 descends into — so an app being over the cap is no longer
+    /// the end of the search for a fixture inside it.
     private static let sizeCap: Int64 = 200 * 1024 * 1024
 
     /// Whether `url`'s regular files total less than `cap`, **giving up as soon as
@@ -434,9 +546,11 @@ struct ArchitectureDowngradeWiringTests {
     }
 
     /// Builds the "installed universal / downloaded x86_64-only" fixture pair
-    /// shared by both installer tests below, or nil when this environment can't
-    /// support the test (see `findUniversalFixture`). `scratch` is the caller's
-    /// scratch dir, removed by the caller.
+    /// shared by both installer tests below. `scratch` is the caller's scratch dir,
+    /// removed by the caller.
+    ///
+    /// nil means the fixture could not be built, and an issue has already been
+    /// recorded by then — callers return rather than reporting it a second time.
     private static func makeDowngradeFixture(in scratch: URL) throws -> (
         installed: InstalledApp, download: DownloadedUpdate
     )? {
@@ -451,16 +565,33 @@ struct ArchitectureDowngradeWiringTests {
         try FileManager.default.createDirectory(at: thinDir, withIntermediateDirectories: true)
         let thinApp = thinDir.appendingPathComponent(fixture.lastPathComponent)
         try run(["/bin/cp", "-R", fixture.path, thinApp.path])
-        guard let exe = Bundle(url: thinApp)?.executableURL else { return nil }
-        // Everything below rewrites `exe` in place. It must be the copy.
+        // Read off the COPY's own Info.plist and joined onto the COPY's URL, so the
+        // path is structurally incapable of naming anything outside `thinDir`.
         //
-        // On the first CI run (2026-09-05) it was not: the error carried
+        // Everything below rewrites `exe` in place, and on the first CI run
+        // (2026-09-05) it was not the copy: the error carried
         // `NSSourceFilePathErrorKey=/Applications/Xcode_26.2.app/Contents/MacOS/Xcode.thin`,
         // so `lipo`, `removeItem` and `moveItem` had been aimed at a real installed
-        // application rather than at `thinDir`. The mechanism is still unexplained —
-        // probed locally on 2026-09-05, `Bundle(url:)` does return the copy's own
-        // executable even when a `Bundle` for the original already exists — so this
-        // refuses on the fact rather than trusting an explanation nobody has.
+        // application. That line asked `Bundle(url: thinApp)?.executableURL` — a
+        // lookup that answers with whatever the frameworks resolve to, which is a
+        // question this code has no reason to ask. The symlink that run tripped
+        // over is handled at the source now (see `findUniversalFixture`), and the
+        // mechanism was never confirmed; this construction does not need it to be.
+        let infoURL = thinApp.appendingPathComponent("Contents/Info.plist")
+        guard let infoData = try? Data(contentsOf: infoURL),
+              let info = try? PropertyListSerialization.propertyList(
+                from: infoData, options: [], format: nil) as? [String: Any],
+              let exeName = info["CFBundleExecutable"] as? String, !exeName.isEmpty
+        else {
+            Issue.record("fixture \(thinApp.lastPathComponent) declares no CFBundleExecutable")
+            return nil
+        }
+        let exe = thinApp
+            .appendingPathComponent("Contents/MacOS")
+            .appendingPathComponent(exeName)
+        // Kept as the backstop, not as the guard: the construction above already
+        // rules this out, and a precondition that can no longer fire is the cheapest
+        // insurance there is against the next person reintroducing a lookup.
         let scratchRoot = scratch.resolvingSymlinksInPath().path
         guard exe.resolvingSymlinksInPath().path.hasPrefix(scratchRoot + "/") else {
             Issue.record("""

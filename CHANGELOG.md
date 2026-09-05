@@ -21,9 +21,17 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.85
 
-**Checking apps that ship through GitHub costs a fraction of the network it did.** Each check used to download every release's full description again even when nothing had been published; it now asks GitHub whether the release has changed since last time and downloads nothing when it has not.
+**Checking your App Store apps uses a fraction of the network it did.** Each check used to fetch every App Store app's product page again; the pages are now kept for an hour and the store is asked about all your apps in a few requests instead of one per app. On a five-minute check interval that is roughly a third less traffic overall; on the default six-hour interval the pages still expire between checks, so the saving there is smaller.
+
+**Checking one app again no longer re-fetches every App Store app.** A single "Check Again" used to throw away every cached product page, so the next scheduled check paid for all of them; it now refreshes only the app you asked about.
+
+**Checking apps that ship through GitHub costs a fraction of the network it did.** Each check used to download every release's full description again even when nothing had been published; it now asks GitHub whether the release has changed since last time and downloads nothing when it has not. Once a day it re-reads each release in full, so a release that is withdrawn is noticed within a day.
 
 **Apps followed on a GitHub beta or nightly track now ask for one release instead of a page of them.** The newest release is the answer almost every time, and the full page is only fetched on the rounds where it is not.
+
+**Vorssaint's update check no longer rides a redirect.** Its repository was renamed, and following the old name silently dropped the request onto GitHub's anonymous rate limit; the check now goes to the new name directly.
+
+**Under the hood.** The release artifact is now built, signed and notarized on a GitHub-hosted Mac with build provenance anyone can verify, and the recorded request log distinguishes a cached answer from a network one.
 
 ## 0.3.84
 

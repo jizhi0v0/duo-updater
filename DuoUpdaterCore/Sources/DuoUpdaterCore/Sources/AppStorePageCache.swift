@@ -173,7 +173,10 @@ public actor AppStorePageCache {
     /// having run again since the last invalidation. Nothing prunes that index
     /// — not this, not `invalidateAll` — so its real bound is "every MAS
     /// bundleID resolved since launch, times the storefronts probed for it"
-    /// (up to 8: the home store plus the 7 fallbacks), and an uninstalled app
+    /// (up to 9: the home store plus `MacAppStoreSource.fallbackRegions`,
+    /// which is a fixed list of 8 minus the home store if it is one of them —
+    /// so 8 keys for a us/cn/hk/tw/jp/sg/kr/gb storefront and 9 for any
+    /// other), and an uninstalled app
     /// stays in it for the life of the process. That is memory only, and
     /// trivial at this scale, but it is not the "bounded by the number of
     /// installed MAS apps" this comment used to claim.

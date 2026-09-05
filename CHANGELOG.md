@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.85
+
+**Checking apps that ship through GitHub costs a fraction of the network it did.** Each check used to download every release's full description again even when nothing had been published; it now asks GitHub whether the release has changed since last time and downloads nothing when it has not.
+
 ## 0.3.84
 
 **Request logs you export no longer carry your account name.** Every row for an app installed in your home folder used to spell out the full path; it now shows `~` instead, whichever way you take the log out.

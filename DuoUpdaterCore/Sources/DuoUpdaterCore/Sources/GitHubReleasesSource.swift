@@ -430,17 +430,65 @@ public struct GitHubReleasesSource: UpdateSource {
     /// the shared instance, and passes the SAME instance to `UpdateChecker` so a
     /// failed check can still read what an earlier one proved.
     private let channelStore: ResolvedChannelStore?
+    /// Where a validator (`Last-Modified` / `ETag` + raw body) for
+    /// `/releases/latest` and `/releases?per_page=<listPageSize>` is remembered
+    /// so `fetchReleases` can revalidate itself — `If-Modified-Since` alone
+    /// wherever the response had a `Last-Modified` — instead of relying on
+    /// `URLCache`, whose `If-None-Match` GitHub answers with a full 200 as soon
+    /// as a download counter moves. See `GitHubConditionalCache`'s doc comment
+    /// for the measurement.
+    /// nil (the default) means "always fetch unconditionally, persist
+    /// nothing" — same convention as `channelStore`, so the many tests that
+    /// construct a source directly cannot accidentally write into the real
+    /// file. `SourceStack.make` and `duo verify`'s GitHub sweep wire in
+    /// `GitHubConditionalCache.shared`.
+    private let validatorCache: GitHubConditionalCache?
 
     public init(
         rules: [GitHubReleaseRule] = GitHubReleaseRegistry.rules,
         token: String? = nil,
         session: URLSession = .updates,
-        channelStore: ResolvedChannelStore? = nil
+        channelStore: ResolvedChannelStore? = nil,
+        validatorCache: GitHubConditionalCache? = nil
     ) {
         self.rules = Dictionary(grouping: rules, by: { $0.bundleID })
         self.token = token
         self.session = session
         self.channelStore = channelStore
+        self.validatorCache = validatorCache
+    }
+
+    /// The `/releases/latest` and `/releases?per_page=<listPageSize>` URLs
+    /// every rule in this instance's registry could ask for — i.e. exactly the
+    /// endpoints `GitHubConditionalCache.prune(keeping:)` is allowed to keep.
+    /// Two per rule regardless of which one that rule actually uses
+    /// (`usePrereleases` picks one for `resolve`, but `channelDiscoveryProbe`
+    /// always fetches the list endpoint for a discoverable rule, so both must
+    /// survive pruning for every rule to avoid punishing the diagnostic path
+    /// for a cache miss on every single sweep).
+    ///
+    /// The list URL must be built with the rule's own `listPageSize`, byte for
+    /// byte the way `fetchReleases` builds it: a first draft hard-coded
+    /// `per_page=20` here after `listPageSize` had made it per-rule, so every
+    /// rule with a smaller page had its list entry stored and then pruned on
+    /// the very same fetch — a cache that could never hit, with no error
+    /// anywhere. `validNonTagEndpointsFollowEachRulesListPageSize` pins it.
+    ///
+    /// Deliberately excludes `/releases/tags/<tag>` — see `GitHubConditionalCache`'s
+    /// doc comment for why that endpoint is not cached at all. This is the set
+    /// `prune(keeping:)` is called with, so it doubles as a second, independent
+    /// backstop: even if `fetchReleases`'s own `tag == nil` gate were ever
+    /// mistakenly dropped, a tag entry that slipped into the store would still
+    /// be deleted the next time any rule's endpoint is fetched, because it can
+    /// never appear in this set. `internal` (not `private`) so
+    /// `GitHubConditionalCacheTests` can assert on it directly.
+    var validNonTagEndpoints: Set<String> {
+        var out = Set<String>()
+        for rule in rules.values.flatMap({ $0 }) {
+            out.insert("https://api.github.com/repos/\(rule.slug)/releases/latest")
+            out.insert("https://api.github.com/repos/\(rule.slug)/releases?per_page=\(rule.listPageSize)")
+        }
+        return out
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -767,6 +815,17 @@ public struct GitHubReleasesSource: UpdateSource {
     /// unbuildable, the response wasn't HTTP, or an exact-tag discovery got a
     /// 404; other bad statuses throw so the row surfaces a retryable error rather
     /// than a dead "unknown".
+    ///
+    /// For the two non-tag endpoints (`/releases/latest`, `/releases?per_page=N`),
+    /// sends a conditional GET when `validatorCache` holds a validator for this
+    /// exact endpoint + credential pair — `If-Modified-Since` alone when the
+    /// stored response had a `Last-Modified`, `If-None-Match` only otherwise
+    /// (`Validator.conditionalHeaders`) — and re-parses the STORED RAW BODY on
+    /// a 304 — never a remembered conclusion, so a rule's `versionPattern` /
+    /// `installAssetPattern` edit takes effect on the very next check even if
+    /// the release hasn't moved. See `GitHubConditionalCache`'s doc comment
+    /// for why `URLCache` alone doesn't revalidate these endpoints, and for why
+    /// the tag lookup (`tag != nil`) never participates.
     private func fetchReleases(
         _ rule: GitHubReleaseRule, list: Bool, tag: String? = nil
     ) async throws -> [Release]? {
@@ -793,10 +852,115 @@ public struct GitHubReleasesSource: UpdateSource {
         // Authenticated requests get 5000/hour instead of 60/hour per IP.
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
 
-        Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
+        // Conditional-GET layer. `cachedValidator` stays nil (and no
+        // conditional header is sent) for the tag lookup, when no cache is
+        // wired in, and on a plain cache miss — every one of those falls
+        // straight through to an ordinary unconditional fetch below.
+        let authFingerprint = GitHubConditionalCache.authFingerprint(token)
+        var cachedValidator: GitHubConditionalCache.Validator?
+        if tag == nil, let validatorCache {
+            cachedValidator = await validatorCache.validator(
+                for: endpoint, authFingerprint: authFingerprint)
+            if let cachedValidator {
+                for (name, value) in cachedValidator.conditionalHeaders {
+                    request.setValue(value, forHTTPHeaderField: name)
+                }
+                // We are the validator now. Left on `versionFeedCachePolicy`
+                // (`.reloadRevalidatingCacheData`), `URLCache` would add its own
+                // `If-None-Match` from the copy it holds of the last 200 — and
+                // one stale `ETag` on the wire is enough for GitHub to ignore
+                // the `If-Modified-Since` next to it (RFC 7232 §6, measured; see
+                // `GitHubConditionalCache`). Ignoring the local cache for this
+                // one request keeps the header set exactly what
+                // `conditionalHeaders` says it is.
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+            }
+        }
+
+        Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public), conditional=\(cachedValidator != nil, privacy: .public))")
         let (data, response) = try await session.versionFeedData(
             for: request, label: "GitHub \(rule.slug)")
         guard let http = response as? HTTPURLResponse else { return nil }
+
+        if http.statusCode == 304 {
+            if let cachedValidator {
+                let decoded = Self.releases(from: cachedValidator.body, list: list)
+                Log.source.debug("GitHub \(rule.slug, privacy: .public): 304, served \(decoded.count, privacy: .public) release(s) from the conditional cache")
+                GitHubEndpointAudit.record(
+                    requestedSlug: rule.slug, requestedURL: url, response: http,
+                    firstReleaseHTMLURL: decoded.first?.htmlURL, sentToken: token != nil)
+                return decoded
+            }
+            // We only ever send a validator when `cachedValidator` is
+            // non-nil, so this should be unreachable — GitHub has no validator
+            // to compare against otherwise. But the rule that MUST hold
+            // regardless of why it happened is: a 304 with nothing to serve it
+            // from is a cache MISS, never "no update" and never an error — so
+            // re-ask unconditionally rather than guess.
+            Log.source.error("GitHub \(rule.slug, privacy: .public): 304 with no cached validator to serve — retrying unconditionally")
+            return try await fetchReleasesUnconditionally(
+                rule: rule, url: url, endpoint: endpoint, list: list, tag: tag,
+                baseRequest: request, authFingerprint: authFingerprint)
+        }
+
+        let decoded = try handleSettledResponse(
+            http, data: data, rule: rule, url: url, list: list, tag: tag)
+        await remember(http, body: data, endpoint: endpoint, tag: tag, authFingerprint: authFingerprint)
+        return decoded
+    }
+
+    /// Cache-miss fallback for the "304 but nothing to serve it from" case —
+    /// see the comment at its one call site. Re-sends `baseRequest` with every
+    /// conditional header removed, so the response can only be a real 2xx or a
+    /// real error status, then runs it through the same settle-and-persist
+    /// logic the primary path uses.
+    private func fetchReleasesUnconditionally(
+        rule: GitHubReleaseRule, url: URL, endpoint: String, list: Bool, tag: String?,
+        baseRequest: URLRequest, authFingerprint: String
+    ) async throws -> [Release]? {
+        var request = baseRequest
+        for name in GitHubConditionalCache.Validator.headerNames {
+            request.setValue(nil, forHTTPHeaderField: name)
+        }
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "GitHub \(rule.slug) (conditional-cache-miss retry)")
+        guard let http = response as? HTTPURLResponse else { return nil }
+        let decoded = try handleSettledResponse(
+            http, data: data, rule: rule, url: url, list: list, tag: tag)
+        await remember(http, body: data, endpoint: endpoint, tag: tag, authFingerprint: authFingerprint)
+        return decoded
+    }
+
+    /// Persist a settled 2xx's validators + raw body for a non-tag endpoint.
+    /// Both `Last-Modified` and `ETag` are stored when present; which one goes
+    /// on the next request is `Validator.conditionalHeaders`' decision, not
+    /// this one's. One function for both fetch paths so they cannot drift on
+    /// what gets remembered.
+    private func remember(
+        _ http: HTTPURLResponse, body: Data, endpoint: String, tag: String?, authFingerprint: String
+    ) async {
+        guard tag == nil, let validatorCache, (200..<300).contains(http.statusCode) else { return }
+        await validatorCache.store(
+            endpoint: endpoint, authFingerprint: authFingerprint,
+            etag: http.value(forHTTPHeaderField: "ETag"),
+            lastModified: http.value(forHTTPHeaderField: "Last-Modified"),
+            body: body)
+        // Registry-scoped, not per-request: cheap (a Set filter over at most
+        // a couple hundred entries) and keeps a retired rule's entry from
+        // outliving the rule by years. See `validNonTagEndpoints`.
+        await validatorCache.prune(keeping: validNonTagEndpoints)
+        await validatorCache.flush()
+    }
+
+    /// Interpret a non-304 HTTP response: decode a 2xx (walking releases in
+    /// document order — GitHub returns newest first — is the caller's job, not
+    /// this one), translate a 404 exact-tag miss into `nil`, and audit + throw
+    /// everything else. Shared by the primary fetch and the conditional-cache-miss
+    /// retry so the two can't drift on what counts as success.
+    private func handleSettledResponse(
+        _ http: HTTPURLResponse, data: Data, rule: GitHubReleaseRule, url: URL,
+        list: Bool, tag: String?
+    ) throws -> [Release]? {
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
@@ -819,9 +983,6 @@ public struct GitHubReleasesSource: UpdateSource {
             if tag != nil, http.statusCode == 404 { return nil }
             throw GitHubError.badStatus(http.statusCode)
         }
-        // Walk releases in document order (GitHub returns newest first) and take
-        // the first whose tag the pattern matches — for prerelease channels this
-        // skips interleaved stable releases.
         let decoded = Self.releases(from: data, list: list)
         // Verification-only bookkeeping: notice a slug that GitHub had to redirect,
         // and an authenticated request that came back on the anonymous budget

@@ -767,7 +767,176 @@ struct MacAppStorePageCacheTests {
         var requestFinishedBeforePrewarmReturned: Bool {
             lock.lock(); defer { lock.unlock() }; return started
         }
-}
+    }
+
+    // MARK: - A4: freshening (UpdateChecker.check(_:freshening:))
+
+    /// `check([appA], freshening: true)` drops the memo for exactly the apps
+    /// it checks: A must be scraped live again, B (cached but not part of the
+    /// checked array) must still be served from cache with no new request.
+    ///
+    /// Pins `UpdateChecker.check(_:freshening:)` calling
+    /// `source.invalidateMemo(for: apps)` with the SAME array it is about to
+    /// fan out over — not some other array the caller happened to have lying
+    /// around.
+    ///
+    /// Mutation run: changing `freshening: true` to `false` at the call site
+    /// below turns this red — see the task notes.
+    @Test func freshTrueDropsMemoForExactlyTheCheckedApps() async throws {
+        ScriptedHTTP.reset()
+        let trackIdA = 5431
+        let trackIdB = 5432
+        let bundleIDA = "com.example.fresh.a"
+        let bundleIDB = "com.example.fresh.b"
+        let pageURLA = "https://apps.apple.com/us/app/-/id\(trackIdA)?platform=mac"
+        let pageURLB = "https://apps.apple.com/us/app/-/id\(trackIdB)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                let bundleId = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "bundleId" }?.value
+                let trackId = (bundleId == bundleIDB) ? trackIdB : trackIdA
+                // `bundleId:` must round-trip in the response: `check(...,
+                // freshening: true)` goes through `prewarm`'s BATCH lookup,
+                // which maps results back to the ids that produced them by
+                // this field (see `MacAppStoreSource.batchLookup`) — omitting
+                // it here made the batch record a false miss for A and this
+                // test passed for the wrong reason (a fallback-region probe
+                // scraped a different, uncached URL). The other tests in this
+                // file never hit this because they call `source.latestVersion`
+                // directly, which never goes through `prewarm`.
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url", bundleId: bundleId))
+            }
+            if url.absoluteString == pageURLA || url.absoluteString == pageURLB {
+                return (200, Data(Self.versionPageHTML.utf8))
+            }
+            return (404, Data())
+        }
+
+        let cache = AppStorePageCache()
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+        let appA = Self.nativeMacApp(bundleID: bundleIDA)
+        let appB = Self.nativeMacApp(bundleID: bundleIDB)
+
+        // Cache both A and B's pages first.
+        _ = try await source.latestVersion(for: appA)
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 1)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1)
+
+        let checker = UpdateChecker(sources: [source])
+        _ = await checker.check([appA], freshening: true)
+
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 2,
+                "freshening: true must drop A's memo, forcing a live re-scrape")
+
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1,
+                "B was not in the checked array — its cached page must be left alone")
+    }
+
+    /// `check(_:)` with the default `freshening: false` drops nothing — both A
+    /// and B stay served from cache. Pins the property the periodic sweep, the
+    /// CLI and the verify harness all depend on: an unconditional invalidation
+    /// would look like a passing feature here while quietly restoring the
+    /// per-round page fetch the cache exists to remove.
+    ///
+    /// Mutation run: making the invalidation in `UpdateChecker.check(_:freshening:)`
+    /// unconditional (ignoring `freshening`) turns this red — see the task notes.
+    @Test func freshDefaultFalseDropsNothing() async throws {
+        ScriptedHTTP.reset()
+        let trackIdA = 5441
+        let trackIdB = 5442
+        let bundleIDA = "com.example.nofresh.a"
+        let bundleIDB = "com.example.nofresh.b"
+        let pageURLA = "https://apps.apple.com/us/app/-/id\(trackIdA)?platform=mac"
+        let pageURLB = "https://apps.apple.com/us/app/-/id\(trackIdB)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                let bundleId = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "bundleId" }?.value
+                let trackId = (bundleId == bundleIDB) ? trackIdB : trackIdA
+                // `bundleId:` must round-trip in the response: `check(...,
+                // freshening: true)` goes through `prewarm`'s BATCH lookup,
+                // which maps results back to the ids that produced them by
+                // this field (see `MacAppStoreSource.batchLookup`) — omitting
+                // it here made the batch record a false miss for A and this
+                // test passed for the wrong reason (a fallback-region probe
+                // scraped a different, uncached URL). The other tests in this
+                // file never hit this because they call `source.latestVersion`
+                // directly, which never goes through `prewarm`.
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url", bundleId: bundleId))
+            }
+            if url.absoluteString == pageURLA || url.absoluteString == pageURLB {
+                return (200, Data(Self.versionPageHTML.utf8))
+            }
+            return (404, Data())
+        }
+
+        let cache = AppStorePageCache()
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+        let appA = Self.nativeMacApp(bundleID: bundleIDA)
+        let appB = Self.nativeMacApp(bundleID: bundleIDB)
+
+        _ = try await source.latestVersion(for: appA)
+        _ = try await source.latestVersion(for: appB)
+
+        let checker = UpdateChecker(sources: [source])
+        _ = await checker.check([appA])  // default freshening: false
+
+        _ = try await source.latestVersion(for: appA)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 1,
+                "default freshening: false must not touch A's cached page")
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1,
+                "default freshening: false must not touch B's cached page")
+    }
+
+    /// `invalidateMemo(for:)` is a real protocol requirement, not just an
+    /// extension default — dispatched dynamically through an `any UpdateSource`
+    /// existential. A stub source records whether it was called and with what.
+    ///
+    /// This is the named gate for the witness-table trap: if the protocol body
+    /// declared only `prewarm` and `invalidateMemo` lived solely in the
+    /// extension, calling it through `any UpdateSource` would statically
+    /// dispatch to the empty default and this stub would never see the call —
+    /// even though `MacAppStoreSource`'s own concrete-type tests above stay
+    /// green (they call `invalidateMemo` on the concrete type, which resolves
+    /// correctly either way and cannot catch this).
+    ///
+    /// Mutation run: deleting the protocol-body declaration of
+    /// `invalidateMemo` (keeping only the extension default) turns this red —
+    /// `wasCalled` stays false. It compiles either way, per the design notes.
+    @Test func invalidateMemoIsDispatchedDynamically() async throws {
+        let recorder = RecordingSource()
+        let sources: [any UpdateSource] = [recorder]
+        let checker = UpdateChecker(sources: sources)
+        let app = Self.nativeMacApp(bundleID: "com.example.dispatch.witness")
+
+        _ = await checker.check([app], freshening: true)
+
+        #expect(await recorder.wasCalled, "invalidateMemo(for:) must be dispatched to the concrete implementation, not the protocol's empty default")
+        #expect(await recorder.calledWithBundleIDs == ["com.example.dispatch.witness"],
+                "invalidateMemo(for:) must receive exactly the array being checked")
+    }
+
+    /// A minimal `UpdateSource` whose only job is to record whether — and
+    /// with what — `invalidateMemo(for:)` was called. `latestVersion`
+    /// answers nil unconditionally so `UpdateChecker.check` completes without
+    /// needing any network stub.
+    private actor RecordingSource: UpdateSource {
+        let name = "Recording"
+        private(set) var wasCalled = false
+        private(set) var calledWithBundleIDs: [String] = []
+
+        func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? { nil }
+
+        func invalidateMemo(for apps: [InstalledApp]) async {
+            wasCalled = true
+            calledWithBundleIDs = apps.compactMap(\.bundleID)
+        }
+    }
 
 // MARK: - Test doubles
 

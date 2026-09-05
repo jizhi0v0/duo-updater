@@ -108,6 +108,15 @@ public struct MacAppStoreSource: UpdateSource {
         await prewarmCache.register(work)
     }
 
+    /// Drops `pageCache` entries for exactly `apps` — the array `UpdateChecker`
+    /// is about to check, and nothing more. Uses this source's own `pageCache`
+    /// (not `.shared`): tests inject a cache into `init(pageCache:)`, and a
+    /// caller that reached for `.shared` here would clear a different object
+    /// than `latestVersion(for:)` actually reads, silently doing nothing.
+    public func invalidateMemo(for apps: [InstalledApp]) async {
+        await pageCache.invalidate(bundleIDs: apps.compactMap(\.bundleID))
+    }
+
     private static func chunked(_ items: [String], size: Int) -> [[String]] {
         guard size > 0 else { return [items] }
         return stride(from: 0, to: items.count, by: size).map {

@@ -39,7 +39,31 @@ public struct UpdateChecker: Sendable {
     }
 
     /// Check every app, returning results in the same order as the input.
-    public func check(_ apps: [InstalledApp]) async -> [UpdateResult] {
+    ///
+    /// `freshening` is for the caller that is about to re-check exactly this
+    /// array because the user insisted (or a channel switch was observed) and
+    /// does not want a memoized answer standing in for a live one — see
+    /// `AppListModel.recheckMany`. Default `false` is what every periodic
+    /// sweep, the CLI, and the verify harness rely on: without it, every
+    /// source's memo would be dropped on every ordinary check, which defeats
+    /// the reason `AppStorePageCache` exists.
+    public func check(_ apps: [InstalledApp], freshening: Bool = false) async -> [UpdateResult] {
+        // Drop each source's memoized answer for exactly this array, before the
+        // prewarm below.
+        //
+        // ⚠️ That ordering is defensive, NOT load-bearing today, and an earlier
+        // version of this comment claimed otherwise ("prewarm would refill what
+        // this just dropped"). It would not: the only source implementing
+        // either hook fills a different store in each — `prewarm` populates
+        // `AppStoreLookupCache` (batched iTunes lookups), `invalidateMemo`
+        // clears `AppStorePageCache` (product-page scrapes). Swapping these two
+        // statements is currently unobservable, and the mutation was run: all
+        // tests stay green. It is written this way so that a source which one
+        // day memoizes during `prewarm` doesn't refill what was just dropped —
+        // and whoever adds one owes this a test.
+        if freshening {
+            for source in sources { await source.invalidateMemo(for: apps) }
+        }
         // Give every source a chance to do its cheaper-in-bulk work — e.g.
         // MacAppStoreSource batching iTunes lookups — before the per-app
         // fan-out below starts making the individual requests that work would

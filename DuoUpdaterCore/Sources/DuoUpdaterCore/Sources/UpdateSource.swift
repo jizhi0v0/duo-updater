@@ -20,8 +20,20 @@ public protocol UpdateSource: Sendable {
     /// only a source that actually has a batched endpoint needs to implement it
     /// (see `MacAppStoreSource.prewarm`, which batches iTunes lookups).
     func prewarm(_ apps: [InstalledApp]) async
+
+    /// Optional hook: drop any memoized answer this source is holding for
+    /// exactly `apps`, so the next `latestVersion(for:)` call for each of them
+    /// hits the network instead of a stale cache. `UpdateChecker.check(_:freshening:)`
+    /// calls this, for every source, before the per-app fan-out — and,
+    /// defensively, before `prewarm`; see that call site for why no source
+    /// today makes that ordering observable. Default
+    /// is a no-op, so only a source that actually memoizes anything needs to
+    /// implement it (see `MacAppStoreSource.invalidateMemo`, which drops
+    /// `AppStorePageCache` entries).
+    func invalidateMemo(for apps: [InstalledApp]) async
 }
 
 public extension UpdateSource {
     func prewarm(_ apps: [InstalledApp]) async {}
+    func invalidateMemo(for apps: [InstalledApp]) async {}
 }

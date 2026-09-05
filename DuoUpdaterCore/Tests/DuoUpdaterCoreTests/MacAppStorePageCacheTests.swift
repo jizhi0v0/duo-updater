@@ -244,6 +244,44 @@ struct MacAppStorePageCacheTests {
         #expect(ScriptedHTTP.count(matching: { $0.host == "evil.example.com" }) == 0)
     }
 
+    /// A `trackViewUrl` on the right HOST but naming a DIFFERENT listing is
+    /// refused too.
+    ///
+    /// The host check alone let this through, and the consequence is the worst
+    /// failure this file guards: Apple hands back the app's iOS listing for a
+    /// `mac-software` lookup, we scrape it, and `nativeMacVersion` prefers the
+    /// page whenever it is strictly newer. An iOS track runs far ahead of a Mac
+    /// one (Discord's iOS listing reports 343.x), so the row would show an
+    /// update that can never be installed — and the page cache would hold it
+    /// for an hour. Nothing about it looks like an error.
+    ///
+    /// Mutation run: dropping the `url.path.contains("id\(trackId)")` guard in
+    /// `validatedProductPageURL` turns this red — the foreign listing gets the
+    /// request and the constructed URL gets none.
+    @Test func trackViewUrlNamingAnotherListingFallsBackToConstructedURL() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 4801
+        let foreignURL = "https://apps.apple.com/us/app/some-other-app/id999999"
+        let constructedURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: foreignURL))
+            }
+            if url.absoluteString == constructedURL { return (200, Data(Self.versionPageHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        _ = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.foreignlisting"))
+
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == constructedURL }) == 1,
+                "the constructed URL must be used when trackViewUrl names another listing")
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == foreignURL }) == 0,
+                "a URL naming a different trackId must never be scraped")
+    }
+
     // MARK: - A3: prewarm
 
     /// After `prewarm([app])`, resolving that same app must not make a second,

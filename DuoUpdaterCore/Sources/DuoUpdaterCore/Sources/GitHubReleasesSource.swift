@@ -52,15 +52,23 @@ public struct GitHubReleaseRule: Sendable {
     /// channel publishes prereleases): fetch the releases list and take the
     /// first tag the pattern matches. When false, use `/releases/latest`.
     public let usePrereleases: Bool
-    /// `per_page` for the list fetch `usePrereleases` triggers. Ignored by a
-    /// `/releases/latest` rule (`usePrereleases == false`) — there's no list to
-    /// page.
+    /// `per_page` for the list fetch. Read by `usePrereleases` rules on every
+    /// check — and, less obviously, by a `usePrereleases == false` rule too:
+    /// `resolve()` falls back to the LIST endpoint when the newest release
+    /// carries no macOS asset, and that fallback then applies `stableOnly`, so
+    /// the effective walk-back window is (this page size − prereleases on the
+    /// page) against `maxReleasesWithoutMacOSAsset`. Shrinking it on a stable
+    /// rule therefore narrows a safety margin whose failure mode is a confident
+    /// "up to date" on a stale version. It is not ignored anywhere.
     ///
     /// Defaults to 20, the size every rule used before this field existed.
     /// GitHub's `body` (release notes prose) is dead weight here — the version
     /// probe never reads it — and on six installed `usePrereleases` repos it was
     /// measured at 6%–51% of the JSON, 421 KB of the 481 KB these six repos cost
-    /// per sweep round at `per_page=20` (2026-09-04, real responses, gzip off).
+    /// per sweep round at `per_page=20` (2026-09-04, real responses, **gzipped
+    /// wire bytes** — the same unit the request log counts. Re-measure with
+    /// `curl --compressed`; identity bytes run 4-10x larger and reading these
+    /// as identity would look like a regression that isn't there).
     /// Shrinking the page cuts that dead weight, but ONLY as far as the specific
     /// rule's tag pattern has been measured to need: too small and the release
     /// this rule is looking for scrolls off the page, which reads as "no update"

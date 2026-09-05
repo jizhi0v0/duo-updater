@@ -52,9 +52,36 @@ public struct MacAppStoreSource: UpdateSource {
     public func prewarm(_ apps: [InstalledApp]) async {
         let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
         guard !bundleIDs.isEmpty else { return }
-        for chunk in Self.chunked(bundleIDs, size: 20) {
-            guard let batch = try? await batchLookup(bundleIDs: chunk, region: homeRegion) else { continue }
-            await prewarmCache.store(batch, region: homeRegion)
+        // Chunks run CONCURRENTLY, and that is not a micro-optimisation:
+        // `UpdateChecker.check(_:)` drains this before its per-app fan-out
+        // starts, so a sequential loop puts every chunk's timeout in front of
+        // every app's check. At 15 s per request and 30 MAS apps that is two
+        // chunks = up to 30 s where nothing else is being checked at all —
+        // strictly worse than before this hook existed, when an unreachable
+        // itunes.apple.com delayed only the App Store rows and did it in
+        // parallel with everything else.
+        await withTaskGroup(of: (region: String, batch: [String: LookupResult?])?.self) { group in
+            for chunk in Self.chunked(bundleIDs, size: 20) {
+                group.addTask {
+                    do {
+                        return (self.homeRegion, try await self.batchLookup(
+                            bundleIDs: chunk, region: self.homeRegion))
+                    } catch {
+                        // Say so. A silently skipped batch is indistinguishable
+                        // from a working one: every app just falls through to
+                        // its own lookup and the only symptom is traffic that
+                        // never dropped — the same shape as the prune bug that
+                        // already cost a measurement round to find.
+                        Log.source.error(
+                            "App Store prewarm: batch of \(chunk.count, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
+                        return nil
+                    }
+                }
+            }
+            for await result in group {
+                guard let result else { continue }
+                await prewarmCache.store(result.batch, region: result.region)
+            }
         }
     }
 
@@ -126,7 +153,7 @@ public struct MacAppStoreSource: UpdateSource {
             // *different* listing kind ("software") whose `trackViewUrl` points at
             // the iOS listing, not the Mac one, so it keeps building its own URL.
             let fallbackURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
-            if let scrapeURL = validatedProductPageURL(result.trackViewUrl) ?? fallbackURL {
+            if let scrapeURL = validatedProductPageURL(result.trackViewUrl, trackId: trackId) ?? fallbackURL {
                 pageInfo = try? await cachedMacVersion(trackId: trackId, region: region, url: scrapeURL)
             }
         }
@@ -229,9 +256,21 @@ public struct MacAppStoreSource: UpdateSource {
     /// scheme/host check guards against following it somewhere unexpected;
     /// anything that fails returns nil so the caller falls back to the URL it
     /// would have built itself.
-    private func validatedProductPageURL(_ trackViewUrl: String?) -> URL? {
+    private func validatedProductPageURL(_ trackViewUrl: String?, trackId: Int) -> URL? {
         guard let trackViewUrl, let url = URL(string: trackViewUrl),
               url.scheme == "https", url.host == "apps.apple.com" else { return nil }
+        // The host check alone is not enough, and the gap is not theoretical.
+        // This URL is only trusted because the lookup said this listing is
+        // `mac-software`; if Apple ever answers one with a `trackViewUrl`
+        // pointing at the app's iOS listing instead, we would scrape the iOS
+        // page, read its version, and cache it under the MAC (trackId, region)
+        // key for an hour. `nativeMacVersion` prefers the page whenever it is
+        // strictly newer, and an iOS track runs far ahead (Discord's iOS
+        // listing reports 343.x against a 0.0.x Mac build), so the row would
+        // show a permanent update that can never be installed. Requiring the
+        // path to name this trackId costs one comparison and removes the whole
+        // class.
+        guard url.path.contains("id\(trackId)") else { return nil }
         return url
     }
 

@@ -57,4 +57,11 @@ jobs:
           echo "arch: $(uname -m)"
 
       - name: make test
+        # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
+        # the author's metered connection and onto this runner, where egress is
+        # free. Without it that test is a no-op — and it says so as a test failure,
+        # not a log line, so deleting this env block cannot quietly delete the
+        # coverage. See vendorDownloadPassesSignatureGate.
+        env:
+          DUO_DOWNLOAD_GATE: "1"
         run: make test

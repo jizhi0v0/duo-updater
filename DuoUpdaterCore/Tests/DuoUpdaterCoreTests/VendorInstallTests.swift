@@ -771,14 +771,67 @@ import CryptoKit
     let err = FileHandle.standardError
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 
+    // Off unless asked for, because this is the only test in the suite that pulls
+    // real vendor builds — measured 2026-09-05, 112.5 MB (ChatWise) + 48.9 MB
+    // (VLC) on the author's Mac, every `make test`. That is metered bandwidth
+    // being spent to re-prove something a hosted runner can prove for free, so
+    // the runner is where it belongs; ci.yml sets the variable.
+    //
+    // An opt-out flag is normally the exact shape of thing this repository refuses
+    // — a free pass that goes on being honoured after the reason for it is gone.
+    // What makes this one answerable is that BOTH ways of losing the coverage are
+    // loud: CI without the flag is an issue, and the flag with nothing to run is
+    // an issue. There is no configuration in which this test quietly does nothing.
+    let env = ProcessInfo.processInfo.environment
+    let onCI = env["CI"] == "true"
+    guard env["DUO_DOWNLOAD_GATE"] == "1" else {
+        if onCI {
+            Issue.record(Comment(rawValue: """
+                CI ran without DUO_DOWNLOAD_GATE=1, so the only check that verifies a \
+                real vendor download — sha512, extraction, code signature, Team ID — \
+                did nothing. .github/workflows/ci.yml sets it; if it no longer does, \
+                that coverage is gone and nothing else in the suite replaces it.
+                """))
+            return
+        }
+        log("""
+            ⚠️ signature-gate download SKIPPED — it fetches real vendor builds. Run it
+               here with `DUO_DOWNLOAD_GATE=1 make test`; otherwise CI runs it on every
+               push, on GitHub's bandwidth rather than this machine's.
+            """)
+        return
+    }
+
     let installed = AppScanner().scan()
-    // Exercise both archive paths with modestly-sized downloads: ChatWise (zip +
-    // checksum) and VLC (dmg → hdiutil mount, http→https, ascending last-match).
-    // Skip the big ones (OrbStack ~404 MB, Claude ~283 MB) — same code paths.
-    let enabled = ["app.chatwise", "org.videolan.vlc"]
-    let apps = enabled.compactMap { id in installed.first { $0.bundleID == id } }
+    // One candidate per archive path, first installed one wins. The zip list
+    // carries the checksum branch (only two recipes in the whole registry publish
+    // a sha512, and the other is 237.8 MB); the dmg list exercises hdiutil mount,
+    // http→https and ascending last-match. The big ones are deliberately absent —
+    // OrbStack ~404 MB, Claude ~283 MB, same code paths.
+    //
+    // Firefox and Chrome are on the list because they are what a GitHub-hosted
+    // runner actually has. Without them this test found nothing on CI and said so
+    // in a `log` line nobody reads — the same silent-hole shape as #339, on the
+    // gate that decides whether a downloaded bundle may replace an installed app.
+    let candidates: [(kind: String, ids: [String])] = [
+        ("zip", ["app.chatwise"]),
+        ("dmg", ["org.videolan.vlc", "org.mozilla.firefox", "com.google.Chrome"]),
+    ]
+    var apps: [InstalledApp] = []
+    for (kind, ids) in candidates {
+        guard let app = ids.lazy.compactMap({ id in
+            installed.first { $0.bundleID == id }
+        }).first else {
+            log("· no \(kind) candidate installed here — that path is not covered by this run")
+            continue
+        }
+        apps.append(app)
+    }
     guard !apps.isEmpty else {
-        log("⚠️ none of the targeted vendor apps are installed — skipping")
+        Issue.record(Comment(rawValue: """
+            DUO_DOWNLOAD_GATE=1 was set and not one candidate app is installed, so this \
+            proved nothing. Looked for: \(candidates.flatMap(\.ids).joined(separator: ", ")).
+            """))
         return
     }
     for app in apps {

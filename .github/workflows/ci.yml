@@ -60,27 +60,26 @@ jobs:
         # DUO_DOWNLOAD_GATE is deliberately NOT set here — see #351. Setting it is
         # the intended end state, because it moves the one test that fetches real
         # vendor builds off a metered connection onto free egress. It was set, and
-        # it wedged this job three times: the whole test process stopped emitting,
-        # for 46, 16 and 4 minutes. `test` is a required check, so that is every
-        # merge blocked with no message.
+        # all three runs that had it set wedged: the test process stopped emitting
+        # entirely, for 46 and 16 minutes, and on the third a watchdog caught it at
+        # 4. `test` is a required check, so that is a merge blocked with no message.
         #
-        # The third of those runs had a watchdog armed and `sample(1)` named the
-        # cause: all three cooperative-pool threads — this runner is 3-core, so
-        # that is the entire pool — blocked in `SecStaticCodeCheckValidity` ->
-        # `Dispatch::Group::wait()`. Turn this back on once #351 has moved those
-        # blocking Security calls off that pool.
-        run: make test
+        # `sample(1)` on the third run found all three cooperative-pool threads —
+        # this runner is 3-core, so that is the whole pool — blocked in
+        # `SecStaticCodeCheckValidity` -> `Dispatch::Group::wait()`. Turn this back
+        # on once #351 has moved those blocking Security calls off that pool.
+        #
+        # Not the gate's fault alone, and the difference matters for anyone reading
+        # this: a FOURTH run wedged with the gate off. That one carried an
+        # accidentally committed probe that busy-spins eight non-suspending tasks
+        # (`while {}`) on the same 3-wide pool, which is its own way to wedge a
+        # cooperative runtime; the probe is gone. Every other run on every other
+        # branch — 17 of them the same day, including main — finished in 3-15
+        # minutes. This is not a runner lottery.
+        # Through the wrapper, so a wedge costs 30 minutes and a set of thread
+        # stacks instead of 60 minutes of silence. Measured: three runs on this
+        # branch wedged, one of them for the full job budget with no output at
+        # all. See #351 and scripts/run-with-hang-report.sh for why this is out
+        # here and not a watchdog inside the test process.
+        run: scripts/run-with-hang-report.sh 1800 make test
 
-      # #351 diagnostics. Kept after the cause was found, because the watchdog is
-      # armed on any run that opts into the gate by hand, and because `sample`
-      # naming what every thread is blocked on is what ended two runs' worth of
-      # guessing. Prints one line and costs nothing when nothing wedged.
-      - name: Hang diagnostics
-        if: always()
-        run: |
-          if [ -f /tmp/duo-hang-sample.txt ]; then
-            echo "=== WATCHDOG FIRED — thread stacks follow ==="
-            cat /tmp/duo-hang-sample.txt
-          else
-            echo "watchdog did not fire (no /tmp/duo-hang-sample.txt)"
-          fi

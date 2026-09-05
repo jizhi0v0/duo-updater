@@ -57,11 +57,11 @@ jobs:
           echo "arch: $(uname -m)"
 
       - name: make test
-        # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
-        # the author's metered connection and onto this runner, where egress is
-        # free. Without it that test is a no-op — and it says so as a test failure,
-        # not a log line, so deleting this env block cannot quietly delete the
-        # coverage. See vendorDownloadPassesSignatureGate.
-        env:
-          DUO_DOWNLOAD_GATE: "1"
+        # DUO_DOWNLOAD_GATE is deliberately NOT set here — see #351. Setting it is
+        # the intended end state (it moves the one test that fetches real vendor
+        # builds off a metered connection onto free egress), and it was set, and it
+        # wedged this job: the gate printed `· resolving version` and the entire
+        # test process stopped emitting for 46 and then 16 minutes across two runs.
+        # `test` is a required check, so that is every merge blocked for the full
+        # 60-minute budget with no message. Turn this back on when #351 is fixed.
         run: make test

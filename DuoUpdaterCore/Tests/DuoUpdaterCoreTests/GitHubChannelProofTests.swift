@@ -172,8 +172,9 @@ struct GitHubChannelProofTests {
     /// it covers the next one automatically.
     ///
     /// Caught in practice: writing the Vorssaint beta proof, a mutation to the
-    /// bare token `vorssaint` — which sits in BOTH the owner (`vorssaintapp`) and
-    /// the repo (`vorssaint-utils`), so it matches every URL this rule builds —
+    /// bare token `vorssaint` — which sits in BOTH the owner (`vorssaint`, and
+    /// `vorssaintapp` before the 2026-09-05 rename) and the repo
+    /// (`vorssaint-utils`), so it matches every URL this rule builds —
     /// passed the entire suite. It fails here.
     @Test func anArtifactProofCannotMatchItsRulesInvariantURLPrefix() {
         for (key, proof) in ChannelProofRegistry.githubProofs {

@@ -1626,15 +1626,21 @@ public enum GitHubReleaseRegistry {
         // `-beta.N` is what `ReleaseChannel.detect` reads — stable and beta share
         // both the bundle id and the app name, so nothing else distinguishes
         // them), and `duo install` landed it on the beta build.
+        // Renamed upstream; re-pointed 2026-09-05 (was vorssaintapp/vorssaint-utils).
+        // The nightly sweep caught it as `staleSlug` + `anonymousDespiteToken` on both
+        // channels (#340, #341): URLSession drops `Authorization` following GitHub's
+        // 301, so the rule was silently competing for the anonymous 60/hour per-IP
+        // budget. Verified 2026-09-05: `repos/vorssaintapp/vorssaint-utils` answers
+        // 301 and `full_name` reads `vorssaint/vorssaint-utils`.
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
-            owner: "vorssaintapp", repo: "vorssaint-utils",
+            owner: "vorssaint", repo: "vorssaint-utils",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
-            owner: "vorssaintapp", repo: "vorssaint-utils",
+            owner: "vorssaint", repo: "vorssaint-utils",
             usePrereleases: true,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+-beta\.[0-9]+\.dmg$"#,

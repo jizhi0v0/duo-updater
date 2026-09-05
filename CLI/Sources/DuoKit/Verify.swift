@@ -505,6 +505,9 @@ public enum Verify {
             }
             out.append(finding)
         }
+        // The store coalesces its disk writes over a couple of seconds; this
+        // process is about to exit, so write now or lose the sweep's memos.
+        await GitHubConditionalCache.shared.flush()
         return out
     }
 

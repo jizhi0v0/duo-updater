@@ -89,11 +89,33 @@ public actor AppStorePageCache {
     private var versionStore: [Key: Entry<MacAppStoreSource.MacVersionInfo?>] = [:]
     private var compatStore: [Key: Entry<Bool?>] = [:]
 
+    /// Reverse index from an installed app's bundle id to every `(trackId,
+    /// region)` key its scrapes have been filed under, so `invalidate(bundleIDs:)`
+    /// can drop just that app's entries instead of everyone's. Populated by
+    /// `MacAppStoreSource.resolve`, the one call site that has both the
+    /// authoritative `app.bundleID` and `result.trackId` in hand — see its doc
+    /// comment for why registration lives there and not in the three branches
+    /// it dispatches to.
+    ///
+    /// A bundleID can accumulate more than one key: the home-store and a
+    /// fallback-store probe file under different regions, and a Universal
+    /// Purchase app can carry two bundleIDs over one trackId (see
+    /// `invalidate(bundleIDs:)`).
+    private var keysByBundleID: [String: Set<Key>] = [:]
+
     /// `now` is injectable so tests can advance the clock past `ttl` without a
     /// real sleep.
     init(ttl: TimeInterval = 3600, now: @escaping @Sendable () -> Date = Date.init) {
         self.ttl = ttl
         self.now = now
+    }
+
+    /// Record that `bundleID`'s scrape was filed under `(trackId, region)`, so
+    /// a later `invalidate(bundleIDs:)` for this bundleID can find and drop it.
+    /// Called once per `resolve()`, regardless of which branch ends up
+    /// scraping (or not) — see `MacAppStoreSource.resolve`.
+    func note(bundleID: String, trackId: Int, region: String) {
+        keysByBundleID[bundleID, default: []].insert(Key(trackId: trackId, region: region))
     }
 
     /// Drop everything, so the next scrape is live.
@@ -108,19 +130,49 @@ public actor AppStorePageCache {
     /// the twenty Mac App Store apps on the machine this was measured on take
     /// that route (2026-09-05).
     ///
-    /// Called from the user-present paths: a refresh the user asked for
-    /// (`RefreshIntent.restartsChangelogs`) and `recheckMany`. A periodic sweep
-    /// must NOT call it — that would put the cache back to fetching a page per
-    /// app per round, which is the cost it exists to remove.
+    /// Called from the one remaining full-wipe path: a refresh the user asked
+    /// for (`RefreshIntent.restartsChangelogs`), which is about to re-check
+    /// every app anyway. A periodic sweep must NOT call it — that would put
+    /// the cache back to fetching a page per app per round, which is the cost
+    /// it exists to remove.
     ///
-    /// ⚠️ `recheckMany` is not purely "the user insisted": `recheckChannelSwitches`
-    /// reaches it from FSEvents on vendor preference paths and from
-    /// running-app changes, once per row whose channel actually flipped. Rare,
-    /// and it only costs a re-fetch, but it is not the guarantee the word
-    /// "explicit" suggests.
+    /// `recheckMany` used to call this too, and that was the bug: measured
+    /// 2026-09-05 in a live 45-minute window, a single row's channel flip
+    /// (`recheckChannelSwitches` → `recheckMany`, 3 requests, 1 app) wiped
+    /// every OTHER App Store app's entry, and the next scheduled sweep paid
+    /// for it — 21/21 apps re-scraped, 975 KB and 52 extra requests where
+    /// every other steady-state round cost ~0. `recheckMany` now calls
+    /// `invalidate(bundleIDs:)` with just the rows it re-checked instead.
     public func invalidateAll() {
         versionStore.removeAll()
         compatStore.removeAll()
+    }
+
+    /// Drop the cached entries for exactly these bundleIDs, so an explicit
+    /// per-row recheck (`AppListModel.recheckMany`) forces a live scrape for
+    /// the rows it actually re-checked without paying for every other App
+    /// Store app's page too — see `invalidateAll`'s doc comment for the
+    /// incident this replaced.
+    ///
+    /// `keysByBundleID`'s own entries are left in place (only the store
+    /// entries they point at are cleared): the index is bounded by the number
+    /// of installed MAS apps, and keeping it means this doesn't depend on
+    /// `note` having run again since the last invalidation.
+    ///
+    /// A bundleID with no noted keys (never scraped, or not a MAS app at all)
+    /// is a harmless no-op. A Universal Purchase app can have two bundleIDs
+    /// sharing one trackId — the iOS and Mac copies of the same purchase — so
+    /// invalidating one of them can also drop the other's entry. That is
+    /// bounded over-invalidation (costs the other copy one extra fetch on its
+    /// next check, nothing more) and is deliberately accepted rather than
+    /// tracked per-bundleID, which the store isn't keyed for.
+    public func invalidate(bundleIDs: [String]) {
+        for id in bundleIDs {
+            for key in keysByBundleID[id] ?? [] {
+                versionStore[key] = nil
+                compatStore[key] = nil
+            }
+        }
     }
 
     /// The cached Mac-version scrape for (trackId, region), if a fresh entry

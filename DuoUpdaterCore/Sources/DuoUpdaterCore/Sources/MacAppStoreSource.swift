@@ -136,6 +136,17 @@ public struct MacAppStoreSource: UpdateSource {
     /// Turn a lookup hit into a `RemoteVersion`, routing by listing kind. Shared
     /// by the home-store and fallback-store paths.
     private func resolve(result: LookupResult, app: InstalledApp, region: String) async throws -> RemoteVersion? {
+        // Registered here, once, rather than in each of the three branches
+        // below: this is the one place that holds both the authoritative
+        // `app.bundleID` (NOT `result.bundleId` — see its doc comment, it's
+        // ambiguous whether that's populated on the single-lookup path) and
+        // `result.trackId`, and all three branches are dispatched from here.
+        // Registering for a branch that never ends up scraping a page is a
+        // harmless no-op — `invalidate(bundleIDs:)` on a bundleID with no
+        // stored entries does nothing.
+        if let bundleID = app.bundleID, let trackId = result.trackId {
+            await pageCache.note(bundleID: bundleID, trackId: trackId, region: region)
+        }
         // Native Mac listing: trust the lookup version, but cross-check the
         // product page and keep whichever is newer. Apple's per-storefront lookup
         // cache can lag a freshly-shipped build that the page already shows

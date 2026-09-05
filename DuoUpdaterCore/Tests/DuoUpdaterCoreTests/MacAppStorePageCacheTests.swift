@@ -389,6 +389,161 @@ struct MacAppStorePageCacheTests {
                 "after invalidateAll the page must be fetched again")
     }
 
+    // MARK: - Targeted invalidation (recheckMany no longer wipes every app)
+
+    /// Invalidating app A's bundleID forces A's next scrape live, while app
+    /// B's cached page keeps serving from cache with no request at all.
+    ///
+    /// This is the incident: `recheckMany` used to call `invalidateAll()`, so
+    /// rechecking A alone cost a re-scrape of B too. Pins `resolve` calling
+    /// `pageCache.note` (so the reverse index actually has A's key in it) and
+    /// `invalidate(bundleIDs:)` only dropping the keys registered for the
+    /// given ids.
+    ///
+    /// Mutation run: deleting the `pageCache.note(...)` line in
+    /// `MacAppStoreSource.resolve` turns this red — A's invalidation finds no
+    /// key for A's bundleID (the index is empty), so A's second call is also
+    /// served from cache and the first assertion fails (1 fetch, not 2).
+    @Test func invalidatingOneBundleIDLeavesAnotherAppsCacheAlone() async throws {
+        ScriptedHTTP.reset()
+        let trackIdA = 5401
+        let trackIdB = 5402
+        let bundleIDA = "com.example.targeted.a"
+        let bundleIDB = "com.example.targeted.b"
+        let pageURLA = "https://apps.apple.com/us/app/-/id\(trackIdA)?platform=mac"
+        let pageURLB = "https://apps.apple.com/us/app/-/id\(trackIdB)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                let bundleId = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "bundleId" }?.value
+                let trackId = (bundleId == bundleIDB) ? trackIdB : trackIdA
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url"))
+            }
+            if url.absoluteString == pageURLA || url.absoluteString == pageURLB {
+                return (200, Data(Self.versionPageHTML.utf8))
+            }
+            return (404, Data())
+        }
+
+        let cache = AppStorePageCache()
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+        let appA = Self.nativeMacApp(bundleID: bundleIDA)
+        let appB = Self.nativeMacApp(bundleID: bundleIDB)
+
+        _ = try await source.latestVersion(for: appA)
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 1)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1)
+
+        await cache.invalidate(bundleIDs: [bundleIDA])
+
+        _ = try await source.latestVersion(for: appA)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 2,
+                "A was invalidated by id — its next call must scrape live")
+
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1,
+                "B was never invalidated — it must still be served from cache")
+    }
+
+    /// Invalidating a bundleID the cache never noted (never scraped, or not a
+    /// MAS app) clears nothing — every already-cached page keeps serving.
+    ///
+    /// Pins `invalidate(bundleIDs:)`'s `keysByBundleID[id] ?? []` falling
+    /// back to an empty set instead of falling back to a full wipe.
+    ///
+    /// Mutation run: making `invalidate(bundleIDs:)` fall back to
+    /// `versionStore.removeAll(); compatStore.removeAll()` when a bundleID has
+    /// no noted keys turns this red — both apps' pages get re-scraped (2
+    /// fetches each) instead of staying cached (1 each).
+    @Test func invalidatingAnUnnotedBundleIDClearsNothing() async throws {
+        ScriptedHTTP.reset()
+        let trackIdA = 5411
+        let trackIdB = 5412
+        let bundleIDA = "com.example.unnoted.a"
+        let bundleIDB = "com.example.unnoted.b"
+        let pageURLA = "https://apps.apple.com/us/app/-/id\(trackIdA)?platform=mac"
+        let pageURLB = "https://apps.apple.com/us/app/-/id\(trackIdB)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                let bundleId = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "bundleId" }?.value
+                let trackId = (bundleId == bundleIDB) ? trackIdB : trackIdA
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url"))
+            }
+            if url.absoluteString == pageURLA || url.absoluteString == pageURLB {
+                return (200, Data(Self.versionPageHTML.utf8))
+            }
+            return (404, Data())
+        }
+
+        let cache = AppStorePageCache()
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+        let appA = Self.nativeMacApp(bundleID: bundleIDA)
+        let appB = Self.nativeMacApp(bundleID: bundleIDB)
+
+        _ = try await source.latestVersion(for: appA)
+        _ = try await source.latestVersion(for: appB)
+
+        // Never scraped under this cache — e.g. a non-MAS app's bundleID.
+        await cache.invalidate(bundleIDs: ["com.example.never-noted"])
+
+        _ = try await source.latestVersion(for: appA)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 1,
+                "an unnoted bundleID must not touch A's cached page")
+
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 1,
+                "an unnoted bundleID must not touch B's cached page")
+    }
+
+    /// `invalidateAll()` still clears every app's entries, not just the ones a
+    /// targeted `invalidate(bundleIDs:)` would reach — a guard against the new
+    /// `keysByBundleID` index becoming the only invalidation path.
+    ///
+    /// Mutation run: making `invalidateAll()` a no-op (mirroring
+    /// `invalidateAllForcesTheNextScrapeLive`'s own mutation) turns this red —
+    /// both apps stay at 1 fetch instead of going to 2.
+    @Test func invalidateAllStillClearsEveryApp() async throws {
+        ScriptedHTTP.reset()
+        let trackIdA = 5421
+        let trackIdB = 5422
+        let bundleIDA = "com.example.wipeall.a"
+        let bundleIDB = "com.example.wipeall.b"
+        let pageURLA = "https://apps.apple.com/us/app/-/id\(trackIdA)?platform=mac"
+        let pageURLB = "https://apps.apple.com/us/app/-/id\(trackIdB)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                let bundleId = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "bundleId" }?.value
+                let trackId = (bundleId == bundleIDB) ? trackIdB : trackIdA
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url"))
+            }
+            if url.absoluteString == pageURLA || url.absoluteString == pageURLB {
+                return (200, Data(Self.versionPageHTML.utf8))
+            }
+            return (404, Data())
+        }
+
+        let cache = AppStorePageCache()
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+        let appA = Self.nativeMacApp(bundleID: bundleIDA)
+        let appB = Self.nativeMacApp(bundleID: bundleIDB)
+
+        _ = try await source.latestVersion(for: appA)
+        _ = try await source.latestVersion(for: appB)
+
+        await cache.invalidateAll()
+
+        _ = try await source.latestVersion(for: appA)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLA }) == 2)
+        _ = try await source.latestVersion(for: appB)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURLB }) == 2)
+    }
+
     // MARK: - A3: prewarm
 
     /// After `prewarm([app])`, resolving that same app must not make a second,

@@ -768,8 +768,11 @@ import CryptoKit
 /// unpack, and run the SAME code-signature + Team ID gate the installer uses —
 /// then stop. No swap, nothing replaced.
 @Test func vendorDownloadPassesSignatureGate() async throws {
-    let err = FileHandle.standardError
-    func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
+    // `@Sendable`, because the gate below runs inside a detached task so it can be
+    // abandoned on timeout — see `firstToFinish`.
+    @Sendable func log(_ s: String) {
+        FileHandle.standardError.write((s + "\n").data(using: .utf8)!)
+    }
 
     // Off unless asked for, because this is the only test in the suite that pulls
     // real vendor builds — measured 2026-09-05, 112.5 MB (ChatWise) + 48.9 MB
@@ -835,13 +838,51 @@ import CryptoKit
         return
     }
     for app in apps {
-        try await checkGate(app, log: log)
+        // Bounded, because this now sits behind a required status check. Measured
+        // 2026-09-05 (run 33950064978): the Firefox gate on a hosted runner printed
+        // its header and then went silent for 46 minutes, until the run was
+        // cancelled — it never reached the `download:` line, so it wedged inside
+        // version resolution, before any archive was fetched. The root cause is
+        // still unknown, and it does not need to be known for this: a step that can
+        // eat the job's whole 60-minute budget in silence is a defect on its own
+        // terms. `firstToFinish` gives up WITHOUT waiting for the abandoned
+        // operation, which is the only reason a timeout helps here at all — a task
+        // group would await the wedged child and the timeout would be decorative.
+        let finished = await AppRestarter.firstToFinish(
+            timeout: gateBudget, fallback: false,
+            onTimeout: { log("⏱ \(app.name): gate exceeded \(gateBudget) — abandoning") }
+        ) {
+            do {
+                try await checkGate(app, log: log)
+            } catch {
+                Issue.record(Comment(rawValue: "\(app.name) gate threw: \(error)"))
+            }
+            return true
+        }
+        if !finished {
+            Issue.record(Comment(rawValue: """
+                \(app.name): the signature gate did not finish within \(gateBudget). \
+                The phase lines above say how far it got.
+                """))
+        }
     }
 }
 
-private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws {
+/// How long one app's gate may take before it is abandoned and reported.
+///
+/// Five minutes is generous for a ~150 MB download plus a mount and a deep
+/// signature verify, and small next to the 60-minute job budget it exists to
+/// protect. It is a backstop, not a performance target: the runs that work finish
+/// in seconds.
+private let gateBudget: Duration = .seconds(300)
+
+private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) async throws {
     log("\n=== signature-gate check: \(app.name) (\(app.bundleID ?? "?")) ===")
 
+    // Phase lines exist so a timeout is diagnostic rather than just a timeout —
+    // run 33950064978 hung between this one and the next, which is the only reason
+    // the wedge could be located at all.
+    log("· resolving version")
     guard let remote = await LiveProbe.remote(app, "\(app.name) gate") else { return }
     guard let url = remote.downloadURL, let kind = remote.vendorInstallerKind else {
         Issue.record(Comment(rawValue: "\(app.name): resolved a version but no install plan"))
@@ -876,8 +917,11 @@ private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws 
     defer { try? FileManager.default.removeItem(at: workDir) }
 
     // Download.
+    log("· downloading")
     let downloader = Downloader(destinationDir: workDir) { _ in }
     let file = try await downloader.download(url)
+    let bytes = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? nil
+    log("· downloaded \(bytes.map { "\($0 / 1_048_576) MB" } ?? "?")")
 
     // Normalize extension by kind (mirror VendorInstaller).
     let ext: String
@@ -897,7 +941,9 @@ private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws 
     }
 
     // Unpack + the mandatory gate.
+    log("· extracting")
     let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
+    log("· verifying signature")
     try SignatureVerifier.verifyCodeSignature(appAt: newApp)
     let installedTeam = try SignatureVerifier.teamIdentifier(at: app.path)
     let downloadedTeam = try SignatureVerifier.teamIdentifier(at: newApp)

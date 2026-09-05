@@ -57,4 +57,27 @@ jobs:
           echo "arch: $(uname -m)"
 
       - name: make test
-        run: make test
+        # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
+        # a metered connection onto this runner, where egress is free. Measured on
+        # the author's Mac: `make test` goes from ~185 MB to ~25 MB.
+        #
+        # It was switched on once before and wedged three runs out of three — the
+        # test process stopped emitting entirely, for 46 and 16 minutes, until a
+        # watchdog caught the third at four. `sample(1)` found all three
+        # cooperative-pool threads (this runner is 3-core, so that is the whole
+        # pool) blocked in `SecStaticCodeCheckValidity` -> `Dispatch::Group::wait()`,
+        # and two samples a minute apart showed 0.01s of CPU between them: blocked,
+        # not slow. #351. The gates now run off that pool, which is what makes this
+        # safe to turn on.
+        #
+        # If it wedges again, `scripts/run-with-hang-report.sh` bounds it at 30
+        # minutes and prints the stacks rather than leaving another silent hour.
+        # Through the wrapper, so a wedge costs 30 minutes and a set of thread
+        # stacks instead of 60 minutes of silence. Measured: three runs on this
+        # branch wedged, one of them for the full job budget with no output at
+        # all. See #351 and scripts/run-with-hang-report.sh for why this is out
+        # here and not a watchdog inside the test process.
+        env:
+          DUO_DOWNLOAD_GATE: "1"
+        run: scripts/run-with-hang-report.sh 1800 make test
+

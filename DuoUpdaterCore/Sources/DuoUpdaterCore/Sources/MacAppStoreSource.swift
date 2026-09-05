@@ -259,18 +259,35 @@ public struct MacAppStoreSource: UpdateSource {
     private func validatedProductPageURL(_ trackViewUrl: String?, trackId: Int) -> URL? {
         guard let trackViewUrl, let url = URL(string: trackViewUrl),
               url.scheme == "https", url.host == "apps.apple.com" else { return nil }
-        // The host check alone is not enough, and the gap is not theoretical.
-        // This URL is only trusted because the lookup said this listing is
-        // `mac-software`; if Apple ever answers one with a `trackViewUrl`
-        // pointing at the app's iOS listing instead, we would scrape the iOS
-        // page, read its version, and cache it under the MAC (trackId, region)
-        // key for an hour. `nativeMacVersion` prefers the page whenever it is
-        // strictly newer, and an iOS track runs far ahead (Discord's iOS
-        // listing reports 343.x against a 0.0.x Mac build), so the row would
-        // show a permanent update that can never be installed. Requiring the
-        // path to name this trackId costs one comparison and removes the whole
-        // class.
-        guard url.path.contains("id\(trackId)") else { return nil }
+        // The host check alone is not enough, and the gap is not theoretical:
+        // scraping the wrong listing puts an uninstallable version on the row
+        // and `AppStorePageCache` then holds it for an hour, because
+        // `nativeMacVersion` prefers the page whenever it is strictly newer.
+        //
+        // ⚠️ The id alone does NOT discriminate, and a first attempt at this
+        // guard got that wrong. **A Universal Purchase app's iOS and Mac
+        // listings share one trackId** — they differ only by the QUERY, which
+        // `url.path` excludes by definition. Measured 2026-09-05, same id,
+        // same host, two answers:
+        //
+        //     id1465439395 (Dark Noise)  default page 3.5.2   ?platform=mac 3.4.3
+        //     id1593408455 (Anybox)      default page 2.13    ?platform=mac 2.14
+        //
+        // Dark Noise is exactly the failure: the iOS track is AHEAD, so the
+        // default page wins the "strictly newer" test and offers 3.5.2 for a
+        // Mac copy that can only take 3.4.3. So the platform marker is the
+        // load-bearing half of this check, not the id.
+        //
+        // Exact last-component equality rather than `contains`, because Apple
+        // ids are 9-10 digits and `id975937182` is a substring of ten distinct
+        // 10-digit ids. Measured against the 15 `mac-software` listings on this
+        // machine: all 15 end in `id<trackId>` and all 15 carry `mt=12`, so
+        // this rejects none of them and costs no extra 301.
+        guard url.path.split(separator: "/").last == "id\(trackId)" else { return nil }
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        guard query.contains(where: {
+            ($0.name == "mt" && $0.value == "12") || ($0.name == "platform" && $0.value == "mac")
+        }) else { return nil }
         return url
     }
 

@@ -282,6 +282,47 @@ struct MacAppStorePageCacheTests {
                 "a URL naming a different trackId must never be scraped")
     }
 
+    /// SAME trackId, no platform marker — the case that actually happens.
+    ///
+    /// A Universal Purchase app's iOS and Mac listings share one trackId and
+    /// differ only by the query, so an id check cannot tell them apart. The
+    /// first version of this guard compared ids and shipped believing it had
+    /// closed the class; it had not. Measured 2026-09-05: `id1465439395`
+    /// (Dark Noise) answers 3.5.2 on its default page and 3.4.3 under
+    /// `?platform=mac`. The iOS track being AHEAD is what makes it dangerous —
+    /// `nativeMacVersion` prefers a strictly-newer page, so the row would offer
+    /// a version the Mac copy can never install, cached for an hour.
+    ///
+    /// Mutation run: dropping the `mt=12`/`platform=mac` query check turns this
+    /// red (the unmarked URL gets scraped) while
+    /// `trackViewUrlNamingAnotherListingFallsBackToConstructedURL` stays green —
+    /// which is exactly how the gap survived the first fix.
+    @Test func trackViewUrlWithoutAPlatformMarkerFallsBackToConstructedURL() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 4901
+        // Same id, right host, no `mt=12` — an iOS listing for a Universal
+        // Purchase app looks exactly like this.
+        let iosListingURL = "https://apps.apple.com/us/app/demo/id\(trackId)?uo=4"
+        let constructedURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: iosListingURL))
+            }
+            if url.absoluteString == constructedURL { return (200, Data(Self.versionPageHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        _ = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.universalpurchase"))
+
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == constructedURL }) == 1,
+                "a trackViewUrl with no Mac platform marker must not be trusted")
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == iosListingURL }) == 0,
+                "scraping the unmarked listing is the phantom-update bug")
+    }
+
     // MARK: - A3: prewarm
 
     /// After `prewarm([app])`, resolving that same app must not make a second,

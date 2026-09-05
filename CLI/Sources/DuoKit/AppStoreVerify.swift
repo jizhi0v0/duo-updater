@@ -27,14 +27,39 @@ extension Verify {
 
         // One batched lookup across every case's bundle id, in the same
         // request shape `prewarm(_:)` makes — this is what check 5 (batch ≡
-        // single) compares each case's own single lookup against. `try?`:
-        // additive only, same as `prewarm(_:)` itself — a batch that fails to
-        // fetch just means check 5 is skipped for this sweep; every other
-        // check still runs.
-        let batch = try? await source.verifyBatchLookup(
-            bundleIDs: cases.map(\.bundleID), region: "us")
-
+        // single) compares each case's own single lookup against.
+        //
+        // ⚠️ It must SAY SO when it can't run. The first version used `try?`
+        // and let `batch` go nil, which skipped check 5 for every case in the
+        // run and printed output identical to "check 5 ran and passed" — a
+        // guard that disappears exactly when the thing it guards is
+        // unreachable, which is the failure shape the rest of this branch went
+        // out of its way to remove. An empty (non-nil) batch is the same
+        // problem wearing a different hat: every case would then compare a
+        // real single result against "absent" and report `broken`, dressing an
+        // infra failure as a registry break.
         var findings: [Finding] = []
+        var batch: [String: AppStoreLookupShape?]?
+        do {
+            let fetched = try await source.verifyBatchLookup(
+                bundleIDs: cases.map(\.bundleID), region: "us")
+            if fetched.isEmpty {
+                findings.append(Finding(
+                    recipeID: "appStore:batch", registry: .appStore, bundleID: "-",
+                    channel: "-", status: FindingStatus.infra,
+                    failureDetail: "batched lookup returned nothing for \(cases.count) bundle ids — check 5 (batch ≡ single) did not run",
+                    endpointHost: "itunes.apple.com", elapsedMs: 0))
+            } else {
+                batch = fetched
+            }
+        } catch {
+            findings.append(Finding(
+                recipeID: "appStore:batch", registry: .appStore, bundleID: "-",
+                channel: "-", status: FindingStatus.infra,
+                failureDetail: "batched lookup failed (\(error.localizedDescription)) — check 5 (batch ≡ single) did not run",
+                endpointHost: "itunes.apple.com", elapsedMs: 0))
+        }
+
         for (index, probeCase) in cases.enumerated() {
             if index > 0 {
                 try? await Task.sleep(
@@ -65,7 +90,7 @@ extension Verify {
         func infra(_ detail: String) -> Finding {
             Finding(
                 recipeID: probeCase.recipeID, registry: .appStore, bundleID: probeCase.bundleID,
-                channel: probeCase.route.rawValue, status: .infra, failureDetail: detail,
+                channel: probeCase.route.rawValue, status: FindingStatus.infra, failureDetail: detail,
                 endpointHost: "apps.apple.com", elapsedMs: elapsed())
         }
 

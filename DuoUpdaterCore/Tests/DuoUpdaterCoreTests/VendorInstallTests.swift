@@ -119,6 +119,58 @@ import CryptoKit
         byKey.values.filter { $0.trackClosedPattern != nil }
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 
+    // Recipes whose probe cannot even be addressed from this machine, because the
+    // endpoint is keyed by an identifier the vendor's own app writes locally —
+    // Codex reads an `installationId` out of Application Support, and without it
+    // `VendorProbeSource` answers `.notApplicable("no device identity at …")`
+    // rather than failing. That is the recipe working as designed, and on a
+    // machine where the app is not installed it is the ONLY possible answer.
+    //
+    // The first CI run failed here for exactly that reason and it read like a
+    // vendor outage: `com.openai.codex [stable]: v?  [nil] — NO URL`. It is the
+    // same shape as CleanShot's resolver — a test that passes for whoever has the
+    // app installed and fails for everyone else — and the same shape as running
+    // this suite anywhere but the author's Mac.
+    //
+    // Derived from the registry, and — following what 0113017 fixed for track
+    // closure — exempt by RESULT, not by declaration: a recipe is skipped only
+    // when its identity is actually absent here. A machine that has the app must
+    // go on being covered, or the exemption quietly deletes the coverage it was
+    // meant to preserve.
+    // `localReads`, not `identities`. That property exists precisely so guards
+    // derive from ONE list — its own doc records that splitting the rollout track
+    // out of `identities` broke two guards the day it happened, and enumerating
+    // `identities` here would have made this the third. A track selector with no
+    // fallback answers `.notApplicable("no rollout track at …")` the same way.
+    //
+    // The file being absent is NOT on its own the production rule. Production asks
+    // `identity.resolve(endpoint)`, which stands a declared `fallback` in for an
+    // unreadable value — so an identity with a fallback is fully addressable on a
+    // machine that has no such file, and exempting it for that would hand a
+    // genuine vendor breakage a free pass.
+    //
+    // ANY unaddressable read, not all of them. `resolveEndpoint` substitutes the
+    // reads in order and returns `.notApplicable` at the FIRST one that resolves
+    // to nil, so one such read decides the whole probe and the rest are never
+    // consulted. `allSatisfy` was the first version of this line and it was wrong
+    // in the direction that costs a green build: codex declares two reads, and the
+    // second one — the plan_type claim — carries `fallback: "unknown"` by design,
+    // so "every read is unaddressable" is false on a machine that has neither
+    // file. CI failed on exactly that (2026-09-05, run 33946637714:
+    // `com.openai.codex [stable] resolved no installer URL`) while the author's
+    // Mac, which has both files, stayed green — the same everyone-but-me shape
+    // this exemption exists to remove. Measured on both sides:
+    //
+    //   author's Mac : bootstrap.json value=SET fallback=nil |
+    //                  ~/.codex/auth.json value=SET fallback=unknown  → probed
+    //   hosted runner: both value=nil                                 → exempt
+    let unaddressableKeys = Set(
+        byKey.values
+            .filter { recipe in
+                recipe.localReads.contains { $0.value() == nil && $0.fallback == nil }
+            }
+            .map { ChannelProofKey($0.bundleID, $0.channel) })
+
     for key in targets {
         let remote = results[key] ?? nil
         // Only when it actually resolved nothing. `trackClosedPattern` is a
@@ -131,6 +183,10 @@ import CryptoKit
         // stops being covered.
         if remote?.downloadURL == nil, dormantTracks.contains(key) {
             log("• \(key): dormant — vendor publishes no current build on this track")
+            continue
+        }
+        if remote?.downloadURL == nil, unaddressableKeys.contains(key) {
+            log("• \(key): no device identity on this machine — the vendor's app is not installed here, so this probe has nothing to address and proved nothing")
             continue
         }
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"

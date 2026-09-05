@@ -171,8 +171,13 @@ import Foundation
         #expect(enumerated == expected,
                 "allResolutions drifted from the resolvers: missing \(expected.subtracting(enumerated).sorted()), extra \(enumerated.subtracting(expected).sorted())")
 
+        // `hasResolver`, not `resolve(...) != nil`: the second asks this Mac's
+        // preferences, and CleanShot's resolver answers nil without a licence — so
+        // this loop passed for the author and failed everywhere else, with a message
+        // blaming a missing case. Same trap `allResolutions` above already avoids by
+        // enumerating CleanShot through its pure resolver.
         for id in enumerated {
-            #expect(ChannelBinding.resolve(bundleID: id) != nil,
+            #expect(ChannelBinding.hasResolver(bundleID: id),
                     "\(id) is enumerated but `resolve` has no case for it")
         }
     }

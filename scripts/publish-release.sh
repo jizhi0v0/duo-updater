@@ -11,6 +11,18 @@
 #   NOTARYTOOL_PROFILE=duoupdater-notary make release
 #   TAG=v0.1.1 TITLE="DuoUpdater 0.1.1" NOTARYTOOL_PROFILE=duoupdater-notary scripts/publish-release.sh
 #
+# Or, with the artifact built on a hosted Mac so anyone can tie it to this source:
+#
+#   1. Run .github/workflows/release-build.yml on the commit being released
+#      (Actions → Release build → Run workflow, or `gh workflow run`).
+#   2. CI_RUN_ID=<that run's id> make release
+#
+# That skips the local build entirely and takes the workflow's artifact, but only
+# after checking its SLSA provenance came from THAT workflow in THIS repository,
+# on a hosted runner — and then re-applying notarize.sh's signing gates by hand,
+# since notarize.sh did not run. No notary profile is needed on this path; the
+# Sparkle EdDSA key still is, which is the whole reason publishing stays here.
+#
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -155,16 +167,74 @@ prepare_sparkle_appcast() {
     # what was published — `check_signatures_unchanged` (run below, before anything
     # is pushed) refuses the feed if any already-published item's signature moved,
     # which is exactly what a locally rebuilt zip would cause.
-    local asset_dir history
+    # Where those past archives come from. NOT `dirname "$ASSET_ZIP"`, which is this
+    # checkout's own `dist/` — a per-worktree directory that a fresh worktree has
+    # never written to. 0.3.84 was released from one and shipped with **no deltas at
+    # all**: `Appcast: 1 archives available` (the new zip alone), a feed that is
+    # internally consistent, zero errors, and every existing user downloading 12.6 MB
+    # instead of the 692 KB patch. The published assets are the only copy that is
+    # guaranteed to be byte-for-byte what shipped anyway, so ask GitHub for them and
+    # keep them in one cache that does not move with the checkout.
+    local cache_dir asset_dir tag_list archive_name cached count
+    cache_dir="${DUO_RELEASE_ARCHIVE_CACHE:-$HOME/Library/Caches/duo-updater/release-archives}"
+    mkdir -p "$cache_dir"
+
+    # Seed from this checkout's dist/ when it happens to have them: free, and it keeps
+    # working with no network for anyone who has just built several releases in a row.
     asset_dir="$(dirname "$ASSET_ZIP")"
-    history="$(ls -t "$asset_dir"/DuoUpdater-*-macos.zip 2>/dev/null | head -6)"
-    if [ -n "$history" ]; then
-        # `cp -n`: never clobber the asset just copied in, whose bytes are the ones
-        # being released.
-        printf '%s\n' "$history" | while IFS= read -r archive; do
-            [ -f "$archive" ] && cp -n "$archive" "$appcast_archives_dir/" 2>/dev/null || true
-        done
-        say "Appcast: $(printf '%s\n' "$history" | wc -l | tr -d ' ') archives available for delta generation"
+    for archive in "$asset_dir"/DuoUpdater-*-macos.zip; do
+        [ -f "$archive" ] && cp -n "$archive" "$cache_dir/" 2>/dev/null || true
+    done
+
+    # Then fill the gaps from the releases themselves. `--maximum-deltas` is 5, so the
+    # tool wants the new build plus the five before it; anything older is copied,
+    # diffed and then dropped by the cap.
+    tag_list="$(gh release list --repo "$RELEASE_REPO" --limit 8 --json tagName,isDraft,isPrerelease \
+        --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' 2>/dev/null || true)"
+    # `while read`, not `for tag in $tag_list`: word-splitting an unquoted variable is
+    # a shell-dependent behaviour (zsh does not split by default), and this loop going
+    # around once with all eight tags glued together fails exactly the way the bug it
+    # fixes did — a name that matches nothing, a download that quietly does nothing.
+    while IFS= read -r tag; do
+        [ -z "$tag" ] && continue
+        [ "$tag" = "$TAG" ] && continue
+        archive_name="DuoUpdater-${tag#v}-macos.zip"
+        [ -f "$cache_dir/$archive_name" ] && continue
+        say "Appcast: fetching $archive_name for delta generation"
+        gh release download "$tag" --repo "$RELEASE_REPO" --pattern "$archive_name" \
+            --dir "$cache_dir" 2>/dev/null || say "Appcast: could not fetch $archive_name — continuing"
+    done <<< "$tag_list"
+
+    # Which six, chosen by RELEASE ORDER and not by file mtime. `ls -t` was the
+    # original rule and it is wrong the moment the cache is filled by downloading:
+    # the files land oldest-tag-last, so newest-mtime-first hands back the six
+    # *oldest* releases — patches from versions almost nobody is running. GitHub
+    # lists releases newest-first, so use that order and stop at six.
+    #
+    # `cp -n` throughout: never clobber the asset copied in above, whose bytes are
+    # the ones being released (its own tag appears in this list on a re-run).
+    while IFS= read -r tag; do
+        [ -z "$tag" ] && continue
+        archive_name="DuoUpdater-${tag#v}-macos.zip"
+        [ -f "$cache_dir/$archive_name" ] || continue
+        cp -n "$cache_dir/$archive_name" "$appcast_archives_dir/" 2>/dev/null || true
+        [ "$(ls "$appcast_archives_dir"/DuoUpdater-*-macos.zip 2>/dev/null | wc -l | tr -d ' ')" -ge 6 ] && break
+    done <<< "$tag_list"
+    count="$(ls "$appcast_archives_dir"/DuoUpdater-*-macos.zip 2>/dev/null | wc -l | tr -d ' ')"
+    say "Appcast: $count archives available for delta generation (cache: $cache_dir)"
+
+    # One archive means one full download for everyone, which is the failure this
+    # block exists to prevent and which is invisible in the feed afterwards. It is
+    # only legitimate when there is genuinely nothing to patch from — a first publish
+    # into an empty feed. Anything else stops here, before a release is created.
+    if [ "$count" -lt 2 ] && [ -s "$appcast_clone_dir/appcast.xml" ]; then
+        if [ "${ALLOW_NO_DELTAS:-0}" = "1" ]; then
+            say "ALLOW_NO_DELTAS=1 — publishing with no binary patches; every user downloads the full archive."
+        else
+            die "only $count archive available, so this release would ship with no binary patches
+  while the published feed has entries to patch from. Check \`gh release list\` and the
+  cache at $cache_dir, or ALLOW_NO_DELTAS=1 to publish full downloads on purpose."
+        fi
     fi
     sparkle_notes="$appcast_archives_dir/$(basename "${ASSET_ZIP%.*}").md"
     cp "$RELEASE_NOTES_FILE" "$sparkle_notes"
@@ -213,8 +283,18 @@ PY
     while IFS= read -r d; do
         [ -n "$d" ] && delta_assets+=("$d")
     done < <(find "$appcast_archives_dir" -maxdepth 1 -name '*.delta' -type f | sort)
+    # Count the PATCHES, not the archives. The gate further up asks how many
+    # archives went in, which is the input to this question and not the question:
+    # `generate_appcast` skips a delta that is not meaningfully smaller, that it
+    # cannot sign, or that failed to build — printing a line and carrying on. Six
+    # archives in and zero patches out is exactly as silent as the one-archive
+    # case that shipped 0.3.84 with no patches at all.
     if [ ${#delta_assets[@]} -gt 0 ]; then
         say "Appcast: ${#delta_assets[@]} binary patches to upload alongside the archive"
+    elif [ "$count" -ge 2 ] && [ "${ALLOW_NO_DELTAS:-0}" != "1" ]; then
+        die "$count archives were available but generate_appcast produced no binary
+  patches, so every user would download the full archive. Look for its own
+  \"skipping delta\" lines above, or ALLOW_NO_DELTAS=1 to publish anyway."
     fi
 
     # What the regenerated feed has to look like. `$appcast_clone_dir/appcast.xml`
@@ -272,28 +352,95 @@ PY
 
 # Commit and push the appcast prepared above. Split from the preparation so
 # every check runs before the release exists.
+# Whether pull request `$1` actually reached MERGED, waiting up to 30 minutes for
+# the required status check to report.
+#
+# 30 minutes at 30s intervals: `make test` on a hosted runner takes about six, and
+# a bound means a wedged check costs a loud failure rather than a release script
+# that never returns. An empty number — `gh pr list` raced the create, or changed
+# shape — is "unknown", which is treated as not merged.
+appcast_pr_merged() {
+    local num="$1" state
+    [ -n "$num" ] || return 1
+    local i
+    for i in $(seq 1 60); do
+        state="$(gh pr view "$num" --repo "$RELEASE_REPO" --json state -q .state 2>/dev/null || echo "")"
+        [ "$state" = "MERGED" ] && return 0
+        [ "$state" = "CLOSED" ] && return 1
+        sleep 30
+    done
+    return 1
+}
+
 push_sparkle_appcast() {
+    # The branch the appcast lives on, read from the clone rather than assumed —
+    # `gh repo clone` checks out the remote's default branch, whatever it is.
+    local appcast_base
+    appcast_base="$(git -C "$appcast_clone_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
     cp "$appcast_archives_dir/appcast.xml" "$appcast_clone_dir/appcast.xml"
 
     if [ -n "$(git -C "$appcast_clone_dir" status --short -- appcast.xml)" ]; then
         say "Publishing Sparkle appcast to $RELEASE_REPO"
         git -C "$appcast_clone_dir" add appcast.xml
         git -C "$appcast_clone_dir" commit -m "Update Sparkle appcast for $TAG" >/dev/null
-        # The clone is taken before the release is created and the asset uploaded,
-        # so minutes pass before this runs and another push can land in between.
-        # (When this all lived in one function the window was too small to matter.)
-        local attempt
+        # Through a pull request, not a push to the default branch.
+        #
+        # That branch is protected so nobody can put a rewritten release workflow
+        # on it and dispatch it with the Apple signing key. This function and the
+        # mini's nightly baseline job were the two things that still needed the
+        # direct push; both go through a PR now, so the rule can be turned on.
+        #
+        # The retry keeps its original reason: the clone is taken before the
+        # release is created and the asset uploaded, so minutes pass before this
+        # runs and another commit can land in between. What used to be a rebase
+        # before re-pushing is now a rebase before opening a fresh PR — the
+        # failure it handles (somebody else moved the branch) is the same one.
+        local attempt branch
         for attempt in 1 2 3; do
-            if git -C "$appcast_clone_dir" push origin HEAD >/dev/null 2>&1; then
-                return 0
+            branch="appcast/${TAG}-$(date -u +%Y%m%dT%H%M%SZ)-$attempt"
+            if git -C "$appcast_clone_dir" push origin "HEAD:refs/heads/$branch" >/dev/null 2>&1 \
+                && gh pr create --repo "$RELEASE_REPO" --base "$appcast_base" --head "$branch" \
+                       --title "Update Sparkle appcast for $TAG" \
+                       --body "Published by scripts/publish-release.sh for $TAG." >/dev/null 2>&1
+            then
+                # Read before a merge deletes the branch this looks up by.
+                local pr_num
+                pr_num="$(gh pr list --repo "$RELEASE_REPO" --head "$branch" \
+                              --json number -q '.[0].number' 2>/dev/null || echo "")"
+                # `--auto` is what works once a required check exists; a PR with
+                # nothing pending is mergeable immediately and `--auto` refuses
+                # it, which is not a failure. Both forms delete the branch.
+                if gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch --auto >/dev/null 2>&1 \
+                    || gh pr merge "$branch" --repo "$RELEASE_REPO" --squash --delete-branch >/dev/null 2>&1; then
+                    # ENABLING auto-merge is not merging. `--auto` returns success
+                    # the moment GitHub accepts the request, minutes before the
+                    # required check reports, so returning here would let the
+                    # release finish and report success over a feed that had not
+                    # been updated — and if the check then went red, nothing would
+                    # ever say so. The whole point of the die below is that this
+                    # failure is loud; it cannot be loud from a promise.
+                    if appcast_pr_merged "$pr_num"; then
+                        return 0
+                    fi
+                    # A pending or rejected check is not repaired by opening a
+                    # second pull request for the same commit, so stop retrying
+                    # and let the operator see it. The retry below exists for a
+                    # different failure — somebody else moved the branch.
+                    break
+                fi
+                say "  appcast PR opened but did not merge (attempt $attempt)"
+            else
+                say "  appcast branch/PR failed (attempt $attempt) — rebasing onto the current head"
             fi
-            say "  appcast push rejected (attempt $attempt) — rebasing onto the current head"
             git -C "$appcast_clone_dir" fetch origin --quiet 2>/dev/null || true
-            git -C "$appcast_clone_dir" pull --rebase --quiet origin HEAD 2>/dev/null || true
+            git -C "$appcast_clone_dir" pull --rebase --quiet origin "$appcast_base" 2>/dev/null || true
         done
-        die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be pushed.
-  Users will not be offered it until the feed is updated. Re-run this script — the
-  release will be updated in place and the appcast retried."
+        die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be
+  merged. Users will not be offered it until the feed is updated. Look for an open
+  \"Update Sparkle appcast for $TAG\" pull request — it may simply still be waiting
+  on the required \`test\` check, in which case it merges itself and nothing more is
+  needed; if that check went red, fix it and merge. Re-running this script also
+  works — the release is updated in place and the appcast retried."
     else
         say "Sparkle appcast already up to date"
     fi
@@ -444,6 +591,9 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     say "SKIP_TESTS=1 — NOT running the test suite before publishing."
 else
     say "Running tests before publishing (SKIP_TESTS=1 to override)"
+    # Not the only gate any more — .github/workflows/ci.yml runs this same
+    # `make test` on every pull request — but still the only one that runs against
+    # the exact tree being published.
     # `make test`, not one package: this ran only DuoUpdaterCore, so a red CLI
     # suite published. Output is NOT swallowed — some of these tests hit the
     # network, and swallowing makes "the network blipped" and "the suite is red"
@@ -451,7 +601,98 @@ else
     ( cd "$REPO_ROOT" && make test ) || die "tests failed — refusing to publish."
 fi
 
-if [ "$SKIP_NOTARIZE" = "1" ]; then
+if [ -n "${CI_RUN_ID:-}" ]; then
+    # Take the artifact built by .github/workflows/release-build.yml instead of
+    # building here. The point is not convenience: a locally built binary is one
+    # that nobody outside this Mac can tie to the published source, while this one
+    # carries SLSA build provenance that anyone can check with
+    # `gh attestation verify`. The publishing half stays local because the Sparkle
+    # EdDSA key does — see that workflow's header for why the two keys differ.
+    #
+    # Everything below runs BEFORE the artifact is used for anything, because this
+    # is the one path where the bytes were produced somewhere we do not control.
+    say "CI_RUN_ID=$CI_RUN_ID — using that run's artifact instead of building"
+    ci_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-ci-artifact.XXXXXX")"
+    gh run download "$CI_RUN_ID" --repo "$RELEASE_REPO" \
+        --name DuoUpdater-notarized --dir "$ci_dir" \
+        || die "could not download the artifact from run $CI_RUN_ID"
+    ci_zip="$ci_dir/DuoUpdater-notarized.zip"
+    [ -f "$ci_zip" ] || die "run $CI_RUN_ID had no DuoUpdater-notarized.zip"
+
+    # Provenance first. `--signer-workflow` is the part that carries the weight:
+    # without it any attestation from any workflow in this repository would pass,
+    # which is most of the guarantee gone. `--deny-self-hosted-runners` matters
+    # here specifically — a self-hosted runner running as the desktop user is why
+    # this repository deleted its previous workflow when it went public.
+    say "Verifying the artifact's build provenance"
+    # `--source-digest` is the one that ties the binary to THIS release.
+    # `--signer-workflow` constrains the workflow path and nothing else: it does
+    # not look at the ref or the commit, so without this line an artifact built
+    # from any branch, at any commit, passes. That is not hypothetical — the first
+    # end-to-end run of this path verified an artifact built from
+    # `refs/heads/claude/ci-release-provenance` at a commit that was not the
+    # release commit, and every gate was green.
+    #
+    # The version check further down does NOT cover this. It compares
+    # CFBundleShortVersionString and CFBundleVersion, so every commit between two
+    # version bumps is identical to it: it catches a stale version, never a
+    # different commit.
+    gh attestation verify "$ci_zip" --repo "$RELEASE_REPO" \
+        --signer-workflow "$RELEASE_REPO/.github/workflows/release-build.yml" \
+        --source-digest "$RELEASE_COMMIT" \
+        --deny-self-hosted-runners \
+        || die "the artifact from run $CI_RUN_ID has no valid provenance for commit
+  $RELEASE_COMMIT from $RELEASE_REPO/.github/workflows/release-build.yml.
+  Run that workflow on the commit you are releasing, and use ITS run id."
+
+    # `notarize.sh` did not run here, so its gates have not run either. They are
+    # not optional just because a green workflow produced the file: this script is
+    # the last place that can refuse, and an unsigned, unstapled or wrongly-teamed
+    # build reaches users as "damaged" with no way back.
+    say "Checking the artifact is signed, hardened and stapled"
+    ci_team="${DUO_TEAM_ID:-RS59HDH7Y3}"
+    ci_unpack="$ci_dir/unpacked"
+    mkdir -p "$ci_unpack"
+    ditto -x -k "$ci_zip" "$ci_unpack" || die "could not unpack $ci_zip"
+    # No `| head`: under `pipefail` a closed pipe turns a benign multi-match into a
+    # silent non-zero exit. Count first, then take one, so "more than one .app"
+    # gets a sentence instead of an unexplained death.
+    ci_apps="$(find "$ci_unpack" -maxdepth 1 -name '*.app' -type d)"
+    ci_app_count="$(printf '%s\n' "$ci_apps" | grep -c . || true)"
+    [ "$ci_app_count" -eq 1 ] || die "expected exactly one .app in the artifact from
+  run $CI_RUN_ID, found $ci_app_count."
+    ci_app="$ci_apps"
+    # `|| true`: `codesign -dvv` exits non-zero for a COMPLETELY unsigned bundle,
+    # and under `set -e` that kills the script here with no message at all — before
+    # the four gates below can say which one failed.
+    ci_sig="$(codesign -dvv "$ci_app" 2>&1 || true)"
+    case "$ci_sig" in *"adhoc"*) die "the CI artifact is AD-HOC signed";; esac
+    case "$ci_sig" in
+        *"TeamIdentifier=$ci_team"*) ;;
+        *) die "the CI artifact is not signed by team $ci_team";;
+    esac
+    case "$ci_sig" in
+        *"flags=0x10000(runtime)"*) ;;
+        *) die "the CI artifact does not have the hardened runtime enabled";;
+    esac
+    # The fourth gate, and the one this path was missing while its own comment
+    # claimed to re-apply "notarize.sh's own gates": a build carrying
+    # get-task-allow is debuggable, which is exactly what must not ship.
+    ci_ents="$(codesign -d --entitlements :- "$ci_app" 2>&1 || true)"
+    case "$ci_ents" in
+        *"com.apple.security.get-task-allow"*)
+            die "the CI artifact carries the get-task-allow entitlement";;
+    esac
+    xcrun stapler validate "$ci_app" >/dev/null 2>&1 \
+        || die "the CI artifact is not stapled — Gatekeeper would need the network to admit it"
+    spctl -a -t exec "$ci_app" >/dev/null 2>&1 \
+        || die "Gatekeeper rejects the CI artifact"
+    printf '   %s\n' "$(printf '%s\n' "$ci_sig" | sed -n 's/^Authority=/Authority=/p' | head -n 1)"
+
+    mkdir -p "$DIST_DIR"
+    cp "$ci_zip" "$FINAL_ZIP"
+    rm -rf "$ci_dir"
+elif [ "$SKIP_NOTARIZE" = "1" ]; then
     say "SKIP_NOTARIZE=1 — NOT rebuilding; reusing $FINAL_ZIP as it stands."
     say "  (its version is checked below, but nothing else about it is.)"
 else
@@ -730,7 +971,20 @@ fi
 # the newest LOCAL git tag, and `gh release create` makes the tag on GitHub. Without
 # a fetch first, that guard holds back the release that was just published, prints
 # one `held back` line, and exits 0 — so `npm run sync` looks like it worked.
-site_repo="${DUO_SITE_REPO:-$REPO_ROOT/../duo-updater-site}"
+#
+# ⚠️ Resolved from the MAIN working tree, not from `$REPO_ROOT`. `$REPO_ROOT` is
+# whatever checkout is publishing, and releasing from a worktree makes the default
+# `.claude/worktrees/<name>/../duo-updater-site` — a path that does not exist, so
+# the whole block below is skipped and prints NOTHING. That is what happened on
+# 0.3.84: neither branch ran, and the safeguard written because this step had been
+# forgotten twice was itself silently absent. `git worktree list` names the main
+# tree first, which is the one with a sibling site checkout.
+# `|| true` for the same reason the line below it has one: this is a pipeline
+# assignment under `set -e`, so a failing `git worktree list` would end the script
+# silently, right after a successful publish — the shape this block exists to fix.
+main_tree="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{print $2; exit}' || true)"
+site_repo="${DUO_SITE_REPO:-${main_tree:-$REPO_ROOT}/../duo-updater-site}"
 if [ -d "$site_repo/.git" ]; then
     synced="$(git -C "$site_repo" log -1 --pretty=%s 2>/dev/null || true)"
     case "$synced" in
@@ -753,4 +1007,16 @@ $(printf '\033[1;33m! duoupdater.app is NOT synced yet.\033[0m') Its last sync c
 EOF
             ;;
     esac
+else
+    # Saying nothing is what this check did on 0.3.84, and "no output" reads exactly
+    # like "nothing to do". If the site checkout cannot be found, say so.
+    cat <<EOF
+
+$(printf '\033[1;33m! Could not check duoupdater.app.\033[0m') No git checkout at:
+     $site_repo
+
+  The site keeps a committed copy of CHANGELOG.md and will stay on the previous
+  version until someone syncs it. Point DUO_SITE_REPO at the checkout, or sync by
+  hand — see the steps in this script beside this message.
+EOF
 fi

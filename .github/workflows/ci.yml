@@ -1,0 +1,60 @@
+# Build and test on a GitHub-hosted Mac.
+#
+# The last workflow this repository had was deleted the day it went public
+# (4ff9a90, 2026-08-14) because it pointed at a self-hosted runner running as the
+# desktop user, and a public repo eventually gets a pull_request trigger pointed at
+# it. That reasoning still stands, so this one is built the other way round:
+#
+#   • GitHub-hosted runner only. Nothing here can reach a machine of ours.
+#   • No secrets. `make test` needs none — both xcodebuild invocations already pass
+#     CODE_SIGNING_ALLOWED=NO, and DUO_TEAM_ID has a default — so a fork's pull
+#     request has nothing to exfiltrate even if it rewrites this file.
+#   • `pull_request`, never `pull_request_target`. The latter runs the BASE
+#     workflow with the repository's secrets available to a fork's code, which is
+#     the standard way this goes wrong.
+#   • Actions pinned by commit SHA, not by tag. A tag can be moved.
+#
+# Standard GitHub-hosted runners are free and unlimited on public repositories, and
+# macos-latest is an arm64 M1 — which matters here because DuoUpdater is arm64-only
+# by product decision (App/project.yml, ARCHS: arm64), so this builds and tests
+# natively rather than under emulation.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only. The release path deliberately does not live in this workflow.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    # `make test` reaches vendor endpoints (the install gates download real
+    # packages and verify sha512 + Team ID), so it is slower and less predictable
+    # than a pure unit run. Generous, but far under the 6h job ceiling.
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
+      # source of truth and scripts/app-tests.sh regenerates it when missing.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          echo "arch: $(uname -m)"
+
+      - name: make test
+        run: make test

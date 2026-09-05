@@ -249,21 +249,47 @@ public enum ChannelBinding {
     /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
     /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
     public static func resolve(bundleID: String?) -> ResolvedChannel? {
-        guard let id = bundleID?.lowercased() else { return nil }
+        guard let id = bundleID?.lowercased(), let resolver = resolver(for: id) else { return nil }
+        return resolver()
+    }
+
+    /// Whether this id has a case in the switch at all — asked without running the
+    /// resolver, so the answer does not depend on the machine asking.
+    ///
+    /// The distinction is not academic. `resolve` returns nil for two unrelated
+    /// reasons: no case exists, or a case exists and this Mac's preferences resolve
+    /// to nothing. `everyBoundIDHasAResolverBehindIt` only ever meant the first, and
+    /// asked it by calling `resolve` — so on CI it failed for CleanShot, whose
+    /// resolver keys a personalized feed off a licence this repository's author has
+    /// and a runner does not, and reported "`resolve` has no case for it" about a
+    /// line that is right there. A guard that is permanently green on one Mac and red
+    /// everywhere else, with a message stating something false.
+    ///
+    /// `allResolutions` already learned this lesson for CleanShot (see the note
+    /// under it, and `CleanShotChannel.resolve(activationKey:)`); this is the same
+    /// fix for the other half. Sharing ONE switch rather than adding a second list
+    /// is the point — a copy drifts, a call cannot.
+    static func hasResolver(bundleID: String) -> Bool {
+        resolver(for: bundleID.lowercased()) != nil
+    }
+
+    /// The one switch both of the above go through. Returns the resolver itself,
+    /// unevaluated, so asking "is there one" costs no preference read.
+    private static func resolver(for id: String) -> (() -> ResolvedChannel?)? {
         switch id {
-        case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent()
-        case ForkChannel.bundleID.lowercased():     return ForkChannel.resolveCurrent()
-        case SurgeChannel.bundleID.lowercased():    return SurgeChannel.resolveCurrent()
-        case OrbStackChannel.bundleID.lowercased(): return OrbStackChannel.resolveCurrent()
-        case TablePlusChannel.bundleID.lowercased(): return TablePlusChannel.resolveCurrent()
-        case CleanShotChannel.bundleID.lowercased(): return CleanShotChannel.resolveCurrent()
-        case TailscaleChannel.bundleID.lowercased(): return TailscaleChannel.resolveCurrent()
-        case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent()
-        case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent()
-        case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent()
+        case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent
+        case ForkChannel.bundleID.lowercased():     return ForkChannel.resolveCurrent
+        case SurgeChannel.bundleID.lowercased():    return SurgeChannel.resolveCurrent
+        case OrbStackChannel.bundleID.lowercased(): return OrbStackChannel.resolveCurrent
+        case TablePlusChannel.bundleID.lowercased(): return TablePlusChannel.resolveCurrent
+        case CleanShotChannel.bundleID.lowercased(): return CleanShotChannel.resolveCurrent
+        case TailscaleChannel.bundleID.lowercased(): return TailscaleChannel.resolveCurrent
+        case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent
+        case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent
+        case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent
         case BetterDisplayChannel.bundleID.lowercased():
-            return BetterDisplayChannel.resolveCurrent()
-        case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent()
+            return BetterDisplayChannel.resolveCurrent
+        case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent
         default:                       return nil
         }
     }

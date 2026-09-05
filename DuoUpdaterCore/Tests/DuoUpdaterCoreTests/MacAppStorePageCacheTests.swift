@@ -323,6 +323,72 @@ struct MacAppStorePageCacheTests {
                 "scraping the unmarked listing is the phantom-update bug")
     }
 
+    /// A `trackViewUrl` for ANOTHER storefront is refused.
+    ///
+    /// Right host, right id, right marker — wrong store. The scrape is filed in
+    /// `AppStorePageCache` under the caller's `region`, so trusting this would
+    /// pin one storefront's answer for an hour under another's key. Third and
+    /// last way into the same failure, after host and platform.
+    ///
+    /// Mutation run: dropping the `segments.first == region` guard turns this
+    /// red — the foreign storefront gets scraped.
+    @Test func trackViewUrlForAnotherStorefrontFallsBackToConstructedURL() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 5101
+        let foreignStore = "https://apps.apple.com/jp/app/demo/id\(trackId)?mt=12"
+        let constructedURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: foreignStore))
+            }
+            if url.absoluteString == constructedURL { return (200, Data(Self.versionPageHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        _ = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.wrongstore"))
+
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == constructedURL }) == 1)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == foreignStore }) == 0,
+                "a URL for another storefront must never be scraped")
+    }
+
+    /// `invalidateAll` really makes the next scrape live.
+    ///
+    /// This is what an explicit recheck relies on: for an iOS-on-Mac listing the
+    /// page is the only version source, so without a way to clear it the user
+    /// pressing Check Now is told the same thing for up to an hour.
+    ///
+    /// Mutation run: making `invalidateAll` a no-op turns this red (1 fetch, not 2).
+    @Test func invalidateAllForcesTheNextScrapeLive() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 5201
+        let pageURL = "https://apps.apple.com/us/app/demo/id\(trackId)?mt=12"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: pageURL))
+            }
+            if url.absoluteString == pageURL { return (200, Data(Self.versionPageHTML.utf8)) }
+            return (404, Data())
+        }
+        let cache = AppStorePageCache()
+        let app = Self.nativeMacApp(bundleID: "com.example.invalidate")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us", pageCache: cache)
+
+        _ = try await source.latestVersion(for: app)
+        _ = try await source.latestVersion(for: app)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURL }) == 1,
+                "the second call inside the TTL must be served from cache")
+
+        await cache.invalidateAll()
+        _ = try await source.latestVersion(for: app)
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURL }) == 2,
+                "after invalidateAll the page must be fetched again")
+    }
+
     // MARK: - A3: prewarm
 
     /// After `prewarm([app])`, resolving that same app must not make a second,
@@ -484,10 +550,16 @@ struct MacAppStorePageCacheTests {
     /// Mutation run: removing `lang` from `AppStoreLookupCache.Key` turns this
     /// red — the entry stored under one language answers a lookup for another.
     @Test func aPrewarmUnderOneLanguageIsNotServedToAnother() async throws {
+        // ⚠️ Store a REAL entry. The first version passed `[:]`, and `store`
+        // iterates its argument — so it wrote nothing, `lookup` returned nil
+        // whatever the key looked like, and the mutation this case names could
+        // never redden it. It was the only coverage `Key.lang` had.
         let cache = AppStoreLookupCache()
-        await cache.store([:], region: "us", lang: "zh_cn")
-        let hit = await cache.lookup(bundleID: "com.example.x", region: "us", lang: "en_us")
-        #expect(hit == nil, "an entry keyed on one language must not answer for another")
+        await cache.store(["com.example.x": nil], region: "us", lang: "zh_cn")
+        #expect(await cache.lookup(bundleID: "com.example.x", region: "us", lang: "zh_cn") != nil,
+                "the entry must answer for the language it was fetched under")
+        #expect(await cache.lookup(bundleID: "com.example.x", region: "us", lang: "en_us") == nil,
+                "an entry keyed on one language must not answer for another")
     }
 }
 

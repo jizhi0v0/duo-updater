@@ -72,6 +72,26 @@ public actor AppStorePageCache {
         self.now = now
     }
 
+    /// Drop everything, so the next scrape is live.
+    ///
+    /// The TTL alone is not enough, and the gap is user-visible. For a
+    /// `kind == "software"` listing the scraped page is the ONLY version source
+    /// — `iosOnMacVersion` returns nil without it, and unlike `nativeMacVersion`
+    /// there is no lookup answer sitting behind it to make a stale page
+    /// harmless. So a user who reads a release announcement and presses Check
+    /// Now would have been told the same old version for up to an hour, with no
+    /// way to insist. Before this cache existed every check re-fetched. Five of
+    /// the twenty Mac App Store apps on the machine this was measured on take
+    /// that route (2026-09-05).
+    ///
+    /// Called from the explicit-recheck path only. A periodic sweep must NOT
+    /// call it — that would put the cache back to fetching a page per app per
+    /// round, which is the cost it exists to remove.
+    public func invalidateAll() {
+        versionStore.removeAll()
+        compatStore.removeAll()
+    }
+
     /// The cached Mac-version scrape for (trackId, region), if a fresh entry
     /// exists. `.some(nil)` means "cached, and the page had no version";
     /// nil means "not cached (or expired) — go fetch it".

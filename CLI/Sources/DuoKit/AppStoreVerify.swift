@@ -70,8 +70,8 @@ extension Verify {
             }
         } catch {
             findings.append(Finding(
-                recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: "-",
-                channel: "-", status: FindingStatus.infra,
+                recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore, bundleID: MacAppStoreProbeRegistry.batchRecipeID,
+                channel: "batch", status: FindingStatus.infra,
                 failureDetail: "batched lookup failed (\(error.localizedDescription)) — check 5 (batch ≡ single) did not run",
                 endpointHost: "itunes.apple.com", elapsedMs: 0))
         }
@@ -103,18 +103,23 @@ extension Verify {
     ) async -> Finding {
         let started = Date()
         func elapsed() -> Int { Int(Date().timeIntervalSince(started) * 1000) }
-        func infra(_ detail: String) -> Finding {
+        // `host` is a parameter because this sweep talks to TWO hosts and a
+        // nightly run triages by host: the lookup is itunes.apple.com, the page
+        // scrape and the redirect check are apps.apple.com. Reporting every
+        // failure against apps.apple.com sent whoever read the report to the
+        // wrong endpoint.
+        func infra(_ detail: String, host: String = "apps.apple.com") -> Finding {
             Finding(
                 recipeID: probeCase.recipeID, registry: .appStore, bundleID: probeCase.bundleID,
                 channel: probeCase.route.rawValue, status: FindingStatus.infra, failureDetail: detail,
-                endpointHost: "apps.apple.com", elapsedMs: elapsed())
+                endpointHost: host, elapsedMs: elapsed())
         }
 
         let single: AppStoreLookupShape?
         do {
             single = try await source.verifyLookup(bundleID: probeCase.bundleID, region: probeCase.region)
         } catch {
-            return infra("lookup failed: \(error)")
+            return infra("lookup failed: \(error)", host: "itunes.apple.com")
         }
         guard let single else {
             return Finding(
@@ -122,7 +127,7 @@ extension Verify {
                 channel: probeCase.route.rawValue, status: .broken,
                 failureDetail: "lookup returned zero results for bundleId=\(probeCase.bundleID) "
                     + "in \(probeCase.region) — delisted, or the bundle id changed",
-                endpointHost: "apps.apple.com", elapsedMs: elapsed())
+                endpointHost: "itunes.apple.com", elapsedMs: elapsed())
         }
 
         let pageShape: AppStorePageShapeCheck

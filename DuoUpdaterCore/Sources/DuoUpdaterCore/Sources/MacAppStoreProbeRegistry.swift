@@ -9,7 +9,7 @@ import Foundation
 public struct MacAppStoreProbeCase: Sendable {
     /// Which of `MacAppStoreSource.resolve(result:app:region:)`'s branches
     /// this case exercises.
-    public enum Route: String, Sendable {
+    public enum Route: String, Sendable, CaseIterable {
         /// `kind == "mac-software"` → `nativeMacVersion`: page-scrapes the
         /// `mostRecentVersion` shelf, and is the only route that trusts the
         /// lookup's own `trackViewUrl` for a zero-redirect fetch (A2).

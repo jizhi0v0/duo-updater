@@ -25,7 +25,11 @@ struct MacAppStoreProbeRegistryTests {
     /// command and diff.
     @Test func everyResolveBranchHasACase() {
         let routes = Set(MacAppStoreProbeRegistry.cases.map(\.route))
-        let allRoutes: Set<MacAppStoreProbeCase.Route> = [.nativeMac, .iosOnMac, .wrappedIOS]
+        // Derived, not written out. A hand-listed set is the one shape that
+        // cannot catch what this case exists for: add a fourth `Route` and a
+        // fourth branch to `resolve()`, and a literal list just keeps checking
+        // the three it already knew about.
+        let allRoutes = Set(MacAppStoreProbeCase.Route.allCases)
         for route in allRoutes {
             #expect(routes.contains(route), "no registry case exercises \(route)")
         }

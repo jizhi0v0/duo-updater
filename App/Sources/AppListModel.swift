@@ -5912,6 +5912,12 @@ final class AppListModel {
         // that now resolves elsewhere reads as gone, not as a row under another id.
         let fresh = apps.filter { ids.contains($0.id) }
         guard !fresh.isEmpty else { return [] }
+        // A recheck is the user insisting, so it must not be answered out of the
+        // App Store page cache — for an iOS-on-Mac listing that page is the only
+        // version source, and its hour-long TTL would otherwise hand back the
+        // same answer the user just told us they don't believe. See
+        // `AppStorePageCache.invalidateAll`.
+        await AppStorePageCache.shared.invalidateAll()
         let checker = UpdateChecker(
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,

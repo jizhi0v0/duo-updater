@@ -158,7 +158,7 @@ public struct MacAppStoreSource: UpdateSource {
             // *different* listing kind ("software") whose `trackViewUrl` points at
             // the iOS listing, not the Mac one, so it keeps building its own URL.
             let fallbackURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
-            if let scrapeURL = validatedProductPageURL(result.trackViewUrl, trackId: trackId) ?? fallbackURL {
+            if let scrapeURL = validatedProductPageURL(result.trackViewUrl, trackId: trackId, region: region) ?? fallbackURL {
                 pageInfo = try? await cachedMacVersion(trackId: trackId, region: region, url: scrapeURL)
             }
         }
@@ -263,7 +263,7 @@ public struct MacAppStoreSource: UpdateSource {
     /// scheme/host check guards against following it somewhere unexpected;
     /// anything that fails returns nil so the caller falls back to the URL it
     /// would have built itself.
-    private func validatedProductPageURL(_ trackViewUrl: String?, trackId: Int) -> URL? {
+    private func validatedProductPageURL(_ trackViewUrl: String?, trackId: Int, region: String) -> URL? {
         guard let trackViewUrl, let url = URL(string: trackViewUrl),
               url.scheme == "https", url.host == "apps.apple.com" else { return nil }
         // The host check alone is not enough, and the gap is not theoretical:
@@ -302,7 +302,16 @@ public struct MacAppStoreSource: UpdateSource {
         // 10-digit ids. Measured against the 15 `mac-software` listings on this
         // machine: all 15 end in `id<trackId>` and all 15 carry `mt=12`, so
         // this rejects none of them and costs no extra 301.
-        guard url.path.split(separator: "/").last == "id\(trackId)" else { return nil }
+        // Storefront too, and for the same reason as the platform marker: the
+        // scrape is filed in `AppStorePageCache` under the caller's `region`, so
+        // a cross-storefront URL would pin another store's answer for an hour
+        // under a right-looking key. Measured `country=us`: the segment tracks
+        // the storefront asked for (`/us/app/xcode/id497799835?mt=12&uo=4`).
+        // Not currently firing — this closes the third way in, after host and
+        // platform.
+        let segments = url.path.split(separator: "/")
+        guard segments.first == Substring(region) else { return nil }
+        guard segments.last == "id\(trackId)" else { return nil }
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         guard query.contains(where: {
             ($0.name == "mt" && $0.value == "12") || ($0.name == "platform" && $0.value == "mac")
@@ -547,8 +556,15 @@ public struct MacAppStoreSource: UpdateSource {
         }
         do {
             return try await lookup(bundleID: bundleID, region: region, lang: lang)
-        } catch MASError.badStatus where lang != nil {
-            await LanguageSupport.shared.markRejected()
+        } catch MASError.badStatus(let code) where code == 400 && lang != nil {
+            // 400 ONLY, and it used to be any non-2xx. That was a process-wide,
+            // permanent, silent latch on an unrelated failure: one 403 from rate
+            // limiting or one 503 and every later lookup drops `lang`, so every
+            // `trackName` falls back to the storefront default — the name
+            // `AppStoreAXInstaller` has to find on screen. Nothing errors, no
+            // version changes, and the App Store install route just stops
+            // working on a non-English Mac until the app is restarted.
+            await LanguageSupport.shared.markRejected(code: code, lang: lang ?? "?")
             return try await lookup(bundleID: bundleID, region: region, lang: nil)
         }
     }
@@ -693,7 +709,14 @@ public struct MacAppStoreSource: UpdateSource {
     private actor LanguageSupport {
         static let shared = LanguageSupport()
         private(set) var isRejected = false
-        func markRejected() { isRejected = true }
+        /// Latched for the life of the process, so say so once. Without a line
+        /// here the only evidence that localisation stopped is that it stopped.
+        func markRejected(code: Int, lang: String) {
+            guard !isRejected else { return }
+            isRejected = true
+            Log.source.error(
+                "App Store lookup rejected lang=\(lang, privacy: .public) (HTTP \(code, privacy: .public)) — dropping it for the rest of this process; trackName will be the storefront default")
+        }
     }
 }
 
@@ -735,7 +758,16 @@ extension MacAppStoreSource {
     /// itself makes (bypassing `prewarmCache`, which a verify run never
     /// populates — there is no `prewarm(_:)` call in this sweep).
     public func verifyLookup(bundleID: String, region: String) async throws -> AppStoreLookupShape? {
-        guard let result = try await lookup(bundleID: bundleID, region: region) else { return nil }
+        // Three-argument form on purpose: the two-argument wrapper consults
+        // `prewarmCache` first, and a sweep whose whole job is to get a LIVE
+        // answer must not be able to report a cached shape as one. It is inert
+        // today only because nothing in the sweep populates that cache — which
+        // is a fact about today's call graph, not a property of this function.
+        let lang = await LanguageSupport.shared.isRejected
+            ? nil
+            : Self.storeLanguage(preferred: Locale.preferredLanguages, storefront: region)
+        guard let result = try await lookup(bundleID: bundleID, region: region, lang: lang)
+        else { return nil }
         return AppStoreLookupShape(kind: result.kind, trackId: result.trackId)
     }
 

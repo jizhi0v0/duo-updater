@@ -375,6 +375,11 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   branch filter 跳过的 workflow,它的 check **停在 Pending**,而要求它的 PR 无法合并。
   实测:带 `[skip ci]` 的 PR `mergeStateStatus=BLOCKED`、`statusCheckRollup` 长度 0、
   `gh pr merge` 退 1。**`paths-ignore` 同理,不能当豁免用。**
+  ⚠️ ⚠️ **扫描不限于第一行,所以「写到」这个标记就会触发它。** 2026-09-05 实测:一条
+  记录这个坑的提交,主题行干净、标记只出现在**正文**里(而且是包在反引号里的),
+  GitHub 照样跳过了整个 workflow —— PR #353 停在 BLOCKED、零个 check、**根本没有 run**。
+  在提交信息里提到它时要改写(比如写成「a skip-ci marker」),**文件里怎么写都行**,
+  被扫的只有提交信息。
 - ⚠️ **`gh pr merge --auto` 成功 ≠ 已合并**,它在 check 还没报告时就返回 0。任何拿返回值
   当"合并完成"的脚本,会在 CI 变红时静默丢东西。两处自动流程(mini 夜间基线、发版的
   appcast)都改成轮询 PR 的 `state` 到 `MERGED`,上限 30 分钟。

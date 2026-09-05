@@ -17,6 +17,35 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.85</title>
+            <pubDate>Sun, 06 Sep 2026 00:51:20 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.85</link>
+            <sparkle:version>94</sparkle:version>
+            <sparkle:shortVersionString>0.3.85</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Checking your App Store apps uses a fraction of the network it did.** Each check used to fetch every App Store app's product page again; the pages are now kept for an hour and the store is asked about all your apps in a few requests instead of one per app. On a five-minute check interval that is roughly a third less traffic overall; on the default six-hour interval the pages still expire between checks, so the saving there is smaller.
+
+**Checking one app again no longer re-fetches every App Store app.** A single "Check Again" used to throw away every cached product page, so the next scheduled check paid for all of them; it now refreshes only the app you asked about.
+
+**Checking apps that ship through GitHub costs a fraction of the network it did.** Each check used to download every release's full description again even when nothing had been published; it now asks GitHub whether the release has changed since last time and downloads nothing when it has not. Once a day it re-reads each release in full, so a release that is withdrawn is noticed within a day.
+
+**Apps followed on a GitHub beta or nightly track now ask for one release instead of a page of them.** The newest release is the answer almost every time, and the full page is only fetched on the rounds where it is not.
+
+**Vorssaint's update check no longer rides a redirect.** Its repository was renamed, and following the old name silently dropped the request onto GitHub's anonymous rate limit; the check now goes to the new name directly.
+
+**Under the hood.** The release artifact is now built, signed and notarized on a GitHub-hosted Mac with build provenance anyone can verify, and the recorded request log distinguishes a cached answer from a network one.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater-0.3.85-macos.zip" length="12738749" type="application/octet-stream" sparkle:edSignature="WsIZdGxYopKhNA5JdAJRZAfEIuTW328+ArH7eMk8ggnqSd4fS8QR0WEpeLrg8NUupjSlKSfNoBY1IRgCaGu7Ag=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-93.delta" sparkle:deltaFrom="93" length="1970486" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="TbH2+bN/Tm3whrwino3Plj7gBFu8hi2n448DMDoXfrKGTzRg9EUWPTtMQirqOb194KmkTO5ykFax6kIGoJnGCg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-92.delta" sparkle:deltaFrom="92" length="2021674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="73nrLPKg3EHoCWWdh7qOYL8Ohe+ArZyP6OQFT1XNj7CJfIhK63ggEXiloB2H2P61qGo/ZCxEhiSICVpAfI09AQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-91.delta" sparkle:deltaFrom="91" length="2288082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Jj+qQfPBKaS4PsDEVLC+SJ3PKrhp2UrXONZ/5qxdpjjE+IQzijq4idKAZXnJWETN8nkpX5vmhgnzIqF6cwapDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-90.delta" sparkle:deltaFrom="90" length="2293886" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="yxH1BR6/gfylu6WXnsJx+D4+hrMefyCTz5VpXg7nXXHKIUw97uhqm9FGLG7X7gApntN2PE7jrOlR4e0xRv7CDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-89.delta" sparkle:deltaFrom="89" length="2348558" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zqcrJTcCcpd0AHfocqqhc7XjNg3E9oEcbrlQWSTQ3f51PXtpXxKx/hv2RNs41WJ2dSb1Rim2Hy+vjSql9obYBw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.84</title>
             <pubDate>Sat, 05 Sep 2026 05:28:01 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.84</link>
@@ -24,22 +53,6 @@
             <sparkle:shortVersionString>0.3.84</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Request logs you export no longer carry your account name.** Every row for an app installed in your home folder used to spell out the full path; it now shows `~` instead, whichever way you take the log out.
-
-**The Requests tab now says what it does and does not cover.** It records the fetches Duo Updater makes itself. A release-notes page loads its own images and fonts, and App Store and Homebrew updates are carried out by separate tools — none of that appears there, and the window now says so instead of leaving you to assume.
-
-**Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
-
-**CapCut's beta row no longer reports a check that failed.** Between betas — after one graduates and before the next opens — its maker publishes nothing on that track, which showed as a red row and a Retry that could not have worked. The row now simply has no answer from that source until the next beta appears.
-
-**Audacity now shows the mark saying what it is built with.** It starts through a small launcher that hands off to the real program beside it, and the mark was being read from the launcher, which links nothing at all.
-
-**App Store release notes now arrive in your language.** They were always fetched in the store's own default language, so a Mac running in Chinese or Japanese still read them in English.
-
-**Duo Updater's own updates now appear under its own name in the Network window.** Its release check, its release notes and its download were all filed with a blank app column.
-
-**Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater-0.3.84-macos.zip" length="12637976" type="application/octet-stream" sparkle:edSignature="V+nt8h8ieoY+Y8ov0SrpjxtmDqiLA7PESTGGyHPDCd8y1borr23Z7whu5bfrrH1Z/FWl6vJDlvCL1z7NRdnpDQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-92.delta" sparkle:deltaFrom="92" length="692214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xdzcIA8qFTBxhxUIUDJIBpa0vz7M2o21aO+IxFpI8IV4LBIl31jVI8l16Esq/R3QkActIxp/miztg7EewXxyAg=="/>
@@ -98,23 +111,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.81/DuoUpdater90-86.delta" sparkle:deltaFrom="86" length="993146" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="iWnzGhqJaKvZyjv4MHzQixpPOp8BMDK4itUL5Ac5tPBdqk5j8WBy3n5+/Zg+s78TLnxG4RghRul+m5gZc5+QAg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.81/DuoUpdater90-85.delta" sparkle:deltaFrom="85" length="1102918" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="nnEeCS8DsYxIPXnD56o5qEOGf3tx0ayEjjwTODzyepFsSyg8KivL6Aytatp3wph/qON9HrhXy9PacGlc0NIiDQ=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.81/DuoUpdater90-84.delta" sparkle:deltaFrom="84" length="1116398" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="59zGJABphKPGziOheL02/tFhFFUh8I1xQgMW5/mCXJdMBd/CKKpVK/7ZHUxx6w7dkEGKJP/52MTSDMtr4Ej3BQ=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.80</title>
-            <pubDate>Wed, 02 Sep 2026 20:42:11 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.80</link>
-            <sparkle:version>89</sparkle:version>
-            <sparkle:shortVersionString>0.3.80</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater-0.3.80-macos.zip" length="12158894" type="application/octet-stream" sparkle:edSignature="NgQUrVvHbwum0haJC5KyPZS3T3VD9BnUms5tg+PBkRguQHwlrJnhAtmeWkmn11JupI86vFcfEw4uGxBuadK8CQ=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-87.delta" sparkle:deltaFrom="87" length="809426" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="DrH+QtPhS0D1ZFnqcGvA7a+eXJFJYcrp3ekNY414GDYHOEcU9LmE0x4Fy8m2a6kEwpyhxXVYDnR6K1Astd/vDQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-86.delta" sparkle:deltaFrom="86" length="868674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="6xRnwH58CXuM1PR8KxvaAUzuz7XDj6owiKelgp4apAPdgiqgzgjMM1qizjEaPYxQv9eeC2Esd5IXq6C9DztTAw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-85.delta" sparkle:deltaFrom="85" length="991306" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="gyn5jhFN0iinq0TVJGa9bpWI8wzD4/enFhxq+ILpSp7uBLZcRfVqMm/Ljtzcgbxw7Yl+U2dGluh3xnIS4MmeAg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-84.delta" sparkle:deltaFrom="84" length="1002818" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="WDh+ffw7SNxI3PXOXa0kfoqe5b6IeYgMcK6D1CarAKqg66CKac8iFybUXVbYjLASJNjojkH+BMD8/JQ/pBuaCw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-83.delta" sparkle:deltaFrom="83" length="1043634" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Bi5T2tB1Bfl4Y9gl3tFNtHdWqtykY6lBwjDmq+F102Kd0aeN/Bro1McmJdsCvLXj78YpVzAChRwGyfKl7s6HBA=="/>
             </sparkle:deltas>
         </item>
     </channel>

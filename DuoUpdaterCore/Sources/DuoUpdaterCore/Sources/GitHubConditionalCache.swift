@@ -104,10 +104,26 @@ public actor GitHubConditionalCache {
         /// return it across a mismatch rather than risk serving a body scoped to
         /// someone else's rate limit or visibility.
         var authFingerprint: String
-        /// Diagnostics only, mirroring `ResolvedChannelStore.Entry.provenAt` —
-        /// nothing here reads it back.
+        /// When the 200 this entry holds was received. Load-bearing, not
+        /// diagnostics: `validator(for:authFingerprint:)` refuses an entry older
+        /// than `maxAge`, and a 304 does NOT refresh it — see `maxAge`.
         var storedAt: Date
     }
+
+    /// How long a stored 200 may go on being revalidated before one full,
+    /// unconditional fetch is forced.
+    ///
+    /// `If-Modified-Since` asks "has this changed since <date>", and GitHub
+    /// answers it the RFC 7232 §3.3 way — measured 2026-09-05: a date one DAY
+    /// after the release's `Last-Modified` is still a 304. So a
+    /// `/releases/latest` that comes to point at an OLDER release (the newest
+    /// one deleted, or re-marked prerelease) is "not modified since" our date
+    /// too, and the stored body would keep offering the yanked release until
+    /// something newer appeared. `URLCache`'s `If-None-Match` used to catch that
+    /// case by accident, in the rounds it happened to 304 at all. A day bounds
+    /// the staleness at ~one full body per endpoint per day — 59 endpoints,
+    /// ~500 KB — against the ~50 full bodies a round this store removes.
+    static let maxAge: TimeInterval = 24 * 60 * 60
 
     /// What `fetchReleases` needs to build a conditional request and to recover
     /// if the server actually answers 304.
@@ -134,16 +150,26 @@ public actor GitHubConditionalCache {
 
     private var entries: [String: Entry]
     private let fileURL: URL
+    private let now: @Sendable () -> Date
     private var dirty = false
+    /// The pending coalesced write, if any — see `scheduleFlush()`.
+    private var flushTask: Task<Void, Never>?
 
     /// - Parameter fileURL: defaults to
     ///   `DuoStateDirectory.base/com.duoupdater.app/github-conditional-cache.json`
-    ///   — the same container `ChangelogDiskCache` and the traffic store use, so
-    ///   `duo verify`'s `DUO_STATE_DIR` redirect (see `DuoStateDirectory`) keeps
-    ///   the nightly sweep from reading or writing the running app's copy.
-    public init(fileURL: URL? = nil) {
+    ///   — the same container `ChangelogDiskCache` and the traffic store use.
+    ///   `DUO_STATE_DIR` redirects it like every other store, but nothing in
+    ///   this repository sets that variable outside the tests: a `duo verify`
+    ///   run from a terminal reads and writes the running app's copy. That is
+    ///   acceptable here (both hold public release bodies under the same
+    ///   credential; a mismatched fingerprint just costs one unconditional
+    ///   round) and is stated rather than pretended away.
+    /// - Parameter now: injectable clock so tests can age an entry past
+    ///   `maxAge` without sleeping.
+    public init(fileURL: URL? = nil, now: @escaping @Sendable () -> Date = Date.init) {
         let url = fileURL ?? Self.defaultFileURL()
         self.fileURL = url
+        self.now = now
         self.entries = Self.load(from: url)
     }
 
@@ -170,6 +196,10 @@ public actor GitHubConditionalCache {
         guard let entry = entries[endpoint], entry.authFingerprint == authFingerprint else {
             return nil
         }
+        // Older than a day → no validator → the caller fetches unconditionally
+        // and `store` restamps it. See `maxAge` for the yanked-release case this
+        // bounds.
+        guard now().timeIntervalSince(entry.storedAt) < Self.maxAge else { return nil }
         return Validator(etag: entry.etag, lastModified: entry.lastModified, body: entry.body)
     }
 
@@ -186,8 +216,33 @@ public actor GitHubConditionalCache {
         guard etag != nil || lastModified != nil else { return }
         entries[endpoint] = Entry(
             etag: etag, lastModified: lastModified, body: body,
-            authFingerprint: authFingerprint, storedAt: .now)
+            authFingerprint: authFingerprint, storedAt: now())
         dirty = true
+        scheduleFlush()
+    }
+
+    /// Coalesce a round's writes into one. Every 2xx used to `flush()` on the
+    /// spot, and a flush re-encodes the whole dictionary (3.4 MB of raw bodies
+    /// → base64) and atomically rewrites the ~4.6 MB file — measured on this
+    /// machine's store, 59 entries. Steady state is 4–6 × 200 a round (the
+    /// list endpoints, whose `ETag` churns), i.e. ~25 MB of writes every five
+    /// minutes; a cold round did it 59 times. `ReleaseTimelineStore` batched
+    /// exactly this pattern for exactly this reason. Two seconds is longer
+    /// than the gap between one round's fetches and shorter than anything a
+    /// user waits for; a process that exits inside the window loses at most
+    /// that round's memos, which cost one unconditional fetch each next time —
+    /// `duo verify` flushes explicitly at the end of its sweep for that reason.
+    private func scheduleFlush() {
+        guard flushTask == nil else { return }
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            await self?.flushScheduled()
+        }
+    }
+
+    private func flushScheduled() {
+        flushTask = nil
+        flush()
     }
 
     /// Drop every entry whose endpoint is not in `validEndpoints` — the set of
@@ -199,13 +254,17 @@ public actor GitHubConditionalCache {
     public func prune(keeping validEndpoints: Set<String>) {
         let before = entries.count
         entries = entries.filter { validEndpoints.contains($0.key) }
-        if entries.count != before { dirty = true }
+        if entries.count != before { dirty = true; scheduleFlush() }
     }
 
-    /// Clears `dirty` only once the bytes are actually on disk — same reasoning
-    /// as `ResolvedChannelStore.flush()`: an unwritable directory or full volume
-    /// must not silently drop the write AND make the next flush a no-op.
+    /// Write now. Clears `dirty` only once the bytes are actually on disk —
+    /// same reasoning as `ResolvedChannelStore.flush()`: an unwritable
+    /// directory or full volume must not silently drop the write AND make the
+    /// next flush a no-op. Writes are normally coalesced by `scheduleFlush()`;
+    /// call this directly when the process is about to exit.
     public func flush() {
+        flushTask?.cancel()
+        flushTask = nil
         guard dirty else { return }
         guard let data = try? JSONEncoder().encode(entries) else { return }
         do {

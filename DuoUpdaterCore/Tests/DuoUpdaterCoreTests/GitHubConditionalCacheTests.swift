@@ -259,6 +259,80 @@ struct GitHubConditionalCacheTests {
         #expect(validator?.conditionalHeaders == ["If-None-Match": "\"legacy\""])
     }
 
+    /// The LIST endpoint's 304 must be re-parsed as a list. Mutation this pins:
+    /// hard-coding `list: false` (or `true`) where the stored body is decoded
+    /// on a 304 — every other test scripts the list's second round as a 200,
+    /// so that mutation stayed green while in production every list 304 would
+    /// have decoded to zero rows and recorded a false miss. A prerelease rule
+    /// that does not probe, so the full page is the only list endpoint it
+    /// touches.
+    @Test func aListEndpoint304IsServedFromTheStoredPage() async throws {
+        let page = """
+        [{"tag_name": "v2.0.0-beta.2", "assets": [], "prerelease": true, "draft": false, "published_at": "2026-09-02T00:00:00Z"},
+         {"tag_name": "v2.0.0-beta.1", "assets": [], "prerelease": true, "draft": false, "published_at": "2026-09-01T00:00:00Z"}]
+        """
+        ScriptedProtocol.script.load([
+            .init(status: 200, etag: "list-etag", body: page),
+            .init(status: 304, etag: nil, body: ""),
+        ])
+        let cache = Self.tempCache()
+        let session = Self.session()
+        let rule = GitHubReleaseRule(
+            bundleID: "com.example.app", owner: "example", repo: "app",
+            usePrereleases: true, versionPattern: #"^v([0-9.]+-beta\.[0-9]+)$"#,
+            channel: .beta, probesNewestFirst: false)
+        let source = GitHubReleasesSource(
+            rules: [rule], token: "tok", session: session, validatorCache: cache)
+
+        let first = await source.resolveDiagnostic(rule)
+        let second = await source.resolveDiagnostic(rule)
+
+        #expect(ScriptedProtocol.script.ifNoneMatchSent == [nil, "list-etag"])
+        #expect(first.remote?.shortVersion == "2.0.0-beta.2")
+        #expect(second.remote?.shortVersion == "2.0.0-beta.2")
+        #expect(second.remote?.releaseHistory.count == 2)
+        #expect(second.failure == nil)
+    }
+
+    // MARK: - 1c. A stored 200 is not revalidated forever
+
+    /// Mutation this pins: dropping the `maxAge` check in `validator(for:)`.
+    /// GitHub answers `If-Modified-Since` the RFC way (a date a day AFTER the
+    /// release's `Last-Modified` is still a 304, measured 2026-09-05), so a
+    /// `/latest` re-pointed at an OLDER release is "not modified since" too and
+    /// would be served from the stored body until something newer appeared. An
+    /// entry older than a day yields no validator, the next request goes out
+    /// unconditional, and the fresh 200 restamps it.
+    @Test func aStoredEntryOlderThanADayYieldsNoValidator() async throws {
+        let clock = Clock()
+        let cache = GitHubConditionalCache(
+            fileURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)/cache.json"),
+            now: { clock.now })
+        let endpoint = "https://api.github.com/repos/example/app/releases/latest"
+        await cache.store(endpoint: endpoint, authFingerprint: "fp",
+                          etag: nil, lastModified: "Sat, 11 Jul 2026 21:54:57 GMT", body: Data("{}".utf8))
+
+        clock.now = clock.now.addingTimeInterval(23 * 60 * 60)
+        #expect(await cache.validator(for: endpoint, authFingerprint: "fp") != nil)
+        clock.now = clock.now.addingTimeInterval(2 * 60 * 60)
+        #expect(await cache.validator(for: endpoint, authFingerprint: "fp") == nil)
+        // A fresh 200 restamps it.
+        await cache.store(endpoint: endpoint, authFingerprint: "fp",
+                          etag: nil, lastModified: "Sun, 06 Sep 2026 00:00:00 GMT", body: Data("{}".utf8))
+        #expect(await cache.validator(for: endpoint, authFingerprint: "fp")?.lastModified
+                == "Sun, 06 Sep 2026 00:00:00 GMT")
+    }
+
+    private final class Clock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _now = Date()
+        var now: Date {
+            get { lock.lock(); defer { lock.unlock() }; return _now }
+            set { lock.lock(); _now = newValue; lock.unlock() }
+        }
+    }
+
     // MARK: - 2. Failure retreats to an unconditional request, never "no update"
 
     /// Mutation this pins: treating an untrustable 304 (nothing cached to serve

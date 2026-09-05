@@ -37,11 +37,15 @@ struct GitHubListProbeTests {
             let answer = Self.script.answer(for: url)
             var headers: [String: String] = [:]
             if let etag = answer?.etag { headers["ETag"] = etag }
+            // A request that presents the answer's own ETag gets the real thing:
+            // a 304 with an empty body, exactly what GitHub sends.
+            let notModified = answer?.etag != nil
+                && request.value(forHTTPHeaderField: "If-None-Match") == answer?.etag
             let response = HTTPURLResponse(
-                url: request.url!, statusCode: answer == nil ? 404 : 200,
+                url: request.url!, statusCode: answer == nil ? 404 : (notModified ? 304 : 200),
                 httpVersion: "HTTP/1.1", headerFields: headers)!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Data((answer?.body ?? "{}").utf8))
+            client?.urlProtocol(self, didLoad: Data((notModified ? "" : (answer?.body ?? "{}")).utf8))
             client?.urlProtocolDidFinishLoading(self)
         }
         override func stopLoading() {}
@@ -194,6 +198,56 @@ struct GitHubListProbeTests {
         // carries one row — the timeline keeps what the first round recorded.
         #expect(first.remote?.releaseHistory.count == 2)
         #expect(second.remote?.releaseHistory.count == 1)
+    }
+
+    /// The probe page has its own validator, and its 304 must be re-parsed as a
+    /// LIST of one — a probe decoded as a single object would yield zero rows,
+    /// fall back to the full page, and quietly undo the saving on exactly the
+    /// rounds it exists for. Round three presents the probe's ETag and gets a
+    /// 304; the answer must still be the stored row, with no full-page fetch.
+    @Test func aProbe304IsServedFromTheStoredRow() async throws {
+        ByURLProtocol.script.load([
+            Self.probeURL: .init(body: Self.page([Self.release("v2.0.0-beta.3")]), etag: "p"),
+            Self.fullURL: .init(body: Self.page([Self.release("v2.0.0-beta.3"), Self.release("v2.0.0-beta.2")]), etag: "f"),
+        ])
+        let source = GitHubReleasesSource(
+            rules: [Self.rule()], session: Self.session(), validatorCache: Self.tempCache())
+
+        _ = await source.resolveDiagnostic(Self.rule(), preferring: .arm64, allowingIntelTranslation: false)
+        _ = await source.resolveDiagnostic(Self.rule(), preferring: .arm64, allowingIntelTranslation: false)
+        let third = await source.resolveDiagnostic(Self.rule(), preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(third.remote?.shortVersion == "2.0.0-beta.3")
+        #expect(third.failure == nil)
+        #expect(ByURLProtocol.script.urls == [Self.fullURL, Self.probeURL, Self.probeURL])
+    }
+
+    /// Mutation this pins: `recordingMisses: true` on the probe. A probe that
+    /// cannot answer is not evidence about the recipe — the release it wants may
+    /// sit below the newest row — so after a probe miss that the full page then
+    /// answers, the recipe's health must show no miss at all, not a miss that a
+    /// later success happens to outrank.
+    @Test func aProbeMissLeavesNoMarkOnRecipeHealth() async throws {
+        let rule = GitHubReleaseRule(
+            bundleID: "com.example.health", owner: "probe-health", repo: "repo",
+            usePrereleases: true, listPageSize: 5,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-beta\.[0-9]+)?)$"#,
+            installAssetPattern: #"\.zip$"#, installerKind: .zip, channel: .beta)
+        let probe = "https://api.github.com/repos/probe-health/repo/releases?per_page=1"
+        let full = "https://api.github.com/repos/probe-health/repo/releases?per_page=5"
+        ByURLProtocol.script.load([
+            probe: .init(body: Self.page([Self.release("web-v9.9.9")]), etag: nil),
+            full: .init(body: Self.page([Self.release("web-v9.9.9"), Self.release("v1.5.0-beta.1")]), etag: nil),
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+
+        let outcome = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(outcome.remote?.shortVersion == "1.5.0-beta.1")
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == rule.slug && $0.source == source.name }
+        #expect(entry != nil)
+        #expect(entry?.lastMiss == nil)
+        #expect(entry?.lastSuccess != nil)
     }
 
     // MARK: - Rules that never probe

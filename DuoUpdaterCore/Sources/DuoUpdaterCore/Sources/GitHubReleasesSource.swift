@@ -1028,9 +1028,11 @@ public struct GitHubReleasesSource: UpdateSource {
             body: body)
         // Registry-scoped, not per-request: cheap (a Set filter over at most
         // a couple hundred entries) and keeps a retired rule's entry from
-        // outliving the rule by years. See `validNonTagEndpoints`.
+        // outliving the rule by years. See `validNonTagEndpoints`. The write
+        // to disk is the store's business (`scheduleFlush`), not this
+        // function's — flushing here once per 2xx rewrote a multi-megabyte
+        // file several times a round.
         await validatorCache.prune(keeping: validNonTagEndpoints)
-        await validatorCache.flush()
     }
 
     /// Interpret a non-304 HTTP response: decode a 2xx (walking releases in

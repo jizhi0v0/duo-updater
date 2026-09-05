@@ -30,6 +30,15 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
+    # The Apple secrets live in this environment, NOT at repository level, and the
+    # environment admits only `main` and `v*`. That distinction is the whole
+    # protection: `workflow_dispatch` runs the workflow file as it exists on the
+    # dispatched ref, so with repository-level secrets anyone able to push a branch
+    # could push a rewritten copy of THIS file, dispatch it there, and be handed the
+    # Developer ID key. With the secrets held here instead, that branch has two
+    # options and neither works — keep this line and fail the branch rule, or delete
+    # it and inherit nothing.
+    environment: release
     timeout-minutes: 90
     steps:
       - name: Check out

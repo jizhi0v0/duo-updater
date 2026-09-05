@@ -64,15 +64,28 @@ public struct GitHubReleaseRule: Sendable {
     /// Defaults to 20, the size every rule used before this field existed.
     /// GitHub's `body` (release notes prose) is dead weight here — the version
     /// probe never reads it — and on six installed `usePrereleases` repos it was
-    /// measured at 6%–51% of the JSON, 421 KB of the 481 KB these six repos cost
-    /// per sweep round at `per_page=20` (2026-09-04, real responses, **gzipped
+    /// measured at 6%–51% of each response's JSON. Two separate figures, and an
+    /// earlier version of this comment wrongly presented one as a subset of the
+    /// other: **421 KB** is what those six cost per scan round as counted in the
+    /// request log, **481 KB** is the sum of their six responses fetched once
+    /// each at `per_page=20` (2026-09-04, real responses, **gzipped
     /// wire bytes** — the same unit the request log counts. Re-measure with
     /// `curl --compressed`; identity bytes run 4-10x larger and reading these
     /// as identity would look like a regression that isn't there).
     /// Shrinking the page cuts that dead weight, but ONLY as far as the specific
     /// rule's tag pattern has been measured to need: too small and the release
     /// this rule is looking for scrolls off the page, which reads as "no update"
-    /// rather than as an error. Set this only after walking the rule's own
+    /// rather than as an error.
+    ///
+    /// ⚠️ **The tag depth is not the only requirement.** For a rule with an
+    /// `installAssetPattern`, `resolve()` walks back past up to
+    /// `maxReleasesWithoutMacOSAsset` (5) matching releases that carry no macOS
+    /// artifact before it gives up — and it walks that back INSIDE this page. A
+    /// page sized only to the tag depth therefore silently moves the ceiling
+    /// from the guard to the page: the walk stops early, and the failure mode of
+    /// stopping early is a confident "up to date". So every size below is the
+    /// measured tag depth **plus 5**. A first pass sized them to the tag depth
+    /// alone and three rules landed under the guard's own limit. Set this only after walking the rule's own
     /// history (`versionPattern`, and for `.installedMajorLineOrNewestStable`,
     /// the ceiling logic in `lineAnchoredCeiling` — its depth requirement is NOT
     /// "first match" and must be measured separately) — see the per-rule
@@ -1262,7 +1275,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
             usePrereleases: true,
-            listPageSize: 5,
+            listPageSize: 9,
             versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#,
             installAssetPattern: #"^Zed-aarch64\.dmg$"#,
             installerKind: .dmg,
@@ -1562,7 +1575,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.github.GitHubClient",
             owner: "desktop", repo: "desktop",
             usePrereleases: true,
-            listPageSize: 8,
+            listPageSize: 10,
             versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+-beta[0-9]+)$"#,
             installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
             installerKind: .zip,
@@ -1691,7 +1704,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.vorssaint.utils",
             owner: "vorssaintapp", repo: "vorssaint-utils",
             usePrereleases: true,
-            listPageSize: 5,
+            listPageSize: 7,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+-beta\.[0-9]+\.dmg$"#,
             installerKind: .dmg,
@@ -1862,9 +1875,10 @@ public enum GitHubReleaseRegistry {
         // against the newest 100 releases, filtering on GitHub's own
         // `prerelease` bit (not the version pattern, which nearly every tag
         // matches — 98/100): the newest STABLE release currently sits at index
-        // 6 (UTM is mid-preview-burst right now), and the worst historical run
-        // between two consecutive stable releases in that window was 10
-        // (`v3.1.4`→`v2.4.1`, an older/slower era). A page of 20 comfortably
+        // 6 (UTM is mid-preview-burst right now), and the worst gap between genuinely CONSECUTIVE stable
+        // releases in the newest 100 is 9 (`v4.0.8`→`v3.2.4`). An earlier
+        // comment named `v3.1.4`→`v2.4.1` as the worst pair; those two are not
+        // consecutive — `v3.0.4-2` (prerelease: false) sits between them.
         // covers both; trimming it below ~15 would be gambling on the burst
         // never growing past what's been observed once already.
         GitHubReleaseRule(
@@ -1957,7 +1971,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.bitwarden.desktop",
             owner: "bitwarden", repo: "clients",
             usePrereleases: true,
-            listPageSize: 10,
+            listPageSize: 13,
             versionPattern: #"desktop-v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Bitwarden-[0-9.]+-universal\.dmg$"#,
             installerKind: .dmg),
@@ -2164,7 +2178,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.microsoft.Headlamp",
             owner: "kubernetes-sigs", repo: "headlamp",
             usePrereleases: true,
-            listPageSize: 8,
+            listPageSize: 10,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Headlamp-[0-9.]+-mac-arm64\.dmg$"#,
             installerKind: .dmg),
@@ -2586,12 +2600,13 @@ public enum GitHubReleaseRegistry {
         // alpha train's occasional release lands a single non-nightly entry in
         // between, e.g. `v0.0.39-nightly.20260902.1252`→
         // `v0.0.38-nightly.20260901.1250`). 5 keeps 2.5x headroom; real page
-        // measured at 9 KB for per_page=3, vs 64 KB at the old per_page=20.
+        // measured at 11.9 KB gzipped for per_page=3 (12,157 bytes; an earlier
+        // comment rounded the same measurement to 9 KB), vs 64 KB at per_page=20.
         GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
             usePrereleases: true,
-            listPageSize: 5,
+            listPageSize: 8,
             versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^T3-Code-[0-9.]+-nightly\.[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg,

@@ -96,7 +96,9 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
                 host: host,
                 port: url.port,
                 // Path only — the query is dropped. See `RequestEvent.path`.
-                path: url.path,
+                // What survives of the path is `RecordedPath`'s business: a
+                // credential in a segment used to reach disk unchanged.
+                path: RecordedPath.redacted(url),
                 // The presence of a query, never its contents. See RequestEvent.path.
                 hadQuery: !(url.query ?? "").isEmpty,
                 appID: appID,

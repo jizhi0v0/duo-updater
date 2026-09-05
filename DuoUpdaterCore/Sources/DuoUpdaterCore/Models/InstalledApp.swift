@@ -184,11 +184,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// Which of Apple's UI frameworks the executable links, and whether Swift is
     /// in there. Empty when the binary could not be read.
     ///
-    /// The executable of whichever bundle `runtime` describes — normally this app's
-    /// own, and for a wrapper the nested bundle's, because a label and the link list
-    /// under it have to be facts about one binary. Docker's are two different ones:
-    /// its launcher is a Go daemon that links AppKit, its Electron stub links only
-    /// the framework. See `AppRuntimeDetector.interfaceBundle(at:)`.
+    /// The executable that `runtime` describes, which is not always the one the
+    /// plist names: this app's own normally, a wrapper's nested bundle's, and for a
+    /// launcher stub the binary beside it. What holds in all three is that the
+    /// label and the link list under it are facts about one binary. Docker's are
+    /// two different ones: its launcher is a Go daemon that links AppKit, its
+    /// Electron stub links only the framework. See
+    /// `AppRuntimeDetector.interfaceBundle(at:)`.
     ///
     /// Separate from `runtime` because it answers a different question and cannot
     /// be collapsed into one: an app that links both AppKit and SwiftUI — half of

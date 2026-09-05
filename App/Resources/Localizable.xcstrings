@@ -3879,6 +3879,47 @@
         }
       }
     },
+    "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not Duo Updater's to record, so this is not a log of everything your Mac sends.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Seite mit Versionshinweisen wird in einer Webansicht geladen, die ihre eigenen Bilder und Schriften abruft, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt. Diese Anfragen kann Duo Updater nicht erfassen — dies ist also kein Protokoll von allem, was Ihr Mac sendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página de notas de versión se carga en una vista web que descarga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte. Esas peticiones no son de Duo Updater, así que este no es un registro de todo lo que envía tu Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une page de notes de version s’ouvre dans une vue web qui récupère ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts. Ces requêtes ne sont pas celles de Duo Updater : ceci n’est donc pas un journal de tout ce que votre Mac envoie."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リリースノートのページは Web ビューで開かれ、画像やフォントを自分で取得します。App Store と Homebrew の更新は別のツールが行います。それらは Duo Updater の記録できる範囲ではないため、これは Mac が送信するすべての記録ではありません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Страница с заметками о выпуске открывается в веб-представлении, которое само загружает изображения и шрифты, а обновления из App Store и Homebrew выполняют отдельные инструменты. Эти запросы Duo Updater не записывает, поэтому это не журнал всего, что отправляет ваш Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发布说明是在一个 Web 视图里打开的，图片和字体由它自己去取；App Store 和 Homebrew 的更新则由各自的工具完成。这些请求不归 Duo Updater 记录，所以这里不是你这台 Mac 发出的全部流量。"
+          }
+        }
+      }
+    },
     "AM": {
       "extractionState": "manual",
       "localizations": {
@@ -8978,6 +9019,47 @@
         }
       }
     },
+    "Every fetch Duo Updater makes itself: update checks, release notes, and the downloads it installs for you.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeder Abruf, den Duo Updater selbst durchführt: Update-Prüfungen, Versionshinweise und die Downloads, die es für Sie installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada petición que hace el propio Duo Updater: comprobaciones de actualizaciones, notas de versión y las descargas que instala por ti."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque requête que Duo Updater effectue lui-même : vérifications de mises à jour, notes de version et téléchargements qu’il installe pour vous."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater 自身が行うすべての取得——アップデートの確認、リリースノート、そしてインストールのためのダウンロード。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каждый запрос, который Duo Updater делает сам: проверки обновлений, заметки о выпуске и загрузки, которые он для вас устанавливает."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater 自己发出的每一次请求：检查更新、取发布说明，以及替你下载的安装包。"
+          }
+        }
+      }
+    },
     "Every hour": {
       "extractionState": "manual",
       "localizations": {
@@ -13418,6 +13500,47 @@
         }
       }
     },
+    "Not recorded here": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier nicht erfasst"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se registra aquí"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non enregistré ici"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記録されないもの"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь не записывается"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在记录之内"
+          }
+        }
+      }
+    },
     "Not supported on this Mac": {
       "extractionState": "manual",
       "localizations": {
@@ -15482,6 +15605,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近"
+          }
+        }
+      }
+    },
+    "Recorded here": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier erfasst"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se registra aquí"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistré ici"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記録されるもの"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записывается здесь"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录在内"
           }
         }
       }
@@ -21135,6 +21299,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "欢迎使用 Duo Updater"
+          }
+        }
+      }
+    },
+    "What this covers": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was hier erfasst wird"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué incluye esto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que cela couvre"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この記録の範囲"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что сюда входит"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这份日志包含什么"
           }
         }
       }

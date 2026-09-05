@@ -51,6 +51,16 @@ extension Verify {
                     endpointHost: "itunes.apple.com", elapsedMs: 0))
             } else {
                 batch = fetched
+                // A success finding, not just silence. Every other recipeID in
+                // the sweep emits on both outcomes, and `Reconcile.decide` needs
+                // an `.ok` to close an issue an earlier `.infra` opened —
+                // emitting only on failure would let `consecutiveInfra` ratchet
+                // up and never reset, so one bad night would keep counting
+                // toward escalation through every good one that followed.
+                findings.append(Finding(
+                    recipeID: MacAppStoreProbeRegistry.batchRecipeID, registry: .appStore,
+                    bundleID: "-", channel: "-", status: FindingStatus.ok,
+                    endpointHost: "itunes.apple.com", elapsedMs: 0))
             }
         } catch {
             findings.append(Finding(

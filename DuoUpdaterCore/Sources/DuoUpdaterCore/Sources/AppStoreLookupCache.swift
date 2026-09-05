@@ -23,6 +23,12 @@ actor AppStoreLookupCache {
     private struct Key: Hashable {
         let bundleID: String
         let region: String
+        /// Part of the key, not an attribute of the value: the API answers a
+        /// different `trackName` per language, and `AppStoreAXInstaller` matches
+        /// that name on screen. An entry fetched under one language is not an
+        /// answer for another, and serving it across would break the AX route
+        /// silently — no error, no version change.
+        let lang: String?
     }
 
     private struct Entry {
@@ -39,8 +45,8 @@ actor AppStoreLookupCache {
         self.now = now
     }
 
-    func lookup(bundleID: String, region: String) -> MacAppStoreSource.LookupResult?? {
-        let key = Key(bundleID: bundleID, region: region)
+    func lookup(bundleID: String, region: String, lang: String?) -> MacAppStoreSource.LookupResult?? {
+        let key = Key(bundleID: bundleID, region: region, lang: lang)
         guard let entry = store[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {
             return nil
         }
@@ -51,10 +57,10 @@ actor AppStoreLookupCache {
     /// was IN that batch request to what came back for it — including a nil for
     /// one the store didn't have, so a later miss on that id reads as a cached
     /// "not found" rather than falling through to a live request.
-    func store(_ results: [String: MacAppStoreSource.LookupResult?], region: String) {
+    func store(_ results: [String: MacAppStoreSource.LookupResult?], region: String, lang: String?) {
         let stamp = now()
         for (bundleID, result) in results {
-            store[Key(bundleID: bundleID, region: region)] = Entry(result: result, fetchedAt: stamp)
+            store[Key(bundleID: bundleID, region: region, lang: lang)] = Entry(result: result, fetchedAt: stamp)
         }
     }
 }

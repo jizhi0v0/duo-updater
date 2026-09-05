@@ -42,12 +42,12 @@ enum RowStateGalleryCases {
     // than the code. Same trap the language harness hit in 2026-09 feeding
     // `remote: nil` and screenshotting a wall of "Reveal in Finder".
     static let storeApp = result(appStore: AppStoreAvailability(
-        trackID: 497799835, availableRegion: "us", homeRegion: "us"))
+        trackID: 497799835, availableRegion: "us", homeRegion: "us", storeName: nil))
     static let storeRegionLocked = result(appStore: AppStoreAvailability(
-        trackID: 497799835, availableRegion: "cn", homeRegion: "us"))
+        trackID: 497799835, availableRegion: "cn", homeRegion: "us", storeName: nil))
     static let storeMacIncompatible = result(appStore: AppStoreAvailability(
         trackID: 497799835, availableRegion: "us", homeRegion: "us",
-        latestMacCompatible: false))
+        latestMacCompatible: false, storeName: nil))
 
     /// The two windows, each drawing the same states. `AnyView` because they are
     /// different types; the gallery only needs "draw this state". Takes the case

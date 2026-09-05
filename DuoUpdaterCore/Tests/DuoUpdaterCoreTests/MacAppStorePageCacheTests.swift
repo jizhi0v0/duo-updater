@@ -389,9 +389,12 @@ struct MacAppStorePageCacheTests {
 
     /// A REBUILT source stack still sees the cached page.
     ///
-    /// This is the case whose absence let the original bug ship. Every other
-    /// caching test here exercises one `MacAppStoreSource` twice — and that
-    /// always worked. Production never does that: `AppListModel.makeSources`
+    /// This is the case whose absence let the original bug ship. The two TTL
+    /// cases above exercise one `MacAppStoreSource` twice and the rest make a
+    /// single call each — so nothing here ever built a SECOND source, which is
+    /// the only thing that would have caught it. (An earlier version of this
+    /// comment said all seven reused a source; only two do.) Production never
+    /// reuses one: `AppListModel.makeSources`
     /// rebuilds the whole stack on every check (deliberately, so a token
     /// change and the storefront region are re-read), so the source that
     /// scraped a page is gone by the next scan. With a per-instance cache the
@@ -430,6 +433,61 @@ struct MacAppStorePageCacheTests {
 
         #expect(ScriptedHTTP.count(matching: { $0.absoluteString == trackViewURL }) == 1,
                 "the second stack re-scraped the page — the cache did not outlive the source")
+    }
+
+    /// The batch must ask for the SAME language the single lookup would.
+    ///
+    /// This is the interaction that a merge nearly shipped: `main` grew a
+    /// `lang=` parameter so `trackName` comes back localised — the name
+    /// `AppStoreAXInstaller` matches against what App Store.app draws on screen
+    /// — while this branch grew a batched prewarm that fills the cache the
+    /// single path reads. Resolve the textual conflict by keeping both hunks and
+    /// every prewarmed app silently gets the storefront's default name on a
+    /// non-English Mac: nothing throws, no version changes, the App Store
+    /// install route just stops finding its button.
+    ///
+    /// Mutation run: dropping the `lang` query item from `batchLookup` turns
+    /// this red. Dropping `lang` from `AppStoreLookupCache.Key` does not — that
+    /// one is covered by `aPrewarmUnderOneLanguageIsNotServedToAnother`.
+    @Test func theBatchAsksForTheSameLanguageAsTheSingleLookup() async throws {
+        ScriptedHTTP.reset()
+        let bundleID = "com.example.localised"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(
+                    version: "1.0", trackId: 5001, trackViewUrl: "not-a-product-url",
+                    bundleId: bundleID))
+            }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        await source.prewarm([Self.nativeMacApp(bundleID: bundleID)])
+
+        let expected = MacAppStoreSource.storeLanguage(
+            preferred: Locale.preferredLanguages, storefront: "us")
+        if let expected {
+            #expect(ScriptedHTTP.count(matching: {
+                $0.host == "itunes.apple.com" && ($0.query ?? "").contains("lang=\(expected)")
+            }) >= 1, "the batched lookup dropped the lang the single lookup sends")
+        } else {
+            #expect(ScriptedHTTP.count(matching: {
+                $0.host == "itunes.apple.com" && ($0.query ?? "").contains("lang=")
+            }) == 0, "no language could be named, so the batch must not invent one")
+        }
+    }
+
+    /// A prewarm fetched under one language is not served to another.
+    ///
+    /// Mutation run: removing `lang` from `AppStoreLookupCache.Key` turns this
+    /// red — the entry stored under one language answers a lookup for another.
+    @Test func aPrewarmUnderOneLanguageIsNotServedToAnother() async throws {
+        let cache = AppStoreLookupCache()
+        await cache.store([:], region: "us", lang: "zh_cn")
+        let hit = await cache.lookup(bundleID: "com.example.x", region: "us", lang: "en_us")
+        #expect(hit == nil, "an entry keyed on one language must not answer for another")
     }
 }
 
@@ -490,5 +548,6 @@ private final class ScriptedHTTP: URLProtocol, @unchecked Sendable {
     }
 
     override func stopLoading() {}
+
 
 }

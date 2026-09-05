@@ -39,13 +39,20 @@ struct GitHubListPageSizeTests {
     /// `ruleWithLineAnchoredScopeIsExcludedOnPurpose` pins that this is a
     /// decision, not an oversight.
     static let measuredMinimumDepth: [String: Int] = [
-        "dev.zed.Zed-Preview/preview": 4,     // worst gap 3 (v1.5.1-pre→v1.5.0-pre), +1
-        "com.insomnia.app/stable": 10,        // worst gap 9 (core@11.0.0→core@10.3.1), +1
-        "com.github.GitHubClient/beta": 5,    // worst gap 4 (release-3.4.16-beta1→…3.4.13-beta2), +1
-        "com.vorssaint.utils/beta": 2,        // worst gap 1 (only 4 -beta. tags ever), +1
-        "com.microsoft.Headlamp/stable": 5,   // worst gap 4 (v0.23.0→v0.22.0), +1
-        "com.bitwarden.desktop/stable": 8,    // worst gap 7 (desktop-v2026.6.0→…2026.5.0), +1
-        "com.t3tools.t3code/nightly": 3,      // worst gap 2 (…20260902.1252→…20260901.1250), +1
+        // tag gap + 1, PLUS `maxReleasesWithoutMacOSAsset` (5) for every rule
+        // with an `installAssetPattern` — all seven have one. See that constant
+        // and `listPageSize`'s doc: the walk past assetless releases happens
+        // inside this page, so a page sized to the tag depth alone moves the
+        // ceiling from the guard to the page, and stopping early there reads as
+        // a confident "up to date". Three rules were under the guard's limit
+        // until this term was added.
+        "dev.zed.Zed-Preview/preview": 9,     // gap 3 (v1.5.1-pre→v1.5.0-pre) +1 +5
+        "com.insomnia.app/stable": 15,        // gap 9 (core@11.0.0→core@10.3.1) +1 +5
+        "com.github.GitHubClient/beta": 10,   // gap 4 (release-3.4.16-beta1→…3.4.13-beta2) +1 +5
+        "com.vorssaint.utils/beta": 7,        // gap 1 (only 4 -beta. tags ever) +1 +5
+        "com.microsoft.Headlamp/stable": 10,  // gap 4 (v0.23.0→v0.22.0) +1 +5
+        "com.bitwarden.desktop/stable": 13,   // gap 7 (desktop-v2026.6.0→…2026.5.0) +1 +5
+        "com.t3tools.t3code/nightly": 8,      // gap 2 (…20260902.1252→…20260901.1250) +1 +5
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {
@@ -114,9 +121,12 @@ struct GitHubListPageSizeTests {
         #expect(Self.measuredMinimumDepth[Self.key(utmBeta!)] == nil)
     }
 
-    /// A rule that reads `/releases/latest` (`usePrereleases == false`) never
-    /// reaches the list branch of `fetchReleases`, so its `listPageSize` should
-    /// stay at the untouched default — carrying a non-default value there would
+    /// A rule that reads `/releases/latest` (`usePrereleases == false`) has no
+    /// measured depth on record, so its `listPageSize` should stay at the
+    /// untouched default. **Not because it never reads it** — an earlier version
+    /// of this comment said that and it is wrong: `resolve()`'s
+    /// missing-macOS-asset fallback fetches the list endpoint for exactly those
+    /// rules. It stays at 20 because nobody has measured what it needs there — carrying a non-default value there would
     /// mean nothing and would be a sign the field was set on the wrong rule.
     @Test func nonListRulesKeepTheUntouchedDefault() {
         for rule in GitHubReleaseRegistry.rules where !rule.usePrereleases {

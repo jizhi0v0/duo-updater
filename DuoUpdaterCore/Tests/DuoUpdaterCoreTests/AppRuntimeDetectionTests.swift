@@ -602,6 +602,151 @@ func aFrameworksDirectoryThatCannotBeListedIsNotReadAsAnAbsentOne() throws {
     #expect(detect(host, libraries: reader(appKit)) == .native)
 }
 
+// MARK: - A launcher stub in front of the payload
+
+/// Write another Mach-O stub into a built bundle's `Contents/MacOS`, where the
+/// payload beside a launcher lives — and where helpers live too.
+private func binary(_ name: String, in bundle: URL) throws -> URL {
+    let url = bundle.appendingPathComponent("Contents/MacOS").appendingPathComponent(name)
+    try Data().write(to: url)
+    return url
+}
+
+@Test func aLauncherStubIsAnsweredByTheBinaryNamedAfterTheBundle() throws {
+    // Audacity's shape: `CFBundleExecutable` is `Wrapper`, a launcher that links
+    // libSystem and nothing else and then executes `Contents/MacOS/Audacity`,
+    // which is the one linking AppKit. Ships 144 loose dylibs and not one
+    // `.framework`, so every layout rule above passes over it too.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Audacity", executable: "Wrapper")
+    _ = try binary("Audacity", in: bundle)
+    let reading = AppRuntimeDetector.read(
+        bundleAt: bundle, isiOSAppOnMac: false,
+        infoPlist: ["CFBundleExecutable": "Wrapper"],
+        linkedLibraries: reader(byPath: ["MacOS/Wrapper": ["/usr/lib/libSystem.B.dylib"],
+                                        "MacOS/Audacity": [appKit]]),
+        carriesTauriCrate: { _ in false })
+    #expect(reading.runtime == .native)
+    // The frameworks travel with the verdict: they describe the binary that
+    // answered, not the stub that did not.
+    #expect(reading.frameworks.names == ["AppKit"])
+}
+
+@Test func theRetryReachesCatalystToo() throws {
+    // The payload links both, as a Catalyst binary really does, so this pins the
+    // order the retry applies the rules in as well as the fact that it reaches
+    // them — `.native` would be the answer if the two were swapped. The frameworks
+    // are checked through `read` rather than `detect`, since a retry that returned
+    // the *stub's* empty set alongside the payload's verdict would pass a check on
+    // the runtime alone.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Padded", executable: "Wrapper")
+    _ = try binary("Padded", in: bundle)
+    let reading = AppRuntimeDetector.read(
+        bundleAt: bundle, isiOSAppOnMac: false,
+        infoPlist: ["CFBundleExecutable": "Wrapper"],
+        linkedLibraries: reader(byPath: ["MacOS/Wrapper": ["/usr/lib/libSystem.B.dylib"],
+                                        "MacOS/Padded": [catalystUIKit, appKit]]),
+        carriesTauriCrate: { _ in false })
+    #expect(reading.runtime == .catalyst)
+    #expect(reading.frameworks.names == ["AppKit", "UIKit"])
+}
+
+@Test func aHelperBesideTheStubIsNotAdopted() throws {
+    // Only the binary named after the bundle. `Contents/MacOS` is otherwise where
+    // subprocesses and command-line tools live — LibreOffice keeps ten of them
+    // beside `soffice` — and any of them would hand a helper's load commands to
+    // the app that spawns it.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Suite", executable: "soffice")
+    _ = try binary("gengal", in: bundle)
+    #expect(detect(bundle, plist: ["CFBundleExecutable": "soffice"],
+                   libraries: reader(byPath: ["MacOS/soffice": ["/usr/lib/libSystem.B.dylib"],
+                                              "MacOS/gengal": [appKit]])) == nil)
+}
+
+@Test func aDirectoryNamedAfterTheBundleIsNotABinary() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Studio", executable: "Wrapper")
+    try FileManager.default.createDirectory(
+        at: bundle.appendingPathComponent("Contents/MacOS/Studio"), withIntermediateDirectories: true)
+    #expect(detect(bundle, plist: ["CFBundleExecutable": "Wrapper"],
+                   libraries: reader(byPath: ["MacOS/Wrapper": ["/usr/lib/libSystem.B.dylib"]],
+                                     default: [appKit])) == nil)
+}
+
+@Test func theTauriProofIsNeverAskedAboutTheRetry() throws {
+    // The retry runs the link rules and stops there: the proof is a whole-binary
+    // byte search, and a bundle that reached this point has already paid for one
+    // read that told it nothing. A Tauri app behind a launcher stub therefore
+    // reads as native, which is the direction this file fails in everywhere else.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Shelled", executable: "Wrapper")
+    _ = try binary("Shelled", in: bundle)
+    var proofAsked = 0
+    let runtime = detect(
+        bundle,
+        plist: ["CFBundleExecutable": "Wrapper", "LSRequiresCarbon": true, "CSResourcesFileMapped": true],
+        libraries: reader(byPath: ["MacOS/Wrapper": ["/usr/lib/libSystem.B.dylib"],
+                                   "MacOS/Shelled": [appKit, webKit]]),
+        tauriProof: { _ in proofAsked += 1; return true })
+    #expect(runtime == .native)
+    #expect(proofAsked == 0)
+}
+
+@Test func atMostOneExtraBinaryIsEverRead() throws {
+    // The cost of the retry, pinned. A bundle that reaches a verdict pays nothing,
+    // the stub shape pays exactly one more read, and a bundle whose declared
+    // executable *is* the one named after it is never read twice — that last one
+    // is the whole population of unlabelled apps, so a missing path guard would
+    // double the reads for every app the retry cannot help.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    var reads = 0
+    func counting(_ answers: [String: Set<String>]) -> AppRuntimeDetector.LibraryReader {
+        { url in reads += 1; return answers.first { url.path.contains($0.key) }?.value ?? [] }
+    }
+
+    let plain = try builder.app("Native", executable: "Native")
+    #expect(detect(plain, plist: ["CFBundleExecutable": "Native"],
+                   libraries: counting(["MacOS/Native": [appKit]])) == .native)
+    #expect(reads == 1)
+
+    reads = 0
+    let stubbed = try builder.app("Wrapped", executable: "Wrapper")
+    _ = try binary("Wrapped", in: stubbed)
+    #expect(detect(stubbed, plist: ["CFBundleExecutable": "Wrapper"],
+                   libraries: counting(["MacOS/Wrapped": [appKit]])) == .native)
+    #expect(reads == 2)
+
+    // Case, not spelling: on a case-insensitive volume — the default for both
+    // `/Applications` and the directory these fixtures are built in — `cased` and
+    // `Cased` are one file, and comparing the two paths as strings says they are
+    // two. The population this matters for is cargo-bundled apps, which routinely
+    // ship a lowercase `CFBundleExecutable` beside a capitalized bundle.
+    reads = 0
+    let cased = try builder.app("Cased", executable: "cased")
+    #expect(detect(cased, plist: ["CFBundleExecutable": "cased"],
+                   libraries: counting([:])) == nil)
+    #expect(reads == 1)
+
+    // A second name for the same file, which `fileExists` follows and a path
+    // comparison does not see. Real bundles carry these — LibreOffice ships three
+    // in `Contents/MacOS`.
+    reads = 0
+    let linked = try builder.app("Linked", executable: "Stub")
+    try FileManager.default.createSymbolicLink(
+        at: linked.appendingPathComponent("Contents/MacOS/Linked"),
+        withDestinationURL: linked.appendingPathComponent("Contents/MacOS/Stub"))
+    #expect(detect(linked, libraries: counting([:])) == nil)
+    #expect(reads == 1)
+
+    reads = 0
+    let mystery = try builder.app("Mystery", executable: "Mystery")
+    #expect(detect(mystery, plist: ["CFBundleExecutable": "Mystery"],
+                   libraries: counting([:])) == nil)
+    #expect(reads == 1)
+}
+
 // MARK: - Failing closed
 
 @Test func unrecognizedBundlesReportNothingRatherThanNative() throws {

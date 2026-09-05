@@ -1368,8 +1368,11 @@ final class AppListModel {
 
     /// The matching rows exactly as stored, one JSON object per line.
     func exportRequestLog(_ query: RequestQuery) async -> String {
+        // `exportJSON`, not `json`. This one is a file the user is about to hand
+        // to someone, and it claims to be the shape `duo events` emits — so it
+        // has to abbreviate the home directory the way that command does.
         await eventStore.requestRows(query, limit: 100_000)
-            .map(\.json).joined(separator: "\n") + "\n"
+            .map(\.exportJSON).joined(separator: "\n") + "\n"
     }
 
     /// Discard every recorded request and every running total.
@@ -3067,6 +3070,7 @@ final class AppListModel {
                         appPath: result.app.path,
                         bundleID: result.app.bundleID,
                         appName: result.app.name,
+                        storeName: result.remote?.appStore?.storeName,
                         currentShortVersion: result.app.shortVersion,
                         viaUpdatesList: true
                     ) { stage in
@@ -3123,6 +3127,7 @@ final class AppListModel {
                             appPath: result.app.path,
                             bundleID: result.app.bundleID,
                             appName: result.app.name,
+                            storeName: result.remote?.appStore?.storeName,
                             currentShortVersion: result.app.shortVersion
                         ) { stage in
                             Task { @MainActor in self.setStage(id, stage) }
@@ -4777,9 +4782,9 @@ final class AppListModel {
     /// popping back up. It's still there, just not in front.
     ///
     /// An app that is *still running* when this fires never got the quit it was
-    /// asked for: its own save prompt outlasted the installer's ~12s terminate wait
-    /// and then the ~90s post-Continue cap, so we're here on the timeout path with
-    /// the app still up. Reopening a running app is a no-op, and consuming the entry
+    /// asked for: it outlasted the installer's ~12s terminate wait and then the whole
+    /// post-Continue poll budget, so we're here on the failure path with the app still
+    /// up — as `AXError.appStillOpen`, which asks the user for that quit by name. Reopening a running app is a no-op, and consuming the entry
     /// here is what made the late answer an orphan: the user dismisses the prompt
     /// minutes later, the app finally quits, App Store swaps — and by then nothing
     /// remembers that this app is only closed because we asked it to be. So hand it

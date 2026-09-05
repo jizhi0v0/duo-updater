@@ -16,11 +16,31 @@ public struct AppStoreAvailability: Sendable, Hashable {
     /// this device". nil = native Mac app / not checked (assume compatible).
     public let latestMacCompatible: Bool?
 
-    public init(trackID: Int, availableRegion: String, homeRegion: String?, latestMacCompatible: Bool? = nil) {
+    /// The store's own listing title, e.g. "DingDing: Redefine Work in AI" for the
+    /// app whose bundle is named "DingTalk". nil when the lookup didn't supply one.
+    ///
+    /// It exists because the product page renders THIS name, not the bundle's, and
+    /// `AppStoreAXInstaller` has to recognise the page it landed on before pressing
+    /// anything. Matching on the bundle name instead was wrong in both directions
+    /// (measured 2026-09-04, DingTalk): for the ~2.5 s before the page finishes
+    /// rendering the hero lockup carries the *developer* line ("DingTalk (China)
+    /// Information Technology Co., Ltd."), which contains the bundle name and let
+    /// the press through by coincidence; once rendered, that line is replaced by the
+    /// subtitle and the bundle name is nowhere on the page, so every later lookup
+    /// failed and the download reported 0% for its whole run.
+    public let storeName: String?
+
+    // `storeName` has no default on purpose: it is the name the App Store renders,
+    // and a producer that forgets it doesn't fail — it quietly sends the AX installer
+    // back to matching on the bundle name, which is the bug this field exists to fix.
+    // Every construction site should have to answer the question.
+    public init(trackID: Int, availableRegion: String, homeRegion: String?,
+                latestMacCompatible: Bool? = nil, storeName: String?) {
         self.trackID = trackID
         self.availableRegion = availableRegion
         self.homeRegion = homeRegion
         self.latestMacCompatible = latestMacCompatible
+        self.storeName = storeName
     }
 
     /// True when we know the newest build no longer supports this Mac, so even

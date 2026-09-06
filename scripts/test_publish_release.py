@@ -64,6 +64,12 @@ class SparkleToolLookup(unittest.TestCase):
         self.dd = self.tmp / "dd"
         self.repo = self.tmp / "repo"
         (self.repo / "App").mkdir(parents=True)
+        # Where the Sparkle dependency is pinned, and so the mtime the freshness
+        # check compares against. Real, not absent: `[ missing -nt x ]` is false,
+        # which would make "an artifact already on disk is used" pass for the
+        # wrong reason and stop measuring the check at all.
+        self.spec = self.repo / "App" / "project.yml"
+        self.spec.write_text("name: DuoUpdater\n")
         self.bin = self.tmp / "bin"
         self.bin.mkdir()
         self.log = self.tmp / "calls.log"
@@ -87,11 +93,17 @@ class SparkleToolLookup(unittest.TestCase):
         self.stub("xcodebuild",
                   f'printf "xcodebuild %s\\n" "$*" >> "{self.log}"\n' + make)
 
-    def place_artifact(self, *, executable=True):
+    def place_artifact(self, *, executable=True, stale=False):
         path = self.dd / ARTIFACT
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("#!/bin/sh\ntrue\n")
         path.chmod(0o755 if executable else 0o644)
+        # Whole seconds apart in both directions: `-nt` compares modification
+        # times, and two files written in the same test can otherwise land in the
+        # same tick and make the answer a coin flip.
+        spec_mtime = os.stat(self.spec).st_mtime
+        os.utime(path, (spec_mtime - 10, spec_mtime - 10) if stale
+                 else (spec_mtime + 10, spec_mtime + 10))
         return path
 
     def run_driver(self):
@@ -109,7 +121,7 @@ class SparkleToolLookup(unittest.TestCase):
         return self.log.read_text() if self.log.exists() else ""
 
     # Mutation: drop the early `return 0` and it resolves every time.
-    def test_an_artifact_already_on_disk_is_used_as_is(self):
+    def test_an_artifact_newer_than_the_spec_is_used_as_is(self):
         self.place_artifact()
         self.stub_xcodegen()
         self.stub_xcodebuild(creates=False)
@@ -117,6 +129,19 @@ class SparkleToolLookup(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn(f"FOUND {self.dd}/{ARTIFACT}", run.stdout)
         self.assertEqual(self.calls(), "", "resolved despite already having it")
+
+    # A tool from an older Sparkle is not a tool. This directory outlives
+    # dependency bumps, and on the CI_RUN_ID path nothing else resolves — so
+    # "present" had to stop meaning "current".
+    #
+    # Mutation: delete the `-nt` line and this fails; nothing else does.
+    def test_an_artifact_older_than_the_spec_is_re_resolved(self):
+        self.place_artifact(stale=True)
+        self.stub_xcodegen()
+        self.stub_xcodebuild(creates=True)
+        run = self.run_driver()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("-resolvePackageDependencies", self.calls())
 
     # Mutation: delete the resolve block (the state before #371) and this fails
     # — which is exactly how 0.3.86 failed.

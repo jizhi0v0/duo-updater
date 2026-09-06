@@ -112,11 +112,22 @@ find_generate_appcast() {
 # instead of the one that says what actually failed.
 GENERATE_APPCAST=""
 ensure_generate_appcast() {
+    local why=""
     if GENERATE_APPCAST="$(find_generate_appcast)"; then
-        return 0
+        # Present is not the same as CURRENT. This directory outlives Sparkle
+        # version bumps, and resolving only when the binary is ABSENT would keep
+        # generating the feed with the tool from whatever Sparkle we used to
+        # depend on — on the CI_RUN_ID path, where nothing else resolves, for as
+        # long as /tmp survives. `App/project.yml` is where the dependency is
+        # pinned, so it being newer than the tool is the signal; same `-nt`
+        # idiom as `app-tests.sh`. Re-resolving warm costs 1.4s.
+        [ "$REPO_ROOT/App/project.yml" -nt "$GENERATE_APPCAST" ] || return 0
+        why="is older than App/project.yml"
+    else
+        why="is not in $DERIVED_DATA"
     fi
 
-    say "Sparkle's generate_appcast is not in $DERIVED_DATA — resolving package dependencies"
+    say "Sparkle's generate_appcast $why — resolving package dependencies"
     # Checked here rather than with the other `command -v` calls at the top: the
     # CI_RUN_ID path has no other use for xcodegen, and demanding it up front
     # would fail runs that never need it.

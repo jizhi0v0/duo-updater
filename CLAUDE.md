@@ -479,6 +479,17 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - 本仓库常有多个 worktree 同时开着(`.claude/worktrees/*`),而且 `main` 可能在你干活时已经前进。
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
+- ⚠️ **定时任务会在你的 checkout 里换分支,而且不换回来。** 夜间 baseline 和发版 appcast
+  那两条自动流程跑在这个工作副本上,不是在单独的 worktree 里。2026-09-06 实测:baseline
+  任务从我当时的**特性分支**拉了 `verify/baseline-<时间戳>`、提交、开 PR 并 `--auto` 上膛,
+  于是那个 PR 的 diff 里躺着我三个没复审的文件(#386),CI 一绿就会 squash 进 main ——
+  正是「每个 PR 合并前跑复审」那条闸的一个绕行口。同一次里它切走之后没切回来,我下一条
+  `git commit` 因此落在了它的分支上。
+  规矩:**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先 `git branch --show-current`**,
+  别假设还在自己那条分支上(`git status` 不显示分支名的那个输出形态尤其骗人)。
+  撞上了先 `gh pr merge <n> --disable-auto` 止损 —— 这一步不需要 force-push、也不动
+  别人的分支;分支已经和 main 分叉的(比如你的 PR 已经单独 squash 合了),关掉让它重跑,
+  别去 rebase 另一个进程的分支。
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
 - 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。

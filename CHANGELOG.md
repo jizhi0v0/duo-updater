@@ -31,6 +31,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **An app you installed from the App Store is never offered a download from anywhere else.** When the store's own lookup for it fails or comes back empty, the row now says the store is managing it, without a version number. Before, the check could fall through to the app's other distribution — a different build with its own version numbers — and offer to install that over your store copy.
 
+**An app is never offered an update that would move it to an older version.** Some feeds list a stable release above a prerelease that is in fact further along, and taking it would have moved the app backwards.
+
 **A long error on a row no longer pushes the rest of the list down.** It is kept to two lines, with the full text on hover.
 
 ## 0.3.86

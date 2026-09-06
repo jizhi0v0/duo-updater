@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.87
+
+**Ein Klick auf „Aktualisieren“ bleibt nicht mehr wirkungslos, wenn eine Update-Quelle sich selbst widerspricht.** Meldet die Prüfung, die im Moment des Klicks läuft, eine ältere Version als die, die in der Zeile angeboten wurde, sagt Duo Updater das jetzt und lässt das Update im Angebot. Zuvor galt die App als bereits aktuell und verschwand aus der Liste – und dasselbe Update tauchte bei der nächsten Prüfung wieder auf.
+
+**Fork-Updates werden wieder angeboten, wenn Fork auf den Develop-Kanal eingestellt ist.** Duo Updater las Forks Kanaleinstellung verkehrt herum und folgte dem Stable-Feed, der deutlich hinterherhinkt – eine Develop-Installation galt damit als aktuell, während Fork selbst schon eine neuere Version anbot.
+
+**Mac Performance Monitor zeigt jetzt seine Versionshinweise.** Die App veröffentlicht sie in ihrem Repository statt in dem Feed, den wir lesen, sodass das Fenster nichts dazu anzuzeigen hatte.
+
+**CotEditor wird jetzt unterstützt – auf der Release- wie auf der Beta-Linie.** Welcher Linie eine Installation folgt, ergibt sich aus der laufenden Version und aus CotEditors eigener Einstellung „Update to prereleases when available“; eine Beta-Installation erhält damit die nächste Beta statt einer Version, die sie zurückwerfen würde.
+
+**Eine aus dem App Store installierte App bekommt nie einen Download von anderswo angeboten.** Schlägt die Abfrage des Stores fehl oder bleibt sie leer, weist die Zeile jetzt darauf hin, dass der Store diese App verwaltet – ohne Versionsnummer. Zuvor konnte die Prüfung auf den anderen Vertriebsweg der App ausweichen – ein anderer Build mit eigenen Versionsnummern – und anbieten, diesen über die Store-Kopie zu installieren.
+
+**Einer App wird nie ein Update angeboten, das sie auf eine ältere Version zurücksetzen würde.** Manche Feeds führen eine stabile Version über einer Vorabversion, die in Wahrheit weiter ist – sie zu installieren hätte die App zurückgeworfen.
+
+**Eine lange Fehlermeldung in einer Zeile schiebt den Rest der Liste nicht mehr nach unten.** Sie wird auf zwei Zeilen gekürzt, der vollständige Text erscheint beim Daraufzeigen.
+
 ## 0.3.86
 
 **Vier weitere Apps werden abgedeckt: WhatCable, Qoder IDE, Qoder und Yaak.** Jede von ihnen erhält Update-Prüfungen und eine Installation mit einem Klick, und ihre Versionshinweise werden als Text ins Fenster geladen statt als eingebettete Seite.

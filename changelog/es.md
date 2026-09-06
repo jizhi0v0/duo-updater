@@ -2,6 +2,22 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.87
+
+**Pulsar «Actualizar» ya no se queda en nada cuando una fuente de actualizaciones se contradice.** Si la comprobación que se lanza al pulsar devuelve una versión más antigua que la que ofrecía la fila, Duo Updater ahora lo indica y mantiene la actualización disponible. Antes daba la aplicación por actualizada y la quitaba de la lista, y la misma actualización reaparecía en la comprobación siguiente.
+
+**Las actualizaciones de Fork vuelven a ofrecerse cuando Fork está en su canal Develop.** Duo Updater leía al revés la preferencia de canal de Fork y seguía su feed Stable, que va bastante por detrás: una copia en Develop figuraba como actualizada mientras Fork ya ofrecía una versión más reciente.
+
+**Mac Performance Monitor ya muestra sus notas de versión.** La aplicación las publica en su repositorio y no en el feed que leemos, así que la ventana no tenía nada que mostrar.
+
+**CotEditor ya está cubierto, tanto en su línea de versiones finales como en la de betas.** La línea que sigue cada copia se deduce de la versión instalada y del propio ajuste de CotEditor «Update to prereleases when available», de modo que una copia beta recibe la siguiente beta en lugar de una versión final que la haría retroceder.
+
+**Una aplicación instalada desde la App Store nunca recibe la oferta de descargarla de otro sitio.** Cuando la consulta a la tienda falla o vuelve vacía, la fila indica ahora que la tienda se encarga de ella, sin número de versión. Antes la comprobación podía recurrir a la otra vía de distribución de la aplicación —una compilación distinta con su propia numeración— y ofrecerse a instalarla encima de la copia de la tienda.
+
+**A una aplicación nunca se le ofrece una actualización que la llevaría a una versión anterior.** Algunos feeds sitúan una versión estable por encima de una preliminar que en realidad va por delante, e instalarla habría hecho retroceder la aplicación.
+
+**Un error largo en una fila ya no empuja hacia abajo el resto de la lista.** Se limita a dos líneas y el texto completo aparece al pasar el puntero.
+
 ## 0.3.86
 
 **Se cubren cuatro apps más: WhatCable, Qoder IDE, Qoder y Yaak.** Cada una tiene comprobación de actualizaciones e instalación con un clic, y sus notas de versión se leen en la ventana como texto en vez de como una página incrustada.

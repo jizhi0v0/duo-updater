@@ -631,9 +631,24 @@ private let betterDisplayContributorRosters = [
 /// landing it here.
 public enum ChangelogRecipeRegistry {
     public static let recipes: [ChangelogRecipe] = [
-        // Official GitHub release bodies, fetched 2026-09-06. Decode JSON and
-        // Markdown through the existing structured path; stable excludes beta
-        // and draft releases. CotEditor's Sparkle feed allows promotion to stable.
+        // Yaak — official GitHub release bodies, fetched 2026-09-06. Decoded as
+        // JSON + Markdown through the existing structured path; the stable
+        // recipe excludes beta and draft releases.
+        //
+        // `per_page=40` with `maxEntries: 20` is the registry's house shape (Zed
+        // and UTM's channel-split pairs are identical), and 20 is a CEILING, not
+        // a target: measured 2026-09-06, the newest 40 releases hold 12 stable
+        // and 28 beta, so the stable rail renders 12 entries and the beta rail
+        // fills its 20. Raising the page to reach 20 stable would mean fetching
+        // ~72 releases on every changelog read, which no other entry here does.
+        //
+        // `includesPromotedStable` is deliberately absent (false) on the beta
+        // recipe, and this is not the same decision UTM's pair makes. Yaak's beta
+        // rule cannot resolve a stable artifact — `installAssetPattern` requires
+        // `-beta.<N>` in the asset name and the channel proof requires it in the
+        // download path — so a promoted-stable entry would describe a build this
+        // channel never offers. `yaakBetaNotesDoNotPromiseAStableWeCannotInstall`
+        // pins the value against the shape of the rule.
         ChangelogRecipe(
             bundleID: "app.yaak.desktop",
             source: URL(string: "https://api.github.com/repos/mountain-loop/yaak/releases?per_page=40")!,
@@ -648,23 +663,6 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 20,
             channel: .beta,
-            structuredFormat: .gitHubReleases),
-
-        ChangelogRecipe(
-            bundleID: "com.coteditor.CotEditor",
-            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
-            mode: .json,
-            maxEntries: 20,
-            channel: .stable,
-            structuredFormat: .gitHubReleases),
-
-        ChangelogRecipe(
-            bundleID: "com.coteditor.CotEditor",
-            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
-            mode: .json,
-            maxEntries: 20,
-            channel: .beta,
-            includesPromotedStable: true,
             structuredFormat: .gitHubReleases),
 
         // Air (JetBrains) — air.dev/changelog is a Vite/React SPA: the HTML is an

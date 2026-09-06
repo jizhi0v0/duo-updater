@@ -2,38 +2,79 @@ import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
-/// Trimmed official API/appcast responses fetched 2026-09-06. Iterate the
-/// registered channels so adding one cannot silently escape fixture coverage.
+/// Trimmed official GitHub API responses for Yaak, fetched 2026-09-06. Every
+/// case is driven off the registry rather than a hand-written list, so adding a
+/// channel cannot silently escape fixture coverage — and each loop asserts how
+/// many rows it saw, because a `for … where` over a registry is green when the
+/// registry entry it is meant to protect has been deleted.
 struct ActiveAppsIntegrationTests {
+    /// Both halves of what makes the beta rule a beta rule, asserted against the
+    /// registry rather than restated. Deleting either Yaak rule fails here, which
+    /// nothing else in the suite does: measured 2026-09-06 by removing the stable
+    /// rule and running the whole Core package — 2335 tests, all green.
+    @Test func bothYaakRulesAreRegisteredAndSplitTheTrains() throws {
+        let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == "app.yaak.desktop" }
+        #expect(rules.count == 2)
+        let stable = try #require(rules.first { $0.channel == .stable })
+        let beta = try #require(rules.first { $0.channel == .beta })
+        #expect(stable.usePrereleases == false)
+        #expect(beta.usePrereleases)
+        for rule in rules { #expect(rule.owner == "mountain-loop" && rule.repo == "yaak") }
+    }
+
+    /// The premise the whole beta track rests on: a Yaak beta bundle keeps the
+    /// `-beta.N` suffix in `CFBundleShortVersionString`, and `detect` has to read
+    /// that as `.beta` or the channel gate in `GitHubReleasesSource` hands a beta
+    /// copy the stable rule's DMG. Asserted directly, because reaching it through
+    /// an `InstalledApp` does not: `channelIsAuthoritative` defaults to false, so
+    /// the Sparkle path never reads `releaseChannel` and a test that builds one
+    /// passes just as well with `.stable` written in by hand (measured).
+    @Test func aBetaVersionStringResolvesToTheBetaChannel() {
+        func detect(_ version: String) -> ReleaseChannel {
+            ReleaseChannel.detect(name: "Yaak", bundleID: "app.yaak.desktop",
+                keystoneChannel: nil, version: version)
+        }
+        #expect(detect("2026.8.0-beta.1") == .beta)
+        #expect(detect("2026.7.1") == .stable)
+    }
+
     @Test func releaseHistoriesRespectEveryRegisteredChannel() throws {
-        for recipe in ChangelogRecipeRegistry.recipes where
-            recipe.source.path == "/repos/mountain-loop/yaak/releases"
-            || recipe.source.path == "/repos/coteditor/CotEditor/releases" {
-            let isYaak = recipe.bundleID == "app.yaak.desktop"
-            let fixture = isYaak ? yaakReleases : coteditorReleases
-            let parsed = try #require(ChangelogService.parse(recipe, body: fixture))
-            let stable = isYaak ? "2026.7.1" : "7.0.9"
-            let beta = isYaak ? "2026.8.0-beta.1" : "7.1.0-beta.6"
+        let recipes = ChangelogRecipeRegistry.recipes.filter { $0.bundleID == "app.yaak.desktop" }
+        #expect(recipes.count == 2, "one rail per channel; a deleted recipe must not read as coverage")
+        var seen: Set<ReleaseChannel> = []
+        for recipe in recipes {
+            seen.insert(recipe.channel ?? .stable)
+            #expect(recipe.source.path == "/repos/mountain-loop/yaak/releases")
+            let parsed = try #require(ChangelogService.parse(recipe, body: yaakReleases))
+            let stable = "2026.7.1"
+            let beta = "2026.8.0-beta.1"
             #expect(parsed.entries.first?.version == (recipe.channel == .stable ? stable : beta))
             #expect(parsed.entries.allSatisfy { !$0.items.isEmpty && $0.date != nil })
             if recipe.channel == .stable {
                 #expect(!parsed.entries.contains { $0.version == beta })
-                #expect(parsed.entries.first?.items.contains {
-                    $0.contains(isYaak ? "Fix param edits" : "Avoid unnecessary scroll")
-                } == true)
+                #expect(parsed.entries.first?.items.contains { $0.contains("Fix param edits") } == true)
             } else {
-                #expect(parsed.entries.contains { $0.version == stable } == recipe.includesPromotedStable)
+                // See the recipe's comment: the beta rule can only ever resolve a
+                // `-beta.N` artifact, so its notes must not advertise the stable
+                // release it graduates into. Asserted as a literal — reading the
+                // flag off the recipe under test would self-adjust to whatever
+                // value someone wrote there.
+                #expect(recipe.includesPromotedStable == false)
+                #expect(!parsed.entries.contains { $0.version == stable })
             }
             // Unpublished notes must never appear, on either channel.
-            let objects = try #require(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [[String: Any]])
+            let objects = try #require(JSONSerialization.jsonObject(with: Data(yaakReleases.utf8)) as? [[String: Any]])
             let drafts = objects.map { $0.merging(["draft": true]) { _, new in new } }
             let draftBody = String(decoding: try JSONSerialization.data(withJSONObject: drafts), as: UTF8.self)
             #expect(ChangelogService.parse(recipe, body: draftBody) == nil)
         }
+        #expect(seen == [.stable, .beta])
     }
 
     @Test func yaakRulesSelectOnlyTheirOwnSignedMacArtifact() throws {
         let releases = try #require(JSONSerialization.jsonObject(with: Data(yaakReleases.utf8)) as? [[String: Any]])
+        #expect(releases.count == 2, "one release per train, or the loop below proves nothing")
+        var checked = 0
         for rule in GitHubReleaseRegistry.rules where rule.bundleID == "app.yaak.desktop" {
             let pattern = try #require(rule.installAssetPattern)
             #expect(rule.installerKind == .dmg)
@@ -50,24 +91,28 @@ struct ActiveAppsIntegrationTests {
                 if let name = matching.first {
                     #expect(name.hasSuffix("_aarch64.dmg"))
                 }
+                checked += 1
             }
             #expect(VendorProbeRecipe.extractVersion(from: "v2026.8.0-beta.1-junk", pattern: rule.versionPattern) == nil)
         }
+        #expect(checked == 4, "two rules x two releases")
     }
 
-    @Test func coteditorCatalogPreservesStableBetaAndOSGates() throws {
-        let feed = try #require(SparkleFeedCatalog.feed(forBundleID: "com.coteditor.CotEditor"))
-        #expect(feed.absoluteString == "https://coteditor.com/appcast.xml")
-        let items = SparkleAppcastParser.parse(Data(coteditorAppcast.utf8), relativeTo: feed)
-        for (version, build, expected) in [("7.0.8", "830", "7.0.9"), ("7.1.0-beta.6", "845", "7.1.0-beta.6")] {
-            let channel = ReleaseChannel.detect(name: "CotEditor", bundleID: "com.coteditor.CotEditor", keystoneChannel: nil, version: version)
-            let app = InstalledApp(name: "CotEditor", bundleID: "com.coteditor.CotEditor",
-                shortVersion: version, buildVersion: build, path: URL(fileURLWithPath: "/fixture/CotEditor.app"),
-                isMASApp: false, sparkleFeedURL: feed, releaseChannel: channel)
-            let best = try #require(SparkleAppcastSource.bestItem(for: app, from: items, osVersion: "27.0"))
-            #expect(best.shortVersionString == expected)
-            #expect(best.edSignature != nil)
-            #expect(SparkleAppcastSource.bestItem(for: app, from: items, osVersion: "14.0")?.shortVersionString == "5.2.3")
+    /// The vendor renamed its macOS artifact, and the patterns are pinned to the
+    /// name in use now. Measured over the newest 100 releases on 2026-09-06: the
+    /// 92 at or newer than `v2025.9.0-beta.5` (2025-11-11) publish
+    /// `Yaak_<version>_aarch64.dmg`; the 8 before it published
+    /// `Yaak_<version>_aarch64_darwin.dmg`, which neither pattern accepts. That
+    /// is inert — both rules resolve newest-first and the beta rule reads a
+    /// 20-row page — but it is the boundary, and a vendor who reverted the name
+    /// would take both trains out at once rather than one.
+    @Test func theSupersededDarwinSuffixIsNotAccepted() throws {
+        for rule in GitHubReleaseRegistry.rules where rule.bundleID == "app.yaak.desktop" {
+            let pattern = try #require(rule.installAssetPattern)
+            let old = rule.channel == .beta
+                ? "Yaak_2025.9.0-beta.4_aarch64_darwin.dmg"
+                : "Yaak_2025.8.2_aarch64_darwin.dmg"
+            #expect(old.range(of: pattern, options: .regularExpression) == nil)
         }
     }
 }
@@ -281,71 +326,3 @@ private let yaakReleases = #"""
 ]
 """#
 
-private let coteditorReleases = #"""
-[
-  {
-    "tag_name": "7.1.0-beta.6",
-    "body": "system requirements: __macOS 26__ and later\r\n\r\n\r\n### Improvements\r\n\r\n- Apply the current theme’s text color to the text restored by undo even when the theme has changed since the deletion.\r\n- Remove the Bulgarian localization.\r\n- [beta] Reflect all changes in CotEditor 7.0.9.\r\n\r\n\r\n### Known Issues\r\n\r\n- In some cases, a sandboxed URL is passed when folder search results are dropped onto another app (FB23578716).\r\n- In full-screen mode, an unnecessary separator appears above the pane switcher in the Inspector (FB24552348).\r\n\r\n**Full Changelog**: https://github.com/coteditor/CotEditor/compare/7.1.0-beta.5...7.1.0-beta.6",
-    "published_at": "2026-09-05T01:33:07Z",
-    "prerelease": true,
-    "draft": false,
-    "assets": [
-      {
-        "name": "CotEditor_7.1.0-beta.6.dmg"
-      }
-    ]
-  },
-  {
-    "tag_name": "7.0.9",
-    "body": "system requirements: __macOS 15__ and later\r\n\r\n### Improvements\r\n\r\n- Avoid unnecessary scroll after inserting a snippet when the range is already visible.\r\n- Update the Markdown syntax to improve headings highlight.\r\n- Update tree-sitter-scala to 0.26.2.\r\n- [non-AppStore ver.] Update Sparkle from 2.9.5 to 2.9.6.\r\n\r\n\r\n### Fixes\r\n\r\n- Fix an issue in the regular expression replacement with the “Unescape replacement text” option where escaped backslashes in the replacement string were unexpectedly removed instead of being unescaped to literal backslashes.\r\n- Fix an issue in the LaTeX syntax where custom environment definitions were incorrectly extracted as outline items.\r\n- Fix an issue in the LaTeX syntax where the opening braces of arguments of some commands, such as `\\cite`, were highlighted in the wrong color.\r\n- Fix an issue in the Scala syntax where string interpolators, such as `s` in `s\"…\"`, were highlighted in the same color as the string body.\r\n- Fix typos in Dutch and French localizations.\r\n\r\n**Full Changelog**: https://github.com/coteditor/CotEditor/compare/7.0.8...7.0.9",
-    "published_at": "2026-09-05T01:32:59Z",
-    "prerelease": false,
-    "draft": false,
-    "assets": [
-      {
-        "name": "CotEditor_7.0.9.dmg"
-      }
-    ]
-  }
-]
-"""#
-
-private let coteditorAppcast = #"""
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel>
-<item>
-            <title>CotEditor 7.1.0-beta.6</title>
-            <pubDate>Sat, 05 Sep 2026 10:26:56 +0900</pubDate>
-            <sparkle:channel>prerelease</sparkle:channel>
-            <sparkle:version>845</sparkle:version>
-            <sparkle:shortVersionString>7.1.0-beta.6</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink xml:lang="en">https://coteditor.com/releasenotes/7.1.0-beta.en.html</sparkle:releaseNotesLink>
-            <sparkle:releaseNotesLink xml:lang="ja">https://coteditor.com/releasenotes/7.1.0-beta.ja.html</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/coteditor/CotEditor/releases/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg" length="26458624" type="application/octet-stream" sparkle:edSignature="RbaJg/M9shdtcYkT0Z5gsd5OkZTTa1M8lVq2OAHoJuIHTWoKkxE8zcu0Qw10eRiuQ6Pq2SQdkpnnxvs9tlVuBA=="></enclosure>
-        </item>
-<item>
-            <title>CotEditor 7.0.9</title>
-            <pubDate>Sat, 05 Sep 2026 09:59:15 +0900</pubDate>
-            <sparkle:version>843</sparkle:version>
-            <sparkle:shortVersionString>7.0.9</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink xml:lang="en">https://coteditor.com/releasenotes/7.0.9.en.html</sparkle:releaseNotesLink>
-            <sparkle:releaseNotesLink xml:lang="ja">https://coteditor.com/releasenotes/7.0.9.ja.html</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/coteditor/CotEditor/releases/download/7.0.9/CotEditor_7.0.9.dmg" length="25609728" type="application/octet-stream" sparkle:edSignature="ck7WNGbpjxXaDls7GSePbZEFw6FIyPcHxk10HKKzU2a5OeUPVyJbO4v0tBd/Xv7ZnleRjd06wzVbYZAjN2sDAg=="/>
-        </item>
-<item>
-            <title>CotEditor 5.2.3</title>
-            <pubDate>Sat, 23 Aug 2025 17:28:00 +0900</pubDate>
-            
-            <sparkle:version>730</sparkle:version>
-            <sparkle:shortVersionString>5.2.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink xml:lang="en">https://coteditor.com/releasenotes/5.2.3.en.html</sparkle:releaseNotesLink>
-            <sparkle:releaseNotesLink xml:lang="ja">https://coteditor.com/releasenotes/5.2.3.ja.html</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/coteditor/CotEditor/releases/download/5.2.3/CotEditor_5.2.3.dmg"
-                       length="17555057"
-                       type="application/octet-stream"
-                        sparkle:edSignature="VceO3Okj5sPcnnIgk+EfB1w4/UU/g7LANyC360GPGTTtCdtnKfHrsjcjf2tE2xO8uaZl/6/EdMObEbqO5+GOAg=="/>
-        </item>
-</channel></rss>
-"""#

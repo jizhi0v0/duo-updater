@@ -23,6 +23,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Clicking Update no longer does nothing when an update source contradicts itself.** If the check that runs the moment you click comes back with an older version than the one the row was offering, Duo Updater now says so and keeps the update on offer. It used to report the app as already up to date and drop it from the list, and the same update reappeared on the next check.
 
+**Fork updates are offered again when Fork is set to its Develop channel.** Duo Updater read Fork's channel setting backwards and followed its Stable feed, which sits well behind — so a Develop copy was listed as up to date while Fork itself was offering a newer version.
+
 **Mac Performance Monitor now shows its release notes.** The app publishes them in its repository rather than in the feed we read, so the window had nothing to show for it.
 
 **CotEditor is now covered, on both its release and its beta line.** Which line a copy follows comes from the version it is running and from CotEditor's own "Update to prereleases when available" setting, so a beta copy is offered the next beta instead of a release that would take it backwards.

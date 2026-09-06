@@ -118,7 +118,7 @@ public struct ResolvedChannel: Sendable, Equatable {
 /// is a delegate the host app computes at runtime; vendors keep the choice
 /// wherever they like. Four apps, four encodings, none alike:
 ///   * DuoPaste → `UserDefaults[sparkleIncludePrereleases]`           (Bool: true→beta)
-///   * Fork     → `UserDefaults[applicationUpdateChannel]`            (Int: 2→stable)
+///   * Fork     → `UserDefaults[applicationUpdateChannel]`            (Int: 1→stable)
 ///   * Surge    → `…/Application Support/<id>/KDDefaults.plist`        (`IncludeBetaBuilds` Bool)
 ///   * OrbStack → `UserDefaults[updates_optinChannel]`               (String: the channel name)
 ///   * TablePlus→ `UserDefaults[ViewSetting][IsReceiveBetaBuild]`     (Bool: true→beta, via header)
@@ -327,9 +327,20 @@ public enum ChannelBinding {
     public static let allResolutions: [(bundleID: String, resolved: ResolvedChannel)] = [
         (DuoPasteChannel.bundleID, DuoPasteChannel.resolve(includePrereleases: false)),
         (DuoPasteChannel.bundleID, DuoPasteChannel.resolve(includePrereleases: true)),
-        // Fork's pref is an Int with 2 == stable; anything else (including absent,
-        // the shipped default) is the "Developer" train.
-        (ForkChannel.bundleID, ForkChannel.resolve(channelPref: 2)),
+        // Fork's pref is an Int with 1 == stable; anything else (including 2, which
+        // is what its "Develop" menu item writes, and absent, the shipped default)
+        // is the Develop train. Both explicit values are listed for the same
+        // reason BetterDisplay lists all four toggle combinations — they are the
+        // values the resolver accepts — and `channelBindingsNeedingProof` folds
+        // the two Develop ones into one key.
+        //
+        // It buys no protection, and saying so is the point: when this was
+        // inverted, `resolve(2)` answered `.stable`, and that population drops
+        // `.stable` outright, so listing 2 would have produced no proof key and no
+        // red test. Nothing here gates the direction of the mapping; only
+        // `ForkChannelTests` and the disassembly it cites do.
+        (ForkChannel.bundleID, ForkChannel.resolve(channelPref: ForkChannel.stablePrefValue)),
+        (ForkChannel.bundleID, ForkChannel.resolve(channelPref: ForkChannel.developerPrefValue)),
         (ForkChannel.bundleID, ForkChannel.resolve(channelPref: nil)),
         (SurgeChannel.bundleID, SurgeChannel.resolve(includeBeta: false)),
         (SurgeChannel.bundleID, SurgeChannel.resolve(includeBeta: true)),

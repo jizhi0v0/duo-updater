@@ -62,7 +62,7 @@ public struct UpdateChecker: Sendable {
         // day memoizes during `prewarm` doesn't refill what was just dropped —
         // and whoever adds one owes this a test.
         if freshening {
-            for source in sources { await source.invalidateMemo(for: apps) }
+            for source in sources { await source.invalidateMemo(for: Self.apps(apps, visibleTo: source)) }
         }
         // Give every source a chance to do its cheaper-in-bulk work — e.g.
         // MacAppStoreSource batching iTunes lookups — before the per-app
@@ -75,7 +75,8 @@ public struct UpdateChecker: Sendable {
         // finished — not merely been scheduled — before the fan-out begins.
         await withTaskGroup(of: Void.self) { group in
             for source in sources {
-                group.addTask { await source.prewarm(apps) }
+                let visible = Self.apps(apps, visibleTo: source)
+                group.addTask { await source.prewarm(visible) }
             }
             for await _ in group {}
         }
@@ -125,6 +126,22 @@ public struct UpdateChecker: Sendable {
         await channelStore?.flush()
 
         return results.compactMap { $0 }
+    }
+
+    /// The rows a source is allowed to act on: the whole list, minus store
+    /// copies for every source that declines them.
+    ///
+    /// The gate in `runSources` covers `latestVersion`, which is the path that
+    /// can offer a user the wrong package. These two bulk hooks are the other
+    /// way a source touches a row, and leaving them ungated would have left the
+    /// property's promise — that a declining source does not act for a store
+    /// copy — true of one path and false of the other. Nothing implements
+    /// `prewarm` or `invalidateMemo` today except `MacAppStoreSource`, which
+    /// answers store copies and so sees the list unchanged; this is here so the
+    /// second one to implement either does not have to remember.
+    private static func apps(_ apps: [InstalledApp], visibleTo source: any UpdateSource)
+        -> [InstalledApp] {
+        source.answersAppStoreCopies ? apps : apps.filter { !$0.isMASApp }
     }
 
     /// Check one app across all sources in priority order, then label the result
@@ -211,7 +228,28 @@ public struct UpdateChecker: Sendable {
 
         var lastError: String?
 
+        // One line for the row, not one per silenced source. `VendorProbeSource`
+        // learned this: a per-source line for sources that were never going to
+        // touch the row "reads as if a recipe had been declined", and here it
+        // would be every store app times every declining source, every round.
+        if app.isMASApp {
+            let silenced = sources.filter { !$0.answersAppStoreCopies }.count
+            if silenced > 0 {
+                Log.check.debug("\(label, privacy: .public): \(silenced, privacy: .public) non-store sources silenced, the store owns this copy")
+            }
+        }
+
         for source in sources {
+            // A store copy is answered by the store, or by nobody. Source ordering
+            // is not enough on its own: this loop falls through on a THROWN error
+            // as well as on a miss.
+            //
+            // The evidence, the retraction that goes with it, and why the default
+            // is false live in ONE place — `UpdateSource.answersAppStoreCopies`.
+            // Deliberately not restated here: the first version of this comment
+            // did restate it, and the two halves immediately disagreed, which is
+            // the failure this whole change is about.
+            if app.isMASApp, !source.answersAppStoreCopies { continue }
             do {
                 guard let remote = try await source.latestVersion(for: app) else {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
@@ -242,15 +280,25 @@ public struct UpdateChecker: Sendable {
         // Deliberately NOT extended to `.appStoreManaged`/`.testFlightManaged`.
         //
         // A MAS row that reaches `.error` was answered by nobody and failed
-        // somewhere real: three sources can run for a store copy — the store lookup
-        // itself, `XcodeReleasesSource` (bundle-id gate only, and Xcode ships on the
-        // store), and `SparkleAppcastSource` (feed-url gate only; Keka is a store
-        // copy carrying a `SUFeedURL`). Only Homebrew, GitHub and the vendor probe
-        // carry `guard !app.isMASApp`. None of those three is a *borrowed* read the
-        // way Toolbox's is — each one IS this row's update check — so a failure
-        // there has to read as a failed check. Painting it "Managed by the App
-        // Store" would show the user the same row they get when the store is
-        // quietly keeping the app current.
+        // somewhere real: the gate at the top of the loop means the only source
+        // that ran for it was `MacAppStoreSource` — the lookup for the app the
+        // store DOES own. That is not a *borrowed* read the way Toolbox's is; it
+        // IS this row's update check, so a failure has to read as a failed check.
+        // Painting it "Managed by the App Store" would show the user the same row
+        // they get when the store is quietly keeping the app current.
+        //
+        // True by construction of the gate PLUS the registry: it stops holding the
+        // moment a second source declares `answersAppStoreCopies`.
+        // `SourceStorePolicyTests.exactlyOneSourceAnswersStoreCopies` is what makes
+        // that loud, and is the thing to read before changing this paragraph.
+        //
+        // It used to be an inventory of which sources happened to carry
+        // `guard !app.isMASApp`, kept accurate by hand and re-checked whenever a
+        // source was added. It was wrong twice: once by naming one source when
+        // three could run, and then, in the commit that fixed that, by citing
+        // Keka as a store copy carrying a `SUFeedURL` — Keka is Developer
+        // ID-signed with no `_MASReceipt`, so `isMASApp` was false for it under
+        // the very same derivation both then and now.
         //
         // TestFlight returns before the loop and never gets here at all.
         if let lastError, !app.isToolboxManaged {
@@ -273,7 +321,10 @@ public struct UpdateChecker: Sendable {
         } else {
             status = .unknown
         }
-        Log.check.info("\(label, privacy: .public): no source applied → \(String(describing: status), privacy: .public)")
+        // "nothing applied" for an ordinary row; for a store row the non-store
+        // sources were not inapplicable, they were forbidden — the line above says
+        // how many.
+        Log.check.info("\(label, privacy: .public): no source answered → \(String(describing: status), privacy: .public)")
         return UpdateResult(app: app, remote: nil, status: status)
     }
 

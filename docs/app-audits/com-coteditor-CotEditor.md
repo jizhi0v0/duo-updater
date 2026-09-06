@@ -170,8 +170,9 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
   读的是下载包自己的 `LSMinimumSystemVersion`，而两个真包里这个值跟 feed 写的一致
   （7.0.9 → 15.0，7.1.0-beta.6 → 26.0）。差别是「先给按钮、装的时候拦」而不是
   「装了个跑不起来的」。
-- **`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`** 这条老问题还在（#368 的第二半），
-  只是 CotEditor 不再走那条路，所以对它不再有影响。
+- **`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`**（#368 的第二半）已修：
+  fill-in 和 superseded 两个入口都加了 `!isMAS`，bundle 自己声明的 `SUFeedURL` 不受影响
+  （Keka 是真实的商店副本自带 feed）。CotEditor 不走那条路，所以对它本来就没有影响。
 
 ## Changelog
 

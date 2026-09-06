@@ -36,9 +36,10 @@ extension Verify {
         let source = SparkleAppcastSource()
 
         // Sequential with the same inter-request delay every other sweep uses.
-        // Today's entries sit on a host each, so the delay buys nothing — but a
-        // table this small has no parallelism worth having either, and the two
-        // halves of a superseding entry are on one host by construction.
+        // Today's entries sit on a host each, so the delay buys nothing between
+        // them — but a table this small has no parallelism worth having either,
+        // and a superseding entry's two reads go to the same host back to back,
+        // which is the pair the delay is actually for.
         var findings: [Finding] = []
         for (index, entry) in cases.enumerated() {
             if index > 0 {
@@ -47,15 +48,16 @@ extension Verify {
             }
             // Requests, not probes: a retried entry has cost the endpoint every
             // one of them, and `Finding.attempts` is documented as the number
-            // that cannot understate what the sweep spent.
-            let perProbe = entry.declared == nil ? 1 : 2
+            // that cannot understate what the sweep spent. Carried forward from
+            // each probe rather than multiplied out, because a probe that gave
+            // up after an unreachable live read spent one request, not two.
             var attempt = 0
             var finding = await probe(entry, source: source, requestsAlready: 0)
             while attempt < options.infraRetries, finding.status == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
                 finding = await probe(
-                    entry, source: source, requestsAlready: attempt * perProbe)
+                    entry, source: source, requestsAlready: finding.attempts)
             }
             findings.append(finding)
         }
@@ -75,9 +77,16 @@ extension Verify {
         // what makes the entry's own expiry condition mechanical rather than a
         // note in a comment: it is only justified for as long as the address it
         // overrides is genuinely behind.
+        //
+        // Skipped when the live read already failed: `classifyFeed` returns from
+        // its `.unreachable` branch without ever looking at this one, and the
+        // retry loop above would otherwise spend three extra requests on a host
+        // that is down — the one moment it should be asking for less, not more.
         var declared: FeedObservation.Fetch?
-        if let deadAddress = entry.declared {
+        var requestsSpent = 1
+        if let deadAddress = entry.declared, case .read = live {
             declared = await read(deadAddress, bundleID: entry.bundleID, source: source)
+            requestsSpent += 1
         }
 
         let verdict = classifyFeed(entry, FeedObservation(live: live, declared: declared))
@@ -85,10 +94,11 @@ extension Verify {
             recipeID: entry.recipeID, registry: .feed, bundleID: entry.bundleID,
             channel: entry.kind.rawValue, status: verdict.status, version: verdict.version,
             // The LIVE address's host: it is the one an app is pointed at, and
-            // the one a nightly triage should route by. A superseding entry's
-            // dead address is named in the warning that complains about it.
+            // the one a nightly triage should route by. The dead address is
+            // named in full inside the warning that complains about it, which
+            // is what a reader needs when the two share a host.
             warnings: verdict.warnings, endpointHost: entry.feed.host ?? "-",
-            attempts: requestsAlready + (entry.declared == nil ? 1 : 2),
+            attempts: requestsAlready + requestsSpent,
             elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
     }
 
@@ -191,16 +201,32 @@ extension Verify {
 
         // A superseding entry's expiry condition, made mechanical: it is only
         // justified while the address it overrides is behind the one it points
-        // at. `isNewer` fails closed, so "cannot be compared" reads the same as
-        // "not behind" here — deliberately, for a table this small.
+        // at.
+        //
+        // An empty dead side is NOT that condition failing — it is the condition
+        // at its strongest. A dead address that has stopped offering anything a
+        // default-channel install could use (a retired path answering with a
+        // landing page, or a vendor capping its last uncapped build the way PDF
+        // Expert's feed already caps three of four) offers strictly less than
+        // when the entry was written. Reading `isNewer`'s fail-closed `false`
+        // as a complaint there would file an issue every night against the one
+        // entry behaving perfectly.
+        //
+        // What DOES still complain is two non-empty sides that cannot be ranked
+        // — a dead feed naming only a build against a live feed naming only a
+        // marketing string. `VersionComparator` refuses to cross those
+        // namespaces, and "we can no longer show this entry is justified" is
+        // worth being told however it became true.
         if case .read(let dead)? = observation.declared {
             let liveSide = VersionSide(marketing: marketing, build: live.headBuildVersion)
             let deadSide = VersionSide(
                 marketing: dead.headShortVersion, build: dead.headBuildVersion)
-            if !VersionComparator.isNewer(liveSide, than: deadSide) {
-                // Named in full, not by host: both addresses of a superseding
-                // entry are on the same host by construction, so the PATH is
-                // the only thing that tells a reader which one this is about.
+            if !deadSide.isEmpty, !VersionComparator.isNewer(liveSide, than: deadSide) {
+                // Named in full, not by host. `Finding.endpointHost` carries
+                // the LIVE address's host, and nothing requires the two halves
+                // of an entry to differ in more than their path — today's pair
+                // shares a host and differs only there — so the host alone
+                // would not tell a reader which address this is about.
                 warnings.append(
                     "supersededAddressIsNoLongerBehind — the address this entry redirects "
                         + "away from can no longer be shown to be older than the one it "

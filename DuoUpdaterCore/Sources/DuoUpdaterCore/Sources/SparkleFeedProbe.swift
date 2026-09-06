@@ -29,8 +29,9 @@ public struct SparkleFeedReading: Sendable {
     /// so the sweep's message can point the same way rather than re-deriving a
     /// filter predicate that would then be free to drift from the real one.
     public let itemsDeclaringMaximumSystemVersion: Int
-    /// The OS version the filters were evaluated against, so a report read on
-    /// another machine says which Mac's answer it is.
+    /// The OS version the filters were evaluated against. The one host input
+    /// left in the answer, and recorded for that reason — the architecture ones
+    /// are pinned, see `SparkleAppcastSource.readFeed`.
     public let osVersion: String
     /// Bytes of appcast fetched.
     public let byteCount: Int
@@ -85,7 +86,21 @@ public extension SparkleAppcastSource {
         let osVersion = Self.numericSystemVersion()
         let usable = Self.usableItems(
             for: Self.probeApp(bundleID: bundleID, feedURL: feedURL),
-            from: items, osVersion: osVersion)
+            from: items, osVersion: osVersion,
+            // Pinned, not taken from the host. `usableItems` defaults these to
+            // `HostArch.current` and `HostArch.canRunIntelBuilds`, and the
+            // second of those is false on a Mac without Rosetta and true on a
+            // GitHub runner — so the same feed could read `broken` on one
+            // machine and `ok` on another while `Baseline` keyed the streak on
+            // the recipe id alone, each host resetting the other's.
+            //
+            // arm64 because DuoUpdater is arm64-only by product decision (see
+            // `App/project.yml`), so there is no other host to ask about.
+            // Translation allowed because the question here is whether the
+            // ADDRESS can still serve a supported install, and an Intel-only
+            // item is one a Mac with Rosetta installs fine; calling that feed
+            // broken would be reporting a per-machine fact as a vendor one.
+            hostArch: .arm64, allowingIntelTranslation: true)
         let head = usable.first
         return .success(SparkleFeedReading(
             itemCount: items.count,
@@ -100,10 +115,12 @@ public extension SparkleAppcastSource {
     }
 
     /// The stand-in the filters are evaluated for. Deliberately versionless and
-    /// non-authoritative about its channel: those are exactly the two inputs
-    /// that would let the sweeping machine's own installed copy change the
-    /// answer, and a sweep whose verdict moves with what happens to be in
-    /// `/Applications` is not one anybody can act on.
+    /// non-authoritative about its channel: those are the two inputs that would
+    /// let the sweeping machine's own installed copy change the answer, and a
+    /// sweep whose verdict moves with what happens to be in `/Applications` is
+    /// not one anybody can act on. The architecture inputs are pinned at the
+    /// call site above for the same reason; `osVersion` is the one host fact
+    /// left in the answer, and it is reported.
     private static func probeApp(bundleID: String, feedURL: URL) -> InstalledApp {
         InstalledApp(
             name: bundleID, bundleID: bundleID,

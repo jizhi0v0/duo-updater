@@ -151,19 +151,29 @@ import Foundation
 
     // MARK: - the enclosure
 
-    /// Helium's feed publishes RELATIVE enclosures, resolved against the
-    /// appcast's own address; before that resolution existed they came out
-    /// schemeless and nothing could fetch them. Detection still worked, which
-    /// is why this is a warning rather than a break — and why it needs to be
-    /// said out loud at all.
+    /// An enclosure `Downloader` has no way to fetch. Detection still works,
+    /// which is why this is a warning rather than a break — and why it needs to
+    /// be said out loud at all.
     ///
-    /// Mutation: drop the scheme/host check. An entry whose downloads cannot be
+    /// ⚠️ The fixture is a non-http SCHEME, not a relative address, and the
+    /// difference is the whole reachability of this branch. A relative
+    /// enclosure cannot arrive here: `SparkleAppcastParser.resolve` is
+    /// `URL(string:relativeTo:)?.absoluteURL` and `readFeed` always passes the
+    /// feed's own address as the base, so Helium's
+    /// `assets/helium_….dmg` reaches `headEnclosure` already resolved to an
+    /// https URL with a host (pinned in
+    /// `SparkleFeedCatalogTests.aCatalogFedAppStillInfersItsChannelFromTheFeed`).
+    /// Writing this case with a base-less relative URL would be asserting on a
+    /// state the sweep cannot produce — a fixture wider than production, which
+    /// leaves the branch that CAN fire untested.
+    ///
+    /// Mutation: drop the scheme/host check. A feed whose downloads cannot be
     /// fetched then sweeps green forever, because the version still parses.
-    @Test func aHeadEnclosureThatIsNotAbsoluteWarnsAndStillRecordsTheVersion() throws {
+    @Test func aHeadEnclosureOnAnUnfetchableSchemeWarnsAndStillRecordsTheVersion() throws {
         let verdict = Verify.classifyFeed(
             try fillInEntry(),
             FeedObservation(
-                live: .read(healthy(enclosure: "assets/helium_0.16.5.1_arm64-macos.dmg")),
+                live: .read(healthy(enclosure: "ftp://updates.example.com/app.dmg")),
                 declared: nil))
         #expect(verdict.status == .warn)
         // Still recorded: detection is intact, and losing the version history
@@ -204,21 +214,44 @@ import Foundation
         #expect(verdict.warnings.first?.hasPrefix("supersededAddressIsNoLongerBehind") == true)
     }
 
-    /// `VersionComparator.isNewer` fails closed, so an address that cannot be
-    /// compared at all reads the same as one that has caught up. Deliberate for
-    /// a table this small: "we can no longer show this entry is justified" is
-    /// the thing worth being told, whichever way it became true.
+    /// Two addresses that both name a version, in namespaces
+    /// `VersionComparator` refuses to cross: the dead feed names only a build,
+    /// the live one only a marketing string. `isNewer` fails closed, and that
+    /// failure is the answer — "we can no longer show this entry is justified"
+    /// is worth being told however it became true.
     ///
-    /// Mutation: skip the check when either side is empty. The entry then
+    /// Mutation: read the fail-closed `false` as "fine". The entry then
     /// outlives the evidence for it without a word.
-    @Test func aSupersededEntryWarnsWhenTheDeadAddressCannotBeCompared() throws {
+    @Test func aSupersededEntryWarnsWhenTheTwoAddressesCannotBeRanked() throws {
+        let verdict = Verify.classifyFeed(
+            try supersededEntry(),
+            FeedObservation(
+                live: .read(healthy(build: nil)),
+                declared: .read(healthy(items: 4, usable: 1, short: nil, build: "764"))))
+        #expect(verdict.status == .warn)
+        #expect(verdict.warnings.first?.hasPrefix("supersededAddressIsNoLongerBehind") == true)
+    }
+
+    /// The other side of that coin, and the one a fail-closed comparison gets
+    /// backwards on its own. A dead address that offers NOTHING a
+    /// default-channel install could use — a retired path answering with a
+    /// landing page, or a vendor capping its last uncapped build — is the
+    /// entry's justification at its strongest, not its expiry.
+    ///
+    /// Mutation: drop the `!deadSide.isEmpty` guard. `isNewer` then answers
+    /// false against an empty side, the sweep warns, `consecutiveActionable`
+    /// climbs, and after two sweeps an issue is opened against the one entry
+    /// behaving perfectly — nightly, forever.
+    @Test func aSupersededEntryIsOKWhenTheDeadAddressOffersNothing() throws {
         let verdict = Verify.classifyFeed(
             try supersededEntry(),
             FeedObservation(
                 live: .read(healthy()),
-                declared: .read(healthy(items: 1, usable: 1, short: nil, build: nil))))
-        #expect(verdict.status == .warn)
-        #expect(verdict.warnings.first?.hasPrefix("supersededAddressIsNoLongerBehind") == true)
+                declared: .read(healthy(items: 4, usable: 0, short: nil, build: nil,
+                                        enclosure: nil, capped: 4))))
+        #expect(verdict.status == .ok)
+        #expect(verdict.version == "3.13.2")
+        #expect(verdict.warnings.isEmpty)
     }
 
     /// An abandoned address is allowed to be abandoned. A 404 there says

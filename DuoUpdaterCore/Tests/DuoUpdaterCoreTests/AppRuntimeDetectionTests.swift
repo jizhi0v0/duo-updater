@@ -345,8 +345,10 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
 
 @Test func swiftUIWithoutAppKitIsStillNative() throws {
     // Not hypothetical: a demo app built for this question links SwiftUI and no
-    // AppKit at all. No *shipping* app on the development machine did — 0 of 77 —
-    // which is why the runtime stays one label and the frameworks stay a set.
+    // AppKit at all, which is why the runtime stays one label and the frameworks
+    // stay a set. (It used to add that no shipping app on the author's machine
+    // did — true when written, uncheckable by anyone else, and the demo app is
+    // the evidence that matters either way.)
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Pure")
     let reading = AppRuntimeDetector.read(

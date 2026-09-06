@@ -402,6 +402,12 @@ public enum AppRuntimeDetector {
         // read is bounded by the load-command region rather than by file size, so
         // Audacity's 21 MB payload measured 0.12ms, and the whole-library sweep is
         // indistinguishable from the sweep before this existed.
+        //
+        // claim-lint:allow-machine-state — those two ratios ARE the measurement
+        // being reported (how many bundles pay for the extra read), not evidence
+        // for a claim about any app, so there is nothing here for a reader to
+        // re-derive independently. Sampled on two machines for exactly that
+        // reason: one number would have read as a property of the world.
         if let payload = payloadNamedAfterTheBundle(
             bundleAt: bundleURL, declaredExecutable: executable, fm: fm),
            let payloadLibraries = linkedLibraries(payload),

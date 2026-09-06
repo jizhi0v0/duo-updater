@@ -1412,10 +1412,12 @@ public struct EventRow: Sendable, Hashable {
     ///
     /// **This is the form every dump must print, and it is a property rather
     /// than a line at each call site because the two call sites had already
-    /// drifted.** An event's `appID` is a bundle path, and on a real machine a
-    /// large share of them sit under `/Users/<name>/Applications` — measured:
-    /// 55 of 145 distinct bundles, so a dump framed as something to pipe
-    /// elsewhere carried the account name in every one of those rows. `duo
+    /// drifted.** An event's `appID` is a bundle path, and any bundle under
+    /// `~/Applications` — a location the scanner reads by default — puts the
+    /// account name in the row, so a dump framed as something to pipe elsewhere
+    /// carried it. One such bundle is enough for that; this used to cite a count
+    /// of how many were on the author's own disk, which nobody else could check
+    /// and which the decision never rested on. `duo
     /// events` abbreviated them; `duo requests --json` printed the same rows
     /// from the same store and did not, which meant the same event answered
     /// differently depending on which command you asked. The payload is

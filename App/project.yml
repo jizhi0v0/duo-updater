@@ -8,8 +8,13 @@ options:
 # Apple Silicon only, stated explicitly rather than inherited from whatever the
 # build machine happens to be. This is a product decision, not a build detail:
 # the vendor recipe registry pins arm64 endpoints and arm64 install assets
-# throughout (VendorProbeRecipe's arm64 feed URLs, GitHubReleasesSource's
-# `-aarch64`/`-arm64` asset patterns). A universal DuoUpdater would run on an
+# almost everywhere (VendorProbeRecipe's arm64 feed URLs, GitHubReleasesSource's
+# `-aarch64`/`-arm64` asset patterns). NOT everywhere: 4 of the 61 install
+# patterns are dual-architecture alternations, and
+# `GitHubAssetSelectionTests.multiCandidateCases` requires each of those to be
+# registered — go there rather than trusting this sentence. It said "throughout"
+# until 2026-09-06, and three agents in one day read that as a guarantee and
+# derived a bug from it (#102) that could not exist. A universal DuoUpdater would run on an
 # Intel Mac and then hand that Mac arm64-only builds of every app it updates —
 # the install would "succeed" and leave an app that cannot launch. Shipping
 # arm64-only makes the machine that can't be served also the machine that can't

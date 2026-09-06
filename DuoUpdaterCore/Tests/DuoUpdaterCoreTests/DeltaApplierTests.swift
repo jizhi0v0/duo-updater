@@ -62,8 +62,8 @@ struct DeltaApplierTests {
         #expect(DeltaApplier.patch(for: app(build: nil), in: r) == nil)
     }
 
-    /// The overwhelmingly common shape: of the eleven Sparkle feeds readable on
-    /// this machine, only Keka's published patches the installed build could use.
+    /// The overwhelmingly common shape — most Sparkle feeds publish no deltas at
+    /// all. `DeltaPatch` names the ones that do.
     @Test func aFeedWithoutPatchesSelectsNothing() {
         #expect(DeltaApplier.patch(for: app(build: "5715"), in: remote(deltas: [])) == nil)
     }

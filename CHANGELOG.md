@@ -25,7 +25,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Qoder's two Mac apps are told apart.** The IDE and the desktop app share a name and a download page but ship on separate version lines, so each is now followed on its own.
 
-**WhatCable's beta track is followed too.** A copy on a beta build is offered the next beta, and the stable release that beta graduates into — the same way WhatCable's own updater picks.
+**WhatCable's beta track is followed too.** A copy on a beta build is offered the next beta, and the stable release that beta eventually graduates into; taking that one moves the copy onto the stable track.
 
 ## 0.3.85
 

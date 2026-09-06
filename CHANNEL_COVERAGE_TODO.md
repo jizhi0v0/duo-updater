@@ -201,8 +201,11 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       `CFBundleShortVersionString` 原样带 `-beta.8`（实测 v1.5.0-beta.8 的
       Info.plist），`ReleaseChannel.detect()` 第 4 步就判成 `.beta`，两条 GitHub rule
       已于 2026-09-06 接入（见 `docs/app-audits/uk-whatcable-whatcable.md`）。
-      **剩下的缺口只有一格，单向**：跑 **stable** 构建但把开关打开的用户，厂商自己的
-      更新器会给他 beta，我们只给 stable。UserDefaults key 是 `receiveBetaUpdates`
+      **剩下的缺口是一格，但有两条路走进去**：(1) 跑 **stable** 构建却把开关打开的用户，
+      厂商自己的更新器会给他 beta，我们只给 stable；(2) 更要紧的是，跑 beta 的副本一旦接受
+      我们提供的「毕业版」stable，`detect` 就判它 `.stable`，从此由 stable rule 服务——
+      **是 DuoUpdater 自己把他送进第 (1) 格的**。（厂商的更新器会把他带回去，所以不是死路，
+      但那是靠别人的软件兜底。）UserDefaults key 是 `receiveBetaUpdates`
       （app 源码 `Sources/WhatCable/App/AppSettings.swift`，注释自陈关掉时
       "keeps hitting releases/latest, which GitHub never returns a pre-release from"）
       —— **未做真机 diff 确认落盘行为**，按本节规矩不得直接当作 detectable。

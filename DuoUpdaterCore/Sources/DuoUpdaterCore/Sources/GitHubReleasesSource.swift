@@ -220,10 +220,11 @@ public struct GitHubReleaseRule: Sendable {
     /// matched against: a `.recipeAnchor` names the fields it relies on and is
     /// checked against each, via `channelAnchorSurface(ofField:)` below (issue
     /// #110). This stays as the union those field views are cut from, and as what
-    /// the tests measure. No `githubProofs` entry is an anchor today — every one
-    /// of them is provable from the resolved URL — so the per-field half below
-    /// exists so that the first rule which does need an anchor cannot silently get
-    /// the weaker any-field behaviour.
+    /// the tests measure. Most `githubProofs` entries are provable from the
+    /// resolved URL; the ones that are not carry a `.recipeAnchor` and are checked
+    /// through the per-field half below, so that a rule needing an anchor cannot
+    /// silently get the weaker any-field behaviour. (This comment said "no
+    /// `githubProofs` entry is an anchor today" long after two of them were.)
     public var channelAnchorSurface: String {
         channelAnchorFields.flatMap(\.lines).joined(separator: "\n")
     }
@@ -2991,7 +2992,19 @@ public enum GitHubReleaseRegistry {
         //     a red `duo verify` finding on EVERY machine — the sweep walks rules,
         //     not installs — for a rule that is working exactly as written. Not a
         //     remote prospect: the beta train did not exist at all until
-        //     `v1.2.0-beta.1`, 79 releases into this repo's history.
+        //     `v1.2.0-beta.1`, release 115 of the 135 this repo has published.
+        //     (An earlier draft said "79 releases in". That was a position inside
+        //     the newest-100 page read as a position in the repo's history.)
+        //
+        // ⚠️ And the cost, which is real and one-way: taking that graduation puts
+        // the copy on `1.5.0`, `ReleaseChannel.detect` then reads it as `.stable`,
+        // and from the next check on it is served by the stable rule — so WE never
+        // offer it a beta again. Neither rule sets `installedTagPrefix`, so the
+        // discovery path that remembers a channel across an install is unreachable
+        // here. The vendor's own updater, which reads the toggle we do not, keeps
+        // offering betas to such a copy and would move it back. That asymmetry is
+        // the same one-cell gap as above, reached from the other side, and it is
+        // what the `ChannelBinding` in CHANNEL_COVERAGE_TODO would close.
         //
         // Accepting stable here means a beta install can legitimately be handed a
         // release GitHub marks stable — the same thing UTM's `.beta` rule does,

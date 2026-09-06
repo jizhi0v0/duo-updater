@@ -260,10 +260,12 @@ public enum ChannelProofRegistry {
     /// keeping them apart means the day one does exist is not a silent day.
     ///
     /// A GitHub rule's protection is real but structural: it lives in whichever
-    /// pattern the author happened to write, and nothing re-derives it. All three
-    /// rules below gate the channel in their `versionPattern` — a stable tag
+    /// pattern the author happened to write, and nothing re-derives it. Most of
+    /// the rules below gate the channel in their `versionPattern` — a stable tag
     /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
-    /// sweep of 2026-08-27 found nothing misresolving. What was missing is any
+    /// sweep of 2026-08-27 found nothing misresolving. WhatCable's beta rule is
+    /// the one that does NOT, deliberately (its pattern accepts the stable tag its
+    /// betas graduate into); it is anchored on the request instead. What was missing is any
     /// statement that this is REQUIRED. A future rule written with the registry's
     /// default `v?([0-9]+(?:\.[0-9]+)+)` plus `usePrereleases: true` plus a
     /// non-stable channel would have no discriminator at all, and nothing
@@ -274,9 +276,11 @@ public enum ChannelProofRegistry {
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write. UTM is the exception: neither its tag
-    /// nor its asset names a channel, so its proof is the candidate-selection
-    /// field instead — see the entry itself for what that does and does not cover.
+    /// against what someone meant to write. Two entries are not provable that way
+    /// and carry `.recipeAnchor` proofs instead — UTM, because neither its tag nor
+    /// its asset names a channel, and WhatCable's beta, because its artifact is
+    /// allowed to be stable's. See each entry for what its anchor does and does
+    /// not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
@@ -342,23 +346,36 @@ public enum ChannelProofRegistry {
         // day the beta train pauses). The tag segment of the download path is the
         // only place either train names itself — both publish one asset called
         // `WhatCable.zip` — so an `.artifact` proof would be RIGHT about the
-        // evidence and WRONG about the rule: it would fire on a resolution that
-        // is exactly what this track is for.
+        // evidence and WRONG about the rule: it would fire on a resolution that is
+        // exactly what this track is for.
         //
-        // What is left to anchor is the request. `usePrereleases` is the whole of
-        // this rule's channel identity: it is what makes it read the releases
-        // list instead of `/releases/latest`, which GitHub computes with
-        // prereleases excluded. Flip it and the beta rule silently becomes a
-        // second stable rule — no error, no missing version, just a beta install
-        // that stops being offered betas. That is the drift worth catching.
+        // TWO fields, and the alternation is why: this rule's channel identity is
+        // split across them, and each has to keep its own half. `usePrereleases`
+        // is what makes it read the releases list instead of `/releases/latest`,
+        // which GitHub computes with prereleases excluded; `versionPattern` is
+        // what makes it ACCEPT a prerelease once fetched. Break either and the
+        // beta rule silently becomes a second stable rule — no error, no missing
+        // version, just a beta install that stops being offered betas. The pattern
+        // matches each field through its own branch (`^true$` the Bool,
+        // `-beta\\\.` the REGEX SOURCE, escaped to match a backslash the way the
+        // t3code anchor above escapes its own); neither branch can satisfy the
+        // other field.
+        //
+        // A first draft anchored `usePrereleases` alone and claimed it was "the
+        // whole of this rule's channel identity". It is not, in two ways:
+        // `versionPattern` is the other half, and `usePrereleases: true` is not
+        // even a beta-only property — three STABLE rules in this registry set it
+        // (`com.insomnia.app`, `com.bitwarden.desktop`, `com.microsoft.Headlamp`),
+        // so on its own it says nothing about which train this rule is on.
         //
         // Be honest about the reach, as UTM's anchor below is: this cannot see a
         // vendor who launches an identically-named third train, and it says
-        // nothing about which release was chosen. It is the same kind and
-        // strength of claim the `bindingProofs` make, and for the same reason —
-        // the channel signal lives entirely in the request.
+        // nothing about which release was chosen — the `.recipeAnchor` branch of
+        // `crossChannelArtifact` never looks at the resolved artifact. It is a
+        // claim about the request, which is the same kind the `bindingProofs`
+        // make, and it fails only when somebody edits one of the two fields.
         ChannelProofKey("uk.whatcable.whatcable", .beta):
-            .recipeAnchor(#"^true$"#, in: ["usePrereleases"]),
+            .recipeAnchor(#"^true$|-beta\\\."#, in: ["usePrereleases", "versionPattern"]),
         // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
         // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
         // even meant to be a different artifact forever: UTM's previews graduate

@@ -385,13 +385,18 @@ private let qoderRSCPayloadFixture = #"""
         #expect(log.entries.first?.date == "August 29, 2026")
     }
 
-    /// What the `data-component-part` anchors ARE worth, measured rather than
-    /// assumed: without them the newest entry's date is read off the page's own
-    /// `<div class="eyebrow">Release Notes</div>` header instead of the release's
-    /// label. Entry count and versions are unaffected — the loss is one wrong date
-    /// on the entry the pane shows first, every time. This is why the fixture
-    /// above carries the header.
-    @Test func theAnchorsAreWhatKeepThePageHeaderOutOfTheNewestDate() throws {
+    /// The newest entry's date must be its own label, not the page's own
+    /// `<div class="eyebrow">Release Notes</div>` header, which sits above every
+    /// entry and is the nearest `>…</div>` a loose pattern reaches first.
+    ///
+    /// ⚠️ This is NOT a test of the `data-component-part` anchors, though it was
+    /// named as one when it was written. Measured afterwards: with the gaps
+    /// tempered, stripping the three attribute prefixes changes nothing here — the
+    /// tempering sentinel IS the label attribute, so it does this job now, and
+    /// this case passes under that mutant. What it does pin is the outcome, which
+    /// is worth pinning on its own: both mechanisms could be lost at once. The
+    /// anchors themselves are pinned by the two damage cases above.
+    @Test func theNewestEntrysDateIsItsOwnLabelNotThePageHeader() throws {
         let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide"))
         #expect(qoderIDENotesFixture.contains(#">Release Notes</div>"#))
         let log = try #require(ChangelogExtractor.extract(from: qoderIDENotesFixture, using: recipe))

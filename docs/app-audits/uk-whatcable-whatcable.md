@@ -28,7 +28,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `uk.whatcable.whatcable` | 共享 | 版本串**无**后缀 | `/releases/latest`（GitHub 不返 prerelease）| ✓ |
-| beta | 同上 | 共享 | `CFBundleShortVersionString` = `1.5.0-beta.8` → `ReleaseChannel.detect` 第 4 步 | `usePrereleases: true` + 锚定 `-beta.<N>` 的 versionPattern | ✓ |
+| beta | 同上 | 共享 | `CFBundleShortVersionString` = `1.5.0-beta.8` → `ReleaseChannel.detect` 第 4 步 | `usePrereleases: true`（读 releases 列表而不是 `/releases/latest`）| ✓ |
 
 **为什么 beta 这条必须有**：beta 包的 marketing 串原样带 `-beta.8`（实测 v1.5.0-beta.8
 的 Info.plist），`detect` 判为 `.beta`，stable rule 的 channel 闸就会拒它——没有 beta
@@ -67,8 +67,9 @@ release is newest, so a stable always supersedes its own betas."。锚死 `-beta
    所以 `1.5.0 > 1.5.0-beta.8`），挡路的只有 pattern。
 2. **更要命的是它是一根引信。** 厂商一旦停发 beta，锚死的 pattern 在整页里匹不到任何东西，
    而 `duo verify` 扫的是 rule 不是安装，于是**每台机器上这条都变红**，而 rule 本身完全正常。
-   这不是假想：这个仓库前 **79 个 release 根本没有 beta 轨**，第一条 `v1.2.0-beta.1` 在
-   index 20。
+   这不是假想：第一条 beta 是 `v1.2.0-beta.1`，它是这个仓库 **135 个 release 里的第 115 个**
+   （从最新往回数是 index 20）。**之前这里写的「前 79 个」是错的**——那是把「最新 100 条那一页
+   里的位置」当成了「仓库历史里的位置」。
 
 代价是 beta 安装可能被交付一个 GitHub 标为 stable 的构件——和 UTM 的 `.beta` rule 一样，
 理由也一样（预览会毕业进同一条编号线，不是平行轨）。装完之后 `detect` 判为 `.stable`，
@@ -87,8 +88,9 @@ release is newest, so a stable always supersedes its own betas."。锚死 `-beta
 - 来源: **GitHub release body**，`GitHubMarkdownParser` 原生渲染，**不需要
   ChangelogRecipe**。
 - 质量: v1.4.0 的 body 是几百字的分区 Markdown（`## Connected devices` /
-  `## Speed verdicts`…），每条 bullet 还带 issue 号和致谢。beta 也有正文
-  （beta.7/beta.8 只有标题、没有分区，属于正常的短说明）。
+  `## Speed verdicts`…），每条 bullet 还带 issue 号和致谢。beta 也有正文，但 beta.7/beta.8 是
+  33 个词的固定样板（"Beta build for testers. Not recommended for general use…"），0 个
+  `##` 分区——不是「只有标题」，是「每条都一样的套话」。
 
 ## 一键安装
 - 状态: **支持**（两个 channel 都支持）
@@ -102,18 +104,29 @@ release is newest, so a stable always supersedes its own betas."。锚死 `-beta
     `spctl` = `Notarized Developer ID`
   - v1.5.0-beta.8 → 同 bundle id、同 Team、`1.5.0-beta.8` / build 137
   - 两条轨 Team 相同 → 签名闸拦不住跨轨，靠 channel 闸 + channel proof
-- Channel proof: `.recipeAnchor(#"^true$"#, in: ["usePrereleases"])`，**不是
-  `.artifact`**。两条轨文件名一模一样（都叫 `WhatCable.zip`），tag 路径段是唯一的判据——
+- Channel proof: `.recipeAnchor(#"^true$|-beta\\\."#, in: ["usePrereleases", "versionPattern"])`,
+  **不是 `.artifact`**。两条轨文件名一模一样（都叫 `WhatCable.zip`），tag 路径段是唯一的判据——
   可这条 rule 是**故意**允许解析出 stable tag 的，artifact proof 会在一次**合法**解析上开火。
-  剩下能锚的只有请求：`usePrereleases` 就是这条 rule 全部的渠道身份，它决定读 releases 列表
-  还是 `/releases/latest`（后者 GitHub 定义上不返 prerelease）。把它翻成 false，beta rule
-  会**无声地变成第二条 stable rule**——不报错、版本也在，只是 beta 用户从此收不到 beta。
+  剩下能锚的只有请求，而请求这一半**分在两个字段上**，各锚各的：`usePrereleases` 决定读
+  releases 列表还是 `/releases/latest`（后者 GitHub 定义上不返 prerelease），`versionPattern`
+  决定取回来之后**认不认** prerelease。任一被改，beta rule 都会**无声地变成第二条 stable
+  rule**——不报错、版本也在，只是 beta 用户从此收不到 beta。
+  ⚠️ **不要只锚 `usePrereleases`**：这个仓库里有三条 **stable** rule 也设了它
+  （`com.insomnia.app` / `com.bitwarden.desktop` / `com.microsoft.Headlamp`），所以它单独
+  根本不是 beta 专有属性。第一版就是这么写的，而且还在注释里声称它「是这条 rule 全部的渠道
+  身份」——两句都不对。
   ⚠️ 和 UTM 那条一样要说清够不到什么：它看不见"厂商开了第三条同名轨"，也不说被选中的是哪个
-  release。这与 `bindingProofs` 是同一种、同一强度的主张。
+  release（`.recipeAnchor` 分支根本不看解析出来的 artifact）。
 
 ## 已知问题
 - **beta 安装会被交付 stable 构件**（当 stable 是最新那条时）。这是上面写的刻意取舍，
   也是厂商自己更新器的行为；反方向不会发生。
+- ⚠️ **而且这一步是单向的**：装完 `1.5.0` 之后 `detect` 判 `.stable`，下一轮起这台就由
+  stable rule 服务，**我们不会再给它 beta**。两条 rule 都没设 `installedTagPrefix`，所以那条
+  「跨安装记住渠道」的 discovery 路径在这里根本走不到。厂商自己的更新器（它读
+  `receiveBetaUpdates`，我们不读）会继续给这类副本发 beta、把它带回 beta 轨——所以这跟上面
+  那个「stable 构建 + 开关打开」是同一个缺口的另一面，补法也是同一个 `ChannelBinding`。
+  **在补上之前，是 DuoUpdater 自己把用户送进那个格子的。**
 - **UTM 那条路没走**：`candidateScope: .installedMajorLineOrNewestStable` +
   `installedTagPrefix` 也能处理"预览毕业"，但它的天花板管的是「把预览关在自己的**大版本线**
   里」——WhatCable 没有这个问题（只有一条线，beta 就是下一个 release，不是平行的 v-next），

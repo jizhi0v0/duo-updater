@@ -6589,13 +6589,21 @@ public enum VendorProbeRegistry {
         // it is preferred over every HTML surface this product has.
         //
         // `"version"` cannot be satisfied by `"schemaVersion"`, which sits above it
-        // in the document and would otherwise win the first match. Three things
-        // keep it out, and the first is the load-bearing one:
-        // `extractVersion` compiles with NO regex options, so the match is
-        // case-sensitive and `schemaVersion` spells it `Version`; the key is
-        // matched with its own opening quote; and its value is an unquoted
-        // integer. `appReadsTheManifestVersionAndNotTheSchemaVersion` exercises
-        // the third by quoting it.
+        // in the document and would otherwise win the first match. THREE things
+        // keep it out and any ONE of them suffices — measured against the real
+        // body and against a variant that quotes the schema version, rather than
+        // ranked by intuition (an earlier draft called case-sensitivity the
+        // load-bearing one; dropping it alone changes nothing):
+        //
+        //   • the key is matched with its own opening quote, and the character
+        //     before `Version` in `"schemaVersion"` is `a`;
+        //   • `extractVersion` compiles with NO regex options, so the match is
+        //     case-sensitive and `schemaVersion` spells it with a capital V;
+        //   • `schemaVersion`'s value is an unquoted integer.
+        //
+        // `appReadsTheManifestVersionAndNotTheSchemaVersion` removes the third and
+        // shows the other two still hold; only a pattern that gives up the first
+        // TWO reads "1.0".
         //
         // ⚠️ Same coupling caveat as the IDE above: the install pattern's
         // `[0-9.]+` path segment is not required to equal the `version` this

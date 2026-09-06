@@ -52,10 +52,6 @@ import Testing
         #expect(rule.usePrereleases == true)
         #expect(VendorProbeRecipe.extractVersion(
             from: "v1.5.0-beta.8", pattern: rule.versionPattern) == "1.5.0-beta.8")
-        // Truncation is the failure to guard against, so name it: the suffix must
-        // survive whole, not be dropped to the base version.
-        #expect(VendorProbeRecipe.extractVersion(
-            from: "v1.5.0-beta.8", pattern: rule.versionPattern) != "1.5.0")
     }
 
     /// The beta rule ALSO accepts plain stable tags, and that is deliberate — it
@@ -90,8 +86,9 @@ import Testing
 
     /// Ordering the two trains share one scale: a graduated stable outranks the
     /// betas it came from, and `beta.10` outranks `beta.9` numerically rather
-    /// than lexically. Neither rule offers across the boundary today, but the
-    /// comparison is what a future loosening would rest on.
+    /// than lexically. This is what the beta rule accepting stable tags rests on —
+    /// without it, offering `1.5.0` to a `1.5.0-beta.8` copy would be a downgrade
+    /// the comparator refused.
     @Test func stableOutranksItsOwnBetasAndBetasOrderNumerically() {
         #expect(VersionComparator.isNewer("1.5.0", than: "1.5.0-beta.8"))
         #expect(VersionComparator.isNewer("1.5.0-beta.10", than: "1.5.0-beta.9"))
@@ -130,34 +127,41 @@ import Testing
         guard case .recipeAnchor(let pattern, let fields) = proof else {
             Issue.record("expected a recipe anchor"); return
         }
-        #expect(fields == ["usePrereleases"])
+        #expect(fields == ["usePrereleases", "versionPattern"])
 
         // It passes on the rule as written…
         let beta = try rule(.beta)
         #expect(RecipeSanity.recipeAnchorFailure(
             pattern: pattern, fields: fields, channel: .beta, subject: beta) == nil)
-        // …and fails on the drift it exists to catch: a beta rule that stopped
-        // reading the prerelease list would silently become a second stable rule.
-        let flipped = GitHubReleaseRule(
+        // …and fails on EITHER half of the drift it exists to catch. Both make the
+        // beta rule quietly behave like a second stable rule, with no error and no
+        // missing version — a beta install simply stops being offered betas.
+        let notReadingTheList = GitHubReleaseRule(
             bundleID: beta.bundleID, owner: beta.owner, repo: beta.repo,
             usePrereleases: false, listPageSize: beta.listPageSize,
             versionPattern: beta.versionPattern,
             installAssetPattern: beta.installAssetPattern,
             installerKind: beta.installerKind, channel: .beta)
         #expect(RecipeSanity.recipeAnchorFailure(
-            pattern: pattern, fields: fields, channel: .beta, subject: flipped) != nil)
+            pattern: pattern, fields: fields, channel: .beta,
+            subject: notReadingTheList) != nil)
+
+        let refusingPrereleaseTags = GitHubReleaseRule(
+            bundleID: beta.bundleID, owner: beta.owner, repo: beta.repo,
+            usePrereleases: true, listPageSize: beta.listPageSize,
+            versionPattern: try rule(.stable).versionPattern,
+            installAssetPattern: beta.installAssetPattern,
+            installerKind: beta.installerKind, channel: .beta)
+        #expect(RecipeSanity.recipeAnchorFailure(
+            pattern: pattern, fields: fields, channel: .beta,
+            subject: refusingPrereleaseTags) != nil)
+
+        // `usePrereleases: true` is NOT by itself a beta-only property — three
+        // stable rules in this registry set it — which is why the anchor names
+        // `versionPattern` as well.
+        #expect(GitHubReleaseRegistry.rules.contains {
+            $0.usePrereleases && $0.channel == .stable
+        })
     }
 
-    /// Both trains' artifacts are byte-identical in name, which is the fact that
-    /// forced the proof above. Recorded as a test so that if the vendor ever does
-    /// put a channel token in the filename, this fails and the proof can be
-    /// upgraded to the stronger `.artifact` kind.
-    @Test func neitherTrainNamesItselfInTheArtifact() throws {
-        let beta = assets(tag: "v1.5.0-beta.8", cliVersion: "1.5.0-beta.8")
-        let stable = assets(tag: "v1.4.0", cliVersion: "1.4.0")
-        #expect(beta.map(\.name).contains("WhatCable.zip"))
-        #expect(stable.map(\.name).contains("WhatCable.zip"))
-        #expect(beta.first(where: { $0.name == "WhatCable.zip" })?.name
-            == stable.first(where: { $0.name == "WhatCable.zip" })?.name)
-    }
 }

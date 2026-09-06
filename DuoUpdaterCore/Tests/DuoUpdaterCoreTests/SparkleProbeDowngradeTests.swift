@@ -68,7 +68,15 @@ struct SparkleProbeDowngradeTests {
     /// naming it.
     @Test func everySparkleReadingProbeIsMarketingComparedOrRegistered() {
         let recipes = Self.sparkleReading
-        #expect(recipes.count >= 12, "the sparkle-reading set shrank; did a pattern change shape?")
+        // A floor, because the selector is a substring match on the pattern: if
+        // `sparkle:` stops appearing (a rewrite as `sparkle\:`, a move to a
+        // different field) this whole suite goes vacuous while staying green.
+        // Retiring a recipe is the one legitimate way to trip it — lower the
+        // number in that commit, don't delete the check.
+        #expect(recipes.count >= 12, """
+            only \(recipes.count) recipes read a `sparkle:` field: either one was retired \
+            (lower this floor in that commit) or the selector stopped matching (fix it)
+            """)
         for recipe in recipes where recipe.versionIsBuild {
             #expect(Self.buildComparedByDesign[recipe.bundleID] != nil, """
                 \(recipe.bundleID) compares BUILDS off a Sparkle appcast, which puts it in \
@@ -103,9 +111,7 @@ struct SparkleProbeDowngradeTests {
         let recipes = Self.sparkleReading.filter { !$0.versionIsBuild }
         try #require(!recipes.isEmpty)
         for recipe in recipes {
-            let remote = VendorProbeSource.makeRemoteVersion(
-                recipe: recipe, version: "1.0.0", install: nil, plan: nil,
-                resolvedDownload: nil)
+            let remote = Self.remoteVersion(from: recipe, version: "1.0.0")
             // The precondition the whole argument rests on: no build, so
             // `evaluate` cannot take the build branch where the guard lives.
             #expect(remote.version == nil, "\(recipe.bundleID) reached the build branch")
@@ -135,9 +141,8 @@ struct SparkleProbeDowngradeTests {
         // on the real bundle 2026-08-09.
         let installed = Self.installedApp(
             bundleID: recipe.bundleID, short: "151.1.94.104", build: "194.104")
-        let asShipped = VendorProbeSource.makeRemoteVersion(
-            recipe: recipe, version: "195.96", install: nil, plan: nil,
-            resolvedDownload: nil, display: "1.95.96.0")
+        let asShipped = Self.remoteVersion(
+            from: recipe, version: "195.96", display: "1.95.96.0")
         #expect(asShipped.version == "195.96")
         #expect(!asShipped.marketingMatchesBundle)
         #expect(UpdateChecker.evaluate(installed: installed, remote: asShipped)
@@ -151,6 +156,26 @@ struct SparkleProbeDowngradeTests {
             downloadURL: nil, sourceName: asShipped.sourceName)
         #expect(UpdateChecker.evaluate(installed: installed, remote: withFlag) == .upToDate,
                 "if this stops holding, revisit whether Brave could carry the flag after all")
+    }
+
+    /// `makeRemoteVersion` down the branch THIS recipe takes in production.
+    ///
+    /// It has two — one for a recipe with an install spec and a resolved plan,
+    /// one for detection only. Both leave `marketingMatchesBundle` at its
+    /// default, but they are separate literals, so a case that always passed
+    /// `install: nil, plan: nil` would stay green on a mutation touching only the
+    /// installable branch — the branch most of these recipes actually use
+    /// (Bartender, Kagi, Docker, WeChat, OrbStack, Vivaldi, ImageOptim and both
+    /// Braves all carry install specs). Each branch was mutated separately to
+    /// confirm this reaches both.
+    private static func remoteVersion(
+        from recipe: VendorProbeRecipe, version: String, display: String? = nil
+    ) -> RemoteVersion {
+        let plan: (url: URL, checksum: String?)? = recipe.install == nil
+            ? nil : (url: URL(string: "https://example.invalid/artifact")!, checksum: nil)
+        return VendorProbeSource.makeRemoteVersion(
+            recipe: recipe, version: version, install: recipe.install, plan: plan,
+            resolvedDownload: nil, display: display)
     }
 
     private static func installedApp(bundleID: String, short: String, build: String) -> InstalledApp {

@@ -289,6 +289,20 @@ public enum ChannelProofRegistry {
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         ChannelProofKey("app.yaak.desktop", .beta):
             .artifact(#"/download/v[0-9.]+-beta\.[0-9]+/"#),
+        // CotEditor's tags carry no `v`, and the asset name repeats the tag, so
+        // BOTH halves of the URL name the train:
+        // `…/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg` against
+        // `…/download/7.0.9/CotEditor_7.0.9.dmg`.
+        //
+        // Which means the tag-segment anchor is NOT load-bearing here, unlike in
+        // VSCodium's entry below — there the repository name carries `-insider`
+        // on every URL the rule can resolve, so an unanchored pattern could never
+        // fail; here a stable artifact carries the token in neither half. Kept
+        // anchored for consistency with the entries around it, and said plainly
+        // so the next reader does not copy this one believing the anchor is what
+        // makes it work.
+        ChannelProofKey("com.coteditor.CotEditor", .beta):
+            .artifact(#"/download/[0-9.]+-beta(?:\.[0-9]+)?/"#),
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
         // `…/download/v1.18.0-pre/Zed-aarch64.dmg`.

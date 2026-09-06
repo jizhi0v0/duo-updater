@@ -128,6 +128,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * Tailscale→ `UserDefaults[UnstableUpdatesEnabled]` + `[RCUpdatesEnabled]`
 ///                                                          (two Bools, three tracks)
 ///   * CapCut   → `~/Movies/CapCut/User Data/Config/updateInfo` (`joinBeta` in an INI)
+///   * CotEditor→ `UserDefaults[checksUpdatesForBeta]`, in its sandbox CONTAINER
+///                                     (Bool: true→beta; false→nil, see the type)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -164,6 +166,7 @@ public enum ChannelBinding {
         AlfredChannel.bundleID.lowercased(),
         BetterDisplayChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
+        CotEditorChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -228,6 +231,12 @@ public enum ChannelBinding {
         // healthy, discriminator is somewhere else" shape the Surge timeline
         // above cost a fix to learn.
         roots.append(CapCutChannel.configDirectoryURL)
+        // CotEditor is sandboxed too, and unlike CapCut it DOES keep its flag in
+        // its container — so neither the shared `~/Library/Preferences` root nor
+        // CapCut's own covers it. Watching the container's Preferences directory
+        // is what makes flipping "Update to prereleases when available" show up
+        // without waiting for a relaunch.
+        roots.append(CotEditorChannel.preferencesDirectoryURL)
         return roots
     }
 
@@ -290,6 +299,7 @@ public enum ChannelBinding {
         case BetterDisplayChannel.bundleID.lowercased():
             return BetterDisplayChannel.resolveCurrent
         case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent
+        case CotEditorChannel.bundleID.lowercased(): return CotEditorChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -343,6 +353,15 @@ public enum ChannelBinding {
         (GhosttyChannel.bundleID, GhosttyChannel.resolveCurrent()),
     ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
         .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
+    // CotEditor answers for ONE of its two preference values — an unticked box
+    // resolves to nil so `ReleaseChannel.detect()` keeps the other half (see the
+    // type). Enumerated by calling the pure function with both values rather than
+    // by stating which one produces something, so the day that changes this list
+    // changes with it.
+    + [true, false].compactMap { flag in
+        CotEditorChannel.resolve(checksUpdatesForBeta: flag)
+            .map { (bundleID: CotEditorChannel.bundleID, resolved: $0) }
+    }
 
     // CleanShot is enumerated through its PURE resolver with a placeholder key,
     // never `resolveCurrent()`. It keys a personalized feed off the licence, so

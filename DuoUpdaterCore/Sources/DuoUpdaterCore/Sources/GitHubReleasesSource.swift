@@ -1447,6 +1447,51 @@ public enum GitHubReleaseRegistry {
             installerKind: .dmg,
             channel: .beta),
 
+        // CotEditor — read through GitHub DELIBERATELY, not through its appcast.
+        //
+        // The app ships Sparkle and publishes a well-formed feed, and reading it
+        // is what #368 was about: that feed keeps ONE prerelease slot, so every
+        // beta but the newest is trimmed out of it, `channel(ofInstalled:)` then
+        // misses on both passes, and the copy falls back to the default channel —
+        // where the stable line outranks it by build (843 against 840) and is
+        // three marketing versions older. GitHub keeps every release, and the tag
+        // says which train it is on, so the channel needs no lookup that history
+        // can invalidate. `SparkleFeedCatalog` therefore does NOT carry the feed:
+        // Sparkle answers before GitHub in `SourceStack`, and would take this back.
+        //
+        // Measured on the 100 newest releases (2026-09-06): 0 drafts, exactly
+        // three tag shapes — `7.0.9`, `7.1.0-beta`, `7.1.0-beta.6`, no `v` prefix —
+        // and every one of the 100 carries exactly one asset, `CotEditor_<tag>.dmg`,
+        // with no other artifact to disambiguate against.
+        // Mounted the real 7.0.9 dmg: com.coteditor.CotEditor, short `7.0.9`
+        // (== the tag), build 843, `LSMinimumSystemVersion` 15.0 matching the
+        // feed's own `minimumSystemVersion`, Team HT3Z3A72WZ, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.coteditor.CotEditor",
+            owner: "coteditor", repo: "CotEditor",
+            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
+            installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+        // The beta train is NEW: all six prereleases in those 100 releases belong
+        // to the 7.1.0 cycle that opened 2026-07-26, and the 94 releases before it
+        // — back to 2022-04 — carry none. Two consequences, both stated rather than left to
+        // be discovered. The `-beta` tag with no number (`7.1.0-beta`, the cycle's
+        // first) is a real shape and the pattern accepts it. And when this cycle
+        // closes, the newest prerelease starts sinking down the list — the default
+        // 20-row window reaches back to 2026-02 today, about seven months of this
+        // vendor's cadence — after which this rule matches nothing and answers nil
+        // rather than erroring. That is the vendor closing the track, and it is
+        // also when the copies on it have been promoted onto 7.1.0 anyway, since a
+        // release outranks its own prerelease tag.
+        GitHubReleaseRule(
+            bundleID: "com.coteditor.CotEditor",
+            owner: "coteditor", repo: "CotEditor",
+            usePrereleases: true,
+            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+-beta(?:\.[0-9]+)?)$"#,
+            installAssetPattern: #"^CotEditor_[0-9.]+-beta(?:\.[0-9]+)?\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta),
+
         // MARK: - AI desktop clients (verified 2026-08-17)
 
         // OpenCode Desktop — the stable tag and the app's marketing/build versions

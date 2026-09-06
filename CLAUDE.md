@@ -479,17 +479,26 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - 本仓库常有多个 worktree 同时开着(`.claude/worktrees/*`),而且 `main` 可能在你干活时已经前进。
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
-- ⚠️ **定时任务会在你的 checkout 里换分支,而且不换回来。** 夜间 baseline 和发版 appcast
-  那两条自动流程跑在这个工作副本上,不是在单独的 worktree 里。2026-09-06 实测:baseline
-  任务从我当时的**特性分支**拉了 `verify/baseline-<时间戳>`、提交、开 PR 并 `--auto` 上膛,
-  于是那个 PR 的 diff 里躺着我三个没复审的文件(#386),CI 一绿就会 squash 进 main ——
-  正是「每个 PR 合并前跑复审」那条闸的一个绕行口。同一次里它切走之后没切回来,我下一条
-  `git commit` 因此落在了它的分支上。
-  规矩:**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先 `git branch --show-current`**,
-  别假设还在自己那条分支上(`git status` 不显示分支名的那个输出形态尤其骗人)。
-  撞上了先 `gh pr merge <n> --disable-auto` 止损 —— 这一步不需要 force-push、也不动
-  别人的分支;分支已经和 main 分叉的(比如你的 PR 已经单独 squash 合了),关掉让它重跑,
-  别去 rebase 另一个进程的分支。
+- ⚠️ **recipe 巡检任务跑在这个 checkout 里,一天四次,会换你的分支。**
+  `com.bobby.duo-recipe-verify`(launchd,`WorkingDirectory` 就是这个工作副本,
+  04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`)。
+  它**开头 `git checkout main`**,然后跑完整轮扫(几分钟),**最后才**
+  `git checkout -b verify/baseline-<时间戳>` —— 而那一步是从**当时的 HEAD** 切的,
+  不是从 main 切的,尽管脚本自己的注释写着"$BRANCH is left exactly where origin has it"。
+  于是有一个几分钟的窗口,两个方向都会出事,2026-09-06 一次跑里两个都出了:
+  1. 它开头切走 main,**不切回来** —— 我随后的 `git commit` 落在了它的分支上。
+  2. 我在窗口里切回自己的特性分支,它的 PR 就从**我的分支**切了出去 ——
+     #386 的 diff 里因此躺着我三个没复审的文件,而它开了 `--auto` squash,
+     CI 一绿就会进 main。**这是「每个 PR 合并前跑复审」那条闸的一个绕行口。**
+  规矩:**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先
+  `git branch --show-current`**,别假设还在自己那条分支上。
+  撞上了先 `gh pr merge <n> --disable-auto` 止损 —— 这一步不需要 force-push、
+  也不动别人的分支;分支已经和 main 分叉的(比如你的 PR 已经单独 squash 合了),
+  关掉让它重跑,别去 rebase 另一个进程的分支。
+  ⚠️ 顺带把没量的那半边说清楚:**发版那条自动流程不在这里面**。
+  `publish-release.sh` 刻意把 appcast 放进一个临时 clone 改,理由写在它自己的注释里
+  ——"Committing the appcast into the working tree would mean the release touches
+  whatever branch happens to be checked out"。**同一个坑,那边防住了,这边没有。**
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
 - 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。

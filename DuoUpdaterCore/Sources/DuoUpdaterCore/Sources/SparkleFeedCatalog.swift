@@ -48,6 +48,10 @@ public enum SparkleFeedCatalog {
     /// lowercases its argument, so a key with a capital is unreachable — the same
     /// trap `ChangelogCatalog` shipped once and now guards against.
     static let feeds: [String: URL] = [
+        // CotEditor 7.0.9 / 7.1.0-beta.6 (verified 2026-09-06): Sparkle and
+        // SUPublicEDKey are present, but SUFeedURL is not. This literal is in
+        // both signed executables. Preserve the feed's OS and channel gates.
+        "com.coteditor.coteditor": URL(string: "https://coteditor.com/appcast.xml")!,
         // Helium — Chromium-based browser (imputnet/helium-macos). Ships Sparkle
         // but no `SUFeedURL`; the address is in the binary alongside a
         // `custom-update-server-url` flag. One feed PER ARCHITECTURE

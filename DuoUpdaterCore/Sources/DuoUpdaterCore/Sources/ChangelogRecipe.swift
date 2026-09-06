@@ -631,6 +631,42 @@ private let betterDisplayContributorRosters = [
 /// landing it here.
 public enum ChangelogRecipeRegistry {
     public static let recipes: [ChangelogRecipe] = [
+        // Official GitHub release bodies, fetched 2026-09-06. Decode JSON and
+        // Markdown through the existing structured path; stable excludes beta
+        // and draft releases. CotEditor's Sparkle feed allows promotion to stable.
+        ChangelogRecipe(
+            bundleID: "app.yaak.desktop",
+            source: URL(string: "https://api.github.com/repos/mountain-loop/yaak/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "app.yaak.desktop",
+            source: URL(string: "https://api.github.com/repos/mountain-loop/yaak/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "com.coteditor.CotEditor",
+            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "com.coteditor.CotEditor",
+            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            includesPromotedStable: true,
+            structuredFormat: .gitHubReleases),
+
         // Air (JetBrains) — air.dev/changelog is a Vite/React SPA: the HTML is an
         // empty shell and the changelog data is baked into the hashed JS bundle as
         // *compiled JSX* (no clean HTML, no JSON API). Two-stage handles the hash:

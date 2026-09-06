@@ -38,15 +38,73 @@ public enum PreInstallDecision: Sendable, Equatable {
     /// "there is nothing to find" are different answers, and only one of them is
     /// worth retrying.
     case cannotConfirm(String?)
+    /// The re-check answered with a version OLDER than the one the row was
+    /// offering when the click landed, and called the app current on the strength
+    /// of it. Nothing was installed and nothing is known to be wrong with the
+    /// bundle — the source contradicted itself, one second apart.
+    ///
+    /// Its own case rather than `alreadyCurrent` because the sentence
+    /// `alreadyCurrent` produces ("already current on disk") is a claim about the
+    /// disk, and here it is false: the disk still carries the older build the row
+    /// was offering to replace.
+    ///
+    /// Observed 2026-09-06 on Nowdex (an App Store iOS-on-Mac app): four clicks
+    /// over ~40 minutes, every one of them swallowed. Each time the scheduled
+    /// check's batched iTunes lookup answered 1.0.9 and the click's own
+    /// single-bundle lookup answered 1.0.8 seconds later — both live network
+    /// loads, in one process, and the two bodies differed in length, so they were
+    /// two documents and not one document read twice. It turned out to be the
+    /// machine's outbound path handing that one URL a stale copy; the same URL
+    /// from another process on the same machine answered 1.0.9 throughout, and
+    /// re-routing it fixed the install.
+    ///
+    /// That cause is not something this gate can see, and the point is that it
+    /// does not have to: an answer that walks backwards is not evidence the user
+    /// already installed something, whatever made it walk backwards.
+    ///
+    /// Carries no message: the two version strings live in `UpdateResult`s the
+    /// caller already holds, and the wording belongs where the rest of the
+    /// user-facing copy is.
+    case answerRegressed
 }
 
 public enum PreInstallGate {
-    public static func decision(for status: UpdateStatus) -> PreInstallDecision {
+
+    /// Classify the re-check's outcome.
+    ///
+    /// `offered` is what the row was showing when the click landed; `confirmed` is
+    /// what the re-check just answered. Both are ``VersionSide`` pairs and are
+    /// compared with ``VersionComparator/isNewer(_:than:)-(VersionSide,VersionSide)``,
+    /// so a vendor that freezes its marketing string is decided on its build and
+    /// nothing is ever compared across namespaces. Neither is optional: a caller
+    /// that does not have one passes an empty ``VersionSide``, which is
+    /// incomparable and therefore never regressed — the comparator fails closed —
+    /// and the answer is the one this gate always gave.
+    public static func decision(
+        for status: UpdateStatus,
+        offered: VersionSide,
+        confirmed: VersionSide
+    ) -> PreInstallDecision {
         switch status {
         case .updateAvailable:
+            // NOT second-guessed, deliberately. A re-check can legitimately come
+            // back with a LOWER version than the row was offering — the user moved
+            // the app off a beta channel in its own settings between the scan and
+            // the click, so the stable release it now resolves is older than the
+            // beta that was on the row and still newer than what is installed.
+            // Refusing that would block the install the user just asked for. The
+            // `.upToDate` arm below is different: there the source is claiming
+            // there is nothing to install at all.
             return .proceed
         case .upToDate:
-            return .alreadyCurrent
+            // The only reading of `.upToDate` this gate refuses. Every other way
+            // to reach it — a manual pkg install, the app's own updater, a build
+            // that landed between the last scan and the click — leaves `confirmed`
+            // at or above what was offered, so this comparison is false and the
+            // answer is unchanged.
+            return VersionComparator.isNewer(offered, than: confirmed)
+                ? .answerRegressed
+                : .alreadyCurrent
         case .appStoreManaged, .toolboxManaged, .testFlightManaged:
             return .managedElsewhere
         case .error(let message):

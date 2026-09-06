@@ -332,7 +332,7 @@ struct MenuContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(model.failedCheckCount) apps could not be checked")
                         .font(.caption).fontWeight(.medium)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .truncationMode(.tail)
                     Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
                         .font(.caption2).foregroundStyle(.secondary)
@@ -981,10 +981,25 @@ private struct AppRow: View {
             }
             if let installError {
                 VStack(alignment: .leading, spacing: 3) {
+                    // Two lines, with the whole message on hover. This note used
+                    // to be unbounded, so a long one grew the row by three or four
+                    // lines and pushed everything below it down — and the popover
+                    // is 370pt wide, the narrowest place any of this copy is shown.
+                    // Two rather than one because the clamp applies to every
+                    // install error, not just the short ones written for it: at one
+                    // line the existing post-install verification message loses the
+                    // half that names what actually landed. Two keeps that legible
+                    // and still bounds the row.
                     Text(installError)
                         .font(.caption2)
                         .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        // After the frame, not before it: the note is the full row
+                        // width and a truncated one is exactly the case where the
+                        // pointer is most likely to be past the end of the text.
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .help(installError)
                     if model.showsAppStoreUpdatesFallback(result.id) {
                         Button("Open App Store") { model.openAppStoreUpdatesPage() }
                             .font(.caption2)

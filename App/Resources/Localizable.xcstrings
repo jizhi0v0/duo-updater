@@ -19206,6 +19206,47 @@
         }
       }
     },
+    "The update source answered %@, then %@ — nothing was installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Update-Quelle meldete %@, dann %@ – es wurde nichts installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fuente de actualizaciones respondió %@ y luego %@; no se instaló nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La source de mise à jour a répondu %@, puis %@ — rien n'a été installé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新ソースは %@ の次に %@ と回答しました — 何もインストールされていません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Источник обновлений ответил %@, затем %@ — ничего не установлено."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新源先答 %@，又答 %@ — 没有安装任何内容。"
+          }
+        }
+      }
+    },
     "The vendor's latest is %@ — older than your %@. You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.": {
       "extractionState": "manual",
       "localizations": {

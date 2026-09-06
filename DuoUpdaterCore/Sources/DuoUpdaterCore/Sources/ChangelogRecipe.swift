@@ -3158,14 +3158,17 @@ public enum ChangelogRecipeRegistry {
         // on both pages, every time. `theAnchorsAreWhatKeepThePageHeaderOutOfTheNewestDate`
         // pins that, and its fixture carries the header for the purpose.
         //
-        // Measured on the real pages 2026-09-06: 108 entries for the IDE
-        // (1.28.0 → 1.0.0) and 7 for the app (0.1.8 → 0.1.0), versions and dates
-        // matching the products' own version endpoints exactly.
+        // Measured on the real pages 2026-09-06: the pattern finds 108 entries on
+        // the IDE page (1.28.0 back to 0.1.15) and 7 on the app's (0.1.8 back to
+        // 0.1.0), versions and dates matching the products' own version endpoints
+        // exactly. What the PANE shows is the `maxEntries` default of 40, which
+        // neither recipe overrides — the 108 is a statement about the pattern's
+        // reach over the page, not about how much history a reader gets.
         ChangelogRecipe(
             bundleID: "com.qoder.ide",
             source: URL(string: "https://docs.qoder.com/release-notes/desktop")!,
             entryPattern: qoderEntryPattern,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
         // The app's page spells its version "Qoder 0.1.8" where the IDE's is a
         // bare "1.28.0" — the shared pattern makes that prefix optional rather
@@ -3175,7 +3178,7 @@ public enum ChangelogRecipeRegistry {
             bundleID: "com.qoder.app",
             source: URL(string: "https://docs.qoder.com/release-notes/qoder")!,
             entryPattern: qoderEntryPattern,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single
@@ -3259,11 +3262,40 @@ public enum ChangelogRecipeRegistry {
     ///
     /// The `Qoder ` prefix is optional because only the app's page carries it
     /// ("Qoder 0.1.8" vs the IDE's bare "1.28.0").
+    /// Tempered dots, not plain `.*?`, for the reason `workBuddyEntryPattern`
+    /// spells out below — and it is not hypothetical here either. Every gap
+    /// refuses to cross the `update update-container` div that opens the NEXT
+    /// release. With a plain `.*?`, an entry missing any one of its three parts
+    /// does not merely fail to parse: the pattern reaches forward into the next
+    /// release for the part it could not find, so the newest release's date is
+    /// shown against the second-newest's version AND the newest release
+    /// disappears from the pane entirely. Measured on the real IDE page with one
+    /// `update-description` attribute renamed: the plain form returns a single
+    /// entry reading `1.27.0 / September 2, 2026` — a version and a date from two
+    /// different releases — where the tempered form correctly returns
+    /// `1.27.0 / August 29, 2026`. On the undamaged pages the two are identical
+    /// (108 and 7 entries, same versions, same items), so this costs nothing.
     static let qoderEntryPattern =
         #"data-component-part="update-label">(?<date>[^<]{3,40})</div>"#
-        + #".*?data-component-part="update-description">"#
+        + qoderEntryGap + #"data-component-part="update-description">"#
         + #"(?:Qoder\s+)?(?<version>[0-9]+(?:\.[0-9]+)+)</div>"#
-        + #".*?data-component-part="update-content">(?<body>.*?)</div></div></div>"#
+        + qoderEntryGap + #"data-component-part="update-content">"#
+        + #"(?<body>"# + qoderEntryGap + #")</div></div></div>"#
+
+    /// "Any run of characters that does not reach the next release's label."
+    ///
+    /// Tempered on `data-component-part`, not on the `update update-container`
+    /// class the entries sit in. The class works on today's page and is the wrong
+    /// thing to depend on: this recipe's whole stated contract is that it reads
+    /// the vendor's semantic attributes rather than its Tailwind soup, and a
+    /// sentinel taken from the soup decays silently — rename that class and the
+    /// gap degrades back to `.*?`, with no parse failure and no test failure to
+    /// say so. Measured on the real page: with the class renamed AND an entry
+    /// damaged, the class-tempered form returns `1.27.0 / September 2, 2026`
+    /// again, while this one still returns `1.27.0 / August 29, 2026`. On the
+    /// undamaged pages the two are identical.
+    private static let qoderEntryGap =
+        #"(?:(?!data-component-part="update-label").)*?"#
 
     /// The entry shape both WorkBuddy sites render. Shared rather than duplicated
     /// because the two pages come off the same VitePress build: a fix applied to

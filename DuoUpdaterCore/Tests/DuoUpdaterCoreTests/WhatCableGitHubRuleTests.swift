@@ -52,8 +52,28 @@ import Testing
         #expect(rule.usePrereleases == true)
         #expect(VendorProbeRecipe.extractVersion(
             from: "v1.5.0-beta.8", pattern: rule.versionPattern) == "1.5.0-beta.8")
+        // Truncation is the failure to guard against, so name it: the suffix must
+        // survive whole, not be dropped to the base version.
         #expect(VendorProbeRecipe.extractVersion(
-            from: "v1.4.0", pattern: rule.versionPattern) == nil)
+            from: "v1.5.0-beta.8", pattern: rule.versionPattern) != "1.5.0")
+    }
+
+    /// The beta rule ALSO accepts plain stable tags, and that is deliberate — it
+    /// is how a copy on `1.5.0-beta.8` is offered the `1.5.0` that graduates from
+    /// it, which is what the vendor's own updater does ("a stable always
+    /// supersedes its own betas"). An anchored `-beta.`-only pattern would strand
+    /// such a copy until the next cycle opened, and would match nothing at all on
+    /// the day the vendor pauses the beta train — a red sweep on every machine
+    /// for a rule that is working.
+    @Test func betaRuleAlsoAcceptsTheStableTagItsBetasGraduateInto() throws {
+        let rule = try rule(.beta)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: "v1.5.0", pattern: rule.versionPattern) == "1.5.0")
+        // Still anchored: neither a foreign prerelease shape nor a bare tag.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: "v1.5.0-rc.1", pattern: rule.versionPattern) == nil)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: "whatcable-cli-1.5.0", pattern: rule.versionPattern) == nil)
     }
 
     /// The reason the beta rule has to exist at all: a beta build detects as
@@ -99,18 +119,45 @@ import Testing
 
     // MARK: - The channel proof
 
-    /// The registered proof has to pass on the beta rule's own artifact and fail
-    /// on stable's. Both are `WhatCable.zip`; the tag segment is the whole of the
-    /// difference, which is exactly why the proof is anchored there.
-    @Test func theChannelProofSeparatesTheTwoTrainsByTagSegment() throws {
+    /// The proof is a `.recipeAnchor` on `usePrereleases`, not an `.artifact`
+    /// one, and the artifact is why: both trains publish one file under one name,
+    /// so the tag segment is the only discriminator — and this rule is allowed to
+    /// resolve a stable tag on purpose. An artifact proof would therefore fire on
+    /// a legitimate resolution. What is left to anchor is the request.
+    @Test func theChannelProofAnchorsTheRequestBecauseTheArtifactCannot() throws {
         let key = ChannelProofKey(Self.bundleID, .beta)
         let proof = try #require(ChannelProofRegistry.githubProofs[key])
-        guard case .artifact(let pattern) = proof else {
-            Issue.record("expected an artifact proof"); return
+        guard case .recipeAnchor(let pattern, let fields) = proof else {
+            Issue.record("expected a recipe anchor"); return
         }
-        let beta = "https://github.com/darrylmorley/whatcable/releases/download/v1.5.0-beta.8/WhatCable.zip"
-        let stable = "https://github.com/darrylmorley/whatcable/releases/download/v1.4.0/WhatCable.zip"
-        #expect(beta.range(of: pattern, options: .regularExpression) != nil)
-        #expect(stable.range(of: pattern, options: .regularExpression) == nil)
+        #expect(fields == ["usePrereleases"])
+
+        // It passes on the rule as written…
+        let beta = try rule(.beta)
+        #expect(RecipeSanity.recipeAnchorFailure(
+            pattern: pattern, fields: fields, channel: .beta, subject: beta) == nil)
+        // …and fails on the drift it exists to catch: a beta rule that stopped
+        // reading the prerelease list would silently become a second stable rule.
+        let flipped = GitHubReleaseRule(
+            bundleID: beta.bundleID, owner: beta.owner, repo: beta.repo,
+            usePrereleases: false, listPageSize: beta.listPageSize,
+            versionPattern: beta.versionPattern,
+            installAssetPattern: beta.installAssetPattern,
+            installerKind: beta.installerKind, channel: .beta)
+        #expect(RecipeSanity.recipeAnchorFailure(
+            pattern: pattern, fields: fields, channel: .beta, subject: flipped) != nil)
+    }
+
+    /// Both trains' artifacts are byte-identical in name, which is the fact that
+    /// forced the proof above. Recorded as a test so that if the vendor ever does
+    /// put a channel token in the filename, this fails and the proof can be
+    /// upgraded to the stronger `.artifact` kind.
+    @Test func neitherTrainNamesItselfInTheArtifact() throws {
+        let beta = assets(tag: "v1.5.0-beta.8", cliVersion: "1.5.0-beta.8")
+        let stable = assets(tag: "v1.4.0", cliVersion: "1.4.0")
+        #expect(beta.map(\.name).contains("WhatCable.zip"))
+        #expect(stable.map(\.name).contains("WhatCable.zip"))
+        #expect(beta.first(where: { $0.name == "WhatCable.zip" })?.name
+            == stable.first(where: { $0.name == "WhatCable.zip" })?.name)
     }
 }

@@ -6526,12 +6526,19 @@ public enum VendorProbeRegistry {
         // "you are current" on a Mac that has it, "the endpoint is broken" in a
         // sweep that has no install — which is exactly how a check goes quietly
         // dead (the trap the Mozilla AUS recipes above document at length).
-        // `latest` is VS Code's own unconditional sentinel and Qoder honours it:
-        // every user and every sweep sends the identical request, an answer is
-        // always expected, and empty is unambiguously a failure. Corroborated:
-        // an all-zeros commit — a commit that cannot ever be current — is also
-        // answered with the newest build, so the sentinel is not the only thing
-        // holding this up.
+        // `latest` is the token this repo's own VS Code recipes already use in
+        // that slot, and Qoder answers it with the newest build: every user and
+        // every sweep then sends the identical request, an answer is always
+        // expected, and empty is unambiguously a failure.
+        //
+        // Be careful about WHY it works, because the measurement does not settle
+        // it. An all-zeros commit is answered with the newest build too, which is
+        // equally consistent with "this server 204s only when the token equals
+        // the current commit, and answers everything else" — in which case
+        // `latest` is not a sentinel being honoured, just a string that can never
+        // be the current commit. Either way the request is safe and the failure
+        // mode is the same; the claim about the upstream protocol is the part
+        // that is unverified.
         //
         // `productVersion`, not `name`, though both read "1.28.0" today: `name`
         // is the field the protocol lets a vendor put a human string in, and
@@ -6551,6 +6558,16 @@ public enum VendorProbeRegistry {
         //
         // Single channel: `stable` is the only quality this server answers —
         // `/api/update/darwin-arm64/insider/latest` 404s (measured same day).
+        //
+        // ⚠️ The install pattern's `[0-9.]+` path segment is NOT tied to the
+        // `productVersion` this recipe reports — both are read out of the same
+        // response, but nothing requires them to agree. A vendor that bumped one
+        // ahead of the other would make us report one version and install
+        // another: a wrong answer, not an "unknown". `versionTemplate` would
+        // couple them and is deliberately not used, because reading the vendor's
+        // own declared URL survives a CDN or path change that a template would
+        // 404 on. The exposure is one response's worth of inconsistency, which
+        // this endpoint has never shown.
         VendorProbeRecipe(
             bundleID: "com.qoder.ide",
             url: URL(string: "https://center.qoder.sh/algo"
@@ -6571,9 +6588,18 @@ public enum VendorProbeRegistry {
         // one entry per platform with a sha256. Unconditional, tiny, and JSON, so
         // it is preferred over every HTML surface this product has.
         //
-        // `"version"` cannot be satisfied by `"schemaVersion"`: the key is matched
-        // with its own opening quote, and `schemaVersion`'s value is an UNQUOTED
-        // integer besides — two independent reasons, either one sufficient.
+        // `"version"` cannot be satisfied by `"schemaVersion"`, which sits above it
+        // in the document and would otherwise win the first match. Three things
+        // keep it out, and the first is the load-bearing one:
+        // `extractVersion` compiles with NO regex options, so the match is
+        // case-sensitive and `schemaVersion` spells it `Version`; the key is
+        // matched with its own opening quote; and its value is an unquoted
+        // integer. `appReadsTheManifestVersionAndNotTheSchemaVersion` exercises
+        // the third by quoting it.
+        //
+        // ⚠️ Same coupling caveat as the IDE above: the install pattern's
+        // `[0-9.]+` path segment is not required to equal the `version` this
+        // reports, and `versionTemplate` is not used for the same reason.
         //
         // The download page hands a human `Qoder-Installer-mac-arm64.zip`: a
         // 238 MB stub (`com.qoder.installer`, its own bundle id) whose

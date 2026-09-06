@@ -43,6 +43,34 @@ private let qoderAppManifestFixture = #"""
 }
 """#
 
+/// The same manifest with its two macOS entries in the other order. Same bytes,
+/// different order — the one thing about a JSON array that nothing guarantees,
+/// and the only body on which an anchored install pattern differs from a loose
+/// one (`.bodyPattern` takes the FIRST match).
+private let qoderAppManifestIntelFirstFixture = #"""
+{
+  "schemaVersion": 1,
+  "version": "0.1.8",
+  "artifacts": [
+    {
+      "id": "mac-x64",
+      "url": "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-x64.zip",
+      "sha256": "25e349dedb5940fec1d8c802255f351af6e93f8911ae2d8c5583f7aeae062361"
+    },
+    {
+      "id": "mac-arm64",
+      "url": "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip",
+      "sha256": "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7"
+    },
+    {
+      "id": "win-x64-user",
+      "url": "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-win-x64-user.exe",
+      "sha256": "10ce1b6861aa819f04d29d63e195dfd4cae4e85e7cf40d468120a781626853d7"
+    }
+  ]
+}
+"""#
+
 /// The newest two entries of `docs.qoder.com/release-notes/desktop`, 2026-09-06,
 /// **with the page header above them** — that preamble is not decoration, it is
 /// what makes this fixture able to fail. Verbatim but for the SVG path data,
@@ -109,11 +137,31 @@ private let qoderRSCPayloadFixture = #"""
     /// the commit. A pattern that drifted onto it would compare a 40-hex string
     /// against `1.27.0` forever, which is the one failure this app can produce
     /// that still looks like a working recipe.
+    ///
+    /// The real response cannot tell `name` from `productVersion` — they read
+    /// "1.28.0" and "1.28.0" — so on it alone a pattern keyed to either field
+    /// passes, which is `f(X) == f(X)`, not a test. The second body below is the
+    /// real fixture with ONE field changed to what the protocol permits there:
+    /// `name` is the field a vendor may put a human string in. A pattern reading
+    /// `name` returns nil on it; the shipped one still returns 1.28.0.
     @Test func ideReadsProductVersionRatherThanTheCommit() throws {
         let recipe = try probe("com.qoder.ide")
         #expect(VendorProbeRecipe.extractVersion(
             from: qoderIDEUpdateFixture, pattern: recipe.versionPattern) == "1.28.0")
-        #expect(!recipe.versionPattern.contains(#""version""#) || recipe.versionPattern.contains("productVersion"))
+
+        let humanName = qoderIDEUpdateFixture.replacingOccurrences(
+            of: #""name":"1.28.0""#, with: #""name":"Qoder 1.28 (September)""#)
+        #expect(humanName != qoderIDEUpdateFixture)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: humanName, pattern: recipe.versionPattern) == "1.28.0")
+        // What the mutant would do on the same body.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: humanName,
+            pattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#) == nil)
+        // And the commit field is not a version by any reading.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: qoderIDEUpdateFixture,
+            pattern: recipe.versionPattern) != "68cf4c38cec43130a7dccbadcf9e5e0902ef5549")
     }
 
     /// The endpoint is conditional — it answers 204 with an EMPTY BODY when the
@@ -124,7 +172,14 @@ private let qoderRSCPayloadFixture = #"""
         let recipe = try probe("com.qoder.ide")
         #expect(recipe.url.absoluteString
             == "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest")
-        #expect(VendorProbeRecipe.extractVersion(from: "", pattern: recipe.versionPattern) == nil)
+        // The property that matters is not "the URL ends in latest" but "the last
+        // segment is not a commit" — a 40-hex tail is what turns the endpoint
+        // conditional, and it is the only thing that could get put there.
+        #expect(recipe.url.lastPathComponent.range(
+            of: "^[0-9a-f]{40}$", options: .regularExpression) == nil)
+        // Nor may a commit be smuggled in anywhere else in the path.
+        #expect(recipe.url.absoluteString.range(
+            of: "[0-9a-f]{40}", options: .regularExpression) == nil)
     }
 
     /// The install spec takes the zip the API itself names, and only the arm64
@@ -156,21 +211,49 @@ private let qoderRSCPayloadFixture = #"""
     /// `"version"` must not be satisfied by `"schemaVersion"`, whose value is the
     /// unquoted integer 1 — a pattern that matched it would report "1" as the
     /// app's version and never move again.
+    /// `"schemaVersion"` sits ABOVE `"version"` in the document and `.bodyPattern`
+    /// takes the first match, so this is the neighbour that matters. Three things
+    /// keep it out, and it is worth knowing which is load-bearing:
+    /// `extractVersion` compiles the pattern with NO options, so the match is
+    /// case-sensitive and `schemaVersion` spells it `Version`; the key is matched
+    /// with its own opening quote; and its value is an unquoted integer. The
+    /// second body below removes the third of those — a quoted schema version —
+    /// and the shipped pattern still answers 0.1.8, while the loosened
+    /// `[Vv]ersion` form that survives all three answers "1.0".
     @Test func appReadsTheManifestVersionAndNotTheSchemaVersion() throws {
         let recipe = try probe("com.qoder.app")
         #expect(qoderAppManifestFixture.contains(#""schemaVersion": 1"#))
         #expect(VendorProbeRecipe.extractVersion(
             from: qoderAppManifestFixture, pattern: recipe.versionPattern) == "0.1.8")
+
+        let quotedSchema = qoderAppManifestFixture.replacingOccurrences(
+            of: #""schemaVersion": 1,"#, with: #""schemaVersion": "1.0","#)
+        #expect(quotedSchema != qoderAppManifestFixture)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: quotedSchema, pattern: recipe.versionPattern) == "0.1.8")
+        // What a pattern without the leading quote would answer on the same body.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: quotedSchema, pattern: #"[Vv]ersion"\s*:\s*"([0-9]+(?:\.[0-9]+)*)""#) == "1.0")
     }
 
-    /// arm64 only, and the `.exe` two entries below is the neighbour that proves
-    /// the anchor is doing something.
+    /// arm64 only — and the arm64 entry being FIRST in the vendor's array is why
+    /// the happy path alone proves nothing: `.bodyPattern` takes the first match,
+    /// so a pattern loosened to any artifact would return the same URL. The
+    /// second body reorders the array the way the vendor is free to at any time;
+    /// only an anchored pattern still answers arm64 there.
     @Test func appInstallsTheArm64ZipTheManifestNames() throws {
         let recipe = try probe("com.qoder.app")
         let pattern = try installPattern(recipe)
-        #expect(VendorProbeRecipe.extractVersion(from: qoderAppManifestFixture, pattern: pattern)
-            == "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip")
+        let arm64 = "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip"
+        #expect(VendorProbeRecipe.extractVersion(
+            from: qoderAppManifestFixture, pattern: pattern) == arm64)
+
+        #expect(qoderAppManifestIntelFirstFixture.range(of: "mac-x64")!.lowerBound
+            < qoderAppManifestIntelFirstFixture.range(of: "mac-arm64")!.lowerBound)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: qoderAppManifestIntelFirstFixture, pattern: pattern) == arm64)
     }
+
 
     /// The manifest is served from `download.qoder.com` and names artifacts on
     /// `download.qoder.com.cn`. Both hosts serve the same object, and the vendor's
@@ -241,6 +324,65 @@ private let qoderRSCPayloadFixture = #"""
         let combined = qoderIDENotesFixture + "\n" + qoderRSCPayloadFixture
         let log = try #require(ChangelogExtractor.extract(from: combined, using: recipe))
         #expect(log.entries.map(\.version) == ["1.28.0", "1.27.0"])
+    }
+
+    /// An entry that loses one of its three parts must not be able to borrow it
+    /// from the NEXT release. With a plain `.*?` between the parts it can, and
+    /// the damage is worse than a missing entry: measured on this fixture with
+    /// one `update-description` attribute renamed, the untempered pattern returns
+    /// a single entry reading `1.27.0` against `September 2, 2026` — a version
+    /// and a date from two different releases — and 1.28.0 vanishes from the
+    /// pane. The tempered gaps refuse to cross the next release's container, so
+    /// the damaged entry is dropped and the intact one keeps its own date.
+    @Test func aDamagedEntryCannotBorrowPartsFromTheNextRelease() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide"))
+        let damaged = qoderIDENotesFixture.replacingOccurrences(
+            of: #"data-component-part="update-description">1.28.0</div>"#,
+            with: #"data-component-part="update-renamed">1.28.0</div>"#)
+        #expect(damaged != qoderIDENotesFixture)
+        let log = try #require(ChangelogExtractor.extract(from: damaged, using: recipe))
+        #expect(log.entries.map(\.version) == ["1.27.0"])
+        #expect(log.entries.first?.date == "August 29, 2026")
+    }
+
+    /// The other damage mode, and the worse one: lose the `update-content`
+    /// attribute and the untempered pattern keeps the newest release's version
+    /// AND date while pulling the SECOND-newest release's bullets under them —
+    /// measured `1.28.0 / September 2, 2026` carrying 1.27.0's two items. Nothing
+    /// on screen looks wrong; the notes are simply the wrong release's. The
+    /// tempered gaps drop the damaged entry instead.
+    @Test func aDamagedEntryCannotBorrowTheNextReleasesNotes() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide"))
+        let damaged = qoderIDENotesFixture.replacingOccurrences(
+            of: #"data-component-part="update-content">"#,
+            with: #"data-component-part="update-renamed">"#,
+            options: [], range: qoderIDENotesFixture.range(
+                of: #"data-component-part="update-content">"#))
+        #expect(damaged != qoderIDENotesFixture)
+        let log = try #require(ChangelogExtractor.extract(from: damaged, using: recipe))
+        #expect(log.entries.map(\.version) == ["1.27.0"])
+        #expect(log.entries.first?.date == "August 29, 2026")
+        #expect(log.entries.first?.items.count == 2)
+    }
+
+    /// The tempering sentinel must be the vendor's semantic attribute, not the
+    /// `update update-container` class the entries happen to sit in. Both work on
+    /// today's page and on a damaged entry — the difference only shows when the
+    /// vendor restyles: with the class renamed AND an entry damaged, a
+    /// class-tempered gap degrades back to `.*?` and pairs 1.28.0's date with
+    /// 1.27.0's version, silently. Nothing else in this suite separates the two
+    /// choices, which is why this case exists.
+    @Test func theTemperingSentinelSurvivesTheVendorRestylingItsClasses() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide"))
+        let restyled = qoderIDENotesFixture
+            .replacingOccurrences(of: #"class="update update-container"#,
+                                  with: #"class="release-block"#)
+            .replacingOccurrences(of: #"data-component-part="update-description">1.28.0</div>"#,
+                                  with: #"data-component-part="update-renamed">1.28.0</div>"#)
+        #expect(!restyled.contains("update update-container"))
+        let log = try #require(ChangelogExtractor.extract(from: restyled, using: recipe))
+        #expect(log.entries.map(\.version) == ["1.27.0"])
+        #expect(log.entries.first?.date == "August 29, 2026")
     }
 
     /// What the `data-component-part` anchors ARE worth, measured rather than

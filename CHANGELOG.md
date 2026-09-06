@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.86
+
+**Three more apps are covered: WhatCable, Qoder IDE, and Qoder.** All three get update checks and a one-click install, and their release notes are read into the window as text rather than an embedded page.
+
+**Qoder's two Mac apps are told apart.** The IDE and the desktop app share a name and a download page but ship on separate version lines, so each is now followed on its own.
+
+**WhatCable's beta track is followed too.** A copy on a beta build is offered the next beta, and the stable release that beta graduates into — the same way WhatCable's own updater picks.
+
 ## 0.3.85
 
 **Checking your App Store apps uses a fraction of the network it did.** Each check used to fetch every App Store app's product page again; the pages are now kept for an hour and the store is asked about all your apps in a few requests instead of one per app. On a five-minute check interval that is roughly a third less traffic overall; on the default six-hour interval the pages still expire between checks, so the saving there is smaller.

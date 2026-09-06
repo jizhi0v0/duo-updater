@@ -49,12 +49,30 @@ returns a pre-release from"。
 
 ## 更新检测
 - stable: `/releases/latest`，tag `v1.4.0`，pattern `^v([0-9]+(?:\.[0-9]+)+)$`
-- beta: releases 列表，tag `v1.5.0-beta.8`，pattern
-  `^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$` —— **后缀必须保留**，截成 `1.5.0` 会让每个
-  beta 都读成比自己新
-- `listPageSize: 5`（实测 2026-09-06，最新 100 个 release：prerelease 首命中 index 0，
-  两个 prerelease 之间最长非 prerelease 连续段 = 1；gzip 后 per_page=5 是 5.9 KB，
-  默认的 20 是 23.8 KB）
+- beta: releases 列表，pattern `^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$`
+  —— **后缀必须保留**（截成 `1.5.0` 会让每个 beta 都读成比自己新），
+  **而且 stable tag 也要收**，见下。
+- `listPageSize: 5`（实测 2026-09-06，最新 100 个 release：**100 条全部匹配**这条 pattern
+  且全部带 `WhatCable.zip`，首命中 index 0、gap 0，地板是 1；留 5 是给草稿/平台缺件的余量。
+  gzip 后 per_page=5 是 5.9 KB，默认的 20 是 23.8 KB。`probesNewestFirst` 让常规一轮其实
+  只取 1 条。）
+
+### beta pattern 为什么收 stable tag
+
+厂商自己的更新器在同一份源码里写着这条轨的语义："the updater still picks whichever
+release is newest, so a stable always supersedes its own betas."。锚死 `-beta.` 会同时踩两个坑：
+
+1. **跑 `1.5.0-beta.8` 的副本永远等不到毕业版 `1.5.0`**，得干等到下一轮 `1.6.0-beta.1`。
+   `VersionComparator` 本身是对的（少的第 4 段补 `.number(0)`，数字压 `.text("beta")`，
+   所以 `1.5.0 > 1.5.0-beta.8`），挡路的只有 pattern。
+2. **更要命的是它是一根引信。** 厂商一旦停发 beta，锚死的 pattern 在整页里匹不到任何东西，
+   而 `duo verify` 扫的是 rule 不是安装，于是**每台机器上这条都变红**，而 rule 本身完全正常。
+   这不是假想：这个仓库前 **79 个 release 根本没有 beta 轨**，第一条 `v1.2.0-beta.1` 在
+   index 20。
+
+代价是 beta 安装可能被交付一个 GitHub 标为 stable 的构件——和 UTM 的 `.beta` rule 一样，
+理由也一样（预览会毕业进同一条编号线，不是平行轨）。装完之后 `detect` 判为 `.stable`，
+行自然转到 stable rule，方向是单向的。
 - 版本方案: tag 去 `v` 即 marketing 串，与 bundle 同构。build（`CFBundleVersion`）
   单调递增（127 → 130 → 137）但 GitHub 不发布它，比较只用 marketing。
 
@@ -84,15 +102,22 @@ returns a pre-release from"。
     `spctl` = `Notarized Developer ID`
   - v1.5.0-beta.8 → 同 bundle id、同 Team、`1.5.0-beta.8` / build 137
   - 两条轨 Team 相同 → 签名闸拦不住跨轨，靠 channel 闸 + channel proof
-- Channel proof: `.artifact(#"/download/v[0-9.]+-beta\."#)`。两条轨文件名一模一样，
-  **tag 路径段是唯一的判据**（`…/download/v1.5.0-beta.8/WhatCable.zip` vs
-  `…/download/v1.4.0/WhatCable.zip`）。
+- Channel proof: `.recipeAnchor(#"^true$"#, in: ["usePrereleases"])`，**不是
+  `.artifact`**。两条轨文件名一模一样（都叫 `WhatCable.zip`），tag 路径段是唯一的判据——
+  可这条 rule 是**故意**允许解析出 stable tag 的，artifact proof 会在一次**合法**解析上开火。
+  剩下能锚的只有请求：`usePrereleases` 就是这条 rule 全部的渠道身份，它决定读 releases 列表
+  还是 `/releases/latest`（后者 GitHub 定义上不返 prerelease）。把它翻成 false，beta rule
+  会**无声地变成第二条 stable rule**——不报错、版本也在，只是 beta 用户从此收不到 beta。
+  ⚠️ 和 UTM 那条一样要说清够不到什么：它看不见"厂商开了第三条同名轨"，也不说被选中的是哪个
+  release。这与 `bindingProofs` 是同一种、同一强度的主张。
 
 ## 已知问题
-- **beta 不会被"毕业版"接走**：跑 `1.5.0-beta.8` 的副本不会被提示装 `1.5.0` 正式版，
-  要等 `1.6.0-beta.1`。这是刻意的取舍：放宽 pattern 让 stable tag 也匹配，就会让上面那条
-  `.artifact` proof 在一次**合法**解析上误报（两条轨在 artifact 上除了 tag 段没有任何
-  区别）。实际等待窗口不长——2026-08-20 到 08-31 的 11 天里发了 8 个 beta。
+- **beta 安装会被交付 stable 构件**（当 stable 是最新那条时）。这是上面写的刻意取舍，
+  也是厂商自己更新器的行为；反方向不会发生。
+- **UTM 那条路没走**：`candidateScope: .installedMajorLineOrNewestStable` +
+  `installedTagPrefix` 也能处理"预览毕业"，但它的天花板管的是「把预览关在自己的**大版本线**
+  里」——WhatCable 没有这个问题（只有一条线，beta 就是下一个 release，不是平行的 v-next），
+  所以用不上那套额外机械。
 - Homebrew cask 存在但 `auto_updates: true`，按本仓库既定策略不作为源。
 
 ## 如何复验

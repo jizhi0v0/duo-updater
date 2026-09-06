@@ -2974,26 +2974,51 @@ public enum GitHubReleaseRegistry {
         // asked for one — cannot happen: the beta rule only applies to a copy
         // already running a beta.
         //
-        // Anchored to `-beta.<N>`, which costs a bounded, deliberate thing: a copy
-        // on `1.5.0-beta.8` is not offered the plain `1.5.0` that graduates from
-        // it, and waits for `1.6.0-beta.1`. A pattern loose enough to accept both
-        // shapes would fix that and break the channel proof — the artifact URL is
-        // the ONLY place either train names itself
-        // (`/download/v1.5.0-beta.8/WhatCable.zip` vs `/download/v1.5.0/…`, same
-        // filename), so accepting stable tags here would make the registered
-        // `.artifact` proof fire on a legitimate resolution. The wait is short in
-        // practice: 8 betas shipped in the 11 days to 2026-08-31.
+        // **The pattern accepts stable tags too, and that is the design.** The
+        // vendor's updater says what this track means, in the same file: "the
+        // updater still picks whichever release is newest, so a stable always
+        // supersedes its own betas." Two things follow, and both were nearly got
+        // wrong by anchoring the pattern to `-beta\.`:
         //
-        // listPageSize: measured 2026-09-06 over the newest 100 releases —
-        // first-match index 0, and the longest run of non-prerelease tags between
-        // two prereleases is 1. 5 keeps 5x headroom and costs 5.9 KB gzipped
-        // against 23.8 KB at the default 20.
+        //   • A copy on `1.5.0-beta.8` would never be offered the plain `1.5.0`
+        //     that graduates from it — it would sit on a superseded prerelease
+        //     until the next cycle opened. `VersionComparator` ranks the
+        //     graduation correctly (a missing 4th component pads to `.number(0)`
+        //     and beats `.text("beta")`), so the only thing standing in the way
+        //     was the pattern.
+        //   • Worse, it is a fuse. If this vendor pauses the beta train, a
+        //     `-beta\.`-only pattern matches nothing in the page, and the miss is
+        //     a red `duo verify` finding on EVERY machine — the sweep walks rules,
+        //     not installs — for a rule that is working exactly as written. Not a
+        //     remote prospect: the beta train did not exist at all until
+        //     `v1.2.0-beta.1`, 79 releases into this repo's history.
+        //
+        // Accepting stable here means a beta install can legitimately be handed a
+        // release GitHub marks stable — the same thing UTM's `.beta` rule does,
+        // for the same reason (a preview that graduates into the shared
+        // numbering, not a parallel train). It also means the channel proof
+        // cannot be an `.artifact` one: the tag segment is the only place either
+        // train names itself, so an artifact proof would fire on that legitimate
+        // resolution. The registered proof is a `.recipeAnchor` on
+        // `usePrereleases` instead — see `ChannelProofRegistry.githubProofs`.
+        // (UTM's third option, `candidateScope: .installedMajorLineOrNewestStable`
+        // plus `installedTagPrefix`, was considered and not taken: its ceiling is
+        // about keeping a preview inside its own MAJOR line, which is a question
+        // WhatCable does not have — one line, and its betas are its next release,
+        // not a parallel v-next.)
+        //
+        // listPageSize: measured 2026-09-06 over the newest 100 releases — every
+        // one of the 100 tags matches this pattern and carries `WhatCable.zip`,
+        // so first-match index is 0 and the gap is 0. The floor is 1; 5 is kept
+        // for headroom against a draft or a platform-partial release, and costs
+        // 5.9 KB gzipped against 23.8 KB at the default 20. `probesNewestFirst`
+        // means the common round is a page of one anyway.
         GitHubReleaseRule(
             bundleID: "uk.whatcable.whatcable",
             owner: "darrylmorley", repo: "whatcable",
             usePrereleases: true,
             listPageSize: 5,
-            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$"#,
+            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$"#,
             installAssetPattern: #"^WhatCable\.zip$"#,
             installerKind: .zip,
             channel: .beta),

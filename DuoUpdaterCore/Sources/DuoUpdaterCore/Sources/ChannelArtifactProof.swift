@@ -335,19 +335,30 @@ public enum ChannelProofRegistry {
         // that tells them apart after the fact.
         ChannelProofKey("com.vorssaint.utils", .beta):
             .artifact(#"/download/v[0-9.]+-beta\."#),
-        // WhatCable beta — both trains publish one asset under one name
-        // (`WhatCable.zip`), so the filename says nothing; the tag segment of the
-        // download path is the only thing that does
-        // (`…/download/v1.5.0-beta.8/WhatCable.zip` against stable's
-        // `…/download/v1.4.0/…`). Anchored to that segment rather than a bare
-        // `-beta`, for the reason spelled out on VSCodium above: neither the owner
-        // (`darrylmorley`) nor the repo (`whatcable`) carries the token today, but
-        // a proof a fixed part of every URL could satisfy is a proof that cannot
-        // fail. Stable's artifact fails this pattern, which is the substitution it
-        // exists to catch — the two trains share the bundle id, the app name and
-        // the asset name, so after the fact the path is all there is.
+        // WhatCable beta — an anchor rather than an artifact, and the reason is
+        // that its rule deliberately accepts stable tags as well as `-beta.<N>`
+        // ones (see the rule's own comment: the vendor's updater graduates a beta
+        // onto the stable release, and a `-beta.`-only pattern is also a fuse the
+        // day the beta train pauses). The tag segment of the download path is the
+        // only place either train names itself — both publish one asset called
+        // `WhatCable.zip` — so an `.artifact` proof would be RIGHT about the
+        // evidence and WRONG about the rule: it would fire on a resolution that
+        // is exactly what this track is for.
+        //
+        // What is left to anchor is the request. `usePrereleases` is the whole of
+        // this rule's channel identity: it is what makes it read the releases
+        // list instead of `/releases/latest`, which GitHub computes with
+        // prereleases excluded. Flip it and the beta rule silently becomes a
+        // second stable rule — no error, no missing version, just a beta install
+        // that stops being offered betas. That is the drift worth catching.
+        //
+        // Be honest about the reach, as UTM's anchor below is: this cannot see a
+        // vendor who launches an identically-named third train, and it says
+        // nothing about which release was chosen. It is the same kind and
+        // strength of claim the `bindingProofs` make, and for the same reason —
+        // the channel signal lives entirely in the request.
         ChannelProofKey("uk.whatcable.whatcable", .beta):
-            .artifact(#"/download/v[0-9.]+-beta\."#),
+            .recipeAnchor(#"^true$"#, in: ["usePrereleases"]),
         // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
         // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
         // even meant to be a different artifact forever: UTM's previews graduate

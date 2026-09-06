@@ -23,7 +23,22 @@
 
 生产源链由 GitHub 应答。stable 使用 `/releases/latest`，仅接受完整数字 tag；beta 使用 releases 列表，仅接受完整 `v…-beta.N` tag。相同 bundle ID，以真包保留的版本后缀识别 beta。资源规则只接受对应渠道的 `_aarch64.dmg`，排除 x64、Windows/Linux、更新器 tarball 和签名附件。
 
-beta 安装的渠道证明锚定下载 URL 的 beta tag 路径；stable tag 不能通过该证明。最近 100 条发布中 72 条匹配 beta，最大相邻匹配间距 5，查询最低深度为 6；保留默认 20 条窗口。beta 跟随 beta train，本次未实现 beta 自动转入正式版的候选策略。
+beta 安装的渠道证明锚定下载 URL 的 beta tag 路径；stable tag 不能通过该证明。最近 100 条发布中 72 条匹配 beta，最大相邻匹配间距 5，查询最低深度为 6；保留默认 20 条窗口。beta 跟随 beta train，本次未实现 beta 自动转入正式版的候选策略——这一点和 WhatCable 相反，
+且是有意的：Yaak 的 beta rule 连 channel proof 一起锚在下载路径的 `-beta.N` 上，收不了 stable
+产物，所以 beta 那条 changelog recipe 也**不能**开 `includesPromotedStable`（否则会展示一个
+这条轨道永远装不上的版本）。
+
+⚠️ **厂商改过 macOS 资产名，现在的 pattern 钉的是新名字。** 独立复算（2026-09-06，`gh api`
+拉最新 100 条）：`72 条 beta / 最大间距 5 / 最低深度 6` 一致复现；同时量出**最老的 8 条**
+（`v2025.8.0-beta.1` ~ `v2025.9.0-beta.4`，2025-10-31 ~ 2025-11-11）用的是
+`Yaak_<版本>_aarch64_darwin.dmg`，从 `v2025.9.0-beta.5` 起才是现在的
+`Yaak_<版本>_aarch64.dmg`。旧名两条 rule 都不收。这是**惰性的**——两轨都是最新优先解析，
+beta 只读 20 行窗口，走不到第 82 条——但它是边界，而且厂商一旦改回去会**同时**打掉两条轨，
+不是一条。`theSupersededDarwinSuffixIsNotAccepted` 把这个边界钉住了。
+
+另一条量出来的：`per_page=40` 的窗口里只有 12 条 stable、28 条 beta，所以 stable 那条
+changelog 的 `maxEntries: 20` 是够不到的上限、不是目标值。这与 Zed、UTM 的分轨 recipe 同形，
+不是缺陷；要真取到 20 条 stable 得每次拉约 72 条发布，registry 里没有先例。
 
 ## Changelog
 

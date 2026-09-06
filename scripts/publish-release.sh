@@ -91,6 +91,59 @@ find_generate_appcast() {
     return 1
 }
 
+# The same binary, but resolving Sparkle into $DERIVED_DATA first if it is not
+# there yet. Sets GENERATE_APPCAST.
+#
+# Two of this script's three paths never run a local build — CI_RUN_ID takes the
+# workflow's artifact, SKIP_NOTARIZE reuses the zip already on disk — and
+# `notarize.sh`, which does build, is the only thing that ever filled
+# $DERIVED_DATA. So both of those paths worked only for as long as SOME earlier
+# build's derived data happened to still be lying around, and broke the moment
+# /tmp was cleaned. That is not a rare event here: CLAUDE.md records 19G of these
+# caches needing a sweep. 0.3.86 hit it (#371).
+#
+# Resolving is cheap and needs no compile — Sparkle ships `generate_appcast` as a
+# BINARY artifact, so `-resolvePackageDependencies` is enough. Measured on a
+# fresh derived data directory: 8.5s, and the binary lands at
+# SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast.
+#
+# A global, not stdout, deliberately: `die` from inside a command substitution
+# would exit the SUBSHELL, and the caller would report its own generic message
+# instead of the one that says what actually failed.
+GENERATE_APPCAST=""
+ensure_generate_appcast() {
+    if GENERATE_APPCAST="$(find_generate_appcast)"; then
+        return 0
+    fi
+
+    say "Sparkle's generate_appcast is not in $DERIVED_DATA — resolving package dependencies"
+    # Checked here rather than with the other `command -v` calls at the top: the
+    # CI_RUN_ID path has no other use for xcodegen, and demanding it up front
+    # would fail runs that never need it.
+    command -v xcodegen >/dev/null \
+        || die "xcodegen not found — brew install xcodegen (needed to resolve Sparkle into $DERIVED_DATA)"
+    command -v xcodebuild >/dev/null \
+        || die "xcodebuild not found (needed to resolve Sparkle into $DERIVED_DATA)"
+    # Exported before xcodegen for the reason install.sh, notarize.sh and
+    # row-state-gallery.sh all do it: without it the generated project gets an
+    # EMPTY DEVELOPMENT_TEAM, which does not fail here — it fails the next
+    # `make install`, somewhere else entirely.
+    export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}"
+    ( cd "$REPO_ROOT/App" && xcodegen generate >/dev/null ) \
+        || die "xcodegen generate failed — cannot resolve Sparkle into $DERIVED_DATA"
+    xcodebuild -project "$REPO_ROOT/App/DuoUpdater.xcodeproj" \
+               -scheme DuoUpdater \
+               -derivedDataPath "$DERIVED_DATA" \
+               -resolvePackageDependencies >/dev/null \
+        || die "could not resolve package dependencies into $DERIVED_DATA"
+
+    GENERATE_APPCAST="$(find_generate_appcast)" \
+        || die "Sparkle generate_appcast is still missing under $DERIVED_DATA/SourcePackages
+  after resolving package dependencies. Sparkle ships it as a binary artifact under
+  SourcePackages/artifacts/sparkle/Sparkle/bin/ — check that App/project.yml still
+  depends on Sparkle."
+}
+
 # Maximum entries the feed keeps, per branch point.
 #
 # Passed explicitly because the check below has to know exactly when an entry
@@ -127,8 +180,12 @@ trap cleanup_appcast_dirs EXIT
 prepare_sparkle_appcast() {
     local generate_appcast sparkle_notes setting value
 
-    generate_appcast="$(find_generate_appcast)" \
-        || die "Sparkle generate_appcast not found under $DERIVED_DATA/SourcePackages. Re-run without SKIP_NOTARIZE so dependencies are built first."
+    # Was: find, and on failure blame SKIP_NOTARIZE. The blame was wrong on the
+    # path that actually hit this — CI_RUN_ID, which does not read SKIP_NOTARIZE
+    # at all — so the suggested remedy did nothing (#371). Now it just makes the
+    # dependency appear.
+    ensure_generate_appcast
+    generate_appcast="$GENERATE_APPCAST"
 
     appcast_clone_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast-clone.XXXXXX")"
     appcast_archives_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast.XXXXXX")"

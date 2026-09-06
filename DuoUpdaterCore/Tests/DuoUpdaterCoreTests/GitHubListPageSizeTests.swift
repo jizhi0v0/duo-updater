@@ -16,7 +16,8 @@ import Foundation
 /// against the live GitHub endpoint, not just "some number smaller than 20".
 struct GitHubListPageSizeTests {
 
-    /// Minimum safe depth measured against the LIVE endpoint (2026-09-04, newest
+    /// Minimum safe depth measured against the LIVE endpoint (2026-09-04, and
+    /// 2026-09-06 for the WhatCable row added that day; newest
     /// 100 releases per repo, independently recomputed in Python per CLAUDE.md's
     /// "合并前独立复算" — not reread out of the Swift rule). For each rule: the
     /// worst observed run-length between two releases the rule's pattern
@@ -54,6 +55,7 @@ struct GitHubListPageSizeTests {
         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
+        "uk.whatcable.whatcable/beta": 2,     // gap 1 (v1.4.0 between two -beta. tags), +1
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

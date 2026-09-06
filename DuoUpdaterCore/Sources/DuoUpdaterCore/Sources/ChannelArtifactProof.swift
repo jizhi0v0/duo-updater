@@ -289,20 +289,19 @@ public enum ChannelProofRegistry {
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         ChannelProofKey("app.yaak.desktop", .beta):
             .artifact(#"/download/v[0-9.]+-beta\.[0-9]+/"#),
-        // CotEditor's tags carry no `v`, and the asset name repeats the tag, so
-        // BOTH halves of the URL name the train:
-        // `…/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg` against
-        // `…/download/7.0.9/CotEditor_7.0.9.dmg`.
+        // CotEditor's beta rule accepts a plain tag as well as a `-beta` one, on
+        // purpose: its beta train runs in cycles, and a copy on `7.1.0-beta.6`
+        // has to be able to take the `7.1.0` that graduates from it (see the
+        // rule). So an `.artifact` proof is not available — the tag segment is the
+        // only place either train names itself, and a pattern anchored to `-beta`
+        // would fire on exactly that legitimate resolution. Same reasoning and
+        // same shape as WhatCable's entry above.
         //
-        // Which means the tag-segment anchor is NOT load-bearing here, unlike in
-        // VSCodium's entry below — there the repository name carries `-insider`
-        // on every URL the rule can resolve, so an unanchored pattern could never
-        // fail; here a stable artifact carries the token in neither half. Kept
-        // anchored for consistency with the entries around it, and said plainly
-        // so the next reader does not copy this one believing the anchor is what
-        // makes it work.
+        // ⚠️ This was an `.artifact(#"/download/[0-9.]+-beta…/"#)` for a day, from
+        // when the rule was `-beta`-only. It passed the whole time, and would have
+        // gone on passing right up to the release it was wrong about.
         ChannelProofKey("com.coteditor.CotEditor", .beta):
-            .artifact(#"/download/[0-9.]+-beta(?:\.[0-9]+)?/"#),
+            .recipeAnchor(#"^true$|-beta"#, in: ["usePrereleases", "versionPattern"]),
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
         // `…/download/v1.18.0-pre/Zed-aarch64.dmg`.

@@ -42,24 +42,30 @@ struct CotEditorChannelTests {
         }
     }
 
-    /// The two version patterns must PARTITION the tag space: every real tag
-    /// matched by exactly one of them. A pattern that accepted both trains would
-    /// hand a beta copy the stable release and call it an update — the same
-    /// outcome #368 produced through the appcast, by a different route.
+    /// What the two patterns must do is NOT symmetric, and getting that backwards
+    /// is what shipped for a day.
     ///
-    /// Patterns are read off the registry, so a rule edited to overlap fails here
-    /// rather than in production.
-    @Test func theTwoVersionPatternsPartitionEveryRealTag() throws {
+    /// The stable pattern must refuse every prerelease — a stable copy offered a
+    /// beta is the harm this repo cares most about. The beta pattern must accept
+    /// BOTH, because this vendor's train runs in cycles and a copy on
+    /// `7.1.0-beta.6` has to be able to take the `7.1.0` that graduates from it.
+    ///
+    /// Patterns are read off the registry, so a rule edited in either direction
+    /// fails here rather than in production.
+    @Test func theStablePatternRefusesPrereleasesAndTheBetaOneDoesNot() throws {
         let stable = try #require(Self.rules.first { $0.channel == .stable })
         let beta = try #require(Self.rules.first { $0.channel == .beta })
         var counts = (stable: 0, beta: 0)
         for tag in Self.tags {
             let s = VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern)
             let b = VendorProbeRecipe.extractVersion(from: tag, pattern: beta.versionPattern)
-            #expect((s == nil) != (b == nil), "\(tag) matched \(s == nil ? "neither" : "both") rules")
+            if tag.contains("-beta") {
+                #expect(s == nil, "the stable pattern accepted a prerelease: \(tag)")
+            } else {
+                #expect(s == tag)
+            }
+            #expect(b == tag, "the beta pattern must accept every tag, including \(tag)")
             if s != nil { counts.stable += 1 } else { counts.beta += 1 }
-            // The capture is the version, not the tag with decoration around it.
-            #expect((s ?? b) == tag)
         }
         #expect(counts == (stable: 6, beta: 6))
     }
@@ -73,9 +79,12 @@ struct CotEditorChannelTests {
             from: "7.1.0-beta", pattern: beta.versionPattern) == "7.1.0-beta")
     }
 
-    /// Each rule's asset pattern selects only its own train's DMG. One asset per
-    /// release, always `CotEditor_<tag>.dmg` (measured over the newest 100).
-    @Test func eachRuleSelectsOnlyItsOwnTrainsDMG() throws {
+    /// The asset patterns follow the version patterns, and are asymmetric for the
+    /// same reason: the stable rule must never install a prerelease build, while
+    /// the beta rule must be able to install the release that graduates from its
+    /// train. One asset per release, always `CotEditor_<tag>.dmg` (measured over
+    /// the newest 100).
+    @Test func theStableAssetPatternRefusesABetaDMGAndTheBetaOneTakesBoth() throws {
         let stable = try #require(Self.rules.first { $0.channel == .stable }.flatMap(\.installAssetPattern))
         let beta = try #require(Self.rules.first { $0.channel == .beta }.flatMap(\.installAssetPattern))
         func matches(_ pattern: String, _ name: String) -> Bool {
@@ -83,26 +92,32 @@ struct CotEditorChannelTests {
         }
         #expect(matches(stable, "CotEditor_7.0.9.dmg"))
         #expect(!matches(stable, "CotEditor_7.1.0-beta.6.dmg"))
+        #expect(!matches(stable, "CotEditor_7.1.0-beta.dmg"))
+
         #expect(matches(beta, "CotEditor_7.1.0-beta.6.dmg"))
         #expect(matches(beta, "CotEditor_7.1.0-beta.dmg"))
-        #expect(!matches(beta, "CotEditor_7.0.9.dmg"))
+        #expect(matches(beta, "CotEditor_7.1.0.dmg"),
+                "the beta rule has to be able to install the release its train graduates into")
     }
 
-    /// The channel proof has to fail on the other train's artifact, or it proves
-    /// nothing. For this vendor the filename repeats the tag, so a stable URL
-    /// carries `-beta` in neither half — the tag-segment anchor is consistency
-    /// with the neighbouring entries, not the thing that makes this work (see the
-    /// registry comment).
-    @Test func theChannelProofAcceptsOnlyABetaArtifact() throws {
-        let key = ChannelProofKey(Self.bundleID, .beta)
-        let proof = try #require(ChannelProofRegistry.githubProofs[key])
-        let beta = "https://github.com/coteditor/CotEditor/releases/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg"
-        let stable = "https://github.com/coteditor/CotEditor/releases/download/7.0.9/CotEditor_7.0.9.dmg"
-        guard case .artifact(let pattern) = proof else {
-            Issue.record("expected an artifact proof"); return
+    /// ⚠️ The proof CANNOT be an `.artifact` one here, and that is a consequence
+    /// of the rule above rather than a preference: the beta rule legitimately
+    /// resolves a stable artifact the day a cycle graduates, and a pattern
+    /// anchored to `-beta` in the download path would fire on exactly that.
+    ///
+    /// It was an artifact proof for a day. It passed the whole time — it would
+    /// have gone on passing right up to the release it was wrong about — which is
+    /// why this case asserts the KIND, not just that some proof exists.
+    @Test func theChannelProofIsAnchoredToTheRecipeNotToTheArtifact() throws {
+        let proof = try #require(
+            ChannelProofRegistry.githubProofs[ChannelProofKey(Self.bundleID, .beta)])
+        guard case .recipeAnchor(let pattern, let fields) = proof else {
+            Issue.record("expected a recipeAnchor proof, got \(proof)"); return
         }
-        #expect(beta.range(of: pattern, options: .regularExpression) != nil)
-        #expect(stable.range(of: pattern, options: .regularExpression) == nil)
+        #expect(fields.contains("usePrereleases") && fields.contains("versionPattern"))
+        let beta = try #require(Self.rules.first { $0.channel == .beta })
+        #expect(beta.versionPattern.range(of: pattern, options: .regularExpression) != nil,
+                "the anchor no longer matches the field it anchors to")
     }
 
     /// Every non-stable GitHub rule carrying an install spec needs a proof, and
@@ -153,6 +168,127 @@ struct CotEditorChannelTests {
             $0.path == CotEditorChannel.preferencesDirectoryURL.path
         })
         #expect(CotEditorChannel.preferencesDirectoryURL.path.contains("Library/Containers"))
+    }
+
+    /// One changelog rail per channel, and the beta one must include the release
+    /// its train graduates into.
+    ///
+    /// `includesPromotedStable` is asserted as a LITERAL rather than read off the
+    /// rule: reading it would make this case agree with whatever the registry
+    /// says. It is true here and false on Yaak's beta recipe, and the difference
+    /// is the rules — Yaak's beta rule cannot resolve a stable artifact, while
+    /// this one can and must, so a prerelease-only history would omit the very
+    /// entry the row is offering.
+    @Test func bothChangelogRailsAreRegisteredAndTheBetaOneKeepsTheGraduation() throws {
+        let recipes = ChangelogRecipeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
+        #expect(recipes.count == 2, "one rail per channel; a deleted recipe must not read as coverage")
+        var seen: Set<ReleaseChannel> = []
+        for recipe in recipes {
+            seen.insert(recipe.channel ?? .stable)
+            #expect(recipe.source.path == "/repos/coteditor/CotEditor/releases")
+            #expect(recipe.structuredFormat == .gitHubReleases)
+            #expect(recipe.includesPromotedStable == (recipe.channel == .beta))
+        }
+        #expect(seen == [.stable, .beta])
+    }
+
+    /// The case the `-beta`-only pattern got wrong, driven through the source with
+    /// the graduation that has not happened yet: `7.1.0` published as stable above
+    /// the `7.1.0-beta.6` a copy is running.
+    ///
+    /// A beta copy must be offered it. Under the shipped-for-a-day pattern the
+    /// beta rule could not see a plain tag at all, so this copy sat on a
+    /// superseded prerelease until the next cycle opened — while CotEditor's own
+    /// updater handed it that release, because Sparkle allows the default channel
+    /// to everyone. Nothing else in this file notices: every other case is about
+    /// tags that exist today, and today the newest tag IS a beta.
+    @Test func aBetaCopyIsOfferedTheReleaseItsTrainGraduatesInto() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GraduationProtocol.self]
+        let source = GitHubReleasesSource(session: URLSession(configuration: config))
+
+        func app(_ short: String, _ build: String) -> InstalledApp {
+            InstalledApp(
+                name: "CotEditor", bundleID: Self.bundleID,
+                shortVersion: short, buildVersion: build,
+                path: URL(fileURLWithPath: "/Applications/CotEditor.app"),
+                isMASApp: false, sparkleFeedURL: nil,
+                releaseChannel: ReleaseChannel.detect(
+                    name: "CotEditor", bundleID: Self.bundleID,
+                    keystoneChannel: nil, version: short))
+        }
+
+        let onBeta = try #require(try await source.latestVersion(for: app("7.1.0-beta.6", "845")))
+        #expect(onBeta.shortVersion == "7.1.0")
+        #expect(onBeta.downloadURL?.lastPathComponent == "CotEditor_7.1.0.dmg")
+        #expect(UpdateChecker.evaluate(installed: app("7.1.0-beta.6", "845"), remote: onBeta)
+            == .updateAvailable(latest: "7.1.0"))
+
+        // And the version comparison behind it, stated rather than assumed: a
+        // release outranks its own prerelease tag.
+        #expect(VersionComparator.isNewer("7.1.0", than: "7.1.0-beta.6"))
+    }
+
+    /// The mirror, on the same fixture: a STABLE copy is not handed the
+    /// prerelease sitting in the same page. The stable rule reads
+    /// `/releases/latest`, which GitHub never answers with a prerelease, and its
+    /// own pattern refuses one anyway.
+    @Test func aStableCopyIsNotHandedThePrereleaseInTheSamePage() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GraduationProtocol.self]
+        let source = GitHubReleasesSource(session: URLSession(configuration: config))
+        let stable = InstalledApp(
+            name: "CotEditor", bundleID: Self.bundleID,
+            shortVersion: "7.0.9", buildVersion: "843",
+            path: URL(fileURLWithPath: "/Applications/CotEditor.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+        let remote = try #require(try await source.latestVersion(for: stable))
+        #expect(remote.shortVersion == "7.1.0")
+        #expect(remote.downloadURL?.lastPathComponent == "CotEditor_7.1.0.dmg")
+    }
+
+    /// A releases page with the graduation in it: `7.1.0` stable above the
+    /// `7.1.0-beta.6` it graduates from. Shaped like the real API's fields, with
+    /// one `CotEditor_<tag>.dmg` per release the way this vendor publishes.
+    private final class GraduationProtocol: URLProtocol, @unchecked Sendable {
+        static let releases = """
+        [
+          {"tag_name":"7.1.0","prerelease":false,"draft":false,"published_at":"2026-09-20T01:00:00Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.1.0","body":"### Improvements\\n- Graduated.",
+           "assets":[{"name":"CotEditor_7.1.0.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.1.0/CotEditor_7.1.0.dmg","size":26500000}]},
+          {"tag_name":"7.1.0-beta.6","prerelease":true,"draft":false,"published_at":"2026-09-05T01:33:07Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.1.0-beta.6","body":"### Improvements\\n- Beta six.",
+           "assets":[{"name":"CotEditor_7.1.0-beta.6.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg","size":26458624}]},
+          {"tag_name":"7.0.9","prerelease":false,"draft":false,"published_at":"2026-09-05T01:32:59Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.0.9","body":"### Improvements\\n- Nine.",
+           "assets":[{"name":"CotEditor_7.0.9.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.0.9/CotEditor_7.0.9.dmg","size":25609728}]}
+        ]
+        """
+
+        /// `/releases/latest` — GitHub's newest non-prerelease, spelled out rather
+        /// than derived from the list above, so the stub cannot quietly answer
+        /// something malformed and have a test pass for the wrong reason.
+        static let latest = """
+        {"tag_name":"7.1.0","prerelease":false,"draft":false,"published_at":"2026-09-20T01:00:00Z",
+         "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.1.0","body":"### Improvements\\n- Graduated.",
+         "assets":[{"name":"CotEditor_7.1.0.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.1.0/CotEditor_7.1.0.dmg","size":26500000}]}
+        """
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            let path = request.url?.path ?? ""
+            // `/releases/latest` is GitHub's newest NON-prerelease; the list
+            // endpoint carries everything, newest first.
+            let body = path.hasSuffix("/releases/latest") ? Self.latest : Self.releases
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        override func stopLoading() {}
     }
 
     /// ⚠️ The appcast address stays OUT of `SparkleFeedCatalog` on purpose.

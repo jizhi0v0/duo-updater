@@ -7,11 +7,18 @@ import Foundation
 ///
 /// Both of that table's halves supply an address the BUNDLE never stated — the
 /// fill-in invents one outright, the superseded entry redirects one we decided
-/// was dead. For a store copy that turns a store lookup which merely missed
-/// (`MacAppStoreSource` returns nil rather than throwing, and `SourceStack` runs
-/// `SparkleAppcastSource` third) into a one-click direct-install download beside
-/// an app the store owns. `HomebrewCaskSource`, `GitHubReleasesSource` and
-/// `VendorProbeSource` all carry the same `guard !app.isMASApp`.
+/// was dead. Inventing an address for a copy the store owns is not the scanner's
+/// business whatever happens downstream.
+///
+/// ⚠️ Downstream has since changed, and this file's original framing was wrong
+/// twice over. It said `MacAppStoreSource` "returns nil rather than throwing" —
+/// it does both, and the throw is the case that mattered, because
+/// `UpdateChecker` falls through on a thrown error too. And it said a store copy
+/// reaching `SparkleAppcastSource` was the harm to prevent; that source now
+/// declines store copies along with every other non-store source, via
+/// `UpdateChecker`'s gate (see `SourceStorePolicyTests`). So these two lines are
+/// belt and braces now: what they still decide is what the scanner is entitled
+/// to WRITE DOWN, which is a different question from who may answer.
 ///
 /// Driven off the registry, not off a written-down list of bundle ids: a new
 /// catalog entry is covered the day it lands. Every case names the mutation it
@@ -88,23 +95,28 @@ struct AppScannerStoreCopyTests {
             let store = try Self.scan(
                 bundleID: bundleID, declaringFeed: declared, storeReceipt: true)
             #expect(store.isMASApp, "\(bundleID): fixture stopped reading as a store copy")
-            // ⚠️ This pins today's answer, not a settled one. What the store copy
-            // is left with is an address we have OURSELVES recorded as dead, so a
-            // run where the store lookup misses reads a frozen feed and reports
-            // "up to date" rather than "Managed by the App Store". Honouring a
-            // declared feed is the Keka rule; honouring one we know is worthless
-            // is not obviously the same thing. Filed as #385 — if that is settled
-            // the other way, this expectation is the thing to change.
+            // The store copy keeps the dead address it declared. That used to
+            // matter — it meant a frozen 2022 feed could answer and report "up to
+            // date" — and it was filed as #385 for that reason. The store gate
+            // closed it: no store copy reaches `SparkleAppcastSource` at all, so
+            // the recorded address has no consumer. Kept as an assertion because
+            // it still pins WHICH address the scanner writes down, and a redirect
+            // appearing here would be the scanner making a choice it should not.
             #expect(store.sparkleFeedURL == entry.declared,
                     "\(bundleID): a store copy was redirected to a feed we chose for it")
         }
     }
 
-    /// The other side of the same decision, and the one that keeps this from
-    /// being "store copies never get a Sparkle feed": an address the BUNDLE
-    /// states is the app speaking for itself and is honoured whoever installed
-    /// it. Keka is a real store copy carrying `SUFeedURL`; `UpdateChecker`'s
-    /// "all sources exhausted" comment names it for the same reason.
+    /// The other side of the same decision: the `SUFeedURL` read records what the
+    /// bundle SAYS, which is a fact, not a decision, and the scanner does not
+    /// edit it by install kind.
+    ///
+    /// ⚠️ Do not read this as "a store copy's own feed is honoured" — it is not,
+    /// not any more. `UpdateChecker`'s gate declines every non-store source for a
+    /// store row, so the address recorded here has no consumer. The earlier
+    /// version of this comment justified the split with "Keka is a real store
+    /// copy carrying `SUFeedURL`", which was never true: Developer ID-signed, no
+    /// `_MASReceipt`.
     ///
     /// Mutation: extend the guard to the `SUFeedURL` read and this goes nil.
     @Test func aStoreCopyKeepsTheFeedItsOwnBundleStates() throws {

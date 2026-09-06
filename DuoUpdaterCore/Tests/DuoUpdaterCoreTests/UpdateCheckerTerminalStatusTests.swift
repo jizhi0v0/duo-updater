@@ -48,13 +48,21 @@ import Foundation
         }
 
         let name: String
+        /// Must be stated for a store row. `UpdateChecker` skips every source
+        /// that says no when `isMASApp` — inheriting the protocol default here
+        /// silently turned two cases below into tests of the SKIP, one of them
+        /// red and the other passing without measuring anything (caught in
+        /// adversarial review, not by the suite).
+        let answersAppStoreCopies: Bool
         private let behaviour: Behaviour
         private let lock = NSLock()
         private var consultedCount = 0
 
-        init(_ behaviour: Behaviour, name: String = "Scripted") {
+        init(_ behaviour: Behaviour, name: String = "Scripted",
+             answersAppStoreCopies: Bool = false) {
             self.behaviour = behaviour
             self.name = name
+            self.answersAppStoreCopies = answersAppStoreCopies
         }
 
         /// The error a real source raises for the failure this stands in for — a
@@ -215,7 +223,8 @@ import Foundation
     /// If a later change makes this `.appStoreManaged`, that is a decision to
     /// argue for here, not a tidy-up of an inconsistency.
     @Test func anAppStoreAppReportsAFailedStoreLookup() async {
-        let source = ScriptedSource(.throwing, name: "App Store")
+        let source = ScriptedSource(.throwing, name: "App Store",
+                                    answersAppStoreCopies: true)
         let result = await UpdateChecker(sources: [source])
             .check(Self.app(isMASApp: true))
 
@@ -228,10 +237,40 @@ import Foundation
 
     /// A store lookup that merely misses is a different thing from one that
     /// failed, and keeps the managed label.
+    ///
+    /// `answersAppStoreCopies: true` is what makes this measure the MISS. Without
+    /// it the source is skipped by the gate and `.appStoreManaged` arrives from
+    /// the skip path — an answer a wrong implementation (one that turned a store
+    /// miss into `.unknown`) would produce too.
     @Test func anAppStoreAppWithNoAnswerIsManaged() async {
-        let result = await UpdateChecker(sources: [ScriptedSource(.missing)])
-            .check(Self.app(isMASApp: true))
+        let source = ScriptedSource(.missing, name: "App Store",
+                                    answersAppStoreCopies: true)
+        let result = await UpdateChecker(sources: [source]).check(Self.app(isMASApp: true))
+        #expect(source.consulted)
         #expect(result.status == .appStoreManaged)
+    }
+
+    /// The combination the gate creates and neither case above covers: a store
+    /// row whose non-store source is silenced AND whose store lookup throws.
+    /// The silenced one must not contribute to the verdict in either direction —
+    /// it neither supplies an answer nor suppresses the `.error` the store's own
+    /// failure earns.
+    ///
+    /// Ordered with the silenced source FIRST, so a gate that ran it would let it
+    /// answer before the store ever threw.
+    @Test func aSilencedSourceNeitherAnswersNorHidesTheStoresFailure() async {
+        let silenced = ScriptedSource(.answering("9.9"), name: "Elsewhere")
+        let store = ScriptedSource(.throwing, name: "App Store",
+                                   answersAppStoreCopies: true)
+        let result = await UpdateChecker(sources: [silenced, store])
+            .check(Self.app(isMASApp: true))
+
+        #expect(!silenced.consulted)
+        #expect(store.consulted)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
     }
 
     // MARK: - the gap this file is meant to close

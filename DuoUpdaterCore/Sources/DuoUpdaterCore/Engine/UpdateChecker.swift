@@ -211,6 +211,17 @@ public struct UpdateChecker: Sendable {
 
         var lastError: String?
 
+        // One line for the row, not one per silenced source. `VendorProbeSource`
+        // learned this: a per-source line for sources that were never going to
+        // touch the row "reads as if a recipe had been declined", and here it
+        // would be every store app times every declining source, every round.
+        if app.isMASApp {
+            let silenced = sources.filter { !$0.answersAppStoreCopies }.count
+            if silenced > 0 {
+                Log.check.debug("\(label, privacy: .public): \(silenced, privacy: .public) non-store sources silenced, the store owns this copy")
+            }
+        }
+
         for source in sources {
             // A store copy is answered by the store, or by nobody.
             //
@@ -224,10 +235,7 @@ public struct UpdateChecker: Sendable {
             // nobody has thought about yet — including the four that had no guard
             // when this landed (Sparkle, Xcode, Electron, Alcove). See its doc
             // comment for why the default carries the weight.
-            if app.isMASApp, !source.answersAppStoreCopies {
-                Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) skipped, the store owns this copy")
-                continue
-            }
+            if app.isMASApp, !source.answersAppStoreCopies { continue }
             do {
                 guard let remote = try await source.latestVersion(for: app) else {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
@@ -265,14 +273,18 @@ public struct UpdateChecker: Sendable {
         // Painting it "Managed by the App Store" would show the user the same row
         // they get when the store is quietly keeping the app current.
         //
-        // This used to be an inventory of which sources happened to carry
+        // True by construction of the gate PLUS the registry: it stops holding the
+        // moment a second source declares `answersAppStoreCopies`.
+        // `SourceStorePolicyTests.exactlyOneSourceAnswersStoreCopies` is what makes
+        // that loud, and is the thing to read before changing this paragraph.
+        //
+        // It used to be an inventory of which sources happened to carry
         // `guard !app.isMASApp`, kept accurate by hand and re-checked whenever a
         // source was added. It was wrong twice: once by naming one source when
         // three could run, and then, in the commit that fixed that, by citing
         // Keka as a store copy carrying a `SUFeedURL` — Keka is Developer
         // ID-signed with no `_MASReceipt`, so `isMASApp` was false for it under
-        // the very same derivation both then and now. The gate makes the claim
-        // true by construction instead.
+        // the very same derivation both then and now.
         //
         // TestFlight returns before the loop and never gets here at all.
         if let lastError, !app.isToolboxManaged {
@@ -295,7 +307,10 @@ public struct UpdateChecker: Sendable {
         } else {
             status = .unknown
         }
-        Log.check.info("\(label, privacy: .public): no source applied → \(String(describing: status), privacy: .public)")
+        // "nothing applied" for an ordinary row; for a store row the non-store
+        // sources were not inapplicable, they were forbidden — the line above says
+        // how many.
+        Log.check.info("\(label, privacy: .public): no source answered → \(String(describing: status), privacy: .public)")
         return UpdateResult(app: app, remote: nil, status: status)
     }
 

@@ -18,14 +18,18 @@ public protocol UpdateSource: Sendable {
     /// `UpdateChecker` skips every source that says no when the row is
     /// `isMASApp`, so a store copy is answered by the store or by nobody. The
     /// alternative — relying on `MacAppStoreSource` being first in
-    /// `SourceStack` — does not hold: the checker falls through on a THROWN
-    /// error as well as on a miss, and the store lookup misses often enough
-    /// (region-locked storefront, a lookup that 404s) that the fall-through is
-    /// an ordinary state. Measured on a real row: WhatsApp offered 26.32.75 →
-    /// 26.33.19, the store build against the direct download from
+    /// `SourceStack` — does not hold, because the checker falls through on a
+    /// THROWN error as well as on a miss, and the store lookup does both (a
+    /// region-locked storefront, a lookup that 404s).
+    ///
+    /// Not hypothetical: 94a1842 (2026-08-23) recorded WhatsApp offering
+    /// 26.32.75 → 26.33.19, the store build against the direct download from
     /// web.whatsapp.com, whose recipe carries a dmg install spec — so Update
     /// would have replaced the store copy, `_MASReceipt`, sandbox entitlements
-    /// and the store's own update path with it.
+    /// and the store's own update path with it. ⚠️ That row is gone: this
+    /// machine's WhatsApp is now the Developer ID build, so nothing here can
+    /// reproduce it end to end. The case is cited from that commit, not
+    /// re-measured.
     ///
     /// **The default is the safe answer, deliberately.** Three sources learned
     /// this one at a time (Homebrew at the start, GitHub 2026-08-20 via

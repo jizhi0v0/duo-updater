@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **CotEditor is now covered, on both its release and its beta line.** Which line a copy follows comes from the version it is running and from CotEditor's own "Update to prereleases when available" setting, so a beta copy is offered the next beta instead of a release that would take it backwards.
 
-**An app you installed from the App Store is never offered a download from anywhere else.** If the store's own lookup for it fails or comes back empty, the row now simply says the store is managing it. Before, the check could fall through to the app's other distribution — a different build with its own version numbers — and offer to install it over your store copy.
+**An app you installed from the App Store is never offered a download from anywhere else.** When the store's own lookup for it fails or comes back empty, the row now says the store is managing it, without a version number. Before, the check could fall through to the app's other distribution — a different build with its own version numbers — and offer to install that over your store copy.
 
 **A long error on a row no longer pushes the rest of the list down.** It is kept to two lines, with the full text on hover.
 

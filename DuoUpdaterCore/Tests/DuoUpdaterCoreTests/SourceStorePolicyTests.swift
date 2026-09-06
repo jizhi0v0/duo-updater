@@ -32,10 +32,14 @@ struct SourceStorePolicyTests {
         "MacAppStoreSource": (true,
             "it IS the store's lookup — the one place answering a store copy is the job"),
         "XcodeReleasesSource": (false,
-            "gates on bundle id only, and Xcode ships on the store. Detection-only today "
-            + "(downloadURL nil), so the harm would be a version readout rather than a bad "
-            + "install — but 'detection-only' is a property that can change, and the point of "
-            + "this gate is to stop reasoning per source"),
+            "gates on bundle id only, and Xcode ships on the store. THE ONE SKIP THAT COSTS "
+            + "SOMETHING: it cannot install a store Xcode over itself even in principle — its "
+            + "downloadURL is nil because the endpoint 302s to developer.apple.com/unauthorized/ "
+            + "without an Apple ID session, and its pageURL sends the user to the store — so what "
+            + "the gate removes is a version readout and release notes when the iTunes lookup is "
+            + "flaky, not a bad install. Skipped anyway, because the alternative is keeping a "
+            + "per-source exemption whose justification lives in prose, which is exactly the "
+            + "arrangement that produced the Keka sentence"),
         "SparkleAppcastSource": (false,
             "gates on the feed URL only, so any store copy declaring SUFeedURL reached it"),
         "HomebrewCaskSource": (false,
@@ -74,16 +78,30 @@ struct SourceStorePolicyTests {
 
     /// The registration is a claim about the type; this is what makes it one.
     ///
-    /// Mutation: flip any `answersAppStoreCopies`, or any `answers:` in the
-    /// table, and this names the source.
+    /// Mutation: flip `MacAppStoreSource.answersAppStoreCopies`, or the protocol
+    /// extension's default, or any `answers:` in the table.
+    ///
+    /// ⚠️ Only two of those are independent. The seven declining sources declare
+    /// nothing of their own — they read the extension default — so there is one
+    /// mutation for all seven, not seven. That IS the design (the default is what
+    /// covers a source nobody has thought about), but do not read this case as
+    /// seven separate pins.
     @Test func theRegisteredPolicyIsWhatTheTypeDeclares() {
-        for source in Self.fullStack() {
+        let stack = Self.fullStack()
+        var matched = 0
+        for source in stack {
             let type = String(describing: Swift.type(of: source))
             guard let entry = Self.policy[type] else { continue }  // the case above owns this
+            matched += 1
             #expect(source.answersAppStoreCopies == entry.answers,
                     "\(type) declares \(source.answersAppStoreCopies), registered as \(entry.answers)")
             #expect(!entry.reason.isEmpty)
         }
+        // Without this the whole case passes having asserted NOTHING, should
+        // `String(describing:)` ever start module-qualifying and miss every key.
+        // Its two siblings would still catch that, but a case that can run empty
+        // is not one you want to be relying on them for.
+        #expect(matched == stack.count)
     }
 
     /// Exactly one source is allowed to answer, and it is the store's.

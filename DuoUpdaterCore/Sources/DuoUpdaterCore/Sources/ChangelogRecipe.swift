@@ -3329,8 +3329,9 @@ public enum ChangelogRecipeRegistry {
     /// contains the literal `data-component-part="update-label"` is dropped
     /// (108 → 107) where a plain body gap would keep it. For it: mangle an entry's
     /// `</div></div></div>` terminator and a plain body gap silently renders that
-    /// release's version and date carrying the NEXT release's bullets, which is
-    /// the failure this whole pattern exists to prevent. The second is a real
+    /// release's version and date carrying its own bullets AND the next release's,
+    /// while the next release disappears from the pane — the failure this whole
+    /// pattern exists to prevent, and worse than a dropped entry. The second is a real
     /// shape a docs generator can produce; the first requires the vendor to write
     /// our own sentinel into prose.
     private static let qoderEntryGap =

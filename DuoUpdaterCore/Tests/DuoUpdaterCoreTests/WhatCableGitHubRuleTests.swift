@@ -116,8 +116,9 @@ import Testing
 
     // MARK: - The channel proof
 
-    /// The proof is a `.recipeAnchor` on `usePrereleases`, not an `.artifact`
-    /// one, and the artifact is why: both trains publish one file under one name,
+    /// The proof is a `.recipeAnchor` on the two fields that carry this rule's
+    /// channel identity, not an `.artifact` one, and the artifact is why: both
+    /// trains publish one file under one name,
     /// so the tag segment is the only discriminator — and this rule is allowed to
     /// resolve a stable tag on purpose. An artifact proof would therefore fire on
     /// a legitimate resolution. What is left to anchor is the request.

@@ -263,9 +263,14 @@ public enum ChannelProofRegistry {
     /// pattern the author happened to write, and nothing re-derives it. Most of
     /// the rules below gate the channel in their `versionPattern` — a stable tag
     /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
-    /// sweep of 2026-08-27 found nothing misresolving. WhatCable's beta rule is
-    /// the one that does NOT, deliberately (its pattern accepts the stable tag its
-    /// betas graduate into); it is anchored on the request instead. What was missing is any
+    /// sweep of 2026-08-27 found nothing misresolving. THREE do not, and they are
+    /// the three carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha
+    /// because their patterns hold no channel token at all (each is byte-identical
+    /// to a stable pattern), and WhatCable's beta because its token is OPTIONAL —
+    /// deliberately, so it accepts the stable tag its betas graduate into.
+    /// (Counted, not eyeballed: an earlier revision said "all three rules below
+    /// gate the channel", the next said WhatCable was the only one that did not,
+    /// and both were wrong.) What was missing is any
     /// statement that this is REQUIRED. A future rule written with the registry's
     /// default `v?([0-9]+(?:\.[0-9]+)+)` plus `usePrereleases: true` plus a
     /// non-stable channel would have no discriminator at all, and nothing
@@ -276,11 +281,11 @@ public enum ChannelProofRegistry {
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write. Two entries are not provable that way
-    /// and carry `.recipeAnchor` proofs instead — UTM, because neither its tag nor
-    /// its asset names a channel, and WhatCable's beta, because its artifact is
-    /// allowed to be stable's. See each entry for what its anchor does and does
-    /// not cover.
+    /// against what someone meant to write. THREE entries are not provable that
+    /// way and carry `.recipeAnchor` proofs instead — UTM's beta and T3 Code's
+    /// alpha, because neither tag nor asset names a channel, and WhatCable's beta,
+    /// because its artifact is allowed to be stable's. See each entry for what its
+    /// anchor does and does not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
@@ -357,9 +362,10 @@ public enum ChannelProofRegistry {
         // beta rule silently becomes a second stable rule — no error, no missing
         // version, just a beta install that stops being offered betas. The pattern
         // matches each field through its own branch (`^true$` the Bool,
-        // `-beta\\\.` the REGEX SOURCE, escaped to match a backslash the way the
-        // t3code anchor above escapes its own); neither branch can satisfy the
-        // other field.
+        // `-beta\\\.` the REGEX SOURCE — the extra escaping is there because the
+        // text being matched is itself a regex, so the backslash in `-beta\\.` has
+        // to be matched literally; the t3code anchor above does the same thing to
+        // that pattern's brackets); neither branch can satisfy the other field.
         //
         // A first draft anchored `usePrereleases` alone and claimed it was "the
         // whole of this rule's channel identity". It is not, in two ways:

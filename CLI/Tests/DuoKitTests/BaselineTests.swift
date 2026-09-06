@@ -176,18 +176,19 @@ import DuoUpdaterCore
     /// completely healthy.
     @Test func aVersionGoingBackwardsIsFlagged() {
         var baseline = Baseline()
-        #expect(baseline.reconcile(finding(status: .ok, version: "4.7.9")) == nil)
+        #expect(baseline.reconcile(finding(status: .ok, version: "4.7.9")).isEmpty)
 
-        let complaint = baseline.reconcile(finding(status: .ok, version: "4.7"))
-        #expect(complaint?.contains("BACKWARDS") == true)
-        #expect(complaint?.contains("4.7.9") == true)
+        let complaints = baseline.reconcile(finding(status: .ok, version: "4.7"))
+        #expect(complaints.count == 1)
+        #expect(complaints.first?.contains("BACKWARDS") == true)
+        #expect(complaints.first?.contains("4.7.9") == true)
     }
 
     @Test func movingForwardOrStandingStillIsNotFlagged() {
         var baseline = Baseline()
         _ = baseline.reconcile(finding(status: .ok, version: "4.7.9"))
-        #expect(baseline.reconcile(finding(status: .ok, version: "4.8.0")) == nil)
-        #expect(baseline.reconcile(finding(status: .ok, version: "4.8.0")) == nil)
+        #expect(baseline.reconcile(finding(status: .ok, version: "4.8.0")).isEmpty)
+        #expect(baseline.reconcile(finding(status: .ok, version: "4.8.0")).isEmpty)
     }
 
     @Test func baselineRoundTripsThroughDisk() throws {

@@ -292,6 +292,14 @@ public enum Reconcile {
         if let version = finding.version {
             out += "| resolved | `\(version)` |\n"
         }
+        // Changelog findings only. Beside a version that still looks right, "1"
+        // here is the whole diagnosis: the page collapsed into one entry and the
+        // heading it kept still parses.
+        if let entries = finding.entryCount {
+            out += "| entries parsed | \(entries)"
+            out += entry.lastGoodEntryCount.map { $0 == entries ? "" : " (was \($0))" } ?? ""
+            out += " |\n"
+        }
         if let previous = entry.lastGoodVersion {
             out += "| last good | `\(previous)` |\n"
         }

@@ -151,12 +151,13 @@ events options:
 
 verify options:
   --only <text>       Restrict to recipes whose bundle id contains <text>.
-                      Comma-separated for several. Without it all four
+                      Comma-separated for several. Without it all five
                       registries are swept (~150 requests, about 3 minutes).
   --vendor            Sweep only the vendor probe recipes.
   --github            Sweep only the GitHub release rules.
   --changelog         Sweep only the changelog recipes.
   --appstore          Sweep only the Mac App Store probe cases.
+  --feed              Sweep only the SparkleFeedCatalog addresses.
   --samples           Print the fetched body sample for each flagged recipe —
                       what you need to re-derive a broken pattern.
   --no-installed      Don't cross-check against locally installed apps. Implied

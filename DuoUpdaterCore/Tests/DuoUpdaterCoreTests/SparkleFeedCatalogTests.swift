@@ -275,4 +275,40 @@ struct SparkleFeedCatalogTests {
             "Not PDF Expert", id: "com.example.other", feed: dead)))
         #expect(other.sparkleFeedURL?.absoluteString == dead)
     }
+
+    // MARK: - What `duo verify` sweeps
+
+    /// `verificationCases` is what the nightly sweep iterates (#324). It is
+    /// derived from the two tables rather than written out beside them, and
+    /// this pins the derivation: an entry with no case is an address nothing
+    /// fetches, which is the exact state that issue was filed about.
+    @Test func everyCatalogEntryIsSwept() {
+        let cases = SparkleFeedCatalog.verificationCases
+        #expect(cases.count == SparkleFeedCatalog.feeds.count
+                + SparkleFeedCatalog.supersededFeeds.count)
+        #expect(Set(cases.map(\.recipeID)).count == cases.count,
+                "two entries share a sweep key, so one of them would overwrite the other's baseline row")
+        // Sorted, because the sweep prints in this order and the baseline is
+        // written in it — deriving from a dictionary without sorting would
+        // reshuffle both from run to run.
+        #expect(cases.map(\.recipeID) == cases.map(\.recipeID).sorted())
+
+        for (key, url) in SparkleFeedCatalog.feeds {
+            let entry = cases.first { $0.bundleID == key }
+            #expect(entry?.kind == .fillIn)
+            #expect(entry?.feed == url)
+            // A fill-in overrides nothing, so there is no second address to
+            // read — and the sweep's expiry check keys on this being nil.
+            #expect(entry?.declared == nil)
+        }
+        for (key, superseded) in SparkleFeedCatalog.supersededFeeds {
+            let entry = cases.first { $0.bundleID == key }
+            #expect(entry?.kind == .superseded)
+            // The LIVE address is the one an app is actually pointed at, so it
+            // is the one worth sweeping; `declared` rides along because the
+            // entry is only justified while that address stays behind.
+            #expect(entry?.feed == superseded.live)
+            #expect(entry?.declared == superseded.declared)
+        }
+    }
 }

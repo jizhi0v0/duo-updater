@@ -6,7 +6,10 @@ import Foundation
 public struct SparkleAppcastSource: UpdateSource {
     public let name = "Sparkle"
 
-    private let session: URLSession
+    // Not private: `readFeed` (SparkleFeedProbe.swift) is the same fetch with no
+    // installed copy behind it, and a sweep that opened its own session would be
+    // sweeping a different client than the one that ships.
+    let session: URLSession
 
     public init(session: URLSession = .updates) {
         self.session = session
@@ -15,26 +18,7 @@ public struct SparkleAppcastSource: UpdateSource {
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
         guard let feedURL = app.sparkleFeedURL else { return nil }
 
-        var request = URLRequest(url: feedURL)
-        request.timeoutInterval = 15
-        // Always revalidate the appcast against the origin — never serve it from
-        // the shared `URLCache` on max-age freshness alone. Some vendor CDNs stamp
-        // a static feed with an absurd `Cache-Control: max-age` (Fork's fork.dev
-        // sends ~10 years + `Expires: 2037`): under the default `.useProtocolCache`
-        // policy the cached copy stays "fresh" effectively forever, so once we'd
-        // fetched it we'd replay that stale feed and never see a new release — the
-        // exact reason Fork 2.68.0 went undetected. `.reloadRevalidatingCacheData`
-        // ignores freshness and sends a conditional GET (If-None-Match /
-        // If-Modified-Since from the cached ETag/Last-Modified): unchanged → cheap
-        // 304 served from cache, changed → 200 with the new feed. So we keep the
-        // bandwidth win on quiet feeds without ever going blind to an update.
-        request.cachePolicy = URLRequest.versionFeedCachePolicy
-        request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
-        // Header-keyed apps (TablePlus) share one appcast across channels and let
-        // a request header pick which builds the server returns. See `ChannelBinding`.
-        for (field, value) in app.sparkleFeedHeaders {
-            request.setValue(value, forHTTPHeaderField: field)
-        }
+        let request = Self.feedRequest(url: feedURL, headers: app.sparkleFeedHeaders)
 
         let (data, response) = try await session.versionFeedData(
             for: request, label: "Sparkle \(app.name)")
@@ -97,6 +81,38 @@ public struct SparkleAppcastSource: UpdateSource {
             releaseHistory: history,
             deltas: best.deltas
         )
+    }
+
+    /// The one request shape every appcast fetch uses — the live check and
+    /// `duo verify`'s feed sweep alike.
+    ///
+    /// Extracted rather than copied because a sweep that builds its own request
+    /// is not sweeping the request production makes — and every field below is
+    /// load-bearing enough that a second copy drifting from this one would be a
+    /// sweep whose green answer says nothing about the app.
+    ///
+    /// Always revalidate the appcast against the origin — never serve it from
+    /// the shared `URLCache` on max-age freshness alone. Some vendor CDNs stamp
+    /// a static feed with an absurd `Cache-Control: max-age` (Fork's fork.dev
+    /// sends ~10 years + `Expires: 2037`): under the default `.useProtocolCache`
+    /// policy the cached copy stays "fresh" effectively forever, so once we'd
+    /// fetched it we'd replay that stale feed and never see a new release — the
+    /// exact reason Fork 2.68.0 went undetected. `.reloadRevalidatingCacheData`
+    /// ignores freshness and sends a conditional GET (If-None-Match /
+    /// If-Modified-Since from the cached ETag/Last-Modified): unchanged → cheap
+    /// 304 served from cache, changed → 200 with the new feed. So we keep the
+    /// bandwidth win on quiet feeds without ever going blind to an update.
+    ///
+    /// `headers` is for the header-keyed apps (TablePlus) that share one appcast
+    /// across channels and let a request header pick which builds the server
+    /// returns. See `ChannelBinding`.
+    static func feedRequest(url: URL, headers: [String: String]) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
+        return request
     }
 
     /// Every in-channel item with a parseable vendor date, turned into a

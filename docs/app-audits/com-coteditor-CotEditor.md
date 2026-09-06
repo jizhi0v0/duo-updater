@@ -2,6 +2,13 @@
 
 审计日期：2026-09-06。**结论：调查完成，暂不接入**——见「为什么没接」。
 
+> **2026-09-06 更新**：下面第 5 步描述的降级已经被堵上了（#368）。守卫分两半：
+> `SparkleAppcastSource.offerableItem` 决定**报哪一条**（表头会降级时往下找），
+> `UpdateChecker.evaluate` 决定**它算不算更新**（marketing 倒退就不算）。同一份 feed、
+> 同一台 `7.1.0-beta.3`：现在行里仍然写着 `7.0.9`、release notes 和时间线都在，
+> 但状态是「已是最新」，没有 Update 按钮。**但这不等于可以接了**——feed 里那条
+> `7.1.0-beta.6` 它依旧看不见，见文末「守卫之后还差什么」。
+
 ## 基本信息
 
 - Bundle ID：`com.coteditor.CotEditor`；Team ID：`HT3Z3A72WZ`（Mineko IMANISHI）。
@@ -74,6 +81,29 @@ INSTALLED 7.1.0-beta.6/845  detect=beta  allowed=[prerelease, nil]
 app 都要走的检查路径上，属于 CLAUDE.md 说的「十行改在所有请求都要走的路径上」，该单独
 走一轮对抗复审，不该塞进发版日。
 
+## 守卫之后还差什么
+
+守卫**只解决"会不会被推降级包"，不解决"能不能拿到自己那一轨"**。同一台
+`7.1.0-beta.3` 机器现在的结局是：`latestVersion` 照常返回 `7.0.9`（版本号、release
+notes、发布时间线都还在），`evaluate` 判 `.upToDate`。没有假的 Update 按钮了，但 feed
+里那条 `7.1.0-beta.6` 它依旧看不见——它被 `allowedChannels` 挡在外面，而挡它的原因
+（自己的 build 不在 feed 里）守卫一个字都没碰。
+
+⚠️ 这里有一个**故意接受的代价**，不是疏漏：跑在一条**已经被放弃的 prerelease 轨**上的
+副本（厂商发了 2.0-beta，砍掉 2.0，继续在 stable 发 1.6、1.7）从此不会被移回维护中的
+那条线。它会一直读作"已是最新"，而 `laggingRemoteVersion` 被限定在 stable 渠道、也不会
+提示它。`RowActionState` 里没有"你这条轨已经停更"这个状态。
+
+所以要接进来，仍然需要**渠道那一半**，两个已知障碍都还在：
+
+1. 旧 beta 副本在 feed 里找不到自己 → `channel(ofInstalled:)` 返回 nil → 退回默认渠道。
+2. 就算改成读 `ReleaseChannel.detect` 的结果，`sparkleChannelName(.beta)` 给 `"beta"`，
+   而这份 feed 的标签是 `"prerelease"`，对不上。
+
+第三件仍未决的事没有变：`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`
+（与 `GitHubReleasesSource` 的 `guard !app.isMASApp` 和 `HomebrewCaskSource` 不同），
+商店版副本会因为一次商店查询落空而拿到直装包的一键更新。
+
 顺带一条，同一条 `SparkleFeedCatalog` 补丁还有第二个副作用需要一起决定：
 `AppScanner` 填这张表时**不看 `isMASApp`**（与 `GitHubReleasesSource.swift:591` 的
 `guard !app.isMASApp` 和 `HomebrewCaskSource.swift:33` 不同），而 `MacAppStoreSource`
@@ -93,3 +123,7 @@ app 都要走的检查路径上，属于 CLAUDE.md 说的「十行改在所有�
 2. 临时给 `SparkleFeedCatalog.feeds` 加回 `"com.coteditor.coteditor"`，构造一个
    `shortVersion: "7.1.0-beta.3", buildVersion: "840"` 的 `InstalledApp`，依次调
    `SparkleAppcastSource.allowedChannels` / `bestItem` / `UpdateChecker.evaluate`。
+   守卫之前 `bestItem` 给 `7.0.9`/843、`evaluate` 给 `updateAvailable`；守卫之后
+   `bestItem` 仍然给 `7.0.9`/843，但 `evaluate` 给 `upToDate`。`allowedChannels`
+   两次都是 `[nil]`——这一步没有被修。同一份 feed 的固定装在
+   `SparkleMarketingDowngradeTests`，不必联网也能复现。

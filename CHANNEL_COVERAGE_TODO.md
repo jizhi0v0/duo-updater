@@ -228,6 +228,12 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       一道闸拦得住（仓库里只有架构降级守卫）。所以这一格**先欠着的不是 binding，是一条
       「远端 marketing 比装机的旧就不提供」的守卫**，那条落在每个 Sparkle app 的检查路径上，
       要单独走一轮复审。实测与链条见 [审计](docs/app-audits/com-coteditor-CotEditor.md)。
+      **2026-09-06：守卫已落地**（#368，`SparkleAppcastSource.offerableItem` +
+      `UpdateChecker.evaluate`），同一台 `7.1.0-beta.3` 行里仍写着 `7.0.9` 但状态是
+      「已是最新」，不会再被推降级包。但**这一格仍然不能打勾**：挡住 `7.1.0-beta.6` 的是
+      渠道推断（自己的 build 不在 feed 里），守卫没碰那一半；而且
+      `sparkleChannelName(.beta)` 给 `"beta"`、feed 用 `"prerelease"`，binding 那条路
+      也还对不上。
 
 - [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
       feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，

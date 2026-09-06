@@ -48,17 +48,25 @@ enum CotEditorChannel {
     static let bundleID = "com.coteditor.CotEditor"
 
     /// The app is sandboxed and keeps this in its CONTAINER, unlike every other
-    /// `CFPreferencesCopyAppValue` binding here and unlike CapCut, the one other
-    /// sandboxed app in the table (whose flag is an INI outside its container).
-    /// Measured 2026-09-06: `~/Library/Preferences/com.coteditor.CotEditor.plist`
-    /// does not exist, the container copy does, and a shell WITHOUT Full Disk
-    /// Access reads it — the container is the app's own jail, not a wall against
-    /// other processes of the same user.
+    /// binding here and unlike CapCut, the one other sandboxed app in the table
+    /// (whose flag is an INI outside its container).
+    /// `~/Library/Preferences/com.coteditor.CotEditor.plist` does not exist; the
+    /// container copy does, and a shell WITHOUT Full Disk Access reads it — the
+    /// container is the app's own jail, not a wall against other processes of the
+    /// same user.
     static var preferencesDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(
                 "Library/Containers/\(bundleID)/Data/Library/Preferences",
                 isDirectory: true)
+    }
+
+    /// The file `readChecksUpdatesForBeta` reads. Exposed for the same reason
+    /// `SurgeChannel.defaultsFileURL` is: `ChannelBinding.preferenceWatchCandidates`
+    /// has to sit on the directory the reader actually reads, and a watcher aimed
+    /// anywhere else is a guard with the wrong discriminator.
+    static var preferencesFileURL: URL {
+        preferencesDirectoryURL.appendingPathComponent("\(bundleID).plist", isDirectory: false)
     }
 
     /// Map the standing opt-in to a resolution. Pure and tested.
@@ -75,16 +83,39 @@ enum CotEditorChannel {
         resolve(checksUpdatesForBeta: readChecksUpdatesForBeta())
     }
 
-    /// Read `checksUpdatesForBeta` from CotEditor's defaults. False when the key
-    /// is missing, which is also CotEditor's own reading of it — its Settings
-    /// binding defaults the toggle off.
+    /// Read `checksUpdatesForBeta` out of the container plist. False when the file
+    /// or the key is missing, which is also CotEditor's own reading of it — its
+    /// Settings toggle defaults off.
+    ///
+    /// ⚠️ **`CFPreferencesCopyAppValue` does NOT work for this app**, and the first
+    /// version of this binding used it. Measured 2026-09-06 with the box ticked and
+    /// the container plist holding `checksUpdatesForBeta = 1`:
+    ///
+    /// ```
+    /// CFPreferencesCopyAppValue("checksUpdatesForBeta", "com.coteditor.CotEditor") → nil
+    /// Data(contentsOf: <container>/com.coteditor.CotEditor.plist) → the key, true
+    /// ```
+    ///
+    /// A sandboxed app's domain does not resolve to its container for a process
+    /// that is not that app: `CFPreferences` looks in
+    /// `~/Library/Preferences/<id>.plist`, which does not exist here. `defaults
+    /// read com.coteditor.CotEditor checksUpdatesForBeta` DOES print 1 — `defaults`
+    /// searches container paths itself — and that is the trap: the shell command
+    /// used to check this is not the API the code calls. Read the file, the way
+    /// `SurgeChannel` reads its own plist.
     static func readChecksUpdatesForBeta() -> Bool {
-        // Same reason IINA's reader synchronizes: this long-running process can
-        // otherwise serve a value cached from before the user flipped the toggle.
-        CFPreferencesAppSynchronize(bundleID as CFString)
-        guard let value = CFPreferencesCopyAppValue(
-            "checksUpdatesForBeta" as CFString, bundleID as CFString
-        ) else { return false }
-        return (value as? NSNumber)?.boolValue ?? false
+        decodeChecksUpdatesForBeta(at: preferencesFileURL)
+    }
+
+    /// Split out so the decoding is testable against a plist written to a temp
+    /// directory. The path is the part no unit test can pin — only a live read on
+    /// a machine with CotEditor installed says whether it is right, which is how
+    /// the `CFPreferences` version was caught.
+    static func decodeChecksUpdatesForBeta(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any]
+        else { return false }
+        return (plist["checksUpdatesForBeta"] as? NSNumber)?.boolValue ?? false
     }
 }

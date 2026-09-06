@@ -159,6 +159,60 @@ struct CotEditorChannelTests {
         #expect(CotEditorChannel.resolve(checksUpdatesForBeta: true)?.sparkleChannelNames.isEmpty == true)
     }
 
+    /// ⚠️ The reader must read the FILE, not the preferences API.
+    ///
+    /// The first version of this binding called
+    /// `CFPreferencesCopyAppValue("checksUpdatesForBeta", "com.coteditor.CotEditor")`
+    /// and shipped. Measured afterwards on a machine with the box ticked and the
+    /// container plist holding the key: that call returns **nil**, because a
+    /// sandboxed app's domain does not resolve to its container for anyone but the
+    /// app — `CFPreferences` looks in `~/Library/Preferences/<id>.plist`, which
+    /// does not exist for it. The evidence I had was `defaults read …`, which
+    /// prints 1 because `defaults` searches container paths itself. Different code
+    /// path, same-looking answer.
+    ///
+    /// This case pins the decoding against a plist written to a temp directory.
+    /// It CANNOT pin the path — only a live read on a machine with CotEditor
+    /// installed does that, which is exactly what caught the API mistake — so the
+    /// case that matters most here is the one below, that the watcher and the
+    /// reader are aimed at the same file.
+    @Test func theReaderDecodesTheContainerPlist() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("coteditor-binding-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("com.coteditor.CotEditor.plist")
+
+        // Missing file → false, the conservative default.
+        #expect(CotEditorChannel.decodeChecksUpdatesForBeta(at: file) == false)
+
+        for (value, expected) in [(true, true), (false, false)] {
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: ["checksUpdatesForBeta": value, "SUHasLaunchedBefore": true],
+                format: .binary, options: 0)
+            try data.write(to: file)
+            #expect(CotEditorChannel.decodeChecksUpdatesForBeta(at: file) == expected)
+        }
+
+        // A plist without the key at all — CotEditor before the pane is opened.
+        try PropertyListSerialization.data(
+            fromPropertyList: ["SUHasLaunchedBefore": true], format: .binary, options: 0)
+            .write(to: file)
+        #expect(CotEditorChannel.decodeChecksUpdatesForBeta(at: file) == false)
+    }
+
+    /// The watcher sits on the directory holding the file the reader reads. Aimed
+    /// anywhere else it is a guard with the wrong discriminator, and nothing about
+    /// it would look wrong — `SurgeChannel` exposes its path for this reason and
+    /// this binding follows it.
+    @Test func theWatchedDirectoryHoldsTheFileTheReaderReads() {
+        #expect(CotEditorChannel.preferencesFileURL.deletingLastPathComponent().path
+            == CotEditorChannel.preferencesDirectoryURL.path)
+        #expect(ChannelBinding.preferenceWatchCandidates.contains {
+            $0.path == CotEditorChannel.preferencesFileURL.deletingLastPathComponent().path
+        })
+    }
+
     /// The binding is registered in the one switch and in the watcher's roots.
     /// Sandboxed apps keep preferences inside their container, and CapCut — the
     /// only other sandboxed binding — happens to keep its flag OUTSIDE one, so

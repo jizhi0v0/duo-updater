@@ -124,9 +124,22 @@ beta    usePrereleases: true
 ——#368 换一扇门又进来一次。
 
 那个键在**沙盒容器里**（`~/Library/Containers/com.coteditor.CotEditor/Data/Library/Preferences/`），
-容器外没有 plist。实测：没有完全磁盘访问的 shell 也读得到，`defaults read com.coteditor.CotEditor
-checksUpdatesForBeta` 不指路径就能解析。CapCut 是表里另一个沙盒 app，但它的 flag 在容器
-**外**，所以现有两个监视根都盖不到这里，`preferenceWatchCandidates` 补了第三个。
+容器外没有 plist。CapCut 是表里另一个沙盒 app，但它的 flag 在容器**外**，所以现有两个监视根
+都盖不到这里，`preferenceWatchCandidates` 补了第三个。
+
+⚠️ **第一版这条 binding 用 `CFPreferencesCopyAppValue` 读，读不到 —— 而且是合并之后才量出来的。**
+在框勾着、容器 plist 里 `checksUpdatesForBeta = 1` 的机器上实测：
+
+```
+CFPreferencesCopyAppValue("checksUpdatesForBeta", "com.coteditor.CotEditor") → nil
+Data(contentsOf: <容器>/com.coteditor.CotEditor.plist)                        → 拿到键，true
+```
+
+沙盒 app 的域**不会**替别的进程解析到它的容器，`CFPreferences` 找的是
+`~/Library/Preferences/<id>.plist`，那个文件这里根本不存在。而 `defaults read
+com.coteditor.CotEditor checksUpdatesForBeta` **能**打印 1 —— `defaults` 自己会去找容器路径。
+我当初拿来当证据的正是这条 shell 命令，**它跟代码走的不是同一条路**。现在按 `SurgeChannel`
+的做法直接读文件，修完在同一台机器上验过：`resolveCurrent() → .beta`。
 
 ### 实测（打真实端点，2026-09-06）
 

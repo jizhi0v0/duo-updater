@@ -470,7 +470,20 @@ public struct AppScanner: Sendable {
         // fill-in, not a redirect. Crucially it does NOT make the channel
         // authoritative the way `ChannelBinding` below does, so the channel is
         // still inferred from the feed's own items. See the type's doc comment.
-        if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+        //
+        // Not for a store copy. Both of the addresses below are OURS, not the
+        // bundle's, and handing one to a copy the App Store owns turns a store
+        // lookup that merely missed into a one-click direct-install download —
+        // `MacAppStoreSource` returns nil rather than throwing when the lookup
+        // finds nothing, and `SourceStack` runs `SparkleAppcastSource` third, so
+        // the fall-through is the normal path, not an error path. Homebrew, GitHub
+        // and the vendor probe each carry the same `guard !app.isMASApp`.
+        //
+        // Deliberately NOT extended to the bundle's own `SUFeedURL` read above: a
+        // store copy that states a feed is speaking for itself and is honoured, as
+        // it is today — Keka is a store copy carrying one, and `UpdateChecker`'s
+        // "all sources exhausted" comment names it for the same reason.
+        if feedURL == nil, !isMAS { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
         // The narrower gap: the bundle DOES name a feed, and the vendor stopped
         // publishing to it. Matched on the dead address itself, not on the bundle
         // id, so the entry stops applying the moment the app names anything else —
@@ -478,7 +491,13 @@ public struct AppScanner: Sendable {
         // after the fill-in because a fill-in address is ours already and has
         // nothing to supersede, and before `ChannelBinding` below because a
         // binding's `feedOverride` is a channel decision and still outranks this.
-        if let live = SparkleFeedCatalog.replacement(
+        //
+        // `!isMAS` for the reason above, and it bites harder here than on the
+        // fill-in: today's one superseded entry is PDF Expert, which ships on the
+        // Mac App Store as well as direct. Left alone, a store copy naming the dead
+        // address resolves a frozen 2022 feed and reads "up to date"; redirected to
+        // the live one it would be offered a direct .zip instead.
+        if !isMAS, let live = SparkleFeedCatalog.replacement(
             forBundleID: bundleID, declaredFeed: feedURL) {
             feedURL = live
         }

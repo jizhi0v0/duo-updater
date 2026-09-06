@@ -630,6 +630,17 @@ public struct MacAppStoreSource: UpdateSource {
         }
 
         let decoded = try JSONDecoder().decode(LookupResponse.self, from: data)
+        // What the store actually said, next to the exact URL it was asked. Added
+        // 2026-09-06 after Nowdex, where the batched lookup and this one answered
+        // different versions for the same app seconds apart: the success path
+        // recorded neither the URL nor the answer, so the disagreement could only
+        // be inferred from a verdict two layers up, and "we asked the wrong thing"
+        // could not be told apart from "we were told the wrong thing". The byte
+        // count is here because it is what settled that — two different lengths
+        // for one URL are two documents. `.debug`, so it costs nothing when nobody
+        // is looking.
+        Log.source.debug(
+            "app store lookup: \(url.absoluteString, privacy: .public) → \(data.count) bytes, \(decoded.results.count) result(s), version=\(decoded.results.first?.version ?? "-", privacy: .public), kind=\(decoded.results.first?.kind ?? "-", privacy: .public)")
         return decoded.results.first
     }
 
@@ -691,6 +702,11 @@ public struct MacAppStoreSource: UpdateSource {
         }
         var out: [String: LookupResult?] = [:]
         for bundleID in bundleIDs { out[bundleID] = byBundleID[bundleID] }
+        // The other half of the pair above: the batch is what a scheduled check
+        // answers from, the single lookup is what a click answers from, and the
+        // whole point is to be able to compare the two for one app.
+        Log.source.debug(
+            "app store prewarm lookup: \(url.absoluteString, privacy: .public) → \(data.count) bytes, \(decoded.results.count)/\(bundleIDs.count) result(s): \(byBundleID.map { "\($0.key)=\($0.value.version ?? "-")" }.sorted().joined(separator: " "), privacy: .public)")
         return out
     }
 

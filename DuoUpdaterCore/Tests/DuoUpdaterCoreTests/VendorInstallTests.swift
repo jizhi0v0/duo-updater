@@ -366,7 +366,8 @@ import CryptoKit
 /// beyond "this field is non-empty". A pattern that matches all of these probes is
 /// not distinguishing anything about a channel.
 ///
-/// Covers all THREE registries. The GitHub side has no anchors today, and on the
+/// Covers all THREE registries — the GitHub side has anchors too (this comment
+/// said otherwise long after it stopped being true). On the
 /// binding side this is the half `everyBindingProofFailsOnItsOwnStableSibling`
 /// cannot backstop: TablePlus's stable `feedHTTPHeaders` surface is `""`, so `.+`
 /// would pass that test too.

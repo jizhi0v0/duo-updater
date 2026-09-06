@@ -196,6 +196,21 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       按 bundle id 限定的 step 0.8。两 channel 均仅检测，未接一键（装机带特权
       helper/LaunchDaemon/XPC，一键是独立范围决策）。
 
+- [ ] **WhatCable** · `uk.whatcable.whatcable` — Settings → **"Receive beta updates"**
+      checkbox。**版本检测这一半已经不需要它**：beta 包的
+      `CFBundleShortVersionString` 原样带 `-beta.8`（实测 v1.5.0-beta.8 的
+      Info.plist），`ReleaseChannel.detect()` 第 4 步就判成 `.beta`，两条 GitHub rule
+      已于 2026-09-06 接入（见 `docs/app-audits/uk-whatcable-whatcable.md`）。
+      **剩下的缺口是一格，但有两条路走进去**：(1) 跑 **stable** 构建却把开关打开的用户，
+      厂商自己的更新器会给他 beta，我们只给 stable；(2) 更要紧的是，跑 beta 的副本一旦接受
+      我们提供的「毕业版」stable，`detect` 就判它 `.stable`，从此由 stable rule 服务——
+      **是 DuoUpdater 自己把他送进第 (1) 格的**。（厂商的更新器会把他带回去，所以不是死路，
+      但那是靠别人的软件兜底。）UserDefaults key 是 `receiveBetaUpdates`
+      （app 源码 `Sources/WhatCable/App/AppSettings.swift`，注释自陈关掉时
+      "keeps hitting releases/latest, which GitHub never returns a pre-release from"）
+      —— **未做真机 diff 确认落盘行为**，按本节规矩不得直接当作 detectable。
+      补法是一个 `ChannelBinding`，形状同 `IINAChannel`。
+
 - [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
       feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，
       backend 使用 `desktop.docker.com/mac/main/arm64/appcast.json`。尚未取得真实 nightly

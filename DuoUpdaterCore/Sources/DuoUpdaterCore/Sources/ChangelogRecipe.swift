@@ -3126,6 +3126,79 @@ public enum ChangelogRecipeRegistry {
                 + #"(?<body>.*?)(?=<p[^>]*>\s*<strong>\s*Version\s|</body>)"#,
             itemPatterns: [#"(?:^|>)\s*(?:-\s+)?(?<item>[^<]+)"#],
             maxEntries: 20),
+
+        // Qoder IDE and Qoder — one markup, two pages, two products. See the
+        // `VendorProbeRecipe` pair for why "Qoder" is two apps and not one.
+        //
+        // The notes people are pointed at live on `qoder.com/changelog?type=…`,
+        // which is a Next.js page whose entries only exist inside an RSC payload —
+        // every product's entries in one document, in two languages, with the
+        // `type` discriminator sitting AFTER the version in each object. Parsing
+        // that means betting on which copy of "1.28.0" comes first. The docs site
+        // renders the same releases as ordinary server-side HTML, one page per
+        // product, so it is the page these read instead.
+        //
+        // Structure (verified against the live bytes, 2026-09-06): each release is
+        // a `data-component-part="update-label"` div holding the date, a
+        // `…="update-description"` div holding the version, and a
+        // `…="update-content"` div holding `<h3>`/`<h4>` section headings and the
+        // `<ul>`s under them. Headings are dropped — only `<li>`s become change
+        // lines, as everywhere else here.
+        //
+        // Anchored on the `data-component-part` attributes rather than the class
+        // soup, and it is worth being exact about what that buys, because the two
+        // obvious answers are both wrong.
+        //
+        // It is NOT what excludes the Next.js RSC payload the same page carries at
+        // the bottom: that copy has no `</div>` in it at all, so the entry
+        // pattern's element structure already excludes it (measured 2026-09-06 —
+        // appending the payload to the real entries changes neither the count nor
+        // the versions).
+        //
+        // Nor, any longer, is it what keeps the page's own
+        // `<div class="eyebrow">Release Notes</div>` header out of the newest
+        // entry's date. That WAS true of the first version of this recipe, and
+        // stopped being true when the gaps below were tempered — the sentinel they
+        // temper on is the label attribute, so it does that job now. Measured on
+        // both live pages: stripping the three attribute prefixes while keeping
+        // the tempered gaps changes nothing at all (108 and 7 entries, same
+        // versions, same dates); the header is only captured when the tempering
+        // goes too.
+        //
+        // What they still earn: they are the shape this recipe DECLARES it reads,
+        // which is what makes the tempering sentinel legitimate rather than a
+        // second bet on the vendor's markup, and without them the damage cases
+        // below stop being detectable (`aDamagedEntryCannotBorrow…` both fail
+        // under a prefix-stripped pattern). Belt and braces, honestly labelled.
+        //
+        // Measured on the real pages 2026-09-06: the pattern MATCHES 108 blocks on
+        // the IDE page (1.28.0 back to 0.1.15) and 7 on the app's (0.1.8 back to
+        // 0.1.0), versions and dates agreeing with the products' own version
+        // endpoints exactly. Two numbers below that, and neither is 108:
+        // `ChangelogExtractor` yields 107, because 1.19.1's notes are prose with no
+        // `<li>` and an entry with no items is dropped; and the pane shows the
+        // `maxEntries` default of 40, which neither recipe overrides. 108 is the
+        // pattern's reach over the page, not history a reader gets.
+        //
+        // `<li[^>]*>` rather than a bare `<li>`: no entry on either page carries an
+        // attribute there today, so this changes nothing that can be measured — it
+        // is the one place a docs generator adding a class would silently empty
+        // every entry, and the cost of tolerating it is zero.
+        ChangelogRecipe(
+            bundleID: "com.qoder.ide",
+            source: URL(string: "https://docs.qoder.com/release-notes/desktop")!,
+            entryPattern: qoderEntryPattern,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        // The app's page spells its version "Qoder 0.1.8" where the IDE's is a
+        // bare "1.28.0" — the shared pattern makes that prefix optional rather
+        // than forking the recipe, since both pages come off one docs build and a
+        // fix to one belongs to both.
+        ChangelogRecipe(
+            bundleID: "com.qoder.app",
+            source: URL(string: "https://docs.qoder.com/release-notes/qoder")!,
+            entryPattern: qoderEntryPattern,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single
@@ -3201,6 +3274,68 @@ public enum ChangelogRecipeRegistry {
         let windowed = covering.filter(\.declaresVersionWindow)
         return windowed.isEmpty ? covering : windowed
     }
+
+    /// The entry shape both Qoder release-note pages render. Shared for the same
+    /// reason `workBuddyEntryPattern` is: the two pages come off one docs build,
+    /// so a fix applied to one and not the other would leave the two products
+    /// silently disagreeing about which releases they can show.
+    ///
+    /// The `Qoder ` prefix is optional because only the app's page carries it
+    /// ("Qoder 0.1.8" vs the IDE's bare "1.28.0").
+    /// Tempered dots, not plain `.*?`, for the reason `workBuddyEntryPattern`
+    /// spells out below — and it is not hypothetical here either. Every gap
+    /// refuses to cross the NEXT release's `update-label` (see `qoderEntryGap`;
+    /// that label sits INSIDE the next release's container, so a gap can and does
+    /// cross the container's opening tag — an earlier draft of this sentence said
+    /// otherwise and contradicted the sentinel it was describing).
+    /// With a plain `.*?`, an entry missing any one of its three parts
+    /// does not merely fail to parse: the pattern reaches forward into the next
+    /// release for the part it could not find, so the newest release's date is
+    /// shown against the second-newest's version AND the newest release
+    /// disappears from the pane entirely. Measured on the real IDE page with one
+    /// `update-description` attribute renamed: the plain form returns a single
+    /// entry reading `1.27.0 / September 2, 2026` — a version and a date from two
+    /// different releases — where the tempered form correctly returns
+    /// `1.27.0 / August 29, 2026`. (On the LIVE page both forms return 107 further
+    /// entries after that one; "a single entry" is what the two-entry fixture
+    /// gives. The straddle is the same either way.) On the undamaged pages the two
+    /// are identical — 108 matches, same versions, same items — so this costs
+    /// nothing. It is also 19x faster on the failure path, where a plain `.*?`
+    /// backtracks: 1.03 s against 0.055 s with every `update-description` renamed.
+    static let qoderEntryPattern =
+        #"data-component-part="update-label">(?<date>[^<]{3,40})</div>"#
+        + qoderEntryGap + #"data-component-part="update-description">"#
+        + #"(?:Qoder\s+)?(?<version>[0-9]+(?:\.[0-9]+)+)</div>"#
+        + qoderEntryGap + #"data-component-part="update-content">"#
+        + #"(?<body>"# + qoderEntryGap + #")</div></div></div>"#
+
+    /// "Any run of characters that does not reach the next release's label."
+    ///
+    /// Tempered on `data-component-part`, not on the `update update-container`
+    /// class the entries sit in. The class works on today's page and is the wrong
+    /// thing to depend on: this recipe's whole stated contract is that it reads
+    /// the vendor's semantic attributes rather than its Tailwind soup, and a
+    /// sentinel taken from the soup decays silently — rename that class and the
+    /// gap degrades back to `.*?`, with no parse failure and no test failure to
+    /// say so. Measured on the real page: with the class renamed AND an entry
+    /// damaged, the class-tempered form returns `1.27.0 / September 2, 2026`
+    /// again, while this one still returns `1.27.0 / August 29, 2026`. On the
+    /// undamaged pages the two are identical.
+    ///
+    /// ⚠️ The third use of this, inside `(?<body>…)`, is a different bet from the
+    /// other two: the body is already bounded by `</div></div></div>`, so the
+    /// sentinel there is not a "next entry" boundary. It cuts both ways and both
+    /// were constructed. Against it: an entry whose note text legitimately
+    /// contains the literal `data-component-part="update-label"` is dropped
+    /// (108 → 107) where a plain body gap would keep it. For it: mangle an entry's
+    /// `</div></div></div>` terminator and a plain body gap silently renders that
+    /// release's version and date carrying its own bullets AND the next release's,
+    /// while the next release disappears from the pane — the failure this whole
+    /// pattern exists to prevent, and worse than a dropped entry. The second is a real
+    /// shape a docs generator can produce; the first requires the vendor to write
+    /// our own sentinel into prose.
+    private static let qoderEntryGap =
+        #"(?:(?!data-component-part="update-label").)*?"#
 
     /// The entry shape both WorkBuddy sites render. Shared rather than duplicated
     /// because the two pages come off the same VitePress build: a fix applied to

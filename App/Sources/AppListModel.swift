@@ -2803,14 +2803,42 @@ final class AppListModel {
         // since the last scan. Re-read it from disk and re-query before we
         // download or replace anything.
         installing[id] = .checking
+        // Held across the shadowing below. The offer the click landed on is the
+        // only thing that separates a re-check which walks BACKWARDS from one that
+        // legitimately finds the app current, and after the next line the older
+        // value is gone. See `PreInstallDecision.answerRegressed`.
+        let offered = result
         let result = await recheck(result)
-        replaceRow(result)
         // Only `.updateAvailable` installs. The other endings all stop here, but
         // they are NOT the same ending, and this used to report them as if they
         // were: a source that timed out while you clicked Update was logged as
         // "already current on disk", which reads as a fact about the bundle and
         // sends the next person to the wrong place. See `PreInstallGate`.
-        let decision = PreInstallGate.decision(for: result.status)
+        let decision = PreInstallGate.decision(
+            for: result.status,
+            offered: offered.remote?.versionSide ?? VersionSide(),
+            confirmed: result.remote?.versionSide ?? VersionSide())
+        // A regressed answer must NOT become the row. Writing it in replaces a
+        // real "1.0.9 available" with "1.0.8, up to date", and an up-to-date row
+        // filters out of the list entirely — which is exactly how a swallowed
+        // click came to look like a finished one. Every other ending still
+        // replaces the row: those are answers, and the row should show them.
+        //
+        // Only the REMOTE half is in doubt, though, so the disk read the re-check
+        // just did is kept and the status recomputed from it. Dropping the whole
+        // result would leave the row describing a bundle that may have moved under
+        // it — if the app updated itself in the same window, the row would go on
+        // offering a version it already has, on every click, until the next full
+        // refresh rebuilt it.
+        if decision == .answerRegressed, let offeredRemote = offered.remote {
+            replaceRow(UpdateResult(
+                app: result.app,
+                remote: offeredRemote,
+                status: UpdateChecker.evaluate(installed: result.app, remote: offeredRemote),
+                provenChannel: result.provenChannel))
+        } else {
+            replaceRow(result)
+        }
         if decision != .proceed {
             switch decision {
             case .alreadyCurrent:
@@ -2824,6 +2852,21 @@ final class AppListModel {
                 // said so, rather than filed as "nothing to do".
                 Log.install.error(
                     "install aborted: \(result.app.name, privacy: .public) — the pre-install re-check could not confirm an update: \(message ?? "no source covers this app", privacy: .public)")
+            case .answerRegressed:
+                // Both versions in the log line, because the pair IS the finding:
+                // either number alone reads as an ordinary check.
+                let was = offered.remote?.displayVersion ?? "?"
+                let now = result.remote?.displayVersion ?? "?"
+                Log.install.error(
+                    "install aborted: \(result.app.name, privacy: .public) — the pre-install re-check walked backwards (offered \(was, privacy: .public), re-check answered \(now, privacy: .public)); keeping the offer on the row")
+                // Said on the row too, not just in the log. Everything else on this
+                // path either leaves an error status behind (`cannotConfirm`) or is
+                // genuinely nothing to report; this one would otherwise be a click
+                // that produced no visible effect at all. Short on purpose: the
+                // popover clamps this note to one line and hands the full string to
+                // the tooltip, so the two version numbers have to survive the clamp
+                // and everything else has to go.
+                installErrors[id] = String(localized: "The update source answered \(was), then \(now) — nothing was installed.")
             case .proceed:
                 break  // unreachable: guarded above
             }

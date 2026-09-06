@@ -96,23 +96,31 @@ import DuoUpdaterCore
         #expect(complaints.contains { $0.contains("COLLAPSED") })
     }
 
-    /// Every other registry reports nil here, and a nil must not be read as a
-    /// count. The `feed` and `appstore` sweeps share `reconcile` with this one.
+    /// A sweep that got no changelog at all reports no count, and a missing
+    /// count must not be read as a number. This is the sequence that happens:
+    /// healthy, one bad night, then the collapse.
     ///
-    /// Mutation: `finding.entryCount ?? 0`. The first non-changelog finding for
-    /// a recipe id then records zero, and the real collapse that follows it is
-    /// judged against that zero — `previous > 1` fails and the check goes
-    /// permanently silent.
-    @Test func aRegistryThatCountsNothingDoesNotOverwriteTheCount() {
+    /// ⚠️ Written as a broken CHANGELOG sweep, not as some other registry
+    /// answering for the same recipe. Recipe ids are namespaced by registry
+    /// (`changelog:` / `vendor:` / `feed:` / `appstore:`) and `Baseline.entries`
+    /// is keyed on the id, so two registries never meet on one row — a fixture
+    /// built that way would pin the guard against an input `reconcile` cannot
+    /// receive. `sweepChangelog` produces a nil count from its `guard let
+    /// changelog` branch, and that branch is reachable every night.
+    ///
+    /// Mutation: `finding.entryCount ?? 0`. The bad night then records zero, the
+    /// collapse after it is judged against that zero, `previous > 1` fails, and
+    /// the check goes permanently silent for that recipe.
+    @Test func aSweepThatParsedNothingDoesNotOverwriteTheCount() {
         var baseline = Baseline()
         let id = "changelog:com.example.app:-"
         _ = baseline.reconcile(changelog(id, entries: 20))
+        // What `sweepChangelog` returns when the page did not parse: no
+        // changelog, so no version and no count.
         _ = baseline.reconcile(Finding(
-            recipeID: id, registry: .vendor, bundleID: "com.example.app", channel: "-",
-            // Same version as the changelog finding on purpose: this case is
-            // about the COUNT, and a version that moved would put a second,
-            // unrelated complaint in the array being counted below.
-            status: .ok, version: "4.8.0", endpointHost: "example.invalid"))
+            recipeID: id, registry: .changelog, bundleID: "com.example.app",
+            channel: "-", status: .broken, failureKind: "noEntriesExtracted",
+            endpointHost: "example.invalid"))
         #expect(baseline.entries[id]?.lastGoodEntryCount == 20)
         #expect(baseline.reconcile(changelog(id, entries: 1)).count == 1)
     }

@@ -268,8 +268,9 @@ Two things it deliberately refuses rather than half-doing:
   exits and names the holder rather than swapping a bundle underneath it.
 
 `duo verify`, `duo triage` and `duo reconcile` are the maintenance side: they
-sweep every hand-written recipe against its live endpoint, ask a model why a
-broken one broke, and turn the result into issues. That is what the nightly
+sweep every hand-written recipe — and every Sparkle feed address we hand out for
+an app whose own bundle does not state one — against its live endpoint, ask a
+model why a broken one broke, and turn the result into issues. That is what the nightly
 check runs; they are not needed for ordinary use.
 
 ## Project layout

@@ -282,9 +282,11 @@ public struct RemoteVersion: Sendable, Hashable {
     public var releaseChannel: ReleaseChannel?
 
     /// Binary patches this release publishes, one per build it can upgrade from.
-    /// Empty for every source that doesn't publish them — which is most: of the
-    /// eleven Sparkle feeds readable on this machine only Keka's carried patches
-    /// usable by the installed build. See `DeltaPatch`.
+    /// Empty for every source that doesn't publish them, which is most of them —
+    /// see `DeltaPatch`, which names the feeds that do and what the patches are
+    /// worth. (This used to say the same thing as a count of the feeds readable
+    /// on one machine. `DeltaPatch`'s version is about the feeds themselves, so
+    /// anyone can go and look.)
     public let deltas: [DeltaPatch]
 
     public init(

@@ -201,6 +201,23 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
   有一条从 registry 推导的检查**专门要求**这类 pattern 登记进 `multiCandidateCases`。
   少数派不等于疏漏。
 
+- **「转引一条实测」也是断言,而且是最容易漏的那种。** 引用一句带日期、带数字的实测,
+  等于你自己也说了一遍——现有规矩只管「写新断言前先量」,不管「引用旧断言算不算」。
+  2026-09-06 实测过一次代价:`UpdateChecker` 里一句「measured 2026-08-29, Keka is a store
+  copy carrying `SUFeedURL`, 1 of the 22 store apps on this machine」写下来那天就是错的
+  (Keka 是 Developer ID 签的、没有 `_MASReceipt`,而 `isMAS` 的推导那天和今天逐字相同),
+  它却是「不给 `SparkleAppcastSource` 加商店闸」的**唯一记录理由**,撑了一周,并且被
+  转抄进另外三个文件——其中一次是我,而我当时的行为在旧规矩下完全合规。
+  要么复测,要么写明「转引自 X,未复测」。
+- **复合断言拆开写证据。** 那句话是 `Keka 带 SUFeedURL`(真从 plist 读的)∧
+  `Keka 是商店副本`(推的),合取继承了实测那半边的可信度。**写到"推断"两个字的时候就会暴露。**
+- **有一道闸,但只管一小片。** `scripts/check_prose_claims.py`(挂在 `make test` 里)拒绝
+  「以本机 app 群体为分母的计数」——那种断言 CI、subagent、以后的读者都无法复现或证伪。
+  它**管不了断言真不真**,只管它住在哪、长什么形状;换个说法就绕过去了,这是设计如此。
+  它会拼接连续注释行再匹配(那句话是**换行断开**的,逐行 grep 一条都抓不到),
+  豁免用 `claim-lint:allow-machine-state — <理由>`,理由必填,
+  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`,躲开 `mayBeBlank` 的 #271)。
+
 **本机这条先记住,省得再翻**:DuoUpdater 是 **arm64-only**,这是产品决策不是构建细节,
 理由写在 `App/project.yml`(`ARCHS: arm64`)——registry 大面积 pin arm64 端点/资源,
 universal 的 DuoUpdater 会在 Intel Mac 上跑起来然后给它装 arm64-only 的包,

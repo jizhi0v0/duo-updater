@@ -59,14 +59,18 @@ struct GitHubListPageSizeTests {
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
-        // CotEditor: latest 100 releases on 2026-09-06 — 6 beta tags, all of them
-        // in the 7.1.0 cycle that opened 2026-07-26, and none in the 94 releases
-        // before it (back to 2022-04). Worst gap 1 (7.1.0-beta.6 → 7.1.0-beta.5, with
-        // 7.0.9 sitting between them), so the floor is 2. Recomputed in Python
-        // from the live JSON with the rule's own patterns, which partition the
-        // page exactly: 94 stable tags + 6 beta, none matched by both and none by
-        // neither, and the same split on the 100 asset names.
-        "com.coteditor.CotEditor/beta": 2,
+        // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
+        // ones (a cyclical train whose copies must be able to take the release
+        // that graduates from them, see the rule), so all 100 tags match and the
+        // first sits at index 0. Floor 1, the same shape and number as WhatCable
+        // above.
+        //
+        // ⚠️ This read 2 for a day, measured against a `-beta`-only pattern: 6
+        // beta tags, worst gap 1 (7.1.0-beta.6 → 7.1.0-beta.5, with 7.0.9 between
+        // them). Correct arithmetic on a rule that was wrong — kept visible,
+        // because a floor recorded here is only ever as sound as the pattern it
+        // was measured against.
+        "com.coteditor.CotEditor/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

@@ -1472,23 +1472,58 @@ public enum GitHubReleaseRegistry {
             versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
-        // The beta train is NEW: all six prereleases in those 100 releases belong
-        // to the 7.1.0 cycle that opened 2026-07-26, and the 94 releases before it
-        // — back to 2022-04 — carry none. Two consequences, both stated rather than left to
-        // be discovered. The `-beta` tag with no number (`7.1.0-beta`, the cycle's
-        // first) is a real shape and the pattern accepts it. And when this cycle
-        // closes, the newest prerelease starts sinking down the list — the default
-        // 20-row window reaches back to 2026-02 today, about seven months of this
-        // vendor's cadence — after which this rule matches nothing and answers nil
-        // rather than erroring. That is the vendor closing the track, and it is
-        // also when the copies on it have been promoted onto 7.1.0 anyway, since a
-        // release outranks its own prerelease tag.
+        // The beta train is CYCLICAL, and that is what shapes this rule: all six
+        // prereleases in those 100 releases belong to the 7.1.0 cycle that opened
+        // 2026-07-26, and the 94 releases before it — back to 2022-04 — carry
+        // none. The unnumbered `7.1.0-beta` (the cycle's first) is a real shape,
+        // which is why the suffix is optional twice over below.
+        //
+        // **The pattern accepts stable tags too, and that is the design** — the
+        // same call WhatCable's beta rule makes, for the same two reasons, and
+        // both bite harder here because this vendor's train stops between cycles
+        // instead of running continuously:
+        //
+        //   • A copy on `7.1.0-beta.6` would never be offered the plain `7.1.0`
+        //     that graduates from it, and would sit on a superseded prerelease
+        //     until the next cycle opened — while CotEditor's own updater hands it
+        //     that release, since Sparkle allows the default channel to everyone.
+        //     `VersionComparator` ranks the graduation correctly on its own (the
+        //     missing fourth component pads to `.number(0)` and outranks
+        //     `.text("beta")`); the pattern was the only thing in the way.
+        //   • Anchoring to `-beta` is also a fuse. Once the cycle closes and the
+        //     last prerelease scrolls off the page, a `-beta`-only pattern matches
+        //     nothing — and that is not a quiet nil: `duo verify` walks RULES, not
+        //     installs, so it would file a red finding on every machine for a rule
+        //     working exactly as written. An earlier version of this comment said
+        //     it "answers nil rather than erroring", which is true of a check and
+        //     false of the sweep.
+        //
+        // ⚠️ A second consequence of accepting plain tags, and it is a READOUT one
+        // rather than an offer one: `settle` walks the page newest-first and takes
+        // the first tag this pattern accepts, so once a 7.0.x patch ships above the
+        // newest beta — the shape #368 called the secondary form, and one this
+        // vendor really maintains — the beta rail resolves THAT. Nothing is
+        // offered: GitHub sets `version: nil`, so `evaluate` compares marketing and
+        // `7.0.10` is older than `7.1.0-beta.6`. But the row then names 7.0.10 as
+        // the latest version for a copy running a 7.1.0 beta, where a `-beta`-only
+        // pattern named the copy's own build. Accepted: the alternative is the two
+        // failures above, and a row that says "up to date" beside a lower number is
+        // the same shape a copy ahead of its feed already produces.
+        //
+        // ⚠️ The cost, one-way and shared with WhatCable: taking that graduation
+        // puts the copy on `7.1.0`, `ReleaseChannel.detect` then reads `.stable`,
+        // and the stable rule serves it from the next check on — so we stop
+        // offering it prereleases. Unlike WhatCable, that is recoverable here
+        // without a code change: `CotEditorChannel` reads the vendor's own
+        // "Update to prereleases when available" box, so a user who wants to stay
+        // on the train ticks it and is authoritative `.beta` again whatever the
+        // version string says.
         GitHubReleaseRule(
             bundleID: "com.coteditor.CotEditor",
             owner: "coteditor", repo: "CotEditor",
             usePrereleases: true,
-            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+-beta(?:\.[0-9]+)?)$"#,
-            installAssetPattern: #"^CotEditor_[0-9.]+-beta(?:\.[0-9]+)?\.dmg$"#,
+            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?)$"#,
+            installAssetPattern: #"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?)?\.dmg$"#,
             installerKind: .dmg,
             channel: .beta),
 

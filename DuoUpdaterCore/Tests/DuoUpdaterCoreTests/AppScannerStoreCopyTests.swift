@@ -88,6 +88,13 @@ struct AppScannerStoreCopyTests {
             let store = try Self.scan(
                 bundleID: bundleID, declaringFeed: declared, storeReceipt: true)
             #expect(store.isMASApp, "\(bundleID): fixture stopped reading as a store copy")
+            // ⚠️ This pins today's answer, not a settled one. What the store copy
+            // is left with is an address we have OURSELVES recorded as dead, so a
+            // run where the store lookup misses reads a frozen feed and reports
+            // "up to date" rather than "Managed by the App Store". Honouring a
+            // declared feed is the Keka rule; honouring one we know is worthless
+            // is not obviously the same thing. Filed as #385 — if that is settled
+            // the other way, this expectation is the thing to change.
             #expect(store.sparkleFeedURL == entry.declared,
                     "\(bundleID): a store copy was redirected to a feed we chose for it")
         }

@@ -1,7 +1,7 @@
 import Foundation
 import DuoUpdaterCore
 
-/// Which registry a finding came from. The three are checked the same way and
+/// Which registry a finding came from. They are checked the same way and
 /// reported together, but they break differently and are fixed in different
 /// files, so the report has to keep them apart.
 public enum Registry: String, Codable, Sendable, CaseIterable {
@@ -15,6 +15,13 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// product-page shapes `MacAppStoreSource` parses still look the way its
     /// code assumes — see `MacAppStoreProbeRegistry`'s doc comment.
     case appStore = "appstore"
+    /// `SparkleFeedCatalog` isn't a recipe registry either — it holds
+    /// ADDRESSES, handed to apps whose own bundle does not give us a usable
+    /// one. Nothing on a schedule had ever fetched them (#324), and a feed that
+    /// dies, moves or reshapes its items produces a nil out of
+    /// `SparkleAppcastSource` that every caller renders as "up to date". See
+    /// `FeedVerify.swift`.
+    case feed
 
     public var label: String {
         switch self {
@@ -22,6 +29,7 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
         case .github: return "GitHub rule"
         case .changelog: return "changelog"
         case .appStore: return "App Store probe"
+        case .feed: return "Sparkle feed"
         }
     }
 }

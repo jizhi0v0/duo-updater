@@ -93,6 +93,17 @@ public struct Finding: Codable, Sendable {
     /// Optional so a `report.json` written before this existed still decodes — nil
     /// means "not recorded", which is not the same claim as zero.
     public let gatewayRetries: Int?
+    /// Entries the changelog sweep extracted from the page, when this finding
+    /// came from one. Recorded because `version` alone cannot see the failure
+    /// where an entry pattern's terminator stops matching: the first entry then
+    /// swallows the rest of the document, the version still parses correctly
+    /// off its heading, and the sweep goes green on a recipe that has collapsed
+    /// to one entry carrying the whole page (#324, #393).
+    ///
+    /// Optional so a `report.json` written before this existed still decodes —
+    /// nil means "not recorded", which is not the same claim as zero. Only the
+    /// changelog sweep sets it; no other registry has entries to count.
+    public let entryCount: Int?
     public let elapsedMs: Int
     /// Redacted and capped. Present only for actionable findings, since this is
     /// the one field that carries arbitrary vendor content.
@@ -117,7 +128,7 @@ public struct Finding: Codable, Sendable {
         failureKind: String? = nil, failureDetail: String? = nil,
         warnings: [String] = [], endpointHost: String, pattern: String? = nil,
         attempts: Int = 1, gatewayRetries: Int? = nil,
-        elapsedMs: Int = 0, bodySample: String? = nil
+        entryCount: Int? = nil, elapsedMs: Int = 0, bodySample: String? = nil
     ) {
         self.recipeID = recipeID
         self.registry = registry
@@ -132,6 +143,7 @@ public struct Finding: Codable, Sendable {
         self.pattern = pattern
         self.attempts = attempts
         self.gatewayRetries = gatewayRetries
+        self.entryCount = entryCount
         self.elapsedMs = elapsedMs
         // Condense before redacting: the changelog path hands over a whole raw
         // HTML page, and a report full of `<link rel="preload">` is a report

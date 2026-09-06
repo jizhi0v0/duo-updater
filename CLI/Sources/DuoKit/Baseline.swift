@@ -25,6 +25,12 @@ public struct Baseline: Codable, Sendable {
     public struct Entry: Codable, Sendable {
         public var lastGoodVersion: String?
         public var lastGoodAt: Date?
+        /// Entries the last sweep that got an answer extracted from this
+        /// recipe's page. Changelog recipes only — nil everywhere else, and nil
+        /// on a row written before this field existed, which is why the
+        /// collapse check needs a previous value and cannot fire on the first
+        /// sweep after an upgrade.
+        public var lastGoodEntryCount: Int?
         /// Consecutive sweeps in which this recipe was broken *or* degraded.
         /// Warnings count: `installURLUnresolved` is how both of the real
         /// one-click failures were found, and neither ever produced a `broken`.
@@ -126,10 +132,21 @@ public struct Baseline: Codable, Sendable {
         /// empty baseline on any decode error, and an empty baseline means every
         /// issue number is forgotten — so the next run reopens a duplicate of
         /// every issue that is already open. One renamed field would do it.
+        ///
+        /// ⚠️ **A new field must be added HERE as well as declared above.** Only
+        /// the decoder is hand-written; the encoder is synthesized, so a field
+        /// left out of this list is written to the file every sweep and read
+        /// back as nil every sweep. Nothing fails: the value is on disk, it
+        /// looks right to anyone opening the file, and the check that depends on
+        /// it simply never has a previous value to compare against.
+        /// `lastGoodEntryCount` shipped that way for the length of one live
+        /// test — unit tests never touch the disk, so only a real two-sweep run
+        /// showed it.
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             lastGoodVersion = try c.decodeIfPresent(String.self, forKey: .lastGoodVersion)
             lastGoodAt = try c.decodeIfPresent(Date.self, forKey: .lastGoodAt)
+            lastGoodEntryCount = try c.decodeIfPresent(Int.self, forKey: .lastGoodEntryCount)
             consecutiveActionable =
                 try c.decodeIfPresent(Int.self, forKey: .consecutiveActionable) ?? 0
             consecutiveInfra = try c.decodeIfPresent(Int.self, forKey: .consecutiveInfra) ?? 0
@@ -234,27 +251,63 @@ public struct Baseline: Codable, Sendable {
         try encoder.encode(self).write(to: url, options: .atomic)
     }
 
-    /// Compare this run against what we knew, returning the complaint to attach
-    /// (if any) — then fold the run into the baseline.
+    /// Compare this run against what we knew, returning every complaint to
+    /// attach — then fold the run into the baseline.
     ///
-    /// The version-regression check lives here because it is the only check that
-    /// needs history: the answer looks perfectly well-formed in isolation, and
-    /// only "we read 4.7.9 yesterday and 4.7 today" reveals that the pattern
-    /// started matching a shorter, different thing.
+    /// The history checks live here because they are the only ones that need
+    /// history: each answer looks perfectly well-formed in isolation, and only
+    /// "we read 4.7.9 yesterday and 4.7 today" reveals that a pattern started
+    /// matching a shorter, different thing.
+    ///
+    /// Returns every complaint, not the first. The two can fire together and do
+    /// so for one cause: when a changelog's entries merge into one, the version
+    /// that survives is whichever heading the merged entry kept — which for a
+    /// `newestLast` recipe is the OLDEST one on the page. Reporting a version
+    /// regression and dropping the collapse that explains it would send whoever
+    /// picks it up looking for a version pattern that never changed.
     @discardableResult
-    public mutating func reconcile(_ finding: Finding) -> String? {
+    public mutating func reconcile(_ finding: Finding) -> [String] {
         var entry = entries[finding.recipeID] ?? Entry()
-        var complaint: String?
+        var complaints: [String] = []
 
         if let version = finding.version, finding.status != .infra {
             if let previous = entry.lastGoodVersion, previous != version,
                VersionComparator.isNewer(previous, than: version) {
-                complaint = "version went BACKWARDS since the last sweep "
+                complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "
-                    + "matching a different element"
+                    + "matching a different element")
             }
             entry.lastGoodVersion = version
             entry.lastGoodAt = Date()
+        }
+
+        // The changelog sweep's own blind spot, and the reason `version` alone
+        // is not enough (#324, #393). An entry pattern is a start plus a
+        // lookahead for the next start; when a vendor's restyle breaks only the
+        // LOOKAHEAD, the first entry's body runs to the end of the document and
+        // every later start is inside it. The count goes to one, the version
+        // still parses correctly off the first heading, and nothing else in
+        // this file notices.
+        //
+        // Only a collapse TO ONE, and only from more than one. Measured across
+        // the 80 changelog recipes that answered on 2026-09-07: six of them sit
+        // at exactly one entry as their normal state (VS Code, Ghostty, Blender,
+        // VLC, QQ Music, Doubao IME — one release per page), so one entry is not
+        // suspicious by itself, only becoming one is. And a fractional rule
+        // ("dropped by half") has nothing to be calibrated against: 22 recipes
+        // sit exactly at their `maxEntries` cap of 20 and 12 more at 40, where
+        // the count is insensitive to the vendor adding releases and moves only
+        // when they prune — which they are entitled to do. A partial merge is
+        // therefore NOT covered here, deliberately, rather than covered by a
+        // threshold nobody could defend.
+        if let count = finding.entryCount, finding.status != .infra {
+            if let previous = entry.lastGoodEntryCount, previous > 1, count == 1 {
+                complaints.append("entry count COLLAPSED to one since the last sweep "
+                    + "(\(previous) → 1) — an entry pattern whose terminator stopped "
+                    + "matching leaves the first entry carrying the whole page, with its "
+                    + "version still parsing correctly off the heading")
+            }
+            entry.lastGoodEntryCount = count
         }
 
         // The installer URL's transient run is tracked on every status, because the
@@ -316,7 +369,7 @@ public struct Baseline: Codable, Sendable {
         }
 
         entries[finding.recipeID] = entry
-        return complaint
+        return complaints
     }
 
     /// Whether this recipe has been actionable often enough to be worth

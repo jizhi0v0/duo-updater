@@ -139,10 +139,7 @@ public enum Verify {
         // Fold in history: version regressions, and the failure streak that
         // decides whether anything is worth reporting at all.
         var baseline = options.baselinePath.map(Baseline.load) ?? Baseline()
-        findings = findings.map { finding in
-            guard let complaint = baseline.reconcile(finding) else { return finding }
-            return finding.adding(warning: complaint)
-        }
+        findings = foldingBaselineComplaints(findings, into: &baseline)
         baseline.updatedAt = Date()
 
         // Drop rows for recipes that no longer exist. Deliberately keyed on the
@@ -177,6 +174,22 @@ public enum Verify {
                 || ($0.status == .broken && baseline.isReportable($0.recipeID))
                 || ($0.status == .infra && baseline.isInfraReportable($0.recipeID))
         }) ? 1 : 0
+    }
+
+    /// Attach every history complaint the baseline has about each finding.
+    ///
+    /// Split out of `run` so the fold itself is testable. `reconcile` can return
+    /// more than one complaint for one finding — a changelog page that collapses
+    /// into a single entry also changes which version wins — and taking only the
+    /// first would drop the complaint that explains the other. That is a bug a
+    /// reader cannot see in `run`, because there is nothing there to compare
+    /// against; it is one `.first` away at all times.
+    static func foldingBaselineComplaints(
+        _ findings: [Finding], into baseline: inout Baseline
+    ) -> [Finding] {
+        findings.map { finding in
+            baseline.reconcile(finding).reduce(finding) { $0.adding(warning: $1) }
+        }
     }
 
     /// Merge the local-scan fallback into the versions a live source resolved.
@@ -633,7 +646,8 @@ public enum Verify {
                 channel: recipe.channel?.rawValue ?? "-",
                 status: warnings.isEmpty ? .ok : .warn,
                 version: newest.version, warnings: warnings,
-                endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed,
+                endpointHost: host, pattern: recipe.entryPattern,
+                entryCount: changelog.entries.count, elapsedMs: elapsed,
                 bodySample: diagnostic.bodySample)
         }
     }
@@ -1041,6 +1055,10 @@ extension Finding {
             failureKind: failureKind, failureDetail: failureDetail,
             warnings: warnings + [warning], endpointHost: endpointHost, pattern: pattern,
             attempts: attempts, gatewayRetries: gatewayRetries,
-            elapsedMs: elapsedMs, bodySample: bodySample)
+            // Every field forwarded, including the ones nothing here reads. A
+            // rebuild that drops one silently deletes it from `report.json` for
+            // exactly the findings that carry a complaint — the ones most worth
+            // reading.
+            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

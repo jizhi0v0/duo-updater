@@ -292,6 +292,21 @@ public enum Reconcile {
         if let version = finding.version {
             out += "| resolved | `\(version)` |\n"
         }
+        // Changelog findings only. Beside a version that still looks right, "1"
+        // here is the whole diagnosis: the page collapsed into one entry and the
+        // heading it kept still parses.
+        //
+        // Just the count, never "(was N)". `entry` came from the file `duo
+        // verify` wrote minutes ago, and that write already folded THIS sweep's
+        // count into it — so `lastGoodEntryCount` equals what is printed here,
+        // always, and a "was" that can never differ reads as "nothing changed"
+        // on exactly the issue that exists because something did. The transition
+        // is in the warning below, where it comes from the sweep that saw both
+        // numbers. (`| last good |` above has the same property, for the same
+        // reason.)
+        if let entries = finding.entryCount {
+            out += "| entries parsed | \(entries) |\n"
+        }
         if let previous = entry.lastGoodVersion {
             out += "| last good | `\(previous)` |\n"
         }

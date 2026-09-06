@@ -201,6 +201,12 @@ public enum Report {
             if let version = finding.version {
                 out += "- **resolved**: `\(version)`\n"
             }
+            // Only the changelog sweep records one, and on a flagged finding it
+            // is often the whole story: "1 entry" beside a version that still
+            // looks right is the collapsed-page shape.
+            if let entries = finding.entryCount {
+                out += "- **entries**: \(entries)\n"
+            }
             if let previous = baseline.entries[finding.recipeID]?.lastGoodVersion {
                 out += "- **last good**: `\(previous)`\n"
             }

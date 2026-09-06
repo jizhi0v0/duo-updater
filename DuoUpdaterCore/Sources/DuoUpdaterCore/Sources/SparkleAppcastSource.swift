@@ -44,14 +44,23 @@ public struct SparkleAppcastSource: UpdateSource {
 
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
         let usable = Self.usableItems(for: app, from: items, osVersion: Self.numericSystemVersion())
-        guard let best = usable.first else {
-            // Distinguish "the vendor capped every item for an OS this new" from
-            // "the feed had nothing", which the caller cannot tell apart.
+        guard let best = Self.offerableItem(for: app, from: usable) else {
+            // Three silences the caller sees as one nil: an empty feed, a feed
+            // whose every item this OS is too new for, and a feed whose every item
+            // the channel/arch/minimum-OS filters removed. Name the one we can.
             if items.contains(where: { ($0.maximumSystemVersion?.isEmpty == false) }) {
                 Log.source.info(
                     "sparkle: every item filtered for \(app.bundleID ?? "?", privacy: .public) — feed declares a maximum system version")
             }
             return nil
+        }
+        // The offer is not the head only when the head would walk this copy
+        // backwards (see `offerableItem`). Log it with both builds: without them
+        // this reads exactly like an ordinary "you are ahead of your feed" row,
+        // and it is the build that made the head an OFFER rather than a no-op.
+        if let head = usable.first, head.version != best.version {
+            Log.source.info(
+                "sparkle: \(app.bundleID ?? "?", privacy: .public) — offering \(best.shortVersionString ?? "?", privacy: .public)/\(best.version ?? "?", privacy: .public) instead of the feed's newest \(head.shortVersionString ?? "?", privacy: .public)/\(head.version ?? "?", privacy: .public), which is older than the installed \(app.shortVersion ?? "?", privacy: .public)/\(app.buildVersion ?? "?", privacy: .public)")
         }
 
         // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
@@ -69,6 +78,11 @@ public struct SparkleAppcastSource: UpdateSource {
         return RemoteVersion(
             shortVersion: best.shortVersionString,
             version: best.version,
+            // `sparkle:shortVersionString` IS the bundle's own
+            // `CFBundleShortVersionString` — it is the string the vendor's own
+            // Sparkle compares — so `evaluate` may weigh it against the installed
+            // one and refuse a build that walks it backwards. See #368.
+            marketingMatchesBundle: true,
             downloadURL: best.enclosureURL,
             downloadSize: best.enclosureLength,
             edSignature: best.edSignature,
@@ -148,7 +162,9 @@ public struct SparkleAppcastSource: UpdateSource {
     }
 
     /// Pick the best appcast item for an app: the highest-versioned, runnable,
-    /// in-channel entry. Pure (no network) so the selection — especially the
+    /// in-channel entry, stepping over a head that would walk the user's
+    /// marketing version backwards when the feed has something better below it
+    /// (see `offerableItem`). Pure (no network) so the selection — especially the
     /// channel gating — is unit-testable.
     ///
     /// Sparkle gates prerelease items behind a `<sparkle:channel>`. The host app
@@ -169,10 +185,11 @@ public struct SparkleAppcastSource: UpdateSource {
         hostArch: HostArch = .current,
         allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) -> SparkleAppcastItem? {
-        usableItems(
-            for: app, from: items, osVersion: osVersion,
-            hostArch: hostArch, allowingIntelTranslation: canRunIntel
-        ).first
+        offerableItem(
+            for: app,
+            from: usableItems(
+                for: app, from: items, osVersion: osVersion,
+                hostArch: hostArch, allowingIntelTranslation: canRunIntel))
     }
 
     /// The runnable, in-channel items for an app, highest version first. The head
@@ -266,6 +283,79 @@ public struct SparkleAppcastSource: UpdateSource {
                 return (lhs.enclosureURL?.absoluteString ?? "") < (rhs.enclosureURL?.absoluteString ?? "")
             }
         }
+    }
+
+    /// The item to REPORT out of `usableItems` — its head, unless a lower entry
+    /// is the one this copy should actually be offered.
+    ///
+    /// The list is ranked by `comparisonKey`, i.e. the BUILD, and the ranking is
+    /// cross-channel. So when a vendor's builds run monotonically across two
+    /// trains, the head can be a release that is numerically newer and
+    /// functionally older than what a prerelease copy is running — CotEditor
+    /// publishes 7.0.9 at build 843 above 7.1.0-beta.6 at 845, and a copy on
+    /// 7.1.0-beta.3 whose build the vendor has trimmed out of the feed sees only
+    /// the default channel and lands on 7.0.9 (#368).
+    ///
+    /// Two halves, and the split matters:
+    ///
+    ///  - **Which item to name.** Here. Stepping over a marketing downgrade lets
+    ///    the copy find the entry it should actually take when the feed has one —
+    ///    the next beta sitting BELOW a stable patch in build order, which taking
+    ///    the head unconditionally would hide.
+    ///  - **Whether it is an update.** Not here. `UpdateChecker.evaluate` asks the
+    ///    marketing version again before it puts an Update button on a row, and
+    ///    that is the half that actually protects the user (it also covers the
+    ///    case below, where every entry is a downgrade and there is nothing to
+    ///    step onto).
+    ///
+    /// ⚠️ **It never answers nil for a feed that had usable items.** Being ahead
+    /// of your own feed is ordinary — a vendor pulls a release, or trims the build
+    /// you are running — and those rows read "up to date" beside the feed's newest
+    /// entry today. Withholding the answer instead makes `latestVersion` return
+    /// nil, and nil means `.unknown`, whose own documentation is "no source COVERS
+    /// this app, nothing was tried" — rendered as a dead "—" with no retry. That
+    /// would be a false statement about an app whose feed we just read, and it
+    /// would take the release notes and the release timeline with it. Simulated
+    /// over all 13 Sparkle feeds this Mac reads, with the installed build trimmed
+    /// out of each in turn, withholding hit 12 (app, version) pairs: Bartender
+    /// 6.6.2 against a feed topping out at 6.6.1, six DuoPaste betas, Ghostty,
+    /// IINA, MonitorControl, Rectangle, Surge.
+    ///
+    /// The accepted cost, stated rather than left to be discovered: a copy on an
+    /// ABANDONED prerelease train — vendor ships 2.0-beta, cancels 2.0, keeps
+    /// shipping 1.6, 1.7 on stable — is no longer moved onto the maintained line.
+    /// It reads "up to date" against a version it can see is newer by date and
+    /// older by number, and nothing offers it a way across. That was the one real
+    /// user of the old behaviour, and there is no state in `RowActionState` that
+    /// says "your train was withdrawn".
+    static func offerableItem(
+        for app: InstalledApp, from usable: [SparkleAppcastItem]
+    ) -> SparkleAppcastItem? {
+        guard let head = usable.first else { return nil }
+        guard isMarketingDowngrade(head, for: app) else { return head }
+        // Past a head that walks backwards, "cannot tell" is not good enough, and
+        // neither is an entry that cannot be installed. `usableItems` admits an
+        // item with NO enclosure at all (its filter asks only for a version), and
+        // before this scan existed such an entry was reachable only by topping the
+        // build ranking. Requiring the artifact keeps this from newly promoting
+        // one into an Update button over a nil download.
+        return usable.dropFirst().first {
+            $0.enclosureURL != nil && !isMarketingDowngrade($0, for: app)
+                && VersionComparator.comparableMarketingVersion($0.shortVersionString) != nil
+        } ?? head
+    }
+
+    /// Whether taking `item` would walk this copy's marketing version backwards.
+    ///
+    /// Only `shortVersionString` is read. Fork's feed states none at all — its
+    /// marketing string lives in `sparkle:version` ("2.66.7") — and reaching for
+    /// `shortVersionString ?? version` here would compare a BUILD field against a
+    /// marketing one, the namespace mistake `VersionComparator`'s pair API exists
+    /// to prevent. The shape test that follows is in `VersionComparator`, with the
+    /// Ghostty tip-build label that motivates it.
+    static func isMarketingDowngrade(_ item: SparkleAppcastItem, for app: InstalledApp) -> Bool {
+        VersionComparator.isMarketingDowngrade(
+            offered: item.shortVersionString, from: app.shortVersion)
     }
 
     /// How well an item's download suits this Mac, cheapest-to-worst. Two

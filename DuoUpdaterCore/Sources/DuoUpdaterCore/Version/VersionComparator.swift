@@ -113,6 +113,63 @@ public enum VersionComparator {
         return isSame(VersionSide(marketing: lhs.marketing), as: rhs)
     }
 
+    // MARK: - Marketing downgrades
+
+    /// True when `offered` names a marketing version strictly OLDER than
+    /// `installed` — the one question a build comparison cannot answer, and the
+    /// one a build comparison is routinely asked to stand in for.
+    ///
+    /// It answers false unless BOTH strings are shaped like versions, because the
+    /// field they come from is not always one. Measured on feeds we read today
+    /// (2026-09-06):
+    ///
+    /// - Ghostty publishes its tip builds with a commit hash and a date where the
+    ///   marketing version goes — `663205b5 (2024-12-20)`. Tokenized as a version
+    ///   its leading run is the number 663205, so EVERY real release ("1.3.2")
+    ///   reads as older than it.
+    /// - `XcodeReleasesSource` composes `shortVersion` for display — "27.0 beta 6"
+    ///   against an installed "27.0" — and says so in its own comment. A release
+    ///   outranks its prerelease tag, so that pair reads as a downgrade too.
+    ///
+    /// Both are caught by the same test: a version has no whitespace in it. The
+    /// ASCII requirement is the narrower cousin — `Character.isNumber` is a
+    /// Unicode property, so full-width `１.０.０` would be *accepted* and then
+    /// compared scalar-wise against ASCII digits, which orders it above every
+    /// real release. No feed publishes one today; rejecting it costs nothing and
+    /// the failure it would cause is silent.
+    ///
+    /// "Cannot tell" is false here — never a downgrade — because every caller
+    /// uses this to WITHHOLD, and withholding on a string we cannot read is how
+    /// an app stops updating without anyone noticing.
+    public static func isMarketingDowngrade(offered: String?, from installed: String?) -> Bool {
+        guard let mine = comparableMarketingVersion(installed),
+              let theirs = comparableMarketingVersion(offered)
+        else { return false }
+        // No `VersionSide` here, deliberately: the callers reach this having
+        // already established that the BUILDS say "newer", and this is the second
+        // opinion on that one question. Pairing the build back in would answer the
+        // first question twice and the second one never. (`check_staged_version_use`
+        // does not flag it — measured, not assumed — so there is no exemption
+        // comment to go stale.)
+        return compare(theirs, mine) == .orderedAscending
+    }
+
+    /// A marketing version, when the string is one: non-empty, all-ASCII, no
+    /// whitespace inside it, and starting with a digit once the optional `v` tag
+    /// `tokenize` itself strips is off. `7.1.0-beta.3` and
+    /// `0.3.384-beta.1440+fd58749` pass; `663205b5 (2024-12-20)`, `27.0 beta 6`
+    /// and a bare `v` do not.
+    public static func comparableMarketingVersion(_ raw: String?) -> String? {
+        guard let version = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !version.isEmpty,
+              version.allSatisfy({ $0.isASCII }),
+              !version.contains(where: \.isWhitespace)
+        else { return nil }
+        var head = Substring(version)
+        if head.first == "v" || head.first == "V" { head = head.dropFirst() }
+        return head.first?.isNumber == true ? version : nil
+    }
+
     /// True when `disk` has reached `target` — the landing test for a swap we are
     /// waiting on. Same build, or a newer one (an app may have moved past the
     /// build we were expecting while we waited).

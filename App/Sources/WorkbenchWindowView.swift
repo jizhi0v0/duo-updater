@@ -1050,9 +1050,14 @@ private struct DetailHeader: View {
             }
             // Surface an install error inline, same as the popover row does.
             if let error = model.installErrors[result.id] {
+                // Kept wrapping rather than clamped like the popover's copy of this
+                // note: this window is resizable and much wider than 370pt, so the
+                // reason fits without costing a row its height. The tooltip is here
+                // anyway so both windows answer a hover the same way.
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .help(error)
                     .fixedSize(horizontal: false, vertical: true)
                 if model.showsAppStoreUpdatesFallback(result.id) {
                     Button("Open App Store") { model.openAppStoreUpdatesPage() }

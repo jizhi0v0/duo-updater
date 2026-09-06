@@ -14,6 +14,8 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Eine aus dem App Store installierte App bekommt nie einen Download von anderswo angeboten.** Schlägt die Abfrage des Stores fehl oder bleibt sie leer, weist die Zeile jetzt darauf hin, dass der Store diese App verwaltet – ohne Versionsnummer. Zuvor konnte die Prüfung auf den anderen Vertriebsweg der App ausweichen – ein anderer Build mit eigenen Versionsnummern – und anbieten, diesen über die Store-Kopie zu installieren.
 
+**Einer App wird nie ein Update angeboten, das sie auf eine ältere Version zurücksetzen würde.** Manche Feeds führen eine stabile Version über einer Vorabversion, die in Wahrheit weiter ist – sie zu installieren hätte die App zurückgeworfen.
+
 **Eine lange Fehlermeldung in einer Zeile schiebt den Rest der Liste nicht mehr nach unten.** Sie wird auf zwei Zeilen gekürzt, der vollständige Text erscheint beim Daraufzeigen.
 
 ## 0.3.86

@@ -14,6 +14,8 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Una aplicación instalada desde la App Store nunca recibe la oferta de descargarla de otro sitio.** Cuando la consulta a la tienda falla o vuelve vacía, la fila indica ahora que la tienda se encarga de ella, sin número de versión. Antes la comprobación podía recurrir a la otra vía de distribución de la aplicación —una compilación distinta con su propia numeración— y ofrecerse a instalarla encima de la copia de la tienda.
 
+**A una aplicación nunca se le ofrece una actualización que la llevaría a una versión anterior.** Algunos feeds sitúan una versión estable por encima de una preliminar que en realidad va por delante, e instalarla habría hecho retroceder la aplicación.
+
 **Un error largo en una fila ya no empuja hacia abajo el resto de la lista.** Se limita a dos líneas y el texto completo aparece al pasar el puntero.
 
 ## 0.3.86

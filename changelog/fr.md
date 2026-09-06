@@ -14,6 +14,8 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Une app installée depuis l’App Store ne se voit jamais proposer un téléchargement venu d’ailleurs.** Lorsque la requête adressée à la boutique échoue ou revient vide, la ligne indique désormais que la boutique s’en occupe, sans numéro de version. Auparavant, la vérification pouvait se rabattre sur l’autre canal de distribution de l’app — une compilation différente, avec sa propre numérotation — et proposer de l’installer par-dessus la copie de la boutique.
 
+**Aucune app ne se voit proposer une mise à jour qui la ramènerait à une version antérieure.** Certains flux placent une version finale au-dessus d’une préversion en réalité plus avancée : l’installer aurait fait reculer l’app.
+
 **Une erreur longue sur une ligne ne repousse plus le reste de la liste vers le bas.** Elle tient en deux lignes, le texte complet s’affichant au survol.
 
 ## 0.3.86

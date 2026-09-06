@@ -2705,6 +2705,40 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"\n-\s+(?<item>[^\n]+)"#],
             markdownSource: true),
 
+        // Mac Performance Monitor — its appcast carries no notes at all: one item,
+        // and no `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
+        // `<description>` (fetched 2026-09-06 from the `appcast.xml` asset its
+        // `SUFeedURL` points at). The GitHub release body is one sentence that
+        // says where to look: "Mac Performance Monitor 1.7.1 (build 206). See
+        // CHANGELOG.md for what's new." Requested in #374.
+        //
+        // Keep a Changelog, with the version in BRACKETS:
+        //
+        //   ## [1.7.1] - 2026-09-03
+        //   ### Fixed
+        //   - In Simplified Chinese, the Hardware tab listed every CPU
+        //     instruction-set feature as unsupported. The check compared …
+        //
+        // Two things differ from the Copilot recipe above, and both are the file's
+        // doing rather than taste:
+        //
+        //  * `\[…\]` around the version, and a leading `[0-9]` inside it — that is
+        //    what keeps the `## [Unreleased]` section at the top of the file from
+        //    becoming an entry. It is a real section with real bullets, and it
+        //    describes a build nobody can install yet.
+        //  * The item pattern spans lines. This vendor wraps its bullets at ~78
+        //    columns with a two-space continuation indent, so `[^\n]+` (what every
+        //    single-line recipe uses) truncates most items mid-sentence. The lazy
+        //    scan runs to the next bullet, the next `###` group heading, the next
+        //    `##` entry, or the end.
+        ChangelogRecipe(
+            bundleID: "uk.co.bzwrd.macperfmonitor",
+            source: URL(string: "https://raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md")!,
+            entryPattern:
+                #"(?:^|\n)##\s+\[(?<version>[0-9][^\]]*)\]\s*-\s*(?<date>[^\n]+)\n(?<body>.*?)(?=\n##\s|\z)"#,
+            itemPatterns: [#"\n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\z)"#],
+            markdownSource: true),
+
         // TypeWhisper — no notes in the appcast either. The official changelog
         // page is the vendor's own, and it interleaves **macOS and Windows**
         // releases in one list (203 mac cards, 167 Windows ones), so the entry

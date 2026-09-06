@@ -108,6 +108,52 @@ public enum SparkleFeedCatalog {
             live: URL(string: "https://downloads.pdfexpert.com/pem3/release/appcast.xml")!),
     ]
 
+    /// One catalog entry, in the shape `duo verify` sweeps registries in.
+    ///
+    /// The catalog is not a recipe registry — there is no pattern to re-derive
+    /// and no version to parse out of a page. What it publishes is an ADDRESS,
+    /// and the thing that rots is whether that address still answers with a
+    /// feed a default-channel install can use. So a case carries the address
+    /// and how we came to hand it out, and nothing else.
+    public struct VerificationCase: Sendable, Equatable {
+        public enum Kind: String, Sendable {
+            /// From ``feeds``: an address the bundle never states.
+            case fillIn = "fill-in"
+            /// From ``supersededFeeds``: an address that overrides one the
+            /// bundle does state.
+            case superseded
+        }
+        public let bundleID: String
+        public let kind: Kind
+        /// The address `AppScanner` would write onto the row.
+        public let feed: URL
+        /// Superseded entries only: the dead address the entry matches on, and
+        /// whose being dead is the entry's whole justification. Nil for a
+        /// fill-in, which overrides nothing.
+        public let declared: URL?
+
+        /// Stable sweep key, same shape as every other registry's, so the
+        /// baseline and the issue history key on it the same way.
+        public var recipeID: String { "feed:\(bundleID)" }
+    }
+
+    /// Every entry, both halves, sorted so a run's output and the baseline it
+    /// writes do not reorder themselves with the dictionaries' hashing.
+    ///
+    /// Derived from the tables rather than written out again beside them: a
+    /// second list is a list that can be short by one, and a catalog entry
+    /// nothing sweeps is precisely the state #324 was filed about.
+    public static var verificationCases: [VerificationCase] {
+        let fillIns = feeds.map {
+            VerificationCase(bundleID: $0.key, kind: .fillIn, feed: $0.value, declared: nil)
+        }
+        let superseded = supersededFeeds.map {
+            VerificationCase(bundleID: $0.key, kind: .superseded,
+                             feed: $0.value.live, declared: $0.value.declared)
+        }
+        return (fillIns + superseded).sorted { $0.recipeID < $1.recipeID }
+    }
+
     /// The curated feed for an app that publishes none of its own, if we have one.
     /// Case-insensitive on bundle id, matching `ChangelogCatalog`'s convention.
     public static func feed(forBundleID bundleID: String?) -> URL? {

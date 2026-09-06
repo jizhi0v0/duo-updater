@@ -3126,6 +3126,56 @@ public enum ChangelogRecipeRegistry {
                 + #"(?<body>.*?)(?=<p[^>]*>\s*<strong>\s*Version\s|</body>)"#,
             itemPatterns: [#"(?:^|>)\s*(?:-\s+)?(?<item>[^<]+)"#],
             maxEntries: 20),
+
+        // Qoder IDE and Qoder — one markup, two pages, two products. See the
+        // `VendorProbeRecipe` pair for why "Qoder" is two apps and not one.
+        //
+        // The notes people are pointed at live on `qoder.com/changelog?type=…`,
+        // which is a Next.js page whose entries only exist inside an RSC payload —
+        // every product's entries in one document, in two languages, with the
+        // `type` discriminator sitting AFTER the version in each object. Parsing
+        // that means betting on which copy of "1.28.0" comes first. The docs site
+        // renders the same releases as ordinary server-side HTML, one page per
+        // product, so it is the page these read instead.
+        //
+        // Structure (verified against the live bytes, 2026-09-06): each release is
+        // a `data-component-part="update-label"` div holding the date, a
+        // `…="update-description"` div holding the version, and a
+        // `…="update-content"` div holding `<h3>`/`<h4>` section headings and the
+        // `<ul>`s under them. Headings are dropped — only `<li>`s become change
+        // lines, as everywhere else here.
+        //
+        // Anchored on the `data-component-part` attributes rather than the class
+        // soup, and it is worth being exact about what that buys, because the
+        // obvious answer is wrong. The same page also carries a Next.js RSC
+        // payload repeating every release — but that copy has no `</div>` in it at
+        // all, so the entry pattern's element structure already excludes it with or
+        // without the attributes (measured 2026-09-06: appending the payload to
+        // the real entries changes neither the count nor the versions). What the
+        // attributes actually prevent is subtler and hits the entry the pane shows
+        // FIRST: drop them and the newest release's date is read off the page's own
+        // `<div class="eyebrow">Release Notes</div>` header instead of its label,
+        // on both pages, every time. `theAnchorsAreWhatKeepThePageHeaderOutOfTheNewestDate`
+        // pins that, and its fixture carries the header for the purpose.
+        //
+        // Measured on the real pages 2026-09-06: 108 entries for the IDE
+        // (1.28.0 → 1.0.0) and 7 for the app (0.1.8 → 0.1.0), versions and dates
+        // matching the products' own version endpoints exactly.
+        ChangelogRecipe(
+            bundleID: "com.qoder.ide",
+            source: URL(string: "https://docs.qoder.com/release-notes/desktop")!,
+            entryPattern: qoderEntryPattern,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+
+        // The app's page spells its version "Qoder 0.1.8" where the IDE's is a
+        // bare "1.28.0" — the shared pattern makes that prefix optional rather
+        // than forking the recipe, since both pages come off one docs build and a
+        // fix to one belongs to both.
+        ChangelogRecipe(
+            bundleID: "com.qoder.app",
+            source: URL(string: "https://docs.qoder.com/release-notes/qoder")!,
+            entryPattern: qoderEntryPattern,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single
@@ -3201,6 +3251,19 @@ public enum ChangelogRecipeRegistry {
         let windowed = covering.filter(\.declaresVersionWindow)
         return windowed.isEmpty ? covering : windowed
     }
+
+    /// The entry shape both Qoder release-note pages render. Shared for the same
+    /// reason `workBuddyEntryPattern` is: the two pages come off one docs build,
+    /// so a fix applied to one and not the other would leave the two products
+    /// silently disagreeing about which releases they can show.
+    ///
+    /// The `Qoder ` prefix is optional because only the app's page carries it
+    /// ("Qoder 0.1.8" vs the IDE's bare "1.28.0").
+    static let qoderEntryPattern =
+        #"data-component-part="update-label">(?<date>[^<]{3,40})</div>"#
+        + #".*?data-component-part="update-description">"#
+        + #"(?:Qoder\s+)?(?<version>[0-9]+(?:\.[0-9]+)+)</div>"#
+        + #".*?data-component-part="update-content">(?<body>.*?)</div></div></div>"#
 
     /// The entry shape both WorkBuddy sites render. Shared rather than duplicated
     /// because the two pages come off the same VitePress build: a fix applied to

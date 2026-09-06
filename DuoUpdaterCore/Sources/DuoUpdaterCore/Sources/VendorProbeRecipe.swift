@@ -6496,6 +6496,118 @@ public enum VendorProbeRegistry {
                 urlSource: .fixed(
                     URL(string: "https://cdn.anythingllm.com/latest/AnythingLLMDesktop-Silicon.dmg")!),
                 kind: .dmg)),
+
+        // MARK: - Qoder (2026-09-06)
+        //
+        // TWO SEPARATE PRODUCTS, both called "Qoder", both offered off one
+        // `qoder.com/download` page. They are not one product mid-rename: the
+        // vendor answered it on its own forum
+        // (forum.qoder.com/t/qdoer-qoder-qoder-ide/12088, read 2026-09-06) —
+        // "Qoder IDE 用来代码，Qoder 是国际版 QoderWork 的迭代": the IDE is the coding
+        // tool, the plain "Qoder" app is the successor to QoderWork. Separate
+        // bundle ids, separate version lines (1.28.0 vs 0.1.8), separate
+        // release-note pages, separate download hosts — and, the part the install
+        // gate cares about, SEPARATE TEAM IDs (T27K5A5ZWD vs B6U242QL73). The
+        // vendor states that split itself: the installer stub's
+        // `installer-manifest.json` carries `expectedIdeTeamIdentifier` AND
+        // `expectedQoderTeamIdentifier` side by side.
+
+        // Qoder IDE — a VS Code fork, so it speaks VS Code's update protocol
+        // verbatim. `Contents/Resources/app/product.json` names
+        // `updateUrl = https://center.qoder.sh/algo` (read off the real 1.27.0
+        // dmg, 2026-09-06) and the path under it is Microsoft's:
+        // `/api/update/<platform>/<quality>/<commit>`.
+        //
+        // ⚠️ CONDITIONAL ENDPOINT — the reason the last path segment is `latest`
+        // and not a commit. Measured 2026-09-06: the installed 1.27.0 commit
+        // (`a48791e9…`) is answered with the 1.28.0 JSON, and the CURRENT 1.28.0
+        // commit (`68cf4c38…`) is answered **204, empty body**. Sending this
+        // machine's own commit would make one response shape mean two things —
+        // "you are current" on a Mac that has it, "the endpoint is broken" in a
+        // sweep that has no install — which is exactly how a check goes quietly
+        // dead (the trap the Mozilla AUS recipes above document at length).
+        // `latest` is VS Code's own unconditional sentinel and Qoder honours it:
+        // every user and every sweep sends the identical request, an answer is
+        // always expected, and empty is unambiguously a failure. Corroborated:
+        // an all-zeros commit — a commit that cannot ever be current — is also
+        // answered with the newest build, so the sentinel is not the only thing
+        // holding this up.
+        //
+        // `productVersion`, not `name`, though both read "1.28.0" today: `name`
+        // is the field the protocol lets a vendor put a human string in, and
+        // `productVersion` is the one defined to be the version. `version` is the
+        // COMMIT — matching it would compare a 40-hex string against `1.27.0`
+        // forever.
+        //
+        // The install spec takes the zip the API itself names, not the
+        // `Qoder-IDE-darwin-arm64.dmg` the download page hands a human. Same
+        // release, and the zip needs no mount. Verified 2026-09-06 by unpacking
+        // it: `Qoder IDE.app`, `com.qoder.ide`, CFBundleShortVersionString ==
+        // CFBundleVersion == 1.28.0 == the API's `productVersion`, arm64-only,
+        // signed "Developer ID Application: Alibaba.com Singapore E-Commerce
+        // Private Limited (T27K5A5ZWD)" and accepted by `spctl` as Notarized
+        // Developer ID — the same Team as the installed 1.27.0 copy, so the swap
+        // passes the VendorInstaller gate.
+        //
+        // Single channel: `stable` is the only quality this server answers —
+        // `/api/update/darwin-arm64/insider/latest` 404s (measured same day).
+        VendorProbeRecipe(
+            bundleID: "com.qoder.ide",
+            url: URL(string: "https://center.qoder.sh/algo"
+                + "/api/update/darwin-arm64/stable/latest")!,
+            mode: .responseBody,
+            versionPattern: #""productVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            downloadURL: URL(string: "https://qoder.com/download"),
+            changelogURL: URL(string: "https://docs.qoder.com/release-notes/desktop"),
+            publishedAtPattern: #""timestamp"\s*:\s*([0-9]{9,})"#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://qoder-ide\.oss-accelerate\.aliyuncs\.com"#
+                    + #"/release/[0-9.]+/Qoder-darwin-arm64\.zip)""#),
+                kind: .zip)),
+
+        // Qoder (the app) — the vendor publishes a 1.4 KB `manifest.json` beside
+        // the artifacts for its own installer to read: a top-level `version` plus
+        // one entry per platform with a sha256. Unconditional, tiny, and JSON, so
+        // it is preferred over every HTML surface this product has.
+        //
+        // `"version"` cannot be satisfied by `"schemaVersion"`: the key is matched
+        // with its own opening quote, and `schemaVersion`'s value is an UNQUOTED
+        // integer besides — two independent reasons, either one sufficient.
+        //
+        // The download page hands a human `Qoder-Installer-mac-arm64.zip`: a
+        // 238 MB stub (`com.qoder.installer`, its own bundle id) whose
+        // `Contents/Resources/payload/Qoder-<version>-mac-arm64.zip` holds the
+        // real app — the DoubaoIme shape `nestedArchivePath` exists for, and one
+        // this recipe deliberately does NOT need. The same release ships
+        // unwrapped beside it as `Qoder-mac-arm64.zip`, which is what the manifest
+        // names and what this installs; the payload path could not be spelled as
+        // a fixed `nestedArchivePath` anyway, since it carries the version.
+        //
+        // Verified 2026-09-06 on the artifact the manifest resolved to:
+        // `Qoder.app`, `com.qoder.app`, short == build == 0.1.8 == the manifest's
+        // `version`, arm64-only, "Developer ID Application: BRIGHT ZENITH PRIVATE
+        // LIMITED (B6U242QL73)", notarized, matching the installed copy's Team.
+        //
+        // HOST SPLIT, deliberately followed rather than rewritten: the manifest is
+        // served from `download.qoder.com` and its artifact URLs point at
+        // `download.qoder.com.cn`. Both are Aliyun OSS and both answer the same
+        // object (HEAD, identical byte count, 2026-09-06), and the vendor's own
+        // installer downloads the `.com.cn` one — so the pattern accepts either
+        // rather than pinning the host we happened to fetch from.
+        VendorProbeRecipe(
+            bundleID: "com.qoder.app",
+            url: URL(string: "https://download.qoder.com"
+                + "/qoder-app/releases/latest/manifest.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            downloadURL: URL(string: "https://qoder.com/download"),
+            changelogURL: URL(string: "https://docs.qoder.com/release-notes/qoder"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://download\.qoder\.com(?:\.cn)?"#
+                    + #"/qoder-app/releases/[0-9.]+/Qoder-mac-arm64\.zip)""#),
+                kind: .zip)),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

@@ -212,6 +212,22 @@ public struct UpdateChecker: Sendable {
         var lastError: String?
 
         for source in sources {
+            // A store copy is answered by the store, or by nobody.
+            //
+            // Not by source ordering: `MacAppStoreSource` is first, but this loop
+            // falls through on a THROWN error as well as on a miss, and the store
+            // lookup misses often enough (region-locked storefront, a 404) that the
+            // fall-through is ordinary. That is how a store WhatsApp was offered the
+            // direct 26.33.19 dmg over its own 26.32.75.
+            //
+            // `answersAppStoreCopies` defaults to false, so this covers sources
+            // nobody has thought about yet — including the four that had no guard
+            // when this landed (Sparkle, Xcode, Electron, Alcove). See its doc
+            // comment for why the default carries the weight.
+            if app.isMASApp, !source.answersAppStoreCopies {
+                Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) skipped, the store owns this copy")
+                continue
+            }
             do {
                 guard let remote = try await source.latestVersion(for: app) else {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
@@ -242,15 +258,21 @@ public struct UpdateChecker: Sendable {
         // Deliberately NOT extended to `.appStoreManaged`/`.testFlightManaged`.
         //
         // A MAS row that reaches `.error` was answered by nobody and failed
-        // somewhere real: three sources can run for a store copy — the store lookup
-        // itself, `XcodeReleasesSource` (bundle-id gate only, and Xcode ships on the
-        // store), and `SparkleAppcastSource` (feed-url gate only; Keka is a store
-        // copy carrying a `SUFeedURL`). Only Homebrew, GitHub and the vendor probe
-        // carry `guard !app.isMASApp`. None of those three is a *borrowed* read the
-        // way Toolbox's is — each one IS this row's update check — so a failure
-        // there has to read as a failed check. Painting it "Managed by the App
-        // Store" would show the user the same row they get when the store is
-        // quietly keeping the app current.
+        // somewhere real: the gate at the top of the loop means the only source
+        // that ran for it was `MacAppStoreSource` — the lookup for the app the
+        // store DOES own. That is not a *borrowed* read the way Toolbox's is; it
+        // IS this row's update check, so a failure has to read as a failed check.
+        // Painting it "Managed by the App Store" would show the user the same row
+        // they get when the store is quietly keeping the app current.
+        //
+        // This used to be an inventory of which sources happened to carry
+        // `guard !app.isMASApp`, kept accurate by hand and re-checked whenever a
+        // source was added. It was wrong twice: once by naming one source when
+        // three could run, and then, in the commit that fixed that, by citing
+        // Keka as a store copy carrying a `SUFeedURL` — Keka is Developer
+        // ID-signed with no `_MASReceipt`, so `isMASApp` was false for it under
+        // the very same derivation both then and now. The gate makes the claim
+        // true by construction instead.
         //
         // TestFlight returns before the loop and never gets here at all.
         if let lastError, !app.isToolboxManaged {

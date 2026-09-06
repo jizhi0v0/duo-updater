@@ -7,6 +7,12 @@ import Foundation
 public struct MacAppStoreSource: UpdateSource {
     public let name = "App Store"
 
+    /// The one source that may. It IS the store's own lookup, so answering a
+    /// store copy is the whole job rather than a cross-distribution offer — and
+    /// `latestVersion(for:)` below already declines everything that is NOT a
+    /// store copy, so the two halves meet exactly.
+    public let answersAppStoreCopies = true
+
     private let session: URLSession
     /// The signed-in account's storefront region — what the App Store will
     /// actually let the user install.

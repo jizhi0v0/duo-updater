@@ -472,17 +472,21 @@ public struct AppScanner: Sendable {
         // still inferred from the feed's own items. See the type's doc comment.
         //
         // Not for a store copy. Both of the addresses below are OURS, not the
-        // bundle's, and handing one to a copy the App Store owns turns a store
-        // lookup that merely missed into a one-click direct-install download —
-        // `MacAppStoreSource` returns nil rather than throwing when the lookup
-        // finds nothing, and `SourceStack` runs `SparkleAppcastSource` third, so
-        // the fall-through is the normal path, not an error path. Homebrew, GitHub
-        // and the vendor probe each carry the same `guard !app.isMASApp`.
+        // bundle's, and inventing one for a copy the App Store owns is not the
+        // scanner's business.
         //
-        // Deliberately NOT extended to the bundle's own `SUFeedURL` read above: a
-        // store copy that states a feed is speaking for itself and is honoured, as
-        // it is today — Keka is a store copy carrying one, and `UpdateChecker`'s
-        // "all sources exhausted" comment names it for the same reason.
+        // Belt and braces since `UpdateChecker` gained its store gate: a store
+        // copy no longer reaches `SparkleAppcastSource` at all, so the address
+        // would be inert anyway. Kept because these two lines are about what the
+        // scanner is entitled to WRITE DOWN, which is a separate question from
+        // which source is entitled to answer.
+        //
+        // Deliberately NOT extended to the bundle's own `SUFeedURL` read above.
+        // That read records what the bundle says — a fact, not a decision — and
+        // the decision now lives in one place, the gate. (The earlier version of
+        // this comment justified the split with "Keka is a store copy carrying
+        // one". It is not: Developer ID-signed, no `_MASReceipt`. Verified before
+        // repeating it would have taken one `ls`.)
         if feedURL == nil, !isMAS { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
         // The narrower gap: the bundle DOES name a feed, and the vendor stopped
         // publishing to it. Matched on the dead address itself, not on the bundle

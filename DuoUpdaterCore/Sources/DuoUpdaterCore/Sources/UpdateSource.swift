@@ -12,6 +12,29 @@ public protocol UpdateSource: Sendable {
     /// than silently treating it as "not applicable".
     func latestVersion(for app: InstalledApp) async throws -> RemoteVersion?
 
+    /// Whether this source may answer for a copy installed from the Mac App
+    /// Store. Almost always no, which is why the default is false.
+    ///
+    /// `UpdateChecker` skips every source that says no when the row is
+    /// `isMASApp`, so a store copy is answered by the store or by nobody. The
+    /// alternative — relying on `MacAppStoreSource` being first in
+    /// `SourceStack` — does not hold: the checker falls through on a THROWN
+    /// error as well as on a miss, and the store lookup misses often enough
+    /// (region-locked storefront, a lookup that 404s) that the fall-through is
+    /// an ordinary state. Measured on a real row: WhatsApp offered 26.32.75 →
+    /// 26.33.19, the store build against the direct download from
+    /// web.whatsapp.com, whose recipe carries a dmg install spec — so Update
+    /// would have replaced the store copy, `_MASReceipt`, sandbox entitlements
+    /// and the store's own update path with it.
+    ///
+    /// **The default is the safe answer, deliberately.** Three sources learned
+    /// this one at a time (Homebrew at the start, GitHub 2026-08-20 via
+    /// LocalSend, the vendor probe 2026-08-23 via WhatsApp) and four were never
+    /// revisited, because each fix went where the bite was. A property that has
+    /// to be opted OUT of cannot be missed the same way — the same reason
+    /// `RowActions.live` gives its callers no defaults.
+    var answersAppStoreCopies: Bool { get }
+
     /// Optional hook: given the full app list for a scan, do whatever
     /// cheaper-in-bulk work would help `latestVersion(for:)` avoid a request it
     /// would otherwise make per app. `UpdateChecker.check(_ apps:)` calls this
@@ -47,6 +70,7 @@ public protocol UpdateSource: Sendable {
 }
 
 public extension UpdateSource {
+    var answersAppStoreCopies: Bool { false }
     func prewarm(_ apps: [InstalledApp]) async {}
     func invalidateMemo(for apps: [InstalledApp]) async {}
 }

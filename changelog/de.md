@@ -2,6 +2,28 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.86
+
+**Vier weitere Apps werden abgedeckt: WhatCable, Qoder IDE, Qoder und Yaak.** Jede von ihnen erhält Update-Prüfungen und eine Installation mit einem Klick, und ihre Versionshinweise werden als Text ins Fenster geladen statt als eingebettete Seite.
+
+**Die beiden Mac-Apps von Qoder werden nun auseinandergehalten.** Die IDE und die Desktop-App teilen sich Namen und Download-Seite, erscheinen aber in getrennten Versionsreihen; jede wird jetzt für sich verfolgt.
+
+**Beta-Builds von WhatCable und Yaak werden auf einem eigenen Kanal verfolgt.** Eine Kopie mit einer Beta hatte bisher überhaupt keine Quelle und blieb auf „Failed“ stehen; ihr wird nun die nächste Beta angeboten, mit Versionshinweisen getrennt von denen der finalen Versionen. Bei WhatCable gehört dazu auch die finale Version, in die eine Beta schließlich übergeht – wer diese nimmt, wechselt damit auf den finalen Kanal.
+
+## 0.3.85
+
+**Das Prüfen Ihrer App-Store-Apps braucht nur noch einen Bruchteil des bisherigen Datenverkehrs.** Bei jeder Prüfung wurde bisher die Produktseite jeder App-Store-App erneut geladen; die Seiten werden jetzt eine Stunde lang behalten, und der Store wird in wenigen Anfragen nach allen Ihren Apps gefragt statt in einer pro App. Bei einem Prüfintervall von fünf Minuten sind das insgesamt etwa ein Drittel weniger Datenverkehr; beim voreingestellten Intervall von sechs Stunden verfallen die Seiten weiterhin zwischen zwei Prüfungen, dort ist die Ersparnis also geringer.
+
+**Eine einzelne App erneut zu prüfen lädt nicht mehr alle App-Store-Apps neu.** Ein einzelnes „Check Again“ verwarf bisher jede zwischengespeicherte Produktseite, sodass die nächste geplante Prüfung für alle zahlte; es aktualisiert jetzt nur noch die App, nach der Sie gefragt haben.
+
+**Das Prüfen von Apps, die über GitHub ausgeliefert werden, kostet nur noch einen Bruchteil des bisherigen Datenverkehrs.** Bei jeder Prüfung wurde bisher die vollständige Beschreibung jeder Version erneut geladen, auch wenn nichts veröffentlicht worden war; jetzt wird GitHub gefragt, ob sich die Version seit dem letzten Mal geändert hat, und nichts geladen, wenn nicht. Einmal täglich wird jede Version vollständig neu gelesen, sodass eine zurückgezogene Version innerhalb eines Tages auffällt.
+
+**Apps auf einem Beta- oder Nightly-Kanal von GitHub fragen jetzt nach einer Version statt nach einer ganzen Seite davon.** Die neueste Version ist fast immer die Antwort; die vollständige Seite wird nur in den Runden geladen, in denen sie es nicht ist.
+
+**Die Update-Prüfung von Vorssaint läuft nicht mehr über eine Weiterleitung.** Das Repository wurde umbenannt, und dem alten Namen zu folgen setzte die Anfrage stillschweigend auf das anonyme Anfragelimit von GitHub; die Prüfung geht jetzt direkt an den neuen Namen.
+
+**Unter der Haube.** Das Release-Artefakt wird jetzt auf einem von GitHub gehosteten Mac gebaut, signiert und notarisiert, mit einer Build-Herkunft, die jede und jeder überprüfen kann, und das aufgezeichnete Anfrageprotokoll unterscheidet eine zwischengespeicherte Antwort von einer aus dem Netz.
+
 ## 0.3.84
 **Exportierte Anfrageprotokolle enthalten nicht mehr Ihren Kontonamen.** Für Apps in Ihrem Benutzerordner stand bisher in jeder Zeile der vollständige Pfad; jetzt steht dort `~`, unabhängig davon, wie Sie das Protokoll herausnehmen.
 

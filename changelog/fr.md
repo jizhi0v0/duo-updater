@@ -2,6 +2,28 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.86
+
+**Quatre apps de plus sont prises en charge : WhatCable, Qoder IDE, Qoder et Yaak.** Chacune bénéficie de la vérification des mises à jour et d’une installation en un clic, et ses notes de version sont chargées dans la fenêtre sous forme de texte plutôt que de page intégrée.
+
+**Les deux apps Mac de Qoder sont désormais distinguées.** L’IDE et l’app de bureau partagent un nom et une page de téléchargement mais paraissent sur des lignes de versions séparées ; chacune est maintenant suivie pour elle-même.
+
+**Les versions beta de WhatCable et de Yaak sont suivies sur leur propre canal.** Une copie exécutant une beta n’avait aucune source et restait sur « Failed » ; la beta suivante lui est désormais proposée, avec des notes de version distinctes de celles des versions finales. Pour WhatCable, cela inclut aussi la version finale en laquelle une beta finit par passer — l’accepter fait basculer la copie sur le canal final.
+
+## 0.3.85
+
+**Vérifier vos apps de l’App Store consomme une fraction du réseau qu’elle consommait.** Chaque vérification redemandait la page produit de chaque app de l’App Store ; les pages sont désormais conservées une heure et la boutique est interrogée sur toutes vos apps en quelques requêtes au lieu d’une par app. Avec un intervalle de vérification de cinq minutes, cela représente environ un tiers de trafic en moins au total ; avec l’intervalle par défaut de six heures, les pages expirent toujours entre deux vérifications, l’économie y est donc moindre.
+
+**Revérifier une seule app ne recharge plus toutes les apps de l’App Store.** Un simple « Check Again » jetait toutes les pages produit conservées, si bien que la vérification planifiée suivante les payait toutes ; il n’actualise désormais que l’app sur laquelle vous avez cliqué.
+
+**Vérifier les apps distribuées via GitHub coûte une fraction du réseau que cela coûtait.** Chaque vérification retéléchargeait la description complète de chaque version même quand rien n’avait été publié ; GitHub est désormais interrogé pour savoir si la version a changé depuis la dernière fois, et rien n’est téléchargé si ce n’est pas le cas. Une fois par jour, chaque version est relue intégralement, de sorte qu’une version retirée est remarquée en moins d’un jour.
+
+**Les apps suivies sur un canal beta ou nightly de GitHub demandent maintenant une version au lieu d’une page entière.** La version la plus récente est la réponse presque à chaque fois, et la page complète n’est récupérée que lors des tours où elle ne l’est pas.
+
+**La vérification des mises à jour de Vorssaint ne passe plus par une redirection.** Son dépôt a été renommé, et suivre l’ancien nom faisait silencieusement basculer la requête sur la limite anonyme de GitHub ; la vérification s’adresse désormais directement au nouveau nom.
+
+**Sous le capot.** L’artefact de version est désormais compilé, signé et notarisé sur un Mac hébergé par GitHub, avec une provenance de build que chacun peut vérifier, et le journal des requêtes distingue une réponse issue du cache d’une réponse venue du réseau.
+
 ## 0.3.84
 **Les journaux de requêtes que vous exportez ne contiennent plus votre nom de compte.** Pour une app installée dans votre dossier personnel, chaque ligne indiquait le chemin complet ; elle affiche désormais `~`, quelle que soit la façon dont vous sortez le journal.
 

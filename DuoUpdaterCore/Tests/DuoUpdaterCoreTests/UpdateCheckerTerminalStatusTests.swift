@@ -194,19 +194,23 @@ import Foundation
     /// **The deliberate asymmetry.** A store app looks like it deserves the same
     /// treatment as a Toolbox one, and it does not.
     ///
-    /// Only three sources carry `guard !app.isMASApp` — Homebrew, GitHub and the
-    /// vendor probe. Three others can still run for a store copy and can still
-    /// throw: `MacAppStoreSource` (the lookup for the app the store DOES own),
-    /// `XcodeReleasesSource` (bundle-id gate only, and Xcode ships on the store),
-    /// and `SparkleAppcastSource` (feed-url gate only — measured 2026-08-29, Keka
-    /// is a store copy carrying `SUFeedURL = https://u.keka.io`, 1 of the 22 store
-    /// apps on this machine).
+    /// The only source that runs for a store copy is `MacAppStoreSource` — not by
+    /// inspection, but because `UpdateChecker` skips every source whose
+    /// `answersAppStoreCopies` is false, which is all of them bar the store's.
+    /// See `SourceStorePolicyTests`.
     ///
-    /// What none of them is, is a *borrowed* read. Toolbox's probe answers a
-    /// question Toolbox could have answered itself; each of these three IS this
-    /// row's update check. So a failure there has to read as a failed check —
+    /// So the thing that threw here is the lookup for the app the store DOES own.
+    /// That is not a *borrowed* read the way Toolbox's is — Toolbox's probe
+    /// answers a question Toolbox could have answered itself, while this IS the
+    /// row's update check. A failure therefore has to read as a failed check;
     /// painting it "Managed by the App Store" would show the user the same row
     /// they get when the store is quietly keeping the app current.
+    ///
+    /// ⚠️ This paragraph used to be a hand-kept inventory of which sources
+    /// carried `guard !app.isMASApp`, and it was wrong twice — the second time
+    /// citing Keka as a store copy carrying a `SUFeedURL`, which was false on the
+    /// day it was written (Developer ID, no `_MASReceipt`). Do not reintroduce an
+    /// inventory here; the gate and its table are the answer.
     ///
     /// If a later change makes this `.appStoreManaged`, that is a decision to
     /// argue for here, not a tidy-up of an inconsistency.

@@ -171,7 +171,21 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
             shortVersion: "0.60.1", buildVersion: "113",
             path: URL(fileURLWithPath: "/Applications/TablePro.app"),
             isMASApp: false, sparkleFeedURL: nil)
-        let usable = SparkleAppcastSource.usableItems(for: app, from: parsed, osVersion: "26.0.0")
+        // Pin the host, do not inherit it. Both of TablePro's real items are
+        // single-architecture and one of them is x86_64, so with the defaults
+        // `usableItems` consults `HostArch.canRunIntelBuilds` — and on an Apple
+        // Silicon Mac WITHOUT Rosetta it drops the x86_64 item, leaving one
+        // entry. That is the arch filter behaving correctly (added 2026-08-24,
+        // two days after this test); what is wrong is asking it here at all,
+        // because this test is about how the notes are structured, not about
+        // which build this Mac can run. Unpinned it measures the host: green on
+        // CI's runner, red on any Mac without Rosetta, and red in a way that
+        // stops `make test` before the CLI suite, the App suite and all four
+        // Python gates. `SparkleArchSelectionTests` pins both fields for the
+        // same reason.
+        let usable = SparkleAppcastSource.usableItems(
+            for: app, from: parsed, osVersion: "26.0.0",
+            hostArch: .arm64, allowingIntelTranslation: true)
         XCTAssertEqual(usable.count, 2)
 
         let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(from: usable))
@@ -214,7 +228,13 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
             shortVersion: "0.60.1", buildVersion: "113",
             path: URL(fileURLWithPath: "/Applications/TablePro.app"),
             isMASApp: false, sparkleFeedURL: nil)
-        let usable = SparkleAppcastSource.usableItems(for: app, from: parsed, osVersion: "26.0.0")
+        // Pinned for the reason given above, and here the pin is what makes the
+        // test exist at all: the pair this collapses IS an arm64 item and its
+        // x86_64 twin, so a host that cannot run Intel builds filters one of
+        // them out and the dedup path under test never runs.
+        let usable = SparkleAppcastSource.usableItems(
+            for: app, from: parsed, osVersion: "26.0.0",
+            hostArch: .arm64, allowingIntelTranslation: true)
         XCTAssertEqual(usable.count, 2)
 
         let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(from: usable))

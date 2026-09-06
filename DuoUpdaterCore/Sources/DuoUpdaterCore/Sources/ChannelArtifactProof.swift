@@ -335,6 +335,19 @@ public enum ChannelProofRegistry {
         // that tells them apart after the fact.
         ChannelProofKey("com.vorssaint.utils", .beta):
             .artifact(#"/download/v[0-9.]+-beta\."#),
+        // WhatCable beta — both trains publish one asset under one name
+        // (`WhatCable.zip`), so the filename says nothing; the tag segment of the
+        // download path is the only thing that does
+        // (`…/download/v1.5.0-beta.8/WhatCable.zip` against stable's
+        // `…/download/v1.4.0/…`). Anchored to that segment rather than a bare
+        // `-beta`, for the reason spelled out on VSCodium above: neither the owner
+        // (`darrylmorley`) nor the repo (`whatcable`) carries the token today, but
+        // a proof a fixed part of every URL could satisfy is a proof that cannot
+        // fail. Stable's artifact fails this pattern, which is the substitution it
+        // exists to catch — the two trains share the bundle id, the app name and
+        // the asset name, so after the fact the path is all there is.
+        ChannelProofKey("uk.whatcable.whatcable", .beta):
+            .artifact(#"/download/v[0-9.]+-beta\."#),
         // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
         // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
         // even meant to be a different artifact forever: UTM's previews graduate

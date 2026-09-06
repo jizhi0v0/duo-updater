@@ -2921,6 +2921,82 @@ public enum GitHubReleaseRegistry {
             installerKind: .dmg,
             channel: .nightly),
 
+        // WhatCable — an open-source menu-bar app (`uk.whatcable.whatcable`) that
+        // reads what each USB-C/Thunderbolt cable plugged into the Mac can
+        // actually do. Distributed from its own GitHub releases: one constant
+        // asset name, `WhatCable.zip`, on every one of the newest 100 releases
+        // (measured 2026-09-06). The `whatcable-cli-<version>.zip` beside it is
+        // the standalone CLI, a different artifact — the app bundle ships its own
+        // copy at `Contents/Helpers/whatcable`, which is what Homebrew's cask
+        // symlinks — so the pattern is anchored end to end and cannot drift onto
+        // it.
+        //
+        // Homebrew has a `whatcable` cask, and it is deliberately not the source
+        // here: it is `auto_updates true`, which this repo treats as "the app
+        // updates itself, Homebrew defers" (see `HomebrewCaskSource`).
+        //
+        // One-click verified 2026-09-06 on the real v1.4.0 asset: `WhatCable.app`,
+        // `uk.whatcable.whatcable`, CFBundleShortVersionString 1.4.0 == the tag,
+        // universal (x86_64 + arm64), signed "Developer ID Application: Darryl
+        // Morley (M4RUJ7W6MP)" and accepted by `spctl` as Notarized Developer ID —
+        // the same Team as the installed copy, so the swap passes the
+        // VendorInstaller gate.
+        //
+        // Notes: the release bodies are full Markdown (v1.4.0's runs to several
+        // hundred words of per-area headings and bullets), so `GitHubMarkdownParser`
+        // renders them natively and no `ChangelogRecipe` is needed.
+        GitHubReleaseRule(
+            bundleID: "uk.whatcable.whatcable",
+            owner: "darrylmorley", repo: "whatcable",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^WhatCable\.zip$"#,
+            installerKind: .zip),
+
+        // WhatCable beta — the same repo's prerelease train, and it MUST exist
+        // rather than being left to the stable rule. The betas ship a version
+        // string the bundle keeps verbatim (`CFBundleShortVersionString` reads
+        // "1.5.0-beta.8", confirmed on the real v1.5.0-beta.8 artifact), which
+        // `ReleaseChannel.detect` step 4 resolves to `.beta` — so a beta install
+        // is refused by the stable rule's channel gate and, without this, would
+        // have no source at all and read "Failed" indefinitely. That is not
+        // hypothetical: it is the exact shape of the Alfred regression documented
+        // on its `.beta` recipe in `VendorProbeRecipe`.
+        //
+        // The vendor's own updater has the matching opt-in — `receiveBetaUpdates`
+        // in `uk.whatcable.whatcable`'s defaults, whose comment in the app's
+        // `AppSettings.swift` says an opted-out user "keeps hitting
+        // releases/latest, which GitHub never returns a pre-release from". That
+        // toggle is NOT read here, and the gap is one-directional and known: a
+        // copy running a STABLE build with the toggle on is offered stable by us
+        // and betas by the app itself. Closing it needs a `ChannelBinding`, which
+        // is tracked in CHANNEL_COVERAGE_TODO rather than smuggled in here. The
+        // direction that would be harmful — pushing a beta at someone who never
+        // asked for one — cannot happen: the beta rule only applies to a copy
+        // already running a beta.
+        //
+        // Anchored to `-beta.<N>`, which costs a bounded, deliberate thing: a copy
+        // on `1.5.0-beta.8` is not offered the plain `1.5.0` that graduates from
+        // it, and waits for `1.6.0-beta.1`. A pattern loose enough to accept both
+        // shapes would fix that and break the channel proof — the artifact URL is
+        // the ONLY place either train names itself
+        // (`/download/v1.5.0-beta.8/WhatCable.zip` vs `/download/v1.5.0/…`, same
+        // filename), so accepting stable tags here would make the registered
+        // `.artifact` proof fire on a legitimate resolution. The wait is short in
+        // practice: 8 betas shipped in the 11 days to 2026-08-31.
+        //
+        // listPageSize: measured 2026-09-06 over the newest 100 releases —
+        // first-match index 0, and the longest run of non-prerelease tags between
+        // two prereleases is 1. 5 keeps 5x headroom and costs 5.9 KB gzipped
+        // against 23.8 KB at the default 20.
+        GitHubReleaseRule(
+            bundleID: "uk.whatcable.whatcable",
+            owner: "darrylmorley", repo: "whatcable",
+            usePrereleases: true,
+            listPageSize: 5,
+            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$"#,
+            installAssetPattern: #"^WhatCable\.zip$"#,
+            installerKind: .zip,
+            channel: .beta),
         // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
         // ships an EMPTY `CFBundleShortVersionString` and puts 1.1.3 in
         // `CFBundleVersion` alone. `AppScanner` drops any bundle with no marketing

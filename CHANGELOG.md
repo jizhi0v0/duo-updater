@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.87
+
+**CotEditor is now covered, on both its release and its beta line.** Which line a copy follows comes from the version it is running and from CotEditor's own "Update to prereleases when available" setting, so a beta copy is offered the next beta instead of a release that would take it backwards.
+
 ## 0.3.86
 
 **Four more apps are covered: WhatCable, Qoder IDE, Qoder and Yaak.** Each one gets update checks and a one-click install, and their release notes are read into the window as text rather than an embedded page.

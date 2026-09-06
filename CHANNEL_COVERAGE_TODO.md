@@ -219,7 +219,7 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       —— **未做真机 diff 确认落盘行为**，按本节规矩不得直接当作 detectable。
       补法是一个 `ChannelBinding`，形状同 `IINAChannel`。
 
-- [ ] **CotEditor** · `com.coteditor.CotEditor` — Settings → **"Check for beta releases"**
+- [x] **CotEditor** · `com.coteditor.CotEditor` — Settings → **"Update to prereleases when available"**
       （`checksUpdatesForBeta`，官方条件是 `Bundle.main.version.isPrerelease || checksUpdatesForBeta`，
       feed 标签 `prerelease`）。**2026-09-06 接过一版又撤了**，撤的原因不是这个开关：
       feed 只保留最新一条 beta，旧 beta 副本在 feed 里找不到自己的 build，`allowedChannels`
@@ -228,12 +228,13 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       一道闸拦得住（仓库里只有架构降级守卫）。所以这一格**先欠着的不是 binding，是一条
       「远端 marketing 比装机的旧就不提供」的守卫**，那条落在每个 Sparkle app 的检查路径上，
       要单独走一轮复审。实测与链条见 [审计](docs/app-audits/com-coteditor-CotEditor.md)。
-      **2026-09-06：守卫已落地**（#368，`SparkleAppcastSource.offerableItem` +
-      `UpdateChecker.evaluate`），同一台 `7.1.0-beta.3` 行里仍写着 `7.0.9` 但状态是
-      「已是最新」，不会再被推降级包。但**这一格仍然不能打勾**：挡住 `7.1.0-beta.6` 的是
-      渠道推断（自己的 build 不在 feed 里），守卫没碰那一半；而且
-      `sparkleChannelName(.beta)` 给 `"beta"`、feed 用 `"prerelease"`，binding 那条路
-      也还对不上。
+      **2026-09-06 已接入，但不是走 appcast。** 先补了降级守卫（#368），再换源：
+      两条 GitHub 规则（历史完整、tag 自己说明在哪条轨）+ `CotEditorChannel` 读
+      `checksUpdatesForBeta`（在沙盒容器里）。厂商的判据是
+      `Bundle.main.version.isPrerelease || checksUpdatesForBeta`，所以 binding 只答
+      「框勾了」这一半，没勾时返回 **nil** 让 `detect()` 读版本串——返回 `.stable` 会
+      关掉 `detect()`，把没勾过框的 beta 副本钉在 stable 轨上。四种状态打真实端点验过。
+      `sparkleChannelName(.beta)` 与 feed 的 `prerelease` 对不上这件事随着换源一起消失了。
 
 - [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
       feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，

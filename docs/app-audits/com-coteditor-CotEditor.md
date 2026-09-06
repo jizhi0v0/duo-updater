@@ -1,13 +1,17 @@
 # CotEditor
 
-审计日期：2026-09-06。**结论：调查完成，暂不接入**——见「为什么没接」。
+审计日期：2026-09-06。**结论：已接入 —— 走 GitHub 两条规则 + 一个 ChannelBinding，
+appcast 故意不读。**
 
-> **2026-09-06 更新**：下面第 5 步描述的降级已经被堵上了（#368）。守卫分两半：
-> `SparkleAppcastSource.offerableItem` 决定**报哪一条**（表头会降级时往下找），
-> `UpdateChecker.evaluate` 决定**它算不算更新**（marketing 倒退就不算）。同一份 feed、
-> 同一台 `7.1.0-beta.3`：现在行里仍然写着 `7.0.9`、release notes 和时间线都在，
-> 但状态是「已是最新」，没有 Update 按钮。**但这不等于可以接了**——feed 里那条
-> `7.1.0-beta.6` 它依旧看不见，见文末「守卫之后还差什么」。
+三次改口，按顺序记着，因为每一步都是量出来的：
+
+1. 第一版补 `SparkleFeedCatalog` 地址走 appcast，端到端 `7.0.8 → 7.0.9` 装成功了，
+   但**旧 beta 会被推降级包**，于是撤回（见「为什么当初没接」）。
+2. 补了降级守卫（#368 / PR #375）。守卫挡住了伤害，但没解决盲区：那台
+   `7.1.0-beta.3` 从「按 Update 就降级」变成「行里写着 7.0.9、状态已是最新」，
+   feed 里的 `7.1.0-beta.6` 它**仍然看不见**。
+3. 现在这一版**换源**：GitHub 保留全部 release，tag 自己说明在哪条轨，
+   渠道判断不再依赖「能不能在 feed 里找到自己」——盲区从根上消失。
 
 ## 基本信息
 
@@ -18,7 +22,7 @@
   `https://coteditor.com/appcast.xml` 在两份签名二进制及官方 `UpdaterManager.swift` 中可确认。
 - 也在 Mac App Store 上架；Homebrew 有 cask，`auto_updates`。
 
-## 为什么没接
+## 为什么当初没接（appcast 那条路）
 
 补一条 `SparkleFeedCatalog` 地址就能让检测跑起来，第一版就是这么做的，端到端
 `7.0.8 → 7.0.9` 也真的装成功了。撤回的原因是**旧 beta 会被推一个降级包**，而且这条路
@@ -71,44 +75,80 @@ INSTALLED 7.1.0-beta.6/845  detect=beta  allowed=[prerelease, nil]
 同时维护 7.0.x stable 和 7.1.0 beta 两条线，所以只要出现一个 build 高于当前 beta 的
 7.0.x 补丁，跑 beta 的副本照样会被喂 stable。
 
-## 接进来需要什么
+## 现在怎么接的
 
-不是补一个 `ChannelBinding` 就够——那只解决「知不知道自己在 beta 轨」，解决不了
-「跨轨按 build 排序」。而且 `SparkleAppcastSource.sparkleChannelName(.beta)` 给的是
-`"beta"`，CotEditor feed 用的标签是 `"prerelease"`，对不上。
+**源：GitHub Releases，两条规则，同一个 bundle id。** `SparkleFeedCatalog` **不加**
+地址——`SourceStack` 里 Sparkle 排在 GitHub 前面，加了就等于把它送回那份 feed。
+`CotEditorChannelTests.theAppcastIsDeliberatelyNotInTheCatalog` 钉住这个决定。
 
-真正缺的是一条**「远端 marketing 比装机的旧就不提供」**的守卫。那条守卫落在每个 Sparkle
-app 都要走的检查路径上，属于 CLAUDE.md 说的「十行改在所有请求都要走的路径上」，该单独
-走一轮对抗复审，不该塞进发版日。
+```
+stable  versionPattern  ^([0-9]+\.[0-9]+\.[0-9]+)$
+        installAsset    ^CotEditor_[0-9.]+\.dmg$
+beta    usePrereleases: true
+        versionPattern  ^([0-9]+\.[0-9]+\.[0-9]+-beta(?:\.[0-9]+)?)$
+        installAsset    ^CotEditor_[0-9.]+-beta(?:\.[0-9]+)?\.dmg$
+```
 
-## 守卫之后还差什么
+最新 100 条 release 实测（2026-09-06，Python 独立复算，不是读 Swift 得出的）：
+0 条草稿；**每条 release 恰好一个资产**（100/100）；tag 只有三种形状
+`7.0.9` / `7.1.0-beta` / `7.1.0-beta.6`，**没有 `v` 前缀**；
+两条 versionPattern 把 100 个 tag **正好切开**——94 stable + 6 beta，没有一个被两条同时
+命中，也没有一个两条都不中；100 个资产名同样切开，命名一律 `CotEditor_<tag>.dmg`。
 
-守卫**只解决"会不会被推降级包"，不解决"能不能拿到自己那一轨"**。同一台
-`7.1.0-beta.3` 机器现在的结局是：`latestVersion` 照常返回 `7.0.9`（版本号、release
-notes、发布时间线都还在），`evaluate` 判 `.upToDate`。没有假的 Update 按钮了，但 feed
-里那条 `7.1.0-beta.6` 它依旧看不见——它被 `allowedChannels` 挡在外面，而挡它的原因
-（自己的 build 不在 feed 里）守卫一个字都没碰。
+`listPageSize` 用默认 20，实测下限是 **2**（beta 之间最坏间隔 1 条：beta.6 和 beta.5
+之间隔着 7.0.9），记在 `GitHubListPageSizeTests.measuredMinimumDepth`。
 
-⚠️ 这里有一个**故意接受的代价**，不是疏漏：跑在一条**已经被放弃的 prerelease 轨**上的
-副本（厂商发了 2.0-beta，砍掉 2.0，继续在 stable 发 1.6、1.7）从此不会被移回维护中的
-那条线。它会一直读作"已是最新"，而 `laggingRemoteVersion` 被限定在 stable 渠道、也不会
-提示它。`RowActionState` 里没有"你这条轨已经停更"这个状态。
+⚠️ **beta 轨是新开的**：这 100 条里 6 个 prerelease 全属于 2026-07-26 开始的 7.1.0 轮，
+它之前的 94 条（一路回到 2022-04）一个都没有。所以等这一轮转正、新一轮没开时，最新的 prerelease 会往下沉，
+20 行窗口大约覆盖这个厂商七个月的节奏，之后 beta 规则会匹配不到东西（**答 nil，不报错**）。
+那时候跑 beta 的副本也已经被 7.1.0 正式版接走了（正式版压过自己的预发布标签）。
 
-所以要接进来，仍然需要**渠道那一半**，两个已知障碍都还在：
+**渠道：`CotEditorChannel`**，还原厂商自己那行
+`Bundle.main.version.isPrerelease || checksUpdatesForBeta`：
 
-1. 旧 beta 副本在 feed 里找不到自己 → `channel(ofInstalled:)` 返回 nil → 退回默认渠道。
-2. 就算改成读 `ReleaseChannel.detect` 的结果，`sparkleChannelName(.beta)` 给 `"beta"`，
-   而这份 feed 的标签是 `"prerelease"`，对不上。
+| 装机 | 框 | 解析 | 结果 |
+|---|---|---|---|
+| `7.1.0-beta.6` | 勾 | binding → beta | beta 轨 |
+| `7.1.0-beta.3` | 没勾 | **nil** → `detect()` → beta | beta 轨 |
+| `7.0.9` | 勾 | binding → beta | `7.1.0-beta.6` |
+| `7.0.9` | 没勾 | nil → `detect()` → stable | stable 轨 |
 
-第三件仍未决的事没有变：`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`
-（与 `GitHubReleasesSource` 的 `guard !app.isMASApp` 和 `HomebrewCaskSource` 不同），
-商店版副本会因为一次商店查询落空而拿到直装包的一键更新。
+关键是第二行：框没勾时**返回 nil 而不是 `.stable`**。返回 `.stable` 是权威的，会把
+`detect()` 关掉，于是一台从没打开过那个设置面板的 `7.1.0-beta.3` 被钉死在 stable 轨上
+——#368 换一扇门又进来一次。
 
-顺带一条，同一条 `SparkleFeedCatalog` 补丁还有第二个副作用需要一起决定：
-`AppScanner` 填这张表时**不看 `isMASApp`**（与 `GitHubReleasesSource.swift:591` 的
-`guard !app.isMASApp` 和 `HomebrewCaskSource.swift:33` 不同），而 `MacAppStoreSource`
-查不到时是 `continue` 而不是终止。CotEditor 有商店版，所以一次商店查询落空就会让商店版
-副本拿到一个直装 DMG 的一键更新。
+那个键在**沙盒容器里**（`~/Library/Containers/com.coteditor.CotEditor/Data/Library/Preferences/`），
+容器外没有 plist。实测：没有完全磁盘访问的 shell 也读得到，`defaults read com.coteditor.CotEditor
+checksUpdatesForBeta` 不指路径就能解析。CapCut 是表里另一个沙盒 app，但它的 flag 在容器
+**外**，所以现有两个监视根都盖不到这里，`preferenceWatchCandidates` 补了第三个。
+
+### 实测（打真实端点，2026-09-06）
+
+```
+installed=7.1.0-beta.3/840 box=off  → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg  updateAvailable
+installed=7.1.0-beta.6/845 box=on   → 7.1.0-beta.6                              upToDate
+installed=7.0.9/843        box=off  → 7.0.9         CotEditor_7.0.9.dmg         upToDate
+installed=7.0.8/842        box=off  → 7.0.9         CotEditor_7.0.9.dmg         updateAvailable
+installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg  updateAvailable
+```
+
+第一行就是 #368 那台机器：以前被推 `7.0.9`（降级），守卫之后是「已是最新」，
+现在拿到的是它本来就该拿的 `7.1.0-beta.6`。
+
+本机 `duo check coteditor`（装着 beta.6）：`source=GitHub`、`latestVersion=7.1.0-beta.6`、
+`status=up-to-date`。
+
+## 还差什么
+
+- **Changelog 没有单独接 recipe**。GitHub 源自己会把 release body 解成结构化条目，
+  所以最新一条的说明是有的；多版本历史需要一条 `ChangelogRecipe`，没做。
+- **丢掉了 appcast 的两样东西**：EdDSA 签名（改由 Developer ID + 公证兜住）和
+  feed 声明的 `minimumSystemVersion`。后者实测被安装时那道闸兜住——`SignatureVerifier`
+  读的是下载包自己的 `LSMinimumSystemVersion`，而两个真包里这个值跟 feed 写的一致
+  （7.0.9 → 15.0，7.1.0-beta.6 → 26.0）。差别是「先给按钮、装的时候拦」而不是
+  「装了个跑不起来的」。
+- **`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`** 这条老问题还在（#368 的第二半），
+  只是 CotEditor 不再走那条路，所以对它不再有影响。
 
 ## Changelog
 

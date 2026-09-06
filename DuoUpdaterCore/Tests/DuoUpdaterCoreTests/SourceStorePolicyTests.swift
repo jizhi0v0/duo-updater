@@ -121,7 +121,11 @@ struct SourceStorePolicyTests {
     /// rather than inferred from the verdict.
     private actor Ledger {
         private(set) var asked = false
+        private(set) var prewarmed: [String]?
+        private(set) var invalidated: [String]?
         func mark() { asked = true }
+        func record(prewarmed apps: [InstalledApp]) { prewarmed = apps.map(\.name) }
+        func record(invalidated apps: [InstalledApp]) { invalidated = apps.map(\.name) }
     }
 
     private final class Spy: UpdateSource, Sendable {
@@ -138,6 +142,8 @@ struct SourceStorePolicyTests {
             return RemoteVersion(shortVersion: "9.0", version: nil, downloadURL: nil,
                                  sourceName: name)
         }
+        func prewarm(_ apps: [InstalledApp]) async { await ledger.record(prewarmed: apps) }
+        func invalidateMemo(for apps: [InstalledApp]) async { await ledger.record(invalidated: apps) }
     }
 
     private static func app(name: String, isMASApp: Bool) -> InstalledApp {
@@ -171,6 +177,28 @@ struct SourceStorePolicyTests {
         let result = await checker.check(Self.app(name: "DirectCopy", isMASApp: false))
         #expect(await declining.ledger.asked)
         #expect(result.remote?.sourceName == "Elsewhere")
+    }
+
+    /// The bulk hooks are the OTHER way a source touches a row, and the gate in
+    /// the loop does not cover them. A declining source must not be handed a
+    /// store copy to prewarm or to invalidate either — otherwise it can make a
+    /// request on behalf of a row it is forbidden to answer.
+    ///
+    /// Mutation: drop the `visibleTo:` filter from either call site and the
+    /// declining spy is handed "StoreCopy".
+    @Test func aDecliningSourceIsNotEvenHandedAStoreCopyInBulk() async {
+        let declining = Spy(name: "Elsewhere", answersAppStoreCopies: false)
+        let store = Spy(name: "App Store", answersAppStoreCopies: true)
+        let apps = [Self.app(name: "StoreCopy", isMASApp: true),
+                    Self.app(name: "DirectCopy", isMASApp: false)]
+        _ = await UpdateChecker(sources: [declining, store]).check(apps, freshening: true)
+
+        #expect(await declining.ledger.prewarmed == ["DirectCopy"])
+        #expect(await declining.ledger.invalidated == ["DirectCopy"])
+        // The store's own source keeps the whole list — it is the one allowed to
+        // act on both, and its prewarm is what batches the iTunes lookups.
+        #expect(await store.ledger.prewarmed == ["StoreCopy", "DirectCopy"])
+        #expect(await store.ledger.invalidated == ["StoreCopy", "DirectCopy"])
     }
 
     /// A store copy nothing answered is "managed by the store", not "unknown" —

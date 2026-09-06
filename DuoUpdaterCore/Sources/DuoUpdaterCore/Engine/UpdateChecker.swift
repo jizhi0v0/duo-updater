@@ -62,7 +62,7 @@ public struct UpdateChecker: Sendable {
         // day memoizes during `prewarm` doesn't refill what was just dropped —
         // and whoever adds one owes this a test.
         if freshening {
-            for source in sources { await source.invalidateMemo(for: apps) }
+            for source in sources { await source.invalidateMemo(for: Self.apps(apps, visibleTo: source)) }
         }
         // Give every source a chance to do its cheaper-in-bulk work — e.g.
         // MacAppStoreSource batching iTunes lookups — before the per-app
@@ -75,7 +75,8 @@ public struct UpdateChecker: Sendable {
         // finished — not merely been scheduled — before the fan-out begins.
         await withTaskGroup(of: Void.self) { group in
             for source in sources {
-                group.addTask { await source.prewarm(apps) }
+                let visible = Self.apps(apps, visibleTo: source)
+                group.addTask { await source.prewarm(visible) }
             }
             for await _ in group {}
         }
@@ -125,6 +126,22 @@ public struct UpdateChecker: Sendable {
         await channelStore?.flush()
 
         return results.compactMap { $0 }
+    }
+
+    /// The rows a source is allowed to act on: the whole list, minus store
+    /// copies for every source that declines them.
+    ///
+    /// The gate in `runSources` covers `latestVersion`, which is the path that
+    /// can offer a user the wrong package. These two bulk hooks are the other
+    /// way a source touches a row, and leaving them ungated would have left the
+    /// property's promise — that a declining source does not act for a store
+    /// copy — true of one path and false of the other. Nothing implements
+    /// `prewarm` or `invalidateMemo` today except `MacAppStoreSource`, which
+    /// answers store copies and so sees the list unchanged; this is here so the
+    /// second one to implement either does not have to remember.
+    private static func apps(_ apps: [InstalledApp], visibleTo source: any UpdateSource)
+        -> [InstalledApp] {
+        source.answersAppStoreCopies ? apps : apps.filter { !$0.isMASApp }
     }
 
     /// Check one app across all sources in priority order, then label the result
@@ -223,18 +240,15 @@ public struct UpdateChecker: Sendable {
         }
 
         for source in sources {
-            // A store copy is answered by the store, or by nobody.
+            // A store copy is answered by the store, or by nobody. Source ordering
+            // is not enough on its own: this loop falls through on a THROWN error
+            // as well as on a miss.
             //
-            // Not by source ordering: `MacAppStoreSource` is first, but this loop
-            // falls through on a THROWN error as well as on a miss, and the store
-            // lookup misses often enough (region-locked storefront, a 404) that the
-            // fall-through is ordinary. That is how a store WhatsApp was offered the
-            // direct 26.33.19 dmg over its own 26.32.75.
-            //
-            // `answersAppStoreCopies` defaults to false, so this covers sources
-            // nobody has thought about yet — including the four that had no guard
-            // when this landed (Sparkle, Xcode, Electron, Alcove). See its doc
-            // comment for why the default carries the weight.
+            // The evidence, the retraction that goes with it, and why the default
+            // is false live in ONE place — `UpdateSource.answersAppStoreCopies`.
+            // Deliberately not restated here: the first version of this comment
+            // did restate it, and the two halves immediately disagreed, which is
+            // the failure this whole change is about.
             if app.isMASApp, !source.answersAppStoreCopies { continue }
             do {
                 guard let remote = try await source.latestVersion(for: app) else {

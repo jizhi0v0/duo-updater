@@ -39,7 +39,9 @@ public protocol UpdateSource: Sendable {
     /// `RowActions.live` gives its callers no defaults.
     var answersAppStoreCopies: Bool { get }
 
-    /// Optional hook: given the full app list for a scan, do whatever
+    /// Optional hook: given the apps from a scan that this source is allowed to
+    /// act on — the whole list, minus store copies unless
+    /// `answersAppStoreCopies` — do whatever
     /// cheaper-in-bulk work would help `latestVersion(for:)` avoid a request it
     /// would otherwise make per app. `UpdateChecker.check(_ apps:)` calls this
     /// once, for every source, before its per-app fan-out starts — the only
@@ -50,7 +52,10 @@ public protocol UpdateSource: Sendable {
 
     /// Optional hook: drop any memoized answer this source is holding for
     /// exactly `apps`, so the next `latestVersion(for:)` call for each of them
-    /// hits the network instead of a stale cache. `UpdateChecker.check(_:freshening:)`
+    /// hits the network instead of a stale cache. Same narrowing as `prewarm`:
+    /// `apps` is what this source may act on, not everything being checked — a
+    /// source that declines store copies is never asked to invalidate one,
+    /// because it will never be asked to answer one either. `UpdateChecker.check(_:freshening:)`
     /// calls this, for every source, before the per-app fan-out — and,
     /// defensively, before `prewarm`; see that call site for why no source
     /// today makes that ordering observable. Default

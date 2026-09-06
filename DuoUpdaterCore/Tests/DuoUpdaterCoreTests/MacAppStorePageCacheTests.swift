@@ -918,7 +918,7 @@ struct MacAppStorePageCacheTests {
 
         #expect(await recorder.wasCalled, "invalidateMemo(for:) must be dispatched to the concrete implementation, not the protocol's empty default")
         #expect(await recorder.calledWithBundleIDs == ["com.example.dispatch.witness"],
-                "invalidateMemo(for:) must receive exactly the array being checked")
+                "invalidateMemo(for:) must receive the rows this source may act on")
     }
 
     /// A minimal `UpdateSource` whose only job is to record whether — and
@@ -927,6 +927,12 @@ struct MacAppStorePageCacheTests {
     /// needing any network stub.
     private actor RecordingSource: UpdateSource {
         let name = "Recording"
+        /// It stands in for `MacAppStoreSource`, so it answers store copies like
+        /// the real one. Load-bearing since the bulk hooks started receiving only
+        /// the rows a source may act on: at the default (false) the witness app —
+        /// which is `isMASApp` — would be filtered out and this case would be
+        /// measuring that filter instead of dynamic dispatch.
+        nonisolated let answersAppStoreCopies = true
         private(set) var wasCalled = false
         private(set) var calledWithBundleIDs: [String] = []
 

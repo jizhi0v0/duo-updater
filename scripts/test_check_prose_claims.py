@@ -104,6 +104,25 @@ class ProseClaims(unittest.TestCase):
         self.assertEqual(len(found["offences"]), 1)
         self.assertIn("no reason", found["offences"][0][2])
 
+    # Mutation: accept the marker anywhere in the block instead of at the start
+    # of a line. Describing the convention then reads as invoking it, and a
+    # description with no claim beside it is reported as a stale exemption —
+    # a message that is neither true nor actionable.
+    def test_describing_the_marker_is_not_invoking_it(self):
+        self.write("    /// A count like that needs a "
+                   "`claim-lint:allow-machine-state — <reason>` beside it.\n"
+                   "    func f() {}\n")
+        found = self.review()
+        self.assertEqual(found["dead"], [], found)
+        self.assertEqual(found["offences"], [])
+
+    # …and the same mention does NOT exempt a real claim sitting next to it.
+    def test_a_described_marker_does_not_exempt_a_real_claim(self):
+        self.write("    /// 1 of the 22 store apps on this machine. Add a "
+                   "`claim-lint:allow-machine-state — x` if you must.\n"
+                   "    func f() {}\n")
+        self.assertEqual(len(self.review()["offences"]), 1)
+
     # Mutation: delete the `elif exempt and not match` branch. A marker left
     # behind after its sentence was rewritten is a standing pass for whatever is
     # written there next — #271 is what that costs.

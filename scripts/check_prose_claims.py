@@ -46,16 +46,6 @@ ROOTS = [
     "CLI/Sources", "CLI/Tests",
 ]
 
-# Deliberately narrow. A broad "this machine" ban is unworkable — 71 occurrences
-# in Sources alone, and most are runtime semantics ("the machine running this"),
-# not claims. A first attempt that also matched "<verified> on this machine
-# <date>" pulled in 20 hits, nearly all of them legitimate dated verifications of
-# a real artifact, which anyone holding that artifact can redo. What is left here
-# is the shape nobody can redo: a count over the local app population.
-#
-# `installed here` was a fourth alternative and is gone: the count alternative
-# already catches the sentence that motivated this file, and on its own it only
-# matched code semantics ("`versions` only ever holds what is installed here").
 MACHINE = r"(?:this|one|another|a real|the development) machine"
 
 # Deliberately narrow, and arrived at by measuring rather than by taste.
@@ -70,6 +60,12 @@ MACHINE = r"(?:this|one|another|a real|the development) machine"
 # THIS machine's population. The marker may sit on either side of the count
 # ("55 of 145 … on a real machine" and "on a real machine … 55 of 145" both
 # occur), hence the two mirrored alternatives.
+#
+# A standalone `installed here` alternative was tried and removed: on its own it
+# only matched code semantics ("`versions` only ever holds what is installed
+# here"). The phrase is still caught inside a count — "of the 22 store apps
+# installed here" hits the last alternative — which is the only form that was
+# ever the point.
 #
 # Measured on the tree the check landed on: 5 hits, all genuine, no false
 # positives — and three real comments that must NOT hit are fixtures in the test
@@ -139,8 +135,15 @@ def review(root, roots=ROOTS):
             for start, block in comment_blocks(path):
                 joined = " ".join(block)
                 match = PATTERN.search(joined)
-                reason = REASON.search(joined)
-                exempt = MARKER in joined
+                # The marker has to START a line of the comment. Anywhere-in-the
+                # -block would mean a comment that merely DESCRIBES the
+                # convention reads as invoking it — and, with no claim beside it,
+                # gets reported as a stale exemption, which is neither true nor
+                # actionable.
+                marker_line = next(
+                    (line for line in block if line.startswith(MARKER)), None)
+                exempt = marker_line is not None
+                reason = REASON.search(marker_line) if marker_line else None
                 if match and not exempt:
                     offences.append((rel, start, match.group(0)))
                 elif match and exempt and not reason:

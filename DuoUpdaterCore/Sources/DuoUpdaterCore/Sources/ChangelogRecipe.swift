@@ -2774,13 +2774,22 @@ public enum ChangelogRecipeRegistry {
         //    columns with a two-space continuation indent, so `[^\n]+` (what every
         //    single-line recipe uses) truncates most items mid-sentence. The lazy
         //    scan runs to the next bullet, the next `###` group heading, the next
-        //    `##` entry, or the end.
+        //    `##` entry, a Keep a Changelog LINK DEFINITION, or the end.
+        //
+        // ⚠️ `\n\[` is in that list because the file ends with the link-reference
+        // block the format prescribes (`[1.3.2]: https://…/compare/…`), and the
+        // last entry's body runs to `\z`. Without that boundary the oldest entry's
+        // final bullet swallowed all 17 of them — measured at 1709 characters of
+        // prose plus compare URLs, against 137 with it. Nothing else changes: the
+        // same 17 entries parse with the same item counts, and no item carries a
+        // link definition any more. Unindented, so it cannot fire on a wrapped
+        // continuation line, which this vendor indents by two spaces.
         ChangelogRecipe(
             bundleID: "uk.co.bzwrd.macperfmonitor",
             source: URL(string: "https://raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md")!,
             entryPattern:
                 #"(?:^|\n)##\s+\[(?<version>[0-9][^\]]*)\]\s*-\s*(?<date>[^\n]+)\n(?<body>.*?)(?=\n##\s|\z)"#,
-            itemPatterns: [#"\n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\z)"#],
+            itemPatterns: [#"\n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\n\[|\z)"#],
             markdownSource: true),
 
         // TypeWhisper — no notes in the appcast either. The official changelog

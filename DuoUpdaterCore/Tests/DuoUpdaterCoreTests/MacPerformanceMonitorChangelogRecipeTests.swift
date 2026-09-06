@@ -95,6 +95,46 @@ struct MacPerformanceMonitorChangelogRecipeTests {
         #expect(first.hasSuffix("so nothing ever matched."))
     }
 
+    /// ⚠️ Keep a Changelog ends a file with a link-reference block, and the LAST
+    /// entry's body runs to the end of the document — so without a boundary its
+    /// final bullet swallows every one of those lines. Measured on the live file
+    /// before the fix: the oldest entry's last item was 1709 characters of prose
+    /// followed by 17 GitHub compare URLs; after it, 137.
+    ///
+    /// The fixture above could not catch this. It is the file's OPENING, and the
+    /// block exists only at its tail — the same fixture-distribution trap
+    /// CLAUDE.md describes, met again. Hence a second fixture that ends the way
+    /// the real file ends.
+    ///
+    /// Mutation: drop `\n\[` from the item pattern's lookahead → the last item
+    /// carries the link definitions again.
+    @Test func theTrailingLinkBlockIsNotSwallowedByTheLastBullet() throws {
+        let tail = """
+        # Changelog
+
+        ## [1.1.5] - 2026-07-05
+
+        ### Added
+
+        - A first bullet that wraps the way this vendor writes them, with a
+          two-space continuation indent.
+        - A clean split between a headless, unit-tested data layer and the
+          SwiftUI app.
+
+        [1.1.5]: https://github.com/Zesty0wl/mac-performance-monitor/releases/tag/v1.1.5.118
+        [1.2.0]: https://github.com/Zesty0wl/mac-performance-monitor/compare/v1.1.5.118...v1.2.0.127
+        """
+        let parsed = try #require(ChangelogService.parse(try Self.recipe, body: tail))
+        let last = try #require(parsed.entries.last)
+        #expect(last.version == "1.1.5")
+        #expect(last.items.count == 2)
+        let final = try #require(last.items.last)
+        #expect(final.hasSuffix("SwiftUI app."), "the item ran past its bullet: \(final)")
+        for item in last.items {
+            #expect(!item.contains("]: https://"), "a link definition leaked into an item: \(item)")
+        }
+    }
+
     /// The `### Fixed` / `### Changed` group headings are not items, and an item
     /// must not swallow the heading that follows it. Both entries' items are
     /// counted, because a pattern that ran past a heading would also merge the

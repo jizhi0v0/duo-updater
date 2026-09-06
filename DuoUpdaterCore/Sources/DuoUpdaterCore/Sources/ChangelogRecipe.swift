@@ -665,6 +665,43 @@ public enum ChangelogRecipeRegistry {
             channel: .beta,
             structuredFormat: .gitHubReleases),
 
+        // CotEditor — the GitHub source already renders the release it is
+        // OFFERING (the bodies are structured Markdown: `## Improvements`,
+        // `## Known Issues`, measured through the source on both rails), so what
+        // these two add is the rest of the rail: the previous releases in the
+        // changelog panel.
+        //
+        // `per_page=40` with `maxEntries: 20` is the house shape. Measured
+        // 2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease, so
+        // the stable rail fills its 20 and the beta rail renders 6 — the whole
+        // 7.1.0 cycle, which is every prerelease this repo has published in 100
+        // releases going back to 2022.
+        //
+        // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
+        // Yaak's pair above, and the difference is in the rules, not in taste.
+        // Yaak's beta rule cannot resolve a stable artifact, so a promoted entry
+        // there would describe a build that channel never offers. CotEditor's beta
+        // rule can and must — its train runs in cycles and a copy has to be able
+        // to take the release that graduates from it — so without this the panel
+        // would omit the very entry the row is offering, which is UTM's case
+        // exactly (see the field's own doc).
+        ChangelogRecipe(
+            bundleID: "com.coteditor.CotEditor",
+            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "com.coteditor.CotEditor",
+            source: URL(string: "https://api.github.com/repos/coteditor/CotEditor/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            includesPromotedStable: true,
+            structuredFormat: .gitHubReleases),
+
         // Air (JetBrains) — air.dev/changelog is a Vite/React SPA: the HTML is an
         // empty shell and the changelog data is baked into the hashed JS bundle as
         // *compiled JSX* (no clean HTML, no JSON API). Two-stage handles the hash:

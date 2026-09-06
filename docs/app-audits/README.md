@@ -184,7 +184,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Investigated — blocked safely
 
-- [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — 隐藏的 Sparkle 地址找到了、一键也实测装成功，但 feed 只留最新一条 beta，旧 beta 副本会被推 `7.0.9` 这个 **marketing 降级**包，而 `evaluate` 在两边都有 build 时只比 build；降级守卫已于 2026-09-06 落地（#368），但旧 beta 副本仍看不见自己那一轨 · **故意不接**，见审计 · 2026-09-06
+- [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
 - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
 
 ## 未编入分类（补录 2026-08-30）

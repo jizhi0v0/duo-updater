@@ -1498,6 +1498,18 @@ public enum GitHubReleaseRegistry {
         //     it "answers nil rather than erroring", which is true of a check and
         //     false of the sweep.
         //
+        // ⚠️ A second consequence of accepting plain tags, and it is a READOUT one
+        // rather than an offer one: `settle` walks the page newest-first and takes
+        // the first tag this pattern accepts, so once a 7.0.x patch ships above the
+        // newest beta — the shape #368 called the secondary form, and one this
+        // vendor really maintains — the beta rail resolves THAT. Nothing is
+        // offered: GitHub sets `version: nil`, so `evaluate` compares marketing and
+        // `7.0.10` is older than `7.1.0-beta.6`. But the row then names 7.0.10 as
+        // the latest version for a copy running a 7.1.0 beta, where a `-beta`-only
+        // pattern named the copy's own build. Accepted: the alternative is the two
+        // failures above, and a row that says "up to date" beside a lower number is
+        // the same shape a copy ahead of its feed already produces.
+        //
         // ⚠️ The cost, one-way and shared with WhatCable: taking that graduation
         // puts the copy on `7.1.0`, `ReleaseChannel.detect` then reads `.stable`,
         // and the stable rule serves it from the next check on — so we stop

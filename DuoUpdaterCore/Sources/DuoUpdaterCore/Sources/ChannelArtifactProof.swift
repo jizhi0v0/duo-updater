@@ -294,8 +294,14 @@ public enum ChannelProofRegistry {
         // has to be able to take the `7.1.0` that graduates from it (see the
         // rule). So an `.artifact` proof is not available — the tag segment is the
         // only place either train names itself, and a pattern anchored to `-beta`
-        // would fire on exactly that legitimate resolution. Same reasoning and
-        // same shape as WhatCable's entry above.
+        // would fire on exactly that legitimate resolution. Same reasoning as
+        // WhatCable's entry above — but NOT the same anchor, and the difference is
+        // load-bearing: WhatCable's is `-beta\.`, which matches the escaped dot in
+        // its own `-beta\.[0-9]+` pattern. CotEditor's cycle opens with an
+        // unnumbered `7.1.0-beta`, so its pattern reads `-beta(?:` — `-beta`
+        // followed by a parenthesis, never by an escaped dot. Tightening this
+        // anchor to WhatCable's literal shape would make the proof report a
+        // correct rule as unanchored.
         //
         // ⚠️ This was an `.artifact(#"/download/[0-9.]+-beta…/"#)` for a day, from
         // when the rule was `-beta`-only. It passed the whole time, and would have

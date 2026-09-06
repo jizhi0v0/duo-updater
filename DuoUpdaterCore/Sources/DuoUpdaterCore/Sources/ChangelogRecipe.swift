@@ -672,10 +672,17 @@ public enum ChangelogRecipeRegistry {
         // changelog panel.
         //
         // `per_page=40` with `maxEntries: 20` is the house shape. Measured
-        // 2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease, so
-        // the stable rail fills its 20 and the beta rail renders 6 — the whole
-        // 7.1.0 cycle, which is every prerelease this repo has published in 100
-        // releases going back to 2022.
+        // 2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease.
+        //
+        // ⚠️ BOTH rails therefore fill their 20, and the beta rail's 20 are mostly
+        // STABLE entries — `includesPromotedStable` makes
+        // `StructuredChangelogDecoder.decodeGitHubReleases` want every
+        // non-prerelease, not only the one that graduates, so the beta rail is
+        // simply the newest 20 releases (7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
+        // That is the field's existing behaviour and it is what this rail wants —
+        // the copy can be offered any of them — but it is not "the 6 betas", which
+        // is what an earlier version of this comment claimed. All 6 do fit: they
+        // sit inside the newest 8 releases.
         //
         // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
         // Yaak's pair above, and the difference is in the rules, not in taste.

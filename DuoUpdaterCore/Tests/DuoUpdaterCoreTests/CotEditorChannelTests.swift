@@ -55,7 +55,9 @@ struct CotEditorChannelTests {
     @Test func theStablePatternRefusesPrereleasesAndTheBetaOneDoesNot() throws {
         let stable = try #require(Self.rules.first { $0.channel == .stable })
         let beta = try #require(Self.rules.first { $0.channel == .beta })
-        var counts = (stable: 0, beta: 0)
+        // Named for what they now count: the beta pattern matches every tag, so
+        // the second number is the PRERELEASE count, not "tags only beta matched".
+        var counts = (acceptedByStable: 0, refusedByStable: 0)
         for tag in Self.tags {
             let s = VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern)
             let b = VendorProbeRecipe.extractVersion(from: tag, pattern: beta.versionPattern)
@@ -65,9 +67,9 @@ struct CotEditorChannelTests {
                 #expect(s == tag)
             }
             #expect(b == tag, "the beta pattern must accept every tag, including \(tag)")
-            if s != nil { counts.stable += 1 } else { counts.beta += 1 }
+            if s != nil { counts.acceptedByStable += 1 } else { counts.refusedByStable += 1 }
         }
-        #expect(counts == (stable: 6, beta: 6))
+        #expect(counts == (acceptedByStable: 6, refusedByStable: 6))
     }
 
     /// The unnumbered `7.1.0-beta` is a real release (the cycle's first, 2026-07-26)
@@ -229,23 +231,17 @@ struct CotEditorChannelTests {
         #expect(VersionComparator.isNewer("7.1.0", than: "7.1.0-beta.6"))
     }
 
-    /// The mirror, on the same fixture: a STABLE copy is not handed the
-    /// prerelease sitting in the same page. The stable rule reads
-    /// `/releases/latest`, which GitHub never answers with a prerelease, and its
-    /// own pattern refuses one anyway.
-    @Test func aStableCopyIsNotHandedThePrereleaseInTheSamePage() async throws {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [GraduationProtocol.self]
-        let source = GitHubReleasesSource(session: URLSession(configuration: config))
-        let stable = InstalledApp(
-            name: "CotEditor", bundleID: Self.bundleID,
-            shortVersion: "7.0.9", buildVersion: "843",
-            path: URL(fileURLWithPath: "/Applications/CotEditor.app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
-        let remote = try #require(try await source.latestVersion(for: stable))
-        #expect(remote.shortVersion == "7.1.0")
-        #expect(remote.downloadURL?.lastPathComponent == "CotEditor_7.1.0.dmg")
-    }
+    /// ⚠️ There is deliberately NO end-to-end mirror of the case above for a
+    /// stable copy ("a stable copy is not handed the prerelease in the same
+    /// page"). One was written and removed: it could not fail. A stable rule reads
+    /// `/releases/latest`, which GitHub computes with prereleases excluded, so any
+    /// stub that answers it honestly returns the stable release whether or not the
+    /// rule's pattern would have accepted a prerelease — widening the stable
+    /// pattern to accept `-beta` left the case green. The property it claimed is
+    /// pinned where it can actually fail, on the pattern itself
+    /// (`theStablePatternRefusesPrereleasesAndTheBetaOneDoesNot`), and the
+    /// list-endpoint fallback that could reach a prerelease is `stableOnly`'s job,
+    /// which is shared machinery this rule does not touch.
 
     /// A releases page with the graduation in it: `7.1.0` stable above the
     /// `7.1.0-beta.6` it graduates from. Shaped like the real API's fields, with

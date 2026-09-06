@@ -2,6 +2,28 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.86
+
+**Se cubren cuatro apps más: WhatCable, Qoder IDE, Qoder y Yaak.** Cada una tiene comprobación de actualizaciones e instalación con un clic, y sus notas de versión se leen en la ventana como texto en vez de como una página incrustada.
+
+**Las dos apps de Mac de Qoder ya se distinguen.** El IDE y la app de escritorio comparten nombre y página de descarga, pero salen en líneas de versión distintas, así que ahora cada una se sigue por su cuenta.
+
+**Las betas de WhatCable y de Yaak se siguen en su propio canal.** Una copia con una beta no tenía ninguna fuente y se quedaba en «Failed»; ahora se le ofrece la siguiente beta, con notas de versión separadas de las de las versiones finales. En WhatCable eso incluye además la versión final en la que acaba convirtiéndose una beta: aceptarla pasa la copia al canal final.
+
+## 0.3.85
+
+**Comprobar tus apps de la App Store gasta una fracción de la red que gastaba.** Cada comprobación volvía a pedir la página de producto de cada app de la App Store; ahora las páginas se conservan una hora y se pregunta a la tienda por todas tus apps en unas pocas peticiones en vez de una por app. Con un intervalo de comprobación de cinco minutos eso supone alrededor de un tercio menos de tráfico en total; con el intervalo por omisión de seis horas las páginas siguen caducando entre comprobaciones, así que ahí el ahorro es menor.
+
+**Volver a comprobar una sola app ya no vuelve a pedir todas las de la App Store.** Un solo «Check Again» descartaba todas las páginas de producto guardadas, de modo que la siguiente comprobación programada las pagaba todas; ahora solo actualiza la app por la que preguntaste.
+
+**Comprobar apps que se distribuyen por GitHub cuesta una fracción de la red que costaba.** Cada comprobación volvía a descargar la descripción completa de cada versión aunque no se hubiera publicado nada; ahora se pregunta a GitHub si la versión ha cambiado desde la última vez y no se descarga nada si no. Una vez al día se relee cada versión entera, así que una versión retirada se nota en menos de un día.
+
+**Las apps seguidas en un canal beta o nightly de GitHub piden ahora una versión en vez de una página de versiones.** La más reciente es la respuesta casi siempre, y la página completa solo se pide en las rondas en que no lo es.
+
+**La comprobación de actualizaciones de Vorssaint ya no pasa por una redirección.** Su repositorio cambió de nombre, y seguir el nombre antiguo dejaba la petición en el límite anónimo de GitHub sin decirlo; ahora la comprobación va directa al nombre nuevo.
+
+**Por dentro.** El artefacto de la versión se compila, se firma y se notariza en un Mac alojado por GitHub, con una procedencia de compilación que cualquiera puede verificar, y el registro de peticiones distingue una respuesta guardada de una que salió a la red.
+
 ## 0.3.84
 **Los registros de peticiones que exportas ya no llevan tu nombre de cuenta.** Cada fila de una app instalada en tu carpeta personal escribía la ruta completa; ahora muestra `~`, sea cual sea la forma en que extraigas el registro.
 

@@ -260,8 +260,36 @@ struct SparkleChannelTests {
     }
 
     /// A beta user must still get a newer *stable* release (Sparkle allows the
-    /// default channel to everyone). Feed where stable 1.6/300 tops beta 2.0/200.
+    /// default channel to everyone). Feed where stable 2.1/300 tops beta 2.0/200.
     @Test func betaUserStillGetsNewerStable() {
+        let feed = """
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel>
+          <item><title>2.1</title><sparkle:version>300</sparkle:version><sparkle:shortVersionString>2.1</sparkle:shortVersionString>
+            <enclosure url="https://example.com/2.1.dmg" sparkle:edSignature="s" length="1" type="application/octet-stream" /></item>
+          <item><title>2.0 beta</title><sparkle:version>200</sparkle:version><sparkle:shortVersionString>2.0-beta</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <enclosure url="https://example.com/2.0-beta.dmg" sparkle:edSignature="s" length="1" type="application/octet-stream" /></item>
+        </channel></rss>
+        """
+        let parsed = SparkleAppcastParser.parse(Data(feed.utf8))
+        let best = SparkleAppcastSource.bestItem(
+            for: app(short: "2.0-beta", build: "200"), from: parsed, osVersion: "26.0.0")
+        #expect(best?.version == "300")
+        #expect(best?.channel == nil)
+    }
+
+    /// ⚠️ The fixture above used to be stable **1.6**/300 over beta 2.0-beta/200,
+    /// asserting that the beta copy took the 1.6 — which is #368 in miniature: a
+    /// higher build carrying a lower marketing version, offered as an update. The
+    /// rule it was written for ("the default channel is allowed to everyone") is
+    /// real and still holds above; what it cannot mean is that a stable release
+    /// the vendor numbered BELOW the installed one is an update. Kept as its own
+    /// case so the old expectation is visible as a decision rather than deleted.
+    ///
+    /// Promotion still works, and that is the case this could plausibly have
+    /// broken: a 2.0 final over a 2.0-beta reads as newer (a release outranks its
+    /// own prerelease tag), so it is offered — asserted here beside the refusal.
+    @Test func betaUserIsNotDroppedOntoAnOlderStable() {
         let feed = """
         <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel>
           <item><title>1.6</title><sparkle:version>300</sparkle:version><sparkle:shortVersionString>1.6</sparkle:shortVersionString>
@@ -274,7 +302,16 @@ struct SparkleChannelTests {
         let parsed = SparkleAppcastParser.parse(Data(feed.utf8))
         let best = SparkleAppcastSource.bestItem(
             for: app(short: "2.0-beta", build: "200"), from: parsed, osVersion: "26.0.0")
-        #expect(best?.version == "300")
-        #expect(best?.channel == nil)
+        #expect(best?.version == "200")
+
+        let promoted = SparkleAppcastParser.parse(Data(feed
+            .replacingOccurrences(of: "<title>1.6</title>", with: "<title>2.0</title>")
+            .replacingOccurrences(
+                of: "<sparkle:shortVersionString>1.6</sparkle:shortVersionString>",
+                with: "<sparkle:shortVersionString>2.0</sparkle:shortVersionString>").utf8))
+        let final = SparkleAppcastSource.bestItem(
+            for: app(short: "2.0-beta", build: "200"), from: promoted, osVersion: "26.0.0")
+        #expect(final?.version == "300")
+        #expect(final?.shortVersionString == "2.0")
     }
 }

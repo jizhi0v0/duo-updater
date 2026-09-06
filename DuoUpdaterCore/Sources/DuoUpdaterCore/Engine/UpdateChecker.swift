@@ -306,6 +306,12 @@ public struct UpdateChecker: Sendable {
     /// build versions (Sparkle's canonical key) when both sides have one; fall
     /// back to the marketing version otherwise.
     ///
+    /// A build that says "newer" is not on its own evidence of DIRECTION, so where
+    /// the source has stated that its marketing string is the bundle's own
+    /// (`RemoteVersion.marketingMatchesBundle`) a build-based verdict is refused
+    /// when the marketing version says backwards — see the block comment below
+    /// and #368.
+    ///
     /// Public so a UI layer can cheaply RE-evaluate a freshly-rescanned app
     /// against an already-fetched remote (no network) — e.g. to notice an app
     /// updated itself in the background.
@@ -330,9 +336,37 @@ public struct UpdateChecker: Sendable {
             // namespace — otherwise the tokenizer ranks the bare side above the
             // prefixed one unconditionally (a text run sorts below a number), which
             // would show a perpetual phantom update even right after installing.
-            return VersionComparator.isNewer(Self.normalizedBuild(rv), than: Self.normalizedBuild(iv))
-                ? .updateAvailable(latest: remote.displayVersion ?? rv)
-                : .upToDate
+            guard VersionComparator.isNewer(Self.normalizedBuild(rv), than: Self.normalizedBuild(iv))
+            else { return .upToDate }
+
+            // The build says newer. Ask the marketing version whether that means
+            // FORWARD, but only where the source has stated its string is the
+            // bundle's own (`marketingMatchesBundle`) — a build number moving is
+            // not, by itself, evidence of direction.
+            //
+            // A vendor whose builds run monotonically ACROSS two trains hands a
+            // prerelease copy a stable build that is numerically newer and three
+            // releases older, and every gate downstream passes it: the package is
+            // the vendor's, signed, notarized, and the only downgrade guard in the
+            // repo (`SignatureVerifier.verifyNoArchitectureDowngrade`) is about
+            // architecture. Measured on coteditor.com/appcast.xml, 2026-09-06: a
+            // copy on 7.1.0-beta.3 (build 840) whose build the vendor has trimmed
+            // out of the feed falls back to the default channel and is offered
+            // 7.0.9 (build 843). Installing it also ends the beta train — the copy
+            // then matches the STABLE item, so the channel inference reads it
+            // `.stable` from then on. See #368.
+            //
+            // Deliberately one-way: this can only settle a row to `.upToDate`,
+            // never raise an update, so the worst it can do to a source that
+            // states the flag wrongly is stop offering — never install something
+            // it should not have. The remote still travels with the row, so the
+            // version readout, the release notes and the timeline are unaffected.
+            if remote.marketingMatchesBundle,
+               VersionComparator.isMarketingDowngrade(
+                   offered: remote.shortVersion, from: installed.shortVersion) {
+                return .upToDate
+            }
+            return .updateAvailable(latest: remote.displayVersion ?? rv)
         }
 
         // Otherwise fall back to the marketing (short) version.

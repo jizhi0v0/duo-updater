@@ -16,6 +16,7 @@ build:
 
 test:
 	python3 scripts/test_appcast_edit.py
+	python3 scripts/test_publish_release.py
 	python3 scripts/test_claude_lag_probe.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI

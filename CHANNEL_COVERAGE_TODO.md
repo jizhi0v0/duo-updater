@@ -18,6 +18,9 @@
 
 ## §1 已覆盖（从代码提取，权威）
 
+- **Yaak**（2026-09-06）：stable/beta 共享 `app.yaak.desktop`，真包保留 `-beta.N` 后缀，GitHub 两轨及结构化日志已接；stable 一键升级实测通过。见 [审计](docs/app-audits/app-yaak-desktop.md)。
+
+
 ### Pattern A — 独立 bundle id（各 channel 自带身份，最干净）
 
 | Family | 非 stable channel → bundle id | 源 |
@@ -175,6 +178,9 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 ---
 
 ## §2b TODO — Pattern B/C 候选（app 内切换，需真机验证信号）
+
+- **CotEditor**（2026-09-06）：已补隐藏 Sparkle 地址及 stable/beta 结构化日志，stable 一键升级实测通过。仍需接入 `checksUpdatesForBeta || Bundle.main.version.isPrerelease`，对应 feed 标签 `prerelease`；当前依赖 feed 中已知 build 推断，旧 beta 被裁掉后退回 stable。见 [审计](docs/app-audits/com-coteditor-CotEditor.md)。
+
 
 > 以下 app 有明确 in-app channel toggle，但切换后是否留下可读的本地信号（defaults/plist）
 > 仍需真机 diff 确认。不要直接标为 detectable。

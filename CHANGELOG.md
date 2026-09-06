@@ -21,11 +21,11 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.86
 
-**Three more apps are covered: WhatCable, Qoder IDE, and Qoder.** All three get update checks and a one-click install, and their release notes are read into the window as text rather than an embedded page.
+**Five more apps are covered: WhatCable, Qoder IDE, Qoder, Yaak and CotEditor.** Each one gets update checks and a one-click install, and their release notes are read into the window as text rather than an embedded page.
 
 **Qoder's two Mac apps are told apart.** The IDE and the desktop app share a name and a download page but ship on separate version lines, so each is now followed on its own.
 
-**WhatCable's beta track is followed too.** A copy on a beta build is offered the next beta, and the stable release that beta eventually graduates into; taking that one moves the copy onto the stable track.
+**Beta builds of WhatCable and Yaak are followed on their own track.** A copy running a beta used to have no source at all and sat on "Failed"; it is now offered the next beta, with release notes kept apart from the stable ones. For WhatCable that also includes the stable release a beta eventually graduates into — taking that one moves the copy onto the stable track.
 
 ## 0.3.85
 

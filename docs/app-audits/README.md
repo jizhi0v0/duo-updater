@@ -199,3 +199,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [Issue #111 — Sparkle appcast channel population](issue-111-appcast-channel-population.md) ·
   一次性测量任务的产出，不是 app 审计。留在此目录是历史原因。
+
+## 新增覆盖（2026-09-06）
+
+- [x] [**Yaak**](app-yaak-desktop.md) · `app.yaak.desktop` — GitHub stable/beta，一键 DMG、结构化 changelog；stable 旧版→新版生产安装验证通过。
+- [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — 补 Sparkle 隐藏地址、结构化 stable/beta 日志；stable 一键实测通过，beta 偏好与历史裁剪限制见审计。

@@ -21,6 +21,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.87
 
+**Mac Performance Monitor now shows its release notes.** The app publishes them in its repository rather than in the feed we read, so the window had nothing to show for it.
+
 **CotEditor is now covered, on both its release and its beta line.** Which line a copy follows comes from the version it is running and from CotEditor's own "Update to prereleases when available" setting, so a beta copy is offered the next beta instead of a release that would take it backwards.
 
 ## 0.3.86

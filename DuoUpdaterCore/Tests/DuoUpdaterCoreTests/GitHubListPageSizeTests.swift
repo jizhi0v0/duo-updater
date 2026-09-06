@@ -41,6 +41,9 @@ struct GitHubListPageSizeTests {
     /// `ruleWithLineAnchoredScopeIsExcludedOnPurpose` pins that this is a
     /// decision, not an oversight.
     static let measuredMinimumDepth: [String: Int] = [
+        // Yaak: latest 100 releases on 2026-09-06, 72 beta tags; worst gap 5
+        // (v2025.8.0-beta.1 → v2025.7.0-beta.5), so the floor is 6.
+        "app.yaak.desktop/beta": 6,
         // Tag gap + 1, and nothing else. An earlier version added
         // `maxReleasesWithoutMacOSAsset` (5) to every floor, on the belief that
         // the walk past assetless releases had to fit inside the page or the

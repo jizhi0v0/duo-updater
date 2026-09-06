@@ -126,6 +126,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Qoder IDE**](com-qoder-ide.md) · `com.qoder.ide` — P C (one-click arm64 zip) · VS Code fork，走 VS Code 更新协议（`center.qoder.sh/algo`），**端点是条件式的**（当前 commit → 204 空 body），故用 `latest` 哨兵 · 真包 1.28.0 解包验证 ✓（Team T27K5A5ZWD）· changelog 走 docs 站（正则匹到 108 条，面板按 `maxEntries` 默认显示 40 条），**不用** `qoder.com/changelog`（RSC payload 混了所有产品和两种语言）· 2026-09-06
 - [x] [**Qoder**](com-qoder-app.md) · `com.qoder.app` — P C (one-click arm64 zip) · **与 Qoder IDE 是两个 app，不是改名**（官方论坛证实并存），Team 也不同（B6U242QL73）· 版本读厂商自己的 `manifest.json` · 一键装的是不套壳的 `Qoder-mac-arm64.zip`，不是下载页给人的 installer 壳 · changelog 与 IDE 共用一个 entry pattern（同一套 docs 构建）· 2026-09-06
 - [x] [**WhatCable**](uk-whatcable-whatcable.md) · `uk.whatcable.whatcable` — G(stable/beta，两轨一键 zip) · 共享 bundle id **和资产名**（两轨都叫 `WhatCable.zip`），beta 由版本后缀 `-beta.N` 分流；beta rule **也收 stable tag**（毕业版 + 防「厂商停发 beta 就永久红」），所以 channel proof 锚的是请求（`usePrereleases` + `versionPattern`）而不是 artifact · 真包 1.4.0 + 1.5.0-beta.8 解包验证 ✓（Team M4RUJ7W6MP）· changelog 走 GitHub release body，无需 recipe · app 内 `receiveBetaUpdates` 开关未读，缺口记在 CHANNEL_COVERAGE_TODO §2b · 2026-09-06
+- [x] [**Yaak**](app-yaak-desktop.md) · `app.yaak.desktop` — G(stable/beta，两轨一键 arm64 dmg) · 共享 bundle id，beta 由版本后缀 `-beta.N` 分流（`detect` 第 4 步），两轨各自锚死资产名 · changelog 走 GitHub release body 的结构化解码，两轨分开 · ⚠️ 厂商 2025-11-11 改过 macOS 资产名（此前是 `_aarch64_darwin.dmg`），最新 100 条里最老的 8 条是旧名，现有 pattern 不收——按新旧边界钉在用例里 · 2026-09-06
 - [x] [**Chatbox**](xyz-chatboxapp-app.md) · `xyz.chatboxapp.app` — P (one-click arm64 dmg + feed sha512) · **端到端验过**：装 1.22.6 → 一键到 1.23.1，日志里 `verifyingSignature` 证明 sha512 闸真的跑了 ✓ · **已接 changelog**（厂商 changelog 页，30 条，验过不吃 download 链接）· 2026-09-03
 - [x] [**AnythingLLM**](com-anythingllm.md) · `com.anythingllm` — P (one-click arm64 dmg) · 真包 1.16.1 挂载验证 ✓ · **已接 changelog**（GitHub releases，`version.txt` 与 tag 同号；`docs.anythingllm.com/changelog` 404 不是源）· 2026-09-03
 - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30
@@ -183,6 +184,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Investigated — blocked safely
 
+- [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — 隐藏的 Sparkle 地址找到了、一键也实测装成功，但 feed 只留最新一条 beta，旧 beta 副本会被推 `7.0.9` 这个 **marketing 降级**包，而 `evaluate` 在两边都有 build 时只比 build；仓库里没有版本降级守卫 · **故意不接**，见审计 · 2026-09-06
 - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
 
 ## 未编入分类（补录 2026-08-30）

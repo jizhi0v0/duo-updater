@@ -120,6 +120,14 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 - 同 bundle id 还有一份 **MAS 副本（adamId 1500855883，版本 19.2.0）**，版本方案完全不同；
   两边不串全靠 `_MASReceipt`（`VendorProbeSource` 拒 MAS、`MacAppStoreSource` 拒非 MAS）。
 
+### 版本后缀分流 续 — Yaak（2026-09-06 接）
+
+共享 `app.yaak.desktop`，两轨都是 GitHub。beta 包的 `CFBundleShortVersionString` 原样
+带 `-beta.N`，`ReleaseChannel.detect` 第 4 步判成 `.beta`，两条 rule 各自用 `$` 锚死
+tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rule 不收 stable tag**：
+它的 channel proof 锚在下载路径的 `-beta.N` 上，所以不存在「毕业版」那条路，跑 beta 的
+副本一直留在 beta 轨。见 [审计](docs/app-audits/app-yaak-desktop.md)。
+
 ### Pattern A 续 — VS Code Insiders（2026-06-06 接）
 
 - **VS Code Insiders** `com.microsoft.VSCodeInsiders`（显示名 "Code - Insiders" → detect
@@ -210,6 +218,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       "keeps hitting releases/latest, which GitHub never returns a pre-release from"）
       —— **未做真机 diff 确认落盘行为**，按本节规矩不得直接当作 detectable。
       补法是一个 `ChannelBinding`，形状同 `IINAChannel`。
+
+- [ ] **CotEditor** · `com.coteditor.CotEditor` — Settings → **"Check for beta releases"**
+      （`checksUpdatesForBeta`，官方条件是 `Bundle.main.version.isPrerelease || checksUpdatesForBeta`，
+      feed 标签 `prerelease`）。**2026-09-06 接过一版又撤了**，撤的原因不是这个开关：
+      feed 只保留最新一条 beta，旧 beta 副本在 feed 里找不到自己的 build，`allowedChannels`
+      退回默认渠道，而 `bestItem` 按 build 跨轨排序、`evaluate` 两边都有 build 时只比 build
+      —— 于是 `7.1.0-beta.3`（840）被推 `7.0.9`（843），**marketing 上是降级**，且没有任何
+      一道闸拦得住（仓库里只有架构降级守卫）。所以这一格**先欠着的不是 binding，是一条
+      「远端 marketing 比装机的旧就不提供」的守卫**，那条落在每个 Sparkle app 的检查路径上，
+      要单独走一轮复审。实测与链条见 [审计](docs/app-audits/com-coteditor-CotEditor.md)。
 
 - [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
       feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，

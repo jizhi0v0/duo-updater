@@ -287,6 +287,8 @@ public enum ChannelProofRegistry {
     /// because its artifact is allowed to be stable's. See each entry for what its
     /// anchor does and does not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
+        ChannelProofKey("app.yaak.desktop", .beta):
+            .artifact(#"/download/v[0-9.]+-beta\.[0-9]+/"#),
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
         // `…/download/v1.18.0-pre/Zed-aarch64.dmg`.

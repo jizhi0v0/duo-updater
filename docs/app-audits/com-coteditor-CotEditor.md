@@ -95,13 +95,19 @@ beta    usePrereleases: true
 两条 versionPattern 把 100 个 tag **正好切开**——94 stable + 6 beta，没有一个被两条同时
 命中，也没有一个两条都不中；100 个资产名同样切开，命名一律 `CotEditor_<tag>.dmg`。
 
-`listPageSize` 用默认 20，实测下限是 **2**（beta 之间最坏间隔 1 条：beta.6 和 beta.5
-之间隔着 7.0.9），记在 `GitHubListPageSizeTests.measuredMinimumDepth`。
+`listPageSize` 用默认 20，实测下限是 **1**（放宽后 100 个 tag 全部命中，首命中在第 0 行），
+记在 `GitHubListPageSizeTests.measuredMinimumDepth`。
 
-⚠️ **beta 轨是新开的**：这 100 条里 6 个 prerelease 全属于 2026-07-26 开始的 7.1.0 轮，
-它之前的 94 条（一路回到 2022-04）一个都没有。所以等这一轮转正、新一轮没开时，最新的 prerelease 会往下沉，
-20 行窗口大约覆盖这个厂商七个月的节奏，之后 beta 规则会匹配不到东西（**答 nil，不报错**）。
-那时候跑 beta 的副本也已经被 7.1.0 正式版接走了（正式版压过自己的预发布标签）。
+⚠️ **beta 轨是周期性的，这决定了上面那个形状**：这 100 条里 6 个 prerelease 全属于
+2026-07-26 开始的 7.1.0 轮，它之前的 94 条（一路回到 2022-04）一个都没有。第一版照 Yaak
+抄成 `-beta` 锚死，在周期轨上错两次：跑 beta 的副本**永远转不了正**；而且这一轮结束、最后
+一个 prerelease 滑出页面之后，pattern 匹配不到任何东西 —— 那不是安静的 nil，
+**`duo verify` 走的是规则不是装机，会在每台机器上报红**。两条在 WhatCable 的规则注释里都
+写过，是我抄错了模板。
+
+⚠️ 转正的代价是单向的：装上 `7.1.0` 之后 `detect` 判 `.stable`，之后由 stable 规则应答。
+和 WhatCable 不同的是这里**不用改代码就能回去** —— `CotEditorChannel` 读的正是厂商那个
+"Update to prereleases when available"，想留在轨上的用户勾上它就重新是权威 `.beta`。
 
 **渠道：`CotEditorChannel`**，还原厂商自己那行
 `Bundle.main.version.isPrerelease || checksUpdatesForBeta`：
@@ -140,8 +146,12 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
 
 ## 还差什么
 
-- **Changelog 没有单独接 recipe**。GitHub 源自己会把 release body 解成结构化条目，
-  所以最新一条的说明是有的；多版本历史需要一条 `ChangelogRecipe`，没做。
+- ~~Changelog 没有单独接 recipe~~ **已接**（2026-09-06）：两条 `ChangelogRecipe`，一轨
+  一条，`structuredFormat: .gitHubReleases`，`per_page=40` / `maxEntries: 20`。实测最新
+  40 条里 34 stable + 6 prerelease，所以 stable 轨渲染满 20 条、beta 轨渲染现存的 6 条。
+  beta 那条带 `includesPromotedStable`（与 Yaak 相反）—— 它的规则能且必须解出转正版，
+  不带的话面板会漏掉行里正在提供的那一条。**正在提供的那一条**的说明仍由 GitHub 源自己
+  解 release body 得到（实测两轨都出结构化条目）。
 - **丢掉了 appcast 的两样东西**：EdDSA 签名（改由 Developer ID + 公证兜住）和
   feed 声明的 `minimumSystemVersion`。后者实测被安装时那道闸兜住——`SignatureVerifier`
   读的是下载包自己的 `LSMinimumSystemVersion`，而两个真包里这个值跟 feed 写的一致

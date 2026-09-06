@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.87
+
+**Cliquer sur « Mettre à jour » ne reste plus sans effet lorsqu’une source de mises à jour se contredit.** Si la vérification lancée au moment du clic renvoie une version plus ancienne que celle proposée dans la ligne, Duo Updater le signale désormais et conserve la mise à jour. Auparavant, l’app était déclarée à jour et disparaissait de la liste, et la même mise à jour réapparaissait à la vérification suivante.
+
+**Les mises à jour de Fork sont de nouveau proposées lorsque Fork est réglé sur son canal Develop.** Duo Updater lisait à l’envers le réglage de canal de Fork et suivait son flux Stable, nettement en retard : une copie Develop était donc annoncée à jour alors que Fork proposait déjà une version plus récente.
+
+**Mac Performance Monitor affiche enfin ses notes de version.** L’app les publie dans son dépôt plutôt que dans le flux que nous lisons, si bien que la fenêtre n’avait rien à afficher.
+
+**CotEditor est désormais pris en charge, sur sa ligne de versions finales comme sur sa ligne bêta.** La ligne suivie par une copie découle de la version installée et du réglage propre à CotEditor « Update to prereleases when available » : une copie bêta se voit donc proposer la bêta suivante plutôt qu’une version finale qui la ferait reculer.
+
+**Une app installée depuis l’App Store ne se voit jamais proposer un téléchargement venu d’ailleurs.** Lorsque la requête adressée à la boutique échoue ou revient vide, la ligne indique désormais que la boutique s’en occupe, sans numéro de version. Auparavant, la vérification pouvait se rabattre sur l’autre canal de distribution de l’app — une compilation différente, avec sa propre numérotation — et proposer de l’installer par-dessus la copie de la boutique.
+
+**Une erreur longue sur une ligne ne repousse plus le reste de la liste vers le bas.** Elle tient en deux lignes, le texte complet s’affichant au survol.
+
 ## 0.3.86
 
 **Quatre apps de plus sont prises en charge : WhatCable, Qoder IDE, Qoder et Yaak.** Chacune bénéficie de la vérification des mises à jour et d’une installation en un clic, et ses notes de version sont chargées dans la fenêtre sous forme de texte plutôt que de page intégrée.

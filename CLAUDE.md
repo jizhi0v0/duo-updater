@@ -386,7 +386,8 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 生产的 scratch 目录名**跨进程稳定**:`DuoUpdater-<scratchSlug>-<版本>`(Sparkle)、
 `DuoUpdater-vendor-<scratchSlug>-<版本>`(Vendor),而且紧跟着一句
 `try? removeItem(at: workDir)`。这个形状**自己不安全**——两个进程同时装同一个 app
-就会互删(名字里那个版本号不解决问题:同时装的必然是同一个版本)。
+就会互删。**名字里那个版本号不是隔离**:两个进程各自解析 feed,通常解析出同一个版本,
+于是落在同一个目录上;只有厂商的 feed 恰好在两次解析之间前进时才会错开——那是运气。
 
 让它安全的是 `InstallLock`(`Install/InstallLock.swift`):一把全机 `flock`,菜单栏 app 和
 `duo` CLI 共用。三个性质都承重:

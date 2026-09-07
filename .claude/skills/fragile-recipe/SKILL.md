@@ -73,18 +73,31 @@ examples — don't author from memory:
    explaining where the version/notes live and any rollout/format gotcha (match the
    surrounding entries' comment style; they document hard-won quirks).
 
-7. **Add a fixture test.** Drop a trimmed slice of the *real* response into a test
-   and assert the parse. Tests run offline, so paste a representative fixture
-   string rather than hitting the network. Extend the existing test file for that
-   recipe type.
+7. **Add a regression test.** Two parts, both required:
+   - A fixture test: a trimmed slice of the *real* response, asserting the parse.
+     Tests run offline, so paste a representative fixture rather than hitting the
+     network. Extend the existing test file for that recipe type.
+   - A registry-derived check. `RecipeHealthTests` / `RecipeVerificationTests`
+     derive their cases from the registry and cover every channel; a hand-written
+     list drifts. Follow those, don't add a parallel hardcoded one.
 
-8. **Run `swift test`** from `DuoUpdaterCore/` and confirm green:
-   `cd DuoUpdaterCore && swift test --filter <TestName>`.
+8. **Run `make test`**, and confirm green.
 
-   Logic lives in the `DuoUpdaterCore` SwiftPM package, so `swift test` fully
-   exercises a recipe + its parser. Rebuilding the menu-bar app
-   (`cd App && xcodebuild …`) is only needed to *see* the result in the UI, not to
-   validate a recipe — leave that for when the user wants to eyeball it.
+   `swift test` alone is not the gate: `make test` also runs `check_app_audits.py`,
+   `check_prose_claims.py`, `check_staged_version_use.py` and the App-layer target,
+   and a recipe change routinely trips those. A run that skips them lets a
+   regression through silently.
+
+9. **Hit the real endpoint** — a fixture proves the regex, not the vendor:
+
+   ```sh
+   duo verify --only <bundle-id-fragment>          # fast, one recipe
+   duo verify --samples --report verify/report.json --baseline verify/baseline.json
+   ```
+
+   `duo verify` runs the **installed** CLI, so run `make cli` first or you are
+   verifying the previous build's recipes. Rebuilding the menu-bar app
+   (`cd App && xcodebuild …`) is only needed to *see* the result in the UI.
 
 ## Fetching (read this — `curl` is trapped)
 

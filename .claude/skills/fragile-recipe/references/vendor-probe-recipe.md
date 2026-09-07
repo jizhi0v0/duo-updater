@@ -177,7 +177,10 @@ asserts the version, e.g.:
 #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.2.3")
 ```
 
-Then `cd DuoUpdaterCore && swift test`.
+Then `make test` — `swift test` alone skips the Python gates and the App-layer
+target, which a recipe change routinely trips. Then hit the real endpoint with
+`duo verify --only <bundle-id-fragment>` (run `make cli` first; `duo verify` uses
+the *installed* CLI).
 
 ## Known-unfeasible (don't waste time)
 

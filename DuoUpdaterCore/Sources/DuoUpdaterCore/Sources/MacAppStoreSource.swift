@@ -79,8 +79,9 @@ public struct MacAppStoreSource: UpdateSource {
         // Chunks run CONCURRENTLY, and that is still not a micro-optimisation
         // — just not for the old reason. It no longer keeps a chunk's timeout
         // out of the main fan-out's way; `prewarm` already does that above by
-        // returning once `work` below is registered, before any chunk's
-        // request has even landed. What concurrency still buys is how long
+        // registering `work` below rather than awaiting it — whether a chunk's
+        // request happens to land first is neither ordered nor relevant, which
+        // is the whole point. What concurrency still buys is how long
         // `work` itself takes to finish: `lookup(bundleID:region:)` awaits
         // exactly this Task (via `AppStoreLookupCache.awaitInFlight`), and
         // every App Store row doing so occupies one of `UpdateChecker`'s

@@ -77,9 +77,13 @@ examples — don't author from memory:
    - A fixture test: a trimmed slice of the *real* response, asserting the parse.
      Tests run offline, so paste a representative fixture rather than hitting the
      network. Extend the existing test file for that recipe type.
-   - A registry-derived check. `RecipeHealthTests` / `RecipeVerificationTests`
-     derive their cases from the registry and cover every channel; a hand-written
-     list drifts. Follow those, don't add a parallel hardcoded one.
+   - A registry-derived check, if your recipe introduces a property worth
+     holding every recipe to. These walk `VendorProbeRegistry.recipes` /
+     `ChangelogRecipeRegistry.recipes` instead of naming apps, so a recipe added
+     later is covered without anyone remembering to add it. The paradigm is
+     `ChangelogURLPolicyTests` § "Derived from the registries";
+     `AppAuditCoverageTests` and `ChannelGuardTests` do the same. Never add a
+     hand-written list of bundle ids beside one — that is what these replace.
 
 8. **Run `make test`**, and confirm green.
 

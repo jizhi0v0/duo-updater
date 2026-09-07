@@ -6642,6 +6642,151 @@ public enum VendorProbeRegistry {
                     #""url"\s*:\s*"(https://download\.qoder\.com(?:\.cn)?"#
                     + #"/qoder-app/releases/[0-9.]+/Qoder-mac-arm64\.zip)""#),
                 kind: .zip)),
+        // MARK: - 2026-09-07 Windscribe
+
+        // Windscribe — VPN client (Qt, vendor's own updater; no Sparkle, no
+        // electron-builder). `feed-discover` has nothing to find: the real bundle
+        // (extracted from the 2.24.12 dmg, see below) declares no `SUFeedURL` and
+        // ships no `app-update.yml`, and the cask (`windscribe`) is
+        // `auto_updates true`, so `HomebrewCaskSource` defers. Without this recipe
+        // the row is `.unknown`.
+        //
+        // THE ENDPOINT IS THE ONE THE VENDOR'S OWN WEBSITE CALLS. `windscribe.com`
+        // is a Next.js app whose download and changelog pages are client-rendered
+        // — the HTML carries no version at all — and both call
+        // `api.windscribe.com` with a literal `Authorization: Bearer 1234` baked
+        // into the public JS bundle. That header is a PRESENCE check, not a
+        // credential: measured 2026-09-07, omitting it returns 403 "Missing client
+        // authentication values" while `Bearer 9999` returns the same 200 body as
+        // `Bearer 1234`. We send the vendor's own value because it is the one
+        // combination proven to be exercised in production every day.
+        //
+        // WHY `/ChangeLogs/summary` AND NOT `/CheckUpdate`, which is the smaller
+        // and more obvious endpoint. `CheckUpdate?platform=osx&beta=<n>` takes a
+        // track number (0 release / 1 beta / 2 guinea pig, the same numbering as
+        // the client's own `UPDATE_CHANNEL` enum) and answers with one artifact
+        // URL to read the version off. The problem is that on 2026-09-07 `beta=0`,
+        // `1`, `2` and `3` all returned BYTE-IDENTICAL bodies, so "the parameter
+        // selects the release track" and "the parameter is ignored" could not be
+        // told apart — the beta track (2.24.10) happened to sit behind stable
+        // (2.24.12), which makes every value's correct answer the same.
+        //
+        // That ambiguity is not academic, and its risky branch is the NORMAL state
+        // of this vendor. Counting the release dates in `/ChangeLogs?platform=osx`
+        // (149 macOS entries): over the last 819 days the newest PRERELEASE
+        // outranked the newest release on 618 of them — 75%, in 14 windows of
+        // 27–75 days. If the parameter is ignored, then throughout every one of
+        // those windows `CheckUpdate` names a `…_beta_universal.dmg` and a recipe
+        // reading that filename would report `versionPatternNoMatch` — the app
+        // `.unknown` and `duo verify` BROKEN, for weeks at a time, four times a
+        // day. (Measured, by making the pattern unsatisfiable against the real
+        // body: `✗ BROKEN … versionPatternNoMatch — no match in 395-byte body`.)
+        //
+        // `/ChangeLogs/summary` sidesteps the question instead of betting on it.
+        // It states all three tracks as SEPARATELY NAMED fields, so the release
+        // track is selected by a key rather than by a request parameter whose
+        // semantics we cannot observe:
+        //
+        //   "platform": "osx",
+        //   "release_version": "2.24", "release_build": 12,
+        //   "release_date": "2026-09-02",
+        //   "release_full_version": "2.24.12",
+        //   "beta_full_version": "2.24.10",
+        //   "guinea_pig_full_version": "2.24.6"
+        //
+        // THE EXACT KEY NAME IS THE CHANNEL GATE — but be precise about what it
+        // is buying, because it is not what does the work today. The two
+        // prerelease versions sit in the adjacent lines of the same object, and
+        // the lazy run stops at the first `…_full_version` it reaches, which is
+        // the release one: a pattern relaxed to `[a-z_]*full_version` reads the
+        // same 2.24.12 and looks perfectly healthy. What the whole key buys is
+        // that the answer stops depending on the vendor's field order, which is
+        // the one way this could turn into a prerelease being served to every
+        // stable install. `theAdjacentPrereleaseFieldsAreNotWhatIsRead` reorders
+        // the real excerpt so the two patterns actually disagree, since a
+        // mutation nothing can distinguish is not a test.
+        //
+        // `"release_version"` is a different trap in the same object: it holds
+        // only `"2.24"`, two of the three segments, with the third in
+        // `release_build`. Compared against the installed `2.24.12` that reads as
+        // a permanent DOWNGRADE and hides every future update. So `_full_` is
+        // load-bearing for a second, unrelated reason.
+        //
+        // THE `(?:(?!"platform")…)` BOUNDARY IS ALSO LOAD-BEARING. The document
+        // carries 28 platforms (desktop, extension, mobile, tv), each an object of
+        // the same shape, and macOS is in the middle of it. A plain lazy `[\s\S]*?`
+        // from `"platform": "osx"` would, the day the osx entry stops carrying
+        // `release_full_version`, run on into the NEXT platform's copy of the key
+        // and report Windows' version as the Mac's. Measured on the real body with
+        // that field deleted from the osx entry: the bounded pattern matches
+        // nothing (correct), the unbounded one returns `2.24.12` — which is the
+        // right answer today ONLY because Windows and macOS ship in lockstep, so
+        // the bug would look like a pass. `publishedAtPattern` carries the same
+        // anchor for the same reason.
+        //
+        // Costs 14 KB per scan against `CheckUpdate`'s 395 B. Bought with it: the
+        // release date, which `CheckUpdate` does not state at all, so the Release
+        // Log places this app exactly instead of on an estimated "≈" window.
+        //
+        // NO ONE-CLICK, and this is a structural refusal rather than a TODO. This
+        // endpoint names no artifact, but `CheckUpdate` does and it resolves to
+        // `Windscribe_<version>_universal.dmg` — a dmg holding
+        // `WindscribeInstaller.app` (`com.windscribe.installer.macos`) and nothing
+        // else; the app itself lives inside it as
+        // `Contents/Resources/windscribe.tar.lzma`, which `ArchiveExtractor`
+        // cannot open (it dispatches on extension — `lzma` is not among
+        // dmg/zip/gz/bz2/xz/tar/tbz/tgz) and which unpacks to a bare `Contents/`
+        // with no `.app` wrapper for `firstApp` to find. Both are fixable; the
+        // third thing is not. An install is not a bundle swap here: it also writes
+        // `/Library/LaunchDaemons/com.windscribe.helper.macos.plist`, a privileged
+        // helper, a system extension, a login item and `/usr/local/bin/
+        // windscribe-cli`. Swapping only the bundle would leave a VPN talking to a
+        // stale root helper — and the vendor's own changelog records four local
+        // privilege-escalation fixes on the install/update path in 2026-08 alone:
+        // two named "staged updater bundle" verbatim (2.24.12 #1987, 2.24.10
+        // #1964) and two in the installer archive / bootstrapper extraction flow
+        // (2.24.8 #1949, #1816). Detection only.
+        //
+        // CROSS-CHANNEL, both directions, because only one of them is prevented.
+        // A stable install can never be walked onto a prerelease: the release
+        // track is selected by key. The reverse is NOT prevented and is what
+        // actually happens — the three tracks share `com.windscribe.client`, a
+        // display name and an unsuffixed version string (proven by extracting both
+        // the 2.24.12 stable and the 2.24.10 beta bundles), so `detect()` has no
+        // signal and calls every copy stable. `channel-verify` on the real beta
+        // bundle reports `UPDATE 2.24.10 → 2.24.12` through the full production
+        // chain. That is accepted rather than overlooked: the version moves
+        // forward, Windscribe's own client on the Beta channel offers the same
+        // build (its API answers "this track or better"), and the install is
+        // manual — we hand the user the vendor's download page. It cannot be
+        // gated, either, since the gate would need the channel we cannot read.
+        //
+        // Verified 2026-09-07 against the real bundle, extracted from
+        // `Windscribe_2.24.12_universal.dmg` without installing: `com.windscribe.
+        // client`, `CFBundleShortVersionString` == `CFBundleVersion` == `2.24.12`
+        // (the plist template writes one value into both, so no `versionIsBuild`),
+        // universal (x86_64 + arm64), "Developer ID Application: Windscribe
+        // Limited (GYZJYS7XUG)".
+        //
+        // The vendor states an OS floor per release (`min_version`, 13.0 today)
+        // and it MOVES — across the 149 macOS entries in `/ChangeLogs?platform=osx`
+        // it runs 10.8 → 13.0 — so it is deliberately not frozen into a
+        // `hostRequirement`. Nothing is lost today: DuoUpdater's own deployment
+        // target is macOS 14.0, so every host that can run this check already
+        // clears the app's floor.
+        VendorProbeRecipe(
+            bundleID: "com.windscribe.client",
+            url: URL(string: "https://api.windscribe.com/ChangeLogs/summary")!,
+            mode: .responseBody,
+            versionPattern: #""platform"\s*:\s*"osx""#
+                + #"(?:(?!"platform")[\s\S])*?"#
+                + #""release_full_version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            downloadURL: URL(string: "https://windscribe.com/download"),
+            changelogURL: URL(string: "https://windscribe.com/changelog"),
+            publishedAtPattern: #""platform"\s*:\s*"osx""#
+                + #"(?:(?!"platform")[\s\S])*?"#
+                + #""release_date"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})""#,
+            requestHeaders: ["Authorization": "Bearer 1234"]),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

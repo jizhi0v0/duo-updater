@@ -26,6 +26,7 @@ test:
 	python3 scripts/check_staged_version_use.py
 	python3 scripts/test_check_staged_version_use.py
 	python3 scripts/check_app_audits.py
+	python3 scripts/check_engine_notes.py
 	python3 scripts/check_skill_docs.py
 	python3 scripts/check_prose_claims.py
 

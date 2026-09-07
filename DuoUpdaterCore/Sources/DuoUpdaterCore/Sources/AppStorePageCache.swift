@@ -4,23 +4,23 @@ import Foundation
 /// Store product page: the Mac-track version (+ "What's New" notes) and the
 /// `isIOSBinaryMacOSCompatible` flag.
 ///
-/// **All of the value is across scans, none of it within one.** An earlier
-/// version of this comment claimed the pages are "read from more than one call
-/// site per app per check" and justified the class on that. They are not:
-/// `resolve()` is a three-way dispatch with early returns, so exactly one of
+/// **All of the value is across scans, none of it within one.** `resolve()` is
+/// a three-way dispatch with early returns, so exactly one of
 /// `nativeMacVersion` / `remoteVersion(checkMacCompat:)` / `iosOnMacVersion`
 /// runs per app per check — and the version and compatibility pages use
-/// different URLs *and* different dictionaries, so neither can serve the other.
-///
-/// What this actually removes is the SECOND scan's fetch, and the third's, up
-/// to the TTL. Which means the benefit is `1 − interval / ttl` and nothing
-/// else: at a five-minute interval eleven rounds in twelve are free (measured:
-/// 23.6 → 3.0 product-page requests a round), and at the six-hour default —
-/// which is what most installs run — an interval longer than the TTL means
-/// **every round is a cold miss and this class saves nothing at all**. What it
-/// still buys there is the second scan of an app launch: the scheduler ticks
-/// immediately on a cold start and opening the workbench forces another
-/// refresh, so the pair costs one round of pages instead of two.
+/// different URLs *and* different dictionaries, so neither can serve the
+/// other. What this class removes is the second scan's fetch, and the
+/// third's, up to the TTL — so the benefit is `1 − interval/ttl`, and at the
+/// six-hour default interval (`Preferences`) an interval longer than the TTL
+/// means every scheduled round is a cold miss and this class saves nothing
+/// there. (How many installs leave that default alone is not something this
+/// repo can see, so the claim stops at the default itself.) What it still buys is the
+/// second scan inside one app launch: the scheduler ticks immediately on a
+/// cold start and opening the workbench forces another refresh, so that pair
+/// costs one round of pages instead of two. See
+/// `docs/engine-notes/app-store-page-cache.md` §1 for the measurements this
+/// is based on and the wrong assumption an earlier version of this comment
+/// made.
 ///
 /// Deliberately caches a *parse failure* (2xx response, no version/flag found)
 /// the same as a *parse success* — an unparseable page costs full price again
@@ -43,17 +43,15 @@ public actor AppStorePageCache {
 
     /// The process-wide cache, and the one production actually uses.
     ///
-    /// **This has to outlive the source that reads it, and by default it did
-    /// not.** `AppListModel.makeSources` rebuilds the whole source stack on
-    /// every check — deliberately, so a token change and the signed-in
-    /// storefront region are re-read — so a `MacAppStoreSource` lives about
-    /// seven seconds. A per-instance cache with a one-hour TTL is therefore
-    /// born and destroyed inside a single scan and never survives to answer
-    /// the next one: measured 2026-09-04, the product-page fetches per scan
-    /// round did not fall at all (20.6 → 23.6 requests, 623 → 786 KB) while
-    /// every other change in the same batch landed. The unit tests missed it
-    /// because they exercise one instance twice, which is exactly the thing
-    /// that was already working.
+    /// **Has to outlive the source that reads it.** `AppListModel.makeSources`
+    /// rebuilds the whole source stack on every check — deliberately, so a
+    /// token change and the signed-in storefront region are re-read — so a
+    /// `MacAppStoreSource` lives about seven seconds. A per-instance cache
+    /// would be born and destroyed inside a single scan and never survive to
+    /// answer the next one. See `docs/engine-notes/app-store-page-cache.md`
+    /// §2 for the incident where this was a per-instance cache instead, the
+    /// production traffic that didn't move, and why the unit tests didn't
+    /// catch it.
     ///
     /// Same shape as `ChangelogCache.shared`, `ResolvedChannelStore.shared`
     /// and `EventStore.shared` for the same reason. Tests inject their own
@@ -72,17 +70,17 @@ public actor AppStorePageCache {
 
     /// How long a scraped page stays valid.
     ///
-    /// ⚠️ One hour was chosen on a machine set to check every five minutes, and
-    /// an earlier version of this comment wrote that setting down as a property
-    /// of the product ("a scan revisits the same app every few minutes"). It is
-    /// not: the default is six hours (`Preferences`), and at that interval this
-    /// TTL never spans two scans. The number is a staleness bound, not a
-    /// tuning: an iOS-on-Mac listing has no source but this page, so an hour is
-    /// how long a user can be told yesterday's answer — bounded now by
-    /// `invalidateAll`, which any user-present refresh calls.
+    /// This is a staleness bound, not a tuning knob: the default check
+    /// interval is six hours (`Preferences`), longer than this TTL, so in
+    /// normal operation the TTL never spans two scheduled scans (see the
+    /// class doc's cost model). An iOS-on-Mac listing has no source but this
+    /// page, so an hour is how long a user can be told yesterday's answer —
+    /// bounded now by `invalidateAll`, which any user-present refresh calls.
     ///
-    /// The claim that App Store listings don't change more often than an hour is
-    /// UNVERIFIED; nobody has measured it.
+    /// The claim that App Store listings don't change more often than an hour
+    /// is UNVERIFIED; nobody has measured it. See
+    /// `docs/engine-notes/app-store-page-cache.md` §3 for how this number was
+    /// originally chosen and why that reasoning doesn't hold today.
     let ttl: TimeInterval
     private let now: @Sendable () -> Date
 
@@ -126,13 +124,10 @@ public actor AppStorePageCache {
     /// there is no lookup answer sitting behind it to make a stale page
     /// harmless. So a user who reads a release announcement and presses Check
     /// Now would have been told the same old version for up to an hour, with no
-    /// way to insist. Before this cache existed every check re-fetched. The
-    /// machine this was measured on has 21 Mac App Store apps that scrape a
-    /// product page (counted 2026-09-05 off the event store, `select
-    /// count(distinct app_id) ... where host='apps.apple.com'`); an earlier
-    /// version of this sentence said twenty. How many of those take the
-    /// `kind == "software"` route specifically is UNVERIFIED — the events do
-    /// not record which branch of `resolve` ran.
+    /// way to insist. Before this cache existed every check re-fetched. Which
+    /// installed apps take the `kind == "software"` route specifically is not
+    /// something the event log can answer — it does not record which branch of
+    /// `resolve` ran.
     ///
     /// Called from the one remaining full-wipe path: a refresh the user asked
     /// for (`RefreshIntent.restartsChangelogs`), which is about to re-check
@@ -140,13 +135,12 @@ public actor AppStorePageCache {
     /// the cache back to fetching a page per app per round, which is the cost
     /// it exists to remove.
     ///
-    /// `recheckMany` used to call this too, and that was the bug: measured
-    /// 2026-09-05 in a live 45-minute window, a single row's channel flip
-    /// (`recheckChannelSwitches` → `recheckMany`, 3 requests, 1 app) wiped
-    /// every OTHER App Store app's entry, and the next scheduled sweep paid
-    /// for it — 21/21 apps re-scraped, 975 KB and 52 extra requests where
-    /// every other steady-state round cost ~0. `recheckMany` now calls
-    /// `invalidate(bundleIDs:)` with just the rows it re-checked instead.
+    /// `recheckMany` used to call this too, and that was a real bug: a single
+    /// row's channel-flip recheck wiped every OTHER App Store app's entry, and
+    /// the next scheduled sweep paid full price for all of them. See
+    /// `docs/engine-notes/app-store-page-cache.md` §4.2 for the measured
+    /// incident. `recheckMany` now calls `invalidate(bundleIDs:)` with just
+    /// the rows it re-checked instead.
     public func invalidateAll() {
         versionStore.removeAll()
         compatStore.removeAll()

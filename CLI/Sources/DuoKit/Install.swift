@@ -660,6 +660,12 @@ public enum Install {
                 let message = (error as? LocalizedError)?.errorDescription
                     ?? error.localizedDescription
                 FileHandle.standardError.write(Data("   failed: \(message)\n".utf8))
+                // The one ending a `--json` consumer most needs to see. Every
+                // other way an approved item can end without being installed
+                // now leaves a row; a failure leaving none would mean the
+                // stream undercounts exactly the failures, which is the
+                // opposite of the property `emitSkipped` was added for.
+                emitSkipped(name: name, route: route, reason: message, json: json)
                 if error is AppManagementRequiredError {
                     FileHandle.standardError.write(Data("""
                            Grant App Management to this binary in System Settings ▸ \

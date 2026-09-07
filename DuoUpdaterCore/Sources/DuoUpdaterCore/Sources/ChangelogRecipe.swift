@@ -3362,13 +3362,69 @@ public enum ChangelogRecipeRegistry {
         // `ChangeLogs?platform=osx` and its per-entry `beta` number, not this feed.
         ChangelogRecipe(
             bundleID: "com.windscribe.client",
-            source: URL(string:
-                "https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40")!,
+            source: URL(string: windscribeReleases)!,
             mode: .json,
             maxEntries: 20,
             channel: .stable,
             structuredFormat: .gitHubReleases),
-    ]
+
+        // The same feed for the two prerelease tracks, with
+        // `includesPromotedStable` — which is the ladder, expressed in a field
+        // that already existed. `decodeGitHubReleases` shows non-stable channels
+        // the prereleases PLUS the releases that graduated, and "the newest build
+        // from tracks 0…N" is exactly that: a beta copy is offered whichever of
+        // the beta and release lines is newer, so the pane has to be able to hold
+        // both or it omits the very entry the row offers.
+        //
+        // Without these two, `recipe(forBundleID:channel:)` falls back to the
+        // `.stable` recipe above rather than to nil, so a beta copy got a list
+        // filtered to release builds — containing the offered version only while
+        // release leads, about a quarter of each cycle.
+        //
+        // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
+        // releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
+        // marks all 31 the same way — it has no idea which track a build is on.
+        // Cross-referenced against the vendor's own `beta` numbers, those 31 are
+        // 12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
+        // all (2.24.11 is one: built as stable, published as a GitHub prerelease,
+        // on no track). So a beta reader sees guinea pig entries too, and both
+        // readers see builds the vendor never announced.
+        //
+        // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
+        // version comes from the vendor's feed and the notes come from GitHub,
+        // and those two do not hold the same set of releases: of the 70 versions
+        // the vendor has listed since 2024, three have no GitHub release at all
+        // (2.21.1 guinea pig, 2.20.6 beta, 2.15.9 release). Each was the newest
+        // on its track for a while, so in those windows the row offers a version
+        // this pane cannot show — the same shape as before, at roughly 4% instead
+        // of the ~75% it does fix. Worth knowing before reading an occasionally
+        // empty-looking pane as a parser bug. The proper fix removes this too,
+        // since the vendor's feed is by construction the set the probe reads.
+        //
+        // Shipped anyway because the failure it replaces is worse — a pane that
+        // omits the release being offered three quarters of the time — and
+        // because the precise fix is a different endpoint, not a better pattern:
+        // the vendor's
+        // `ChangeLogs?platform=osx` states each entry's track, but it 403s
+        // without an `Authorization` header that `ChangelogRecipe` has no field
+        // for, and its notes are markdown escaped inside a JSON string, which
+        // wants its own `structuredFormat` rather than a regex. See the audit.
+    ] + [ReleaseChannel.beta, .guineaPig].map { channel in
+        ChangelogRecipe(
+            bundleID: "com.windscribe.client",
+            source: URL(string: windscribeReleases)!,
+            mode: .json,
+            maxEntries: 20,
+            channel: channel,
+            includesPromotedStable: true,
+            structuredFormat: .gitHubReleases)
+    }
+
+    /// Declared once because the three Windscribe recipes must never drift onto
+    /// different pages of the same feed — `per_page` decides how far back every
+    /// one of them can see.
+    private static let windscribeReleases =
+        "https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40"
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single
     /// recipe; a few (Thunderbird Stable + ESR) map to several that differ by

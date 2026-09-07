@@ -33,8 +33,9 @@
 
 当前生效源: **VendorProbe**，三条 recipe 各管一轨
 （`vendor:com.windscribe.client:{stable,beta,guineaPig}`），由 `WindscribeChannel`
-这条 `ChannelBinding` 决定哪一条生效。changelog 正文另走 GitHub
-（`changelog:com.windscribe.client:stable`），**只有 stable 一条**，见下面的已知问题。
+这条 `ChannelBinding` 决定哪一条生效。changelog 正文另走 GitHub，**三轨各一条**
+（`changelog:com.windscribe.client:{stable,beta,guineaPig}`），非 stable 那两条带
+`includesPromotedStable`。
 
 ### GitHub 是可行的，这条要说清楚，因为第一版审计把它写成 ✗ 了
 
@@ -684,19 +685,46 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
    `detected channel → beta` → `UPDATE 2.24.10 → 2.24.12`（之前判 stable）。
    `duo verify` 三条 probe + 一条 changelog 全 ok、零 warning；全量 347 ✓ / 0 ✗。
 
-4. ⚠️ **仍然欠着：beta / guinea pig 没有自己的 changelog recipe。**
-   现在只有 `channel: .stable` 那一条，而
-   `ChangelogRecipeRegistry.recipe(forBundleID:channel:)` 在没有精确匹配时**回退到
-   `.stable`**——所以一份 beta 拷贝拿到的是 `.gitHubReleases` 过滤出来的
-   **只含 release** 的列表。今天不出问题（被提供的正是 2.24.12，就在列表里），
-   但 release 领先只占周期的 25%，其余时间面板里**恰好缺了正在被提供的那一条**。
+4. ~~beta / guinea pig 的 changelog~~ **已完成，但只做对了一半，另一半明写在这里。**
 
-   为什么没在这个 PR 里一起修：正确的来源是厂商的
-   `ChangeLogs?platform=osx`（每条自带 `beta` 轨道号、`release_date`、markdown 正文），
-   而它**要 `Authorization` 头，`ChangelogRecipe` 没有这个字段**；而且那份 JSON 里
-   正文是转义在字符串里的 markdown，用 `entryPattern` + `itemPatterns` 的正则路子
-   去啃转义的 `\n` 和 `\*` 既丑又脆——它该有自己的 `structuredFormat`，
-   那是一个独立 PR 的量，动的也是公共机构。
+   两条 recipe，`channel: .beta` / `.guineaPig` + **`includesPromotedStable: true`**。
+   ⚠️ **我上一版把这件事的代价说高了**：写的是"要给 `ChangelogRecipe` 加
+   `requestHeaders` 再写一个新 `structuredFormat`"。去读 `decodeGitHubReleases`
+   才发现机制早就在了——
+
+   ```swift
+   let wantsPrerelease = channel != nil && channel != .stable
+   // 非 stable 档看 prerelease，加上 includesPromotedStable 还看已转正的 release
+   ```
+
+   **那正好就是阶梯**：beta 拷贝被提供的是 max(release, beta)，所以面板必须能同时
+   装下两条线。粗接只要两条 registry 条目，不用新字段、不用新格式。
+   `duo verify` 实跑：beta / guinea pig 各 20 条（`maxEntries` 封顶），stable 9 条。
+
+   **它列多了什么（实测，最新 40 个 release）**：9 条 stable + 31 条 prerelease，
+   而 **GitHub 把 31 条一律标成 `prerelease: true`，分不出轨道**。拿厂商自己的
+   `beta` 字段对照，这 31 条是 **12 条 guinea pig + 7 条 beta + 12 条厂商 feed 里
+   根本没有的构建**（`2.24.11` 就是一条：按 stable 编译、在 GitHub 上标成 prerelease、
+   不在任何一条厂商轨上）。所以 beta 读者会看到 guinea pig 的条目，两边都会看到
+   厂商从没公告过的构建。
+
+   **仍然接了，因为它替换掉的失败更糟**——面板里缺"正在被提供的那一版"，而那是
+   每个周期约 75% 的时间。
+   `theGitHubFeedCannotTellTheTwoPrereleaseTracksApart` 把上面那个代价钉成了断言而不是
+   一段没人重读的注释。
+
+   ⚠️ **但它没有把那个失败消干净，只消掉了大部分。** 版本来自厂商 feed，正文来自
+   GitHub，**两边装的不是同一批 release**：2024 年以来厂商列过的 70 个版本里，
+   **有 3 个 GitHub 上根本没有对应 release**（`2.21.1` guinea pig、`2.20.6` beta、
+   `2.15.9` release）。每一个都当过自己那条轨的最新，所以在那些窗口里，行提供的版本
+   这个面板拿不出来——**和修之前同一个形状，只是从约 75% 降到约 4%**。
+   读到偶尔空掉的面板时别先去怀疑解析器。接了精确版（厂商 feed）之后这条也一并消失，
+   因为那时正文和版本就是同一个集合了。
+
+   **精确的做法**仍然是厂商的 `ChangeLogs?platform=osx`（每条自带轨道号、
+   `release_date`、`sha256`），前置条件也仍然是那两件事：`ChangelogRecipe` 加
+   `requestHeaders`（端点不带头就 403），以及一个能解转义在 JSON 字符串里的 markdown 的
+   `structuredFormat`。那是下一个 PR。
 
 5. ⚠️ **预期之内的 `duo verify` 警告（stable recipe 那条）。**
    `RecipeSanity.remoteBehindInstalled` 会在装机版本比 release 轨新时报 warning。

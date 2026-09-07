@@ -298,16 +298,83 @@ struct WindscribeProbeRecipeTests {
     /// Mutation: `channel: .beta`; or drop `structuredFormat`, which leaves the
     /// recipe trying to regex a JSON array with no entry pattern.
     @Test func theChangelogIsGitHubsStableReleasesOnly() throws {
-        let recipes = ChangelogRecipeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
-        #expect(recipes.count == 1, "Windscribe should have exactly one changelog recipe")
-        let recipe = try #require(recipes.first)
+        let recipe = try #require(ChangelogRecipeRegistry.recipes.first {
+            $0.bundleID == Self.bundleID && $0.channel == .stable
+        })
         #expect(recipe.structuredFormat == .gitHubReleases)
-        #expect(recipe.channel == .stable)
         #expect(recipe.source.host() == "api.github.com")
         #expect(recipe.source.path == "/repos/Windscribe/Desktop-App/releases")
-        // Not promoted-stable: that field is for a beta train whose builds
-        // graduate, which is not the shape of a stable-only recipe.
+        // Not promoted-stable — that field is what lets a NON-stable track show
+        // the release that graduated into it, and a stable reader has no other
+        // line to be shown. `everyTrackHasItsOwnChangelogRecipe` covers the two
+        // that do set it.
         #expect(!recipe.includesPromotedStable)
+    }
+
+    /// One changelog recipe per track, so `recipe(forBundleID:channel:)` finds an
+    /// exact match instead of falling back to the stable one.
+    ///
+    /// Mutation: delete the two prerelease entries — the fallback then hands a
+    /// beta copy the stable-only list, which is what this replaced.
+    @Test func everyTrackHasItsOwnChangelogRecipe() throws {
+        let all = ChangelogRecipeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
+        #expect(Set(all.compactMap(\.channel)) == [.stable, .beta, .guineaPig])
+        #expect(all.count == 3)
+        #expect(all.allSatisfy { $0.structuredFormat == .gitHubReleases })
+        // All three read the same page of the same feed: `per_page` decides how
+        // far back each can see, and three different values would give three
+        // readers three different histories of one app.
+        #expect(Set(all.map(\.source)).count == 1)
+        // The ladder, in the field that already expressed it: a non-stable track
+        // must be able to show the release that graduated, because that is what
+        // its own row offers whenever release leads.
+        for recipe in all where recipe.channel != .stable {
+            #expect(recipe.includesPromotedStable,
+                    "\(recipe.channel?.rawValue ?? "?") would omit the release it is offered")
+        }
+        #expect(all.first { $0.channel == .stable }?.includesPromotedStable == false)
+    }
+
+    /// The behaviour the field names, run through the real decoder on real
+    /// release bodies: a beta reader gets the prerelease AND the graduated
+    /// release; a stable reader gets only the release.
+    ///
+    /// Mutation: drop `includesPromotedStable` — 2.24.12 leaves the beta list,
+    /// and a beta copy offered 2.24.12 (which is what happens whenever release
+    /// leads, the state on the day this was written) sees a pane without it.
+    @Test func aPrereleaseReaderSeesBothLines() throws {
+        let stable = try #require(StructuredChangelogDecoder.decodeGitHubReleases(
+            Self.gitHubReleasesBody, channel: .stable, maxEntries: 20))
+        #expect(stable.entries.map(\.version) == ["2.24.12"])
+
+        for channel in [ReleaseChannel.beta, .guineaPig] {
+            let notes = try #require(StructuredChangelogDecoder.decodeGitHubReleases(
+                Self.gitHubReleasesBody, channel: channel, maxEntries: 20,
+                includesPromotedStable: true))
+            let versions = notes.entries.map(\.version)
+            #expect(versions.contains("2.24.12"), "\(channel.rawValue) lost the graduated release")
+            #expect(versions.contains("2.24.10"), "\(channel.rawValue) lost the prerelease")
+            #expect(notes.entries.allSatisfy { !$0.items.isEmpty },
+                    "an entry parsed to no items is a pane row with nothing in it")
+        }
+    }
+
+    /// The cost of using GitHub for this, asserted rather than left in prose:
+    /// GitHub marks every prerelease the same way, so a beta reader also sees
+    /// guinea pig builds and builds the vendor's own feed never listed.
+    ///
+    /// Pinned so that fixing it properly — the vendor feed, which states each
+    /// entry's track — has a test that changes rather than a comment nobody
+    /// re-reads.
+    @Test func theGitHubFeedCannotTellTheTwoPrereleaseTracksApart() throws {
+        let notes = try #require(StructuredChangelogDecoder.decodeGitHubReleases(
+            Self.gitHubReleasesBody, channel: .beta, maxEntries: 20,
+            includesPromotedStable: true))
+        let versions = notes.entries.map(\.version)
+        // 2.24.6 is guinea pig by the vendor's own `beta` number, and 2.24.11 is
+        // on no vendor track at all — both are `prerelease: true` on GitHub.
+        #expect(versions.contains("2.24.6"), "if this stops being true the split got finer")
+        #expect(versions.contains("2.24.11"))
     }
 
     /// The probe keeps its own `changelogURL` as the web fallback, pointing at the
@@ -505,4 +572,28 @@ struct WindscribeProbeRecipeTests {
         (1406, "2.24", 3, 2, "2.24.3", "2.24.3_guinea_pig_universal", "2026-07-21"),
         (1385, "2.23", 11, 0, "2.23.11", "2.23.11_universal", "2026-07-06"),
     ]
+
+    /// `api.github.com/repos/Windscribe/Desktop-App/releases`, 2026-09-07 — the
+    /// five newest entries, with each `body` cut to its first section. Tags,
+    /// `prerelease` flags and dates are verbatim; the prose is shortened because
+    /// the real bodies run 3.4–11.5 KB each and none of it changes the parse.
+    private static let gitHubReleasesBody = """
+        [
+          { "tag_name": "v2.24.12", "prerelease": false, "draft": false,
+            "published_at": "2026-09-02T17:44:06Z",
+            "body": "### Added\\n* Custom SNI support for stunnel/wstunnel anti-censorship connections.\\n* A SECURITY.md document." },
+          { "tag_name": "v2.24.11", "prerelease": true, "draft": false,
+            "published_at": "2026-08-26T17:24:04Z",
+            "body": "### Improved\\n* Belarusian translations in the GUI, installer and CLI." },
+          { "tag_name": "v2.24.10", "prerelease": true, "draft": false,
+            "published_at": "2026-08-19T16:43:15Z",
+            "body": "### Improved\\n* Retry, backoff, and failover handling in wsnet." },
+          { "tag_name": "v2.24.9", "prerelease": true, "draft": false,
+            "published_at": "2026-08-14T17:32:23Z",
+            "body": "### Improved\\n* API retry access to use bounded per-resource exponential back-off." },
+          { "tag_name": "v2.24.6", "prerelease": true, "draft": false,
+            "published_at": "2026-07-29T18:24:47Z",
+            "body": "### Added\\n* A SECURITY.md document." }
+        ]
+        """
 }

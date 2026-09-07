@@ -56,6 +56,15 @@ scripts/icon/out/
 # protect. Keep it that way if you edit it.
 !/docs/update-manifest-families.md
 
+# …and this one: engine-internals notes that back a core source file's
+# comments — incident timelines, one-off measurements, corrections to earlier
+# wrong comments (issue #409). One file per source file it explains. Same
+# carve-out and the same condition as the two exceptions above: no installed-
+# app inventory, no bundle counts, no per-machine channel state — a dated
+# measurement of THIS class's own behavior is fine, an inventory of what this
+# machine has installed is not. See docs/engine-notes/README.md.
+!/docs/engine-notes/
+
 # Recipe-verify run artifacts. The baseline IS committed (it carries failure
 # streaks and issue numbers); the per-run report is not.
 verify/report.json

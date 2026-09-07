@@ -498,7 +498,18 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 > 顺带：2.24.11 是**按 stable 编译**的，GitHub 上那个 `prerelease` 标记是发布流程状态、
 > 不是渠道。
 > 细节、代价和不对称的失效方向写在 `docs/app-audits/com-windscribe-client.md`。
-> **没实现**：要给 `ChannelBinding` 长出读二进制的能力，是个单独的决定。
+>
+> **同日第三次改判，这次是更好的信号。** 去读开源仓库（app 就是开源的）发现：
+> 那个被我判为"加密所以读不了"的 `engineSettings`，密钥是仓库里的明文常量
+> （`global_consts.h`：`SIMPLE_CRYPT_KEY = 0x4572A4ACF31A31BA`），SimpleCrypt 是
+> 公开的 30 行 XOR，而 `updateChannel` 是流里的**第 4 个字段、排在每一个 version
+> 分支之前**——所以"厂商 bump 序列化版本我们就静默读错"那句话也是错的。
+> 这条是**三分**的、是厂商**声明**的状态、形状和 OrbStack / Fork 的 resolver 一样，
+> 而且 magic + qChecksum 双重把关，误读不会静默。原型解码器已跑通往返测试。
+> **⚠️ 仍缺一份真实的 `com.windscribe.Windscribe2.plist` 才算证成**（往返只证明自洽）。
+>
+> **没实现**：等一次真机验证；`WS_ASSERT` 那条留作旁证（它量的是"二进制按哪条轨编译"，
+> 和"用户想接哪条轨"不是一回事，别混用）。
 
 ✗ 两轨都和 stable 共享 `com.windscribe.client`，**磁盘上没有任何 channel 痕迹**。
 不是"没找到"，是**两份真实 bundle 对比量出来的**（stable 2.24.12 与 beta 2.24.10，

@@ -71,12 +71,14 @@ VendorProbe **前面**，两条都留会让 recipe 变成永远不被调用的�
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable (release) | `com.windscribe.client` | 共享 | — | — | ✓ |
-| beta | `com.windscribe.client` | **共享** | 二进制里的 `WS_ASSERT` 残留（**只能二分**，见下） | — | ✗ 未接 |
-| guinea pig | `com.windscribe.client` | **共享** | 同上，**与 beta 不可区分** | — | ✗ 未接 |
+| beta | `com.windscribe.client` | **共享** | `engineSettings.updateChannel`（三分，需真机验证）／`WS_ASSERT` 残留（二分，已验证） | — | ✗ 未接 |
+| guinea pig | `com.windscribe.client` | **共享** | 同上 | — | ✗ 未接 |
 
-⚠️ **这张表 2026-09-07 改过一次。** 原来 beta/guinea pig 两行的检测信号写的是「无」、
-状态写的是 `✗ BLOCKED`。拿到四份不同渠道的真实构建之后发现**有信号**（下面那节），
-只是它只能分出「stable / 非 stable」两组。所以现在是**未接**，不是**做不到**。
+⚠️ **这张表 2026-09-07 一天里改了两次，两次都是"我断言没有、结果有"。**
+第一版：检测信号「无」、状态 `✗ BLOCKED`（依据只有两份构建）。
+第二版：拿到四份不同渠道的真实构建，发现二进制里有 `WS_ASSERT` 残留，能二分。
+第三版（当前）：去读开源仓库，发现那个"加密的"偏好里就存着 channel，而且密钥是
+仓库里的明文常量、字段排在第 4 位。**两次都是同一个毛病：断言"没有 X"之前没量够。**
 
 ### 三条轨道是编译期烙进去的，磁盘上却看不出来
 
@@ -128,18 +130,67 @@ UpdateChecker.check() — winning source Vendor
 厂商下载页，装什么由他自己决定。也**没法**加闸——闸需要的正是那个读不出来的 channel。
 反方向（把 stable 推上 prerelease）则是被结构性挡住的，见下面的 key 选择。
 
-### 那用户在 app 里选的 channel 呢——它加密了
+### ✅✅ 用户选的 channel 也是能读的——加密不是障碍，因为 app 是开源的
 
-Windscribe 的偏好设置里**确实有**一个 update channel 下拉框
-（`preferenceswindow/generalwindow`，选项 Release / Beta / Guinea Pig）。但它的落盘方式
-堵死了这条路：`EngineSettings::saveToSettings()` 把包括 `updateChannel` 在内的**全部**
-引擎设置串成一个 `QDataStream`，再过 `SimpleCrypt` 加密成一个字符串，写进
-`com.windscribe.Windscribe2.plist` 的**单个** `engineSettings` key。
+> ⚠️ **这一节推翻了本文档自己的前一版。** 前一版写的是「要读出 channel 就得复刻
+> SimpleCrypt 和一份带版本号、字段会随版本增删的 `QDataStream` 布局……每次厂商 bump
+> `versionForSerialization_` 我们就会静默读错一个数。**不做。**」
+> **两条腿都是错的**，而且错因是同一个：我看到"加密"两个字就停了，没去读源码。
+> 这个 app 是开源的，所以这不是逆向，是读规范。
 
-要读出 channel 就得同时复刻 SimpleCrypt 和一份**带版本号、字段会随版本增删的**
-`QDataStream` 布局（`loadFromSettings()` 里已经有 `if (version < 12)` 这种分支）。
-这不是"难"，是"每次厂商 bump `versionForSerialization_` 我们就会静默读错一个数"。
-**不做。**
+`EngineSettings::saveToSettings()` 确实把全部引擎设置串成 `QDataStream`、过 `SimpleCrypt`
+加密、写进 `com.windscribe.Windscribe2.plist` 的单个 `engineSettings` key
+（QSettings org/app = `Windscribe` / `Windscribe2`）。但：
+
+**1. 密钥是仓库里的一个明文常量。**
+`src/client/client-common/types/global_consts.h`：
+```cpp
+static constexpr unsigned long long SIMPLE_CRYPT_KEY = 0x4572A4ACF31A31BA;
+```
+`SimpleCrypt` 本身是 Andre Somers 2011 年那份公开代码（BSD，`utils/simplecrypt.cpp`
+原样收录）：版本字节 `0x03`、flags 字节，然后逐字节
+`out[i] = in[i] ^ keyPart[i%8] ^ 前一个密文字节`。**解密是三十行。**
+flags：`0x01` = qCompress（4 字节 BE 原长 + zlib）、`0x02` = qChecksum（CRC-16/CCITT，
+在前）、`0x04` = SHA-1。
+
+**2. `updateChannel` 是流里的第 4 个字段，排在每一个 version 分支前面。**
+`enginesettings.cpp` 的读写两侧一致：
+```
+quint32  magic          = 0x7745C2AE
+qint32   version        （今天 13；`version > 13` 才拒绝，老流一律接受）
+QString  language       （quint32 字节长度 + UTF-16BE；0xFFFFFFFF = null）
+enum     updateChannel  （4 字节：0=RELEASE 1=BETA 2=GUINEA_PIG 3=INTERNAL）
+```
+所有 `if (version < 12)` / `if (version >= 2)` 这类分支**全在它后面**。
+所以"厂商 bump 序列化版本我们就会读错"这句话是错的——bump 只会在后面增删字段，
+前四个从 v1 到 v13 没动过（厂商自己的 reader 也是无条件按这个顺序读的）。
+
+**3. 读错不会是静默的。** SimpleCrypt 默认带 `qChecksum` 完整性校验，`magic` 还要对上
+`0x7745C2AE`。两道都过了才可能是误读。
+
+**已写了一份原型解码器并跑过**（Python，约 60 行，不依赖 Qt）：4 个枚举值 × 压缩/不压缩
+× 3 种 language 值全部往返正确；单字节翻转**每一处**都被 checksum 抓到；
+v1 / v11 / v12 / v13 四种流版本都能取到同一个 channel。
+
+**⚠️ 但这只是自洽，不是对齐。** 往返测试用的是我自己写的编码器，和解码器可能错得一样。
+**要证成，需要一份真实的 `com.windscribe.Windscribe2.plist`** —— 拿真 blob 跑一遍，
+checksum 和 magic 同时通过才算数（这两道正好也是自证的手段）。
+本次审计全程没装 Windscribe，所以**这一步没做**。
+
+**这条信号比 `WS_ASSERT` 那条好在哪：**
+
+| | `WS_ASSERT` 残留 | `engineSettings.updateChannel` |
+|---|---|---|
+| 分辨力 | 二分（stable / 非 stable） | **三分**（release / beta / guinea pig） |
+| 性质 | 调试宏的**副作用** | 厂商**声明**的状态 |
+| 读什么 | 另一个 app 的二进制（12.9 MB 扫描） | 一个偏好键，和 OrbStack / Fork 同形状 |
+| 误读 | 静默 | magic + checksum 双重把关 |
+| 已验证 | ✅ 五份真实构建 | ⚠️ 仅自洽往返，缺一份真实 plist |
+
+⚠️ **两者量的不是同一件事，别混用。** `WS_ASSERT` 残留说的是**这个二进制是按哪条轨编译的**；
+`updateChannel` 说的是**用户想接哪条轨的更新**。两者可以不一致（beta 构建 + 偏好选 Release）。
+对"该给这一行提供哪条轨"这个问题，**偏好才是答案**（厂商自己的客户端也是拿它去问 API 的），
+`WS_ASSERT` 那条适合当旁证：偏好说 beta 而二进制没有 assert 残留，就该怀疑而不是照做。
 
 ### ✅ 找到了一条二进制里的信号：prerelease 构建带 `WS_ASSERT` 的残留
 
@@ -233,11 +284,13 @@ CDN 和 GitHub 上都有、能装、能跑的构建，厂商自己的 changelog 
 **要接的话前置条件很明确**：真装一份（stable 或 beta 都行）跑起来一次，
 确认路径和行的确切形状，再决定值不值得给 `ChannelBinding` 加读文件的能力。
 
-→ 现状：**不是 Pattern D 了。** 有一条二分信号（binary 里的 `WS_ASSERT` 残留），
-够用来关掉现在那个"把 beta 拷贝推上 stable"的行为；不够用来分辨 beta 和 guinea pig。
-`CHANNEL_COVERAGE_TODO.md` § 3 那条已相应改写。**没实现**，因为它需要给
-`ChannelBinding` 长出"读另一个 app 的二进制"这类新能力，而且失效方向不对称
-（见上）——值不值得，是个要单独决定的事。
+→ 现状：**明确不是 Pattern D。** 有两条独立信号，一条三分一条二分，形状分别对应
+`ChannelBinding`（读偏好，和 OrbStack / Fork 同类）和一道旁证。
+`CHANNEL_COVERAGE_TODO.md` § 3 那条已相应改写。
+
+**还没实现，缺的就一件事：一份真实的 `com.windscribe.Windscribe2.plist`。**
+装一份跑起来、在偏好里切一次 channel，就能把解码器从"自洽"变成"对齐"，
+之后 `ChannelBinding` 那条 resolver 是常规工作量。
 
 ## 更新检测
 

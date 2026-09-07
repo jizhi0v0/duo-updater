@@ -151,13 +151,21 @@ events options:
 
 verify options:
   --only <text>       Restrict to recipes whose bundle id contains <text>.
-                      Comma-separated for several. Without it all five
+                      Comma-separated for several. Without it all six
                       registries are swept (~150 requests, about 3 minutes).
   --vendor            Sweep only the vendor probe recipes.
   --github            Sweep only the GitHub release rules.
   --changelog         Sweep only the changelog recipes.
   --appstore          Sweep only the Mac App Store probe cases.
   --feed              Sweep only the SparkleFeedCatalog addresses.
+  --pkgarch           Sweep only the declared hostArchitectures of the packages
+                      the pkg install route hands to macOS's installer. Reads
+                      each package's xar table of contents by HTTP range rather
+                      than downloading it (~200 KB for the whole route), and
+                      reuses the install URLs the vendor sweep resolved — so on
+                      its own it has none and reports every package as skipped.
+                      Watches for drift, NOT installability: the declaration is
+                      the vendor's claim, not the payload's slices (#415).
   --samples           Print the fetched body sample for each flagged recipe —
                       what you need to re-derive a broken pattern.
   --no-installed      Don't cross-check against locally installed apps. Implied

@@ -22,6 +22,15 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// `SparkleAppcastSource` that every caller renders as "up to date". See
     /// `FeedVerify.swift`.
     case feed
+    /// Not a recipe registry either — this sweeps the `hostArchitectures`
+    /// DECLARATION of every package the pkg install route hands to macOS's
+    /// installer. That route runs neither architecture gate (#205, #400), and
+    /// measuring the declaration is how we established it cannot stand in for
+    /// them (#415): every declaration in the registry is universal, and the only
+    /// architecture-specific packages declare nothing. So this watches for drift
+    /// — a spec that stops declaring, or starts declaring one architecture — and
+    /// is not an installability check. See `PackageArchitectureProbe`.
+    case pkgArch = "pkgarch"
 
     public var label: String {
         switch self {
@@ -30,6 +39,10 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
         case .changelog: return "changelog"
         case .appStore: return "App Store probe"
         case .feed: return "Sparkle feed"
+        // Eight characters: `Report` pads labels to 14 and `padding(toLength:)`
+        // TRUNCATES anything longer, so a descriptive name would print as
+        // "pkg architectu" in the per-registry summary.
+        case .pkgArch: return "pkg arch"
         }
     }
 }

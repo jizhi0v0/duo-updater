@@ -19,7 +19,7 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 
 - **编译通过不算验证。** 说"修好了 / 可以提交了"之前贴出实际命令和结果。
 - 修 recipe 要先复现红:拿到坏掉的原始响应体(`--samples`),确认新规则在**那份真实响应**上过,再跑全量。
-- 新增/改 recipe **必须补一条回归测试**,而且用例要**从 registry 推导、覆盖全部 channel**,不要手写一份会漂移的清单(`RecipeHealthTests` / `RecipeVerificationTests` 是既有范式)。
+- 新增/改 recipe **必须补一条回归测试**;凡是该由「每条 recipe 都得满足」来表达的性质,用例要**从 registry 推导**,不要手写一份会漂移的清单。范式是 `ChangelogURLPolicyTests` 的「Derived from the registries」一节(遍历 `VendorProbeRegistry.recipes` / `ChangelogRecipeRegistry.recipes`),`AppAuditCoverageTests`、`ChannelGuardTests` 同理。⚠️ **`RecipeHealthTests` / `RecipeVerificationTests` 不是这个范式**——2026-09-07 实测:前者 `grep -c Registry` 为 0,测的是 `RecipeHealth` 这个 actor、id 是合成的;后者是 2026-08-08 两个真实故障的回放套件。这条以前指着它们,照着看的人找不到可抄的东西。
 - 全量 `duo verify` 约 150 个请求 / 3 分钟,别为了省时间只验一个就宣布全绿。
 - **`make test` 本机一轮约 25 MB / 20 秒**,那道真下厂商包的闸默认关着(`DUO_DOWNLOAD_GATE`,
   见「发布」和「CI」两节)。想在本机过一遍就 `DUO_DOWNLOAD_GATE=1 make test`,约 185 MB。
@@ -231,6 +231,32 @@ issue 都是无效的,提之前先看这个文件。第三方 app 只有 Intel �
 检查」,而 `usePrereleases: false` 走 `/releases/latest`,GitHub 定义上就不返回
 prerelease。三个 agent 同一个错误形状,所以这条写进 CLAUDE.md 而不是 memory——
 subagent 读不到 memory。
+
+## 改一处说法之前,先数它有几份
+
+上一节管的是「下结论前先量覆盖面」。这一节是它的**修改版**,而且更容易犯:
+**要改的那句话,往往不止一份拷贝,而你只会改自己正在看的那一份。**
+改到一半的结果比不改更坏——两份文档现在给出互相矛盾的指令,而读的人只会读到一份。
+
+规矩:**动手改一条说法之前,先 `grep -rn` 它在仓库里有几处**,把清单写进方案,一次改完。
+
+2026-09-07 一个 PR 里连着犯了四次,形状完全相同:
+
+- `fragile-recipe` 的验证闸从 `swift test` 提到 `make test`——三份文档里改了两份,
+  漏掉的 `changelog-recipe.md` 恰恰是写 ChangelogRecipe 的人**最后读到**的那份
+  (SKILL.md 第 4 步就是让他去读 reference)。
+- `.claude/skills/fragile-recipe/` 改了,逐字节相同的 `.agents/` 那份没改——
+  于是一个**主题就是消除漂移**的 PR,自己造出两份新的漂移。
+- 为防这件事写的那道闸,自己用了一份手写文件清单,对「只给一边加文件」空过。
+- `RecipeHealthTests` 那条误指,`CLAUDE.md` 和 skill 各有一份,先只改了 skill。
+
+三次 `/code-review` 抓到的六条里,四条是这一个形状。**它不是偶然,是默认行为**:
+逐处修改是省力路径,而"还有没有别的副本"这个问题不问就不会自己冒出来。
+
+⚠️ **顺带一个反例,别照着补**:发现 `cd "$(git rev-parse --show-toplevel)"` 在仓库外
+不失败之后,最顺手的补法 `|| exit 1` **是无效的**——`cd ""` 返回 0,`||` 永远不触发
+(2026-09-07 实测,从 `/tmp` 跑照样往下走、退 0)。要 `ROOT=$(...) && cd "$ROOT"`,
+让 git 自己的退出码传出来。**修完要跑一遍那个失败场景**,别只看代码像不像对的。
 
 ## 版本比较:显示版本不一定动,build 才是变的那个
 

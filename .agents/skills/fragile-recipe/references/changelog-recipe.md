@@ -22,6 +22,14 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 
 ## The recipe fields
 
+> ⚠️ **The initializer is the reference; this page is a tour of the common half.**
+> `ChangelogRecipe.init` currently takes **24** parameters. Beyond the ones below it
+> also carries `channel`, `includesPromotedStable`, `sourceTemplate`, `newestLast`,
+> `imagePattern`, `minimumAppVersion`, `belowAppVersion`, `structuredFormat`,
+> `httpMethod`, `requestBody`, `skipSections` and `acknowledgedStaleEntry`. Read
+> `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` before
+> concluding the registry can't express something.
+
 ```swift
 ChangelogRecipe(
     bundleID: String,          // CFBundleIdentifier, lowercase by convention
@@ -32,7 +40,8 @@ ChangelogRecipe(
     stripTags: true,           // strip inner <b>/<a>… from captured text
     decodeEntities: true,      // &quot; &amp; &#39; … → real chars
     maxEntries: 40,            // changelogs run for years; cap the recent ones
-    minItemLength: 1)          // drop change lines shorter than this after cleaning
+    minItemLength: 1,          // drop change lines shorter than this after cleaning
+    indexLinkPattern: nil)     // set for two-stage "index → latest" recipes (below)
 ```
 
 `entryPattern` is matched with **dot-matches-newline + case-insensitive**, so a
@@ -82,6 +91,50 @@ ChangelogRecipe(
 Note the loose attribute matching (`[^>]*`) so a stray `data-v-*` hash or
 attribute-order change doesn't break the match.
 
+## Two-stage recipes — `indexLinkPattern` (the per-version-page case)
+
+Some vendors give **each release its own page** with no single "latest" or
+all-versions page to parse (VLC's `/vlc/releases/3.0.23.html`, Ghostty's
+`/docs/install/release-notes/1-3-1`). The naive recipe pins `source` to one
+version's URL and needs a manual bump every release — workable but a chore.
+
+If the vendor also publishes a **newest-first index** (a list of per-version
+links, latest first), prefer a two-stage recipe instead:
+
+- `source` points at the **index** page, not a changelog.
+- `indexLinkPattern` is a regex whose `link` named group (else capture group 1)
+  is the first per-version link. `ChangelogService` fetches `source`, takes the
+  **first** match (= latest), resolves it against `source`, and runs
+  `entryPattern`/`itemPatterns` on **that** detail page — which you write exactly
+  as for a direct-source recipe.
+
+This auto-tracks the latest release with zero maintenance, and — crucially —
+**follows the real href**, so it sidesteps version→URL naming quirks. VLC folds
+`3.0.19/3.0.20` (and `3.0.22/3.0.23`) onto a single page, so the page is *not*
+always named after the latest version; templating a version number into the URL
+would 404, but following the index link is always correct. It also needs **no
+caller-supplied version**, so nothing changes in the app — the existing
+`load(recipe)` path resolves the URL itself.
+
+```swift
+ChangelogRecipe(
+    bundleID: "org.videolan.vlc",
+    source: URL(string: "https://www.videolan.org/vlc/releases/")!,   // the index
+    entryPattern: #"<h1[^>]*>(?:[\d.]+/)*(?<version>[\d.]+)\s*Fixes</h1>\s*(?<body>.*?)(?=<h1|</section>)"#,
+    itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+    maxEntries: 1,
+    indexLinkPattern: #"href="(?<link>/vlc/releases/\d[^"]*\.html)""#)   // follow first link
+```
+
+Anchor `indexLinkPattern` tightly enough that nav/footer links (`/vlc/features.html`)
+can't be picked — require the version-path shape (e.g. `/vlc/releases/\d…`). The
+first match in document order must be the newest release; confirm that against
+the real index (vendors put newest first, but verify).
+
+When the vendor has no index, fall back to a version-pinned `source` and note in
+the comment that the URL needs bumping when a new version ships (as the older Warp
+/ Ghostty entries did before they moved to indexes).
+
 ## Validating against the real page (do this before landing)
 
 Run the *same* regex over the fetched bytes and eyeball the result:
@@ -106,6 +159,12 @@ PY
 Healthy output for CleanShot: ~78 entries, sane version/date, ≥1 item each. If
 entries == 0 your `entryPattern` is wrong; if items == 0 your `itemPatterns` are.
 
+For a **two-stage** recipe, validate the whole chain end to end before landing:
+fetch the index, apply `indexLinkPattern` to get the first link, fetch *that* URL,
+then run the entry/item regexes on it. Confirm the followed URL is the latest
+release and the detail parse yields sane entries — the same Python snippet, with a
+`urljoin(index, first_link)` step in the middle.
+
 ## Register + test
 
 Add the recipe to `ChangelogRecipeRegistry.recipes` in `ChangelogRecipe.swift`.
@@ -123,7 +182,27 @@ assert entry count, version, date, item count, and a decoded item. Pattern:
 }
 ```
 
-Then `cd DuoUpdaterCore && swift test --filter ChangelogExtractorTests`.
+For a two-stage recipe, also add a `ChangelogService.firstLink(in:pattern:base:)`
+test (it's pure/offline): paste a trimmed index slice that includes a decoy
+nav/footer link, and assert the resolved absolute URL is the latest release page —
+proving the anchor skips non-version links. See `followsFirstVLCReleaseLink…`.
+
+`swift test --filter ChangelogExtractorTests` is the tight loop while you iterate
+on the regex. It is not the gate: finish on `make test`, which also runs the
+Python checks and the App-layer target.
+
+Then hit the real page — a fixture proves the regex against bytes you captured,
+not against what the vendor serves today:
+
+```sh
+duo verify --only <bundle-id-fragment>
+```
+
+Run `make cli` first; `duo verify` uses the **installed** CLI, so without it you
+are verifying the previous build's recipes. A changelog miss is cosmetic (the UI
+falls back to embedding the vendor page), so this will not block you the way a
+probe miss does — but a recipe that silently stopped matching looks exactly like
+one that never ran.
 
 ## To see it in the UI (optional)
 

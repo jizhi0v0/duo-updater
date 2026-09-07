@@ -53,6 +53,21 @@ public enum PreInstallDecision: Sendable, Equatable {
     /// the caller already holds, and the wording belongs where the rest of the
     /// user-facing copy is.
     case answerRegressed
+    /// The re-check found no readable bundle at the row's own path at all.
+    ///
+    /// This can mean three different things, and it cannot say which:
+    /// the bundle was uninstalled, its `Info.plist` no longer parses, or the
+    /// path now resolves to a bundle with a different identity.
+    /// `AppScanner.readApp` returns `nil` for the first two alike and cannot
+    /// distinguish them; the third is caught upstream by the id filter in
+    /// `AppListModel.recheckMany` / `Install.recheckOne`, which also answers
+    /// with nothing rather than with the other app's row.
+    ///
+    /// Carries no message, unlike `.cannotConfirm`: the CLI's sentence names
+    /// the path in plain text, and the App's has to go through
+    /// `String(localized:)`, so the wording belongs to each host. What is
+    /// shared here is only the classification.
+    case unreadable
 }
 
 public enum PreInstallGate {
@@ -100,5 +115,33 @@ public enum PreInstallGate {
         case .unknown:
             return .cannotConfirm(nil)
         }
+    }
+
+    /// Classify the re-check's outcome when the re-check itself may have come
+    /// back with nothing.
+    ///
+    /// This overload exists because "the re-check came back with nothing" is
+    /// part of the same decision as everything `decision(for:offered:confirmed:)`
+    /// already classifies, and each host used to make that call for itself —
+    /// which let the two drift. The CLI grew a `.unreadable` case for it in
+    /// #434; the menu bar's `recheck` kept `?? result`, silently falling back to
+    /// the stale offer, which cancelled out exactly the identity guard
+    /// `recheckMany` stands behind it for (#440). Both hosts now call this
+    /// overload instead of branching on their own optional first, so the arm
+    /// cannot be handled on one side and forgotten on the other.
+    ///
+    /// `nil` confirmed classifies as `.unreadable`; otherwise this delegates to
+    /// `decision(for:offered:confirmed:)` with both sides' `versionSide`s (or an
+    /// empty one when a result carries no remote), exactly as each host already
+    /// did at its own call site.
+    public static func decision(
+        offered: UpdateResult,
+        confirmed: UpdateResult?
+    ) -> PreInstallDecision {
+        guard let confirmed else { return .unreadable }
+        return decision(
+            for: confirmed.status,
+            offered: offered.remote?.versionSide ?? VersionSide(),
+            confirmed: confirmed.remote?.versionSide ?? VersionSide())
     }
 }

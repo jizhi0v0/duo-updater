@@ -88,6 +88,12 @@ It **respects each app's own update channel**:
 
 ## Install safety
 
+- **Package architecture limitation**: updates handed to the system installer
+  (`.pkg` / `.mpkg`, including those inside disk images) do not pass DuoUpdater's
+  runnable-architecture or native-to-Intel downgrade gates. Package signature,
+  Team ID and destination checks do not inspect payload Mach-O executables, so
+  an Intel-only package can pass those checks. DuoUpdater does not verify or
+  automatically roll back architecture changes after the system installer runs.
 - **Never force-quits** a running app. When an update needs the app restarted to
   take effect, the quit is a plain `terminate()` — the app runs its own save
   prompts and can refuse. One that refuses is left running and keeps a

@@ -506,10 +506,21 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 > 分支之前**——所以"厂商 bump 序列化版本我们就静默读错"那句话也是错的。
 > 这条是**三分**的、是厂商**声明**的状态、形状和 OrbStack / Fork 的 resolver 一样，
 > 而且 magic + qChecksum 双重把关，误读不会静默。原型解码器已跑通往返测试。
-> **⚠️ 仍缺一份真实的 `com.windscribe.Windscribe2.plist` 才算证成**（往返只证明自洽）。
+> **✅ 已在真实 plist 上证成。** 真 blob 当场抓出一个往返测试结构上抓不到的 bug
+> （`qChecksum` 写成了 Qt 4 的版本，末尾多一次字节交换；存 `0x63b8`、算 `0xb863`，
+> 正好字节反序）。修好之后 magic / version / language / checksum 全部对上。
+> 又把下拉框跨两级换了一次重读：blob 变了，`updateChannel` 从 `1` 变成**预测的 `2`**，
+> 所以这个字段是那个控件的持久化形式，不是巧合。
 >
-> **没实现**：等一次真机验证；`WS_ASSERT` 那条留作旁证（它量的是"二进制按哪条轨编译"，
-> 和"用户想接哪条轨"不是一回事，别混用）。
+> **⚠️ 换完之后三条信号分岔了，这是最有用的一次观测**：偏好说 guinea pig，
+> 而二进制的 `WS_ASSERT` 残留和 `client.log` 的 `App version: "… (Beta)"` 都说 beta。
+> 不矛盾——**一个是"想接哪条轨"，一个是"这个包怎么编的"**。channel gate 要的是前者。
+> 所以 `WS_ASSERT` 那条**只能当一致性旁证，不能代替偏好**（上一版把两者并列，不准确）。
+>
+> **没实现**：把 30 行 SimpleCrypt + 4 个字段写成 Swift 挂成 `ChannelBinding` resolver，
+> 再加 beta / guinea pig 两条 recipe（端点是 `ChangeLogs/summary` 的
+> `beta_full_version` / `guinea_pig_full_version`）。红→绿用例现成：真实安装上现在是
+> `detected channel → stable` + `UPDATE 2.24.10 → 2.24.12`。
 
 ✗ 两轨都和 stable 共享 `com.windscribe.client`，**磁盘上没有任何 channel 痕迹**。
 不是"没找到"，是**两份真实 bundle 对比量出来的**（stable 2.24.12 与 beta 2.24.10，

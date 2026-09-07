@@ -51,13 +51,19 @@ Every one of these, verified by actually running the command:
 ```
 cd DuoUpdaterCore && swift build && swift test
 swift build --package-path CLI && swift test --package-path CLI
-xcodegen generate --spec App/project.yml --project App && \
+DD=$(python3 scripts/derived_data_path.py agent "$PWD") && \
+  xcodegen generate --spec App/project.yml --project App && \
   xcodebuild -project App/DuoUpdater.xcodeproj -scheme DuoUpdater \
-    -configuration Debug -derivedDataPath /tmp/duo-agent-dd build
+    -configuration Debug -derivedDataPath "$DD" build
 ```
 
-The app target build is not optional. Most of what you are moving is used by a
-3801-line SwiftUI file that the package tests do not compile.
+Take the derived-data path from `scripts/derived_data_path.py`, never a literal.
+Several worktrees are usually open at once and a shared path makes two xcodebuilds
+collide on the same SQLite lock — which surfaces as `database is locked`, or as a
+hang, both of which look like a real failure.
+
+The app target build is not optional: the bulk of what you are moving is used by
+`App/Sources/AppListModel.swift`, which the package tests do not compile.
 
 ## Your final message
 

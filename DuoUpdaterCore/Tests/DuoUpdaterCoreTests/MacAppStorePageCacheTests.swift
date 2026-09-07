@@ -780,8 +780,13 @@ struct MacAppStorePageCacheTests {
         let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
                                        pageCache: AppStorePageCache())
         let app = Self.nativeMacApp(bundleID: bundleID)
+        // A second app nothing ever looks up. It is what makes the vacuity
+        // guard below able to tell a working prewarm from a no-op one: only a
+        // real batch names it, since `batchLookup` joins the ids into one
+        // `bundleId=a,b` query and the single lookup asks for its own id alone.
+        let unqueried = Self.nativeMacApp(bundleID: bundleID + ".unqueried")
 
-        let prewarmTask = Task { await source.prewarm([app]) }
+        let prewarmTask = Task { await source.prewarm([app, unqueried]) }
         let returnedInTime = await Self.raceAgainstTimeout(seconds: 5, task: prewarmTask)
         guard returnedInTime else {
             gate.release()          // unblock the stalled handler…
@@ -801,8 +806,37 @@ struct MacAppStorePageCacheTests {
         // reaches `awaitInFlight()` only for a MAS app, and a throw on the way
         // would leave the batch running past this test. The task is right
         // here; await it.
+        // Joins the batch and drains it: `awaitInFlight()` inside `lookup` is
+        // the only reach a caller has to that registered `Task`. Awaiting
+        // `prewarmTask` would NOT do it — `prewarm` returns before the batch
+        // finishes, which is the very property asserted above.
         _ = try await source.latestVersion(for: app)
         _ = await prewarmTask.value
+
+        // The vacuity guard, and the reason a second app is prewarmed.
+        // Everything above is about WHEN `prewarm` returns, and a `prewarm`
+        // that did nothing at all returns fastest of any — so without this the
+        // whole test passes against a no-op body, which is the one
+        // implementation it must never certify. `batchLookup` joins the ids
+        // into a single `bundleId=a,b` query, so a request naming the app
+        // nobody looked up can only have come from the batch.
+        //
+        // Counted per bundle id rather than per host: `ScriptedHTTP` is static
+        // and this suite's cases run in parallel, so a host-wide count is
+        // other tests' traffic as much as this one's (which is why every other
+        // case here asks `>= 1`). Scoped this way an exact count means
+        // something.
+        let requests: @Sendable (String) -> Int = { id in
+            ScriptedHTTP.count(matching: { $0.host == "itunes.apple.com" && ($0.query ?? "").contains(id) })
+        }
+        #expect(requests(unqueried.bundleID ?? "") == 1,
+                "no request named the app nobody looked up — prewarm batched nothing")
+
+        // And the batch is what ANSWERS the single lookup: joining a warmed
+        // cache costs no second request. That saving is the whole reason this
+        // hook exists, and nothing else in this test asserts it.
+        #expect(requests(bundleID) == 1,
+                "the single lookup re-fetched instead of joining the prewarmed batch")
     }
 
     /// Blocks the calling thread until released — lets a test prove something
@@ -810,8 +844,25 @@ struct MacAppStorePageCacheTests {
     /// on the OS's scheduling of when the request happens to start.
     final class ResponseGate: @unchecked Sendable {
         private let semaphore = DispatchSemaphore(value: 0)
-        func waitForRelease() { semaphore.wait() }
-        func release() { semaphore.signal() }
+        private let lock = NSLock()
+        private var opened = false
+
+        /// Blocks until `release()`, then never again. A plain semaphore would
+        /// hand out exactly one pass, so a SECOND request — which is what a
+        /// regression in the prewarm cache produces — would sit here until
+        /// URLSession's own timeout instead of reaching the assertion written
+        /// to catch it. Measured: that turned a should-be-instant failure into
+        /// a 16 s one whose message named the timeout, not the cause.
+        func waitForRelease() {
+            lock.lock(); let isOpen = opened; lock.unlock()
+            guard !isOpen else { return }
+            semaphore.wait()
+        }
+
+        func release() {
+            lock.lock(); opened = true; lock.unlock()
+            semaphore.signal()
+        }
     }
 
     /// Returns `true` if `task` finishes within `seconds`, `false` if the

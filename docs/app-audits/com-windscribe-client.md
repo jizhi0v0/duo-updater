@@ -708,9 +708,18 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
    不在任何一条厂商轨上）。所以 beta 读者会看到 guinea pig 的条目，两边都会看到
    厂商从没公告过的构建。
 
-   **仍然接了，因为它替换掉的失败更糟**——面板里缺"正在被提供的那一版"。
-   `theGitHubFeedCannotTellTheTwoPrereleaseTracksApart` 把这个代价钉成了断言而不是
+   **仍然接了，因为它替换掉的失败更糟**——面板里缺"正在被提供的那一版"，而那是
+   每个周期约 75% 的时间。
+   `theGitHubFeedCannotTellTheTwoPrereleaseTracksApart` 把上面那个代价钉成了断言而不是
    一段没人重读的注释。
+
+   ⚠️ **但它没有把那个失败消干净，只消掉了大部分。** 版本来自厂商 feed，正文来自
+   GitHub，**两边装的不是同一批 release**：2024 年以来厂商列过的 70 个版本里，
+   **有 3 个 GitHub 上根本没有对应 release**（`2.21.1` guinea pig、`2.20.6` beta、
+   `2.15.9` release）。每一个都当过自己那条轨的最新，所以在那些窗口里，行提供的版本
+   这个面板拿不出来——**和修之前同一个形状，只是从约 75% 降到约 4%**。
+   读到偶尔空掉的面板时别先去怀疑解析器。接了精确版（厂商 feed）之后这条也一并消失，
+   因为那时正文和版本就是同一个集合了。
 
    **精确的做法**仍然是厂商的 `ChangeLogs?platform=osx`（每条自带轨道号、
    `release_date`、`sha256`），前置条件也仍然是那两件事：`ChangelogRecipe` 加

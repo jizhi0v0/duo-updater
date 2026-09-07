@@ -3390,9 +3390,21 @@ public enum ChangelogRecipeRegistry {
         // on no track). So a beta reader sees guinea pig entries too, and both
         // readers see builds the vendor never announced.
         //
+        // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
+        // version comes from the vendor's feed and the notes come from GitHub,
+        // and those two do not hold the same set of releases: of the 70 versions
+        // the vendor has listed since 2024, three have no GitHub release at all
+        // (2.21.1 guinea pig, 2.20.6 beta, 2.15.9 release). Each was the newest
+        // on its track for a while, so in those windows the row offers a version
+        // this pane cannot show — the same shape as before, at roughly 4% instead
+        // of the ~75% it does fix. Worth knowing before reading an occasionally
+        // empty-looking pane as a parser bug. The proper fix removes this too,
+        // since the vendor's feed is by construction the set the probe reads.
+        //
         // Shipped anyway because the failure it replaces is worse — a pane that
-        // omits the release being offered — and because the precise fix is a
-        // different endpoint, not a better pattern: the vendor's
+        // omits the release being offered three quarters of the time — and
+        // because the precise fix is a different endpoint, not a better pattern:
+        // the vendor's
         // `ChangeLogs?platform=osx` states each entry's track, but it 403s
         // without an `Authorization` header that `ChangelogRecipe` has no field
         // for, and its notes are markdown escaped inside a JSON string, which

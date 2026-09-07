@@ -69,6 +69,14 @@ POINTER = re.compile(
 # was the one pointer in the convention with nothing behind it — the guard
 # `check_app_audits.py` has for audit-to-audit links, which this file's
 # earlier version replicated for code-to-doc only.
+#
+# ⚠️ Only counted as a pointer when a `§N` run follows it. A backticked
+# filename on its own is prose — a note that says "the rule this came from
+# lives in `CLAUDE.md`" names a file that is not, and never will be, a
+# sibling note, and resolving it here would fail the build on a sentence
+# nobody meant as a pointer. `§N` is this convention's own notation, so it is
+# what separates the two. Plain markdown links are checked separately, by
+# `check_doc_links`, where the syntax is unambiguous.
 DOC_POINTER = re.compile(r"`([\w.-]+\.md)`" + SECTION_RUN)
 
 # A markdown link target inside the Index, e.g. `[`x.md`](x.md)`.
@@ -204,9 +212,32 @@ def check_doc_pointers(problems, tracked):
         text = open(os.path.join(ROOT, doc), encoding="utf-8").read()
         for m in DOC_POINTER.finditer(text):
             name, run = m.groups()
+            if not SECTION.search(run or ""):
+                continue  # prose naming a file, not a pointer — see DOC_POINTER
             where = f"{doc}:{text.count(chr(10), 0, m.start()) + 1}"
             resolve(problems, where, os.path.join(NOTES_DIR, name), run,
                     tracked, section_cache)
+
+
+def check_doc_links(problems, tracked):
+    """Markdown links between notes resolve — the half of
+    `check_app_audits.py`'s `check_links_resolve` that applies here.
+
+    Unambiguous syntax, so unlike `DOC_POINTER` this needs no `§N` to tell a
+    link from a mention. Targets are read relative to the linking file, the
+    way a reader's editor follows them.
+    """
+    for doc in sorted(tracked):
+        if not doc.endswith(".md"):
+            continue
+        text = open(os.path.join(ROOT, doc), encoding="utf-8").read()
+        for target in LINK.findall(text):
+            resolved = os.path.normpath(
+                os.path.join(os.path.dirname(doc), target))
+            if resolved not in tracked:
+                problems.append(
+                    f"{doc}: links to `{target}`, which is not a tracked file"
+                )
 
 
 def check_index(problems, tracked):
@@ -241,6 +272,7 @@ def main():
     problems = []
     scanned = check_pointers(problems, tracked)
     check_doc_pointers(problems, tracked)
+    check_doc_links(problems, tracked)
     n_docs = check_index(problems, tracked)
 
     if scanned < 100:

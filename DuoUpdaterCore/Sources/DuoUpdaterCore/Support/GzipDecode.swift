@@ -61,6 +61,39 @@ enum GzipDecode {
         return inflate(Array(deflate), hint: max(isize, 64 * 1024))
     }
 
+    /// Decompress a zlib stream (RFC 1950) — a 2-byte header, the same raw
+    /// DEFLATE body `decompress` ends up at, and a 4-byte adler32 trailer.
+    ///
+    /// Split out rather than duplicated because the inflate loop below is the
+    /// part worth having exactly once: gzip and zlib differ only in what wraps
+    /// the DEFLATE, and a second copy of the streaming decode is a second place
+    /// for a buffer bug to live.
+    ///
+    /// Qt's `qCompress` emits this (behind its own 4-byte big-endian length
+    /// prefix, which is the caller's business, not ours) — see
+    /// `WindscribeChannel`.
+    ///
+    /// The header check is the real one, not just "is the first byte 0x78":
+    /// CMF's low nibble must be 8 (DEFLATE) and `(CMF << 8 | FLG) % 31` must be
+    /// 0, which is the checksum RFC 1950 defines those two bytes to carry. A
+    /// preset dictionary (FDICT) is refused rather than mis-parsed — nothing
+    /// that reaches here uses one, and guessing would hand the inflater a
+    /// dictionary id as if it were compressed data.
+    static func decompressZlib(_ data: Data, hint: Int) -> Data? {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 6 else { return nil }
+        let cmf = bytes[0], flg = bytes[1]
+        guard cmf & 0x0F == 8,
+              (Int(cmf) << 8 | Int(flg)) % 31 == 0,
+              flg & 0x20 == 0                       // no preset dictionary
+        else { return nil }
+        // Body runs to the adler32 trailer, which the raw inflater neither needs
+        // nor tolerates.
+        let end = bytes.count - 4
+        guard 2 < end else { return nil }
+        return inflate(Array(bytes[2..<end]), hint: max(hint, 64 * 1024))
+    }
+
     /// Stream raw DEFLATE bytes through `compression_stream` until done.
     private static func inflate(_ deflate: [UInt8], hint: Int) -> Data? {
         var stream = compression_stream(

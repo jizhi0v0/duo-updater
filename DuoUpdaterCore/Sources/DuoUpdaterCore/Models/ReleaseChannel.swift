@@ -37,6 +37,24 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     case alpha
     /// Insiders / EAP / Tech-Preview / "Preview" builds.
     case preview
+    /// Windscribe's third track, which the vendor calls exactly that: "Guinea
+    /// Pig — sneak preview of new features and bug fixes. Can be unstable."
+    /// It sits one step past Beta on a ladder the vendor documents ("if you
+    /// report a bug … it will be released in the Guinea Pig channel first"),
+    /// and the feed confirms the ordering — each cycle runs guinea pig → beta
+    /// → release with the build number climbing across the three.
+    ///
+    /// Modelled as its own case rather than folded into `.canary` for the reason
+    /// `.rc` exists: the row label is what the user reads, and no Windscribe
+    /// surface ever says "canary". Cheap to add — nothing switches
+    /// exhaustively over this enum (checked before adding it).
+    ///
+    /// Deliberately absent from `nonStable`'s word/suffix tables and from
+    /// `channelWord`: nothing on disk spells this track. All three Windscribe
+    /// builds share `com.windscribe.client`, one display name and an unsuffixed
+    /// version, so this case is only ever set by `WindscribeChannel`, from the
+    /// preference the user chose.
+    case guineaPig
     /// Tailscale's rolling pre-release train (`pkgs.tailscale.com/unstable`),
     /// distinct from its `rc` and stable tracks. Shares the macsys bundle id
     /// `io.tailscale.ipn.macsys` with Stable, so it can't be told apart by name,

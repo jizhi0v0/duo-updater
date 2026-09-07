@@ -408,6 +408,26 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
 - ⚠️ **`gh pr merge --auto` 成功 ≠ 已合并**,它在 check 还没报告时就返回 0。任何拿返回值
   当"合并完成"的脚本,会在 CI 变红时静默丢东西。两处自动流程(mini 夜间基线、发版的
   appcast)都改成轮询 PR 的 `state` 到 `MERGED`,上限 30 分钟。
+- ⚠️ **CI 一绿,PR 随时可能被人合掉——所以「还在改」和「分支上有个开着的 PR」不能同时成立。**
+  2026-09-07 实测的时间线:be36b32 的 run 在 **03:28:45Z** 结束,用户在 **03:29:00Z**
+  合并(15 秒后,绿的、且就是当时的 head,**这次合并完全正确**),而我把复审改出来的
+  修正提交在 **03:34:24Z**——**比合并晚 324 秒**。四条缺陷因此进了 main,得靠 #403 补。
+  规矩:**复审发现问题就先说,别攒一轮再推**;真要接着改,先
+  `gh pr merge <n> --disable-auto` 或在 PR 上说明,别指望「我还在改」这件事对别人可见。
+- ⚠️ **已合并 PR 的 `headRefOid` 会冻在合并那一刻,继续往它的分支推是对 PR 的静默空操作。**
+  推完 `git ls-remote origin <branch>` 是新 SHA,而 `gh pr view <n> --json headRefOid`
+  仍报旧 SHA——两个都对,但看起来**极像「GitHub 在滞后」**。我当时就是这么误诊的,还准备
+  把这条假机制写进本文件。**判据是 `state`,不是 `headRefOid`**:
+  `gh pr view <n> --json state,headRefOid`,`MERGED`/`CLOSED` 就说明推过去没人看。
+  (更早的教训同形:`--auto` 返回 0 也不代表合了,判据同样是 `state`。)
+- ⚠️ **「没有 pending 的 check」≠「我这个提交被验过了」。** `until [ pending == 0 ]` 这种轮询
+  在**上一个提交的绿勾还挂着**时会立刻退出,把旧结果当成新结果报出来——实测就这么退过一次。
+  合并前要比对**那次 run 的 `head_sha` 和 PR 的 head**:
+  ```sh
+  gh api repos/<owner>/<repo>/actions/runs/<run-id> -q .head_sha   # 必须等于
+  gh pr view <n> --json headRefOid -q .headRefOid
+  ```
+  #403 就是这么验的(`aa9f400b` == `aa9f400b`)才合的。**绿勾不带提交号,人眼看不出它验的是哪棵树。**
 - **`make test` 经 `scripts/run-with-hang-report.sh` 跑**,超时会对每个候选进程抓
   `sample(1)`、打两轮相隔 60 秒的 CPU 增量和线程栈、杀进程树、退 124。
   ⚠️ **看门狗必须在进程外**:进程内的要靠跑到的代码上膛(上一版在下载闸里上膛,

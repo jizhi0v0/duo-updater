@@ -96,9 +96,11 @@ struct WindscribeProbeRecipeTests {
 
     private static let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == bundleID }
 
+    /// The stable recipe. There are three now — one per track — so this names the
+    /// one it wants instead of assuming the registry holds a single entry, which
+    /// is what it used to assume.
     private static func theRecipe() throws -> VendorProbeRecipe {
-        #expect(recipes.count == 1, "Windscribe should have exactly one recipe")
-        return try #require(recipes.first)
+        try #require(recipes.first { $0.channel == .stable })
     }
 
     // MARK: - registry shape
@@ -111,6 +113,13 @@ struct WindscribeProbeRecipeTests {
     ///
     /// Mutation: give the recipe an `install:` spec, or a non-stable `channel:`.
     @Test func windscribeIsASingleStableDetectionOnlyRecipe() throws {
+        // One recipe per track, and no duplicates within a track — the channel
+        // gate picks exactly one, and two would make `best(of:)` arbitrate
+        // between endpoints that are supposed to answer for different people.
+        #expect(Set(Self.recipes.map(\.channel)) == [.stable, .beta, .guineaPig])
+        #expect(Self.recipes.count == 3)
+        #expect(Self.recipes.allSatisfy { $0.install == nil },
+                "every track stays detection-only")
         let recipe = try Self.theRecipe()
         #expect(recipe.channel == .stable)
         #expect(recipe.variant == nil)
@@ -332,4 +341,151 @@ struct WindscribeProbeRecipeTests {
         #expect(fields.publishedAt != nil || fields.vendorDay != nil)
         #expect(VendorProbeRecipe.extractVersion(from: Self.iosExcerpt, pattern: pattern) == nil)
     }
+
+    // MARK: - the two prerelease tracks
+
+    /// The tracks are a LADDER: a user on level N is served the newest build
+    /// from tracks 0…N. So the beta recipe must read release entries too, and the
+    /// guinea pig recipe must read all three — reading only its own track would
+    /// tell someone on 2.24.10 that the beta track's 2.24.10 is the newest thing
+    /// there is, and would offer a guinea pig user a version older than the one
+    /// they are running.
+    ///
+    /// These feeds are the real entries from `/ChangeLogs?platform=osx`, replayed
+    /// by release date. That replay is the whole point: TODAY all three tracks
+    /// answer 2.24.12, because release leads — so a fixture built from today's
+    /// feed cannot tell a correct implementation from one that ignores the track
+    /// number entirely. These dates can.
+    private static func recipe(_ channel: ReleaseChannel) throws -> VendorProbeRecipe {
+        try #require(
+            VendorProbeRegistry.recipes.first {
+                $0.bundleID == bundleID && $0.channel == channel
+            },
+            "no \(channel.rawValue) recipe registered")
+    }
+
+    /// Resolve a body the way `VendorProbeSource` does for these recipes:
+    /// `entryStartPattern` slices, `selectHighest` picks the winner.
+    private static func resolve(_ recipe: VendorProbeRecipe, in body: String) -> String? {
+        guard let start = recipe.entryStartPattern,
+              let entry = VendorProbeRecipe.highestVersionEntry(
+                in: body, entryStartPattern: start,
+                versionPattern: recipe.versionPattern, selectHighest: recipe.selectHighest)
+        else { return nil }
+        return VendorProbeRecipe.highestVersion(from: entry, pattern: recipe.versionPattern)
+    }
+
+    /// Mutation: give the beta recipe `"beta"\s*:\s*1` (its own track only) —
+    /// 2026-09-07 still passes, and every earlier date goes red.
+    @Test func eachTrackReadsItsOwnAndEverythingMoreStable() throws {
+        let stable = try Self.recipe(.stable)   // reads the summary, not this feed
+        #expect(stable.entryStartPattern == nil)
+
+        let beta = try Self.recipe(.beta)
+        let guinea = try Self.recipe(.guineaPig)
+        let cases: [(String, String, String, String)] = [
+            // as of        release-track   beta        guinea pig
+            ("2026-07-25", "2.23.11", "2.23.11", "2.24.3"),
+            ("2026-08-01", "2.23.11", "2.23.11", "2.24.6"),
+            ("2026-08-12", "2.23.11", "2.24.8",  "2.24.8"),
+            ("2026-08-26", "2.23.11", "2.24.10", "2.24.10"),
+            ("2026-09-07", "2.24.12", "2.24.12", "2.24.12"),
+        ]
+        for (asOf, expectedRelease, expectedBeta, expectedGuinea) in cases {
+            let body = Self.feed(asOf: asOf)
+            #expect(Self.resolve(beta, in: body) == expectedBeta, "beta as of \(asOf)")
+            #expect(Self.resolve(guinea, in: body) == expectedGuinea, "guinea pig as of \(asOf)")
+            // The release track, read with the same machinery, as the control the
+            // other two are supposed to differ from.
+            #expect(Self.resolve(Self.releaseTrackControl, in: body) == expectedRelease,
+                    "release as of \(asOf)")
+        }
+    }
+
+    /// The three answers are NOT always the same, or the test above would pass
+    /// for a recipe that ignored the track number.
+    @Test func theFixtureActuallyDiscriminates() throws {
+        let body = Self.feed(asOf: "2026-08-12")
+        let answers = Set([
+            Self.resolve(Self.releaseTrackControl, in: body),
+            Self.resolve(try Self.recipe(.beta), in: body),
+            Self.resolve(try Self.recipe(.guineaPig), in: body),
+        ])
+        #expect(answers.count > 1, "all three agree — this fixture proves nothing")
+    }
+
+    /// Both prerelease recipes stay detection-only and keep the header, and both
+    /// scope the date to the same entry the version came from.
+    ///
+    /// Mutation: drop `entryStartPattern`, which lets `publishedAtPattern`
+    /// first-match a different release's date.
+    @Test func thePrereleaseRecipesAreShapedLikeTheStableOne() throws {
+        for channel in [ReleaseChannel.beta, .guineaPig] {
+            let recipe = try Self.recipe(channel)
+            #expect(recipe.install == nil, "\(channel.rawValue) must stay detection-only")
+            #expect(recipe.requestHeaders["Authorization"] != nil)
+            #expect(recipe.selectHighest)
+            #expect(recipe.entryStartPattern != nil)
+            #expect(recipe.publishedAtPattern != nil)
+            #expect(recipe.url.absoluteString
+                == "https://api.windscribe.com/ChangeLogs?platform=osx")
+        }
+    }
+
+    /// The date comes out of the winning entry, not the first one in the body.
+    @Test func theDateBelongsToTheVersionThatWon() throws {
+        let recipe = try Self.recipe(.beta)
+        let body = Self.feed(asOf: "2026-08-12")
+        let start = try #require(recipe.entryStartPattern)
+        let datePattern = try #require(recipe.publishedAtPattern)
+        let entry = try #require(VendorProbeRecipe.highestVersionEntry(
+            in: body, entryStartPattern: start,
+            versionPattern: recipe.versionPattern, selectHighest: true))
+        #expect(VendorProbeRecipe.highestVersion(
+            from: entry, pattern: recipe.versionPattern) == "2.24.8")
+        #expect(VendorProbeRecipe.extractVersion(from: entry, pattern: datePattern)
+            == "2026-08-10")
+    }
+
+    /// A stand-in for "the release track read through the same machinery", so the
+    /// ladder table above has a control column. Not registered — the shipped
+    /// stable recipe reads the smaller summary endpoint instead.
+    private static let releaseTrackControl = VendorProbeRecipe(
+        bundleID: bundleID,
+        url: URL(string: "https://api.windscribe.com/ChangeLogs?platform=osx")!,
+        mode: .responseBody,
+        versionPattern: #""beta"\s*:\s*0(?![0-9])[\s\S]*?Windscribe_([0-9]+(?:\.[0-9]+)+)_"#,
+        selectHighest: true,
+        entryStartPattern: #""id"\s*:\s*[0-9]+"#)
+
+    /// The real feed, replayed: every entry published on or before `asOf`.
+    private static func feed(asOf: String) -> String {
+        let entries = Self.realEntries.filter { $0.date <= asOf }
+            .map { entry in
+                """
+                        {
+                            "id": \(entry.id),
+                            "platform": "osx",
+                            "version": "\(entry.version)",
+                            "build": \(entry.build),
+                            "beta": \(entry.track),
+                            "url": "https://deploy.totallyacdn.com/desktop-apps/\(entry.full)/Windscribe_\(entry.file).dmg",
+                            "release_date": "\(entry.date)"
+                        }
+                """
+            }
+        return "{\n    \"data\": [\n" + entries.joined(separator: ",\n") + "\n    ]\n}"
+    }
+
+    /// Copied from `/ChangeLogs?platform=osx`, 2026-09-07 — ids, tracks, artifact
+    /// names and dates verbatim.
+    private static let realEntries: [(id: Int, version: String, build: Int, track: Int,
+                                      full: String, file: String, date: String)] = [
+        (1468, "2.24", 12, 0, "2.24.12", "2.24.12_universal", "2026-09-02"),
+        (1452, "2.24", 10, 1, "2.24.10", "2.24.10_beta_universal", "2026-08-25"),
+        (1436, "2.24", 8, 1, "2.24.8", "2.24.8_beta_universal", "2026-08-10"),
+        (1421, "2.24", 6, 2, "2.24.6", "2.24.6_guinea_pig_universal", "2026-07-30"),
+        (1406, "2.24", 3, 2, "2.24.3", "2.24.3_guinea_pig_universal", "2026-07-21"),
+        (1385, "2.23", 11, 0, "2.23.11", "2.23.11_universal", "2026-07-06"),
+    ]
 }

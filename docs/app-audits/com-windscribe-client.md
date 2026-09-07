@@ -157,22 +157,19 @@ VendorProbe **前面**，两条都留会让 recipe 变成永远不被调用的�
 所以这是**完整性缺口，不是安全缺陷**——非 Release 档的用户在每个周期约 75% 的时间里
 看到"已是最新"，而实际上他们那一轨有新构建。这也把优先级放对了位置。
 
-### （旧标题保留）后果不是"什么都不做"
+### 生产全链上今天的实际行为
 
-这一节存在的原因：上面那张表写 `✗ BLOCKED`，容易被读成"那两轨我们不碰"。**不是。**
-检测不出来的直接结果是 beta 拷贝被当成 stable，然后照常提供 stable 更新。
-生产全链实测（`channel-verify`，真实 2.24.10 beta bundle）：
+`channel-verify`，真实 2.24.10 beta 安装（偏好当时是 Release）：
 
 ```
-detected channel  → stable
+detected channel  → stable                  ← 所有拷贝都被判成 stable
 UpdateChecker.check() — winning source Vendor
-  status          UPDATE → 2.24.12          ← 一份 beta 拷贝被提供了 stable 更新
+  status          UPDATE → 2.24.12
 ```
 
-**这是接受，不是疏漏。** 三条理由：版本是往前走的；Windscribe 自己的客户端在 Beta 档
-也会提供 2.24.12（它的 API 答的是"本轨或更新"）；而且我们这条是纯检测，用户点了是跳到
-厂商下载页，装什么由他自己决定。也**没法**加闸——闸需要的正是那个读不出来的 channel。
-反方向（把 stable 推上 prerelease）则是被结构性挡住的，见下面的 key 选择。
+**这一次答案是对的**（Release 档就该拿 release 轨最新的 2.24.12）——但它是**碰巧对**：
+我们没读偏好，只是恰好 release 轨此刻领先。上面那张漏报表列的就是它碰巧不对的时候。
+反方向（把 stable 推上 prerelease）被结构性挡住：版本是按 key / 轨道号选的。
 
 ### ✅✅ 用户选的 channel 也是能读的——加密不是障碍，因为 app 是开源的
 

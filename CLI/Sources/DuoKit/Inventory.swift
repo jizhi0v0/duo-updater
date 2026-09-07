@@ -35,14 +35,23 @@ public enum Inventory {
     /// Build the checker the same way the menu-bar app does, so a version
     /// difference between `duo check` and the app is a bug rather than a
     /// configuration difference.
-    public static func checker(_ settings: Settings) -> UpdateChecker {
+    ///
+    /// `testflight`/`toolbox` default to a fresh real read, same as always; the
+    /// pre-install re-check (`Install.apply`) passes in the TestFlight-free
+    /// sentinel and the single `ToolboxInventory` it built once for the whole
+    /// batch — see that function's doc comment (#404 review #8).
+    public static func checker(
+        _ settings: Settings,
+        testflight: TestFlightInventory = TestFlightInventory(),
+        toolbox: ToolboxInventory = ToolboxInventory()
+    ) -> UpdateChecker {
         UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,
                 channelStore: ResolvedChannelStore.shared),
             maxConcurrency: settings.maxConcurrency,
-            toolbox: ToolboxSource(inventory: ToolboxInventory()),
-            testflight: TestFlightInventory(),
+            toolbox: ToolboxSource(inventory: toolbox),
+            testflight: testflight,
             channelStore: ResolvedChannelStore.shared)
     }
 

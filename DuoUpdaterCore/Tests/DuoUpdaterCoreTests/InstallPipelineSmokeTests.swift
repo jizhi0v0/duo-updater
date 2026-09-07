@@ -80,11 +80,33 @@ private func verifyGates(
     // built a nested `DuoUpdaterTest-/Users/.../Foo.app` tree whose empty parent
     // directories outlived the run. Harmless once a day by hand; not something
     // to leave behind on a runner that now does this for every app, nightly.
+    //
+    // The UUID is what keeps the name from being a SHARED path. `scratchSlug` is
+    // deliberately stable across launches (it is a SHA-256 of the installed app's
+    // path, so a crashed install can reclaim its dir by name), and
+    // `temporaryDirectory` is per-user, not per-process — so without it, every
+    // process on this Mac running this test for the same app names the SAME
+    // directory, and the two lines below are then aimed at each other: each run
+    // deletes the other's in-flight download, and the loser's `Downloader` fails
+    // its final rename with "either the former doesn't exist, or the folder
+    // containing the latter doesn't exist". Measured 2026-09-07: two concurrent
+    // `swift test --filter installPipelineDryRun` (separate `--scratch-path`s, so
+    // SwiftPM's build lock doesn't serialise them) both failed that way, on
+    // `DuoUpdaterTest-net.imput.helium-b233bd2839efd54c`. That is a collision, not
+    // a vendor problem — but it arrives dressed as one, in a test whose whole job
+    // is to report vendor breakage. Concurrent runs are routine here: this repo is
+    // worked in several worktrees at once, which is the same hazard
+    // `scripts/derived_data_path.py` exists to solve for xcodebuild.
     let workDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("DuoUpdaterTest-\(target.app.scratchSlug)")
-    try? FileManager.default.removeItem(at: workDir)
+        .appendingPathComponent("DuoUpdaterTest-\(target.app.scratchSlug)-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: workDir) }
+    // A unique name means nothing reclaims it by name any more, so a run killed
+    // mid-download (^C, the hang watchdog) would leak ~120 MB per crash instead of
+    // being overwritten next time. Sweep old siblings instead — age-gated, because
+    // "not mine" is exactly the judgement that caused the collision above, and a
+    // live download can legitimately run for a long time on a slow link.
+    sweepStaleScratchDirs(olderThan: 6 * 60 * 60)
 
     // 1. Download
     let downloader = Downloader(destinationDir: workDir) { _ in }
@@ -135,4 +157,20 @@ private func verifyGates(
     try SignatureVerifier.verifyBundleIdentifierMatch(installedApp: target.app.path, downloadedApp: newApp)
     log("✓ code signature valid; Team ID match: \(oldTeam ?? "?") == \(newTeam ?? "?")")
     log("=== ALL GATES PASSED (no install performed) ===")
+}
+
+/// Delete leftover scratch dirs from runs that were killed before their `defer`
+/// could fire. Only dirs older than `seconds` are touched: a newer one may belong
+/// to a run happening right now in another checkout.
+private func sweepStaleScratchDirs(olderThan seconds: TimeInterval) {
+    let fm = FileManager.default
+    let tmp = fm.temporaryDirectory
+    guard let entries = try? fm.contentsOfDirectory(
+        at: tmp, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+    for entry in entries where entry.lastPathComponent.hasPrefix("DuoUpdaterTest-") {
+        let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
+            .contentModificationDate
+        guard let modified, Date().timeIntervalSince(modified) > seconds else { continue }
+        try? fm.removeItem(at: entry)
+    }
 }

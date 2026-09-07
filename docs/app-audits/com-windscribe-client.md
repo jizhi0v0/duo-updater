@@ -234,7 +234,13 @@ checksum / magic / language 全部照旧：
 | `qChecksum` | 通过 | 通过 |
 | `magic` / `version` / `language` | `0x7745C2AE` / 13 / `"en"` | 同左 |
 
+再换回第三个值又读了一次，**枚举里三个真实取值全部观察到**
+（`1` beta → `2` guinea_pig → `0` release），每次 checksum 都通过。
 所以它不是"恰好等于 1"，是**这个控件的持久化形式**。
+
+⚠️ 顺带一条对接入方式有直接影响的观测：**偏好的默认值是 `UPDATE_CHANNEL_RELEASE`，
+装 beta 包不会改它**（见下节）。所以「偏好 = release」**不等于**「这是个 stable 构建」,
+一份刚装好、没动过设置的 beta 拷贝读出来就是 release。
 
 **这条信号比 `WS_ASSERT` 那条好在哪：**
 
@@ -324,6 +330,44 @@ CDN 和 GitHub 上都有、能装、能跑的构建，厂商自己的 changelog 
    prerelease 被判成 stable → 退回今天的行为（不更糟）；stable 开了 assert → stable
    被判成 prerelease → **我们会扣住 stable 用户的更新**，这个方向才要防。
 3. 只有二分。guinea pig 用户会被当成 beta 用户对待（或者当成"某种 prerelease"）。
+
+### ⚠️ 接 channel recipe 之前必须先解决的一件事（比检测信号更棘手）
+
+**Windscribe 的三条轨不是平行列车，是一架成熟度梯子。** 而且偏好的默认值是
+`UPDATE_CHANNEL_RELEASE`（`enginesettings.h:27`），**装 beta 包不会把它设成 Beta**
+——全仓库只有偏好界面那一处会写它（`generalwindowitem.cpp`），安装器和首次启动都不碰。
+所以「装的是 beta 包、channel 却显示 Release」是设计如此。
+
+这带来一个 recipe 设计问题。假设照搬 stable 那条、只把 key 换掉：
+
+| 轨道 | 天真写法读到 | 装了 2.24.10 的人会看到 |
+|---|---|---|
+| release | `release_full_version` → 2.24.12 | 提示升级 ✓ |
+| beta | `beta_full_version` → **2.24.10** | **"已是最新"**（而厂商会给他 2.24.12） |
+| guinea pig | `guinea_pig_full_version` → **2.24.6** | 比装机版本还旧 |
+
+厂商这边实测（2026-09-07）：`beta=0/1/2` **三档都返回 2.24.12**。所以看起来正确的写法是
+「取你那一轨和更成熟的轨里最新的那个」。
+
+**但两件事拦着，都得写下来：**
+
+1. **这个语义证不出来。** 三档返回同一个值，既符合「取本轨或更新的」也符合「参数被忽略」
+   ——因为 release 轨（2.24.12）当前领先另外两轨。和上面 `CheckUpdate` 那节是同一个盲区。
+2. **⚠️ 我第一次想到的写法是错的，实测才发现。** 想用
+   `"(?:release|beta)_full_version"` 并集配 `selectHighest` 取 max。**它只会匹配一次**：
+   `"platform"\s*:\s*"osx"` 这个锚在第一次匹配时就被消费掉了，正则引擎从匹配点之后
+   继续扫，而文档里只有一个 `"platform": "osx"`。实测 `findall` 返回 `['2.24.12']`，
+   一条。今天答案碰巧是对的（release 排在最前**又**恰好最高），
+   **beta 哪天领先 release，它就会继续报 release**——又一个"看起来在工作"的错法。
+   要真取到 max，得走 `entryStartPattern` 把 osx 那段切出来再在段内 `selectHighest`，
+   而那条路的**条目选择**本身也用 `versionPattern`，不带 `"osx"` 限定就会在 28 个平台里
+   选中版本号最大的那个（android 是 `3.98.2061`）。这个组合还没设计出来。
+
+**结论：channel recipe 现在不该拍脑袋定。** 有一个便宜且明确的实验能一次settle 掉：
+**等某条 prerelease 轨领先 release 的时候**（历史上 819 天里有 618 天是这个状态，
+所以通常几周内就会发生），拿 `CheckUpdate?platform=osx&beta=0` 打一次——
+它返回 release 轨的版本还是那条领先的 prerelease，一次就分清「参数被尊重」和「参数被忽略」，
+顺带定死上面那张表该怎么填。检测信号已经齐了，**卡住的是这个，不是检测**。
 
 ### 那条启动日志信号（较弱，作为对照留着）
 

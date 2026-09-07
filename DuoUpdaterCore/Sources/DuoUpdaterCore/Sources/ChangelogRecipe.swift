@@ -3320,6 +3320,54 @@ public enum ChangelogRecipeRegistry {
             source: URL(string: "https://docs.qoder.com/release-notes/qoder")!,
             entryPattern: qoderEntryPattern,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        // Windscribe — the version comes from the vendor's own API (see
+        // `VendorProbeRegistry`), but the notes come from GitHub, and that split
+        // is the point rather than an accident.
+        //
+        // The vendor DOES publish structured notes:
+        // `api.windscribe.com/ChangeLogs?platform=osx` carries 149 entries with a
+        // markdown `changelog` field and a `beta` track number. It is unreachable
+        // from here: that endpoint 403s without an `Authorization` header, and
+        // `ChangelogRecipe` has no `requestHeaders` (`VendorProbeRecipe` does).
+        // The GitHub releases carry the same prose — 11,480 characters on
+        // v2.24.12 — need no header at all, and land in a format this registry
+        // already decodes.
+        //
+        // `.gitHubReleases` keeps stable releases only, which is exactly the split
+        // this vendor publishes: measured 2026-09-07 across every release since
+        // 2024, all 19 of the versions the vendor's own API names on its release
+        // track are `prerelease: false` on GitHub, and NONE of the 51 it names on
+        // the beta / guinea-pig tracks are — so nothing from a track the user did
+        // not opt into can reach the panel.
+        //
+        // Tag shape is `vX.Y.Z` against the probe's bare `X.Y.Z`; `GitHubMarkdownParser`
+        // is the same one the GitHub *version* source uses and already handles the
+        // prefix. One caveat worth knowing before trusting this list as history:
+        // GitHub is missing 2.15.9 entirely (the vendor's API has it), so the
+        // releases are the vendor's notes but not provably ALL of them.
+        //
+        // ⚠️ WHOEVER ADDS CHANNEL DETECTION FOR THIS APP MUST COME BACK HERE.
+        // `channel: .stable` is right only while every Windscribe copy detects as
+        // stable, which is true today because nothing reads its channel yet. The
+        // moment a `ChannelBinding` resolver lands, a beta copy detects as `.beta`
+        // — and `recipe(forBundleID:channel:)` does NOT then return nil, it falls
+        // back to the `.stable` recipe. So that copy keeps this list, which
+        // `.gitHubReleases` has filtered to `prerelease: false` only, while the row
+        // beside it offers a prerelease build (2.24.10, say). The pane would show
+        // 2.24.12 / 2.23.11 / 2.22.10 and omit the exact entry being offered —
+        // the failure `includesPromotedStable` exists for; see CotEditor above.
+        // Windscribe's tracks are a ladder (level N is served the newest build from
+        // tracks 0…N), so the channel variants want the vendor's own
+        // `ChangeLogs?platform=osx` and its per-entry `beta` number, not this feed.
+        ChangelogRecipe(
+            bundleID: "com.windscribe.client",
+            source: URL(string:
+                "https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

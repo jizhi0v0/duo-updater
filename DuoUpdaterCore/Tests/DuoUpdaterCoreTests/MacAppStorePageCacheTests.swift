@@ -734,38 +734,125 @@ struct MacAppStorePageCacheTests {
     /// `lookup` joins it, so only the rows that would otherwise pay for their
     /// own lookup pay its latency.
     ///
-    /// Mutation run: awaiting the task inside `prewarm` (instead of registering
-    /// it) turns this red — `prewarm` no longer returns before the request
-    /// lands.
+    /// The response is held open by `ResponseGate` instead of being served
+    /// instantly: proving `prewarm` returns while the request is still
+    /// *incomplete* is the actual property (a request that merely *started*
+    /// before `prewarm` returned proves nothing — the batch's `Task` can be
+    /// scheduled at any point relative to `prewarm`'s own return, and a
+    /// same-thread coincidence used to make this test pass or fail on
+    /// scheduling luck rather than on what `prewarm` does). Racing the
+    /// `await` against a timeout (`raceAgainstTimeout`) means a regression —
+    /// `prewarm` awaiting its own gated, never-completing request — fails
+    /// this test in bounded time with a readable message instead of hanging
+    /// the whole run.
+    ///
+    /// The gate is safe to block on synchronously from `ScriptedHTTP`'s
+    /// handler: it runs on a URLSession-internal thread, not a Swift
+    /// concurrency cooperative-pool worker (measured 2026-09-07 — see task
+    /// notes: 14 CPU-bound `Task`s, this machine's core count, finished in
+    /// ~0.31s whether or not a `ScriptedHTTP` handler was concurrently
+    /// blocked on the same kind of gate; a pool-consuming block would have
+    /// shown a slowdown proportional to losing one of 14 worker threads).
+    ///
+    /// This test always joins `prewarmTask` before returning, on both exit
+    /// paths, by awaiting the task itself — never by relying on
+    /// `latestVersion` having reached `awaitInFlight()` on its way through. An earlier
+    /// version only drained on the happy path; reproduced 2026-09-07 (see
+    /// task notes) that this lets a still-running batch's request land inside
+    /// the NEXT test's window, against the next test's `ScriptedHTTP` handler
+    /// and call log — the second defect the issue named. That risk exists on
+    /// EITHER exit path, so both must drain.
+    ///
+    /// Mutation run: awaiting the task inside `prewarm` (instead of
+    /// registering it) turns this red inside its 5 s timeout budget — see the
+    /// task notes for the raw output.
     @Test func prewarmDoesNotBlockOnItsOwnBatch() async throws {
         ScriptedHTTP.reset()
         let bundleID = "com.example.nonblocking"
-        let gate = AsyncGate()
+        let gate = ResponseGate()
         ScriptedHTTP.serve { request in
             guard let url = request.url, url.host == "itunes.apple.com" else { return nil }
-            gate.markRequestStarted()
+            gate.waitForRelease()
             return (200, Self.lookupJSON(
                 version: "1.0", trackId: 5301, trackViewUrl: "not-a-product-url", bundleId: bundleID))
         }
 
         let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
                                        pageCache: AppStorePageCache())
-        await source.prewarm([Self.nativeMacApp(bundleID: bundleID)])
-        // If `prewarm` awaited the batch, the request would necessarily have
-        // been served by now. Returning before it is the property under test.
-        #expect(!gate.requestFinishedBeforePrewarmReturned,
-                "prewarm waited for its own batch — the fan-out is blocked behind it again")
+        let app = Self.nativeMacApp(bundleID: bundleID)
+
+        let prewarmTask = Task { await source.prewarm([app]) }
+        let returnedInTime = await Self.raceAgainstTimeout(seconds: 5, task: prewarmTask)
+        guard returnedInTime else {
+            gate.release()          // unblock the stalled handler…
+            _ = await prewarmTask.value  // …and drain it before this test ends
+            Issue.record("prewarm did not return within 5s — it is waiting on its own batch again")
+            return
+        }
+
+        // `prewarm` already returned above, and the gate has not been
+        // released yet — so the request it started is PROVABLY still
+        // incomplete. That is the property under test.
+        gate.release()
+
+        // Drain the batch before this test ends (see doc comment above).
+        // `latestVersion` is what a caller uses to join it, so it is worth
+        // exercising — but the drain itself does NOT ride on it: that call
+        // reaches `awaitInFlight()` only for a MAS app, and a throw on the way
+        // would leave the batch running past this test. The task is right
+        // here; await it.
+        _ = try await source.latestVersion(for: app)
+        _ = await prewarmTask.value
     }
 
-    /// Records whether the scripted request had already been served at the
-    /// moment `prewarm` returned. A plain counter would race; this only ever
-    /// moves one way and is read after the fact.
-    final class AsyncGate: @unchecked Sendable {
-        private let lock = NSLock()
-        private var started = false
-        func markRequestStarted() { lock.lock(); started = true; lock.unlock() }
-        var requestFinishedBeforePrewarmReturned: Bool {
-            lock.lock(); defer { lock.unlock() }; return started
+    /// Blocks the calling thread until released — lets a test prove something
+    /// returned before a scripted HTTP response completed, without depending
+    /// on the OS's scheduling of when the request happens to start.
+    final class ResponseGate: @unchecked Sendable {
+        private let semaphore = DispatchSemaphore(value: 0)
+        func waitForRelease() { semaphore.wait() }
+        func release() { semaphore.signal() }
+    }
+
+    /// Returns `true` if `task` finishes within `seconds`, `false` if the
+    /// timeout wins first. `task` itself is NEVER cancelled by this call: a
+    /// timed-out `task` is still the caller's to drain (`await task.value`),
+    /// which is what keeps a leaked batch's request out of the next test's
+    /// window — and cancelling it here would race that drain. What
+    /// cancellation would even reach is a question this helper should not have
+    /// to answer.
+    ///
+    /// Deliberately NOT `withTaskGroup`: that would implicitly await every
+    /// child before returning, and a `task` that never finishes (the
+    /// regression this races against) would hang this helper itself. Two
+    /// independent, unstructured `Task`s race to resume a single continuation
+    /// instead. The timeout side is cancelled once `task` wins — cancelling a
+    /// `Task.sleep` ends it immediately — so the common (fast) path doesn't
+    /// leave a sleeper parked for the rest of the budget.
+    private static func raceAgainstTimeout(seconds: TimeInterval, task: Task<Void, Never>) async -> Bool {
+        final class ResumeOnce: @unchecked Sendable {
+            private let lock = NSLock()
+            private var used = false
+            func claim() -> Bool {
+                lock.lock(); defer { lock.unlock() }
+                if used { return false }
+                used = true
+                return true
+            }
+        }
+        let resumeOnce = ResumeOnce()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let timeoutTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                if resumeOnce.claim() { continuation.resume(returning: false) }
+            }
+            Task {
+                await task.value
+                if resumeOnce.claim() {
+                    timeoutTask.cancel()
+                    continuation.resume(returning: true)
+                }
+            }
         }
     }
 

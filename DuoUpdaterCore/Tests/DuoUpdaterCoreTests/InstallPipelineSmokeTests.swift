@@ -168,9 +168,30 @@ private func sweepStaleScratchDirs(olderThan seconds: TimeInterval) {
     guard let entries = try? fm.contentsOfDirectory(
         at: tmp, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
     for entry in entries where entry.lastPathComponent.hasPrefix("DuoUpdaterTest-") {
-        let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
-            .contentModificationDate
-        guard let modified, Date().timeIntervalSince(modified) > seconds else { continue }
+        guard let touched = lastTouched(entry),
+              Date().timeIntervalSince(touched) > seconds else { continue }
         try? fm.removeItem(at: entry)
     }
+}
+
+/// The most recent modification anywhere one level inside `dir`, or the dir's own
+/// if it is empty.
+///
+/// A directory's own mtime records changes to its *entries*, not writes into
+/// them: measured 2026-09-07, creating a `.partial` stamps the dir, and appending
+/// 5 MB to that file three seconds later moves the file's mtime and leaves the
+/// dir's exactly where it was. Reading only the dir would therefore date a live
+/// download from the moment it *started*, so a transfer slow enough to run past
+/// the age gate — a large payload on a throttled link, across up to
+/// `Downloader.maxAttempts` resumes — would look abandoned to a run starting
+/// beside it, and get deleted mid-flight. That is the collision this whole change
+/// removes, so the gate has to key on progress rather than on age.
+private func lastTouched(_ dir: URL) -> Date? {
+    let key: URLResourceKey = .contentModificationDateKey
+    let own = (try? dir.resourceValues(forKeys: [key]))?.contentModificationDate
+    let children = (try? FileManager.default.contentsOfDirectory(
+        at: dir, includingPropertiesForKeys: [key])) ?? []
+    return children
+        .compactMap { (try? $0.resourceValues(forKeys: [key]))?.contentModificationDate }
+        .reduce(own) { max($0 ?? $1, $1) }
 }

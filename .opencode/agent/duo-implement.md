@@ -48,8 +48,13 @@ This codebase has a consistent voice and the review will hold you to it.
 
 Every one of these, verified by actually running the command:
 
+Every line runs from the repository root. The first one ends in a subshell on
+purpose: `cd DuoUpdaterCore` without it leaves you there, and every later line
+resolves its paths relative to wherever you are.
+
 ```
-cd DuoUpdaterCore && swift build && swift test
+cd "$(git rev-parse --show-toplevel)"
+(cd DuoUpdaterCore && swift build && swift test)
 swift build --package-path CLI && swift test --package-path CLI
 DD=$(python3 scripts/derived_data_path.py agent "$PWD") && \
   export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}" && \

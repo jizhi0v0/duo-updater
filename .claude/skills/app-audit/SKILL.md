@@ -375,9 +375,14 @@ channel, and the live probe's from→to verdict.
   (Mozilla), or **no detection signal** → MUST be verified on a real bundle before
   the recipe is marked ✓. Until then it's **needs-verify**, not ✓.
 
-**Persist the evidence** to `application-test/records/<bundleID>.md` (the table of
-real bundle id / version / channel marker / detected channel / probe verdict per
-channel). That record is what backs a ✓ in the audit docs.
+**Persist the evidence in the audit doc's own 「如何复验」 section** — the real
+bundle id / version / channel marker / detected channel / probe verdict per channel.
+That section is what backs a ✓.
+
+Do **not** point at `application-test/records/`. It stopped being tracked on
+2026-08-14 (it had grown into a second, drifting reference), and
+`scripts/check_app_audits.py` fails the build on any audit that links to it. An
+audit must carry its own evidence, not a path that resolves for one machine.
 
 ### Phase 3⅞: What else does the vendor's updater DO? (the step that keeps getting skipped)
 
@@ -586,7 +591,8 @@ centerpiece — it shows at a glance what's covered and what's not.
 ## 基本信息
 - Bundle ID: `...`
 - Team ID: `...`
-- 已安装版本: ...
+- 观测版本: ...   ← 必须是「观测版本」。`check_app_audits.py` 拒绝「已安装版本」:
+                   "installed" 会招来路径、渠道和「本机没装」,那正是公开仓库要挡的机器清单
 - 自更新机制: Sparkle / Electron / Keystone / 自研 / 无
 
 ## 覆盖矩阵
@@ -840,9 +846,8 @@ ordinary engineering prose and stays. Cross-listing what else is installed
 
 Verification harness:
 - `application-test/` — `channel-verify` runs production detect()+probe against a
-  real `.app`/`.dmg`; `records/<bundleID>.md` holds the per-channel evidence.
-
-Core (read as needed):
+  real `.app`/`.dmg`. Its evidence goes in the audit doc, not in `records/`
+  (untracked since 2026-08-14; `check_app_audits.py` rejects links to it).
 
 Core (read as needed):
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + detect()

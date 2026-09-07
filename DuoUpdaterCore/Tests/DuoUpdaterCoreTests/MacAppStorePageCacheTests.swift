@@ -809,10 +809,12 @@ struct MacAppStorePageCacheTests {
     }
 
     /// Returns `true` if `task` finishes within `seconds`, `false` if the
-    /// timeout wins first. `task` itself is NEVER cancelled or abandoned by
-    /// this call — cancelling it wouldn't stop it anyway (nothing in
-    /// `prewarm` checks `Task.isCancelled`), so callers that need to drain a
-    /// timed-out `task` must still `await task.value` themselves afterward.
+    /// timeout wins first. `task` itself is NEVER cancelled by this call: a
+    /// timed-out `task` is still the caller's to drain (`await task.value`),
+    /// which is what keeps a leaked batch's request out of the next test's
+    /// window — and cancelling it here would race that drain. What
+    /// cancellation would even reach is a question this helper should not have
+    /// to answer.
     ///
     /// Deliberately NOT `withTaskGroup`: that would implicitly await every
     /// child before returning, and a `task` that never finishes (the

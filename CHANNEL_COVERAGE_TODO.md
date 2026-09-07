@@ -480,6 +480,41 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 拿到数年前的 latest，比干净的 unknown 更糟。bundle-id 后缀仍会给这类安装打 channel 标签
 （UI 用），只是没版本源。活跃 3 轨（stable/preview/dev）已接 ✓。
 
+### Windscribe — Beta / Guinea Pig（2026-09-07 判定，勿重开）
+
+✗ 两轨都和 stable 共享 `com.windscribe.client`，**磁盘上没有任何 channel 痕迹**。
+不是"没找到"，是**两份真实 bundle 对比量出来的**（stable 2.24.12 与 beta 2.24.10，
+各自从官方 dmg 里解出 `WindscribeInstaller.app/Contents/Resources/windscribe.tar.lzma`
+得到，未安装）：bundle id 相同、`CFBundleName`/`CFBundleDisplayName` 相同、版本串
+**不带后缀**（`2.24.12` / `2.24.10`）、两份 payload 的**文件清单逐条相同**（各 24 个），
+24 个里 15 个内容不同而那 15 个**全是二进制加 Info.plist**——没有一个文本或 plist
+文件写着渠道。`ReleaseChannel.detect()` 的四级信号一级都不命中。
+
+轨道是**编译期**烙的（`CMakeLists.txt` 按 `WS_BUILD_TYPE` 定义 `WINDSCRIBE_IS_BETA` /
+`WINDSCRIBE_IS_GUINEA_PIG`）；产物文件名带 token（`..._beta_universal.dmg` /
+`..._guinea_pig_universal.dmg`）但文件名不进 bundle。
+
+**app 内确实有 update channel 下拉框**（Preferences → General，Release/Beta/Guinea Pig），
+所以这条乍看像 Pattern B/C。它不是：`EngineSettings::saveToSettings()` 把包括
+`updateChannel` 在内的全部引擎设置串成 `QDataStream`、过 `SimpleCrypt` 加密成一个字符串，
+写进 `com.windscribe.Windscribe2.plist` 的**单个** `engineSettings` key。要读出来得复刻
+SimpleCrypt **加上**一份带版本号、字段随版本增删的 QDataStream 布局
+（`loadFromSettings()` 里已有 `if (version < 12)` 这类分支）——每次厂商 bump
+`versionForSerialization_` 我们就会静默读错一个数。**不做。**
+
+服务端这边是齐的（记下来免得下一个人重查）：
+`api.windscribe.com/ChangeLogs/summary` 一次给三轨版本号
+（`release_full_version` / `beta_full_version` / `guinea_pig_full_version`），
+`ChangeLogs?platform=osx` 每条带 `beta` 字段（0=release / 1=beta / 2=guinea pig）。
+**缺的只有客户端这一侧的检测信号。** stable 已接，读的就是那份 summary 的
+`release_full_version`（见 `docs/app-audits/com-windscribe-client.md`）。
+
+⚠️ **别把这条读成「那两轨我们不碰」。** 检测不出来 = beta 拷贝被当成 stable，
+照常被提供 stable 更新。`channel-verify` 拿真实 2.24.10 beta bundle 跑生产全链：
+`detected channel → stable`、`status UPDATE → 2.24.12`。这是**接受**：版本往前走，
+Windscribe 自己的客户端在 Beta 档也提供 2.24.12，而且我们是纯检测、用户点了去官网下载页。
+反方向（stable 被推上 prerelease）则挡住了——版本是按 key 选的，不是按参数选的。
+
 ---
 
 ## 已全覆盖的单 channel app（存档参考）

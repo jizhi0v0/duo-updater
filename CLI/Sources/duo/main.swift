@@ -64,7 +64,10 @@ install options:
                       override — the route follows from the source, and forcing a
                       different one is how you install a build from the wrong
                       channel.
-  --json              One JSON object per installed app, after a schema line.
+  --json              One JSON object per line, after a schema line — one row
+                      per plan item, whether it installed or not. `outcome` is
+                      installed, openedInstaller, skipped, declined, or failed;
+                      `applied` says whether the bundle on disk actually changed.
 
   App Store updates are refused, not attempted: that route needs the privileged
   helper or the Accessibility API, neither of which a standalone binary has.

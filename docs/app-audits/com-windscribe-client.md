@@ -172,10 +172,34 @@ enum     updateChannel  （4 字节：0=RELEASE 1=BETA 2=GUINEA_PIG 3=INTERNAL�
 × 3 种 language 值全部往返正确；单字节翻转**每一处**都被 checksum 抓到；
 v1 / v11 / v12 / v13 四种流版本都能取到同一个 channel。
 
-**⚠️ 但这只是自洽，不是对齐。** 往返测试用的是我自己写的编码器，和解码器可能错得一样。
-**要证成，需要一份真实的 `com.windscribe.Windscribe2.plist`** —— 拿真 blob 跑一遍，
-checksum 和 magic 同时通过才算数（这两道正好也是自证的手段）。
-本次审计全程没装 Windscribe，所以**这一步没做**。
+**✅ 已在真实 `com.windscribe.Windscribe2.plist` 上对齐（2026-09-07）。**
+往返测试只能证明自洽，真 blob 才能证明和 Qt 对齐 —— 而它当场抓出了一个 bug：
+
+> `qChecksum` 我照 **Qt 4** 的实现写了，末尾多做了一次字节交换。真 blob 里存的是
+> `0x63b8`，我算出 `0xb863` —— **正好是字节反序**。Qt 5 之后
+> `Qt::ChecksumIso3309` 去掉了那次 swap。去掉之后 checksum 通过。
+> 往返测试**永远抓不到这个**：编码器和解码器用的是同一个错函数。
+
+对齐后，真 blob 上**每一个字段都落在该落的地方**：
+
+| 字段 | 读到 | 判据 |
+|---|---|---|
+| `magic` | `0x7745C2AE` | 与源码常量逐位相同 |
+| `version` | `13` | 等于厂商的 `versionForSerialization_` |
+| `language` | 4 字节 → `"en"` | 是个合法语言标签，说明偏移正确 |
+| `updateChannel` | `1` = **beta** | —— |
+| 下一个字段 | `01 …` | `isTerminateSockets` 是 bool，取值合理 |
+| `qChecksum` | **通过** | —— |
+
+**关键在于这不是调参调出来的**：checksum 的修法是从 blob 的第 1–3 字节推出来的，
+而 `updateChannel` 在解压之后、完全不同的偏移上。修完 checksum 之后那个字段读出什么，
+是一个**没有被拟合过的预测**——它读出的值与偏好里选中的那一项一致。
+
+同一份安装上，两条信号互相印证：`updateChannel` = 1（用户声明的意图），
+`WS_ASSERT` 残留 = 2（二进制确实是 prerelease 构建）。
+
+⚠️ **还差一步才算完全钉死**：目前只观察了一个取值。要证明这个字段**跟着下拉框走**
+（而不是恰好等于 1），需要切到 Release 或 Guinea Pig 再读一次。
 
 **这条信号比 `WS_ASSERT` 那条好在哪：**
 
@@ -185,7 +209,7 @@ checksum 和 magic 同时通过才算数（这两道正好也是自证的手段�
 | 性质 | 调试宏的**副作用** | 厂商**声明**的状态 |
 | 读什么 | 另一个 app 的二进制（12.9 MB 扫描） | 一个偏好键，和 OrbStack / Fork 同形状 |
 | 误读 | 静默 | magic + checksum 双重把关 |
-| 已验证 | ✅ 五份真实构建 | ⚠️ 仅自洽往返，缺一份真实 plist |
+| 已验证 | ✅ 五份真实构建 | ✅ 真实 plist 对齐（当场抓出一个 Qt4/Qt6 的 checksum 差异）；⚠️ 只观察过一个取值 |
 
 ⚠️ **两者量的不是同一件事，别混用。** `WS_ASSERT` 残留说的是**这个二进制是按哪条轨编译的**；
 `updateChannel` 说的是**用户想接哪条轨的更新**。两者可以不一致（beta 构建 + 偏好选 Release）。
@@ -288,9 +312,15 @@ CDN 和 GitHub 上都有、能装、能跑的构建，厂商自己的 changelog 
 `ChannelBinding`（读偏好，和 OrbStack / Fork 同类）和一道旁证。
 `CHANNEL_COVERAGE_TODO.md` § 3 那条已相应改写。
 
-**还没实现，缺的就一件事：一份真实的 `com.windscribe.Windscribe2.plist`。**
-装一份跑起来、在偏好里切一次 channel，就能把解码器从"自洽"变成"对齐"，
-之后 `ChannelBinding` 那条 resolver 是常规工作量。
+**解码器已经在真实 plist 上对齐**（见上）。剩下的是常规工作量：把那 30 行
+SimpleCrypt + 4 个字段的解析写成 Swift，挂成一条 `ChannelBinding` resolver，
+再加两条 recipe（beta / guinea pig 各一条，端点就是
+`ChangeLogs/summary` 的 `beta_full_version` / `guinea_pig_full_version`）。
+
+**接之前必须先做的一件事**：真实安装上现在的行为是
+`detected channel → stable`、`UPDATE 2.24.10 → 2.24.12` —— 一份 beta 拷贝
+（偏好也选着 Beta）被提供了 release 轨的构建。这就是要修的东西，也是接完之后
+该拿来做红→绿验证的那个用例。
 
 ## 更新检测
 

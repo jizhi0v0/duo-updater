@@ -783,6 +783,18 @@ private struct AppRow: View {
     private var stage: InstallStage? { model.installing[result.id] }
     private var installError: String? { model.installErrors[result.id] }
 
+    /// The row's height when nothing is stacked under the name line. See the
+    /// `.frame` in `body` for why it is fixed and where the number comes from.
+    static let plainRowHeight: CGFloat = 44
+
+    /// Whether anything is drawn under the name line — the one thing that makes a
+    /// row taller than `plainRowHeight`. Kept beside the two lookups it reads so a
+    /// third source of second-line content cannot be added without passing here.
+    private var hasSecondaryLine: Bool {
+        installError != nil
+            || (model.installNotes[result.id] ?? model.stagedPackageNote(for: result)) != nil
+    }
+
     /// How wide the name line wants to be — the name plus whatever shares its
     /// row (the running dot, a channel chip). Measured with AppKit rather than
     /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
@@ -1035,6 +1047,38 @@ private struct AppRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
+        // Say how tall this row is instead of making the list work it out.
+        //
+        // A `LazyVStack` asks every row it places for its size, and answering used to
+        // mean descending the whole row — the stack, the two text lines, the trailing
+        // control — which a fast drag pays for in bursts as it realizes rows faster
+        // than they can be sized. That is what dropped frames. A fixed frame answers
+        // from the modifier instead.
+        //
+        // What that actually buys, measured over a 25 s full-range scroll of the
+        // "Show all" list with the runtime tags off (2026-09-07, `sample(1)`, as a
+        // share of wall clock): the main thread goes from 60.0% busy to 42.5%, and
+        // the popover stops dropping frames. The saving is in re-running row bodies
+        // — `ViewBodyAccessor.updateBody` 12.0% -> 3.6%, `AppRow.body` 8.0% -> 3.2%,
+        // AttributeGraph 43.5% -> 27.3%.
+        //
+        // NOT in the stack's own sizing pass, which is where this was expected to
+        // land: `LazyHVStack.lengthAndSpacing` is 14.7% before and 16.7% after. The
+        // stack still asks every row how tall it is. What changed is that answering
+        // no longer runs the row's body. Do not "fix" the remaining 16.7% by
+        // reaching for the frame again — it is already fixed.
+        //
+        // 44 is not a guess and not a target: it is what the row already measures.
+        // A height probe over 161 rows of the real list returned 44.00pt for every
+        // one, including rows carrying a channel chip, a runtime mark or a running
+        // dot, and it is the same 44 the row-state gallery already draws the
+        // trailing control into. Nothing about the row's appearance changes here.
+        //
+        // `nil` — natural height — for the rows this was NOT measured on. An install
+        // error or a note adds a second line to the `VStack` above, and none of the
+        // 161 was in that state, so those rows keep sizing themselves. They are rare
+        // and transient, so the fast path still covers essentially the whole list.
+        .frame(height: hasSecondaryLine ? nil : Self.plainRowHeight)
         .contentShape(Rectangle())
         .contextMenu { rowMenu }
     }

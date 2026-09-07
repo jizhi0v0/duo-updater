@@ -16,6 +16,12 @@ Two failures, both already observed in this repo:
    convention and some runtime may only be pointed at that subtree. So both
    copies stay, and this check is what keeps them honest.
 
+   Both trees are **enumerated**, not listed here. The first version of this
+   check carried the three filenames inline and so was blind to the likeliest
+   next drift — a reference page added on one side only, which it reported as
+   "3 files mirrored ✓". A hardcoded roster inside a drift check is the same
+   hand-written list the check exists to outlaw.
+
 2. **The documented parameter count rots.** Each reference page tells the reader
    "the initializer is the reference; this page is a tour of the common half"
    and states how many parameters that initializer has. That number is the
@@ -28,13 +34,12 @@ tours by design, and a check demanding completeness would either be trivially
 satisfied by a name dump or force the tour to become the source file.
 """
 
+import os
 import re
 import sys
 
 CLAUDE = ".claude/skills/fragile-recipe"
 AGENTS = ".agents/skills/fragile-recipe"
-MIRRORED = ["SKILL.md", "references/changelog-recipe.md",
-            "references/vendor-probe-recipe.md"]
 
 # (reference page, source file, the initializer's opening line). The opening
 # line is matched literally rather than by regex: these types have several
@@ -61,6 +66,21 @@ def read(path):
         return handle.read()
 
 
+def tree(root):
+    """Every file under `root`, as paths relative to it.
+
+    Enumerated rather than listed in this file. A hardcoded roster would be the
+    same hand-written list this check exists to outlaw, and it would go blind in
+    the most likely direction: a reference page added on one side only. That
+    version of the check passed green on exactly that mutation.
+    """
+    found = set()
+    for base, _, names in os.walk(root):
+        for name in names:
+            found.add(os.path.relpath(os.path.join(base, name), root))
+    return found
+
+
 def declared_parameters(source_path, opening):
     body = read(source_path)
     start = body.find(opening)
@@ -75,16 +95,27 @@ def declared_parameters(source_path, opening):
 def main():
     problems = []
 
-    for name in MIRRORED:
-        left, right = f"{CLAUDE}/{name}", f"{AGENTS}/{name}"
-        try:
-            if read(left) != read(right):
-                problems.append(
-                    f"{right}: has drifted from {left} — they are the same skill "
-                    f"served to two runtimes; copy one over the other")
-        except FileNotFoundError as missing:
-            problems.append(f"{missing.filename}: missing — both copies must carry "
-                            f"all of {', '.join(MIRRORED)}")
+    claude_files, agents_files = tree(CLAUDE), tree(AGENTS)
+
+    for name in sorted(claude_files - agents_files):
+        problems.append(f"{AGENTS}/{name}: missing — {CLAUDE}/{name} has no "
+                        f"counterpart; both runtimes get the same skill")
+    for name in sorted(agents_files - claude_files):
+        problems.append(f"{CLAUDE}/{name}: missing — {AGENTS}/{name} has no "
+                        f"counterpart; both runtimes get the same skill")
+
+    mirrored = sorted(claude_files & agents_files)
+    for name in mirrored:
+        if read(f"{CLAUDE}/{name}") != read(f"{AGENTS}/{name}"):
+            problems.append(
+                f"{AGENTS}/{name}: has drifted from {CLAUDE}/{name} — they are "
+                f"the same skill served to two runtimes; copy one over the other")
+
+    if not mirrored:
+        problems.append(
+            f"{CLAUDE} and {AGENTS} share no files — one of them moved or was "
+            f"renamed, and this check would otherwise pass by having nothing "
+            f"left to compare")
 
     for page, source, opening in COUNTED:
         params, failure = declared_parameters(source, opening)
@@ -110,7 +141,7 @@ def main():
 
     counts = " / ".join(
         str(len(declared_parameters(s, o)[0])) for _, s, o in COUNTED)
-    print(f"✓ skill docs consistent — {len(MIRRORED)} files mirrored, "
+    print(f"✓ skill docs consistent — {len(mirrored)} files mirrored, "
           f"documented parameter counts ({counts}) match the initializers")
     return 0
 

@@ -480,88 +480,24 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 拿到数年前的 latest，比干净的 unknown 更糟。bundle-id 后缀仍会给这类安装打 channel 标签
 （UI 用），只是没版本源。活跃 3 轨（stable/preview/dev）已接 ✓。
 
-### Windscribe — Beta / Guinea Pig（2026-09-07；**已从「死轨」降级为「未接」**）
+### Windscribe — Beta / Guinea Pig（2026-09-07 **已接入**，本条留作教训）
 
-> ⚠️ **同日改判两次，两次都是量出来的，把过程留着当教训。**
-> 第一版：「无任何检测信号 → Pattern D，勿重开」——那是拿**两份**构建
-> （stable 2.24.12 / beta 2.24.10）比出来的。
-> 拿到**五份**（加 guinea pig 2.24.4、feed 外的 2.24.11、以及作为时间对照的
-> stable 2.23.11）之后，结论变了：**有信号**。
-> `ws_assert.h` 的 `WS_ASSERT` 宏只在 `WINDSCRIBE_IS_BETA || WINDSCRIBE_IS_GUINEA_PIG`
-> 下展开，stable 里展开成空——于是 prerelease 二进制里有
-> `"Assertion failed! ("` 和 **194** 条内嵌 `__FILE__` 构建机路径，stable 里是 **0**。
-> 五份实测：release 0 / guinea pig 2 / beta 2 / 2.24.11 **0** / release 0。
-> 2.23.11 是刻意选的**比两个 prerelease 更早**的 stable，仍是 0，所以这跟着**渠道**
-> 走不是跟着**时间**走。
-> **只能二分**（beta 与 guinea pig 共用同一个 `#if`，分不开），而且拿 feed 补不成三分
-> ——用户下的四份里有两份（2.24.11、2.24.4）**根本不在** `/ChangeLogs?platform=osx` 里。
-> 顺带：2.24.11 是**按 stable 编译**的，GitHub 上那个 `prerelease` 标记是发布流程状态、
-> 不是渠道。
-> 细节、代价和不对称的失效方向写在 `docs/app-audits/com-windscribe-client.md`。
->
-> **同日第三次改判，这次是更好的信号。** 去读开源仓库（app 就是开源的）发现：
-> 那个被我判为"加密所以读不了"的 `engineSettings`，密钥是仓库里的明文常量
-> （`global_consts.h`：`SIMPLE_CRYPT_KEY = 0x4572A4ACF31A31BA`），SimpleCrypt 是
-> 公开的 30 行 XOR，而 `updateChannel` 是流里的**第 4 个字段、排在每一个 version
-> 分支之前**——所以"厂商 bump 序列化版本我们就静默读错"那句话也是错的。
-> 这条是**三分**的、是厂商**声明**的状态、形状和 OrbStack / Fork 的 resolver 一样，
-> 而且 magic + qChecksum 双重把关，误读不会静默。原型解码器已跑通往返测试。
-> **✅ 已在真实 plist 上证成。** 真 blob 当场抓出一个往返测试结构上抓不到的 bug
-> （`qChecksum` 写成了 Qt 4 的版本，末尾多一次字节交换；存 `0x63b8`、算 `0xb863`，
-> 正好字节反序）。修好之后 magic / version / language / checksum 全部对上。
-> 又把下拉框跨两级换了一次重读：blob 变了，`updateChannel` 从 `1` 变成**预测的 `2`**，
-> 所以这个字段是那个控件的持久化形式，不是巧合。
->
-> **⚠️ 换完之后三条信号分岔了，这是最有用的一次观测**：偏好说 guinea pig，
-> 而二进制的 `WS_ASSERT` 残留和 `client.log` 的 `App version: "… (Beta)"` 都说 beta。
-> 不矛盾——**一个是"想接哪条轨"，一个是"这个包怎么编的"**。channel gate 要的是前者。
-> 所以 `WS_ASSERT` 那条**只能当一致性旁证，不能代替偏好**（上一版把两者并列，不准确）。
->
-> **没实现**：把 30 行 SimpleCrypt + 4 个字段写成 Swift 挂成 `ChannelBinding` resolver，
-> 再加 beta / guinea pig 两条 recipe（端点是 `ChangeLogs/summary` 的
-> `beta_full_version` / `guinea_pig_full_version`）。红→绿用例现成：真实安装上现在是
-> `detected channel → stable` + `UPDATE 2.24.10 → 2.24.12`。
+✅ 两轨都接了：`WindscribeChannel`（`ChannelBinding`，读被 SimpleCrypt 加密的
+`engineSettings.updateChannel`）+ 两条读 `ChangeLogs?platform=osx` 的 recipe。
+细节在 `docs/app-audits/com-windscribe-client.md`。
 
-✗ 两轨都和 stable 共享 `com.windscribe.client`，**磁盘上没有任何 channel 痕迹**。
-不是"没找到"，是**两份真实 bundle 对比量出来的**（stable 2.24.12 与 beta 2.24.10，
-各自从官方 dmg 里解出 `WindscribeInstaller.app/Contents/Resources/windscribe.tar.lzma`
-得到，未安装）：bundle id 相同、`CFBundleName`/`CFBundleDisplayName` 相同、版本串
-**不带后缀**（`2.24.12` / `2.24.10`）、两份 payload 的**文件清单逐条相同**（各 24 个），
-24 个里 15 个内容不同而那 15 个**全是二进制加 Info.plist**——没有一个文本或 plist
-文件写着渠道。`ReleaseChannel.detect()` 的四级信号一级都不命中。
+**留在 §3 是因为这条判断在同一天里被推翻了两次，而两次都是同一个毛病。**
 
-轨道是**编译期**烙的（`CMakeLists.txt` 按 `WS_BUILD_TYPE` 定义 `WINDSCRIBE_IS_BETA` /
-`WINDSCRIBE_IS_GUINEA_PIG`）；产物文件名带 token（`..._beta_universal.dmg` /
-`..._guinea_pig_universal.dmg`）但文件名不进 bundle。
+1. 「无任何检测信号 → Pattern D，勿重开」—— 依据只有**两份**构建（stable 2.24.12 /
+   beta 2.24.10）。拿到**五份**（加 guinea pig、feed 外的 2.24.11、以及作为时间对照的
+   更早的 stable 2.23.11）之后就翻了：prerelease 构建里有 `WS_ASSERT` 的残留
+   （`"Assertion failed! ("` + 194 条内嵌 `__FILE__`），stable 里是 0。
+2. 「偏好加密了，读不了」—— 没去读源码。app 是开源的：密钥是
+   `global_consts.h` 里的明文常量，SimpleCrypt 是公开的 30 行 XOR，
+   而 `updateChannel` 是流里的**第 4 个字段、排在每一个 version 分支之前**，
+   所以"厂商 bump 序列化版本我们就静默读错"那句也是错的。
 
-⚠️ **别写「磁盘上没有任何 channel 痕迹」——那句话太强。** 准确说法是
-**bundle 里没有、可读的偏好里也读不出来**。整台机器上有一处：app 每次启动往
-`AppLocalDataLocation/log_gui.txt` 写一行 `App version: v2.24.10 (Beta)`
-（来自 `fullVersionString()`，三轨三种后缀）。没用它的理由：它是日志不是状态
-（每次重写、会轮转、没启动过就不存在），`ChannelBinding` 现有 resolver 全是读偏好的、
-没有一个读文件内容，那还是个 VPN 的日志，而且**这条路径和行的形状是读源码得出的、
-没在真实安装上复核过**。要接先装一份跑一次确认。
-
-**app 内确实有 update channel 下拉框**（Preferences → General，Release/Beta/Guinea Pig），
-所以这条乍看像 Pattern B/C。它不是：`EngineSettings::saveToSettings()` 把包括
-`updateChannel` 在内的全部引擎设置串成 `QDataStream`、过 `SimpleCrypt` 加密成一个字符串，
-写进 `com.windscribe.Windscribe2.plist` 的**单个** `engineSettings` key。要读出来得复刻
-SimpleCrypt **加上**一份带版本号、字段随版本增删的 QDataStream 布局
-（`loadFromSettings()` 里已有 `if (version < 12)` 这类分支）——每次厂商 bump
-`versionForSerialization_` 我们就会静默读错一个数。**不做。**
-
-服务端这边是齐的（记下来免得下一个人重查）：
-`api.windscribe.com/ChangeLogs/summary` 一次给三轨版本号
-（`release_full_version` / `beta_full_version` / `guinea_pig_full_version`），
-`ChangeLogs?platform=osx` 每条带 `beta` 字段（0=release / 1=beta / 2=guinea pig）。
-**缺的只有客户端这一侧的检测信号。** stable 已接，读的就是那份 summary 的
-`release_full_version`（见 `docs/app-audits/com-windscribe-client.md`）。
-
-⚠️ **别把这条读成「那两轨我们不碰」。** 检测不出来 = beta 拷贝被当成 stable，
-照常被提供 stable 更新。`channel-verify` 拿真实 2.24.10 beta bundle 跑生产全链：
-`detected channel → stable`、`status UPDATE → 2.24.12`。这是**接受**：版本往前走，
-Windscribe 自己的客户端在 Beta 档也提供 2.24.12，而且我们是纯检测、用户点了去官网下载页。
-反方向（stable 被推上 prerelease）则挡住了——版本是按 key 选的，不是按参数选的。
+**通用教训**：断言「没有 X」之前先量够；样本是两个的时候，"没找到"和"不存在"分不开。
 
 ---
 

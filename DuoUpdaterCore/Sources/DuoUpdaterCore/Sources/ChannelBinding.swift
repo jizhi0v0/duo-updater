@@ -167,6 +167,7 @@ public enum ChannelBinding {
         BetterDisplayChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
         CotEditorChannel.bundleID.lowercased(),
+        WindscribeChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -237,6 +238,11 @@ public enum ChannelBinding {
         // is what makes flipping "Update to prereleases when available" show up
         // without waiting for a relaunch.
         roots.append(CotEditorChannel.preferencesDirectoryURL)
+        // Windscribe deliberately adds nothing: it is not sandboxed and its
+        // QSettings scope (`Windscribe`/`Windscribe2`) lands on
+        // `~/Library/Preferences/com.windscribe.Windscribe2.plist`, already
+        // inside the first root. Said out loud because the file name is NOT the
+        // bundle id, which is the shape that makes a reader check.
         return roots
     }
 
@@ -300,6 +306,8 @@ public enum ChannelBinding {
             return BetterDisplayChannel.resolveCurrent
         case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent
         case CotEditorChannel.bundleID.lowercased(): return CotEditorChannel.resolveCurrent
+        case WindscribeChannel.bundleID.lowercased():
+            return WindscribeChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -374,6 +382,16 @@ public enum ChannelBinding {
             .map { (bundleID: CotEditorChannel.bundleID, resolved: $0) }
     }
 
+    // Windscribe is deliberately NOT enumerated here, which is the same choice
+    // OrbStack, Alfred, Tailscale and CapCut already made: this list feeds
+    // `channelBindingsNeedingProof`, whose question is "could this binding hand
+    // someone another channel's build", and a binding that swaps no feed and
+    // sends no header cannot — the channel only selects which VendorProbe recipe
+    // answers, and that recipe's own install spec (here, none) is what would
+    // carry the obligation. `vendorProbeBackedBindings` records the membership;
+    // `vendorProbeBackedBindingsAreNotEnumerated` pins the two lists against each
+    // other, and is what caught this being added to both.
+
     // CleanShot is enumerated through its PURE resolver with a placeholder key,
     // never `resolveCurrent()`. It keys a personalized feed off the licence, so
     // enumerating the live resolution would have made this list depend on whether
@@ -404,5 +422,6 @@ public enum ChannelBinding {
         AlfredChannel.bundleID.lowercased(),
         TailscaleChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
+        WindscribeChannel.bundleID.lowercased(),
     ]
 }

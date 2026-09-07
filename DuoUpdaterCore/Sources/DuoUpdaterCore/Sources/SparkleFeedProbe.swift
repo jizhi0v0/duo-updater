@@ -56,9 +56,10 @@ public extension SparkleAppcastSource {
     /// its fill-in half invents an address the bundle never states, and its
     /// superseding half overrides one the bundle does state, and both halves
     /// can fail two different ways. A feed that dies or moves — 404, DNS
-    /// failure, any non-2xx status — makes `latestVersion` throw, and that
-    /// already surfaces: `UpdateChecker` turns it into `.error`, rendered as
-    /// `.checkFailed`. The quiet failure is the other one — a feed that still
+    /// failure, any non-2xx status — makes `latestVersion` throw; `UpdateChecker`
+    /// keeps that error and tries the next source, so an app nothing else covers
+    /// surfaces it as `.error`, rendered as `.checkFailed`. Either way it is
+    /// visible. The quiet failure is the other one — a feed that still
     /// answers 2xx but reshapes its items into nothing usable (swapped for a
     /// landing page, emptied, every item filtered) leaves `latestVersion`
     /// nothing to return but nil. `UpdateChecker` reads that nil as "try the

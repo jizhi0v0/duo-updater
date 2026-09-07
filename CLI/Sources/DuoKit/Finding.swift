@@ -19,8 +19,9 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// ADDRESSES, handed to apps whose own bundle does not give us a usable
     /// one. Nothing on a schedule had ever fetched them (#324). A feed that
     /// dies or moves — 404, DNS failure, any non-2xx status — makes
-    /// `SparkleAppcastSource` throw, and that already surfaces as `.error`/
-    /// `.checkFailed`; one that reshapes its items into nothing usable
+    /// `SparkleAppcastSource` throw, which surfaces as `.error`/`.checkFailed`
+    /// once no other source answers either; one that reshapes its items into
+    /// nothing usable
     /// produces a nil instead, which `UpdateChecker` reads as a miss and
     /// tries the next source, so only an app with no other source left
     /// settles on `.unknown`, not `.upToDate` — the quiet half this registry

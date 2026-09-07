@@ -2714,25 +2714,22 @@ final class AppListModel {
             return false
         }
         // What the host gate protects is a HOST'S BANDWIDTH, so it belongs to the
-        // download phase and nothing after it. Held for the whole install, it made
-        // two same-host apps serialize across each other's extract, swap, and
-        // relaunch too — which is why splitting the permits only paid off for apps
-        // on different hosts. `performInstall` hands it back the moment its fetch
-        // ends; the handle makes that idempotent so the release below still covers
-        // every path that never got that far (an early-out, a throw, a cancel).
+        // download phase and nothing after it — see
+        // `docs/engine-notes/app-list-model.md` §1 for the earlier design (held for
+        // the whole install) this replaced and why splitting the permits only paid
+        // off once the gate's scope narrowed to the fetch. `performInstall` hands it
+        // back the moment its fetch ends; the handle makes that idempotent so the
+        // release below still covers every path that never got that far (an
+        // early-out, a throw, a cancel).
         //
         // The App Store gate is NOT handed over: it exists to keep two installs off
         // the single store UI (AX/mas), which spans the whole install, not the fetch.
         let hostGate = GateHandle(gate)
         // Machine-wide exclusion, taken here rather than around the whole batch:
-        // a row parked on the host gate must not hold it. Reference-counted
-        // inside the process, so this app's own concurrent installs join one
-        // claim instead of blocking each other (`flock` is exclusive per open
-        // file description, not per process).
-        //
-        // Refused, not queued: the other holder is `duo install`, which may be
-        // part-way through a large download, and a row that spins indefinitely
-        // is worse than one that says who has it.
+        // a row parked on the host gate must not hold it. See `ProcessInstallLock`'s
+        // own doc comment for why it's reference-counted per process rather than
+        // per claim, and `InstallLock`'s for why a claim is refused rather than
+        // queued when another process already holds it.
         do {
             try await ProcessInstallLock.shared.claim()
         } catch {
@@ -2903,10 +2900,13 @@ final class AppListModel {
 
         // The app's own updater may already have this release in flight. Ours would
         // be a second copy of the same bytes, and for a Sparkle app it is worse than
-        // wasteful: whichever finishes second overwrites the first, so a ChatGPT-sized
-        // pair of downloads can settle on the OLDER build (observed 2026-08-22 — we
-        // installed 6971, its own updater then landed the 6962 its backend was
-        // shipping, ~1.8 GB spent to move backwards).
+        // wasteful: whichever finishes second overwrites the first, so the app can
+        // settle on the OLDER build if the other side's transfer lands second. See
+        // `SelfUpdaterStaging.staged`'s and `UpdatePolicy.stagedBlocksInstall`'s doc
+        // comments for the incident this guards against, and for why the check below
+        // asks for ANY staged build (`requireNewerThanInstalled: false`), not just a
+        // newer one: a staged build older than ours still gets applied on the next
+        // quit, undoing whatever we install in the meantime.
         //
         // Deliberately NOT gated on `vendorInstallPolicy`: this isn't a preference
         // about who should apply updates, it's an unconditional "those bytes are
@@ -2917,11 +2917,6 @@ final class AppListModel {
         // way, because the alternative is the user paying twice for one update. The
         // note says so, and the next check installs normally once the transfer has
         // either landed (row goes current) or gone stale (detector stops matching).
-        // Its own updater may already have a build unpacked and parked on the next
-        // quit. Anything we install now is undone when that lands — including when
-        // the staged build is OLDER than ours, which is how the mini ended up back
-        // on 6962 after we installed 6971 twice. So this asks for any staged build,
-        // not just a newer one.
         if let staged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
@@ -3255,10 +3250,9 @@ final class AppListModel {
             // returned. The recheck above already knows: it re-read the bundle and
             // re-ran the source, so a row that still offers the same update while
             // the bytes on disk never moved means the download did not carry the
-            // release it was supposed to. Docker shipped exactly that — its appcast
-            // lists 4.86.0 before 4.87.0, the first-match asset pattern fetched the
-            // older image, 574 MB and a 2.26 GB backup later the app was still
-            // 4.86.0, and this code logged "install done" and flashed "Updated ✓".
+            // release it was supposed to — a first-match asset pattern once did
+            // exactly that for Docker (see `VendorProbeRecipe.swift`'s account of
+            // that incident); this code logged "install done" for it regardless.
             //
             // Deliberately narrow, because a false "it didn't work" is its own kind
             // of lie: only routes we apply ourselves and that are finished when

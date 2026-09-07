@@ -62,3 +62,4 @@ what to do when the number has already drifted once.
 ## Index
 
 - [`app-store-page-cache.md`](app-store-page-cache.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/AppStorePageCache.swift`
+- [`pre-install-gate.md`](pre-install-gate.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/PreInstallGate.swift`

@@ -999,8 +999,7 @@ private struct DetailHeader: View {
 
     /// The vendor page to link out to.
     private var changelogURL: URL? {
-        ChangelogURLPolicy.displayable(
-            result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
+        ChangelogURLPolicy.displayable(ChangelogRecipeSelection.fallbackPage(for: result).url)
     }
 
     var body: some View {
@@ -1148,8 +1147,7 @@ private struct ReleaseNotesPane: View {
     @Bindable var model: AppListModel
 
     private var changelogURL: URL? {
-        ChangelogURLPolicy.displayable(
-            result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
+        ChangelogURLPolicy.displayable(ChangelogRecipeSelection.fallbackPage(for: result).url)
     }
 
     /// Which link of the fallback chain produced `changelogURL`, for the log.
@@ -1163,15 +1161,20 @@ private struct ReleaseNotesPane: View {
     ///
     /// `-rejected` means the chain picked a URL and `ChangelogURLPolicy` refused
     /// it — indistinguishable from "no URL at all" at the call site, and worth
-    /// telling apart: since `??` takes the first non-nil, a `remote` URL that
-    /// fails the policy shadows a usable catalog entry rather than falling
-    /// through to it.
+    /// telling apart: since the chain takes the first non-nil, a `remote` URL
+    /// that fails the policy shadows a usable catalog entry rather than falling
+    /// through to it. `catalogWithheld` is the third way to end up with no URL:
+    /// a curated VENDOR page existed and this copy came from the store, so
+    /// `ChangelogRecipeSelection` refused it on provenance (see its
+    /// `fallbackPage`). Telling that apart from `none` is the whole point —
+    /// "nobody publishes notes" and "we had notes and they were the wrong
+    /// distribution's" look identical in the pane.
     private var changelogURLOrigin: String {
-        let remote = result.remote?.changelogURL
-        let chosen = remote ?? ChangelogCatalog.url(forBundleID: result.app.bundleID)
-        guard let chosen else { return "none" }
-        let link = remote != nil ? "remote" : "catalog"
-        return ChangelogURLPolicy.displayable(chosen) == nil ? "\(link)-rejected" : link
+        let page = ChangelogRecipeSelection.fallbackPage(for: result)
+        guard let chosen = page.url else { return page.origin.rawValue }
+        return ChangelogURLPolicy.displayable(chosen) == nil
+            ? "\(page.origin.rawValue)-rejected"
+            : page.origin.rawValue
     }
 
     /// One line describing what the web view was handed. `Redactor.url` keeps the

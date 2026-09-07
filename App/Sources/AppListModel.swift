@@ -1567,14 +1567,10 @@ final class AppListModel {
     /// own "What's New" (`releaseNotesHTML` / the store page). WeChat is the live
     /// case: the official-site copy and the App Store copy share
     /// `com.tencent.xinWeChat`, but the official site's per-version page doesn't
-    /// describe the App Store build. So gate the recipe out for App-Store-sourced
-    /// results (only `MacAppStoreSource` attaches `appStore`) and let them fall
-    /// through to the store notes.
+    /// describe the App Store build. Core gates on the installed copy as well as
+    /// the remote answer, so a failed store lookup cannot select vendor notes.
     private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
-        guard result.remote?.appStore == nil else { return nil }
-        return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
-            version: changelogTargetVersion(for: result))
+        ChangelogRecipeSelection.recipe(for: result)
     }
 
     /// The version whose notes this row is about: the offered update if there is
@@ -1586,7 +1582,7 @@ final class AppListModel {
     /// so if the lookup judged a different version than the one being fetched and
     /// cached, we would fetch one train's page and file it under the other's key.
     private func changelogTargetVersion(for result: UpdateResult) -> String? {
-        result.remote?.displayVersion ?? result.app.shortVersion
+        ChangelogRecipeSelection.targetVersion(for: result)
     }
 
     /// Kick off a background load for an app's recipe-backed changelog if one isn't

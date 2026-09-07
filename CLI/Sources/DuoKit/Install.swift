@@ -523,9 +523,18 @@ public enum Install {
         var skippedCount = 0
         // Declined elevation is a decision, not a failure (see the catch below),
         // but it must not vanish from the summary either — counted separately
-        // so `installedCount + failed + skippedCount + declinedCount` accounts
-        // for every item in the plan (#404 review #3).
+        // so `installedCount + failed + skippedCount + declinedCount +
+        // openedInstallerCount` accounts for every item in the plan (#404
+        // review #3, #435).
         var declinedCount = 0
+        // The `.installer` route's `perform` returns without throwing, but with
+        // `applied == false`: the bytes were fetched and verified and a system
+        // installer window is open, but nothing has replaced the app on disk
+        // yet. Kept apart from `installedCount` (which would be false at the
+        // moment the summary line prints) and from `skippedCount` (real work
+        // already happened here, unlike an actual skip) — see `summaryLine`
+        // (#435).
+        var openedInstallerCount = 0
         // Only items whose bundle was ACTUALLY replaced
         // (`InstallCoordinator.Outcome.applied`) — a `.notRequested`, `.skip`,
         // `.unreadable`, `.cannotConfirm`, or `.answerRegressed` item was never
@@ -565,12 +574,13 @@ public enum Install {
                         + "no longer requested")
                 }
                 emitSkipped(name: name, route: derivedRoute,
-                            reason: "not requested: --route no longer includes it", json: json)
+                            reason: "not requested: --route no longer includes it",
+                            outcome: .skipped, json: json)
                 skippedCount += 1
                 continue
             case .skip(let why, let derivedRoute):
                 if !json { print("   skipping: \(why)") }
-                emitSkipped(name: name, route: derivedRoute, reason: why, json: json)
+                emitSkipped(name: name, route: derivedRoute, reason: why, outcome: .skipped, json: json)
                 skippedCount += 1
                 continue
             case .unreadable(let why):
@@ -579,7 +589,7 @@ public enum Install {
                 // app really is gone, or its Info.plist needs fixing by hand,
                 // and re-running `duo install` answers neither.
                 if !json { print("   skipping: \(why)") }
-                emitSkipped(name: name, route: nil, reason: why, json: json)
+                emitSkipped(name: name, route: nil, reason: why, outcome: .skipped, json: json)
                 skippedCount += 1
                 continue
             case .cannotConfirm(let message):
@@ -592,7 +602,7 @@ public enum Install {
                 // re-derived route to give — only the plan's stale one, which
                 // is exactly the value #404 review #5 says not to fall back to.
                 // Caught by code review after the first pass only fixed `.skip`.
-                emitSkipped(name: name, route: nil, reason: reason, json: json)
+                emitSkipped(name: name, route: nil, reason: reason, outcome: .failed, json: json)
                 continue
             case .answerRegressed:
                 failed += 1
@@ -606,7 +616,8 @@ public enum Install {
                 // `nil` for the same reason as `.cannotConfirm` above: no fresh
                 // route was ever derived for a regressed answer either.
                 emitSkipped(name: name, route: nil,
-                            reason: "answer regressed: offered \(was), confirmed \(now)", json: json)
+                            reason: "answer regressed: offered \(was), confirmed \(now)",
+                            outcome: .failed, json: json)
                 continue
             }
 
@@ -644,12 +655,17 @@ public enum Install {
                 // route returns here with `applied == false` while the system
                 // installer window is still open, and the "still running the old
                 // code" summary below must not call that app's running copy
-                // stale (#404 review #2).
+                // stale (#404 review #2). The same `applied` bit is what keeps
+                // `installedCount` and `openedInstallerCount` apart (#435) —
+                // keyed off the outcome, not off `route == .installer`, since
+                // `applied` is the documented, already-in-scope signal.
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path))
+                    installedCount += 1
+                } else {
+                    openedInstallerCount += 1
                 }
                 emit(name: name, route: route, outcome: installOutcome, json: json)
-                installedCount += 1
             } catch is AuthorizationDeclinedError {
                 // Dismissing the password panel is a decision, not a failure — it
                 // does not count toward `failed`, and it is remembered so neither
@@ -662,7 +678,8 @@ public enum Install {
                 Settings.recordDeclinedElevation(toInstall.app)
                 declinedCount += 1
                 emitSkipped(name: name, route: route,
-                            reason: "administrator access was declined", json: json)
+                            reason: "administrator access was declined",
+                            outcome: .declined, json: json)
                 FileHandle.standardError.write(Data("""
                        skipped: administrator access was declined, so \(name) will no \
                     longer be offered as a one-click. Undo it from the app's row menu, \
@@ -679,7 +696,7 @@ public enum Install {
                 // now leaves a row; a failure leaving none would mean the
                 // stream undercounts exactly the failures, which is the
                 // opposite of the property `emitSkipped` was added for.
-                emitSkipped(name: name, route: route, reason: message, json: json)
+                emitSkipped(name: name, route: route, reason: message, outcome: .failed, json: json)
                 if error is AppManagementRequiredError {
                     FileHandle.standardError.write(Data("""
                            Grant App Management to this binary in System Settings ▸ \
@@ -692,7 +709,8 @@ public enum Install {
         if !json {
             print("\n" + summaryLine(
                 installed: installedCount, failed: failed,
-                skipped: skippedCount, declined: declinedCount))
+                skipped: skippedCount, declined: declinedCount,
+                openedInstaller: openedInstallerCount))
             // The bundle on disk is new; the process still running is not. The
             // menu-bar app restarts these itself per the user's preference; the
             // CLI does not quit your apps behind your back, but it must not leave
@@ -716,10 +734,46 @@ public enum Install {
     /// "0 skipped, 0 declined" every time) — `declined` did not exist before
     /// #404 review #3, when a declined-elevation item was silently left out of
     /// every counter and this line, and so vanished from the summary entirely.
-    static func summaryLine(installed: Int, failed: Int, skipped: Int, declined: Int) -> String {
+    ///
+    /// `openedInstaller` is the fifth bucket, added by #435: an `.installer`
+    /// route's `perform` returns without throwing, yet `applied == false` — the
+    /// bytes are fetched and verified and a system installer window is open,
+    /// but nothing has replaced the app on disk yet. Before this it was folded
+    /// into `installed`, which made "N installed" false at the exact moment it
+    /// printed. Counting it as `installed` is wrong for that reason; folding it
+    /// into `skipped` would also be wrong, in the other direction — real work
+    /// (a full download, a verified package) already happened, unlike an
+    /// actual skip. Every item in the plan lands in exactly one of the five:
+    /// `installed + failed + skipped + declined + openedInstaller == plan.count`.
+    static func summaryLine(
+        installed: Int, failed: Int, skipped: Int, declined: Int, openedInstaller: Int
+    ) -> String {
         "\(installed) installed, \(failed) failed"
             + (skipped > 0 ? ", \(skipped) skipped" : "")
-            + (declined > 0 ? ", \(declined) declined" : "") + "."
+            + (declined > 0 ? ", \(declined) declined" : "")
+            + (openedInstaller > 0 ? ", \(openedInstaller) opened in the installer" : "") + "."
+    }
+
+    /// The machine-readable category every `--json` row (`emit`'s and
+    /// `emitSkipped`'s alike) carries, alongside `applied` — which is kept
+    /// exactly as it was, so an existing reader does not break; `outcome` is
+    /// additive, not a replacement (#436). Before this, `emitSkipped` wrote the
+    /// same `{applied: false, reason: …}` shape for a real failure, a skip, and
+    /// a decline alike, and only the English prose in `reason` told them apart
+    /// — rewording a message would silently reclassify a row. A small enum
+    /// rather than a raw string, so a typo at a call site cannot reach the
+    /// stream as a new, unrecognised category — the same principle as
+    /// `RowActions.live` in the menu-bar app: a call site must say which
+    /// bucket it is, not fall into a defaulted guess.
+    enum RowOutcome: String {
+        case installed
+        /// The `.installer` route only, today: bytes fetched and verified, a
+        /// system installer window is open, nothing replaced yet. See
+        /// `summaryLine` for why this is neither `.installed` nor `.skipped`.
+        case openedInstaller
+        case skipped
+        case declined
+        case failed
     }
 
     static func emit(
@@ -727,22 +781,39 @@ public enum Install {
         outcome: InstallCoordinator.Outcome, json: Bool
     ) {
         if json {
-            var payload: [String: Any] = [
-                "app": name, "route": route.rawValue,
-                "bytesDownloaded": outcome.bytesDownloaded,
-                "applied": outcome.applied,
-            ]
-            // Omitted rather than null when there is no staged package: a `.pkg`
-            // is the only route that produces one, and `NSNull` in a stream of
-            // otherwise-typed values trips naive readers.
-            if let staged = outcome.stagedPackageURL { payload["stagedPackage"] = staged.path }
-            NDJSON.emit(payload)
+            NDJSON.emit(installedPayload(name: name, route: route, outcome: outcome))
         } else if let package = outcome.stagedPackageURL {
             print("   opened the installer for you: \(package.lastPathComponent)")
             print("   finish it in the window macOS just opened.")
         } else {
             print("   installed.")
         }
+    }
+
+    /// The row `emit` writes for an item `InstallCoordinator.perform` returned
+    /// from without throwing — pulled out as a pure function, mirroring
+    /// `skippedPayload`, so the `outcome` category is testable directly rather
+    /// than only by capturing stdout. `outcome` (the JSON field) is keyed off
+    /// `outcome.applied` (the parameter), NOT off `route == .installer`:
+    /// `applied` is the documented signal ("is the new version on disk now"),
+    /// and today `.installer` is the only route whose `perform` returns
+    /// without throwing yet `applied == false` — verified against
+    /// `InstallCoordinator.performRoute` rather than assumed (#435).
+    static func installedPayload(
+        name: String, route: InstallCoordinator.Route, outcome: InstallCoordinator.Outcome
+    ) -> [String: Any] {
+        let category: RowOutcome = outcome.applied ? .installed : .openedInstaller
+        var payload: [String: Any] = [
+            "app": name, "route": route.rawValue,
+            "bytesDownloaded": outcome.bytesDownloaded,
+            "applied": outcome.applied,
+            "outcome": category.rawValue,
+        ]
+        // Omitted rather than null when there is no staged package: a `.pkg`
+        // is the only route that produces one, and `NSNull` in a stream of
+        // otherwise-typed values trips naive readers.
+        if let staged = outcome.stagedPackageURL { payload["stagedPackage"] = staged.path }
+        return payload
     }
 
     /// The `--json` record for an item the pre-install re-check did NOT install
@@ -756,21 +827,33 @@ public enum Install {
     /// than a missing field (#404 review #5). Text-mode printing is the caller's
     /// job: each outcome has its own wording, so this only ever writes the JSON
     /// line.
+    ///
+    /// `outcome` is a required parameter, not defaulted (#436): every call site
+    /// in `apply` already knows which counter it is about to increment (it is
+    /// sitting right next to `skippedCount += 1` / `declinedCount += 1` /
+    /// `failed += 1`), so this asks it to say so once more, in a form a
+    /// `--json` consumer can read back — the same reasoning CLAUDE.md gives
+    /// for `RowActions.live` taking no defaults: a new call site should have to
+    /// say which bucket it is rather than silently landing in a wrong one.
     static func emitSkipped(
-        name: String, route: InstallCoordinator.Route?, reason: String, json: Bool
+        name: String, route: InstallCoordinator.Route?, reason: String,
+        outcome: RowOutcome, json: Bool
     ) {
         guard json else { return }
-        NDJSON.emit(skippedPayload(name: name, route: route, reason: reason))
+        NDJSON.emit(skippedPayload(name: name, route: route, reason: reason, outcome: outcome))
     }
 
-    /// The row `emitSkipped` writes, pulled out as a pure function so the
-    /// route-omission rule (#404 review #5) is testable directly: `route` is
-    /// left out of the payload entirely when the caller has none to give,
-    /// rather than defaulted to something that could contradict `reason`.
+    /// The row `emitSkipped` writes, pulled out as a pure function so both the
+    /// route-omission rule (#404 review #5) and the `outcome` category (#436)
+    /// are testable directly. `route` is left out of the payload entirely when
+    /// the caller has none to give, rather than defaulted to something that
+    /// could contradict `reason`; `outcome` has no default for the same reason.
     static func skippedPayload(
-        name: String, route: InstallCoordinator.Route?, reason: String
+        name: String, route: InstallCoordinator.Route?, reason: String, outcome: RowOutcome
     ) -> [String: Any] {
-        var payload: [String: Any] = ["app": name, "applied": false, "reason": reason]
+        var payload: [String: Any] = [
+            "app": name, "applied": false, "reason": reason, "outcome": outcome.rawValue,
+        ]
         if let route { payload["route"] = route.rawValue }
         return payload
     }

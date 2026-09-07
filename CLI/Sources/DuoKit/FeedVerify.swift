@@ -52,17 +52,19 @@ extension Verify {
         //
         // It does NOT cover a superseding entry's own live→declared pair
         // (`probe` below): that reads the same host twice back to back with
-        // nothing in between. Nowhere in this codebase does `perHostDelay`
-        // reach inside one item to space out its own requests —
-        // `sweepVendor`'s version read and install-URL check
-        // (`VendorProbeSource.probeOutcome`'s `checkInstallURL`) are the same
-        // shape, request the same host back to back, and are just as
-        // unpaced. Giving this sweep its own intra-entry pacing would make it
-        // the one sweep that polices something every other sweep leaves
-        // alone, for a table that currently has exactly one entry the gap
-        // could apply to. If that ever needs closing, it is a decision for
-        // every sweep with an intra-item request pair, not a special case
-        // here — see issue #408.
+        // nothing in between. Today, every `perHostDelay` call site
+        // (`AppStoreVerify`, `sweepGitHub` and the shared `byHost` helper in
+        // `Verify.swift`, `ChangelogLinkSweep`) throttles only between
+        // top-level items — none of them reaches inside one item to space
+        // out its own requests. `sweepVendor`'s version read and install-URL
+        // check (`VendorProbeSource.probeOutcome`'s `checkInstallURL`) are
+        // the same shape, request the same host back to back, and are just
+        // as unpaced. Giving this sweep its own intra-entry pacing would
+        // make it the one sweep that polices something every other sweep
+        // leaves alone, for a table that currently has exactly one entry the
+        // gap could apply to. If that ever needs closing, it is a decision
+        // for every sweep with an intra-item request pair, not a special
+        // case here — see issue #432.
         var findings: [Finding] = []
         for (index, entry) in cases.enumerated() {
             if index > 0 {

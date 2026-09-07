@@ -55,12 +55,18 @@ public extension SparkleAppcastSource {
     /// is the one address table nothing on a schedule has ever fetched (#324):
     /// its fill-in half invents an address the bundle never states, and its
     /// superseding half overrides one the bundle does state, and both halves
-    /// fail quietly in the same way — a feed that dies, moves, or reshapes its
-    /// items has nothing usable left, so `latestVersion` returns nil for it
-    /// rather than throwing. `UpdateChecker` reads that nil as "try the next
-    /// source", so an app another source also covers is unaffected; an app
-    /// this address is the only source for settles on `.unknown` — no update
-    /// offered, but a `RowActionState` case of its own, not `.upToDate`.
+    /// can fail two different ways. A feed that dies or moves — 404, DNS
+    /// failure, any non-2xx status — makes `latestVersion` throw, and that
+    /// already surfaces: `UpdateChecker` turns it into `.error`, rendered as
+    /// `.checkFailed`. The quiet failure is the other one — a feed that still
+    /// answers 2xx but reshapes its items into nothing usable (swapped for a
+    /// landing page, emptied, every item filtered) leaves `latestVersion`
+    /// nothing to return but nil. `UpdateChecker` reads that nil as "try the
+    /// next source", so an app another source also covers is unaffected; an
+    /// app this address is the only source for settles on `.unknown` — no
+    /// update offered, but a `RowActionState` case of its own, not
+    /// `.upToDate`. This sweep exists to catch that second, quiet half — the
+    /// throwing half already shows up as a check failure on its own.
     ///
     /// **Whose answer this is.** `usableItems` needs an installed copy to
     /// decide which channels are allowed, and the sweeping machine is not

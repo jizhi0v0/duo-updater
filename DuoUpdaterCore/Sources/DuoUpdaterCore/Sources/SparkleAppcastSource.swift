@@ -250,14 +250,18 @@ public struct SparkleAppcastSource: UpdateSource {
             // "Your macOS version is too new", `SPUNoUpdateFoundInfo.m` an
             // explanation carrying the version and the cap, and a dedicated error
             // code in `SUErrors.h`. Dropping it here instead means `latestVersion`
-            // returns nil and the app reads as UP TO DATE, indistinguishable from
-            // "no newer version exists".
+            // returns nil for it — not an error, and not rendered as "up to date"
+            // either: `UpdateChecker` reads that nil as a miss, so an app with
+            // another source still gets an answer from it, and an app with none
+            // settles on `.unknown`, a `RowActionState` case of its own, never
+            // `.upToDate`.
             //
             // That asymmetry is worse for max than for min, and deliberately
             // accepted for now rather than hidden: a min-filtered item reappears
             // when the user upgrades macOS, a max-filtered one NEVER does. The
             // motivating case (obdev caps stable at 26.99; user moves to macOS 27)
-            // therefore reads as "up to date" indefinitely. Surfacing it properly
+            // therefore settles on `.unknown` indefinitely, for an app this feed
+            // is the only source for. Surfacing it properly
             // needs a "blocked by the vendor's own OS ceiling" state that
             // `RemoteVersion` has no room for today; filtering is still the right
             // default meanwhile, because the alternative is installing a build the

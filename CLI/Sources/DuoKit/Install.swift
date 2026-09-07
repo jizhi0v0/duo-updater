@@ -342,15 +342,16 @@ public enum Install {
         offered: UpdateResult, confirmed: UpdateResult?, settings: Settings,
         environment: InstallEnvironment, routes: Set<InstallCoordinator.Route>
     ) -> ReconsiderOutcome {
-        guard let confirmed else {
+        let decision = PreInstallGate.decision(offered: offered, confirmed: confirmed)
+        // `decision == .unreadable` exactly when `confirmed == nil` (see
+        // `PreInstallGate.decision(offered:confirmed:)`), so this unwraps
+        // `confirmed` for every arm below at once, rather than each of them
+        // re-deriving the same fact.
+        guard decision != .unreadable, let confirmed else {
             return .unreadable(
                 "no readable bundle at \(offered.app.path.path) right now — it may have been "
                 + "uninstalled, or its Info.plist could not be parsed")
         }
-        let decision = PreInstallGate.decision(
-            for: confirmed.status,
-            offered: offered.remote?.versionSide ?? VersionSide(),
-            confirmed: confirmed.remote?.versionSide ?? VersionSide())
         switch decision {
         case .proceed:
             // The route can move too — the same source may now resolve a
@@ -385,6 +386,11 @@ public enum Install {
             return .cannotConfirm(message)
         case .answerRegressed:
             return .answerRegressed
+        case .unreadable:
+            // Unreachable: guarded above, before `confirmed` was unwrapped.
+            return .unreadable(
+                "no readable bundle at \(offered.app.path.path) right now — it may have been "
+                + "uninstalled, or its Info.plist could not be parsed")
         }
     }
 

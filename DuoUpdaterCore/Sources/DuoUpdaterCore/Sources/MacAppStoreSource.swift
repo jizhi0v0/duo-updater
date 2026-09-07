@@ -65,13 +65,14 @@ public struct MacAppStoreSource: UpdateSource {
     ///
     /// The batch is registered with `prewarmCache` instead, and
     /// `lookup(bundleID:region:)` awaits it before reading (the actual wait
-    /// happens in `AppStoreLookupCache.awaitInFlight`). So a slow batch
-    /// removes the global barrier this used to put in front of every
-    /// source — it no longer delays a GitHub or Sparkle row that never
-    /// touches this cache. It does NOT give App Store rows an isolated
-    /// queue: `UpdateChecker` runs the whole fan-out under one shared
-    /// bounded-concurrency window, and a row waiting here still occupies one
-    /// of that window's slots, the same as any other in-flight check would.
+    /// happens in `AppStoreLookupCache.awaitInFlight`). Registering — rather
+    /// than awaiting — is what removes the global barrier this hook used to
+    /// put in front of every source. So a slow batch no longer delays a
+    /// GitHub or Sparkle row that never touches this cache. It does NOT give
+    /// App Store rows an isolated queue: `UpdateChecker` runs the whole
+    /// fan-out under one shared bounded-concurrency window, and a row
+    /// waiting here still occupies one of that window's slots, the same as
+    /// any other in-flight check would.
     public func prewarm(_ apps: [InstalledApp]) async {
         let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
         guard !bundleIDs.isEmpty else { return }

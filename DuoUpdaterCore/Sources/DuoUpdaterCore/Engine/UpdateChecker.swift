@@ -76,10 +76,12 @@ public struct UpdateChecker: Sendable {
         // begins. "Finished" describes the HOOK returning, not the batch's
         // network work: `MacAppStoreSource.prewarm` starts an unstructured
         // `Task` and returns as soon as that Task is registered with
-        // `AppStoreLookupCache`, so this await is over long before any iTunes
-        // response has arrived. The query that actually needs a result —
-        // `lookup(bundleID:region:)`, via `AppStoreLookupCache.awaitInFlight()`
-        // — is what waits for the batch itself.
+        // `AppStoreLookupCache` — it does not await the Task itself, so this
+        // await never depends on any iTunes response having arrived, whether
+        // or not one happens to beat it back. The query that actually needs
+        // a result — `lookup(bundleID:region:)`, via
+        // `AppStoreLookupCache.awaitInFlight()` — is what waits for the
+        // batch itself.
         await withTaskGroup(of: Void.self) { group in
             for source in sources {
                 let visible = Self.apps(apps, visibleTo: source)

@@ -48,6 +48,19 @@ public protocol UpdateSource: Sendable {
     /// point that has the whole list in hand at once. Default is a no-op, so
     /// only a source that actually has a batched endpoint needs to implement it
     /// (see `MacAppStoreSource.prewarm`, which batches iTunes lookups).
+    ///
+    /// **May — and is expected to — return once the batch work is merely
+    /// started or registered, not finished.** `UpdateChecker` drains this
+    /// hook for every source before the per-app fan-out begins, so a hook
+    /// that blocks until its own batch completes puts that batch's full
+    /// latency in front of every OTHER source too, not just its own rows.
+    /// The batch keeps running in the background after the hook returns;
+    /// whichever `latestVersion(for:)` call actually needs its result is
+    /// what waits for it, not this hook. See `MacAppStoreSource.prewarm`,
+    /// which starts an unstructured `Task` and returns as soon as it is
+    /// registered with `AppStoreLookupCache`, and
+    /// `AppStoreLookupCache.awaitInFlight()`, which is what
+    /// `lookup(bundleID:region:)` awaits when it needs that batch's answer.
     func prewarm(_ apps: [InstalledApp]) async
 
     /// Optional hook: drop any memoized answer this source is holding for

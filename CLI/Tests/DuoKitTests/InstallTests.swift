@@ -432,6 +432,34 @@ import DuoUpdaterCore
         #expect(route == .vendor)
     }
 
+    /// The one `PreInstallDecision` arm nothing pinned. Its four siblings each
+    /// have a case here; `.managedElsewhere` had none, so a re-mapping of it to
+    /// `.proceed` — which would install a vendor artefact over a copy the App
+    /// Store, Toolbox or TestFlight owns — compiled and passed the whole suite.
+    ///
+    /// Mutation (reverted after running): `case .managedElsewhere:` returning
+    /// `.proceed(confirmed, .vendor)` in `Install.reconsider` — red here
+    /// (expected a skip, got proceed), and green everywhere else.
+    @Test func anAppThatBecameStoreManagedIsSkippedNotInstalled() {
+        let offered = vendorOffer()
+        // What a re-check answers for a copy the store has taken over between
+        // the plan and this app's turn: not `.upToDate` (that is a claim about
+        // versions), but a different owner for the update entirely.
+        let confirmed = UpdateResult(
+            app: app(), remote: nil, status: .appStoreManaged)
+        let outcome = Install.reconsider(
+            offered: offered, confirmed: confirmed, settings: settings(),
+            environment: environment(), routes: [])
+        guard case .skip(let why, let route) = outcome else {
+            Issue.record("expected a skip, got \(outcome)")
+            return
+        }
+        #expect(why.contains("managed elsewhere"))
+        // No route: `reconsider` returns before `classify` runs, so there is no
+        // freshly-derived route to report and the plan's is stale by then.
+        #expect(route == nil)
+    }
+
     /// #404 review #6: a re-scan that found no readable bundle (`recheckOne`
     /// returning `nil`, whether the app was uninstalled or its Info.plist
     /// failed to parse — `AppScanner.readApp` returns nil for both, and this

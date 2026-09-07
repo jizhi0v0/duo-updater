@@ -541,10 +541,11 @@ import DuoUpdaterCore
     }
 }
 
-/// #404 review #5 and #3: the `--json` payload for an item the pre-install
-/// re-check did not install, and the text-mode summary line's counts — both
-/// pulled out as pure functions so their exact shape is testable without
-/// capturing stdout or driving a real `InstallCoordinator`.
+/// #404 review #5 and #3, plus #435/#436: the `--json` payloads for both an
+/// actual install (`installedPayload`) and an item the pre-install re-check
+/// did not install (`skippedPayload`), and the text-mode summary line's
+/// counts — all pulled out as pure functions so their exact shape is testable
+/// without capturing stdout or driving a real `InstallCoordinator`.
 @Suite struct InstallApplySummaryTests {
 
     /// #404 review #5: when `reconsider` had no freshly re-derived route to
@@ -556,7 +557,8 @@ import DuoUpdaterCore
     /// — this test went red (expected no `route` key, found one).
     @Test func skippedPayloadOmitsRouteWhenThereIsNoneToGive() {
         let payload = Install.skippedPayload(
-            name: "Fixture", route: nil, reason: "no readable bundle right now")
+            name: "Fixture", route: nil, reason: "no readable bundle right now",
+            outcome: .skipped)
         #expect(payload["route"] == nil)
         #expect(payload["app"] as? String == "Fixture")
         #expect(payload["applied"] as? Bool == false)
@@ -564,8 +566,66 @@ import DuoUpdaterCore
 
     @Test func skippedPayloadIncludesTheRouteWhenThereIsOne() {
         let payload = Install.skippedPayload(
-            name: "Fixture", route: .vendor, reason: "already at 1.1 on disk — nothing to install")
+            name: "Fixture", route: .vendor, reason: "already at 1.1 on disk — nothing to install",
+            outcome: .skipped)
         #expect(payload["route"] as? String == "vendor")
+    }
+
+    /// #436: before this, `emitSkipped` wrote the identical
+    /// `{applied: false, reason: …}` shape for a real failure and an ordinary
+    /// skip — a `--json` consumer had no way to separate them except by
+    /// pattern-matching the English prose in `reason`, and rewording a
+    /// message would silently reclassify a row. The two payloads below are
+    /// built from the SAME `reason` text on purpose, to isolate the one
+    /// thing that is supposed to tell them apart. Mutation (reverted after
+    /// running): changed `skippedPayload` to ignore its `outcome` parameter
+    /// and always write `"skipped"` — this test went red (the failure
+    /// payload's `outcome` read `"skipped"` instead of `"failed"`, so the
+    /// two payloads matched again).
+    @Test func skippedPayloadDistinguishesFailureFromSkipByOutcomeNotReasonProse() {
+        let sameReason = "already at 1.1 on disk — nothing to install"
+        let skip = Install.skippedPayload(
+            name: "Fixture", route: nil, reason: sameReason, outcome: .skipped)
+        let failure = Install.skippedPayload(
+            name: "Fixture", route: nil, reason: sameReason, outcome: .failed)
+        #expect(skip["outcome"] as? String == "skipped")
+        #expect(failure["outcome"] as? String == "failed")
+        #expect(skip["reason"] as? String == failure["reason"] as? String)
+    }
+
+    @Test func skippedPayloadCarriesTheDeclinedOutcome() {
+        let payload = Install.skippedPayload(
+            name: "Fixture", route: .installer, reason: "administrator access was declined",
+            outcome: .declined)
+        #expect(payload["outcome"] as? String == "declined")
+    }
+
+    /// #435: `installedPayload` is what `emit` writes for an item
+    /// `InstallCoordinator.perform` returned from without throwing. The
+    /// `.installer` route returns `applied == false` (bytes fetched and
+    /// verified, a system installer window open, nothing replaced yet) — the
+    /// category must read `openedInstaller`, not `installed`. Mutation
+    /// (reverted after running): changed the ternary in `installedPayload`
+    /// from `outcome.applied ? .installed : .openedInstaller` to
+    /// unconditionally `.installed` — this test went red (expected
+    /// `"openedInstaller"`, found `"installed"`).
+    @Test func installedPayloadReadsOpenedInstallerWhenNotApplied() {
+        let outcome = InstallCoordinator.Outcome(
+            bytesDownloaded: 12_000_000, finalHost: "example.com",
+            stagedPackageURL: URL(fileURLWithPath: "/tmp/Fixture.pkg"), applied: false)
+        let payload = Install.installedPayload(name: "Fixture", route: .installer, outcome: outcome)
+        #expect(payload["outcome"] as? String == "openedInstaller")
+        #expect(payload["applied"] as? Bool == false)
+        #expect(payload["stagedPackage"] as? String == "/tmp/Fixture.pkg")
+    }
+
+    @Test func installedPayloadReadsInstalledWhenApplied() {
+        let outcome = InstallCoordinator.Outcome(
+            bytesDownloaded: 12_000_000, finalHost: "example.com",
+            stagedPackageURL: nil, applied: true)
+        let payload = Install.installedPayload(name: "Fixture", route: .vendor, outcome: outcome)
+        #expect(payload["outcome"] as? String == "installed")
+        #expect(payload["applied"] as? Bool == true)
     }
 
     /// #404 review #3: a declined install is not a failure, but it must not
@@ -573,13 +633,39 @@ import DuoUpdaterCore
     /// dropped the `declined` clause from `Install.summaryLine` — this test
     /// went red (missing ", 1 declined" from the string).
     @Test func declinedElevationAppearsInTheSummaryLine() {
-        #expect(Install.summaryLine(installed: 2, failed: 0, skipped: 0, declined: 1)
+        #expect(Install.summaryLine(
+            installed: 2, failed: 0, skipped: 0, declined: 1, openedInstaller: 0)
             == "2 installed, 0 failed, 1 declined.")
     }
 
     @Test func summaryLineOmitsZeroCounts() {
-        #expect(Install.summaryLine(installed: 3, failed: 0, skipped: 0, declined: 0)
+        #expect(Install.summaryLine(
+            installed: 3, failed: 0, skipped: 0, declined: 0, openedInstaller: 0)
             == "3 installed, 0 failed.")
+    }
+
+    /// #435: an `.installer` route must not be counted as "installed" — false
+    /// at the exact moment the line prints, since nothing is on disk yet —
+    /// and must not be silently folded into "skipped" either, since real work
+    /// (a verified download) already happened. Mutation (reverted after
+    /// running): dropped the `openedInstaller` clause from `summaryLine`
+    /// entirely — this test went red (missing ", 1 opened in the installer").
+    @Test func summaryLineNamesOpenedInstallerSeparatelyFromInstalledAndSkipped() {
+        #expect(Install.summaryLine(
+            installed: 0, failed: 0, skipped: 0, declined: 0, openedInstaller: 1)
+            == "0 installed, 0 failed, 1 opened in the installer.")
+    }
+
+    /// The "every item in the plan is accounted for" invariant (#404 review
+    /// #3) now spans five buckets, not four (#435). All five distinct and
+    /// nonzero, so a mutation that dropped or mis-ordered any one clause is
+    /// visible in the pinned string. Mutation (reverted after running):
+    /// reordered the `declined` and `openedInstaller` clauses in
+    /// `summaryLine` — this test went red (wrong order in the joined string).
+    @Test func summaryLineAccountsForAllFiveBucketsWhenEachIsNonzero() {
+        #expect(Install.summaryLine(
+            installed: 1, failed: 2, skipped: 3, declined: 4, openedInstaller: 5)
+            == "1 installed, 2 failed, 3 skipped, 4 declined, 5 opened in the installer.")
     }
 }
 

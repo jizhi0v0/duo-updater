@@ -104,7 +104,9 @@ It **respects each app's own update channel**:
 - **Major version upgrades** are gated behind a warning (a commercial app may
   need a new license) instead of a one-click button.
 - **Defensive re-check** before installing, so a stale list never triggers a
-  redundant install.
+  redundant install — the menu-bar app and `duo install` both re-read the
+  bundle and re-query its source immediately before backup/replace, not just
+  when the list was last drawn.
 - **Restart detection**: if an app was updated on disk but is still running an
   older build (compared via LaunchServices), it's surfaced with a Restart action.
 

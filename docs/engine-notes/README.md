@@ -46,8 +46,17 @@ what to do when the number has already drifted once.
    copies you found and why the ones you left alone were left alone.
 5. **Run `scripts/check_prose_claims.py`** (wired into `make test`). It only
    catches one shape of stale claim (a machine-population count); passing it
-   is not proof the rest of the comment is still accurate.
-6. `make test`, then a self-review pass (`/code-review`) on the diff before
+   is not proof the rest of the comment is still accurate. `make test` also
+   runs `scripts/check_engine_notes.py`, which checks a different thing: that
+   every `docs/engine-notes/…md §N` pointer LEFT IN THE CODE (step 3) actually
+   resolves — the target file exists, is tracked by git (not just sitting on
+   your disk outside the `.gitignore` carve-out), the `§N` heading is really
+   there, and this file itself is listed in the Index below. It cannot tell
+   you whether the pointer's surrounding prose is still true — only that the
+   thing it points at exists and is reachable by someone who isn't you.
+6. **Add the new file to the Index below** — `check_engine_notes.py` fails
+   the build if a tracked `.md` in this directory isn't listed there.
+7. `make test`, then a self-review pass (`/code-review`) on the diff before
    opening the PR.
 
 ## Index

@@ -34,11 +34,13 @@ benefit model is `1 − interval/ttl`:
   requests a round — date not recorded in the source comment this was
   carried over from, so treat it as an illustrative order-of-magnitude, not a
   reproducible figure).
-- At the six-hour default interval (`Preferences`), which is what most
-  installs run, `interval > ttl` — **this class saves nothing between
-  scheduled sweeps**, every round is a cold miss. What it still buys is the
-  *second* scan inside one app launch: the scheduler ticks immediately on a
-  cold start, and opening the workbench forces another refresh, so that pair
+- At the default check interval — six hours, per `Preferences` — `interval >
+  ttl`: **this class saves nothing between scheduled sweeps** for a user who
+  hasn't changed that setting, every round is a cold miss. (How many users
+  have changed it is not something this repo can see — no telemetry — so
+  that is as far as this claim goes.) What it still buys is the *second*
+  scan inside one app launch: the scheduler ticks immediately on a cold
+  start, and opening the workbench forces another refresh, so that pair
   costs one round of page fetches instead of two.
 
 ## §2 `shared`: the per-instance cache that measurably did nothing

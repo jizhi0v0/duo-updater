@@ -28,6 +28,9 @@ public struct VerifyOptions: Sendable {
     /// Cross-check against the locally installed copy where there is one. Off on
     /// a CI runner, where nothing is installed.
     public var useInstalled = true
+    /// Sweep even when this binary was not built from the checkout it is standing in.
+    /// See `SourceStamp` for what that costs and why it is refused by default.
+    public var allowStaleBinary = false
     public var githubToken: String?
     public var baselinePath: URL?
     public var jsonPath: URL?
@@ -46,6 +49,16 @@ struct InstalledVersion: Sendable {
 public enum Verify {
 
     public static func run(_ options: VerifyOptions) async -> Int32 {
+        // Before anything is counted or requested. The recipes below are the ones
+        // compiled into THIS binary, and the whole report is worthless — while looking
+        // entirely normal — if that is not the tree the reader has open.
+        if case .stale(let reason) = SourceStamp.verdict() {
+            guard options.allowStaleBinary else {
+                die(SourceStamp.complaint(reason), code: 2)
+            }
+            print("\n  ⚠︎ \(reason).\n    Sweeping anyway because --allow-stale-binary was passed.\n")
+        }
+
         let vendor = filtered(VendorProbeRegistry.recipes, options) { $0.bundleID }
         let github = filtered(GitHubReleaseRegistry.rules, options) { $0.bundleID }
         let changelog = filtered(ChangelogRecipeRegistry.recipes, options) { $0.bundleID }

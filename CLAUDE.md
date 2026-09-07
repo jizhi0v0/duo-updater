@@ -21,6 +21,17 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 - 修 recipe 要先复现红:拿到坏掉的原始响应体(`--samples`),确认新规则在**那份真实响应**上过,再跑全量。
 - 新增/改 recipe **必须补一条回归测试**;凡是该由「每条 recipe 都得满足」来表达的性质,用例要**从 registry 推导**,不要手写一份会漂移的清单。范式是 `ChangelogURLPolicyTests` 的「Derived from the registries」一节(遍历 `VendorProbeRegistry.recipes` / `ChangelogRecipeRegistry.recipes`),`AppAuditCoverageTests`、`ChannelGuardTests` 同理。⚠️ **`RecipeHealthTests` / `RecipeVerificationTests` 不是这个范式**——2026-09-07 实测:前者 `grep -c Registry` 为 0,测的是 `RecipeHealth` 这个 actor、id 是合成的;后者是 2026-08-08 两个真实故障的回放套件。这条以前指着它们,照着看的人找不到可抄的东西。
 - 全量 `duo verify` 约 150 个请求 / 3 分钟,别为了省时间只验一个就宣布全绿。
+- **`duo verify` 现在自己会拒绝跑陈旧二进制,不用再靠记性。** recipe 是编译进二进制的,
+  而 `duo` 跑的是 `~/.local/libexec/duo` 不是你的工作树,所以一次陈旧的 sweep 会给出
+  一份**完全正常**的报告——有分数、有 pass/warn/fail、有响应体样本——讲的却是几个钟头前
+  就被替换掉的规则。`scripts/build-cli.sh` 现在把源码摘要写在二进制旁边
+  (`~/.local/libexec/duo.built-from`),`Verify.run` 开头拿它跟**你所在的这个 checkout**
+  的摘要比,对不上就退 2 并让你 `make cli`。
+  按**内容**比不按 mtime 比,两个方向都要防:mtime 只抓得住"二进制比树旧"那一半,
+  而 2026-08-27 咬人的是另一半——`~/.local` 是全局的,另一个 worktree 的会话 `make cli`
+  把二进制换成了**更新的、但没有你那条 recipe 的**那个,mtime 看它是新的就放行了。
+  确实要拿旧二进制跑就 `--allow-stale-binary`,它会把理由印在报告顶上。
+  不在 checkout 里跑(普通用户)不受影响,这道闸直接不参与。
 - **`make test` 本机一轮约 25 MB / 20 秒**,那道真下厂商包的闸默认关着(`DUO_DOWNLOAD_GATE`,
   见「发布」和「CI」两节)。想在本机过一遍就 `DUO_DOWNLOAD_GATE=1 make test`,约 185 MB。
 - **卡住的时候用 `scripts/run-with-hang-report.sh 1800 make test`**,超时会抓线程栈再杀树

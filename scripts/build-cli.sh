@@ -61,6 +61,23 @@ ln -sf "$DEST" "$LINK"
 codesign --verify --strict "$DEST" 2>/dev/null \
     || die "the deployed copy failed signature verification"
 
+# What this binary was built from, beside the binary, so `duo verify` can refuse to
+# sweep with recipes that are not the ones in the reader's tree. The recipes are
+# compiled in and the report gives no sign of which ones it used, so a stale binary
+# produces a full, normal-looking answer about rules that were replaced hours ago --
+# twice now, in both directions. See CLI/Sources/DuoKit/SourceStamp.swift.
+#
+# Asked of the binary rather than hashed here: one definition of the digest, so the
+# side that writes it and the side that checks it cannot drift apart. Written via a
+# temporary file so a failure leaves the previous stamp rather than an empty one --
+# an empty stamp reads as "no record", which is a refusal the next person would have
+# to debug instead of just rebuilding.
+say "Recording the sources it was built from"
+STAMP="$DEST.built-from"
+( cd "$REPO" && "$DEST" verify --source-digest ) > "$STAMP.new" \
+    || die "could not digest the sources under $REPO"
+mv -f "$STAMP.new" "$STAMP"
+
 say "Installed"
 printf '   %s\n   %s -> %s\n\n' "$DEST" "$LINK" "$DEST"
 

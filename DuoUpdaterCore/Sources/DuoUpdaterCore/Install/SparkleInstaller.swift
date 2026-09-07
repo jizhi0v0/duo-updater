@@ -245,53 +245,12 @@ public actor SparkleInstaller {
             ) else { throw heldEdFailure }
         }
 
-        // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
-        // bundle identifier as installed (pins the swap to this exact app, not
-        // just this vendor/Team).
+        // 4. Validate the final app, whether unpacked or reconstructed from a delta.
         onStage(.verifyingCodeSignature)
-        // One hop for the whole gate sequence, not six: each of these blocks its
-        // thread inside Security, and on a narrow cooperative pool that is what
-        // stops the runtime dead (#351). They still run in order, in the same
-        // order, on one queue — the ordering below is load-bearing and a hop per
-        // gate would have been six chances to reorder it by accident.
-        let app = newApp
-        let installed = result.app.path
-        try await offCooperativePool {
-            try SignatureVerifier.verifyCodeSignature(appAt: app)
-            try SignatureVerifier.verifyTeamIdentifierMatch(
-                installedApp: installed,
-                downloadedApp: app
-            )
-            try SignatureVerifier.verifyBundleIdentifierMatch(
-                installedApp: installed,
-                downloadedApp: app
-            )
-            // Gate 5 — and it is a build this Mac can launch. The download was chosen
-            // by filename, which cannot see inside a Mach-O; this reads the real
-            // slices, so a mis-named artifact is refused instead of installed.
-            try SignatureVerifier.verifyRunnableArchitecture(appAt: app)
-            // Gate 5b — and it is not a WORSE build than what's already here. Must run
-            // AFTER gate 5, not before: a package that is both unrunnable and a
-            // downgrade (arm64 host, no Rosetta, Intel-only download) has to fail
-            // with gate 5's "cannot launch" message, the true and more severe
-            // problem — gate 5b's "this would run translated" is only correct once
-            // gate 5 has already confirmed the download CAN launch here. `app`
-            // here is either the unpacked archive or `DeltaApplier.reconstruct`'s
-            // output (step 3 above merges both into one URL), and this runs on
-            // both identically — the patch route's doc comment states its output
-            // "goes through exactly the same gates a downloaded archive does", and
-            // nothing here assumes a patch's architecture set matches the baseline's.
-            try SignatureVerifier.verifyNoArchitectureDowngrade(
-                installedApp: installed,
-                downloadedApp: app
-            )
-            // Gate 6 — and this Mac is not below the OS floor the bundle declares.
-            // Same shape of claim as gate 5 and the same blind spot behind it: the
-            // download was selected from what a source published, and most sources
-            // publish no OS requirement at all, so the artifact's own plist is the
-            // first place the answer exists.
-            try SignatureVerifier.verifyRunnableSystemVersion(appAt: app)
-        }
+        try await SignatureVerifier.verifyInstallArtifact(
+            downloadedApp: newApp,
+            installedApp: result.app.path
+        )
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,

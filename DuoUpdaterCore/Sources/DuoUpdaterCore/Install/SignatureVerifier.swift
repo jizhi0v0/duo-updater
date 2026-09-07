@@ -61,6 +61,35 @@ public enum SignatureVerifier {
         }
     }
 
+    /// Shared app-bundle gates for Sparkle and vendor installs, after extraction
+    /// or delta reconstruction and before the bundle swap. Archive signatures,
+    /// checksums and vendor installer-stub validation stay with their callers;
+    /// this entry point does not validate pkg installs.
+    ///
+    /// Keep the entire sequence in one hop: Security calls can block a narrow
+    /// cooperative pool (#351). The first failure determines the reported error.
+    static func verifyInstallArtifact(downloadedApp: URL, installedApp: URL) async throws {
+        try await offCooperativePool {
+            // Gates 2–4 pin a valid signature to this vendor AND this exact app.
+            try verifyCodeSignature(appAt: downloadedApp)
+            try verifyTeamIdentifierMatch(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifyBundleIdentifierMatch(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+
+            // Gate 5 reads the actual Mach-O slices; artifact filenames cannot
+            // prove that the downloaded build can launch on this Mac.
+            try verifyRunnableArchitecture(appAt: downloadedApp)
+            // Gate 5b must follow gate 5: an unrunnable Intel-only download over
+            // an arm64 install must report "cannot launch", not "would run
+            // translated". Delta output need not share its baseline's slices.
+            try verifyNoArchitectureDowngrade(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+            // Gate 6 reads the bundle's OS floor even when the source omits it.
+            try verifyRunnableSystemVersion(appAt: downloadedApp)
+        }
+    }
+
     // MARK: Gate 1 — EdDSA signature over the downloaded file
 
     /// Verify the Sparkle Ed25519 signature of `fileData` against the app's

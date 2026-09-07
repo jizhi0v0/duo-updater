@@ -233,7 +233,13 @@ struct MenuContentView: View {
     /// Shortest a row can possibly be: the 30pt icon plus its 7pt vertical padding.
     /// A row with an install error or a note is taller, which only makes the list
     /// overflow sooner — so this stays a lower bound in the safe direction.
-    private static let minRowHeight: CGFloat = 44
+    ///
+    /// The row's own height, not a second copy of it. `AppRow` declares that number
+    /// (see `plainRowHeight`), and the two are not independent: this one has to be a
+    /// FLOOR on it, so a row height lowered here-but-not-there would make
+    /// `listOverflows` claim a short list overflows and pin the frame at
+    /// `maxListHeight` with dead space under the last row.
+    private static let minRowHeight: CGFloat = AppRow.plainRowHeight
 
     /// Whether the list must scroll whatever the rows measure. `count * minRowHeight`
     /// is a floor on the content height, so this is only ever true when it genuinely
@@ -783,6 +789,23 @@ private struct AppRow: View {
     private var stage: InstallStage? { model.installing[result.id] }
     private var installError: String? { model.installErrors[result.id] }
 
+    /// The row's height when nothing is stacked under the name line. See the
+    /// `.frame` in `body` for why it is fixed and where the number comes from.
+    static let plainRowHeight: CGFloat = 44
+
+    /// The note drawn under the name line when there is no install error — an
+    /// install note, else the staged-package line.
+    ///
+    /// Read TWICE per row, by the view that draws it and by the frame that has to
+    /// know whether the row is taller than `plainRowHeight`, so `body` binds it
+    /// once and passes the value to both. Behind it, `stagedPackageNote` stats the
+    /// disk for a row that has a package staged and builds a localized string;
+    /// asking twice on a per-row, per-repaint path is exactly the cost the frame
+    /// below exists to remove.
+    private var secondaryNote: String? {
+        model.installNotes[result.id] ?? model.stagedPackageNote(for: result)
+    }
+
     /// How wide the name line wants to be — the name plus whatever shares its
     /// row (the running dot, a channel chip). Measured with AppKit rather than
     /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
@@ -937,6 +960,10 @@ private struct AppRow: View {
     }
 
     var body: some View {
+        // Bound here, not read from `secondaryNote` at each of its two use sites —
+        // see that property. Only reached when there is no install error, which
+        // wins the branch below.
+        let note = installError == nil ? secondaryNote : nil
         VStack(spacing: 4) {
             HStack(spacing: 10) {
                 Image(nsImage: AppIconCache.icon(for: result.app.path.path))
@@ -1022,7 +1049,7 @@ private struct AppRow: View {
                         .disabled(model.restartingHelper)
                     }
                 }
-            } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
+            } else if let note {
                 // The staged-package line is the fallback, not an override: once
                 // an install note exists ("Opened the installer for … — finish it
                 // there") it is the more specific thing to say about the same
@@ -1035,6 +1062,48 @@ private struct AppRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
+        // Say how tall this row is instead of making the list work it out.
+        //
+        // A `LazyVStack` asks every row it places for its size, and answering used to
+        // mean descending the whole row — the stack, the two text lines, the trailing
+        // control — which a fast drag pays for in bursts as it realizes rows faster
+        // than they can be sized. That is what dropped frames. A fixed frame answers
+        // from the modifier instead.
+        //
+        // What that actually buys, measured over a 25 s full-range scroll of the
+        // "Show all" list with the runtime tags off (2026-09-07, `sample(1)`, as a
+        // share of wall clock): the main thread goes from 60.0% busy to 42.5%, and
+        // the popover stops dropping frames. The saving is in re-running row bodies
+        // — `ViewBodyAccessor.updateBody` 12.0% -> 3.6%, `AppRow.body` 8.0% -> 3.2%,
+        // AttributeGraph 43.5% -> 27.3%.
+        //
+        // NOT in the stack's own sizing pass, which is where this was expected to
+        // land: `LazyHVStack.lengthAndSpacing` is 14.7% before and 16.7% after. The
+        // stack still asks every row how tall it is. What changed is that answering
+        // no longer runs the row's body. Do not "fix" the remaining 16.7% by
+        // reaching for the frame again — it is already fixed.
+        //
+        // 44 is not a guess and not a target: it is what the row already measures.
+        // A height probe over 161 rows of the real list returned 44.00pt for every
+        // one, including rows carrying a channel chip, a runtime mark or a running
+        // dot, and it is the same 44 the row-state gallery already draws the
+        // trailing control into. Nothing about the row's appearance changes here.
+        //
+        // `nil` — natural height — for the rows this was NOT measured on. An install
+        // error or a note adds a second line to the `VStack` above, and none of the
+        // 161 was in that state, so those rows keep sizing themselves. They are rare
+        // and transient, so the fast path still covers essentially the whole list.
+        //
+        // ⚠️ A frame does not clip: content taller than this OVERFLOWS and draws over
+        // the row below. The condition above only knows the two things that stack
+        // UNDER the name line, so trailing content that grows past the icon's 30pt —
+        // a two-line status, a stacked readout — would overlap silently. Every
+        // inline branch of `PopoverRowAction` is a single-line `HStack` today (the
+        // tall `VStack`s in that file are `.popover` content, not row content), but
+        // that is an audit, not a gate: `make gallery` draws the trailing control
+        // into its own forced 44pt slot, so it would clip such a control too and
+        // still pass. Re-measure the row rather than assume, if one is added.
+        .frame(height: installError == nil && note == nil ? Self.plainRowHeight : nil)
         .contentShape(Rectangle())
         .contextMenu { rowMenu }
     }

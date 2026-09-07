@@ -195,8 +195,15 @@ v1 / v11 / v12 / v13 四种流版本都能取到同一个 channel。
 而 `updateChannel` 在解压之后、完全不同的偏移上。修完 checksum 之后那个字段读出什么，
 是一个**没有被拟合过的预测**——它读出的值与偏好里选中的那一项一致。
 
-同一份安装上，两条信号互相印证：`updateChannel` = 1（用户声明的意图），
-`WS_ASSERT` 残留 = 2（二进制确实是 prerelease 构建）。
+同一份安装上，**三条互相独立的信号一致**：
+
+| 信号 | 读到 | 量的是什么 |
+|---|---|---|
+| `engineSettings.updateChannel` | `1` = beta | 用户**声明**要接哪条轨 |
+| 二进制里的 `WS_ASSERT` 残留 | 2 处 | 这个**构建**是 prerelease |
+| `client.log` 的 `App version:` | `"v2.24.10 (Beta)"` | 同上，人可读 |
+
+三条来自三个完全不同的地方（加密偏好 / Mach-O 字符串 / 日志文本），结论相同。
 
 ⚠️ **还差一步才算完全钉死**：目前只观察了一个取值。要证明这个字段**跟着下拉框走**
 （而不是恰好等于 1），需要切到 Release 或 Guinea Pig 再读一次。
@@ -301,12 +308,19 @@ CDN 和 GitHub 上都有、能装、能跑的构建，厂商自己的 changelog 
 2. **`ChannelBinding` 现有的 resolver 全是读偏好的**，没有一个读文件内容。
    加这条等于给 `ChannelBinding` 长一类新能力，为一个 app。
 3. **那是 VPN 的日志。** 里面有网络活动记录。只读一行也是打开了它。
-4. **本机验证不了。** 这份审计全程没装 Windscribe（bundle 是从官方 dmg 解出来的），
-   所以上面那个路径和那行文字是**读源码得出的，未在真实安装上复核**——
-   而这个仓库刚好有一条规矩说转引未复核的实测要标出来。
+4. ~~本机验证不了~~ **已复核，而且路径我读源码读错了。**
+   我从 `paths.cpp` 推的是 `<AppLocalDataLocation>/log_gui.txt`。真实安装上是
+   **`~/Library/Application Support/Windscribe/Windscribe2/client.log`**
+   （同目录还有 `installer.log`）。那一行确实在，内容是：
+   ```
+   App version: "v2.24.10 (Beta)"
+   ```
+   —— 后缀跟着渠道走，和 `fullVersionString()` 一致。**这正是"读源码推出来的路径"
+   和"真实安装上的路径"会分岔的那种地方**，也是这个仓库要求「转引未复核的实测要标出来」
+   的理由：标了，然后它真的错了。
 
-**要接的话前置条件很明确**：真装一份（stable 或 beta 都行）跑起来一次，
-确认路径和行的确切形状，再决定值不值得给 `ChannelBinding` 加读文件的能力。
+前三条理由仍然成立，所以这条信号仍然只当**旁证**用（它和 `WS_ASSERT` 一样量的是
+"二进制按哪条轨编译"，不是"用户想接哪条轨"）。
 
 → 现状：**明确不是 Pattern D。** 有两条独立信号，一条三分一条二分，形状分别对应
 `ChannelBinding`（读偏好，和 OrbStack / Fork 同类）和一道旁证。

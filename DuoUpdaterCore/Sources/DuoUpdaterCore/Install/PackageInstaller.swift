@@ -8,6 +8,21 @@ import Darwin
 /// elevate to run the installer — so we download the official package (the same
 /// URL Homebrew would use) and hand it to macOS's own installer, which prompts
 /// for admin itself. The user confirms the install in a trusted, native UI.
+///
+/// Architecture limitation (#205): this route does NOT run
+/// `SignatureVerifier.verifyRunnableArchitecture` (Gate 5) or
+/// `verifyNoArchitectureDowngrade` (Gate 5b). We inspect package metadata, not
+/// the payload's Mach-O executables. Signature, Team ID and destination checks
+/// therefore do not prevent an Intel-only package from replacing a native app.
+/// This applies to every caller, including packages unwrapped from disk images.
+///
+/// We deliberately avoid full payload expansion here: it adds disk space and
+/// unpacking work proportional to the payload, potentially gigabytes. A vendor's
+/// `hostArchitectures` declaration is not proof of the installed app's slices.
+/// Handoff also returns before installation completes, so this actor performs no
+/// post-install architecture verification or automatic architecture rollback.
+/// Architecture compatibility on this route remains dependent on the vendor's
+/// package and system installer; it is not a DuoUpdater architecture guarantee.
 public actor PackageInstaller {
 
     /// The final hand-over keeps its integrity check and `NSWorkspace.open` in one

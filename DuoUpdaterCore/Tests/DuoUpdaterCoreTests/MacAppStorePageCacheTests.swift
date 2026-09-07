@@ -754,9 +754,9 @@ struct MacAppStorePageCacheTests {
     /// blocked on the same kind of gate; a pool-consuming block would have
     /// shown a slowdown proportional to losing one of 14 worker threads).
     ///
-    /// This test always joins `prewarmTask` before returning — on the happy
-    /// path via `latestVersion` (the only way a caller observes the
-    /// registered `Task`), and on the timeout path directly. An earlier
+    /// This test always joins `prewarmTask` before returning, on both exit
+    /// paths, by awaiting the task itself — never by relying on
+    /// `latestVersion` having reached `awaitInFlight()` on its way through. An earlier
     /// version only drained on the happy path; reproduced 2026-09-07 (see
     /// task notes) that this lets a still-running batch's request land inside
     /// the NEXT test's window, against the next test's `ScriptedHTTP` handler
@@ -796,7 +796,13 @@ struct MacAppStorePageCacheTests {
         gate.release()
 
         // Drain the batch before this test ends (see doc comment above).
+        // `latestVersion` is what a caller uses to join it, so it is worth
+        // exercising — but the drain itself does NOT ride on it: that call
+        // reaches `awaitInFlight()` only for a MAS app, and a throw on the way
+        // would leave the batch running past this test. The task is right
+        // here; await it.
         _ = try await source.latestVersion(for: app)
+        _ = await prewarmTask.value
     }
 
     /// Blocks the calling thread until released — lets a test prove something

@@ -51,10 +51,10 @@ fact. What *was* re-checked before moving this out of the code comment:
 `VersionComparator.isNewer(_:than:)` on `VersionSide` pairs — the mechanism
 `.answerRegressed` relies on is unchanged as of this pass (2026-09-08).
 
-The root cause is not something this gate can see, and the point of
-`.answerRegressed` is that it does not have to be: an answer that walks
-backwards is not evidence that something was already installed by another
-path, whatever made it walk backwards.
+The root cause is not something this gate can see — and the invariant that
+follows from that is stated once, on `.answerRegressed` in the source, rather
+than restated here. Two copies of a conclusion is what this migration is
+supposed to remove, not what it should produce.
 
 At the time of this incident, `AppListModel.performInstall` (the menu-bar
 click) was the only caller of this gate. The CLI's own re-check

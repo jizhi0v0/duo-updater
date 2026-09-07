@@ -3346,6 +3346,20 @@ public enum ChangelogRecipeRegistry {
         // prefix. One caveat worth knowing before trusting this list as history:
         // GitHub is missing 2.15.9 entirely (the vendor's API has it), so the
         // releases are the vendor's notes but not provably ALL of them.
+        //
+        // ⚠️ WHOEVER ADDS CHANNEL DETECTION FOR THIS APP MUST COME BACK HERE.
+        // `channel: .stable` is right only while every Windscribe copy detects as
+        // stable, which is true today because nothing reads its channel yet. The
+        // moment a `ChannelBinding` resolver lands, a beta copy detects as `.beta`
+        // — and `recipe(forBundleID:channel:)` does NOT then return nil, it falls
+        // back to the `.stable` recipe. So that copy keeps this list, which
+        // `.gitHubReleases` has filtered to `prerelease: false` only, while the row
+        // beside it offers a prerelease build (2.24.10, say). The pane would show
+        // 2.24.12 / 2.23.11 / 2.22.10 and omit the exact entry being offered —
+        // the failure `includesPromotedStable` exists for; see CotEditor above.
+        // Windscribe's tracks are a ladder (level N is served the newest build from
+        // tracks 0…N), so the channel variants want the vendor's own
+        // `ChangeLogs?platform=osx` and its per-entry `beta` number, not this feed.
         ChangelogRecipe(
             bundleID: "com.windscribe.client",
             source: URL(string:

@@ -6768,6 +6768,19 @@ public enum VendorProbeRegistry {
         // universal (x86_64 + arm64), "Developer ID Application: Windscribe
         // Limited (GYZJYS7XUG)".
         //
+        // EXPECTED WARNING, so nobody files an issue against a working recipe.
+        // `duo verify` runs `RecipeSanity.remoteBehindInstalled` whenever it finds
+        // an installed copy, and Windscribe's build numbers climb ACROSS tracks
+        // inside a cycle (2.24.3/2.24.6 guinea pig → 2.24.8/2.24.10 beta →
+        // 2.24.12 release). A machine carrying a prerelease build is therefore
+        // routinely newer than the newest release-track build — measured, that
+        // state holds on 618 of the last 819 days — and this recipe, which reads
+        // the release track by design, then reads behind the installed copy and
+        // draws a warning, four times a day for weeks. That is one of the honest
+        // causes that check's own doc lists, not a fault here; it goes away once
+        // the channel recipes land and such a copy is compared against its own
+        // track.
+        //
         // The vendor states an OS floor per release (`min_version`, 13.0 today)
         // and it MOVES — across the 149 macOS entries in `/ChangeLogs?platform=osx`
         // it runs 10.8 → 13.0 — so it is deliberately not frozen into a

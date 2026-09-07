@@ -673,17 +673,50 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
 
 ## 建议下一步
 
-1. ~~加 stable 检测~~ **已完成**：`vendor:com.windscribe.client:stable`，
-   2026-09-07 `duo verify --only windscribe` 实跑 `status: ok`，`version: 2.24.12`，
-   468 ms，**零 warning**（说明 `publishedAtPattern` 也匹配上并解析成功了）。
-   两份真实 bundle 过 `channel-verify` 生产全链：stable 判 `up to date`，
-   beta 判 `UPDATE 2.24.10 → 2.24.12`。
-   回归测试 `WindscribeProbeRecipeTests`（9 条，五个变异实测变红：放宽 key、
-   去掉 `_full`、去掉 `osx` 锚、去掉不跨条目边界、删掉 `publishedAtPattern`）。
+1. ~~加 stable 检测~~ **已完成**：`vendor:com.windscribe.client:stable`（读
+   `ChangeLogs/summary` 的 `release_full_version` + `release_date`）。
+   `duo verify --only windscribe` 实跑 `status: ok`、`version 2.24.12`、**零 warning**
+   （说明 `publishedAtPattern` 也匹配上并解析成功了）。
+   回归测试 `WindscribeProbeRecipeTests` **11 条**，**七个变异**实测变红：放宽版本 key、
+   去掉 `_full`、去掉 `osx` 锚、把不跨条目边界换成朴素 `[\s\S]*?`、删掉
+   `publishedAtPattern`、changelog recipe 的 `channel` 改成 `.beta`、删掉
+   `structuredFormat`。
+
 2. ~~结构化 changelog 正文~~ **已完成**：走 GitHub releases（`.gitHubReleases`），
-   `duo verify` 实跑 `entryCount 9`、顶条 `2.24.12`。要升级成厂商那份 149 条的
-   （带 `beta` 轨道号、`sha256`、`min_version`），前置条件是给 `ChangelogRecipe`
-   加 `requestHeaders`——单独一个 PR。
-3. beta / guinea pig 检测：BLOCKED，无代码改动。已写进 `CHANNEL_COVERAGE_TODO.md` § 3。
-   要解锁需要厂商在 bundle 里留一个可读的 channel 标记，或者把 `updateChannel`
-   写进一个不加密的 key——两件事都不在我们手里。
+   `duo verify` 实跑 `entryCount 9`、顶条 `2.24.12`。
+   要升级成厂商那份 149 条的（带 `beta` 轨道号、`sha256`、`min_version`），
+   前置条件是给 `ChangelogRecipe` 加 `requestHeaders`——单独一个 PR。
+
+3. **beta / guinea pig：不是 BLOCKED，是"没接"，而且前置条件已经全部备齐。**
+   （⚠️ 这一条 2026-09-07 改写过：初版写的是「BLOCKED，无代码改动，要解锁需要厂商
+   在 bundle 里留标记或者不加密 `updateChannel`——两件事都不在我们手里」。
+   **那是本文档正文自己推翻掉的结论**，而这一节没跟着改，一度和上面几节直接矛盾。）
+
+   现成的四样东西：
+
+   | | 状态 |
+   |---|---|
+   | 检测信号 | `engineSettings.updateChannel`，解码器在真实 plist 上对齐，三个取值全验过 |
+   | 渠道语义 | 阶梯：档位 N → 取轨道 0..N 里最新的；官方文档 + feed 回放双重确认 |
+   | recipe 形状 | `ChangeLogs?platform=osx` + `entryStartPattern` + 按 `"beta"` 轨道号过滤 + `selectHighest`，真实 body 上模拟过（13 / 36 / 97 条） |
+   | 测试 fixture | feed 按日期回放，08-01 / 08-12 / 08-26 三个时点三档答案互不相同 |
+
+   落地顺序建议拆两个 PR：先 `ChannelBinding` 的 resolver（**新能力**：读一个解出来的
+   偏好 blob，值得单独复审），再三条 recipe。
+
+4. ⚠️ **接 channel 的那个 PR 必须连 changelog recipe 一起改，别只改 probe。**
+   现在这条 changelog recipe 是 `channel: .stable` + `.gitHubReleases`（只保留
+   `prerelease: false` 的 release）。`ChangelogRecipeRegistry.recipe(forBundleID:channel:)`
+   在没有精确匹配时**会回退到 `.stable` 那条**，所以 channel 检测一上线，
+   一份 beta 拷贝仍然会拿到这条 recipe——而它被提供的可能是个 prerelease 构建
+   （比如 08-26 的 2.24.10），面板里却只有 2.24.12 / 2.23.11 / 2.22.10……
+   **恰好缺了正在被提供的那一条**。这正是 CotEditor 的 `includesPromotedStable`
+   存在的理由，它自己的 registry 注释里写着。
+
+5. ⚠️ **预期之内的 `duo verify` 警告，别当成 recipe 坏了。**
+   `Verify.swift` 在找得到已安装拷贝时会跑 `RecipeSanity.remoteBehindInstalled`，
+   而 Windscribe 的 build 号在一个周期内**跨轨递增**——所以装着 prerelease 构建的机器
+   常常比 release 轨还新（实测 819 天里 618 天是这个状态）。这时这条 stable recipe
+   报的版本低于装机版本，`duo verify` 会给一条 **warning**，而且会连着几周每天四次。
+   这是那条检查自己文档里点名的"honest cause"之一，不是缺陷；**接完 channel recipe
+   之后它会自然消失**（beta 拷贝届时比对的是 beta 轨）。

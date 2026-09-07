@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.88
 
-**Windscribe on its Beta or Guinea Pig channel is offered that channel's builds.** Duo Updater reads which update channel you picked in Windscribe's own settings, so a copy following a pre-release line is no longer told it is up to date while newer builds exist on that line. Release notes in the window still list stable releases only.
+**Windscribe on its Beta or Guinea Pig channel is offered that channel's builds.** Duo Updater reads which update channel you picked in Windscribe's own settings, so a copy following a pre-release line is no longer told it is up to date while newer builds exist on that line. The window also shows the notes for those pre-release builds, which it previously listed only for stable ones.
 
 **Windscribe now gets update checks, with its release notes.** A copy running an older build is listed with the version it can move to and what changed in it; before, Duo Updater had no way to see Windscribe's version at all. Updating is still done through Windscribe's own installer, which sets up parts of the app that live outside the app itself.
 

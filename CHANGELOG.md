@@ -21,9 +21,19 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.88
 
+**Scrolling through your whole app list is smooth again.** A fast scroll through the full list dropped frames; each row now reports its height without having to be built first.
+
+**Release notes for an App Store app always come from the App Store now.** When the store's own lookup for an app missed or failed, the window could fall back to the notes for that app's other distribution — a different build, on its own version numbers — describing a release your copy was never going to be offered.
+
 **Windscribe on its Beta or Guinea Pig channel is offered that channel's builds.** Duo Updater reads which update channel you picked in Windscribe's own settings, so a copy following a pre-release line is no longer told it is up to date while newer builds exist on that line. The window also shows the notes for those pre-release builds, which it previously listed only for stable ones.
 
 **Windscribe now gets update checks, with its release notes.** A copy running an older build is listed with the version it can move to and what changed in it; before, Duo Updater had no way to see Windscribe's version at all. Updating is still done through Windscribe's own installer, which sets up parts of the app that live outside the app itself.
+
+**An update is no longer applied to an app that went away while you were clicking.** If the app is uninstalled, replaced, or stops being readable between the click and the install starting, Duo Updater now stops and says so, rather than installing over that location anyway.
+
+**`duo`, the optional command-line companion, stops calling a package install finished before it is.** Installing an app that ships as a `.pkg` opens the macOS installer and leaves the rest to you, but the summary counted it as installed — "1 installed" while nothing had been replaced yet. Those are now counted separately. Its `--json` output also labels every line with what happened to that app, so a script no longer has to read the English explanation to tell a failure from a deliberate skip.
+
+**Under the hood.** The pre-install re-check that protects a one-click Update now protects `duo install` too, and the checks a download must pass before it replaces an app are held in one place for both routes that use them.
 
 ## 0.3.87
 

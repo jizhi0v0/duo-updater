@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.88
+
+**Le défilement de toute la liste des apps est de nouveau fluide.** Un défilement rapide dans la liste complète perdait des images ; chaque ligne indique désormais sa hauteur sans devoir être construite d'abord.
+
+**Les notes de version d'une app de l'App Store viennent maintenant toujours de l'App Store.** Quand la recherche du store pour une app n'aboutissait pas ou échouait, la fenêtre pouvait se rabattre sur les notes de l'autre canal de distribution de cette app — une autre version, avec ses propres numéros — et décrivait donc une publication que ta copie n'allait jamais recevoir.
+
+**Windscribe sur son canal Beta ou Guinea Pig se voit proposer les versions de ce canal.** Duo Updater lit le canal de mise à jour que tu as choisi dans les réglages de Windscribe, si bien qu'une copie suivant une ligne de préversion ne s'entend plus dire qu'elle est à jour alors que cette ligne a du plus récent. La fenêtre affiche aussi les notes de ces préversions, qu'elle ne listait auparavant que pour les versions stables.
+
+**Windscribe est désormais suivi pour les mises à jour, avec ses notes de version.** Une copie sur une version ancienne est listée avec la version vers laquelle elle peut aller et ce qui y a changé ; auparavant, Duo Updater n'avait aucun moyen de voir la version de Windscribe. La mise à jour passe toujours par l'installateur de Windscribe, qui configure aussi des éléments situés hors de l'app.
+
+**Une mise à jour n'est plus appliquée à une app qui a disparu pendant que tu cliquais.** Si l'app est désinstallée, remplacée ou devient illisible entre le clic et le début de l'installation, Duo Updater s'arrête et le dit, au lieu d'installer quand même à cet emplacement.
+
+**`duo`, le compagnon optionnel en ligne de commande, ne dit plus qu'une installation par paquet est terminée avant qu'elle le soit.** Installer une app livrée en `.pkg` ouvre l'installateur de macOS et te laisse la suite, mais le récapitulatif la comptait comme installée — « 1 installed » alors que rien n'avait encore été remplacé. Les deux sont maintenant comptés séparément. Sa sortie `--json` étiquette également chaque ligne avec ce qui est arrivé à cette app, si bien qu'un script n'a plus besoin de lire l'explication en anglais pour distinguer un échec d'un saut délibéré.
+
+**Under the hood.** La revérification juste avant l'installation qui protège une mise à jour en un clic protège maintenant aussi `duo install` ; et les contrôles qu'un téléchargement doit passer avant de remplacer une app tiennent en un seul endroit pour les deux chemins qui s'en servent.
+
 ## 0.3.87
 
 **Cliquer sur « Mettre à jour » ne reste plus sans effet lorsqu’une source de mises à jour se contredit.** Si la vérification lancée au moment du clic renvoie une version plus ancienne que celle proposée dans la ligne, Duo Updater le signale désormais et conserve la mise à jour. Auparavant, l’app était déclarée à jour et disparaissait de la liste, et la même mise à jour réapparaissait à la vérification suivante.

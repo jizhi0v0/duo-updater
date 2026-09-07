@@ -64,20 +64,31 @@ public struct MacAppStoreSource: UpdateSource {
     /// all, which is the one thing it must never be.
     ///
     /// The batch is registered with `prewarmCache` instead, and
-    /// `lookup(bundleID:region:)` awaits it before reading. So a slow batch now
-    /// delays exactly the rows that would otherwise each pay for their own
-    /// lookup, and nothing else — the pre-hook behaviour, with the saving.
+    /// `lookup(bundleID:region:)` awaits it before reading (the actual wait
+    /// happens in `AppStoreLookupCache.awaitInFlight`). So a slow batch
+    /// removes the global barrier this used to put in front of every
+    /// source — it no longer delays a GitHub or Sparkle row that never
+    /// touches this cache. It does NOT give App Store rows an isolated
+    /// queue: `UpdateChecker` runs the whole fan-out under one shared
+    /// bounded-concurrency window, and a row waiting here still occupies one
+    /// of that window's slots, the same as any other in-flight check would.
     public func prewarm(_ apps: [InstalledApp]) async {
         let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
         guard !bundleIDs.isEmpty else { return }
-        // Chunks run CONCURRENTLY, and that is not a micro-optimisation:
-        // `UpdateChecker.check(_:)` drains this before its per-app fan-out
-        // starts, so a sequential loop puts every chunk's timeout in front of
-        // every app's check. At 15 s per request and 30 MAS apps that is two
-        // chunks = up to 30 s where nothing else is being checked at all —
-        // strictly worse than before this hook existed, when an unreachable
-        // itunes.apple.com delayed only the App Store rows and did it in
-        // parallel with everything else.
+        // Chunks run CONCURRENTLY, and that is still not a micro-optimisation
+        // — just not for the old reason. It no longer keeps a chunk's timeout
+        // out of the main fan-out's way; `prewarm` already does that above by
+        // returning once `work` below is registered, before any chunk's
+        // request has even landed. What concurrency still buys is how long
+        // `work` itself takes to finish: `lookup(bundleID:region:)` awaits
+        // exactly this Task (via `AppStoreLookupCache.awaitInFlight`), and
+        // every App Store row doing so occupies one of `UpdateChecker`'s
+        // shared concurrency slots for as long as it waits. At 15 s per
+        // request and 30 MAS apps, a sequential loop would need two chunks —
+        // up to 30 s for `work` to finish — twice as long as running them at
+        // once, and that difference is spent by App Store rows (and whatever
+        // else queues behind them for a free slot) waiting rather than being
+        // checked.
         // Resolved once, exactly as `lookup(bundleID:region:)` resolves it, and
         // carried into both the request and the cache key.
         let lang = await LanguageSupport.shared.isRejected

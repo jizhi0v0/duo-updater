@@ -585,14 +585,22 @@ Only after detection is confirmed. For each supported channel:
 Use this structure for both reporting and persisting. The 2D matrix is the
 centerpiece — it shows at a glance what's covered and what's not.
 
+⚠️ **Copy the block below verbatim, including 「观测版本」.** `check_app_audits.py`
+enforces that wording and fails the build on the alternative that names the
+machine instead of the observation — along with anything else stating what some
+Mac does or does not have. An audit records what was seen at an endpoint and in a
+bundle; where that bundle came from is not the audit's subject. The rule lives in
+that script's `BANNED` table with its reasoning; read it there rather than
+restating the rejected phrasings here, because a doc that quotes them fails the
+same check.
+
 ```markdown
 # <App Name>
 
 ## 基本信息
 - Bundle ID: `...`
 - Team ID: `...`
-- 观测版本: ...   ← 必须是「观测版本」。`check_app_audits.py` 拒绝「已安装版本」:
-                   "installed" 会招来路径、渠道和「本机没装」,那正是公开仓库要挡的机器清单
+- 观测版本: ...
 - 自更新机制: Sparkle / Electron / Keystone / 自研 / 无
 
 ## 覆盖矩阵

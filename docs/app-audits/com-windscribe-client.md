@@ -90,7 +90,22 @@ VendorProbe **前面**，两条都留会让 recipe 变成永远不被调用的�
 - 两份 payload 的**文件清单逐条相同**（24 个文件，无增无减）；24 个里 15 个内容不同，
   而那 15 个**全是二进制加 Info.plist**——没有任何一个文本/plist 文件写着 channel
 
-所以 `ReleaseChannel.detect()` 拿不到任何信号，这是量出来的，不是推的。
+所以 `ReleaseChannel.detect()` 拿不到任何信号，这是量出来的，不是推的
+（`channel-verify` 拿真实 beta bundle 跑生产实现：`detected channel → stable`）。
+两个主二进制的 `strings` 也逐条比过，**没有任何一边独有的 `beta` / `guinea` /
+`channel` / `staging` 字样** —— `fullVersionString()` 里那些 `(Beta)` 字面量三种构建都有，
+因为那是运行期 `if`，只有 `buildChannel_` 的初始化是 `#ifdef` 的。
+
+> ⚠️ **更正：不要写「磁盘上没有任何 channel 痕迹」。** 那句话我写过，它太强了。
+> 准确的说法是「**bundle 里没有，可读的偏好里也读不出来**」。整台机器上是有一处的：
+> app 每次启动都往 `paths::clientLogFolder()`（`QStandardPaths::AppLocalDataLocation`，
+> macOS 上即 `~/Library/Application Support/…`）下的 `log_gui.txt` 写一行
+> ```
+> App version: v2.24.10 (Beta)
+> ```
+> —— 直接来自 `fullVersionString()`，`(Beta)` / `(Guinea Pig)` / 无后缀三选一
+> （`src/client/frontend/gui/main.cpp` 启动序列，紧跟 `=== Started ===`）。
+> 这是**目前已知唯一**的本机 channel 信号。为什么仍然没用它，见下。
 
 ### ⚠️ 后果不是"什么都不做"，是把 beta 用户推上 stable
 
@@ -122,7 +137,26 @@ Windscribe 的偏好设置里**确实有**一个 update channel 下拉框
 这不是"难"，是"每次厂商 bump `versionForSerialization_` 我们就会静默读错一个数"。
 **不做。**
 
-→ **Pattern D（同 bundle id + 无检测信号）= BLOCKED**，已登记进 `CHANNEL_COVERAGE_TODO.md` § 3。
+### 唯一那条信号（启动日志）为什么也没用
+
+`log_gui.txt` 里那行确实能区分三轨。没接，四条理由，按分量排：
+
+1. **它是日志，不是状态。** 每次启动重写，满了会轮转到 `prev_log_gui.txt`，
+   app 从没启动过就根本不存在。偏好键（OrbStack 的 `updates_optinChannel`、
+   Fork 的 `sparkleIncludePrereleases`）是**声明**，日志行是**副产物**——
+   厂商改一句 `qCInfo` 的措辞不算 breaking change，而我们会静默读错。
+2. **`ChannelBinding` 现有的 resolver 全是读偏好的**，没有一个读文件内容。
+   加这条等于给 `ChannelBinding` 长一类新能力，为一个 app。
+3. **那是 VPN 的日志。** 里面有网络活动记录。只读一行也是打开了它。
+4. **本机验证不了。** 这份审计全程没装 Windscribe（bundle 是从官方 dmg 解出来的），
+   所以上面那个路径和那行文字是**读源码得出的，未在真实安装上复核**——
+   而这个仓库刚好有一条规矩说转引未复核的实测要标出来。
+
+**要接的话前置条件很明确**：真装一份（stable 或 beta 都行）跑起来一次，
+确认路径和行的确切形状，再决定值不值得给 `ChannelBinding` 加读文件的能力。
+
+→ 现状 **Pattern D（同 bundle id + 无可靠检测信号）= BLOCKED**，
+已登记进 `CHANNEL_COVERAGE_TODO.md` § 3。
 
 ## 更新检测
 

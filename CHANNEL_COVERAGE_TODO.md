@@ -494,6 +494,14 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 `WINDSCRIBE_IS_GUINEA_PIG`）；产物文件名带 token（`..._beta_universal.dmg` /
 `..._guinea_pig_universal.dmg`）但文件名不进 bundle。
 
+⚠️ **别写「磁盘上没有任何 channel 痕迹」——那句话太强。** 准确说法是
+**bundle 里没有、可读的偏好里也读不出来**。整台机器上有一处：app 每次启动往
+`AppLocalDataLocation/log_gui.txt` 写一行 `App version: v2.24.10 (Beta)`
+（来自 `fullVersionString()`，三轨三种后缀）。没用它的理由：它是日志不是状态
+（每次重写、会轮转、没启动过就不存在），`ChannelBinding` 现有 resolver 全是读偏好的、
+没有一个读文件内容，那还是个 VPN 的日志，而且**这条路径和行的形状是读源码得出的、
+没在真实安装上复核过**。要接先装一份跑一次确认。
+
 **app 内确实有 update channel 下拉框**（Preferences → General，Release/Beta/Guinea Pig），
 所以这条乍看像 Pattern B/C。它不是：`EngineSettings::saveToSettings()` 把包括
 `updateChannel` 在内的全部引擎设置串成 `QDataStream`、过 `SimpleCrypt` 加密成一个字符串，

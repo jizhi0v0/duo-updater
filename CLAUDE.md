@@ -381,6 +381,41 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
   给出的是同样被过滤的 40 行——那条提示是假的)。
 
+## 装 app 的路径是全机独占的,靠 `InstallLock`
+
+生产的 scratch 目录名**跨进程稳定**:`DuoUpdater-<scratchSlug>-<版本>`(Sparkle)、
+`DuoUpdater-vendor-<scratchSlug>-<版本>`(Vendor),而且紧跟着一句
+`try? removeItem(at: workDir)`。这个形状**自己不安全**——两个进程同时装同一个 app
+就会互删(名字里那个版本号不解决问题:同时装的必然是同一个版本)。
+
+让它安全的是 `InstallLock`(`Install/InstallLock.swift`):一把全机 `flock`,菜单栏 app 和
+`duo` CLI 共用。三个性质都承重:
+
+- **覆盖下载,不只是 swap**——持有者可能正下到一半的 400 MB;
+- **拒绝而不是排队**——CLI 直接退出并报出持有者的 pid,「看起来卡住」比一句实话更糟;
+- **进程内引用计数**——app 自己的并发安装(`InstallPermits(applies: 2)`)共用一份 claim,
+  只有**另一个进程**会被挡回去。
+
+规矩:**任何会替换 bundle、或往那种 scratch 目录写东西的路径,都要过
+`ProcessInstallLock.shared.claim()`**。别为了「更安全」把生产那边的稳定名字改成 UUID:
+那个名字有用途(崩溃后按名字回收),锁已经保证了它的安全性。
+
+- ⚠️ **harness 照抄了生产的命名、却不带那把锁,就是把安全前提丢了。**
+  2026-09-07 实测:`installPipelineDryRun` 用 `DuoUpdaterTest-<scratchSlug>`,而 `scratchSlug`
+  是安装路径的 SHA-256(刻意跨进程稳定,好让崩掉的安装按名字回收)、`temporaryDirectory`
+  是 per-user 不是 per-process —— 于是两个 worktree 同时跑就互删对方正在下的包,输给的那个
+  在最后一步改名时炸成「either the former doesn't exist, or the folder containing the latter
+  doesn't exist」。**而它是以「install path broken for: <app>」的形式报出来的**:一次碰撞穿着
+  厂商故障的衣服,出现在唯一负责报告厂商故障的那个测试里。现在名字带 per-run UUID。
+- ⚠️ **同一个 checkout 里起两个 `swift test` 撞不上**,SwiftPM 的构建锁会把它们串起来
+  (实测:两个各约 20s 的运行,总耗时 43s,双绿)。所以**复现这类跨进程 bug,第二个进程必须给
+  `--scratch-path`**,否则你量的是排队,不是并发——我头两次复现就是这么假绿的。
+- 顺带:清理这类遗留目录时,**别拿目录自己的 mtime 当「多久没动过」**。目录 mtime 记的是
+  条目的增删,不是往条目里写字节:2026-09-07 实测,建 `.partial` 会给目录打时间戳,三秒后往
+  那个文件追加 5 MB,文件 mtime 走到 `…307`、目录 mtime 停在 `…304`。照目录读就成了按
+  「下载什么时候**开始**」算年龄,正在跑的慢传输会被判成废弃然后删在半路。要取目录内一层里
+  最新的那个。
+
 ## 别在协作池上做阻塞调用
 
 Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不扩容**。所以一个同步的、会

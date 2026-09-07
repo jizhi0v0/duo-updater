@@ -80,9 +80,10 @@ stale pre-install offer — which cancelled out the very identity guard
 `recheckMany` exists to enforce, and would have let an install proceed
 against a bundle that no longer resolves to the same app (#440).
 
-Found by review of #409's third step (this file, moving the incident
-history out of the source comments) — not by a user, and not by the
-gap actually firing in the field.
+Found by review of #409's third step (PR #439, moving `AppListModel`'s
+own install-path comments out of the source — not this file, which was
+the second step) — not by a user, and not by the gap actually firing in
+the field.
 
 The fix adds a `PreInstallDecision.unreadable` case and a second entry
 point, `PreInstallGate.decision(offered:confirmed:)`, which takes the two
@@ -98,7 +99,11 @@ host makes — and can silently un-make — on its own.
 
 Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/PreInstallGateTests.swift`
 (the comparator, pinned against both a synthetic backwards answer and the
-Nowdex shape), `CLI/Tests/DuoKitTests/InstallTests.swift`
+Nowdex shape, plus — for §3's `decision(offered:confirmed:)` overload —
+"a nil confirmed classifies as unreadable", "a non-nil confirmed still
+reaches the status ladder", and "both version sides are pulled from the
+results handed in"), `CLI/Tests/DuoKitTests/InstallTests.swift`
 (`answerWalkingBackwardsIsAFailureNotASkip`, pinning
 `PreInstallDecision.answerRegressed` → `ReconsiderOutcome.answerRegressed`
-on the CLI side).
+on the CLI side; `noReadableBundleIsUnreadableNotCannotConfirm`, pinning
+§3's `.unreadable` wording on the same side).

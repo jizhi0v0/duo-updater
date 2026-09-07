@@ -2364,7 +2364,20 @@ final class AppListModel {
         // keep the existing row on nil rather than dropping it: removing rows
         // is the next full scan's job, and dropping this one on what may be a
         // transient read would make the app blink out of the list.
-        guard let updated = await recheck(result) else { return }
+        //
+        // The two recomputes below still run on nil, even though the row
+        // itself doesn't change: they're whole-set sweeps, not row-scoped, so
+        // "this one row was unreadable just now" says nothing about whether
+        // they still have work to do. `relaunchStagedUpdate` calls this right
+        // after a vendor updater has been rewriting the bundle — exactly when
+        // a transient unreadable is most likely — and its own comment counts
+        // on `computeSelfUpdateStaging`'s departed-id sweep to clear the
+        // staged flag and reminder banner once the swap has landed.
+        guard let updated = await recheck(result) else {
+            await computeRestartInfo()
+            await computeSelfUpdateStaging()
+            return
+        }
         replaceRow(updated)
         await computeRestartInfo()
         await computeSelfUpdateStaging()
@@ -2827,8 +2840,15 @@ final class AppListModel {
         guard decision != .unreadable, let result = confirmed else {
             Log.install.error(
                 "install aborted: \(offered.app.name, privacy: .public) — the pre-install re-check found no readable bundle at \(offered.app.path.path, privacy: .public)")
+            // No path here, unlike the log line just above and the CLI's own
+            // wording (`Install.reconsider`'s `.unreadable`): the row already
+            // says which app this is, and a full filesystem path pushed the
+            // only actionable half of this sentence (the "may have been
+            // uninstalled" diagnosis) past the popover's one-line clamp —
+            // measured for en/fr/es, the path starts around character 32-41,
+            // so the user saw the path and not the diagnosis.
             installErrors[id] = String(
-                localized: "No readable bundle was found at \(offered.app.path.path) right now — it may have been uninstalled, or its Info.plist could not be parsed.")
+                localized: "No readable bundle was found right now — it may have been uninstalled, or its Info.plist could not be parsed.")
             await computeRestartInfo()
             installing[id] = nil
             return false
@@ -3268,6 +3288,20 @@ final class AppListModel {
                     "install done, but could not read back: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public)")
                 installErrors[id] = String(
                     localized: "\(result.app.name) could not be read back at its path after the install.")
+                // Parity with the rollback arm (`rollback`'s own recheck-nil
+                // branch): the bytes on disk changed even though we can't read
+                // them back, so the same three whole-set sweeps still have
+                // work to do — most importantly `refreshBackupIndex`, since
+                // `backupCurrent` just ran and this is exactly the situation
+                // where the user most wants the Rollback affordance to appear.
+                // Deferred in a batch like the success path above, so each
+                // row's failure doesn't hold the next install behind a
+                // per-app `lsappinfo`/staging/backup pass.
+                if !deferBookkeeping {
+                    await computeRestartInfo()
+                    await computeSelfUpdateStaging()
+                    await refreshBackupIndex()
+                }
                 installing[id] = nil
                 relaunching.remove(id)
                 return false

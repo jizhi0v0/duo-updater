@@ -432,7 +432,7 @@ import DuoUpdaterCore
         #expect(route == .vendor)
     }
 
-    /// The one `PreInstallDecision` arm nothing pinned. Its four siblings each
+    /// The one `PreInstallDecision` arm nothing pinned. Its five siblings each
     /// have a case here; `.managedElsewhere` had none, so a re-mapping of it to
     /// `.proceed` — which would install a vendor artefact over a copy the App
     /// Store, Toolbox or TestFlight owns — compiled and passed the whole suite.
@@ -465,10 +465,11 @@ import DuoUpdaterCore
     /// failed to parse — `AppScanner.readApp` returns nil for both, and this
     /// cannot assert which) must NOT become `.cannotConfirm` — that reads as
     /// retryable, and re-running `duo install` cannot change whether a bundle
-    /// exists right now. Mutation (reverted after running): changed
-    /// `guard let confirmed else { return .unreadable(...) }` to
-    /// `return .cannotConfirm(nil)` in `Install.reconsider` — this test went
-    /// red (expected `.unreadable`, got `.cannotConfirm`).
+    /// exists right now. Mutation (reverted after running): in
+    /// `Install.reconsider`, changed the `guard decision != .unreadable, let
+    /// confirmed else { return .unreadable(...) }` at the top to
+    /// `return .cannotConfirm(nil)` — this test went red (expected
+    /// `.unreadable`, got `.cannotConfirm(nil)`).
     @Test func noReadableBundleIsUnreadableNotCannotConfirm() {
         let offered = vendorOffer()
         let outcome = Install.reconsider(

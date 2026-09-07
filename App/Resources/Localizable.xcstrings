@@ -13084,43 +13084,43 @@
         }
       }
     },
-    "No readable bundle was found at %@ right now — it may have been uninstalled, or its Info.plist could not be parsed.": {
+    "No readable bundle was found right now — it may have been uninstalled, or its Info.plist could not be parsed.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Am Pfad %@ wurde gerade kein lesbares Bundle gefunden – es wurde möglicherweise deinstalliert, oder seine Info.plist ließ sich nicht parsen."
+            "value": "Gerade wurde kein lesbares Bundle gefunden – es wurde möglicherweise deinstalliert, oder seine Info.plist ließ sich nicht parsen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se encontró ningún paquete legible en %@ en este momento — puede que se haya desinstalado, o que su Info.plist no se pudiera analizar."
+            "value": "No se encontró ningún paquete legible en este momento — puede que se haya desinstalado, o que su Info.plist no se pudiera analizar."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucun bundle lisible n'a été trouvé à %@ pour le moment — il a peut-être été désinstallé, ou son Info.plist n'a pas pu être analysé."
+            "value": "Aucun bundle lisible n'a été trouvé pour le moment — il a peut-être été désinstallé, ou son Info.plist n'a pas pu être analysé."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ に読み取り可能なバンドルが見つかりませんでした — アンインストールされたか、Info.plist を解析できなかった可能性があります。"
+            "value": "読み取り可能なバンドルが見つかりませんでした — アンインストールされたか、Info.plist を解析できなかった可能性があります。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По пути %@ сейчас не найден читаемый пакет приложения — возможно, его удалили, либо не удалось разобрать его Info.plist."
+            "value": "Сейчас не найден читаемый пакет приложения — возможно, его удалили, либо не удалось разобрать его Info.plist."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "现在在 %@ 找不到可读取的应用包 — 可能已被卸载，或者其 Info.plist 无法解析。"
+            "value": "现在找不到可读取的应用包 — 可能已被卸载，或者其 Info.plist 无法解析。"
           }
         }
       }

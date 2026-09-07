@@ -1008,15 +1008,14 @@ private struct AppRow: View {
             }
             if let installError {
                 VStack(alignment: .leading, spacing: 3) {
-                    // Two lines, with the whole message on hover. This note used
+                    // One line, with the whole message on hover. This note used
                     // to be unbounded, so a long one grew the row by three or four
                     // lines and pushed everything below it down — and the popover
                     // is 370pt wide, the narrowest place any of this copy is shown.
-                    // Two rather than one because the clamp applies to every
-                    // install error, not just the short ones written for it: at one
-                    // line the existing post-install verification message loses the
-                    // half that names what actually landed. Two keeps that legible
-                    // and still bounds the row.
+                    // The clamp applies to every install error, not just the short
+                    // ones written for it, so a longer message (the post-install
+                    // verification note, say) loses whatever falls past one line —
+                    // the tooltip is what keeps the rest reachable.
                     Text(installError)
                         .font(.caption2)
                         .foregroundStyle(.red)

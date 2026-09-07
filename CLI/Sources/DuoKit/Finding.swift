@@ -19,7 +19,9 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// ADDRESSES, handed to apps whose own bundle does not give us a usable
     /// one. Nothing on a schedule had ever fetched them (#324), and a feed that
     /// dies, moves or reshapes its items produces a nil out of
-    /// `SparkleAppcastSource` that every caller renders as "up to date". See
+    /// `SparkleAppcastSource` rather than an error — `UpdateChecker` reads that
+    /// as a miss and tries the next source, so only an app with no other
+    /// source left settles on `.unknown`, not `.upToDate`. See
     /// `FeedVerify.swift`.
     case feed
     /// Not a recipe registry either — this sweeps the `hostArchitectures`

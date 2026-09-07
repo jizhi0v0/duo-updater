@@ -12,7 +12,10 @@ public struct SparkleFeedReading: Sendable {
     /// channel, minimum/maximum-OS and architecture filters — for a DEFAULT
     /// CHANNEL install on the machine running the sweep. Zero here is the
     /// failure the whole sweep exists for: it is what `latestVersion` turns
-    /// into a nil, which every caller renders as "up to date".
+    /// into a nil — this feed offering nothing, not a request that failed.
+    /// `UpdateChecker` treats that nil as a miss and moves on to the next
+    /// source; only an app with no other source left standing settles on
+    /// `.unknown`, a `RowActionState` case of its own — not `.upToDate`.
     public let usableCount: Int
     /// `sparkle:shortVersionString` of the newest usable item, i.e. the
     /// marketing string this feed would put in front of a user.
@@ -52,9 +55,12 @@ public extension SparkleAppcastSource {
     /// is the one address table nothing on a schedule has ever fetched (#324):
     /// its fill-in half invents an address the bundle never states, and its
     /// superseding half overrides one the bundle does state, and both halves
-    /// fail silently — a feed that dies, moves, or reshapes its items produces
-    /// a nil out of `latestVersion`, which is indistinguishable from "you are
-    /// up to date" everywhere it is displayed.
+    /// fail quietly in the same way — a feed that dies, moves, or reshapes its
+    /// items has nothing usable left, so `latestVersion` returns nil for it
+    /// rather than throwing. `UpdateChecker` reads that nil as "try the next
+    /// source", so an app another source also covers is unaffected; an app
+    /// this address is the only source for settles on `.unknown` — no update
+    /// offered, but a `RowActionState` case of its own, not `.upToDate`.
     ///
     /// **Whose answer this is.** `usableItems` needs an installed copy to
     /// decide which channels are allowed, and the sweeping machine is not

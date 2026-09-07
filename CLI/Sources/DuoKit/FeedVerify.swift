@@ -7,9 +7,16 @@ import DuoUpdaterCore
 // Why it is a registry at all (#324). The other four sweeps check recipes: a
 // pattern that has to keep matching a page. This one checks an ADDRESS, and an
 // address that has stopped working looks like nothing. `SparkleAppcastSource`
-// answers a dead or unusable feed with nil, and every caller renders nil as "up
-// to date" — which is the exact failure the superseding entry was added to fix,
-// one address further along. The table's two halves fail that way for different
+// answers a feed with nothing left to offer — empty, every item filtered, no
+// marketing string on the head item — with nil; a transport failure or a
+// non-2xx status is thrown, not returned as nil. A nil from one source does
+// not by itself read as "up to date": `UpdateChecker` tries the next source,
+// and only lands on `.unknown` once nothing else answers either — a
+// `RowActionState` case of its own (`.noSourceCovers`), never `.upToDate`.
+// For an app whose bundle points at nothing but this address, that is
+// exactly what happens, and it is the failure the superseding entry was
+// added to fix, one address further along: not the row lying, but the row
+// having nothing to say. The table's two halves fail that way for different
 // reasons:
 //
 //   - a fill-in address is one the bundle never states, so if it moves there is
@@ -35,11 +42,27 @@ extension Verify {
         guard !cases.isEmpty else { return [] }
         let source = SparkleAppcastSource()
 
-        // Sequential with the same inter-request delay every other sweep uses.
-        // Today's entries sit on a host each, so the delay buys nothing between
-        // them — but a table this small has no parallelism worth having either,
-        // and a superseding entry's two reads go to the same host back to back,
-        // which is the pair the delay is actually for.
+        // Sequential with the same inter-request delay every other sweep uses,
+        // applied the same way the other flat loops do (the App Store batch
+        // sweep, the GitHub-rule sweep): between successive top-level items,
+        // not inside one item's own requests. Today's two entries — the one
+        // fill-in feed and the one superseding feed — sit on a different host
+        // each, so the delay buys nothing between them; a table this small has
+        // no parallelism worth having either.
+        //
+        // It does NOT cover a superseding entry's own live→declared pair
+        // (`probe` below): that reads the same host twice back to back with
+        // nothing in between. Nowhere in this codebase does `perHostDelay`
+        // reach inside one item to space out its own requests —
+        // `sweepVendor`'s version read and install-URL check
+        // (`VendorProbeSource.probeOutcome`'s `checkInstallURL`) are the same
+        // shape, request the same host back to back, and are just as
+        // unpaced. Giving this sweep its own intra-entry pacing would make it
+        // the one sweep that polices something every other sweep leaves
+        // alone, for a table that currently has exactly one entry the gap
+        // could apply to. If that ever needs closing, it is a decision for
+        // every sweep with an intra-item request pair, not a special case
+        // here — see issue #408.
         var findings: [Finding] = []
         for (index, entry) in cases.enumerated() {
             if index > 0 {
@@ -152,9 +175,11 @@ extension Verify {
         }
 
         guard live.usableCount > 0 else {
-            // The silent one. `latestVersion` returns nil here and the row reads
-            // as up to date — the same shape as the frozen feed that made a
-            // superseding entry necessary in the first place.
+            // The silent one. `latestVersion` returns nil here, and `UpdateChecker`
+            // reads that as a miss rather than an error — the same shape as the
+            // frozen feed that made a superseding entry necessary in the first
+            // place. An app with another source still gets a correct answer from
+            // it; an app with none lands on `.unknown`, not `.upToDate`.
             let capped = live.itemsDeclaringMaximumSystemVersion
             return (.broken, nil, [
                 "everyItemFilteredOut — the feed parsed \(live.itemCount) items and none of "

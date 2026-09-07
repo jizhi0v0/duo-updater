@@ -6800,7 +6800,82 @@ public enum VendorProbeRegistry {
                 + #"(?:(?!"platform")[\s\S])*?"#
                 + #""release_date"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})""#,
             requestHeaders: ["Authorization": "Bearer 1234"]),
-    ]
+
+        // Windscribe beta / guinea pig — the two tracks `WindscribeChannel`
+        // unlocks. Different endpoint from the stable recipe above, and the
+        // reason is the shape of the answer rather than taste.
+        //
+        // A LADDER, NOT PARALLEL TRAINS. The vendor's own page says a fix "will
+        // be released in the Guinea Pig channel first" and that staying on
+        // Release is how you see fewest bugs; the feed shows the same thing, with
+        // the build number climbing ACROSS tracks inside one cycle (2.24.3 and
+        // 2.24.6 guinea pig → 2.24.8 and 2.24.10 beta → 2.24.12 release). So a
+        // user on level N is served the newest build from tracks 0…N — reading
+        // only their own track would tell someone on the beta line that the beta
+        // track's 2.24.10 is the newest thing there is while release 2.24.12 sits
+        // above it, and would offer a guinea pig user a version OLDER than the
+        // one they are running.
+        //
+        // `/ChangeLogs/summary`, which the stable recipe reads, cannot express
+        // that: its three `*_full_version` fields live in one object behind a
+        // single `"platform": "osx"` anchor, and a pattern that consumes the
+        // anchor matches exactly ONCE. Adding an alternation there looks like it
+        // works — today it returns 2.24.12, the right answer — and would keep
+        // returning the release track on the day a beta leads. Measured, not
+        // reasoned: `findall` over the real body returns one match.
+        //
+        // `/ChangeLogs?platform=osx` states each release's track as its own
+        // `"beta"` number (0 release / 1 beta / 2 guinea pig), so the track set
+        // is a character class and `selectHighest` does the max across entries.
+        // `entryStartPattern` is what keeps a version and its date inside ONE
+        // entry; it also switches selection to "highest among matching entries",
+        // which is the wanted behaviour here and why the single-match guard
+        // being skipped under `selectHighest` is fine rather than a hole.
+        //
+        // Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
+        // 36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
+        // `release_date` 2026-09-02 — the same answer the stable recipe gives,
+        // because release currently leads. That is the 25% case. Replaying the
+        // feed by date is what tells the three apart, and the regression tests
+        // use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
+        // 2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
+        //
+        // Costs 250 KB per check against the stable recipe's 14 KB. Only one of
+        // the three ever binds to a given copy, so nobody pays both.
+        //
+        // Detection only, exactly as stable is — the dmg is an installer stub and
+        // the install writes a LaunchDaemon, a privileged helper and a system
+        // extension. Because there is no install spec,
+        // `RecipeSanity.crossChannelArtifact` returns early and no
+        // `ChannelProofRegistry` entry is required; that is a consequence of the
+        // refusal above, so anyone adding one-click here inherits the proof
+        // obligation with it.
+    ] + [ReleaseChannel.beta, .guineaPig].map(windscribeTrackRecipe)
+
+    /// One Windscribe prerelease track: the set of `"beta"` numbers a user on
+    /// that track accepts, since the ladder means each level subsumes the more
+    /// stable ones below it.
+    private static func windscribeTrackRecipe(_ channel: ReleaseChannel) -> VendorProbeRecipe {
+        // `(?![0-9])` rather than `\b` after the class: the values are 0/1/2
+        // today and a bare `[01]` would also match the first digit of a
+        // hypothetical `10`, which is the kind of thing a vendor adds without
+        // announcing it.
+        let tracks = channel == .beta ? "[01]" : "[0-2]"
+        return VendorProbeRecipe(
+            bundleID: "com.windscribe.client",
+            url: URL(string: "https://api.windscribe.com/ChangeLogs?platform=osx")!,
+            mode: .responseBody,
+            versionPattern: #""beta"\s*:\s*\#(tracks)(?![0-9])[\s\S]*?"#
+                + #"Windscribe_([0-9]+(?:\.[0-9]+)+)_"#,
+            downloadURL: URL(string: "https://windscribe.com/download"),
+            changelogURL: URL(string: "https://windscribe.com/changelog"),
+            selectHighest: true,
+            publishedAtPattern: #""release_date"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})""#,
+            entryStartPattern: #""id"\s*:\s*[0-9]+"#,
+            requestHeaders: ["Authorization": "Bearer 1234"],
+            channel: channel)
+    }
+
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus
     /// the token that artifact's filename carries.

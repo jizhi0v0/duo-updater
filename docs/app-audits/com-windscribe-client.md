@@ -71,8 +71,12 @@ VendorProbe **前面**，两条都留会让 recipe 变成永远不被调用的�
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable (release) | `com.windscribe.client` | 共享 | — | — | ✓ |
-| beta | `com.windscribe.client` | **共享** | **无** | — | ✗ BLOCKED |
-| guinea pig | `com.windscribe.client` | **共享** | **无** | — | ✗ BLOCKED |
+| beta | `com.windscribe.client` | **共享** | 二进制里的 `WS_ASSERT` 残留（**只能二分**，见下） | — | ✗ 未接 |
+| guinea pig | `com.windscribe.client` | **共享** | 同上，**与 beta 不可区分** | — | ✗ 未接 |
+
+⚠️ **这张表 2026-09-07 改过一次。** 原来 beta/guinea pig 两行的检测信号写的是「无」、
+状态写的是 `✗ BLOCKED`。拿到四份不同渠道的真实构建之后发现**有信号**（下面那节），
+只是它只能分出「stable / 非 stable」两组。所以现在是**未接**，不是**做不到**。
 
 ### 三条轨道是编译期烙进去的，磁盘上却看不出来
 
@@ -137,7 +141,81 @@ Windscribe 的偏好设置里**确实有**一个 update channel 下拉框
 这不是"难"，是"每次厂商 bump `versionForSerialization_` 我们就会静默读错一个数"。
 **不做。**
 
-### 唯一那条信号（启动日志）为什么也没用
+### ✅ 找到了一条二进制里的信号：prerelease 构建带 `WS_ASSERT` 的残留
+
+**2026-09-07，五份真实构建实测。** 起因是回头去数「到底哪些东西是编译期分叉的」——
+`WINDSCRIBE_IS_BETA` / `WINDSCRIBE_IS_GUINEA_PIG` 全仓库只有 **5 个使用点**，
+其中一个是 `src/client/client-common/utils/ws_assert.h`：
+
+```cpp
+#if defined(WINDSCRIBE_IS_BETA) || defined(WINDSCRIBE_IS_GUINEA_PIG)
+#define WS_ASSERT(b) { if (!(b)) { qCritical(LOG_ASSERT)
+    << "Assertion failed! (" << __FILE__ << ":" << __LINE__ << ")"; } Q_ASSERT(b); }
+#else
+#define WS_ASSERT(b)          // ← stable 构建里展开成空
+#endif
+```
+
+stable 里这个宏**展开成空**，所以 `"Assertion failed! ("` 这个字面量和每个调用点的
+`__FILE__` 路径**根本不会被编译进去**。prerelease 里会。实测：
+
+| 构建 | 发布日 | 轨道 | GUI `Assertion failed!` | GUI 内嵌 `__FILE__` 路径 | cli |
+|---|---|---|---|---|---|
+| 2.23.11 | 2026-07-06 | release | **0** | **0** | 0 |
+| 2.24.4  | ~2026-07   | guinea pig | **2** | **194** | 2 |
+| 2.24.10 | 2026-08-25 | beta | **2** | **194** | 2 |
+| 2.24.11 | ~2026-08-26 | （feed 里没有） | **0** | **0** | 0 |
+| 2.24.12 | 2026-09-02 | release | **0** | **0** | 0 |
+
+**2.23.11 是刻意加的对照组**：它比两个 prerelease 都**早**，仍然是 0。所以这个分组
+跟着**渠道**走，不是跟着**时间**走——按日期排是 0 / 2 / 2 / 0 / 0，不单调。
+GUI 二进制大小也跟着分组（prerelease 大约 87.2 MB，两个 stable 都是 **86,459,232 字节**，
+一模一样），但那只是旁证，判据是字符串。
+
+内嵌的路径长这样（厂商 CI 的构建机路径，原样烤进 prerelease 二进制）：
+`.../client-desktop/src/client/frontend/gui/mainwindow.cpp`
+
+**顺带解开了 2.24.11 这个谜。** 它在 GitHub 上被标 `prerelease: true`、文件名却不带
+channel token、厂商 API 三条轨道也都不认它——**它是按 stable 编译的**。所以 GitHub 那个
+`prerelease` 标记在这里是**发布流程的状态**（压着没放的构建），不是渠道。
+
+#### 但这条信号只能二分，不能三分
+
+`WS_ASSERT` 那个 `#if` 是 `BETA || GUINEA_PIG`，两轨共用。唯一 guinea-pig-only 的使用点
+（`cli/main.cpp` 的 staging 开关）实测不产生可区分的字符串——四份构建的 cli 里
+staging 相关字符串都是 2 个。想分辨 beta 和 guinea pig，需要**同一个版本号**的两份不同渠道
+构建来做对照，而厂商从不这么发。
+
+#### 拿 feed 补成三分？不行，feed 是残缺的
+
+版本号在 `/ChangeLogs?platform=osx` 里确实唯一对应一个 `beta` 轨道号（149 条、149 个不同
+版本，是个函数）。但**用户下的这四份里有两份根本不在那份 feed 里**：
+
+- `2.24.11` —— NOT IN FEED
+- `2.24.4`（guinea pig）—— NOT IN FEED
+
+CDN 和 GitHub 上都有、能装、能跑的构建，厂商自己的 changelog feed 里没有。
+所以「装了什么版本 → 查 feed → 得轨道」对真实可安装的构建**答不出来**，
+这正是「feed 不是 app」那条规矩的一个干净实例。
+
+#### 这条信号能买到什么
+
+**能把现在那个跨渠道推送关掉。** 今天 beta 拷贝被判成 stable、照常被提供 stable 更新
+（上一节写了，是接受的）。有了这条判据就能识别出「这是个 prerelease 构建」并停止向它
+提供 release 轨——把一个"接受但没论证"的行为换成一道真闸。
+
+**代价和风险**（还没实现，先记下来）：
+
+1. **要读另一个 app 的二进制内容**，`AppScanner` 现在不干这事，`ChannelBinding` 现有
+   resolver 也全是读偏好的。扫 `Contents/MacOS/windscribe-cli`（约 12.9 MB）比扫 GUI
+   （约 86 MB）便宜得多，两者标记一致。
+2. **判据是调试宏的副作用，不是厂商声明的渠道。** 厂商把 `ws_assert.h` 改一下（比如
+   stable 也开 assert、或换个宏），标记就没了。⚠️ **两个失效方向不对称**：标记消失 →
+   prerelease 被判成 stable → 退回今天的行为（不更糟）；stable 开了 assert → stable
+   被判成 prerelease → **我们会扣住 stable 用户的更新**，这个方向才要防。
+3. 只有二分。guinea pig 用户会被当成 beta 用户对待（或者当成"某种 prerelease"）。
+
+### 那条启动日志信号（较弱，作为对照留着）
 
 `log_gui.txt` 里那行确实能区分三轨。没接，四条理由，按分量排：
 
@@ -155,8 +233,11 @@ Windscribe 的偏好设置里**确实有**一个 update channel 下拉框
 **要接的话前置条件很明确**：真装一份（stable 或 beta 都行）跑起来一次，
 确认路径和行的确切形状，再决定值不值得给 `ChannelBinding` 加读文件的能力。
 
-→ 现状 **Pattern D（同 bundle id + 无可靠检测信号）= BLOCKED**，
-已登记进 `CHANNEL_COVERAGE_TODO.md` § 3。
+→ 现状：**不是 Pattern D 了。** 有一条二分信号（binary 里的 `WS_ASSERT` 残留），
+够用来关掉现在那个"把 beta 拷贝推上 stable"的行为；不够用来分辨 beta 和 guinea pig。
+`CHANNEL_COVERAGE_TODO.md` § 3 那条已相应改写。**没实现**，因为它需要给
+`ChannelBinding` 长出"读另一个 app 的二进制"这类新能力，而且失效方向不对称
+（见上）——值不值得，是个要单独决定的事。
 
 ## 更新检测
 

@@ -480,7 +480,25 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 拿到数年前的 latest，比干净的 unknown 更糟。bundle-id 后缀仍会给这类安装打 channel 标签
 （UI 用），只是没版本源。活跃 3 轨（stable/preview/dev）已接 ✓。
 
-### Windscribe — Beta / Guinea Pig（2026-09-07 判定，勿重开）
+### Windscribe — Beta / Guinea Pig（2026-09-07；**已从「死轨」降级为「未接」**）
+
+> ⚠️ **同日改判两次，两次都是量出来的，把过程留着当教训。**
+> 第一版：「无任何检测信号 → Pattern D，勿重开」——那是拿**两份**构建
+> （stable 2.24.12 / beta 2.24.10）比出来的。
+> 拿到**五份**（加 guinea pig 2.24.4、feed 外的 2.24.11、以及作为时间对照的
+> stable 2.23.11）之后，结论变了：**有信号**。
+> `ws_assert.h` 的 `WS_ASSERT` 宏只在 `WINDSCRIBE_IS_BETA || WINDSCRIBE_IS_GUINEA_PIG`
+> 下展开，stable 里展开成空——于是 prerelease 二进制里有
+> `"Assertion failed! ("` 和 **194** 条内嵌 `__FILE__` 构建机路径，stable 里是 **0**。
+> 五份实测：release 0 / guinea pig 2 / beta 2 / 2.24.11 **0** / release 0。
+> 2.23.11 是刻意选的**比两个 prerelease 更早**的 stable，仍是 0，所以这跟着**渠道**
+> 走不是跟着**时间**走。
+> **只能二分**（beta 与 guinea pig 共用同一个 `#if`，分不开），而且拿 feed 补不成三分
+> ——用户下的四份里有两份（2.24.11、2.24.4）**根本不在** `/ChangeLogs?platform=osx` 里。
+> 顺带：2.24.11 是**按 stable 编译**的，GitHub 上那个 `prerelease` 标记是发布流程状态、
+> 不是渠道。
+> 细节、代价和不对称的失效方向写在 `docs/app-audits/com-windscribe-client.md`。
+> **没实现**：要给 `ChannelBinding` 长出读二进制的能力，是个单独的决定。
 
 ✗ 两轨都和 stable 共享 `com.windscribe.client`，**磁盘上没有任何 channel 痕迹**。
 不是"没找到"，是**两份真实 bundle 对比量出来的**（stable 2.24.12 与 beta 2.24.10，

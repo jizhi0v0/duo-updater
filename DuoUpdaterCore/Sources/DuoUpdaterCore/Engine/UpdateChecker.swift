@@ -71,8 +71,17 @@ public struct UpdateChecker: Sendable {
         // once (a single-app recheck still arrives here as a one-element array,
         // so it still prewarms — for just that one app, same as any live
         // lookup would). Explicitly drained rather than left to `withTaskGroup`
-        // to auto-await, so it's unambiguous that every source's prewarm has
-        // finished — not merely been scheduled — before the fan-out begins.
+        // to auto-await, so it's unambiguous that every source's `prewarm(_:)`
+        // call has finished — not merely been scheduled — before the fan-out
+        // begins. "Finished" describes the HOOK returning, not the batch's
+        // network work: `MacAppStoreSource.prewarm` starts an unstructured
+        // `Task` and returns as soon as that Task is registered with
+        // `AppStoreLookupCache` — it does not await the Task itself, so this
+        // await never depends on any iTunes response having arrived, whether
+        // or not one happens to beat it back. The query that actually needs
+        // a result — `lookup(bundleID:region:)`, via
+        // `AppStoreLookupCache.awaitInFlight()` — is what waits for the
+        // batch itself.
         await withTaskGroup(of: Void.self) { group in
             for source in sources {
                 let visible = Self.apps(apps, visibleTo: source)

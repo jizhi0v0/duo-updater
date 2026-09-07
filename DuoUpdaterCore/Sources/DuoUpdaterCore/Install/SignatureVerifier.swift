@@ -8,16 +8,18 @@ import Security
 /// Gates 1–4 are about trust (EdDSA signature, code signature, Team ID, bundle
 /// ID); gates 5 and 6 are about liveness — whether the bundle can launch on this
 /// Mac at all, by architecture and by the OS version it declares it needs.
-/// Callers pick the gates that apply to their route: the Sparkle installer runs
-/// all of them, the vendor installer runs 2–6 (no feed signature to check).
+/// Callers pick the gates that apply to their route via `verifyInstallArtifact`
+/// below, the single shared entry point both installers call: the Sparkle
+/// installer runs it after its own EdDSA gate (1), the vendor installer runs it
+/// as its whole gate sequence (no feed signature to check).
 ///
 /// Gate 5b (`verifyNoArchitectureDowngrade`) is a NARROWER liveness check than 5
 /// and 6: not "can this Mac run the download" but "does the download run worse
 /// than what's already installed" (arm64 → x86_64-only, still launchable under
-/// Rosetta, but never natively again). Both installers call it immediately
-/// AFTER gate 5, never before — a package that is both unrunnable and a
-/// downgrade must fail with gate 5's "cannot launch" message (the more severe,
-/// still-true problem), not gate 5b's "this would run translated" (which
+/// Rosetta, but never natively again). `verifyInstallArtifact` calls it
+/// immediately AFTER gate 5, never before — a package that is both unrunnable
+/// and a downgrade must fail with gate 5's "cannot launch" message (the more
+/// severe, still-true problem), not gate 5b's "this would run translated" (which
 /// implies it launches). Like gate 5, it never sees the pkg route: `newApp`
 /// there is handed straight to Installer.app, so `PackageInstaller` stays
 /// gated on signature + Team ID only, same as gate 5. See issue #196.
@@ -58,6 +60,49 @@ public enum SignatureVerifier {
             case .unsupportedSystemVersion(let required, let host):
                 return "The download requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
             }
+        }
+    }
+
+    /// Shared app-bundle gates for Sparkle and vendor installs, after extraction
+    /// or delta reconstruction and before the bundle swap. Archive signatures,
+    /// checksums and vendor installer-stub validation stay with their callers;
+    /// this entry point does not validate pkg installs.
+    ///
+    /// Keep the entire sequence in one hop: Security calls can block a narrow
+    /// cooperative pool (#351). The first failure determines the reported error.
+    ///
+    /// `host`, `canRunIntel` and `osVersion` are defaulted to exactly what gates
+    /// 5, 5b and 6 default to on their own (`HostArch.current`,
+    /// `HostArch.canRunIntelBuilds`, `HostOS.numericVersion()`) — both
+    /// installers call this with no extra arguments, so production behavior is
+    /// unchanged. The parameters exist so a test can pin the gate-5/5b ordering
+    /// without needing a real non-arm64 or Rosetta-less machine to do it on.
+    static func verifyInstallArtifact(
+        downloadedApp: URL,
+        installedApp: URL,
+        host: HostArch = .current,
+        canRunIntel: Bool = HostArch.canRunIntelBuilds,
+        osVersion: String = HostOS.numericVersion()
+    ) async throws {
+        try await offCooperativePool {
+            // Gates 2–4 pin a valid signature to this vendor AND this exact app.
+            try verifyCodeSignature(appAt: downloadedApp)
+            try verifyTeamIdentifierMatch(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifyBundleIdentifierMatch(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+
+            // Gate 5 reads the actual Mach-O slices; artifact filenames cannot
+            // prove that the downloaded build can launch on this Mac.
+            try verifyRunnableArchitecture(
+                appAt: downloadedApp, host: host, canRunIntel: canRunIntel)
+            // Gate 5b must follow gate 5: an unrunnable Intel-only download over
+            // an arm64 install must report "cannot launch", not "would run
+            // translated". Delta output need not share its baseline's slices.
+            try verifyNoArchitectureDowngrade(
+                installedApp: installedApp, downloadedApp: downloadedApp, host: host)
+            // Gate 6 reads the bundle's OS floor even when the source omits it.
+            try verifyRunnableSystemVersion(appAt: downloadedApp, osVersion: osVersion)
         }
     }
 
@@ -192,10 +237,12 @@ public enum SignatureVerifier {
 
     /// Belt-and-suspenders on top of the Team ID gate: the downloaded build must
     /// carry the SAME signed identifier as the app it's replacing. Team ID alone
-    /// permits any app from the same vendor (Google's Chrome vs Earth); this pins
-    /// the swap to the exact product. We read the *signed* identifier
-    /// (`kSecCodeInfoIdentifier`), not the raw Info.plist, so it's covered by the
-    /// code seal already verified in Gate 2 and can't be spoofed.
+    /// permits any app from the same vendor (Google's Chrome vs Earth) — or a
+    /// different CHANNEL of the same app sharing that Team, and sometimes the
+    /// bundle id outright; this pins the swap to the exact product. We read the
+    /// *signed* identifier (`kSecCodeInfoIdentifier`), not the raw Info.plist, so
+    /// it's covered by the code seal already verified in Gate 2 and can't be
+    /// spoofed.
     public static func verifyBundleIdentifierMatch(
         installedApp: URL,
         downloadedApp: URL
@@ -341,8 +388,9 @@ public enum SignatureVerifier {
         return downloaded.contains(NSBundleExecutableArchitectureX86_64)
     }
 
-    /// Gate 5b, called by both installers immediately AFTER Gate 5 passes on the
-    /// same `newApp`/`installedApp` pair — never before, and never on its own:
+    /// Gate 5b, called by `verifyInstallArtifact` (both installers' shared entry
+    /// point) immediately AFTER Gate 5 passes on the same
+    /// `newApp`/`installedApp` pair — never before, and never on its own:
     /// a package that Gate 5 would refuse outright (arm64 host, no Rosetta,
     /// Intel-only download) must fail with Gate 5's "cannot launch" message,
     /// not this one's "would run translated", which implies it launches at

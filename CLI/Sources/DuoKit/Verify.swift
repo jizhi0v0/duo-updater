@@ -52,11 +52,23 @@ public enum Verify {
         let appStore = filtered(MacAppStoreProbeRegistry.cases, options) { $0.bundleID }
         let feeds = filtered(SparkleFeedCatalog.verificationCases, options) { $0.bundleID }
 
-        let total = (options.registries.contains(.vendor) ? vendor.count : 0)
-            + (options.registries.contains(.github) ? github.count : 0)
-            + (options.registries.contains(.changelog) ? changelog.count : 0)
-            + (options.registries.contains(.appStore) ? appStore.count : 0)
-            + (options.registries.contains(.feed) ? feeds.count : 0)
+        // The pkg install specs the pkgarch sweep reads. Counted here like every
+        // other registry: without it `duo verify --pkgarch` computes a total of
+        // zero and dies with "nothing to verify - no recipe matches", blaming an
+        // `--only` the user never typed.
+        let pkgs = vendor.filter { $0.install?.kind == .pkg }
+        // Written as a loop rather than a chain of ternaries: at six registries
+        // the chained form exceeded the type checker's budget outright ("unable to
+        // type-check this expression in reasonable time"), and a seventh registry
+        // would hit it again.
+        let counts: [(Registry, Int)] = [
+            (.vendor, vendor.count), (.github, github.count),
+            (.changelog, changelog.count), (.appStore, appStore.count),
+            (.feed, feeds.count), (.pkgArch, pkgs.count),
+        ]
+        let total = counts.reduce(0) { sum, entry in
+            sum + (options.registries.contains(entry.0) ? entry.1 : 0)
+        }
         guard total > 0 else {
             die("nothing to verify — no recipe matches \(options.only.joined(separator: ", "))",
                 code: 2)
@@ -70,9 +82,20 @@ public enum Verify {
         \(options.registries.contains(.github) ? "\(github.count) GitHub rules  " : "")\
         \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs  " : "")\
         \(options.registries.contains(.appStore) ? "\(appStore.count) App Store probes  " : "")\
-        \(options.registries.contains(.feed) ? "\(feeds.count) Sparkle feeds" : "")
+        \(options.registries.contains(.feed) ? "\(feeds.count) Sparkle feeds  " : "")\
+        \(options.registries.contains(.pkgArch) ? "\(pkgs.count) pkg architectures" : "")
           ─────────────────────────────────────────────
         """)
+        // Said once, up front, rather than left for the reader to infer from a
+        // column of `skipped`: this sweep reads the install URLs the vendor sweep
+        // resolves, so on its own it has none. Making `--pkgarch` silently imply
+        // `--vendor` would be worse - it would spend ~150 vendor requests the user
+        // did not ask for.
+        if options.registries.contains(.pkgArch), !options.registries.contains(.vendor) {
+            print("  ⚠︎ --pkgarch reads the install URLs the vendor sweep resolves, "
+                  + "and --vendor\n    was not selected, so every package reports skipped. "
+                  + "Add --vendor.\n")
+        }
 
         let started = Date()
         var findings: [Finding] = []
@@ -404,6 +427,19 @@ public enum Verify {
         func all() -> [String: URL] { urls }
     }
 
+    /// A pkgarch finding's own id, namespaced like every other registry's
+    /// (`appstore:`, `feed:`, `github:`, `vendor:`).
+    ///
+    /// ⚠️ Not `recipe.recipeID`. That is already `vendor:<bundle>:<channel>`, and
+    /// `Baseline` keys its entries on the id alone — so reusing it would file this
+    /// sweep's verdict and the vendor sweep's into ONE baseline entry for the same
+    /// recipe, mixing their `consecutiveActionable` streaks and sharing the issue
+    /// number attached to it. Two registries reporting on one recipe is exactly
+    /// what the namespace is for.
+    static func pkgArchID(_ recipe: VendorProbeRecipe) -> String {
+        "pkgarch:\(recipe.bundleID):\(recipe.channel.rawValue)"
+    }
+
     /// Read the declared `hostArchitectures` of every package the pkg install
     /// route would hand to macOS's installer.
     ///
@@ -433,42 +469,59 @@ public enum Verify {
         guard !pkgs.isEmpty else { return [] }
         return await byHost(pkgs, host: { urls[$0.recipeID]?.host ?? ($0.url.host ?? "-") },
                             options: options) { recipe in
+            // Keyed by the VENDOR id, because that is what `sweepVendor` recorded
+            // under. Only the finding gets the pkgarch namespace.
             let host = urls[recipe.recipeID]?.host ?? (recipe.url.host ?? "-")
             guard let url = urls[recipe.recipeID] else {
                 // The vendor sweep did not resolve an install URL for this recipe
                 // — it already filed why. Skipped, so the gap is visible without
                 // being counted as this sweep's failure.
-                return Finding(
-                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
-                    channel: recipe.channel.rawValue, status: .skipped,
-                    failureDetail: "no install URL resolved this run",
-                    endpointHost: host)
+                return pkgArchFinding(recipe, host: host, outcome: nil, elapsedMs: 0)
             }
             let started = Date()
             let outcome = await PackageArchitectureProbe.declaration(at: url)
-            let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-            switch outcome {
-            case .failure(let error):
-                return Finding(
-                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
-                    channel: recipe.channel.rawValue, status: .infra,
-                    failureKind: "packageUnreadable",
-                    failureDetail: error.localizedDescription,
-                    endpointHost: host, elapsedMs: elapsed)
-            case .success(let declaration):
-                let single: Bool
-                if case .single = declaration { single = true } else { single = false }
-                return Finding(
-                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
-                    channel: recipe.channel.rawValue,
-                    status: single ? .warn : .ok,
-                    failureKind: single ? "singleArchitecturePackage" : nil,
-                    failureDetail: single
-                        ? "declares \(declaration.value) — the pkg route runs no architecture gate"
-                        : nil,
-                    warnings: ["hostArchitectures=\(declaration.value)"],
-                    endpointHost: host, elapsedMs: elapsed)
-            }
+            return pkgArchFinding(recipe, host: host, outcome: outcome,
+                                  elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+        }
+    }
+
+    /// Turn one package's verdict into a `Finding`. Pure and non-private so the
+    /// status mapping can be tested without a network: the `warn` branch is the
+    /// only actionable one this sweep has and no real package produces it
+    /// (measured — every declaration in the registry is universal), so a test
+    /// that cannot construct it would leave the branch unexercised end to end.
+    ///
+    /// `outcome: nil` means the vendor sweep resolved no install URL.
+    static func pkgArchFinding(
+        _ recipe: VendorProbeRecipe, host: String,
+        outcome: Result<PackageArchitectureProbe.Declaration, any Error>?, elapsedMs: Int
+    ) -> Finding {
+        guard let outcome else {
+            return Finding(
+                recipeID: pkgArchID(recipe), registry: .pkgArch, bundleID: recipe.bundleID,
+                channel: recipe.channel.rawValue, status: .skipped,
+                failureDetail: "no install URL resolved this run", endpointHost: host)
+        }
+        switch outcome {
+        case .failure(let error):
+            return Finding(
+                recipeID: pkgArchID(recipe), registry: .pkgArch, bundleID: recipe.bundleID,
+                channel: recipe.channel.rawValue, status: .infra,
+                failureKind: "packageUnreadable", failureDetail: error.localizedDescription,
+                endpointHost: host, elapsedMs: elapsedMs)
+        case .success(let declaration):
+            let single: Bool
+            if case .single = declaration { single = true } else { single = false }
+            return Finding(
+                recipeID: pkgArchID(recipe), registry: .pkgArch, bundleID: recipe.bundleID,
+                channel: recipe.channel.rawValue,
+                status: single ? .warn : .ok,
+                failureKind: single ? "singleArchitecturePackage" : nil,
+                failureDetail: single
+                    ? "declares \(declaration.value) — the pkg route runs no architecture gate"
+                    : nil,
+                warnings: ["hostArchitectures=\(declaration.value)"],
+                endpointHost: host, elapsedMs: elapsedMs)
         }
     }
 

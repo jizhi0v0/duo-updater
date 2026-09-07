@@ -146,25 +146,38 @@ public enum PackageArchitectureProbe {
         return String(text[captured])
     }
 
+    /// Reads AT MOST the requested range, and stops the transfer rather than
+    /// truncating after the fact.
+    ///
+    /// ⚠️ This must not go back to `countedData`. That buffers the whole response
+    /// before returning, so `data.prefix(n)` on the result protects nothing: a
+    /// server that ignores `Range` answers 200 with the entire file, and these
+    /// URLs are installers measured in gigabytes. An earlier version of this
+    /// function did exactly that and carried a comment claiming the prefix was
+    /// what kept an Office package out of memory — it was not.
+    ///
+    /// `.other` rather than a purpose of its own, deliberately. These bytes are
+    /// produced only by `duo verify --pkgarch` — the app never makes this request
+    /// — and every row is already tagged `RequestClient.cli`, so they are
+    /// separable without a new category. A new `RequestPurpose` case would have to
+    /// be spelled in `RequestLogPane`'s three exhaustive switches, one of which is
+    /// a `String(localized:)` legend, putting a new user-facing string and seven
+    /// translations in front of every user for a bucket only a developer sweep can
+    /// fill. Revisit if the app itself ever reads installer metadata.
     private static func bytes(
         _ url: URL, _ start: Int, _ end: Int, _ session: URLSession
     ) async throws -> Data {
         var request = URLRequest(url: url)
         request.setValue("bytes=\(start)-\(end)", forHTTPHeaderField: "Range")
-        // `.other`, not a purpose of its own, and deliberately. These bytes are
-        // produced only by `duo verify --pkgarch` — the app never makes this
-        // request — and every row is already tagged `RequestClient.cli`, so they
-        // are separable without a new category. A new `RequestPurpose` case would
-        // have to be spelled in `RequestLogPane`'s three exhaustive switches,
-        // one of which is a `String(localized:)` legend, putting a new
-        // user-facing string (and 7 translations) in front of every user for a
-        // bucket only a developer sweep can fill. Revisit if the app itself ever
-        // reads installer metadata.
-        let (data, _) = try await session.countedData(for: request, purpose: .other)
-        // A server that ignores Range answers 200 with the whole file. Truncating
-        // to what was asked for is what keeps an Office package out of memory —
-        // the request header alone is not a guarantee.
-        return data.prefix(end - start + 1)
+        let limit = end - start + 1
+        let (stream, _) = try await session.countedBytes(for: request, purpose: .other)
+        var out = Data()
+        out.reserveCapacity(min(limit, maxMemberBytes))
+        for try await byte in stream {
+            out.append(byte)
+            if out.count >= limit { break }
+        }
+        return out
     }
 }
 

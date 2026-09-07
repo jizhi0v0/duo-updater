@@ -190,4 +190,21 @@ public extension URLSession {
         try await data(for: request, delegate: RequestMetricsRecorder(
             purpose, appID: RequestAttribution.appID, store: store))
     }
+
+    /// `bytes(for:)` with the same recording, for a caller that must stop reading
+    /// before the body ends.
+    ///
+    /// `countedData` is not a substitute there and the difference is not stylistic:
+    /// it buffers the WHOLE response before returning, so a caller that asks for a
+    /// byte range and then truncates what came back has protected nothing — a
+    /// server that ignores `Range` answers 200 with the entire file and it is in
+    /// memory before the truncation runs. `PackageArchitectureProbe` range-reads
+    /// installers that are gigabytes on disk, which is exactly that hazard.
+    /// Breaking out of the returned sequence cancels the transfer.
+    func countedBytes(
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared
+    ) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        try await bytes(for: request, delegate: RequestMetricsRecorder(
+            purpose, appID: RequestAttribution.appID, store: store))
+    }
 }

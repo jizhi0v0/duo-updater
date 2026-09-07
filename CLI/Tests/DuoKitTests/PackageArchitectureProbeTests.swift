@@ -75,4 +75,65 @@ struct PackageArchitectureProbeTests {
             """)
         #expect(Set(pkgs.map(\.recipeID)).count == pkgs.count, "recipeIDs must be unique")
     }
+
+    /// Mutation: use `recipe.recipeID` instead of `pkgArchID(recipe)` inside
+    /// `pkgArchFinding` and this goes red.
+    ///
+    /// `Baseline` keys its entries on the id ALONE, so a pkgarch finding sharing
+    /// the vendor recipe's id lands in the vendor recipe's baseline entry: one
+    /// `consecutiveActionable` streak fed by two sweeps, and one issue number for
+    /// both. Every other registry namespaces for this reason (`appstore:`,
+    /// `feed:`, `github:`, `vendor:`).
+    ///
+    /// ⚠️ Asserted through `pkgArchFinding`, NOT by calling `pkgArchID` directly.
+    /// The first version of this test did the latter and the mutation stayed
+    /// GREEN — reverting the call site cannot be seen by a test that never goes
+    /// through the call site.
+    @Test func pkgArchFindingsGetTheirOwnBaselineKey() throws {
+        let pkgs = VendorProbeRegistry.recipes.filter { $0.install?.kind == .pkg }
+        let recipe = try #require(pkgs.first)
+        let finding = Verify.pkgArchFinding(
+            recipe, host: "example.invalid",
+            outcome: .success(.universal("arm64,x86_64")), elapsedMs: 1)
+        #expect(finding.recipeID.hasPrefix("pkgarch:"))
+        #expect(finding.recipeID != recipe.recipeID)
+        // Across the whole route, no pkgarch id may collide with any vendor id.
+        let pkgArchIDs = Set(pkgs.map {
+            Verify.pkgArchFinding($0, host: "-", outcome: nil, elapsedMs: 0).recipeID
+        })
+        let vendorIDs = Set(VendorProbeRegistry.recipes.map(\.recipeID))
+        #expect(pkgArchIDs.isDisjoint(with: vendorIDs))
+        #expect(pkgArchIDs.count == pkgs.count, "ids must stay unique per channel")
+    }
+
+    /// The sweep's status mapping, which no real package can exercise: measured
+    /// 2026-09-07, every declaration in the registry is universal, so `.warn` —
+    /// its only actionable branch — has no live example. Without this the branch
+    /// would ship having never produced a finding.
+    ///
+    /// Mutation: flip `single ? .warn : .ok` either way and this goes red.
+    /// Mutation: warn on `.absent` (the tempting "we should know about these")
+    /// and this goes red too — 7 of 22 declare nothing, so that would file seven
+    /// findings on day one.
+    @Test func onlyASingleArchitectureDeclarationWarns() throws {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first { $0.install?.kind == .pkg })
+        func status(_ d: PackageArchitectureProbe.Declaration) -> FindingStatus {
+            Verify.pkgArchFinding(recipe, host: "-", outcome: .success(d), elapsedMs: 0).status
+        }
+        #expect(status(.single("x86_64")) == .warn)
+        #expect(status(.universal("arm64,x86_64")) == .ok)
+        #expect(status(.absent) == .ok)
+        #expect(status(.notAFlatPackage("bytes=28 magic=0x3c21444f")) == .ok)
+        // A vendor hanging up is infra, never a recipe defect — filing those
+        // trains the reader to ignore the sweep.
+        #expect(Verify.pkgArchFinding(
+            recipe, host: "-", outcome: .failure(URLError(.timedOut)), elapsedMs: 0)
+            .status == .infra)
+        // The declaration is recorded even when nothing is wrong, so drift shows
+        // up as a report diff rather than needing someone to re-read a comment.
+        let ok = Verify.pkgArchFinding(
+            recipe, host: "-", outcome: .success(.universal("arm64,x86_64")), elapsedMs: 0)
+        #expect(ok.warnings.contains("hostArchitectures=arm64,x86_64"))
+    }
 }

@@ -330,6 +330,18 @@ public enum Install {
         case unreadable(String)
     }
 
+    /// The `.unreadable` wording, single-sourced: it used to appear twice in
+    /// `reconsider` below — once in the guard that actually produces it, once
+    /// in the `case .unreadable:` arm that can't (see the comment there) —
+    /// verbatim, so a future reword could hit one copy and leave the other.
+    /// `why` states only what was observed, not which of "uninstalled" or
+    /// "Info.plist failed to parse" it was: `AppScanner.readApp` returns nil
+    /// for both (#404 review #6).
+    private static func unreadableMessage(path: String) -> String {
+        "no readable bundle at \(path) right now — it may have been "
+            + "uninstalled, or its Info.plist could not be parsed"
+    }
+
     /// Pure classification — no I/O. `offered` is what the plan showed when the
     /// user (or `--yes`) approved it; `confirmed` is a fresh disk read and a
     /// fresh source query for the SAME app, taken right before backup/replace
@@ -342,15 +354,14 @@ public enum Install {
         offered: UpdateResult, confirmed: UpdateResult?, settings: Settings,
         environment: InstallEnvironment, routes: Set<InstallCoordinator.Route>
     ) -> ReconsiderOutcome {
-        guard let confirmed else {
-            return .unreadable(
-                "no readable bundle at \(offered.app.path.path) right now — it may have been "
-                + "uninstalled, or its Info.plist could not be parsed")
+        let decision = PreInstallGate.decision(offered: offered, confirmed: confirmed)
+        // `decision == .unreadable` exactly when `confirmed == nil` (see
+        // `PreInstallGate.decision(offered:confirmed:)`), so this unwraps
+        // `confirmed` for every arm below at once, rather than each of them
+        // re-deriving the same fact.
+        guard decision != .unreadable, let confirmed else {
+            return .unreadable(unreadableMessage(path: offered.app.path.path))
         }
-        let decision = PreInstallGate.decision(
-            for: confirmed.status,
-            offered: offered.remote?.versionSide ?? VersionSide(),
-            confirmed: confirmed.remote?.versionSide ?? VersionSide())
         switch decision {
         case .proceed:
             // The route can move too — the same source may now resolve a
@@ -385,6 +396,9 @@ public enum Install {
             return .cannotConfirm(message)
         case .answerRegressed:
             return .answerRegressed
+        case .unreadable:
+            // Unreachable: guarded above, before `confirmed` was unwrapped.
+            return .unreadable(unreadableMessage(path: offered.app.path.path))
         }
     }
 

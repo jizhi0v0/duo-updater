@@ -46,10 +46,11 @@ re-routing it fixed the install.
 the specific root cause (a stale response on one outbound network path) is a
 live-network observation that cannot be independently re-verified after the
 fact. What *was* re-checked before moving this out of the code comment:
-`PreInstallDecision` still has the same five cases, and
 `decision(for:offered:confirmed:)` still compares via
 `VersionComparator.isNewer(_:than:)` on `VersionSide` pairs — the mechanism
 `.answerRegressed` relies on is unchanged as of this pass (2026-09-08).
+(`PreInstallDecision` no longer has the same five cases described here —
+see §3, added the same day: a sixth, `.unreadable`, was added for #440.)
 
 The root cause is not something this gate can see — and the invariant that
 follows from that is stated once, on `.answerRegressed` in the source, rather
@@ -64,11 +65,45 @@ gate protects both — but the incident itself was observed and diagnosed only
 through the menu-bar path; nobody has reproduced the stale-outbound-copy
 shape against the CLI's own lookup call.
 
+## §3 Why "nothing came back" lives here, not in each host
+
+`decision(for:offered:confirmed:)` never sees the case where the re-check
+itself found nothing to classify — every caller re-reads the bundle off disk
+first, and that read can come back empty (uninstalled, an `Info.plist` that
+no longer parses, or a path that now resolves to a different identity —
+`AppScanner.readApp` can't tell the first two apart, and the third is caught
+upstream by an id filter before it ever reaches this gate). Each host used
+to decide what that meant for itself, and the two drifted: the CLI grew a
+`.unreadable` outcome for it in #434, worded to state only what was
+observed; the menu bar's `recheck` kept `?? result`, silently reusing the
+stale pre-install offer — which cancelled out the very identity guard
+`recheckMany` exists to enforce, and would have let an install proceed
+against a bundle that no longer resolves to the same app (#440).
+
+Found by review of #409's third step (PR #439, moving `AppListModel`'s
+own install-path comments out of the source — not this file, which was
+the second step) — not by a user, and not by the gap actually firing in
+the field.
+
+The fix adds a `PreInstallDecision.unreadable` case and a second entry
+point, `PreInstallGate.decision(offered:confirmed:)`, which takes the two
+whole `UpdateResult`s (one of them optional) instead of two `VersionSide`s
+and a `UpdateStatus`. `nil` confirmed classifies as `.unreadable`; otherwise
+it delegates to `decision(for:offered:confirmed:)` exactly as each host
+already did at its own call site. Both `AppListModel.performInstall` and
+`Install.reconsider` now call this overload, so "the re-check found
+nothing" is decided once, in Core, rather than being a judgment call each
+host makes — and can silently un-make — on its own.
+
 ---
 
 Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/PreInstallGateTests.swift`
 (the comparator, pinned against both a synthetic backwards answer and the
-Nowdex shape), `CLI/Tests/DuoKitTests/InstallTests.swift`
+Nowdex shape, plus — for §3's `decision(offered:confirmed:)` overload —
+"a nil confirmed classifies as unreadable", "a non-nil confirmed still
+reaches the status ladder", and "both version sides are pulled from the
+results handed in"), `CLI/Tests/DuoKitTests/InstallTests.swift`
 (`answerWalkingBackwardsIsAFailureNotASkip`, pinning
 `PreInstallDecision.answerRegressed` → `ReconsiderOutcome.answerRegressed`
-on the CLI side).
+on the CLI side; `noReadableBundleIsUnreadableNotCannotConfirm`, pinning
+§3's `.unreadable` wording on the same side).

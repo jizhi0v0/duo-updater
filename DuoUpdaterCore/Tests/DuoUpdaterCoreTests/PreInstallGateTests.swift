@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import DuoUpdaterCore
 
 /// The re-check that runs when you click Update, and what each of its outcomes
@@ -11,6 +12,27 @@ struct PreInstallGateTests {
     /// comparison. Empty is incomparable, so it can never read as regressed —
     /// which is what every pre-existing case here assumes.
     private static let nothing = VersionSide()
+
+    /// Minimal fixtures for the `decision(offered:confirmed:)` overload below,
+    /// which takes whole `UpdateResult`s rather than bare `VersionSide`s.
+    private static func fixtureApp() -> InstalledApp {
+        InstalledApp(
+            name: "Fixture",
+            bundleID: "com.example.fixture",
+            shortVersion: "1.0",
+            buildVersion: "1",
+            path: URL(fileURLWithPath: "/Applications/Fixture.app"),
+            isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+
+    private static func fixtureResult(marketing: String?, status: UpdateStatus) -> UpdateResult {
+        UpdateResult(
+            app: fixtureApp(),
+            remote: RemoteVersion(
+                shortVersion: marketing, version: nil, downloadURL: nil, sourceName: "Test"),
+            status: status)
+    }
 
     @Test("a confirmed newer version installs")
     func newerVersionProceeds() {
@@ -179,5 +201,50 @@ struct PreInstallGateTests {
             for: .upToDate,
             offered: VersionSide(marketing: "1.0.9"),
             confirmed: VersionSide(marketing: "1.0.8")) != .proceed)
+    }
+
+    // MARK: - decision(offered:confirmed:) — the shared "nothing came back" arm (#440)
+
+    /// The menu bar's `recheck` used to fold "the re-scan found nothing" into
+    /// `?? result`, silently reusing the stale offer and cancelling out
+    /// `recheckMany`'s identity guard. This overload is what both hosts now call
+    /// instead, so that arm can't be handled on one side and forgotten on the
+    /// other.
+    ///
+    /// Mutation: make the overload return `.cannotConfirm(nil)` for a `nil`
+    /// confirmed — this case goes red.
+    @Test("a nil confirmed classifies as unreadable")
+    func nilConfirmedIsUnreadable() {
+        let offered = Self.fixtureResult(marketing: "1.0", status: .updateAvailable(latest: "2.0"))
+        #expect(PreInstallGate.decision(offered: offered, confirmed: nil) == .unreadable)
+    }
+
+    /// A non-nil confirmed must still reach the same status ladder
+    /// `decision(for:offered:confirmed:)` already implements — this overload is a
+    /// thin front for that, not a second copy of it.
+    ///
+    /// Mutation: make the overload always return `.unreadable`, nil or not — this
+    /// case goes red while `nilConfirmedIsUnreadable` above stays green.
+    @Test("a non-nil confirmed still reaches the status ladder")
+    func confirmedReachesTheStatusLadder() {
+        let offered = Self.fixtureResult(marketing: "1.0", status: .updateAvailable(latest: "2.0"))
+        let confirmed = Self.fixtureResult(marketing: "2.0", status: .updateAvailable(latest: "2.0"))
+        #expect(PreInstallGate.decision(offered: offered, confirmed: confirmed) == .proceed)
+    }
+
+    /// The overload must pull BOTH version sides off the two `UpdateResult`s it
+    /// was actually handed, not pass empty `VersionSide`s through to the ladder
+    /// — an empty pair is incomparable and can never read as regressed (see
+    /// `anIncomparablePairIsNotRegressed` above), so a bug that dropped either
+    /// side would go undetected by every other test in this file.
+    ///
+    /// Mutation: pass `VersionSide()` for `offered` in the delegation — the
+    /// comparison becomes incomparable, the answer becomes `.alreadyCurrent`,
+    /// and this case goes red.
+    @Test("both version sides are pulled from the results handed in")
+    func bothSidesComeFromTheResultsThemselves() {
+        let offered = Self.fixtureResult(marketing: "1.0.9", status: .updateAvailable(latest: "1.0.9"))
+        let confirmed = Self.fixtureResult(marketing: "1.0.8", status: .upToDate)
+        #expect(PreInstallGate.decision(offered: offered, confirmed: confirmed) == .answerRegressed)
     }
 }

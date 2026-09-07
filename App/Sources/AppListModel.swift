@@ -2356,7 +2356,28 @@ final class AppListModel {
     /// touched row is replaced here, so the concurrently-installing app's spinner row
     /// is left intact.
     private func refreshRow(_ result: UpdateResult) async {
-        let updated = await recheck(result)
+        // A nil recheck means the re-scan found no readable bundle at this
+        // row's own path right now — gone, unparseable, or resolved to a
+        // different identity, and it cannot say which (`PreInstallDecision
+        // .unreadable`). This function and the three others that only paint a
+        // row (`recheckAfterUnignore`, `recheckChannelSwitches`, `retry`) all
+        // keep the existing row on nil rather than dropping it: removing rows
+        // is the next full scan's job, and dropping this one on what may be a
+        // transient read would make the app blink out of the list.
+        //
+        // The two recomputes below still run on nil, even though the row
+        // itself doesn't change: they're whole-set sweeps, not row-scoped, so
+        // "this one row was unreadable just now" says nothing about whether
+        // they still have work to do. `relaunchStagedUpdate` calls this right
+        // after a vendor updater has been rewriting the bundle — exactly when
+        // a transient unreadable is most likely — and its own comment counts
+        // on `computeSelfUpdateStaging`'s departed-id sweep to clear the
+        // staged flag and reminder banner once the swap has landed.
+        guard let updated = await recheck(result) else {
+            await computeRestartInfo()
+            await computeSelfUpdateStaging()
+            return
+        }
         replaceRow(updated)
         await computeRestartInfo()
         await computeSelfUpdateStaging()
@@ -2801,16 +2822,37 @@ final class AppListModel {
         // legitimately finds the app current, and after the next line the older
         // value is gone. See `PreInstallDecision.answerRegressed`.
         let offered = result
-        let result = await recheck(result)
+        let confirmed = await recheck(result)
         // Only `.updateAvailable` installs. The other endings all stop here, but
         // they are NOT the same ending, and this used to report them as if they
         // were: a source that timed out while you clicked Update was logged as
         // "already current on disk", which reads as a fact about the bundle and
         // sends the next person to the wrong place. See `PreInstallGate`.
-        let decision = PreInstallGate.decision(
-            for: result.status,
-            offered: offered.remote?.versionSide ?? VersionSide(),
-            confirmed: result.remote?.versionSide ?? VersionSide())
+        let decision = PreInstallGate.decision(offered: offered, confirmed: confirmed)
+        // `.unreadable` has nothing to shadow `result` with — the re-check found
+        // no readable bundle at this row's own path at all (gone, unparseable, or
+        // resolved to a different identity; see `PreInstallDecision.unreadable`)
+        // — so it is handled here, before the shadow below, and it never reaches
+        // `replaceRow`: there is nothing to write into the row. `decision ==
+        // .unreadable` exactly when `confirmed == nil` (see
+        // `PreInstallGate.decision(offered:confirmed:)`), so this unwraps
+        // `confirmed` for the rest of the function at the same time.
+        guard decision != .unreadable, let result = confirmed else {
+            Log.install.error(
+                "install aborted: \(offered.app.name, privacy: .public) — the pre-install re-check found no readable bundle at \(offered.app.path.path, privacy: .public)")
+            // No path here, unlike the log line just above and the CLI's own
+            // wording (`Install.reconsider`'s `.unreadable`): the row already
+            // says which app this is, and a full filesystem path pushed the
+            // only actionable half of this sentence (the "may have been
+            // uninstalled" diagnosis) past the popover's one-line clamp —
+            // measured for en/fr/es, the path starts around character 32-41,
+            // so the user saw the path and not the diagnosis.
+            installErrors[id] = String(
+                localized: "No readable bundle was found right now — it may have been uninstalled, or its Info.plist could not be parsed.")
+            await computeRestartInfo()
+            installing[id] = nil
+            return false
+        }
         // A regressed answer must NOT become the row. Writing it in replaces a
         // real "1.0.9 available" with "1.0.8, up to date", and an up-to-date row
         // filters out of the list entirely — which is exactly how a swallowed
@@ -2860,6 +2902,8 @@ final class AppListModel {
                 // the tooltip, so the two version numbers have to survive the clamp
                 // and everything else has to go.
                 installErrors[id] = String(localized: "The update source answered \(was), then \(now) — nothing was installed.")
+            case .unreadable:
+                break  // unreachable: guarded above, before `result` was bound
             case .proceed:
                 break  // unreachable: guarded above
             }
@@ -3228,7 +3272,40 @@ final class AppListModel {
             // Restart flag by comparing each running instance's launch version
             // to what's now on disk. In-place installs (Homebrew) leave the old
             // process running stale code; Sparkle relaunches, so it won't show.
-            let updated = await recheck(result)
+            guard let updated = await recheck(result) else {
+                // No readable bundle at this path right after we just installed
+                // into it — gone, unparseable, or resolved to a different
+                // identity (`PreInstallDecision.unreadable`). Unlike the
+                // display-only sites (`refreshRow` and friends), falling back to
+                // the pre-install `result` here would be actively wrong: the
+                // `appliedNothing` check just below would then compare that
+                // stale row against itself and report "X on disk is still
+                // 4.86.0" — a claim about a bundle nothing could actually read.
+                // So this skips that check, the icon/changelog invalidation, and
+                // every success disposition below, and reports only what was
+                // observed.
+                Log.install.error(
+                    "install done, but could not read back: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public)")
+                installErrors[id] = String(
+                    localized: "\(result.app.name) could not be read back at its path after the install.")
+                // Parity with the rollback arm (`rollback`'s own recheck-nil
+                // branch): the bytes on disk changed even though we can't read
+                // them back, so the same three whole-set sweeps still have
+                // work to do — most importantly `refreshBackupIndex`, since
+                // `backupCurrent` just ran and this is exactly the situation
+                // where the user most wants the Rollback affordance to appear.
+                // Deferred in a batch like the success path above, so each
+                // row's failure doesn't hold the next install behind a
+                // per-app `lsappinfo`/staging/backup pass.
+                if !deferBookkeeping {
+                    await computeRestartInfo()
+                    await computeSelfUpdateStaging()
+                    await refreshBackupIndex()
+                }
+                installing[id] = nil
+                relaunching.remove(id)
+                return false
+            }
             // The bundle was replaced in place (same path); drop its cached icon so
             // the row re-reads the new one instead of showing the old until restart.
             AppIconCache.invalidate(updated.app.path.path)
@@ -5018,7 +5095,19 @@ final class AppListModel {
             // rescan (same reasoning as the apply permit in `performInstall`).
             await ProcessInstallLock.shared.release()
             AppIconCache.invalidate(target.path)
-            let updated = await recheck(result)
+            guard let updated = await recheck(result) else {
+                // See the post-install recheck in `performInstall` for why this
+                // does not fall back to the pre-rollback `result`.
+                Log.install.error(
+                    "rollback done, but could not read back: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public)")
+                installErrors[id] = String(
+                    localized: "\(result.app.name) could not be read back at its path after the rollback.")
+                await computeRestartInfo()
+                await computeSelfUpdateStaging()
+                await refreshBackupIndex()
+                installing[id] = nil
+                return
+            }
             replaceRow(updated)
             await computeRestartInfo()
             await computeSelfUpdateStaging()
@@ -5411,7 +5500,14 @@ final class AppListModel {
     private func recheckAfterUnignore(_ result: UpdateResult) async {
         guard installing[result.id] == nil else { return }
         installing[result.id] = .checking
-        let updated = await recheck(result)
+        // See `refreshRow`'s comment: a nil recheck keeps the existing row
+        // rather than dropping it.
+        guard let updated = await recheck(result) else {
+            installing[result.id] = nil
+            Log.app.info(
+                "unignore re-check: \(result.app.name, privacy: .public) — no readable bundle found; row kept")
+            return
+        }
         installing[result.id] = nil
         replaceRow(updated)
         syncDockBadge()
@@ -5914,8 +6010,15 @@ final class AppListModel {
     /// Re-read one app from disk and re-check it across all sources. Cheap
     /// enough to run right before installing, as a guard against acting on a
     /// stale row.
-    private func recheck(_ result: UpdateResult) async -> UpdateResult {
-        await recheckMany([result]).first ?? result
+    ///
+    /// Returns `nil` when the re-scan found no readable bundle at this row's
+    /// own path at all — see `PreInstallDecision.unreadable` for what that can
+    /// mean and why it cannot say which. The caller must decide what nil means
+    /// for its own ending; this used to paper over it with `?? result`, which
+    /// silently reused the stale offer and cancelled out the identity guard
+    /// `recheckMany` stands behind it for (#440).
+    private func recheck(_ result: UpdateResult) async -> UpdateResult? {
+        await recheckMany([result]).first
     }
 
     /// The batch form: one disk read and one `UpdateChecker` for the whole set,
@@ -6277,6 +6380,12 @@ final class AppListModel {
             guard !Task.isCancelled else { break }
             installing[result.id] = nil
             outstanding.remove(result.id)
+            guard let updated else {
+                // See `refreshRow`'s comment: a nil recheck keeps the existing
+                // row rather than dropping it, and leaves this id unbooked so a
+                // later fingerprint pass can retry it.
+                continue
+            }
             replaceRow(updated)
             if let id = result.app.bundleID?.lowercased() { completed.insert(id) }
             Log.app.info(
@@ -6317,7 +6426,13 @@ final class AppListModel {
         Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
         refreshRunningApps()
         installing[id] = .checking
-        let updated = await recheck(result)
+        // See `refreshRow`'s comment: a nil recheck keeps the existing row
+        // rather than dropping it.
+        guard let updated = await recheck(result) else {
+            installing[id] = nil
+            Log.app.info("retry done: \(result.app.name, privacy: .public) — no readable bundle found; row kept")
+            return
+        }
         installing[id] = nil
         replaceRow(updated)
         Log.app.info("retry done: \(updated.app.name, privacy: .public) → \(String(describing: updated.status), privacy: .public)")

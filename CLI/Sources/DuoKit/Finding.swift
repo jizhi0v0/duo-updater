@@ -17,10 +17,15 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     case appStore = "appstore"
     /// `SparkleFeedCatalog` isn't a recipe registry either — it holds
     /// ADDRESSES, handed to apps whose own bundle does not give us a usable
-    /// one. Nothing on a schedule had ever fetched them (#324), and a feed that
-    /// dies, moves or reshapes its items produces a nil out of
-    /// `SparkleAppcastSource` that every caller renders as "up to date". See
-    /// `FeedVerify.swift`.
+    /// one. Nothing on a schedule had ever fetched them (#324). A feed that
+    /// dies or moves — 404, DNS failure, any non-2xx status — makes
+    /// `SparkleAppcastSource` throw, which surfaces as `.error`/`.checkFailed`
+    /// once no other source answers either; one that reshapes its items into
+    /// nothing usable
+    /// produces a nil instead, which `UpdateChecker` reads as a miss and
+    /// tries the next source, so only an app with no other source left
+    /// settles on `.unknown`, not `.upToDate` — the quiet half this registry
+    /// exists to catch. See `FeedVerify.swift`.
     case feed
     /// Not a recipe registry either — this sweeps the `hostArchitectures`
     /// DECLARATION of every package the pkg install route hands to macOS's

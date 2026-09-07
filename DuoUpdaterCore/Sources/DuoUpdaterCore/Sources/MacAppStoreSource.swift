@@ -296,9 +296,8 @@ public struct MacAppStoreSource: UpdateSource {
             shortVersion: info.version,
             version: nil,
             downloadURL: lookupResult.trackViewUrl.flatMap { URL(string: $0) },
-            // Prefer the Mac-specific product page over the lookup's generic
-            // trackViewUrl, which lands on the iOS listing for wrapped apps.
-            pageURL: pageURL ?? lookupResult.trackViewUrl.flatMap { URL(string: $0) },
+            // Use the Mac-specific product page constructed and unwrapped above.
+            pageURL: pageURL,
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (notes?.isEmpty == false) ? notes : nil,

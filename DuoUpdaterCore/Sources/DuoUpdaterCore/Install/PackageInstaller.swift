@@ -19,6 +19,19 @@ import Darwin
 /// We deliberately avoid full payload expansion here: it adds disk space and
 /// unpacking work proportional to the payload, potentially gigabytes. A vendor's
 /// `hostArchitectures` declaration is not proof of the installed app's slices.
+///
+/// ⚠️ **That declaration has now been measured, and it cannot stand in for the
+/// gates** — worth knowing before reaching for it, because "just read
+/// `hostArchitectures`" is the obvious repair and it does not work. Across the
+/// whole pkg route on 2026-09-07 (#415): 15 packages declared, **every one of
+/// them universal**, 7 declared nothing, 1 was not a flat package. The
+/// declaration has never once said "Intel-only" here, so a gate on it would not
+/// have fired. And the only architecture-specific packages in the registry are
+/// exactly the ones that declare nothing — WeChat DevTools ships
+/// `wechat_devtools_..._darwin_arm64.pkg` with no declaration at all. Where
+/// architecture varies the declaration is blind; where it exists architecture
+/// does not vary. `duo verify --pkgarch` now tracks it for DRIFT on that basis,
+/// which is not the same claim as checking what will be installed.
 /// Handoff also returns before installation completes, so this actor performs no
 /// post-install architecture verification or automatic architecture rollback.
 /// Architecture compatibility on this route remains dependent on the vendor's

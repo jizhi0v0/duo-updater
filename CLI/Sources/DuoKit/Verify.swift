@@ -80,8 +80,11 @@ public enum Verify {
         // Vendor and GitHub first: their answers are the reference the changelog
         // sweep compares against, and they resolve the `{version}` that
         // templated changelog URLs need.
+        let resolvedInstallURLs = ResolvedInstallURLs()
         if options.registries.contains(.vendor) {
-            findings += await sweepVendor(vendor, options: options, installed: installed)
+            findings += await sweepVendor(
+                vendor, options: options, installed: installed,
+                collecting: resolvedInstallURLs)
             // The pages `sweepChangelog` will GET and parse below are excluded:
             // its answer is better evidence than a HEAD, and two checks on one URL
             // in one report can contradict each other. When the changelog registry
@@ -132,6 +135,14 @@ public enum Verify {
         }
         if options.registries.contains(.feed) {
             findings += await sweepFeeds(feeds, options: options)
+        }
+        // After the vendor sweep, always: it reads the install URLs that sweep
+        // resolved. Selecting `--pkgarch` without `--vendor` therefore resolves
+        // nothing and every package reports `skipped`, which is the honest answer
+        // — the alternative is this sweep quietly re-probing every vendor.
+        if options.registries.contains(.pkgArch) {
+            findings += await sweepPackageArchitecture(
+                vendor, urls: await resolvedInstallURLs.all(), options: options)
         }
 
         findings.sort { $0.recipeID < $1.recipeID }
@@ -305,7 +316,8 @@ public enum Verify {
 
     private static func sweepVendor(
         _ recipes: [VendorProbeRecipe], options: VerifyOptions,
-        installed: [String: InstalledVersion]
+        installed: [String: InstalledVersion],
+        collecting installURLs: ResolvedInstallURLs? = nil
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.url.host ?? "-" }, options: options) { recipe in
             // A credential-bearing recipe is never fetched by the sweep: its URL,
@@ -369,7 +381,94 @@ public enum Verify {
                 finding = finding.observing(
                     Finding.machineNotePrefix + "oneClickCandidate: " + candidate)
             }
+            // Hand the pkgarch sweep the URL this probe already resolved. Doing it
+            // here rather than re-probing is the difference between 44 small Range
+            // reads and hitting 22 vendor endpoints a second time in one run.
+            await installURLs?.record(recipe.recipeID, outcome.remote?.downloadURL)
             return finding
+        }
+    }
+
+    /// Install URLs the vendor sweep already resolved, so the pkgarch sweep can
+    /// read those packages without probing the same vendor endpoints a second
+    /// time. Collected as a side effect rather than returned, because
+    /// `sweepVendor` runs its recipes through `byHost`, whose contract is
+    /// recipe-in/finding-out — widening that to carry an unrelated value would
+    /// put this sweep's needs into every other sweep's signature.
+    actor ResolvedInstallURLs {
+        private var urls: [String: URL] = [:]
+        func record(_ recipeID: String, _ url: URL?) {
+            guard let url else { return }
+            urls[recipeID] = url
+        }
+        func all() -> [String: URL] { urls }
+    }
+
+    /// Read the declared `hostArchitectures` of every package the pkg install
+    /// route would hand to macOS's installer.
+    ///
+    /// Statuses are deliberately quiet, because the measurement behind this sweep
+    /// (#415) found the declaration has no discriminating power today:
+    ///
+    ///   - a **single-architecture** declaration is the one `warn`. It is the
+    ///     event worth waking someone for — a package that used to be universal
+    ///     now naming one architecture is how an Intel-only pkg would arrive.
+    ///   - **universal** and **absent** are both `ok`. Absent is the norm, not a
+    ///     defect: 7 of 22 declare nothing, including all three Edge channels.
+    ///     Warning on it would file seven issues on day one and train the reader
+    ///     to ignore the sweep — which `FindingStatus.infra`'s comment already
+    ///     warns about.
+    ///   - a URL that is not a flat package is `ok` too: `kind: .pkg` legitimately
+    ///     covers a `.dmg` that `PackageInstaller` unwraps (Sunlogin), and a
+    ///     vendor serving HTML there is the vendor sweep's finding to make, not
+    ///     this one's — filing it twice would put two verdicts on one URL.
+    ///
+    /// The declaration is recorded on every finding, `ok` included, so the value
+    /// lands in `report.json` and drift shows up as a diff rather than depending
+    /// on someone re-reading a comment.
+    private static func sweepPackageArchitecture(
+        _ recipes: [VendorProbeRecipe], urls: [String: URL], options: VerifyOptions
+    ) async -> [Finding] {
+        let pkgs = recipes.filter { $0.install?.kind == .pkg }
+        guard !pkgs.isEmpty else { return [] }
+        return await byHost(pkgs, host: { urls[$0.recipeID]?.host ?? ($0.url.host ?? "-") },
+                            options: options) { recipe in
+            let host = urls[recipe.recipeID]?.host ?? (recipe.url.host ?? "-")
+            guard let url = urls[recipe.recipeID] else {
+                // The vendor sweep did not resolve an install URL for this recipe
+                // — it already filed why. Skipped, so the gap is visible without
+                // being counted as this sweep's failure.
+                return Finding(
+                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
+                    channel: recipe.channel.rawValue, status: .skipped,
+                    failureDetail: "no install URL resolved this run",
+                    endpointHost: host)
+            }
+            let started = Date()
+            let outcome = await PackageArchitectureProbe.declaration(at: url)
+            let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+            switch outcome {
+            case .failure(let error):
+                return Finding(
+                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
+                    channel: recipe.channel.rawValue, status: .infra,
+                    failureKind: "packageUnreadable",
+                    failureDetail: error.localizedDescription,
+                    endpointHost: host, elapsedMs: elapsed)
+            case .success(let declaration):
+                let single: Bool
+                if case .single = declaration { single = true } else { single = false }
+                return Finding(
+                    recipeID: recipe.recipeID, registry: .pkgArch, bundleID: recipe.bundleID,
+                    channel: recipe.channel.rawValue,
+                    status: single ? .warn : .ok,
+                    failureKind: single ? "singleArchitecturePackage" : nil,
+                    failureDetail: single
+                        ? "declares \(declaration.value) — the pkg route runs no architecture gate"
+                        : nil,
+                    warnings: ["hostArchitectures=\(declaration.value)"],
+                    endpointHost: host, elapsedMs: elapsed)
+            }
         }
     }
 

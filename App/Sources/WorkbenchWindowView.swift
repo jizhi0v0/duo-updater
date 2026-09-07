@@ -1163,18 +1163,27 @@ private struct ReleaseNotesPane: View {
     /// it — indistinguishable from "no URL at all" at the call site, and worth
     /// telling apart: since the chain takes the first non-nil, a `remote` URL
     /// that fails the policy shadows a usable catalog entry rather than falling
-    /// through to it. `catalogWithheld` is the third way to end up with no URL:
+    /// through to it. `catalog-withheld` is the third way to end up with no URL:
     /// a curated VENDOR page existed and this copy came from the store, so
     /// `ChangelogRecipeSelection` refused it on provenance (see its
     /// `fallbackPage`). Telling that apart from `none` is the whole point —
     /// "nobody publishes notes" and "we had notes and they were the wrong
     /// distribution's" look identical in the pane.
+    ///
+    /// ⚠️ Three of these five tokens are only reachable because `emptyNotes`
+    /// logs. `logWebViewPane` is called from inside `if let url = changelogURL`
+    /// at both of its call sites, so everything routed through it reports
+    /// `remote` or `catalog` and nothing else — the first version of this
+    /// property, and the `??` expression before it, could never emit `none` or
+    /// either `-rejected` form at all. Adding a token without a call site that
+    /// can reach it is how a diagnostic starts describing a distinction the log
+    /// cannot actually make.
     private var changelogURLOrigin: String {
         let page = ChangelogRecipeSelection.fallbackPage(for: result)
-        guard let chosen = page.url else { return page.origin.rawValue }
+        guard let chosen = page.url else { return page.logToken }
         return ChangelogURLPolicy.displayable(chosen) == nil
-            ? "\(page.origin.rawValue)-rejected"
-            : page.origin.rawValue
+            ? "\(page.logToken)-rejected"
+            : page.logToken
     }
 
     /// One line describing what the web view was handed. `Redactor.url` keeps the
@@ -1251,6 +1260,15 @@ private struct ReleaseNotesPane: View {
         }
     }
 
+    /// `.notice` for the same reason `logWebViewPane` is: this is read days after
+    /// a sighting, and `.info` is never persisted for a third-party subsystem.
+    /// Without this line the three no-URL outcomes are indistinguishable in a
+    /// report AND in the pane — the user is told "no release notes" whether the
+    /// vendor publishes none, the URL failed `ChangelogURLPolicy`, or we held a
+    /// vendor page back from a store copy. ⚠️ The pane's own wording still says
+    /// "doesn't publish a changelog we can read", which is untrue in the withheld
+    /// case; correcting it means a new localized string and its translations, so
+    /// it is deliberately left for its own change rather than done half-way here.
     private var emptyNotes: some View {
         ContentUnavailableView {
             Label("No release notes", systemImage: "doc.text.magnifyingglass")
@@ -1262,6 +1280,10 @@ private struct ReleaseNotesPane: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            Log.changelog.notice(
+                "perf pane=empty \(result.app.name, privacy: .public) origin=\(changelogURLOrigin, privacy: .public) src=\(result.remote?.sourceName ?? "?", privacy: .public)")
+        }
     }
 }
 

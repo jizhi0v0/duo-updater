@@ -7,9 +7,11 @@ import DuoUpdaterCore
 // Why it is a registry at all (#324). The other four sweeps check recipes: a
 // pattern that has to keep matching a page. This one checks an ADDRESS, and an
 // address that has stopped working looks like nothing. `SparkleAppcastSource`
-// answers a feed with nothing left to offer — empty, every item filtered, no
-// marketing string on the head item — with nil; a transport failure or a
-// non-2xx status is thrown, not returned as nil. A nil from one source does
+// answers a feed with nothing left to offer — one that parsed no items, or
+// whose every item the channel/OS/architecture filters removed — with nil; a
+// transport failure or a non-2xx status is thrown, not returned as nil. (A
+// head item that names no marketing version is neither: it still resolves,
+// on its build, and this sweep reports it as a warning of its own.) A nil from one source does
 // not by itself read as "up to date": `UpdateChecker` tries the next source,
 // and only lands on `.unknown` once nothing else answers either — a
 // `RowActionState` case of its own (`.noSourceCovers`), never `.upToDate`.

@@ -52,10 +52,18 @@ Every one of these, verified by actually running the command:
 cd DuoUpdaterCore && swift build && swift test
 swift build --package-path CLI && swift test --package-path CLI
 DD=$(python3 scripts/derived_data_path.py agent "$PWD") && \
+  export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}" && \
   xcodegen generate --spec App/project.yml --project App && \
   xcodebuild -project App/DuoUpdater.xcodeproj -scheme DuoUpdater \
     -configuration Debug -derivedDataPath "$DD" build
 ```
+
+**Export `DUO_TEAM_ID` before generating, never run `xcodegen` bare.**
+`App/project.yml` interpolates it into `DEVELOPMENT_TEAM` in four places. Without
+it xcodegen exits 0 and writes the unexpanded literal `${DUO_TEAM_ID}`, which
+xcodebuild then reports as `_DEVELOPMENT_TEAM_IS_EMPTY = YES` — so your build looks
+fine and the next `make install` is what fails, on a project you did not touch.
+`install.sh`, `app-tests.sh` and `row-state-gallery.sh` all do this; copy them.
 
 Take the derived-data path from `scripts/derived_data_path.py`, never a literal.
 Several worktrees are usually open at once and a shared path makes two xcodebuilds

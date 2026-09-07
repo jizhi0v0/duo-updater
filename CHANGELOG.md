@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.88
+
+**Windscribe now gets update checks, with its release notes.** A copy running an older build is listed with the version it can move to and what changed in it; before, Duo Updater had no way to see Windscribe's version at all. Updating is still done through Windscribe's own installer, which sets up parts of the app that live outside the app itself.
+
 ## 0.3.87
 
 **Clicking Update no longer does nothing when an update source contradicts itself.** If the check that runs the moment you click comes back with an older version than the one the row was offering, Duo Updater now says so and keeps the update on offer. It used to report the app as already up to date and drop it from the list, and the same update reappeared on the next check.

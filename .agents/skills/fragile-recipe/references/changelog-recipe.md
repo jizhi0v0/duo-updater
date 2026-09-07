@@ -187,7 +187,22 @@ test (it's pure/offline): paste a trimmed index slice that includes a decoy
 nav/footer link, and assert the resolved absolute URL is the latest release page —
 proving the anchor skips non-version links. See `followsFirstVLCReleaseLink…`.
 
-Then `cd DuoUpdaterCore && swift test --filter ChangelogExtractorTests`.
+`swift test --filter ChangelogExtractorTests` is the tight loop while you iterate
+on the regex. It is not the gate: finish on `make test`, which also runs the
+Python checks and the App-layer target.
+
+Then hit the real page — a fixture proves the regex against bytes you captured,
+not against what the vendor serves today:
+
+```sh
+duo verify --only <bundle-id-fragment>
+```
+
+Run `make cli` first; `duo verify` uses the **installed** CLI, so without it you
+are verifying the previous build's recipes. A changelog miss is cosmetic (the UI
+falls back to embedding the vendor page), so this will not block you the way a
+probe miss does — but a recipe that silently stopped matching looks exactly like
+one that never ran.
 
 ## To see it in the UI (optional)
 

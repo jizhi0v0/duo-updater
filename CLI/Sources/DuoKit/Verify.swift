@@ -180,14 +180,7 @@ public enum Verify {
         // REGISTRIES rather than on what this run swept: `--only` and
         // `--changelog` narrow the sweep, and pruning against a narrowed run
         // would delete every row the filter excluded.
-        let live = Set(
-            VendorProbeRegistry.recipes.map(\.recipeID)
-                + ChangelogRecipeRegistry.recipes.map(\.recipeID)
-                + GitHubReleaseRegistry.rules.map(\.recipeID)
-                + MacAppStoreProbeRegistry.cases.map(\.recipeID)
-                + [MacAppStoreProbeRegistry.batchRecipeID]
-                + SparkleFeedCatalog.verificationCases.map(\.recipeID))
-        let pruned = baseline.prune(keeping: live)
+        let pruned = baseline.prune(keeping: liveRecipeIDs())
         for id in pruned.removed {
             print("  baseline: dropped \(id) — no recipe produces this id any more")
         }
@@ -340,7 +333,11 @@ public enum Verify {
     private static func sweepVendor(
         _ recipes: [VendorProbeRecipe], options: VerifyOptions,
         installed: [String: InstalledVersion],
-        collecting installURLs: ResolvedInstallURLs? = nil
+        // Not optional and not defaulted: an omitted collector compiles and
+        // silently collects nothing, leaving the pkgarch sweep reporting every
+        // package as skipped with no error anywhere. Same rule as
+        // `RowActions.live` in CLAUDE.md.
+        collecting installURLs: ResolvedInstallURLs
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.url.host ?? "-" }, options: options) { recipe in
             // A credential-bearing recipe is never fetched by the sweep: its URL,
@@ -407,7 +404,8 @@ public enum Verify {
             // Hand the pkgarch sweep the URL this probe already resolved. Doing it
             // here rather than re-probing is the difference between 44 small Range
             // reads and hitting 22 vendor endpoints a second time in one run.
-            await installURLs?.record(recipe.recipeID, outcome.remote?.downloadURL)
+            await installURLs.record(
+                recipe.recipeID, installArtifactURL(outcome))
             return finding
         }
     }
@@ -425,6 +423,54 @@ public enum Verify {
             urls[recipeID] = url
         }
         func all() -> [String: URL] { urls }
+    }
+
+    /// Every recipe id the registries can still produce, which is what `Baseline`
+    /// keeps and everything else it prunes.
+    ///
+    /// Extracted so it can be tested: an id missing here is not a compile error
+    /// and not a failing sweep — it is an entry silently deleted on every run.
+    /// For `pkgarch:` that meant a single-architecture warn's
+    /// `consecutiveActionable` was wiped before it was saved, so it could never
+    /// reach `actionableThreshold` and the sweep's only actionable branch was
+    /// structurally unable to file an issue.
+    ///
+    /// Derived from the registries, never from this run's `--only` filter: a
+    /// narrowed sweep must not prune the entries it did not look at.
+    static func liveRecipeIDs() -> Set<String> {
+        Set(
+            VendorProbeRegistry.recipes.map(\.recipeID)
+                + ChangelogRecipeRegistry.recipes.map(\.recipeID)
+                + GitHubReleaseRegistry.rules.map(\.recipeID)
+                + MacAppStoreProbeRegistry.cases.map(\.recipeID)
+                + [MacAppStoreProbeRegistry.batchRecipeID]
+                + SparkleFeedCatalog.verificationCases.map(\.recipeID)
+                + VendorProbeRegistry.recipes
+                    .filter { $0.install?.kind == .pkg }
+                    .map { pkgArchID($0) })
+    }
+
+    /// The resolved install artifact, or nil when the probe fell back.
+    ///
+    /// ⚠️ `remote.downloadURL` is NOT always an installer. When the install plan
+    /// fails to resolve, `VendorProbeSource.makeRemoteVersion` is called with
+    /// `install: nil, plan: nil` and fills `downloadURL` with
+    /// `recipe.downloadURL` — the vendor's HUMAN download page. Handing that to
+    /// the pkgarch sweep makes it range-read an HTML page and file
+    /// `notAFlatPackage` as `ok`: a green verdict on a recipe whose install spec
+    /// just died, which is precisely the drift this is supposed to notice.
+    ///
+    /// The probe already says so in its own vocabulary, so read that rather than
+    /// guessing from the URL's shape.
+    static func installArtifactURL(_ outcome: ProbeOutcome) -> URL? {
+        let unresolved: Set<String> = [
+            ProbeWarning.installURLUnresolved.kind,
+            ProbeWarning.installURLTransient(status: nil).kind,
+            ProbeWarning.installURLNotFound(status: nil, host: nil).kind,
+        ]
+        guard !outcome.warnings.contains(where: { unresolved.contains($0.kind) })
+        else { return nil }
+        return outcome.remote?.downloadURL
     }
 
     /// A pkgarch finding's own id, namespaced like every other registry's

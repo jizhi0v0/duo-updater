@@ -18,7 +18,9 @@ path reads all of them for a couple of hundred kilobytes.
     scripts/pkg_host_architectures.py < urls.tsv        # bundleID<TAB>channel<TAB>version<TAB>url
     duo verify --pkgarch --report r.json                # the same check, in Swift
 
-Output is TSV: bundleID, channel, version, value, where-it-was-found.
+Output is TSV: bundleID, channel, version, value, verdict, where-it-was-found.
+`verdict` is UNIVERSAL / SINGLE / ABSENT / NOT-XAR - the same call the Swift
+sweep turns into ok / warn.
 `value` is the declaration verbatim, or `ABSENT` (no declaration in either file
 — the common case, 7 of 22 measured 2026-09-07), or `NOT-XAR` (the URL did not
 serve a flat package: a DMG-wrapped pkg, or a vendor serving HTML).
@@ -71,6 +73,23 @@ def _inflate(raw, style):
             return raw                                        # leave it; regex just misses
 
 
+def classify(value):
+    """UNIVERSAL / SINGLE, by counting the architectures named.
+
+    This mirrors `PackageArchitectureProbe.classify`, and it is the half that
+    actually decides something: the Swift sweep warns on SINGLE and stays quiet on
+    UNIVERSAL. Without it this script witnessed only the string extraction, so the
+    one rule with a consequence had no independent implementation at all — the
+    opposite of the reason a second witness exists.
+
+    Order carries no meaning: the packages spell it `arm64,x86_64` 9 times and
+    `x86_64,arm64` 6 times (measured 2026-09-07), so a comparison against either
+    spelling calls the other single-architecture.
+    """
+    names = {n.strip().lower() for n in re.split(r"[,\s]+", value) if n.strip()}
+    return "SINGLE" if len(names) <= 1 else "UNIVERSAL"
+
+
 def host_architectures(url, fetch):
     """(value, where) for one package URL. Never raises for a vendor-side
     problem — the caller files that as data, not as a crash."""
@@ -79,6 +98,9 @@ def host_architectures(url, fetch):
         return "NOT-XAR", f"magic={head[:4]!r}"
     header_size = struct.unpack(">H", head[4:6])[0]
     toc_compressed = struct.unpack(">Q", head[8:16])[0]
+    # Bound-checked on the UNSIGNED value, before anything narrows it. Swift's
+    # `Int(someUInt64)` traps above Int.max and a trap is not catchable, so the
+    # two implementations agreeing here is load-bearing, not cosmetic.
     if toc_compressed <= 0 or toc_compressed > MAX_MEMBER:
         return "NOT-XAR", f"toc={toc_compressed}"
     toc = zlib.decompress(fetch.range(url, header_size, header_size + toc_compressed - 1))
@@ -135,7 +157,9 @@ def main():
         except (urllib.error.URLError, urllib.error.HTTPError, OSError,
                 zlib.error, ET.ParseError, struct.error, ValueError) as exc:
             value, where = "ERROR", f"{type(exc).__name__}: {exc}"[:70]
-        print(f"{bundle_id}\t{channel}\t{version}\t{value}\t{where}", flush=True)
+        verdict = classify(value) if value not in ("ABSENT", "ERROR") \
+            and not value.startswith("NOT-XAR") else value
+        print(f"{bundle_id}\t{channel}\t{version}\t{value}\t{verdict}\t{where}", flush=True)
         rows += 1
     print(f"# {rows} package(s), {fetch.bytes / 1024:.1f} KB fetched", file=sys.stderr)
     return 0

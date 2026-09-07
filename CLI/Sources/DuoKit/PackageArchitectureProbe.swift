@@ -33,6 +33,16 @@ import DuoUpdaterCore
 /// against its own unit tests.
 public enum PackageArchitectureProbe {
 
+    /// The endpoint answered without honouring `Range`. Surfaces as `infra` — it
+    /// is a vendor/CDN property, not a recipe defect — but it must NOT be
+    /// mistaken for a reading of the package.
+    struct RangeUnsupported: LocalizedError {
+        let status: Int
+        var errorDescription: String? {
+            "server ignored the Range request (HTTP \(status), expected 206)"
+        }
+    }
+
     /// What one package said about itself.
     public enum Declaration: Equatable, Sendable {
         /// `hostArchitectures` named every architecture we care about.
@@ -40,8 +50,9 @@ public enum PackageArchitectureProbe {
         /// It named exactly one. The event this sweep exists to notice.
         case single(String)
         /// No declaration in `Distribution` or `PackageInfo`. The common case,
-        /// and NOT a defect — 7 of 22 measured, including all three Edge
-        /// channels. Reported, never warned on.
+        /// and NOT a defect — 7 of the 22 this sweep reads, including all three
+        /// Edge channels and all three WeChat DevTools channels. Reported, never
+        /// warned on.
         case absent
         /// The URL did not serve a flat package: a DMG-wrapped pkg, or a vendor
         /// serving an HTML interstitial. Not a finding either — `kind: .pkg`
@@ -59,9 +70,14 @@ public enum PackageArchitectureProbe {
 
     /// A xar file is a 28-byte header, a zlib-compressed table of contents, then
     /// the heap. The TOC carries each member's offset and length inside the heap,
-    /// so two Range requests reach `Distribution` without the payload behind it.
-    /// Measured: 22 packages for ~197 KB, against GB-scale Office packages if the
-    /// payload were expanded — which is why #400 ruled expansion out.
+    /// so `Distribution` is reachable without the payload behind it.
+    ///
+    /// **THREE** range requests per package — header, TOC, member — and four when
+    /// `Distribution` exists but carries no declaration and `PackageInfo` is tried
+    /// after it. So the pkg route costs 66–88 requests, not the "two small
+    /// requests" an earlier version of this comment claimed. Bytes are what stays
+    /// small: ~197 KB for all 22, against GB-scale Office packages if the payload
+    /// were expanded — which is why #400 ruled expansion out.
     static let headerLength = 28
     /// Caps a hostile or corrupt endpoint. Every Distribution in this registry is
     /// far under it; Edge's is 716 bytes.
@@ -75,7 +91,16 @@ public enum PackageArchitectureProbe {
     ) async -> Result<Declaration, any Error> {
         do {
             let head = try await bytes(url, 0, headerLength - 1, session)
-            guard head.count >= 24, head.prefix(4) == Data("xar!".utf8) else {
+            // An empty or short body is its own story and must not be reported as
+            // a wrong magic number. Measured on Sunlogin 2026-09-07: its install
+            // URL 302s to the vendor's download page, which answers 206 with a
+            // ZERO-length body to `URLSession` while `curl` gets 28 bytes of HTML
+            // from the same request — so "we read nothing" is the true finding, and
+            // `magic=0x` alone would have read as "we saw bytes and they were odd".
+            guard head.count >= 24 else {
+                return .success(.notAFlatPackage("short body (\(head.count) bytes)"))
+            }
+            guard head.prefix(4) == Data("xar!".utf8) else {
                 // Hex, not the bytes themselves. A vendor serving an HTML
                 // interstitial here starts the body `<!DO`, and `Redactor` — which
                 // every `Finding` string goes through — strips markup, so the raw
@@ -83,17 +108,26 @@ public enum PackageArchitectureProbe {
                 // Sunlogin: `NOT-XAR(magic=)`, which says nothing at all. Hex
                 // survives redaction and still identifies what arrived.
                 let magic = head.prefix(4).map { String(format: "%02x", $0) }.joined()
-                return .success(.notAFlatPackage("bytes=\(head.count) magic=0x\(magic)"))
+                return .success(.notAFlatPackage("magic=0x\(magic)"))
             }
             let headerSize = Int(head.withUnsafeBytes {
                 UInt16(bigEndian: $0.loadUnaligned(fromByteOffset: 4, as: UInt16.self))
             })
-            let tocCompressed = Int(head.withUnsafeBytes {
+            // ⚠️ Range-check as UInt64 and only then narrow. `Int(someUInt64)` TRAPS
+            // above `Int.max`, and a trap is not catchable — so a file whose first
+            // four bytes are `xar!` and whose length field has the high bit set
+            // would kill `duo verify` outright, from vendor-controlled bytes. The
+            // Python witness gets this right by construction (`struct.unpack(">Q")`
+            // is unsigned and its bound check runs on that value), and the two
+            // disagreeing on a hostile input is exactly what a second witness is
+            // for. Verified: 0x8000000000000000 now reports, rather than crashing.
+            let tocRawLength = head.withUnsafeBytes {
                 UInt64(bigEndian: $0.loadUnaligned(fromByteOffset: 8, as: UInt64.self))
-            })
-            guard tocCompressed > 0, tocCompressed <= maxMemberBytes else {
-                return .success(.notAFlatPackage("toc=\(tocCompressed)"))
             }
+            guard tocRawLength > 0, tocRawLength <= UInt64(maxMemberBytes) else {
+                return .success(.notAFlatPackage("toc=\(tocRawLength)"))
+            }
+            let tocCompressed = Int(tocRawLength)
             let tocRaw = try await bytes(url, headerSize, headerSize + tocCompressed - 1, session)
             guard let toc = Inflate.zlib(tocRaw) else {
                 return .success(.notAFlatPackage("toc-not-deflate"))
@@ -103,8 +137,16 @@ public enum PackageArchitectureProbe {
             // that carries the declaration, and a component PackageInfo beside it
             // need not repeat it.
             for name in ["Distribution", "PackageInfo"] {
+                // `offset` and `length` are parsed out of vendor-controlled XML, so
+                // they are attacker input in the same sense the header is. A
+                // NEGATIVE length passed the old `<= maxMemberBytes` check and then
+                // reached `prefix(-1)`, whose precondition failure is another
+                // uncatchable trap; a huge offset overflowed the `heap + offset +
+                // length` arithmetic. Both are bounded here, before any of it runs.
                 guard let member = XarTOC.member(named: name, in: toc),
-                      member.length <= maxMemberBytes else { continue }
+                      (0...maxMemberBytes).contains(member.length),
+                      member.offset >= 0,
+                      member.offset <= Int.max - heap - member.length else { continue }
                 let raw = try await bytes(
                     url, heap + member.offset, heap + member.offset + member.length - 1, session)
                 let body = member.isCompressed ? (Inflate.zlib(raw) ?? raw) : raw
@@ -118,9 +160,19 @@ public enum PackageArchitectureProbe {
     }
 
     /// Universal vs single is decided by counting the architectures named, not by
-    /// matching a spelling: the registry carries BOTH `arm64,x86_64` (9) and
-    /// `x86_64,arm64` (6), so the order means nothing and a string comparison
-    /// against one of them would call the other single-architecture.
+    /// matching a spelling. Both orders are live — measured 2026-09-07, the
+    /// PACKAGES declare `arm64,x86_64` 9 times and `x86_64,arm64` 6 times — so the
+    /// order means nothing and a string comparison against one spelling would call
+    /// the other single-architecture.
+    ///
+    /// ⚠️ Those counts are a property of the vendors' packages, not of this
+    /// repository: `grep hostArchitectures` over the registry returns nothing. An
+    /// earlier version of this comment said "the registry carries both", which
+    /// sends a reader looking for something that is not there.
+    ///
+    /// An empty declaration (`hostArchitectures=""`) names nothing, so it counts as
+    /// single and warns. That is deliberate — a vendor publishing an empty
+    /// architecture list is worth a human look — but it has never been seen.
     static func classify(_ value: String) -> Declaration {
         let names = value.split(whereSeparator: { $0 == "," || $0 == " " })
             .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
@@ -170,7 +222,17 @@ public enum PackageArchitectureProbe {
         var request = URLRequest(url: url)
         request.setValue("bytes=\(start)-\(end)", forHTTPHeaderField: "Range")
         let limit = end - start + 1
-        let (stream, _) = try await session.countedBytes(for: request, purpose: .other)
+        let (stream, response) = try await session.countedBytes(for: request, purpose: .other)
+        // ⚠️ A server that ignores `Range` answers **200 with the whole file**, and
+        // the first `limit` bytes of a package are not the bytes that were asked
+        // for. Reading them anyway is the worst outcome available: the TOC read
+        // would get the file's opening bytes, fail to inflate, and the package
+        // would be filed `notAFlatPackage` — status `ok`. A green verdict produced
+        // by reading the wrong bytes, with the drift check silently off for that
+        // vendor. Partial Content or nothing.
+        if let http = response as? HTTPURLResponse, http.statusCode != 206 {
+            throw PackageArchitectureProbe.RangeUnsupported(status: http.statusCode)
+        }
         var out = Data()
         out.reserveCapacity(min(limit, maxMemberBytes))
         for try await byte in stream {
@@ -205,8 +267,18 @@ enum XarTOC {
 }
 
 enum Inflate {
-    /// zlib-wrapped first, then raw deflate: xar writes the former, but a member
-    /// whose encoding says gzip can carry either.
+    /// ⚠️ Read the order carefully, because the obvious reading is backwards.
+    /// Apple's `NSData.CompressionAlgorithm.zlib` is **raw DEFLATE** (RFC 1951,
+    /// `windowBits = -15`), NOT the RFC 1950 zlib wrapper its name suggests. xar
+    /// writes the RFC 1950 form, so the FIRST call here is the raw-deflate attempt
+    /// — which fails on xar's 2-byte header — and the `dropFirst(2)` fallback is
+    /// what actually reads a real package. The ordering is correct; an earlier
+    /// version of this comment described it as "zlib-wrapped first", which inverts
+    /// what each branch does and would mislead anyone trying to simplify it.
+    ///
+    /// Not verbatim-verified against Apple's documentation (those pages render as
+    /// SPA shells); rests on Apple's Archive-format docs plus developer-forums
+    /// thread 712115, and on the round-trip the unit tests exercise both ways.
     static func zlib(_ data: Data) -> Data? {
         if let out = try? (data as NSData).decompressed(using: .zlib) as Data { return out }
         if data.count > 2, let out = try? (data.dropFirst(2) as NSData)

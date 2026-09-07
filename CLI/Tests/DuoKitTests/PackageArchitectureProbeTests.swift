@@ -48,32 +48,62 @@ struct PackageArchitectureProbeTests {
             in: Data(#"<options rootVolumeOnly="true"/>"#.utf8)) == nil)
     }
 
-    /// The declaration text a report shows must not lose the case that produced
-    /// it. `NOT-XAR` with an empty reason was a real defect: the raw `<!DO` a
-    /// vendor's HTML interstitial starts with is stripped by `Redactor`, so the
-    /// diagnostic arrived empty (measured on Sunlogin).
-    @Test func anUnreadablePackageSaysWhatArrived() {
-        let declaration = PackageArchitectureProbe.Declaration
-            .notAFlatPackage("bytes=28 magic=0x3c21444f")
-        #expect(declaration.value.contains("3c21444f"))
-        #expect(!declaration.value.hasSuffix("()"))
-    }
-
-    /// Registry-derived, not a hand-written list: every pkg spec must be one the
-    /// sweep can name. A recipe flipping `.tar` → `.pkg` silently moves an app
-    /// onto the gate-less install route (#415), and this is what notices.
-    @Test func everyPkgSpecIsCoveredBySweepAndScript() {
-        let pkgs = VendorProbeRegistry.recipes.filter { $0.install?.kind == .pkg }
-        #expect(!pkgs.isEmpty, "no pkg specs found — the filter, not the registry, is wrong")
-        // Guards the count the docs and #415 quote, so the prose cannot drift away
-        // from the registry without something going red.
-        #expect(pkgs.count == 22, """
-            The pkg install route changed size (\(pkgs.count) specs, was 22). That is \
-            worth reading, not just re-pinning: every one of these is installed with \
-            no architecture gate. Re-run scripts/pkg_host_architectures.py and update \
-            #415 before changing this number.
+    /// Registry-derived: the SET of pkg specs, not a count.
+    ///
+    /// ⚠️ A count pin is the trap CLAUDE.md's `app_test_coverage.py` lesson names
+    /// ("比名字集合,不要比两个总数"): remove one pkg spec, add another, and 22
+    /// still holds. The first version of this test pinned the count AND
+    /// re-implemented the filter inline, so deleting `sweepPackageArchitecture`
+    /// entirely left it green.
+    ///
+    /// It also spans BOTH registries that can produce a pkg install, because a
+    /// GitHub rule flipping `installerKind` to `.pkg` is the same silent move onto
+    /// the gate-less route as a vendor recipe flipping `kind`.
+    @Test func thePkgRouteIsExactlyWhatTheDocsSayItIs() {
+        let vendorPkgs = Set(VendorProbeRegistry.recipes
+            .filter { $0.install?.kind == .pkg }
+            .map { Verify.pkgArchFinding($0, host: "-", outcome: nil, elapsedMs: 0).recipeID })
+        #expect(vendorPkgs == [
+            "pkgarch:cc.ffitch.shottr:stable",
+            "pkgarch:com.microsoft.Excel:stable",
+            "pkgarch:com.microsoft.OneDrive:stable",
+            "pkgarch:com.microsoft.Outlook:stable",
+            "pkgarch:com.microsoft.Powerpoint:stable",
+            "pkgarch:com.microsoft.Word:stable",
+            "pkgarch:com.microsoft.edgemac.Beta:beta",
+            "pkgarch:com.microsoft.edgemac.Dev:dev",
+            "pkgarch:com.microsoft.edgemac:stable",
+            "pkgarch:com.microsoft.m365copilot:stable",
+            "pkgarch:com.microsoft.onenote.mac:stable",
+            "pkgarch:com.microsoft.teams2:stable",
+            "pkgarch:com.netease.uuremote:stable",
+            "pkgarch:com.oray.sunlogin.macclient:stable",
+            "pkgarch:com.tclementdev.timemachineeditor.application:stable",
+            "pkgarch:com.tencent.wechatdevtools:nightly",
+            "pkgarch:com.tencent.wechatdevtools:rc",
+            "pkgarch:com.tencent.wechatdevtools:stable",
+            "pkgarch:com.youqu.todesk.mac:stable",
+            "pkgarch:io.tailscale.ipn.macsys:rc",
+            "pkgarch:io.tailscale.ipn.macsys:stable",
+            "pkgarch:io.tailscale.ipn.macsys:unstable",
+        ], """
+            The pkg install route changed. Every one of these installs with NO \
+            architecture gate, so this is worth reading rather than re-pinning: \
+            re-run scripts/pkg_host_architectures.py and update #415 and \
+            PackageInstaller's comment before changing this set.
             """)
-        #expect(Set(pkgs.map(\.recipeID)).count == pkgs.count, "recipeIDs must be unique")
+        // ⚠️ The GitHub side is NOT swept — `sweepPackageArchitecture` takes
+        // `[VendorProbeRecipe]` only. XQuartz was measured by hand for #415 and is
+        // universal. This assertion exists so that gap stays a KNOWN one: a second
+        // GitHub pkg rule makes it go red rather than joining the unswept set
+        // silently.
+        let githubPkgs = Set(GitHubReleaseRegistry.rules
+            .filter { $0.installerKind == .pkg }
+            .map(\.bundleID))
+        #expect(githubPkgs == ["org.xquartz.X11"], """
+            A GitHub rule now ships a pkg that the pkgarch sweep does not read. \
+            Either extend the sweep to GitHubReleaseRegistry or record why not.
+            """)
     }
 
     /// Mutation: use `recipe.recipeID` instead of `pkgArchID(recipe)` inside
@@ -136,4 +166,203 @@ struct PackageArchitectureProbeTests {
             recipe, host: "-", outcome: .success(.universal("arm64,x86_64")), elapsedMs: 0)
         #expect(ok.warnings.contains("hostArchitectures=arm64,x86_64"))
     }
+
+    /// Mutation: drop the `pkgarch:` ids from `liveRecipeIDs()` and this goes red.
+    ///
+    /// Nothing else would. `Baseline.prune` removes every entry whose id is not
+    /// live, and the pruned baseline is what gets SAVED — so a pkgarch warn's
+    /// streak is wiped before the next run reads it, `isReportable` never reaches
+    /// `actionableThreshold`, and the sweep's only actionable branch can never
+    /// file an issue. No test failed, no sweep failed; the id simply printed
+    /// "dropped — no recipe produces this id any more" 22 times a run.
+    @Test func pkgArchEntriesSurviveBaselinePruning() throws {
+        let live = Verify.liveRecipeIDs()
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first { $0.install?.kind == .pkg })
+        let id = Verify.pkgArchFinding(recipe, host: "-", outcome: nil, elapsedMs: 0).recipeID
+        #expect(live.contains(id), "\(id) is not live, so prune deletes it every run")
+
+        var baseline = Baseline()
+        baseline.reconcile(Verify.pkgArchFinding(
+            recipe, host: "-", outcome: .success(.single("x86_64")), elapsedMs: 0))
+        let pruned = baseline.prune(keeping: live)
+        #expect(!pruned.removed.contains(id))
+        // And the streak it just recorded is still there to be built on.
+        #expect(baseline.streak(id) == 1)
+    }
+
+    /// A synthetic flat package, so the parts that only ever ran against the
+    /// network get exercised: the header parse, `XarTOC.member`, `Inflate`, and
+    /// the Distribution-before-PackageInfo preference.
+    ///
+    /// ⚠️ These existed nowhere before. Swapping `bigEndian` for `littleEndian` in
+    /// the header read passed the ENTIRE file — the classifier tests never touch a
+    /// byte of a package.
+    private static func xar(
+        members: [(name: String, body: String)], compress: Bool = true,
+        magic: String = "xar!", headerSize: UInt16 = 28
+    ) -> Data {
+        var heap = Data()
+        var entries = ""
+        for member in members {
+            let raw = Data(member.body.utf8)
+            let stored = compress
+                ? (try! (raw as NSData).compressed(using: .zlib) as Data)
+                : raw
+            entries += """
+                <file id="\(entries.count)"><name>\(member.name)</name>                <data><offset>\(heap.count)</offset><length>\(stored.count)</length>                <size>\(raw.count)</size>                <encoding style="\(compress ? "application/x-gzip" : "")"/></data></file>
+                """
+            heap.append(stored)
+        }
+        let toc = Data("<xar><toc>\(entries)</toc></xar>".utf8)
+        let tocZ = try! (toc as NSData).compressed(using: .zlib) as Data
+        var out = Data(magic.utf8)
+        out.append(contentsOf: withUnsafeBytes(of: headerSize.bigEndian) { Array($0) })
+        out.append(contentsOf: withUnsafeBytes(of: UInt16(1).bigEndian) { Array($0) })
+        out.append(contentsOf: withUnsafeBytes(of: UInt64(tocZ.count).bigEndian) { Array($0) })
+        out.append(contentsOf: withUnsafeBytes(of: UInt64(toc.count).bigEndian) { Array($0) })
+        out.append(contentsOf: withUnsafeBytes(of: UInt32(0).bigEndian) { Array($0) })
+        out.append(tocZ)
+        out.append(heap)
+        return out
+    }
+
+    /// Mutation: `bigEndian` → `littleEndian` on either header field, and this
+    /// goes red. Nothing else in this file reads a package byte.
+    @Test func aSyntheticPackageIsParsedEndToEnd() async throws {
+        let pkg = Self.xar(members: [
+            ("Distribution", #"<installer-gui-script><options hostArchitectures="arm64,x86_64"/></installer-gui-script>"#),
+        ])
+        let url = try StubURLProtocol.serve(pkg)
+        defer { StubURLProtocol.reset() }
+        let result = await PackageArchitectureProbe.declaration(at: url, session: StubURLProtocol.session)
+        #expect(try result.get() == .universal("arm64,x86_64"))
+    }
+
+    /// Mutation: try `PackageInfo` before `Distribution` and this goes red. On a
+    /// product archive the Distribution is the file that carries the declaration,
+    /// and a component `PackageInfo` beside it may say something narrower.
+    @Test func distributionWinsOverPackageInfo() async throws {
+        let pkg = Self.xar(members: [
+            ("PackageInfo", #"<pkg-info hostArchitectures="x86_64"/>"#),
+            ("Distribution", #"<options hostArchitectures="arm64,x86_64"/>"#),
+        ])
+        let url = try StubURLProtocol.serve(pkg)
+        defer { StubURLProtocol.reset() }
+        let result = await PackageArchitectureProbe.declaration(at: url, session: StubURLProtocol.session)
+        #expect(try result.get() == .universal("arm64,x86_64"))
+    }
+
+    /// A package with neither file, and one whose members carry no declaration:
+    /// both are `.absent`, which is the registry's majority answer and must never
+    /// become a warn.
+    @Test func aPackageWithNoDeclarationIsAbsentNotSingle() async throws {
+        for members in [[("Bom", "x")], [("Distribution", "<options rootVolumeOnly=\"true\"/>")]] {
+            let url = try StubURLProtocol.serve(Self.xar(members: members))
+            defer { StubURLProtocol.reset() }
+            let result = await PackageArchitectureProbe.declaration(at: url, session: StubURLProtocol.session)
+            #expect(try result.get() == .absent)
+        }
+    }
+
+    /// Hostile input must REPORT, never trap. `Int(someUInt64)` traps above
+    /// `Int.max` and a trap is not catchable, so a vendor-controlled length field
+    /// with the high bit set would have killed `duo verify` outright.
+    @Test func aHostileHeaderIsReportedRatherThanCrashing() async throws {
+        var pkg = Data("xar!".utf8)
+        pkg.append(contentsOf: withUnsafeBytes(of: UInt16(28).bigEndian) { Array($0) })
+        pkg.append(contentsOf: withUnsafeBytes(of: UInt16(1).bigEndian) { Array($0) })
+        pkg.append(contentsOf: withUnsafeBytes(of: UInt64(0x8000_0000_0000_0000).bigEndian) { Array($0) })
+        pkg.append(contentsOf: withUnsafeBytes(of: UInt64(1).bigEndian) { Array($0) })
+        pkg.append(contentsOf: withUnsafeBytes(of: UInt32(0).bigEndian) { Array($0) })
+        let url = try StubURLProtocol.serve(pkg)
+        defer { StubURLProtocol.reset() }
+        let result = await PackageArchitectureProbe.declaration(at: url, session: StubURLProtocol.session)
+        guard case .notAFlatPackage(let why) = try result.get() else {
+            Issue.record("expected notAFlatPackage"); return
+        }
+        #expect(why.contains("toc="))
+    }
+
+    /// A server that ignores `Range` and answers 200 with the whole file must be
+    /// refused, not read. Reading its first bytes would file `notAFlatPackage` as
+    /// `ok` — a green verdict produced from the wrong bytes.
+    @Test func aServerIgnoringRangeIsRefused() async throws {
+        let url = try StubURLProtocol.serve(Self.xar(members: [
+            ("Distribution", #"<options hostArchitectures="arm64,x86_64"/>"#),
+        ]), status: 200)
+        defer { StubURLProtocol.reset() }
+        let result = await PackageArchitectureProbe.declaration(at: url, session: StubURLProtocol.session)
+        #expect(throws: (any Error).self) { try result.get() }
+    }
+}
+
+/// Serves a fixture per URL, so the reader can be driven without a vendor.
+///
+/// ⚠️ Keyed by URL and lock-guarded, NOT a single static body. swift-testing runs
+/// these in parallel, and the first version held one `static var body` that
+/// concurrent tests overwrote — three tests failed against a fixture another test
+/// had just installed. A stub that works only when run alone is a flaky test
+/// waiting to be blamed on the code under test.
+final class StubURLProtocol: URLProtocol, @unchecked Sendable {
+    private struct Fixture { let body: Data; let status: Int }
+    nonisolated(unsafe) private static var fixtures: [String: Fixture] = [:]
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var counter = 0
+
+    static var session: URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    /// Returns a URL unique to this fixture, so parallel tests cannot collide.
+    static func serve(_ data: Data, status: Int = 206) throws -> URL {
+        lock.lock()
+        defer { lock.unlock() }
+        counter += 1
+        let path = "/fixture-\(counter).pkg"
+        fixtures[path] = Fixture(body: data, status: status)
+        return URL(string: "https://stub.invalid\(path)")!
+    }
+
+    static func reset() {}
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "stub.invalid"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let path = request.url?.path else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL)); return
+        }
+        Self.lock.lock()
+        let fixture = Self.fixtures[path]
+        Self.lock.unlock()
+        guard let fixture else {
+            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist)); return
+        }
+        // Honour Range the way a correct server does, so the reader's three
+        // sequential reads land on the bytes they asked for.
+        var slice = fixture.body
+        var headers = ["Content-Type": "application/octet-stream"]
+        if fixture.status == 206,
+           let raw = request.value(forHTTPHeaderField: "Range")?
+               .replacingOccurrences(of: "bytes=", with: ""),
+           case let parts = raw.split(separator: "-"), parts.count == 2,
+           let lo = Int(parts[0]), let hi = Int(parts[1]), lo <= hi, lo < fixture.body.count {
+            let upper = min(hi, fixture.body.count - 1)
+            slice = fixture.body.subdata(in: lo..<(upper + 1))
+            headers["Content-Range"] = "bytes \(lo)-\(upper)/\(fixture.body.count)"
+        }
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: fixture.status, httpVersion: "HTTP/1.1",
+            headerFields: headers)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: slice)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

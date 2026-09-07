@@ -165,8 +165,9 @@ public actor SparkleInstaller {
         // appcast — e.g. Fork) and lean on HTTPS plus the download's own Developer
         // ID code signature for authenticity. For those we fall back to the SAME
         // best-effort gate the Vendor/GitHub paths use: code signature valid +
-        // same Team ID + same bundle id as installed (Gates 2/3/4 below), which
-        // fails closed, so an app we can't verify that way is simply not installed.
+        // same Team ID + same bundle id as installed (Gates 2/3/4, run via
+        // `SignatureVerifier.verifyInstallArtifact` below), which fails closed,
+        // so an app we can't verify that way is simply not installed.
         // We only skip EdDSA when there's NO key at all — a feed that ships a key
         // must still produce a signature (a key'd feed silently dropping its
         // signature is suspicious), so `verifyEdSignature` stays mandatory there.

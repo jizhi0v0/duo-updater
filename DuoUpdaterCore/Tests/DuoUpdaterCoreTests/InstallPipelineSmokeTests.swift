@@ -157,6 +157,17 @@ private func verifyGates(
     try SignatureVerifier.verifyBundleIdentifierMatch(installedApp: target.app.path, downloadedApp: newApp)
     log("✓ code signature valid; Team ID match: \(oldTeam ?? "?") == \(newTeam ?? "?")")
     log("=== ALL GATES PASSED (no install performed) ===")
+
+    // Deliberately partial: this calls gates 2–4 directly rather than through
+    // `SignatureVerifier.verifyInstallArtifact` (issue #410), and stops before
+    // gates 5/5b/6 (architecture, architecture-downgrade, OS floor). This test's
+    // whole point is per-stage logging against a REAL vendor download — download,
+    // EdDSA, extract, then each trust gate individually with its own log line —
+    // so it can name which stage a live vendor broke at. Routing it through the
+    // shared entry point would collapse that into one call and lose the stage
+    // that failed; a change to the shared gate 5/5b ordering will not be caught
+    // here, but IS caught by `ArchitectureDowngradeWiringTests` in
+    // `ArchitectureGateTests.swift`, which drives the real installers' `apply()`.
 }
 
 /// Delete leftover scratch dirs from runs that were killed before their `defer`

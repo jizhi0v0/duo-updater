@@ -967,4 +967,13 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
             installedApp: installedPath, downloadedApp: newApp)
     }
     log("✅ gate passed — would swap safely (no swap performed)")
+
+    // Deliberately partial: stops after gate 3 (Team ID), before gate 4 (bundle
+    // id) and gates 5/5b/6 (architecture, architecture-downgrade, OS floor) —
+    // it calls `SignatureVerifier` directly rather than through
+    // `verifyInstallArtifact` (issue #410) so it can log Team ID before/after
+    // each step against a REAL, live vendor download, off the cooperative pool
+    // exactly like the real installers (#351, noted above). A change to the
+    // shared gate ordering downstream of gate 3 will not be caught here, but IS
+    // caught by `ArchitectureDowngradeWiringTests` in `ArchitectureGateTests.swift`.
 }

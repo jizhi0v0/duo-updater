@@ -314,11 +314,13 @@ struct ArchitectureDowngradeGateTests {
 /// PROOF that Gate 5b is actually wired into the two installers' real `apply()`
 /// — not just that the predicate is correct in isolation (that's what the two
 /// suites above already cover). Deleting the `verifyNoArchitectureDowngrade`
-/// call from `VendorInstaller`/`SparkleInstaller` must turn these tests red;
-/// nothing else in this file can, because they never call `isArchitectureDowngrade`
-/// or `verifyNoArchitectureDowngrade` directly — only the installers' public
-/// `apply()`. (A gate no code path calls is worse than no gate at all: the next
-/// reader trusts `SignatureVerifier`'s doc comment listing it. Issue #196.)
+/// call from `SignatureVerifier.verifyInstallArtifact` — the single shared
+/// entry point both `VendorInstaller` and `SparkleInstaller` now call — must
+/// turn these tests red; nothing else in this file can, because they never
+/// call `isArchitectureDowngrade` or `verifyNoArchitectureDowngrade` directly
+/// — only the installers' public `apply()`. (A gate no code path calls is
+/// worse than no gate at all: the next reader trusts `SignatureVerifier`'s
+/// doc comment listing it. Issue #196.)
 ///
 /// The trick is a REAL, already-installed, Developer-ID-signed universal
 /// (`x86_64 arm64`) app found on this machine, copied twice:
@@ -633,12 +635,19 @@ struct ArchitectureDowngradeWiringTests {
         #expect(downloaded == "x86_64", "\(label): downloaded side should be exactly x86_64")
     }
 
-    @Test func vendorInstallerApplyRefusesTheDowngrade() async throws {
-        guard HostArch.current == .arm64, HostArch.canRunIntelBuilds else {
-            // Without Rosetta, Gate 5 itself would refuse an Intel-only download
-            // here — that would prove Gate 5 works, not Gate 5b specifically.
-            return
-        }
+    // Skipped (not silently passed) rather than gated by a bare `guard … else {
+    // return }`: without Rosetta on an arm64 host, Gate 5 itself would refuse an
+    // Intel-only download here — that would prove Gate 5 works, not Gate 5b
+    // specifically — and swift-testing's own summary only counts tests it knows
+    // about, not tests that actually ran their body, so a silent early return
+    // reads as a pass indistinguishable from the real thing (see the App-layer
+    // test-coverage notes in CLAUDE.md for the same shape of bug). `.enabled(if:)`
+    // records this as a SKIP, with the reason, instead.
+    @Test(.enabled(
+        if: HostArch.current == .arm64 && HostArch.canRunIntelBuilds,
+        "needs an arm64 host with Rosetta installed, so an Intel-only download still launches translated and Gate 5b (not Gate 5) is what's under test"
+    ))
+    func vendorInstallerApplyRefusesTheDowngrade() async throws {
         let scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("arch-downgrade-wiring-vendor-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -659,8 +668,13 @@ struct ArchitectureDowngradeWiringTests {
         }
     }
 
-    @Test func sparkleInstallerApplyRefusesTheDowngrade() async throws {
-        guard HostArch.current == .arm64, HostArch.canRunIntelBuilds else { return }
+    // See the comment on `vendorInstallerApplyRefusesTheDowngrade` above: skipped
+    // with a reason, not silently passed.
+    @Test(.enabled(
+        if: HostArch.current == .arm64 && HostArch.canRunIntelBuilds,
+        "needs an arm64 host with Rosetta installed, so an Intel-only download still launches translated and Gate 5b (not Gate 5) is what's under test"
+    ))
+    func sparkleInstallerApplyRefusesTheDowngrade() async throws {
         let scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("arch-downgrade-wiring-sparkle-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -682,6 +696,66 @@ struct ArchitectureDowngradeWiringTests {
             Issue.record("SparkleInstaller.apply must refuse an arm64→x86_64-only swap")
         } catch {
             Self.expectArchitectureDowngrade(error, from: "SparkleInstaller")
+        }
+    }
+
+    /// Issue #410's first acceptance criterion: inside
+    /// `SignatureVerifier.verifyInstallArtifact`, Gate 5
+    /// (`verifyRunnableArchitecture`) must run BEFORE Gate 5b
+    /// (`verifyNoArchitectureDowngrade`), so an Intel-only download this Mac
+    /// cannot even launch is refused as "cannot launch" (Gate 5), never as
+    /// "would run translated" (Gate 5b) — which implies it launches at all.
+    /// The two tests above prove Gate 5b is WIRED IN; this one proves it runs
+    /// in the right ORDER relative to Gate 5, which they cannot: both begin
+    /// `guard HostArch.current == .arm64, HostArch.canRunIntelBuilds`, so on
+    /// this machine (arm64 + Rosetta) Gate 5 always answers "runnable" for an
+    /// Intel-only download and Gate 6 never fires at all — neither test can
+    /// tell "5 then 5b" apart from "5b then 5".
+    ///
+    /// This test does NOT need a Rosetta-less machine to tell them apart: it
+    /// drives `verifyInstallArtifact` directly with `host: .arm64` and
+    /// `canRunIntel: false` — parameters added in this same change precisely so
+    /// the ordering could be pinned without one. That makes an ordinary arm64
+    /// dev/CI host answer Gate 5's "can this launch" the same way a real
+    /// Rosetta-less or Intel-only host would, while gate 5b's OWN "is this a
+    /// downgrade" precondition (`host == .arm64`) still holds — both gates are
+    /// live, so the order between them is the only thing this test can be
+    /// measuring.
+    ///
+    /// Mutation this kills: swapping the `verifyRunnableArchitecture` /
+    /// `verifyNoArchitectureDowngrade` lines inside `verifyInstallArtifact`.
+    /// With the order swapped, Gate 5b runs first on this fixture — a genuine
+    /// arm64→x86_64-only downgrade — and throws `.architectureDowngrade` before
+    /// Gate 5 ever gets a chance to refuse the build as unrunnable, so this test
+    /// would then observe `.architectureDowngrade` instead of
+    /// `.unrunnableArchitecture` and fail. Confirmed red by making that swap and
+    /// running this test alone (see the commit that introduces it); reverted
+    /// immediately after.
+    @Test func verifyInstallArtifactRunsGate5BeforeGate5b() async throws {
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("arch-gate-order-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        guard let fixture = try Self.makeDowngradeFixture(in: scratch) else { return }
+
+        let newApp = try ArchiveExtractor.extractApp(
+            from: fixture.download.archiveURL, workDir: scratch)
+
+        do {
+            try await SignatureVerifier.verifyInstallArtifact(
+                downloadedApp: newApp,
+                installedApp: fixture.installed.path,
+                host: .arm64,
+                canRunIntel: false)
+            Issue.record(
+                "verifyInstallArtifact must refuse an Intel-only download when canRunIntel is false")
+        } catch SignatureVerifier.VerifyError.unrunnableArchitecture {
+            // Gate 5 fired first, as required — the error IS the assertion.
+        } catch {
+            Issue.record("""
+                expected .unrunnableArchitecture (Gate 5), got \(error) — \
+                did Gate 5b run before Gate 5?
+                """)
         }
     }
 }

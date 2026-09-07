@@ -6840,8 +6840,13 @@ public enum VendorProbeRegistry {
         // use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
         // 2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
         //
-        // Costs 250 KB per check against the stable recipe's 14 KB. Only one of
-        // the three ever binds to a given copy, so nobody pays both.
+        // Costs 250 KB per fetch against the stable recipe's 14 KB. An APP pays
+        // one of the three — the channel gate binds exactly one recipe to a copy.
+        // `duo verify` pays all three, because it walks the registry rather than
+        // the installed apps: about 500 KB more per sweep, measured as 153 → 155
+        // vendor probes and 141s → 156s. Worth stating both ways round; the first
+        // sentence alone would let someone size the nightly job's cost and be
+        // wrong by a wide margin.
         //
         // Detection only, exactly as stable is — the dmg is an installer stub and
         // the install writes a LaunchDaemon, a privileged helper and a system
@@ -6850,17 +6855,35 @@ public enum VendorProbeRegistry {
         // `ChannelProofRegistry` entry is required; that is a consequence of the
         // refusal above, so anyone adding one-click here inherits the proof
         // obligation with it.
-    ] + [ReleaseChannel.beta, .guineaPig].map(windscribeTrackRecipe)
+    ] + [ReleaseChannel.beta, .guineaPig].compactMap(windscribeTrackRecipe)
 
-    /// One Windscribe prerelease track: the set of `"beta"` numbers a user on
-    /// that track accepts, since the ladder means each level subsumes the more
-    /// stable ones below it.
-    private static func windscribeTrackRecipe(_ channel: ReleaseChannel) -> VendorProbeRecipe {
+    /// The `"beta"` numbers a user on `channel` accepts, since the ladder means
+    /// each level subsumes the more stable ones below it.
+    ///
+    /// A switch that refuses what it has not been taught, NOT a ternary with a
+    /// catch-all. The catch-all is what this looked like first, and its else
+    /// branch built `[0-2]` — the guinea-pig set — for every channel that is not
+    /// beta, `.stable` included. Nothing would have caught that: the tests only
+    /// ask for the two tracks the call site passes, and
+    /// `RecipeSanity.crossChannelArtifact` returns early on a recipe with no
+    /// install spec. The next edit that reaches it is an obvious one — putting
+    /// stable on this endpoint too, or adding `.rc` — and it would have offered a
+    /// guinea pig build to every stable user, in the one direction the channel
+    /// gate exists to prevent.
+    static func windscribeTrackSet(_ channel: ReleaseChannel) -> String? {
+        switch channel {
+        case .beta: return "[01]"           // release + beta
+        case .guineaPig: return "[0-2]"     // release + beta + guinea pig
+        default: return nil
+        }
+    }
+
+    private static func windscribeTrackRecipe(_ channel: ReleaseChannel) -> VendorProbeRecipe? {
         // `(?![0-9])` rather than `\b` after the class: the values are 0/1/2
         // today and a bare `[01]` would also match the first digit of a
         // hypothetical `10`, which is the kind of thing a vendor adds without
         // announcing it.
-        let tracks = channel == .beta ? "[01]" : "[0-2]"
+        guard let tracks = windscribeTrackSet(channel) else { return nil }
         return VendorProbeRecipe(
             bundleID: "com.windscribe.client",
             url: URL(string: "https://api.windscribe.com/ChangeLogs?platform=osx")!,

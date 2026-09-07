@@ -180,8 +180,17 @@ enum WindscribeChannel {
         }
         if flags & 0x01 != 0 {          // CryptoFlagCompression — Qt's qCompress
             guard payload.count > 4 else { return nil }
-            let expected = Int(be32(payload, at: payload.startIndex))
-            return GzipDecode.decompressZlib(Data(payload.dropFirst(4)), hint: expected)
+            // The declared original length is only a buffer HINT, and `inflate`
+            // turns it into an allocation — so it is clamped rather than trusted.
+            // It arrives from a file we merely read; the checksum does cover it,
+            // so this needs a blob that is malformed and correctly CRC'd rather
+            // than one that is merely corrupt, but a scanner that can be made to
+            // ask for 4 GB by a preferences file is a bad trade for a hint.
+            // 8 MB is two orders of magnitude above the real payload (537 bytes
+            // decompressed, measured) and the inflater grows past it on its own.
+            let declared = Int(be32(payload, at: payload.startIndex))
+            return GzipDecode.decompressZlib(
+                Data(payload.dropFirst(4)), hint: min(declared, 8 << 20))
         }
         return payload
     }

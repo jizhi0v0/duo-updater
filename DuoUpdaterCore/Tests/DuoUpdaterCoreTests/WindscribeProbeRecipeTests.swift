@@ -402,6 +402,23 @@ struct WindscribeProbeRecipeTests {
         }
     }
 
+    /// The track set is a switch that refuses what it has not been taught, not a
+    /// ternary with a catch-all. The catch-all shipped first and mapped every
+    /// non-beta channel — `.stable` included — to the guinea-pig set, which would
+    /// have offered a guinea pig build to every stable user the moment somebody
+    /// put stable on this endpoint too.
+    ///
+    /// Mutation: `channel == .beta ? "[01]" : "[0-2]"`, which turns the `.stable`
+    /// and `.rc` expectations below red while the two real tracks still pass.
+    @Test func onlyTheTwoLadderTracksHaveATrackSet() {
+        #expect(VendorProbeRegistry.windscribeTrackSet(.beta) == "[01]")
+        #expect(VendorProbeRegistry.windscribeTrackSet(.guineaPig) == "[0-2]")
+        for other: ReleaseChannel in [.stable, .rc, .canary, .nightly, .alpha, .dev] {
+            #expect(VendorProbeRegistry.windscribeTrackSet(other) == nil,
+                    "\(other.rawValue) must not silently inherit another track's set")
+        }
+    }
+
     /// The three answers are NOT always the same, or the test above would pass
     /// for a recipe that ignored the track number.
     @Test func theFixtureActuallyDiscriminates() throws {

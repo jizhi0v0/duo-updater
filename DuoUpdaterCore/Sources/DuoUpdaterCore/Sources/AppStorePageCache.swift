@@ -11,9 +11,10 @@ import Foundation
 /// different URLs *and* different dictionaries, so neither can serve the
 /// other. What this class removes is the second scan's fetch, and the
 /// third's, up to the TTL — so the benefit is `1 − interval/ttl`, and at the
-/// six-hour default interval (`Preferences`), which is what most installs
-/// run, an interval longer than the TTL means every scheduled round is a
-/// cold miss and this class saves nothing there. What it still buys is the
+/// six-hour default interval (`Preferences`) an interval longer than the TTL
+/// means every scheduled round is a cold miss and this class saves nothing
+/// there. (How many installs leave that default alone is not something this
+/// repo can see, so the claim stops at the default itself.) What it still buys is the
 /// second scan inside one app launch: the scheduler ticks immediately on a
 /// cold start and opening the workbench forces another refresh, so that pair
 /// costs one round of pages instead of two. See

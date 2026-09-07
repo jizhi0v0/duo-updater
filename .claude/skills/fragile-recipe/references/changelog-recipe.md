@@ -22,6 +22,14 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 
 ## The recipe fields
 
+> ⚠️ **The initializer is the reference; this page is a tour of the common half.**
+> `ChangelogRecipe.init` currently takes **24** parameters. Beyond the ones below it
+> also carries `channel`, `includesPromotedStable`, `sourceTemplate`, `newestLast`,
+> `imagePattern`, `minimumAppVersion`, `belowAppVersion`, `structuredFormat`,
+> `httpMethod`, `requestBody`, `skipSections` and `acknowledgedStaleEntry`. Read
+> `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` before
+> concluding the registry can't express something.
+
 ```swift
 ChangelogRecipe(
     bundleID: String,          // CFBundleIdentifier, lowercase by convention

@@ -26,6 +26,14 @@ stable endpoint you want.
 
 ## The recipe fields
 
+> ⚠️ **The initializer is the reference; this page is a tour of the common half.**
+> `VendorProbeRecipe.init` currently takes **24** parameters. Read it before you
+> conclude a situation is unsupported — a recipe that "can't express this" is far
+> more often a field nobody has read than a real limit.
+> `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
+
+The ones you reach for first:
+
 ```swift
 VendorProbeRecipe(
     bundleID: String,
@@ -38,6 +46,24 @@ VendorProbeRecipe(
     install: VendorInstallSpec? = nil,  // omit for detection-only (the safe default)
     followRedirects: Bool = true)
 ```
+
+The rest, by the problem they solve — go to the source for the exact semantics:
+
+| Problem | Field |
+|---|---|
+| Endpoint's version is `CFBundleVersion`, not the marketing string | `versionIsBuild`, `buildNamespace` |
+| Compared value is an ugly build id; there is a human one to show | `displayVersionPattern` |
+| Entry states its own release date | `publishedAtPattern` |
+| Multi-entry feed: version/URL/date must come from ONE entry | `entryStartPattern` |
+| Endpoint serves a non-stable track | `channel` |
+| One channel has more than one endpoint worth asking | `variant` |
+| Build only runs on some Macs (arch / OS floor) | `hostRequirement` |
+| Endpoint only answers for a machine id already on disk | `identities` |
+| One URL, several vendor-assigned rollout tracks | `track` |
+| Service answers nothing to a GET (Omaha-style) | `requestBody` |
+| WAF needs a Referer, or rejects the default UA | `requestHeaders` |
+| Endpoint sometimes returns a "nothing new" / closed-track body | `transientBodyPattern`, `trackClosedPattern` |
+| The body also states the version the caller already has | `installedVersionPattern` |
 
 - **`.redirectFilename`** — `url` is a stable link that 302s to the real package;
   HEAD it, follow redirects, parse the version out of the final filename. Preferred
@@ -68,7 +94,9 @@ the **same Team ID** as the installed copy; `VendorInstaller` enforces this gate
 but author defensively. If you can't verify that, ship **detection-only** (no
 `install`) — the user downloads by hand.
 
-`VendorInstallSpec(urlSource:, kind:, checksumPattern:)`:
+`VendorInstallSpec(urlSource:, kind:, checksumPattern:, requestHeaders:, nestedArchivePath:)`
+— `requestHeaders` for a download behind a WAF, `nestedArchivePath` when the app is
+inside an inner archive:
 - `kind`: `.zip` / `.dmg` / `.tarGz` / `.pkg` (drives unpacking; `.pkg` → opened in
   the system installer)
 - `urlSource`: how to recover the installer URL from the body —

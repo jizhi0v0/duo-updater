@@ -83,6 +83,21 @@ DOC_POINTER = re.compile(r"`([\w.-]+\.md)`" + SECTION_RUN)
 LINK = re.compile(r"\]\(([A-Za-z0-9._/-]+\.md)\)")
 
 
+def tracked_repo_files():
+    """Every path `git` tracks, anywhere in the repo.
+
+    `check_doc_links` needs this rather than the notes-directory subset: a note
+    may legitimately link OUT of `docs/engine-notes/` — an audit under
+    `docs/app-audits/`, the root README — and judging those against the subset
+    called a real, tracked file untracked and failed the build on it.
+    """
+    out = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout
+    return set(out.splitlines())
+
+
 def tracked_files():
     """Every path `git` actually tracks under docs/engine-notes/.
 
@@ -227,6 +242,7 @@ def check_doc_links(problems, tracked):
     link from a mention. Targets are read relative to the linking file, the
     way a reader's editor follows them.
     """
+    repo = tracked_repo_files()
     for doc in sorted(tracked):
         if not doc.endswith(".md"):
             continue
@@ -234,7 +250,11 @@ def check_doc_links(problems, tracked):
         for target in LINK.findall(text):
             resolved = os.path.normpath(
                 os.path.join(os.path.dirname(doc), target))
-            if resolved not in tracked:
+            # Against the whole repo, not this directory: a link OUT of
+            # docs/engine-notes/ is legitimate, and judging it against the
+            # notes subset reported a tracked file as untracked (verified:
+            # a link to docs/app-audits/org-mozilla-firefox.md failed here).
+            if resolved not in repo:
                 problems.append(
                     f"{doc}: links to `{target}`, which is not a tracked file"
                 )

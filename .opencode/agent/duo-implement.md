@@ -48,12 +48,16 @@ This codebase has a consistent voice and the review will hold you to it.
 
 Every one of these, verified by actually running the command:
 
-Every line runs from the repository root. The first one ends in a subshell on
-purpose: `cd DuoUpdaterCore` without it leaves you there, and every later line
-resolves its paths relative to wherever you are.
+Every line runs from the repository root. Two details are load-bearing. The root
+is captured into a variable first, because `cd "$(git rev-parse …)"` does **not**
+fail outside a checkout — the substitution is empty and a bare `cd ""` returns 0,
+leaving you silently where you were; assigning first propagates git's exit status
+so the `&&` actually stops. And the subshell keeps `cd DuoUpdaterCore` from
+leaving you *there*, which would make every later line resolve its paths from the
+wrong directory.
 
 ```
-cd "$(git rev-parse --show-toplevel)"
+ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" || exit 1
 (cd DuoUpdaterCore && swift build && swift test)
 swift build --package-path CLI && swift test --package-path CLI
 DD=$(python3 scripts/derived_data_path.py agent "$PWD") && \

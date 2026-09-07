@@ -233,7 +233,13 @@ struct MenuContentView: View {
     /// Shortest a row can possibly be: the 30pt icon plus its 7pt vertical padding.
     /// A row with an install error or a note is taller, which only makes the list
     /// overflow sooner — so this stays a lower bound in the safe direction.
-    private static let minRowHeight: CGFloat = 44
+    ///
+    /// The row's own height, not a second copy of it. `AppRow` declares that number
+    /// (see `plainRowHeight`), and the two are not independent: this one has to be a
+    /// FLOOR on it, so a row height lowered here-but-not-there would make
+    /// `listOverflows` claim a short list overflows and pin the frame at
+    /// `maxListHeight` with dead space under the last row.
+    private static let minRowHeight: CGFloat = AppRow.plainRowHeight
 
     /// Whether the list must scroll whatever the rows measure. `count * minRowHeight`
     /// is a floor on the content height, so this is only ever true when it genuinely
@@ -787,12 +793,17 @@ private struct AppRow: View {
     /// `.frame` in `body` for why it is fixed and where the number comes from.
     static let plainRowHeight: CGFloat = 44
 
-    /// Whether anything is drawn under the name line — the one thing that makes a
-    /// row taller than `plainRowHeight`. Kept beside the two lookups it reads so a
-    /// third source of second-line content cannot be added without passing here.
-    private var hasSecondaryLine: Bool {
-        installError != nil
-            || (model.installNotes[result.id] ?? model.stagedPackageNote(for: result)) != nil
+    /// The note drawn under the name line when there is no install error — an
+    /// install note, else the staged-package line.
+    ///
+    /// Read TWICE per row, by the view that draws it and by the frame that has to
+    /// know whether the row is taller than `plainRowHeight`, so `body` binds it
+    /// once and passes the value to both. Behind it, `stagedPackageNote` stats the
+    /// disk for a row that has a package staged and builds a localized string;
+    /// asking twice on a per-row, per-repaint path is exactly the cost the frame
+    /// below exists to remove.
+    private var secondaryNote: String? {
+        model.installNotes[result.id] ?? model.stagedPackageNote(for: result)
     }
 
     /// How wide the name line wants to be — the name plus whatever shares its
@@ -949,6 +960,10 @@ private struct AppRow: View {
     }
 
     var body: some View {
+        // Bound here, not read from `secondaryNote` at each of its two use sites —
+        // see that property. Only reached when there is no install error, which
+        // wins the branch below.
+        let note = installError == nil ? secondaryNote : nil
         VStack(spacing: 4) {
             HStack(spacing: 10) {
                 Image(nsImage: AppIconCache.icon(for: result.app.path.path))
@@ -1034,7 +1049,7 @@ private struct AppRow: View {
                         .disabled(model.restartingHelper)
                     }
                 }
-            } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
+            } else if let note {
                 // The staged-package line is the fallback, not an override: once
                 // an install note exists ("Opened the installer for … — finish it
                 // there") it is the more specific thing to say about the same
@@ -1078,7 +1093,17 @@ private struct AppRow: View {
         // error or a note adds a second line to the `VStack` above, and none of the
         // 161 was in that state, so those rows keep sizing themselves. They are rare
         // and transient, so the fast path still covers essentially the whole list.
-        .frame(height: hasSecondaryLine ? nil : Self.plainRowHeight)
+        //
+        // ⚠️ A frame does not clip: content taller than this OVERFLOWS and draws over
+        // the row below. The condition above only knows the two things that stack
+        // UNDER the name line, so trailing content that grows past the icon's 30pt —
+        // a two-line status, a stacked readout — would overlap silently. Every
+        // inline branch of `PopoverRowAction` is a single-line `HStack` today (the
+        // tall `VStack`s in that file are `.popover` content, not row content), but
+        // that is an audit, not a gate: `make gallery` draws the trailing control
+        // into its own forced 44pt slot, so it would clip such a control too and
+        // still pass. Re-measure the row rather than assume, if one is added.
+        .frame(height: installError == nil && note == nil ? Self.plainRowHeight : nil)
         .contentShape(Rectangle())
         .contextMenu { rowMenu }
     }

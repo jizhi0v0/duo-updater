@@ -14,8 +14,15 @@ import SQLite3
 ///     *offered* for, so they alone feed ``latest(forBundleID:)`` and
 ///     ``isManaged(bundleID:installedBuild:)``. iOS rows are read too but kept
 ///     strictly apart, for one question only — see ``hasIOSBuild(bundleID:installedBuild:)``.
-///   - `ZINSTALLSTATUSRAW` 1 == the build currently installed on this machine
-///     (its `ZBUNDLEVERSION` matches the app's on-disk `CFBundleVersion`).
+///   - `ZINSTALLSTATUSRAW` 1 == the build currently installed on this machine.
+///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1,
+///     never twice for one (bundle, platform) — and all 6 matched an app on disk
+///     at exactly that build. It is what separates "TestFlight installed this
+///     here" from "the user merely has access to this build", which is the
+///     question ``hasInstalledIOSBuild(bundleID:installedBuild:)`` asks. Mac rows
+///     deliberately do NOT filter on it: ``latest(forBundleID:)`` needs the builds
+///     that are *available*, and keeping only the installed one would make every
+///     app permanently up to date.
 ///   - The newest available build is the highest `ZBUNDLEVERSION` among an app's
 ///     macOS rows.
 public struct TestFlightInventory: Sendable {
@@ -42,8 +49,8 @@ public struct TestFlightInventory: Sendable {
     /// Every (bundleID, build) macOS pair seen — used to confirm a given on-disk
     /// app really is the TestFlight install (its build appears here).
     private let buildsByBundleID: [String: Set<String>]
-    /// The same, for iOS rows, and deliberately a separate map rather than more
-    /// entries in the one above.
+    /// The same, for the iOS rows TestFlight marks as installed here, and
+    /// deliberately a separate map rather than more entries in the one above.
     ///
     /// Merging them would corrupt the answer `latest(forBundleID:)` gives for a
     /// native Mac app that ALSO has iOS betas — both TestFlight Mac apps on the
@@ -128,19 +135,27 @@ public struct TestFlightInventory: Sendable {
         return builds.contains(installedBuild)
     }
 
-    /// Whether the DB holds an **iOS** row for this bundle at this exact build.
+    /// Whether TestFlight says this exact iOS build is installed **on this
+    /// machine** — the rows behind this are already filtered to
+    /// `ZINSTALLSTATUSRAW = 1`.
     ///
-    /// For wrapped iPhone/iPad apps only, and named for what it reads rather than
-    /// for a verdict, because on its own it is not one: a native Mac app can hold
-    /// iOS rows for betas the user tests on a phone, and answering true for those
-    /// would tag a Mac bundle off the strength of a build installed somewhere else
-    /// entirely. `AppScanner` gates the call on `isiOSAppOnMac`; the same build
-    /// match `isManaged` relies on is what makes it specific once it is.
+    /// For wrapped iPhone/iPad bundles, and still named for what it reads rather
+    /// than for a verdict: `AppScanner` gates the call on `isiOSAppOnMac`, because
+    /// a native Mac app can hold iOS rows of its own and a Mac bundle must never
+    /// be tagged off a build installed on a phone.
     ///
-    /// This exists because a wrapped app's rows carry `ZPLATFORMRAW` 1, never 3 —
-    /// measured: `com.ampcode.amp.ios` sits in the DB at build 64, matching the
-    /// installed build exactly, and was still invisible to `isManaged` (#456).
-    public func hasIOSBuild(bundleID: String?, installedBuild: String?) -> Bool {
+    /// It exists because a wrapped app's rows carry `ZPLATFORMRAW` 1, never 3 —
+    /// `com.ampcode.amp.ios` sat in the DB at build 64, matching the installed
+    /// build exactly, and was invisible to `isManaged` (#456).
+    ///
+    /// **The build match stays, on top of the install flag**, and is not
+    /// redundant with it: this database lags real installs (recorded in
+    /// `AppScanner` — Paste on disk at 18771 while the DB still said 18655), so a
+    /// stale `ZINSTALLSTATUSRAW = 1` can point at a build that is no longer the
+    /// one on disk. Requiring both means a lagging DB answers false and the
+    /// caller falls through to its other signal, rather than confirming an
+    /// install on the strength of a number that has moved on.
+    public func hasInstalledIOSBuild(bundleID: String?, installedBuild: String?) -> Bool {
         guard let bundleID, let installedBuild,
               let builds = iosBuildsByBundleID[bundleID] else { return false }
         return builds.contains(installedBuild)
@@ -174,7 +189,7 @@ public struct TestFlightInventory: Sendable {
     static let openTimeout: TimeInterval = 5
 
     /// A slot one thread fills and another reads. Needed because the reader can
-    /// give up before the writer finishes — see `readMacRows(at:)`.
+    /// give up before the writer finishes — see `readRows(at:)`.
     private final class ResultBox: @unchecked Sendable {
         private let lock = NSLock()
         private var value: Reading?
@@ -276,7 +291,7 @@ public struct TestFlightInventory: Sendable {
         // macOS, 1 of platform 4), nothing here knows what they are, and a bucket
         // nobody can name is not one to start filing installs under.
         let sql = """
-        SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW
+        SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW, ZINSTALLSTATUSRAW
         FROM ZTFAPPBUNDLEMODEL
         WHERE ZPLATFORMRAW IN (1, 3) AND ZBUNDLEID IS NOT NULL AND ZBUNDLEVERSION IS NOT NULL;
         """
@@ -295,17 +310,35 @@ public struct TestFlightInventory: Sendable {
             let bundleID = String(cString: bundleC)
             let short = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? ""
             let build = String(cString: buildC)
-            if sqlite3_column_int64(stmt, 3) == Self.macOSPlatform {
+            // Each platform is matched POSITIVELY, with anything else dropped.
+            // Written as "macOS or else iOS" this was correct only because the
+            // WHERE clause thirty lines up says `IN (1, 3)` — so widening that
+            // list later (visionOS, tvOS) would have filed rows from a platform
+            // nobody identified straight into the iOS bucket, with no compile
+            // error and nothing red. Platforms 2 and 4 do occur in the real
+            // database; what they are is unknown, and an unknown bucket is not one
+            // to start filing installs under.
+            switch sqlite3_column_int64(stmt, 3) {
+            case Self.macOSPlatform:
+                // Every mac row, installed or not: `latest(forBundleID:)` is
+                // asking which builds are AVAILABLE.
                 rows.append((bundleID, short, build))
-            } else {
+            case Self.iOSPlatform where sqlite3_column_int64(stmt, 4) == Self.installedHere:
+                // Only the one TestFlight says is installed here. These rows
+                // answer a membership question, never an "is there something
+                // newer" one, and an available-but-not-installed iOS build is
+                // exactly the thing that must not tag a bundle.
                 iosRows.append((bundleID, short, build))
+            default:
+                break
             }
         }
         return (rows, iosRows, true)
     }
 
-    /// `ZPLATFORMRAW` for a native macOS build. The iOS value (1) is not named
-    /// because nothing branches on it — the split above is "macOS or not", over a
-    /// result set the query already narrowed to those two.
+    /// `ZPLATFORMRAW` values, both named because both are now matched positively.
     private static let macOSPlatform: Int64 = 3
+    private static let iOSPlatform: Int64 = 1
+    /// `ZINSTALLSTATUSRAW` for "this build is the one installed on this machine".
+    private static let installedHere: Int64 = 1
 }

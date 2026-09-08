@@ -269,7 +269,7 @@ public struct AppScanner: Sendable {
             // answered — the first scan deliberately ran with an empty inventory.
             let isTestFlight = app.isTestFlightApp || (matchable && (
                 inventory.isManaged(bundleID: app.bundleID, installedBuild: app.buildVersion)
-                || (app.isiOSAppOnMac && inventory.hasIOSBuild(
+                || (app.isiOSAppOnMac && inventory.hasInstalledIOSBuild(
                     bundleID: app.bundleID, installedBuild: app.buildVersion))))
             guard isTestFlight, !app.isTestFlightApp else { return app }
 
@@ -513,11 +513,16 @@ public struct AppScanner: Sendable {
         // clauses, not one, because their failure modes do not overlap: the plist
         // is local but privately formatted, the DB is documented by its own schema
         // but sits behind the app-data privacy gate and lags real installs.
+        //
+        // The DB clause asks whether TestFlight says this build is installed HERE,
+        // not merely whether the user has access to it — so it cannot promote a
+        // store copy of an app the user also happens to beta-test, even when the
+        // two carry the same build number. See `hasInstalledIOSBuild`.
         let isTestFlight =
             (hasReceipt && Self.appStoreReceiptType(bundleURL) == "ProductionSandbox")
             || (isiOSAppOnMac && Self.wrappedBundleIsTestFlight(bundleURL))
             || testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
-            || (isiOSAppOnMac && testflight.hasIOSBuild(
+            || (isiOSAppOnMac && testflight.hasInstalledIOSBuild(
                 bundleID: bundleID, installedBuild: buildVersion))
         let isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)
 

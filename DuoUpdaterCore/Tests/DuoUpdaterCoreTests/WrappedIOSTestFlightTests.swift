@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SQLite3
 @testable import DuoUpdaterCore
 
 /// A TestFlight-installed iPhone/iPad app running on Apple Silicon must be
@@ -106,6 +107,19 @@ struct WrappedIOSTestFlightTests {
         ]
     }
 
+    /// A scanner that cannot reach the real TestFlight database.
+    ///
+    /// `AppScanner()` defaults `testflight:` to `TestFlightInventory()`, which
+    /// opens the developer's own TestFlight container — so a bare `AppScanner()`
+    /// here would make these cases depend on machine state (a real row for the
+    /// fixture's bundle id would flip the store-copy case) and pay the app-data
+    /// privacy gate, which this code's own comments record blocking for ten
+    /// minutes. Every case below asserts the plist signal, so the inventory is
+    /// empty on purpose: whatever they prove, they prove about the plist.
+    private static func plistOnlyScanner() -> AppScanner {
+        AppScanner(testflight: TestFlightInventory(macRows: []))
+    }
+
     private static func withTemporaryRoot<T>(_ body: (URL) throws -> T) throws -> T {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("wrapped-tf-\(UUID().uuidString)")
@@ -129,7 +143,7 @@ struct WrappedIOSTestFlightTests {
             let bundle = try Self.plantWrapped(
                 bundleID: "com.example.app.ios",
                 metadata: ["betaExternalVersionIdentifier": 234431759], in: root)
-            let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+            let app = try #require(Self.plistOnlyScanner().scan(bundlesAt: [bundle]).first)
             #expect(app.isiOSAppOnMac, "fixture stopped reading as a wrapped bundle")
             #expect(app.isTestFlightApp)
             #expect(!app.isMASApp)
@@ -146,7 +160,7 @@ struct WrappedIOSTestFlightTests {
             let bundle = try Self.plantWrapped(
                 bundleID: "com.example.app.ios",
                 metadata: ["distributorInfo": ["betaTesterType": 2]], in: root)
-            let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+            let app = try #require(Self.plistOnlyScanner().scan(bundlesAt: [bundle]).first)
             #expect(app.isiOSAppOnMac, "fixture stopped reading as a wrapped bundle")
             #expect(app.isTestFlightApp)
             #expect(!app.isMASApp)
@@ -163,7 +177,7 @@ struct WrappedIOSTestFlightTests {
             let bundle = try Self.plantWrapped(
                 bundleID: "com.example.app.ios",
                 metadata: ["distributorInfo": ["betaTesterType": 99]], in: root)
-            let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+            let app = try #require(Self.plistOnlyScanner().scan(bundlesAt: [bundle]).first)
             #expect(app.isTestFlightApp)
         }
     }
@@ -178,7 +192,7 @@ struct WrappedIOSTestFlightTests {
         try Self.withTemporaryRoot { root in
             let bundle = try Self.plantWrapped(
                 bundleID: "com.example.app.ios", metadata: Self.storeMetadata(), in: root)
-            let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+            let app = try #require(Self.plistOnlyScanner().scan(bundlesAt: [bundle]).first)
             #expect(app.isiOSAppOnMac, "fixture stopped reading as a wrapped bundle")
             #expect(!app.isTestFlightApp)
             #expect(app.isMASApp)
@@ -194,7 +208,7 @@ struct WrappedIOSTestFlightTests {
         try Self.withTemporaryRoot { root in
             let bundle = try Self.plantWrapped(
                 bundleID: "com.example.app.ios", metadata: nil, in: root)
-            let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+            let app = try #require(Self.plistOnlyScanner().scan(bundlesAt: [bundle]).first)
             #expect(app.isiOSAppOnMac, "fixture stopped reading as a wrapped bundle")
             #expect(!app.isTestFlightApp)
             #expect(app.isMASApp)
@@ -203,7 +217,7 @@ struct WrappedIOSTestFlightTests {
 
     // MARK: - The database signal
 
-    /// Mutation: delete the `isiOSAppOnMac && testflight.hasIOSBuild(…)` clause
+    /// Mutation: delete the `isiOSAppOnMac && testflight.hasInstalledIOSBuild(…)` clause
     /// from `readApp`.
     ///
     /// The plist is absent here, so the DB row is the only thing that can carry
@@ -223,7 +237,7 @@ struct WrappedIOSTestFlightTests {
         }
     }
 
-    /// Mutation: relax the build match in `hasIOSBuild` to a bundle-id match.
+    /// Mutation: relax the build match in `hasInstalledIOSBuild` to a bundle-id match.
     ///
     /// The same reason `isManaged` matches on the build: the user may merely have
     /// TestFlight *access* to an app whose store copy is what is installed here.
@@ -240,7 +254,7 @@ struct WrappedIOSTestFlightTests {
         }
     }
 
-    /// Mutation: drop the `app.isiOSAppOnMac &&` guard in front of `hasIOSBuild`
+    /// Mutation: drop the `app.isiOSAppOnMac &&` guard in front of `hasInstalledIOSBuild`
     /// (in `readApp`, and again in `applyingTestFlightInventory`).
     ///
     /// A native Mac app commonly holds iOS rows for betas the user tests on a
@@ -278,7 +292,7 @@ struct WrappedIOSTestFlightTests {
         // that was already right starts depending on the new bucket.
         #expect(inventory.isManaged(bundleID: "ad.neko.mithka", installedBuild: "1138"))
         #expect(!inventory.isManaged(bundleID: "ad.neko.mithka", installedBuild: "1149"))
-        #expect(inventory.hasIOSBuild(bundleID: "ad.neko.mithka", installedBuild: "1149"))
+        #expect(inventory.hasInstalledIOSBuild(bundleID: "ad.neko.mithka", installedBuild: "1149"))
     }
 
     /// Mutation: apply the new iOS clause in `applyingTestFlightInventory`
@@ -304,6 +318,102 @@ struct WrappedIOSTestFlightTests {
                 to: [before])[0]
             #expect(after.isTestFlightApp)
             #expect(!after.isMASApp)
+        }
+    }
+
+    // MARK: - What the SQL itself decides
+
+    /// The two buckets are filled in `openAndRead`, which only runs against a real
+    /// database file — the `macRows:`/`iosRows:` seam takes rows that are already
+    /// sorted, so nothing reaching it can prove the query is right. These cases
+    /// build an actual SQLite file instead.
+    private static func plantDatabase(
+        _ rows: [(bundleID: String, short: String, build: String, platform: Int32, installed: Int32)],
+        in root: URL
+    ) throws -> URL {
+        let url = root.appendingPathComponent("TestFlight.sqlite")
+        var db: OpaquePointer?
+        #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_exec(db, """
+            CREATE TABLE ZTFAPPBUNDLEMODEL (
+              ZBUNDLEID TEXT, ZSHORTVERSION TEXT, ZBUNDLEVERSION TEXT,
+              ZPLATFORMRAW INTEGER, ZINSTALLSTATUSRAW INTEGER);
+            """, nil, nil, nil) == SQLITE_OK)
+        for row in rows {
+            let sql = """
+                INSERT INTO ZTFAPPBUNDLEMODEL VALUES \
+                ('\(row.bundleID)', '\(row.short)', '\(row.build)', \(row.platform), \(row.installed));
+                """
+            #expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK)
+        }
+        return url
+    }
+
+    /// Mutation: drop the `where sqlite3_column_int64(stmt, 4) == Self.installedHere`
+    /// guard on the iOS bucket.
+    ///
+    /// This is the whole reason the DB clause cannot promote a store copy of an app
+    /// the user merely beta-tests. Mithka on the machine this was written on is the
+    /// real shape: an iOS row it has ACCESS to (build 1149, not installed here) next
+    /// to the Mac row that IS installed. Only the installed one may answer.
+    @Test func onlyTheIOSBuildTestFlightSaysIsInstalledHereCounts() throws {
+        try Self.withTemporaryRoot { root in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.example.app.ios", short: "1.0", build: "64",
+                 platform: 1, installed: 1),
+                (bundleID: "com.example.app.ios", short: "1.1", build: "77",
+                 platform: 1, installed: 0),
+            ], in: root)
+            let inventory = TestFlightInventory(databaseURL: db)
+            #expect(inventory.accessible, "fixture database was not opened")
+            #expect(inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.app.ios", installedBuild: "64"))
+            #expect(!inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.app.ios", installedBuild: "77"))
+        }
+    }
+
+    /// Mutation: apply the same install filter to the macOS bucket.
+    ///
+    /// It must NOT be applied there. `latest(forBundleID:)` is asking which builds
+    /// are *available*; keeping only the installed one would make every TestFlight
+    /// Mac app permanently up to date — a silent stop to updates, with every row
+    /// still rendering normally.
+    @Test func macRowsKeepTheBuildsThatAreMerelyAvailable() throws {
+        try Self.withTemporaryRoot { root in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.example.mac", short: "1.0", build: "100",
+                 platform: 3, installed: 1),
+                (bundleID: "com.example.mac", short: "1.1", build: "200",
+                 platform: 3, installed: 0),
+            ], in: root)
+            let inventory = TestFlightInventory(databaseURL: db)
+            #expect(inventory.latest(forBundleID: "com.example.mac")?.latestBuild == "200")
+            #expect(inventory.isManaged(bundleID: "com.example.mac", installedBuild: "100"))
+        }
+    }
+
+    /// Mutation: restore the `else { iosRows.append(…) }` bucketing.
+    ///
+    /// A platform the query does not name must reach neither bucket. Written as an
+    /// `else`, a later widening of the `IN` list would file unidentified rows as
+    /// iOS evidence with nothing red; matched positively, it is a no-op.
+    @Test func anUnknownPlatformReachesNeitherBucket() throws {
+        try Self.withTemporaryRoot { root in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.example.other", short: "1.0", build: "300",
+                 platform: 2, installed: 1),
+                (bundleID: "com.example.other", short: "1.0", build: "400",
+                 platform: 4, installed: 1),
+            ], in: root)
+            let inventory = TestFlightInventory(databaseURL: db)
+            #expect(inventory.accessible, "fixture database was not opened")
+            #expect(!inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.other", installedBuild: "300"))
+            #expect(!inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.other", installedBuild: "400"))
+            #expect(inventory.latest(forBundleID: "com.example.other") == nil)
         }
     }
 }

@@ -273,6 +273,15 @@ enum RowStateGalleryCases {
         // Both an orange bordered "Relaunch"; the help text says which one.
         ["popover/10-relaunch-to-apply-staged", "popover/11-restart-to-apply"],
         ["workbench/10-relaunch-to-apply-staged", "workbench/11-restart-to-apply"],
+        // The same orange bordered "Relaunch" a third time: the popover labels an
+        // App Store row waiting on a quit like every other quit-to-apply action
+        // (see `quitToFinishButton`), so 01 is that identical button with a third
+        // tooltip. Not reported until the collision gate started comparing pictures
+        // instead of encoded bytes — 46 of 322,560 channels differed by one unit,
+        // which was enough to hide a genuine three-way collision. The workbench
+        // draws 01 `.borderedProminent`, so it collides with neither there.
+        ["popover/01-awaiting-quit-confirm", "popover/10-relaunch-to-apply-staged"],
+        ["popover/01-awaiting-quit-confirm", "popover/11-restart-to-apply"],
         // Both a bordered "Update": the pkg route downloads an installer, the App
         // Store route hands off to the store. Same word because the store uses it
         // too; the tooltip is what separates them.
@@ -431,6 +440,103 @@ enum RowStateGalleryCases {
             }
         }
         return count
+    }
+
+    /// The committed TestFlight icon the sheet is drawn with, and where it lives.
+    /// `scripts/make-gallery-fixtures.sh` captures it the way a row draws it.
+    static let testFlightIconFixturePath = "App/RowStateGallery/Fixtures/testflight-icon@2x.png"
+
+    /// Point `AppIconCache` at that fixture, before anything renders.
+    ///
+    /// Without it the sheet is a function of the MACHINE: the tag's icon resolves
+    /// through LaunchServices, so on a Mac with no TestFlight installed the views
+    /// fall back to the word and four reference tiles regenerate as text — with
+    /// every gate here still green, since none of them knows what the picture was
+    /// supposed to be. (Measured by pointing the lookup at a bundle id that does
+    /// not exist: the four tiles came back byte-identical to their pre-icon
+    /// versions and the run exited 0.)
+    ///
+    /// A missing or unreadable fixture fails the run rather than falling back to
+    /// the real lookup — falling back IS the machine dependence this removes, and
+    /// it would return without a word. The cost of the fixture is that it goes
+    /// stale if Apple redraws the icon; the script above is how it is refreshed.
+    ///
+    /// Side effect worth knowing when reading the sheet: a live `NSWorkspace` icon
+    /// pushes `ImageRenderer` into a deep-colour path, and those tiles come out
+    /// 16-bit with a grey window background instead of the 8-bit white every other
+    /// tile has (measured: the four App Store tiles are the only ones like that).
+    /// Drawing a plain bitmap keeps the TestFlight tiles with the majority — and
+    /// stops them perturbing the App Store tile rendered after them, which is what
+    /// first showed the deep-colour path exists at all.
+    @MainActor
+    static func installTestFlightIconFixture() -> Bool {
+        guard let image = NSImage(contentsOfFile: testFlightIconFixturePath) else { return false }
+        // 32 device pixels standing for a 16pt tag: the size the tag asks for, at
+        // the renderer's scale of 2, so nothing resamples on the way in.
+        image.size = NSSize(width: 16, height: 16)
+        AppIconCache.overrideTestFlightIconForGallery(image)
+        return true
+    }
+
+    /// A tile's picture at DISPLAY precision: every pixel rounded to the 8 bits
+    /// per channel a screen shows, row-major RGBA. What the collision gate compares
+    /// two tiles by, through `looksAlike` below.
+    ///
+    /// It used to compare the written PNG bytes, and those carry more precision
+    /// than a picture has. `NSWorkspace` app icons composite in 16 bits per
+    /// channel, and which of an icon's representations AppKit rasterizes from
+    /// depends on what was drawn into the renderer before it — so drawing a second
+    /// live icon at case 29 changed case 31's App Store tile, a tile whose code
+    /// nobody touched, and the two App Store tiles stopped being byte-equal.
+    /// Measured: 149 of 322,560 channels differed, by at most 96/65535 — 0.37 of
+    /// one 8-bit unit, which no screen can show and no reviewer can see. That was
+    /// enough to report the `27 == 31` exemption dead and fail the build.
+    ///
+    /// `installTestFlightIconFixture` later removed that particular trigger (a
+    /// bitmap fixture does not perturb anything), but not the class: the four App
+    /// Store tiles still go through the live path, and anything drawn before them
+    /// can still move them by a fraction of a unit. Comparing at display precision
+    /// is what makes the gate immune either way — and it found a real collision the
+    /// byte comparison had been hiding all along (01 vs 10/11, 46 channels apart).
+    static func picture(_ rep: NSBitmapImageRep) -> [UInt8] {
+        // Clamped rather than a bare `UInt8(_:)`: a deep-colour rep can hand back
+        // extended-range components outside 0...1, which would trap.
+        func byte(_ value: CGFloat) -> UInt8 { UInt8(max(0, min(255, (value * 255).rounded()))) }
+        var pixels = [UInt8](repeating: 0, count: rep.pixelsWide * rep.pixelsHigh * 4)
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                let i = (y * rep.pixelsWide + x) * 4
+                // A pixel that cannot be read is recorded as a fixed value rather
+                // than left at zero, so it cannot pass as background.
+                guard let c = rep.colorAt(x: x, y: y) else {
+                    pixels[i] = .max; pixels[i + 1] = .max
+                    pixels[i + 2] = .max; pixels[i + 3] = .max
+                    continue
+                }
+                pixels[i] = byte(c.redComponent)
+                pixels[i + 1] = byte(c.greenComponent)
+                pixels[i + 2] = byte(c.blueComponent)
+                pixels[i + 3] = byte(c.alphaComponent)
+            }
+        }
+        return pixels
+    }
+
+    /// Whether two tiles draw the same picture. One 8-bit unit of slack per
+    /// channel, because rounding alone does not settle the deep-colour noise
+    /// `picture` describes: two samples 0.37 units apart still round to different
+    /// bytes when they straddle a boundary, which is exactly what the App Store
+    /// pair did. A difference this gate exists to catch — a button where a glyph
+    /// should be, a tile ignoring what the state carries — is never one unit.
+    ///
+    /// Pairwise rather than a hash lookup for the same reason: "within one unit"
+    /// has no digest to key a dictionary by.
+    static func looksAlike(_ a: [UInt8], _ b: [UInt8]) -> Bool {
+        guard a.count == b.count else { return false }
+        // Widened to `Int` on purpose: `b[i] &+ 1` wraps at 255 and would call a
+        // white pixel different from itself.
+        for i in 0..<a.count where abs(Int(a[i]) - Int(b[i])) > 1 { return false }
+        return true
     }
 
     /// A tile with more matching pixels than this is presumed to be carrying the

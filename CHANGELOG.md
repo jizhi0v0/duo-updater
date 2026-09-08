@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.89
+
+**A TestFlight beta is marked with TestFlight's own icon.** Rows the App Store looks after already carried the store's icon; the ones TestFlight looks after spelled the name out instead, so the same kind of row was marked two different ways.
+
 ## 0.3.88
 
 **Scrolling through your whole app list is smooth again.** A fast scroll through the full list dropped frames; each row now reports its height without having to be built first.

@@ -8,6 +8,13 @@ import Foundation
 private let telegramRedirectFixture =
     "https://td.telegram.org/tmac/tsetup.7.0.9.dmg"
 
+/// The same header after Telegram renamed every artifact at 7.2.7, captured the
+/// same way on 2026-09-08. Both the directory and the filename stem changed
+/// (`/tmac/tsetup.` → `/mac/td-setup-mac-`), which is what took the recipe to
+/// `versionPatternNoMatch` in the nightly sweep (issue #450).
+private let telegramRenamedRedirectFixture =
+    "https://td.telegram.org/mac/td-setup-mac-7.2.7.dmg"
+
 /// The endpoint the app's own updater reads, kept as a fixture because it is the
 /// trap this recipe deliberately avoids: versions are packed integers, not dotted
 /// strings. Trimmed to the two mac keys; captured verbatim the same day.
@@ -25,8 +32,18 @@ private let telegramCurrent4Fixture = #"""
         guard case .redirectFilename = recipe.mode else {
             Issue.record("expected the redirect-filename mode"); return
         }
-        // 7.0.9 is exactly what the mounted dmg reports for both
+        // 7.2.7 is exactly what the mounted dmg reports for both
         // CFBundleShortVersionString and CFBundleVersion — no scheme mismatch.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: telegramRenamedRedirectFixture,
+            pattern: recipe.versionPattern) == "7.2.7")
+    }
+
+    /// The rename is one release old and unannounced, so the retired stem stays
+    /// in the alternation. This is the branch that would have to keep working if
+    /// Telegram reverted it; deleting it is a deliberate decision, not a cleanup.
+    @Test func stillReadsTheRetiredFilenameStem() throws {
+        let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
         #expect(VendorProbeRecipe.extractVersion(
             from: telegramRedirectFixture, pattern: recipe.versionPattern) == "7.0.9")
     }

@@ -2,6 +2,16 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.89
+
+**Telegram Desktop vuelve a recibir comprobaciones de actualización.** Telegram cambió el nombre del archivo que publica y la fila ya no podía leer una versión en él, así que mostraba un fallo de comprobación en lugar de la actualización que esperaba detrás.
+
+**Una app de iPhone o iPad instalada desde TestFlight se reconoce como tal.** Duo Updater la tomaba por una compra de la App Store, así que la fila señalaba al gestor equivocado mientras se preguntaba a la tienda por una ficha que no existe: en cada comprobación, mientras la app siguiera instalada.
+
+**Una beta de TestFlight se marca con el icono del propio TestFlight.** Las filas de las que se ocupa la App Store ya llevaban el icono de la tienda; las que atiende TestFlight escribían el nombre en su lugar, así que el mismo tipo de fila quedaba marcado de dos maneras distintas.
+
+**La cabecera de la ventana Red se queda quieta al cambiar de pestaña.** Sus dos pestañas colocaban el titular a alturas ligeramente distintas, de modo que pasar de una a otra hacía que la ventana pareciera dar un salto.
+
 ## 0.3.88
 
 **Desplazarse por toda la lista de apps vuelve a ser fluido.** Un desplazamiento rápido por la lista completa perdía fotogramas; ahora cada fila indica su altura sin tener que construirse primero.

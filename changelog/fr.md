@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.89
+
+**Telegram Desktop est de nouveau vérifié pour les mises à jour.** Telegram a renommé le fichier qu'il publie, et la rangée n'y trouvait plus de version — elle affichait donc un échec de vérification à la place de la mise à jour qui attendait derrière.
+
+**Une app iPhone ou iPad installée via TestFlight est reconnue comme telle.** Duo Updater la prenait pour un achat sur l'App Store : la rangée désignait donc le mauvais gestionnaire, tandis que le store était interrogé sur une fiche qui n'existe pas — à chaque vérification, aussi longtemps que l'app restait installée.
+
+**Une bêta TestFlight porte l'icône de TestFlight lui-même.** Les rangées dont s'occupe l'App Store portaient déjà l'icône du store ; celles dont s'occupe TestFlight en écrivaient le nom en toutes lettres, si bien que le même genre de rangée était signalé de deux façons différentes.
+
+**L'en-tête de la fenêtre Réseau ne bouge plus quand tu changes d'onglet.** Ses deux onglets plaçaient leur titre à des hauteurs légèrement différentes, de sorte que passer de l'un à l'autre donnait l'impression que la fenêtre tressautait.
+
 ## 0.3.88
 
 **Le défilement de toute la liste des apps est de nouveau fluide.** Un défilement rapide dans la liste complète perdait des images ; chaque ligne indique désormais sa hauteur sans devoir être construite d'abord.

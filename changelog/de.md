@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.89
+
+**Telegram Desktop wird wieder auf Updates geprüft.** Telegram hat die Datei, die es veröffentlicht, umbenannt, und die Zeile konnte daraus keine Version mehr lesen — sie zeigte deshalb einen Prüffehler statt des Updates, das dahinter wartete.
+
+**Eine über TestFlight installierte iPhone- oder iPad-App wird als solche erkannt.** Duo Updater hielt sie stattdessen für einen Kauf aus dem App Store, also nannte die Zeile den falschen Verwalter, während der Store nach einem Eintrag gefragt wurde, den es gar nicht gibt — bei jeder Prüfung, solange die App installiert blieb.
+
+**Eine TestFlight-Beta ist mit TestFlights eigenem Symbol gekennzeichnet.** Zeilen, um die sich der App Store kümmert, trugen bereits das Symbol des Stores; die, um die sich TestFlight kümmert, schrieben den Namen stattdessen aus — dieselbe Art von Zeile war also auf zwei verschiedene Weisen gekennzeichnet.
+
+**Die Kopfzeile des Netzwerk-Fensters bleibt beim Wechsel der Tabs an ihrem Platz.** Die beiden Tabs setzten ihre Überschrift auf leicht unterschiedliche Höhen, sodass der Wechsel zwischen ihnen aussah, als würde das Fenster zucken.
+
 ## 0.3.88
 
 **Das Scrollen durch die ganze App-Liste ist wieder flüssig.** Ein schnelles Scrollen durch die vollständige Liste ließ Frames fallen; jede Zeile gibt ihre Höhe jetzt an, ohne dafür erst aufgebaut werden zu müssen.

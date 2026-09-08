@@ -21,6 +21,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.89
 
+**Telegram Desktop gets update checks again.** Telegram changed the name of the file it publishes, and the row could no longer read a version out of it — so it showed a check failure instead of the update waiting behind it.
+
 **A TestFlight beta is marked with TestFlight's own icon.** Rows the App Store looks after already carried the store's icon; the ones TestFlight looks after spelled the name out instead, so the same kind of row was marked two different ways.
 
 ## 0.3.88

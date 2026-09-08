@@ -339,6 +339,14 @@ public struct TestFlightInventory: Sendable {
 
     /// Runs one of the two queries above. `nil` means it would not prepare, which
     /// is the caller's cue to try the next one.
+    ///
+    /// ⚠️ `hasInstallStatus` cannot change the outcome today — the fallback query
+    /// selects `ZPLATFORMRAW = 3`, so no iOS row ever reaches the branch that reads
+    /// it (measured: inverting the flag leaves the suite green). It stays because
+    /// of what it guards, not what it currently decides: column 4 does not exist in
+    /// the fallback's result set, and `&&` short-circuiting is what keeps
+    /// `sqlite3_column_int64(stmt, 4)` from being an out-of-range read the day
+    /// someone widens that query the way the primary one is widened.
     private static func runRowQuery(
         _ db: OpaquePointer?, sql: String, hasInstallStatus: Bool
     ) -> Reading? {

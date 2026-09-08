@@ -399,7 +399,10 @@ struct WrappedIOSTestFlightTests {
             #expect(inventory.isManaged(bundleID: "com.example.mac", installedBuild: "100"))
             // The wrapped-bundle signal is the only casualty, and it fails closed:
             // with no status column there is no way to tell an installed build from
-            // one the user merely has access to, so it claims neither.
+            // one the user merely has access to, so it claims neither. ⚠️ This
+            // assertion is carried by the fallback's `ZPLATFORMRAW = 3`, not by the
+            // `hasInstallStatus` flag — measured, inverting that flag leaves this
+            // green, because no iOS row is selected for it to judge.
             #expect(!inventory.hasInstalledIOSBuild(
                 bundleID: "com.example.app.ios", installedBuild: "64"))
         }

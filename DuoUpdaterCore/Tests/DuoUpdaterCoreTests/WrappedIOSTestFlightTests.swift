@@ -20,8 +20,18 @@ import Foundation
 /// measured, seven fallback storefronts per scan, every scan, each answering a
 /// 42-byte `resultCount: 0` — 1248 requests in 15 hours for one app.
 ///
-/// Every case names the mutation it catches, and each of those mutations was run
-/// and confirmed to turn this file red on that case alone.
+/// Every case names the mutation it catches. All eleven were run against this
+/// commit's parent-plus-fix and every one turned the file red on the case that
+/// names it — including the two that only a wrong answer in the *other*
+/// direction can trigger (`aStoreBoughtWrappedAppIsStillAStoreCopy` needs
+/// `wrappedBundleIsTestFlight` to return true unconditionally;
+/// `aWrappedBundleWithNoMetadataFallsBackToTodaysAnswer` needs an unreadable
+/// plist to fall back to true).
+///
+/// Some mutations redden more than the one case, because several fixtures are
+/// legitimately wrapped bundles and a broken wrapped-bundle signal fails all of
+/// them. That is collateral, not coverage: what each case is *for* is the
+/// mutation named in its own doc comment.
 struct WrappedIOSTestFlightTests {
 
     // MARK: - Fixtures

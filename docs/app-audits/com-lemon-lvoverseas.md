@@ -558,6 +558,38 @@ stable**。所以「beta 轨空了就回退 stable」有厂商先例。跨轨版
 - **beta 的 marketing 版本 `9.3.4531` 会显示在行里**，因为那就是 bundle 自报的。
 - 一份从没启动过的 beta 包会被读成 stable，见上。
 
+### 第五个坑：厂商会把 settings 端点整体回退（2026-09-08 补）
+
+`duo verify` 的 Homebrew 交叉核对连着两轮报 **degraded**（issue #447 stable / #427 beta）：
+cask `capcut` 在 `9.4.0.4556`，而配方读出 stable `9.3.0` / beta `9.3.5-beta1`，
+beta 还**倒退**了（9.4.0-beta8 → 9.3.5-beta1）。
+
+**这不是配方坏了，也不是灰度桶漂移。** 2026-09-08 实测，其余参数固定，逐一打真实端点：
+
+| 变的那一维 | 取值 | 结果 |
+|---|---|---|
+| `version_code` | `0.0.1` `1.0.0` `8.0.0` `9.0.0` `9.3.0` `9.4.0` `9.4.1` `9.5.0` `9.9` `9.99` `10.0.0` | **全部** stable=9.3.0/4490，beta=9.3.5-beta1/4468 |
+| `version_code` | `9.999` | 无 `update_reminder`（掉出窗口，既有已知行为）|
+| `channel` | `capcutpc_0` `capcutpc_beta` `capcutpc_1` | 同上，三者一致 |
+| `aid` | `348188` | 1992 B，非本产品 |
+| 加 `os_version` / `cpu_arch` | — | 同上 |
+
+也就是说**没有任何一个桶还在发 9.4.0**。整个 `update_reminder` 对象内部自洽地停在旧版本：
+`lastest_stable_version` `590592`（= 9×65536 + 3×256 + 0 = 9.3.0）、`build_number` `4490`、
+`lastest_version` `590597`（9.3.5）、`lastest_beta_number` `"1"`。全文搜 `9_4_0` / `4556` /
+`9.4.0` 各 **0 次**。而 2026-09-04 这个端点发的还是 9.4.0（见上面第 3 坑那段）。
+
+包本身是在的：cask 指的
+`…/packages/CapCut_9_4_0_4556_capcutpc_0_creatortool.dmg` HEAD 回 200。所以是
+**ByteDance 把自己 settings 服务的下发回退了**，CDN 上的产物没撤。
+
+**结论：配方无需改动。** 它忠实报出厂商当前自己声明的版本，这正是 VendorProbe 该做的事；
+把它改成去读 Homebrew 的数字会让「厂商源」名不副实（cask 是独立的一条源，见覆盖矩阵）。
+这两条 issue 是交叉核对闸按设计工作，不是缺陷。厂商恢复下发时它会自己变绿。
+
+⚠️ 由此可知，第 3 坑里那句「旧桶是唯一**静默**错的方向」还漏了一种：**所有桶一起回退**。
+钉哪个 `version_code` 都躲不开，能看见它的只有 Homebrew 交叉核对本身。
+
 ## 建议下一步
 
 1. CapCut 进 10.x 时 `version_code=9.99` 会掉出窗口 —— 那天 `duo verify` 会报

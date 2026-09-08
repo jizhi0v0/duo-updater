@@ -16,6 +16,16 @@ import DuoUpdaterCore
 /// committed: regenerate after a UI change and read the diff.
 @MainActor
 func render() {
+    // Before anything is drawn: the TestFlight tag must draw a committed picture,
+    // not whatever the host has installed. See `installTestFlightIconFixture`.
+    guard RowStateGalleryCases.installTestFlightIconFixture() else {
+        print("FIXTURE MISSING (cannot read \(RowStateGalleryCases.testFlightIconFixturePath)"
+              + " — run scripts/make-gallery-fixtures.sh, and run this from the repo root):"
+              + " refusing to render, because the fallback is the machine's own"
+              + " TestFlight icon and that is exactly what the fixture exists to avoid.")
+        exit(1)
+    }
+
     let outDir = URL(fileURLWithPath: "verify/row-states", isDirectory: true)
     try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
@@ -30,13 +40,17 @@ func render() {
     // in `notFaithful` — a silent lie the sheet was previously making no assertion
     // about at all.
     var unregisteredPlaceholder: [String] = []
-    /// surface → rendered bytes → EVERY state that drew them. All of them, not
-    /// just the first: comparing a new tile against a single predecessor makes the
-    /// outcome depend on the order the cases happen to be listed in, and this list
-    /// gets renumbered. With three states sharing a picture and two of the three
-    /// pairs exempt, keeping only one predecessor lets the third pair go unreported.
-    var drawn: [String: [String: [String]]] = [:]
+    /// surface → every tile already drawn on it, as (state name, picture). Each new
+    /// tile is compared against ALL of them, not just the first match: comparing a
+    /// new tile against a single predecessor makes the outcome depend on the order
+    /// the cases happen to be listed in, and this list gets renumbered. With three
+    /// states sharing a picture and two of the three pairs exempt, keeping only one
+    /// predecessor lets the third pair go unreported.
+    var drawn: [String: [(name: String, picture: [UInt8])]] = [:]
     var identical: [String] = []
+    /// Every pair that actually drew alike this run, exempted or not — what the
+    /// dead-exemption audit below measures `mayLookAlike` against.
+    var alikePairs: Set<Set<String>> = []
     // Both surfaces, from the same state. Rendering them side by side is the point:
     // a state that reads differently in the two windows shows up as two tiles that
     // disagree, which is the class of bug that made this necessary.
@@ -79,23 +93,26 @@ func render() {
            !RowStateGalleryCases.notFaithful.contains("\(surface)/\(name)") {
             unregisteredPlaceholder.append("\(surface)/\(name) (\(placeholderCount)px)")
         }
-        // Two states that draw the SAME pixels on one surface means the view is not
+        // Two states that draw the same picture on one surface means the view is not
         // reading something the state carries. That is how the popover kept its own
         // `stagedFileName` / `storeManagedHere` / `result.status` after the ladder
-        // moved to Core: the tiles came out byte-identical and nothing complained,
+        // moved to Core: the tiles came out identical and nothing complained,
         // because the blank check only asks whether SOMETHING was drawn. States
         // whose pictures are legitimately identical (only the tooltip differs) are
         // listed in `mayLookAlike`.
         // Blank tiles collide with every other blank tile by construction, so the
         // collision gate has nothing to say about them — the blank gate above is the
         // one that judges those.
-        let digest = png.base64EncodedString()
-        for twin in isBlank ? [] : drawn[surface]?[digest] ?? []
-        where !RowStateGalleryCases.mayLookAlike
-            .contains(["\(surface)/\(twin)", "\(surface)/\(name)"]) {
-            identical.append("\(surface)/\(twin) == \(surface)/\(name)")
+        let picture = RowStateGalleryCases.picture(rep)
+        for twin in isBlank ? [] : drawn[surface] ?? []
+        where RowStateGalleryCases.looksAlike(twin.picture, picture) {
+            let pair: Set<String> = ["\(surface)/\(twin.name)", "\(surface)/\(name)"]
+            alikePairs.insert(pair)
+            if !RowStateGalleryCases.mayLookAlike.contains(pair) {
+                identical.append("\(surface)/\(twin.name) == \(surface)/\(name)")
+            }
         }
-        drawn[surface, default: [:]][digest, default: []].append(name)
+        drawn[surface, default: []].append((name, picture))
         let surfaceDir = outDir.appendingPathComponent(surface, isDirectory: true)
         do {
             try FileManager.default.createDirectory(
@@ -144,12 +161,7 @@ func render() {
     // divergence to reappear unreported, and the list is maintained by hand. Making
     // the tightening of a view fail the build is the point: whoever made the two
     // tiles differ is the person who should retire the exemption.
-    let drawnPairs = Set(drawn.flatMap { surface, byDigest in
-        byDigest.values.flatMap { names in
-            names.flatMap { a in names.map { b in Set(["\(surface)/\(a)", "\(surface)/\(b)"]) } }
-        }
-    }.filter { $0.count == 2 })
-    let deadExemptions = RowStateGalleryCases.mayLookAlike.subtracting(drawnPairs)
+    let deadExemptions = RowStateGalleryCases.mayLookAlike.subtracting(alikePairs)
     if !deadExemptions.isEmpty {
         print("DEAD EXEMPTION (these no longer draw alike — drop them from"
               + " mayLookAlike): "
@@ -197,16 +209,17 @@ func render() {
         failed = true
     }
 
-    // #263: TWO of `mayLookAlike`'s seven pairs are justified in their own comment
+    // #263: FOUR of `mayLookAlike`'s pairs are justified in their own comment
     // as differentiated BY the tooltip ("the help text says which one" for
-    // 10-vs-11, "the tooltip is what separates them" for 13-vs-19) — a claim
+    // 10-vs-11 and for the two 01-vs-10/11 pairs the picture comparison later
+    // surfaced, "the tooltip is what separates them" for 13-vs-19) — a claim
     // nothing checked, because `.help()` text is invisible in a PNG by
-    // construction. This verifies those two rather than trusting them: collect
+    // construction. This verifies those rather than trusting them: collect
     // every `.help()` string reachable from each side (via `collectHelpTexts`'s
     // Mirror-reflection walk — see its own doc comment for the technique and its
     // risk) and require the two sets to differ.
     //
-    // Deliberately NOT applied to the other five pairs (15-vs-28, 18-vs-22,
+    // Deliberately NOT applied to the remaining pairs (15-vs-28, 18-vs-22,
     // 17-vs-23, 27-vs-31, 29-vs-32): their own comments claim the OPPOSITE —
     // "one button", "a tile cannot show which explanation appears", "the same
     // marker … never reads like something we could update ourselves" — i.e. those
@@ -291,6 +304,9 @@ private let tooltipDifferentiatedPairs: Set<Set<String>> = [
     // "Both an orange bordered Relaunch; the help text says which one."
     ["popover/10-relaunch-to-apply-staged", "popover/11-restart-to-apply"],
     ["workbench/10-relaunch-to-apply-staged", "workbench/11-restart-to-apply"],
+    // Same button, same claim, third tooltip — the popover's quit-to-finish row.
+    ["popover/01-awaiting-quit-confirm", "popover/10-relaunch-to-apply-staged"],
+    ["popover/01-awaiting-quit-confirm", "popover/11-restart-to-apply"],
     // "Both a bordered Update: … the tooltip is what separates them."
     ["popover/13-update-installer", "popover/19-update-app-store"],
     ["workbench/13-update-installer", "workbench/19-update-app-store"],

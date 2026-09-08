@@ -232,10 +232,24 @@ struct WorkbenchRowAction: View {
 
     /// Shared between `.managedElsewhere(.testFlight)` and a current row that
     /// keeps naming TestFlight (`.upToDate(channel: .testFlight)`).
+    ///
+    /// TestFlight's own icon, matching `appStoreManagedTile` above and the
+    /// popover's tag for the same state; the word is the fallback for a Mac with
+    /// no TestFlight installed, where there is no icon to draw.
+    @ViewBuilder
     private var testFlightManagedTile: some View {
-        Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
-            .lineLimit(1).minimumScaleFactor(0.7)
-            .help("Managed by TestFlight — it handles this beta's updates")
+        if let icon = AppIconCache.testFlight {
+            Image(nsImage: icon)
+                .resizable().frame(width: 16, height: 16)
+                // Same reasoning as the popover's tag: `.help` is a hint, not a
+                // name, so the image needs its own label to stay audible.
+                .accessibilityLabel("TestFlight")
+                .help("Managed by TestFlight — it handles this beta's updates")
+        } else {
+            Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help("Managed by TestFlight — it handles this beta's updates")
+        }
     }
 
     /// The install action for an actionable update, mirroring the popover's routing

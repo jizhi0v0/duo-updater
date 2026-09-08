@@ -640,12 +640,30 @@ struct PopoverRowAction: View {
             .help("Managed by the App Store — it handles this app's updates")
     }
 
-    /// The "TestFlight" tag shown for a TestFlight-managed app that's current (or
+    /// The TestFlight tag shown for a TestFlight-managed app that's current (or
     /// whose cache returned nothing). Updates are TestFlight's job, so the row
     /// shows the channel rather than an action we can't perform here.
+    ///
+    /// TestFlight's own icon, matching `appStoreManagedLabel` above — the two tags
+    /// mean the same thing ("someone else owns this app's updates") and used to be
+    /// drawn two different ways, one a glyph and one a word. Falls back to the word
+    /// when TestFlight isn't installed and there is no icon to draw.
+    @ViewBuilder
     private var testFlightManagedLabel: some View {
-        Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
-            .help("Managed by TestFlight — it handles this beta's updates")
+        if let icon = AppIconCache.testFlight {
+            Image(nsImage: icon)
+                .resizable()
+                .frame(width: 16, height: 16)
+                // The picture carries the whole meaning here, and `.help` is only an
+                // accessibility HINT (Apple's own wording for the modifier) — without
+                // a label, VoiceOver reaches an unnamed image where the row used to
+                // say "TestFlight" out loud.
+                .accessibilityLabel("TestFlight")
+                .help("Managed by TestFlight — it handles this beta's updates")
+        } else {
+            Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
+                .help("Managed by TestFlight — it handles this beta's updates")
+        }
     }
 
     /// A source was tried and failed — most often a transient GitHub rate-limit.

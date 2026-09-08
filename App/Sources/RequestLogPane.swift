@@ -210,10 +210,18 @@ struct RequestLogPane: View {
     /// pointer between keystrokes. The figures inside it change; the shape does
     /// not — which is also what keeps this tab from jumping when you switch to
     /// it from the ledger.
-    private static let stripHeight: CGFloat = 122
+    ///
+    /// The 84 is the content — headline block plus purpose bar, measured. The
+    /// insets around it are read from ``NetworkPaneMetrics`` rather than folded
+    /// into the total, because this frame is pinned: raise the header's top
+    /// inset with the total left behind and the purpose bar rides into the
+    /// divider below it, with nothing to fail.
+    private static let stripHeight: CGFloat =
+        NetworkPaneMetrics.headerTop + NetworkPaneMetrics.headerRowSpacing
+        + NetworkPaneMetrics.headerBottom + 84
 
     private var statStrip: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: NetworkPaneMetrics.headerRowSpacing) {
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(ByteFormat.stringOrDash(summary.bytesReceived))
@@ -233,9 +241,9 @@ struct RequestLogPane: View {
             }
             purposeBar
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
+        .padding(.top, NetworkPaneMetrics.headerTop)
+        .padding(.bottom, NetworkPaneMetrics.headerBottom)
         .frame(height: Self.stripHeight, alignment: .topLeading)
     }
 
@@ -399,7 +407,7 @@ struct RequestLogPane: View {
             .labelsHidden()
             .fixedSize()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.top, 10)
     }
 
@@ -444,7 +452,7 @@ struct RequestLogPane: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.top, 9)
         .padding(.bottom, 10)
     }
@@ -525,7 +533,7 @@ struct RequestLogPane: View {
         .foregroundStyle(.secondary)
         .lineLimit(1)
         .minimumScaleFactor(0.75)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.vertical, 5)
     }
 
@@ -634,7 +642,7 @@ struct RequestLogPane: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: Column.duration, alignment: .trailing)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.vertical, 4)
         .background(rowBackground(id))
         .contentShape(Rectangle())
@@ -708,7 +716,7 @@ struct RequestLogPane: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.vertical, 8)
         .background(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
     }
@@ -779,7 +787,7 @@ struct RequestLogPane: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.vertical, 7)
         .confirmationDialog(
             "Discard the recorded network history?",

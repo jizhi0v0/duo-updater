@@ -116,6 +116,11 @@ struct WrappedIOSTestFlightTests {
     /// privacy gate, which this code's own comments record blocking for ten
     /// minutes. Every case below asserts the plist signal, so the inventory is
     /// empty on purpose: whatever they prove, they prove about the plist.
+    ///
+    /// ⚠️ Measured: swapping this back for a bare `AppScanner()` leaves the file
+    /// **green**, because no real TestFlight row happens to name the fixtures'
+    /// bundle id. So this is hygiene that no test can enforce — the hazard is a
+    /// machine where that coincidence holds, and a gate nobody can answer.
     private static func plistOnlyScanner() -> AppScanner {
         AppScanner(testflight: TestFlightInventory(macRows: []))
     }
@@ -394,11 +399,20 @@ struct WrappedIOSTestFlightTests {
         }
     }
 
-    /// Mutation: restore the `else { iosRows.append(…) }` bucketing.
+    /// Mutation: widen the query's `IN` list AND restore the `else { iosRows… }`
+    /// bucketing. Both together — measured, and the pair is the point.
     ///
-    /// A platform the query does not name must reach neither bucket. Written as an
-    /// `else`, a later widening of the `IN` list would file unidentified rows as
-    /// iOS evidence with nothing red; matched positively, it is a no-op.
+    /// Widening the `IN` list alone leaves this **green**, and that is the guard
+    /// working rather than a hole: platforms 2 and 4 then come back from SQL, the
+    /// positive `switch` drops them at `default`, and behaviour is unchanged. Put
+    /// the `else` back as well and this goes red. So what the case pins is the
+    /// combination — that a future widening of the query cannot silently turn rows
+    /// from a platform nobody identified into install evidence.
+    ///
+    /// ⚠️ With today's `IN (1, 3)` no input can reach `default`, so the positive
+    /// matching has no test of its own and cannot have one. It is defence in depth
+    /// against an edit that has not happened, and this comment is the honest
+    /// statement of that rather than a claim of coverage.
     @Test func anUnknownPlatformReachesNeitherBucket() throws {
         try Self.withTemporaryRoot { root in
             let db = try Self.plantDatabase([

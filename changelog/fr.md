@@ -4,7 +4,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.89
 
-**Telegram Desktop est de nouveau vérifié pour les mises à jour.** Telegram a renommé le fichier qu'il publie, et la rangée n'y trouvait plus de version — elle affichait donc un échec de vérification à la place de la mise à jour qui attendait derrière.
+**Telegram Desktop est de nouveau suivi pour les mises à jour.** Telegram a renommé le fichier qu'il publie, et la rangée n'y trouvait plus de version — elle affichait donc un échec de vérification à la place de la mise à jour qui attendait derrière.
 
 **Une app iPhone ou iPad installée via TestFlight est reconnue comme telle.** Duo Updater la prenait pour un achat sur l'App Store : la rangée désignait donc le mauvais gestionnaire, tandis que le store était interrogé sur une fiche qui n'existe pas — à chaque vérification, aussi longtemps que l'app restait installée.
 

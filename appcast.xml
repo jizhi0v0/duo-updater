@@ -17,6 +17,37 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.88</title>
+            <pubDate>Tue, 08 Sep 2026 09:14:43 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.88</link>
+            <sparkle:version>97</sparkle:version>
+            <sparkle:shortVersionString>0.3.88</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Scrolling through your whole app list is smooth again.** A fast scroll through the full list dropped frames; each row now reports its height without having to be built first.
+
+**Release notes for an App Store app always come from the App Store now.** When the store's own lookup for an app missed or failed, the window could fall back to the notes for that app's other distribution — a different build, on its own version numbers — describing a release your copy was never going to be offered.
+
+**Windscribe on its Beta or Guinea Pig channel is offered that channel's builds.** Duo Updater reads which update channel you picked in Windscribe's own settings, so a copy following a pre-release line is no longer told it is up to date while newer builds exist on that line. The window also shows the notes for those pre-release builds, which it previously listed only for stable ones.
+
+**Windscribe now gets update checks, with its release notes.** A copy running an older build is listed with the version it can move to and what changed in it; before, Duo Updater had no way to see Windscribe's version at all. Updating is still done through Windscribe's own installer, which sets up parts of the app that live outside the app itself.
+
+**An update is no longer applied to an app that went away while you were clicking.** If the app is uninstalled, replaced, or stops being readable between the click and the install starting, Duo Updater now stops and says so, rather than installing over that location anyway.
+
+**`duo`, the optional command-line companion, stops calling a package install finished before it is.** Installing an app that ships as a `.pkg` opens the macOS installer and leaves the rest to you, but the summary counted it as installed — "1 installed" while nothing had been replaced yet. Those are now counted separately. Its `--json` output also labels every line with what happened to that app, so a script no longer has to read the English explanation to tell a failure from a deliberate skip.
+
+**Under the hood.** The pre-install re-check that protects a one-click Update now protects `duo install` too, and the checks a download must pass before it replaces an app are held in one place for both routes that use them.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater-0.3.88-macos.zip" length="12772147" type="application/octet-stream" sparkle:edSignature="+fcKOKXVJoq7dwrtMbAkhS9RO7R58Uew+kNfcM4mYMZj17FXRnQloHlSul5nWGn/2wlZTCGXpbcMv4uSlj6BCg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater97-96.delta" sparkle:deltaFrom="96" length="1880138" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="vJYb2GGrRhbfqhnohPHC+5DELin34xfLemYLCsdntUZ1UImoy8z84Wbl3UEMhbveKaXm867c4wYaJ/8i7CJ5Ag=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater97-95.delta" sparkle:deltaFrom="95" length="1909714" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="gNGq11fOtpEtdu65IRnWeAWABOMoCIUHDqemSkFQDjDlQ++ZdtVLl2v1tkpnpclAISUrDECfQXyNIGZTSObqDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater97-94.delta" sparkle:deltaFrom="94" length="1905010" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="R315+ibxc2tsZBjhOjwMWO7kff5wdEHHCNcXp4pcdLTQ24K5aKyzpRcxhruncRVkAS2Ixz3ciIyz4E9LyiBPCw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater97-93.delta" sparkle:deltaFrom="93" length="914990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UmfaW/zPgoWgtpdqbFSYuDgMIqnqdx4Dfg+jQNxzi6Eyj9wpFQ7uS3ktCH3aE2wWkdpcTsqTfo9sPUvglV9HAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.88/DuoUpdater97-92.delta" sparkle:deltaFrom="92" length="1043394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LobUcHrRl6sMuSSqmgjEpDHwTG7WmIG9VUU50fEZHwq20SJqZTkilXKqfVSJIhVOCXGdJ3d2kck151wStAgJDg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.87</title>
             <pubDate>Mon, 07 Sep 2026 02:00:30 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.87</link>
@@ -24,20 +55,6 @@
             <sparkle:shortVersionString>0.3.87</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Clicking Update no longer does nothing when an update source contradicts itself.** If the check that runs the moment you click comes back with an older version than the one the row was offering, Duo Updater now says so and keeps the update on offer. It used to report the app as already up to date and drop it from the list, and the same update reappeared on the next check.
-
-**Fork updates are offered again when Fork is set to its Develop channel.** Duo Updater read Fork's channel setting backwards and followed its Stable feed, which sits well behind — so a Develop copy was listed as up to date while Fork itself was offering a newer version.
-
-**Mac Performance Monitor now shows its release notes.** The app publishes them in its repository rather than in the feed we read, so the window had nothing to show for it.
-
-**CotEditor is now covered, on both its release and its beta line.** Which line a copy follows comes from the version it is running and from CotEditor's own "Update to prereleases when available" setting, so a beta copy is offered the next beta instead of a release that would take it backwards.
-
-**An app you installed from the App Store is never offered a download from anywhere else.** When the store's own lookup for it fails or comes back empty, the row now says the store is managing it, without a version number. Before, the check could fall through to the app's other distribution — a different build with its own version numbers — and offer to install that over your store copy.
-
-**An app is never offered an update that would move it to an older version.** Some feeds list a stable release above a prerelease that is in fact further along, and taking it would have moved the app backwards.
-
-**A long error on a row no longer pushes the rest of the list down.** It is kept to two lines, with the full text on hover.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.87/DuoUpdater-0.3.87-macos.zip" length="12855370" type="application/octet-stream" sparkle:edSignature="mHrJ+kOUoOzqlJ1s5VmLqvUE8aeon3zskJjLE+GRyoXOhTGPgW609DvNUtHNkBNZdudeiOnd6dNxFSfMtQOrCg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.87/DuoUpdater96-95.delta" sparkle:deltaFrom="95" length="683258" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+7/ArR6Sgi5H/vhsb9rCcB6hxf8egAJlOXoionuFi+wCRgziJSSwhsxi35LK9UkCHUQ2g+aHJmYDHjKiYIhCCg=="/>
@@ -96,23 +113,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-90.delta" sparkle:deltaFrom="90" length="1348658" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="EHrTWJFpnYUpC5VuIShNo+GWwjm5J5vXwoa97ded+EeE+RpErnnV6TaNHeeksMazsWACkTdTD9WPLmb3qcreDw=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-89.delta" sparkle:deltaFrom="89" length="1472530" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="oBKn1/hB9maZJrvYqlf0r2UZI0M3dI3vf/rP6is9Mgq59soCy1LRw0Rl2FH8A7QprTaUlpQ+PIa3A6FygKcYAA=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-88.delta" sparkle:deltaFrom="88" length="1566794" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YKPZta3er/ARFbVzyMvQnATG98E6d1hKclDwrT5xd927bQ41KFcyP9vVoq4qrd2HZ/koT6EZBbYHxkmuBg0/BQ=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.83</title>
-            <pubDate>Fri, 04 Sep 2026 17:05:58 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.83</link>
-            <sparkle:version>92</sparkle:version>
-            <sparkle:shortVersionString>0.3.83</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater-0.3.83-macos.zip" length="12606545" type="application/octet-stream" sparkle:edSignature="awhSK0jNW0I23e6WnazBdfeJzT2toyVN2wSAv0WJHxZnN32slIG2RbKLmq+7jo7Nyp1JNKBRPoml7zygjqdlBA=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-90.delta" sparkle:deltaFrom="90" length="1259082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="MBe2Lm8Da2KyU0bOSUC4fLqSzrHN+O0fiJSnM8bHCbQovw5l0gnsYkkcyzq5VrybbV1zFjLrhtooW2gdJFhxBw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-89.delta" sparkle:deltaFrom="89" length="1388414" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UdpC1qvdkr/5/2Ku+b7TFc1np+0c9H8NMcKrIB+dgcH0J+gglJ3zkZvLeGie4yQ81rILVxy4EhAvP/W+8mclDg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-87.delta" sparkle:deltaFrom="87" length="1513950" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ORy25x1sOwXyfwYNBooUQKQUqA8Wl06RGEpiEUPM6LxOpnYrFI0YkO0SusSZ+OT7nux3sjER7DqdwNmAaSlfDg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-86.delta" sparkle:deltaFrom="86" length="1531694" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wIyQfaOztAcC0qI4HSf/JxgFfDs51SGRNNGtIbD22zCUHcaE3agO1+isQG94sMw37GG91Nn+WfCYOGHlxudwCg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-85.delta" sparkle:deltaFrom="85" length="1627826" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="c26mPw83eW2byN0x+3y2jX6G2kQOWr+M92O2I4q3ohDFnIyqLwva9IbVmX8NQa1h+xHXuNbCxbOyDHehubIMAw=="/>
             </sparkle:deltas>
         </item>
     </channel>

@@ -5188,8 +5188,8 @@ public enum VendorProbeRegistry {
         // for macOS, ru.keepcoder.Telegram, which is a different app entirely and
         // stays on the MAS channel). The official download link 302s straight to
         // the versioned dmg — `telegram.org/dl/desktop/mac` →
-        // `td.telegram.org/tmac/tsetup.7.0.9.dmg` — so the redirect filename is
-        // both the version signal and the download.
+        // `td.telegram.org/mac/td-setup-mac-7.2.7.dmg` — so the redirect filename
+        // is both the version signal and the download.
         //
         // NOT `td.telegram.org/current4`, which is what the app's own updater
         // reads: that JSON states versions as PACKED INTEGERS (`"armac": {"stable":
@@ -5204,11 +5204,34 @@ public enum VendorProbeRegistry {
         // CFBundleVersion both exactly `7.0.9` (no build/marketing split to work
         // around), Team C67CF9S4VU (Telegram FZ-LLC), notarized Developer ID
         // (`spctl`: source=Notarized Developer ID), universal (x86_64 + arm64).
+        //
+        // TWO FILENAME STEMS, and both are load-bearing. Telegram renamed every
+        // artifact it publishes at 7.2.7 (released 2026-09-07) — the GitHub
+        // release's assets went `tsetup.*` / `tportable.*` → `td-setup-mac-*`,
+        // `td-setup-win-*`, `td-portable-win-*` — and the redirect moved with
+        // them, from `td.telegram.org/tmac/tsetup.7.2.5.dmg` to
+        // `td.telegram.org/mac/td-setup-mac-7.2.7.dmg` (measured 2026-09-08:
+        // `curl -I https://telegram.org/dl/desktop/mac` → 302 to the latter;
+        // `updates.tdesktop.com/tmac/tsetup.7.2.7.dmg` is 404 while the same path
+        // at 7.2.5 is still 200). The rename is ONE release old and the vendor
+        // announced no policy, so the retired stem stays in the alternation
+        // rather than being deleted: this mode reads the `Location` header, which
+        // holds exactly one URL and therefore exactly one filename, so a second
+        // alternative cannot latch onto a neighbouring artifact the way it could
+        // in a page body. Both branches are pinned by a real captured redirect in
+        // `TelegramDesktopProbeRecipeTests`.
+        //
+        // Re-verified 2026-09-08 by downloading and mounting the renamed 7.2.7
+        // dmg the redirect now resolves to: same `Telegram.app`,
+        // com.tdesktop.Telegram, CFBundleShortVersionString and CFBundleVersion
+        // both `7.2.7`, Team C67CF9S4VU, `spctl -t install` "Notarized Developer
+        // ID", universal — i.e. only the filename changed, not the artifact's
+        // identity or its version scheme.
         VendorProbeRecipe(
             bundleID: "com.tdesktop.Telegram",
             url: URL(string: "https://telegram.org/dl/desktop/mac")!,
             mode: .redirectFilename,
-            versionPattern: #"tsetup\.([0-9]+(?:\.[0-9]+)+)\.dmg"#,
+            versionPattern: #"(?:tsetup\.|td-setup-mac-)([0-9]+(?:\.[0-9]+)+)\.dmg"#,
             downloadURL: URL(string: "https://desktop.telegram.org/"),
             changelogURL: URL(string: "https://telegram.org/blog"),
             install: VendorInstallSpec(

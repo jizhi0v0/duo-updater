@@ -124,6 +124,45 @@ public struct AppScanner: Sendable {
         return MDItemCopyAttribute(item, "kMDItemAppStoreReceiptType" as CFString) as? String
     }
 
+    /// Whether a wrapped iPhone/iPad bundle was installed by TestFlight, read from
+    /// the store metadata the installer leaves beside the inner bundle.
+    ///
+    /// The receipt signal `readApp` prefers cannot answer for a wrapped bundle, and
+    /// not because of the `!isiOSAppOnMac` guard in front of it: measured
+    /// 2026-09-08 across all three iOS-on-Mac apps on one machine — two installed
+    /// by TestFlight, one bought from the store — `kMDItemAppStoreReceiptType` is
+    /// null on every one and no `_MASReceipt` exists anywhere in any of the three
+    /// bundles. There is nothing there to read. So this plist is the only local
+    /// evidence, and without it a TestFlight-only app falls through to `isMASApp`
+    /// and gets probed against a store listing that does not exist — the home
+    /// storefront plus seven fallbacks, every scan, forever (#456).
+    ///
+    /// ⚠️ **Undocumented private format.** No Apple documentation describes these
+    /// keys (searched 2026-09-08; the Xamarin page of the same filename documents
+    /// the *Ad Hoc* metadata a developer writes into an IPA, which is a different
+    /// file). The shape below is what those three installs actually carried: the
+    /// two TestFlight ones had identical 23-key sets including both keys read here,
+    /// while the store one had neither and instead carried catalog metadata a
+    /// TestFlight build has no way to acquire (`softwareVersionExternalIdentifier`,
+    /// `rating`, `releaseDate`, `genre`). n=3, so treat a future OS reshaping this
+    /// as expected rather than surprising.
+    ///
+    /// **Presence is the test, never a value.** What `betaTesterType`'s `2` means is
+    /// undocumented too, so nothing here compares against it. Either key alone
+    /// suffices, so renaming one does not take the signal with it — and an
+    /// unreadable or reshaped plist returns false, which is exactly today's
+    /// behaviour. The failure direction is the bug this fixes, never a store copy
+    /// mis-tagged as a beta.
+    static func wrappedBundleIsTestFlight(_ bundleURL: URL) -> Bool {
+        let url = bundleURL.appendingPathComponent("Wrapper/iTunesMetadata.plist")
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return false }
+        if plist["betaExternalVersionIdentifier"] != nil { return true }
+        return (plist["distributorInfo"] as? [String: Any])?["betaTesterType"] != nil
+    }
+
     /// The App Store track id (`kMDItemAppStoreAdamID`) Spotlight has indexed for
     /// a store-installed bundle, used to deep-link to the product page. Returns
     /// nil when absent or zero (sideloaded copies report 0).
@@ -223,8 +262,15 @@ public struct AppScanner: Sendable {
             // distributed through TestFlight today, so this declines rather than
             // guessing; the raw value is not recoverable from an already-scanned app.
             let matchable = !Self.buildVersionIsOverridden(bundleID: app.bundleID)
-            let isTestFlight = app.isTestFlightApp || (matchable && inventory.isManaged(
-                bundleID: app.bundleID, installedBuild: app.buildVersion))
+            // The iOS half mirrors `readApp`'s: a wrapped bundle's TestFlight rows
+            // are filed under the iOS platform, so the mac-only lookup can never
+            // see them. Both halves are needed here and not just in `readApp`,
+            // because this is the pass that runs once the privacy gate is finally
+            // answered — the first scan deliberately ran with an empty inventory.
+            let isTestFlight = app.isTestFlightApp || (matchable && (
+                inventory.isManaged(bundleID: app.bundleID, installedBuild: app.buildVersion)
+                || (app.isiOSAppOnMac && inventory.hasIOSBuild(
+                    bundleID: app.bundleID, installedBuild: app.buildVersion))))
             guard isTestFlight, !app.isTestFlightApp else { return app }
 
             return InstalledApp(
@@ -455,9 +501,24 @@ public struct AppScanner: Sendable {
         // distinguishes a TestFlight copy from an App Store copy of an app the user
         // merely has TestFlight access to. Fall back to the DB match when the type
         // is unreadable (e.g. Spotlight indexing off).
+        //
+        // The two `isiOSAppOnMac` clauses exist because NEITHER of the other two
+        // can answer for a wrapped bundle: there is no receipt to read (measured —
+        // see `wrappedBundleIsTestFlight`), and a wrapped app's TestFlight rows are
+        // filed under the iOS platform, which `isManaged` deliberately does not
+        // look at. Both are scoped to wrapped bundles rather than asked of
+        // everything, so the native-Mac path — which the receipt signal already
+        // answers correctly, verified on two TestFlight Mac apps making zero
+        // network requests — is left exactly as it was. They are kept as two
+        // clauses, not one, because their failure modes do not overlap: the plist
+        // is local but privately formatted, the DB is documented by its own schema
+        // but sits behind the app-data privacy gate and lags real installs.
         let isTestFlight =
             (hasReceipt && Self.appStoreReceiptType(bundleURL) == "ProductionSandbox")
+            || (isiOSAppOnMac && Self.wrappedBundleIsTestFlight(bundleURL))
             || testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
+            || (isiOSAppOnMac && testflight.hasIOSBuild(
+                bundleID: bundleID, installedBuild: buildVersion))
         let isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)
 
         var feedURL: URL?

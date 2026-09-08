@@ -8,12 +8,19 @@ import Foundation
 private let telegramRedirectFixture =
     "https://td.telegram.org/tmac/tsetup.7.0.9.dmg"
 
-/// The same header after Telegram renamed every artifact at 7.2.7, captured the
-/// same way on 2026-09-08. Both the directory and the filename stem changed
+/// The same header after Telegram renamed every artifact it publishes, captured
+/// the same way on 2026-09-08. Both the directory and the filename stem changed
 /// (`/tmac/tsetup.` → `/mac/td-setup-mac-`), which is what took the recipe to
-/// `versionPatternNoMatch` in the nightly sweep (issue #450).
+/// `versionPatternNoMatch` in the nightly sweep (issue #450). The new names
+/// reached the stable line at 7.2.7; they first shipped on 7.2.6-beta.
 private let telegramRenamedRedirectFixture =
     "https://td.telegram.org/mac/td-setup-mac-7.2.7.dmg"
+
+/// A prerelease under the new scheme, named exactly as v7.2.6-beta's own release
+/// asset is. This recipe is the stable channel, so the version segment ending at
+/// digits is the thing that keeps it off this line.
+private let telegramBetaFilenameFixture =
+    "https://td.telegram.org/mac/td-setup-mac-7.2.6-beta.dmg"
 
 /// The endpoint the app's own updater reads, kept as a fixture because it is the
 /// trap this recipe deliberately avoids: versions are packed integers, not dotted
@@ -39,13 +46,26 @@ private let telegramCurrent4Fixture = #"""
             pattern: recipe.versionPattern) == "7.2.7")
     }
 
-    /// The rename is one release old and unannounced, so the retired stem stays
-    /// in the alternation. This is the branch that would have to keep working if
-    /// Telegram reverted it; deleting it is a deliberate decision, not a cleanup.
+    /// The rename looks deliberate (v7.2.5 old names, v7.2.6-beta new ones
+    /// eighteen minutes later, v7.2.7 carrying them to stable), but the retired
+    /// stem stays in the alternation as a free hedge against a revert. This is
+    /// the branch that would have to keep working if Telegram went back;
+    /// deleting it is a deliberate decision, not a cleanup.
     @Test func stillReadsTheRetiredFilenameStem() throws {
         let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
         #expect(VendorProbeRecipe.extractVersion(
             from: telegramRedirectFixture, pattern: recipe.versionPattern) == "7.0.9")
+    }
+
+    /// Widening the version segment to absorb `-beta` would make this recipe
+    /// report a prerelease as a stable release. Matching nothing is the correct
+    /// outcome — the check goes loudly red instead — so this is the case that
+    /// fails if a future red row is "fixed" that way.
+    @Test func aBetaFilenameIsNotAStableRelease() throws {
+        let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
+        #expect(recipe.channel == .stable)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: telegramBetaFilenameFixture, pattern: recipe.versionPattern) == nil)
     }
 
     /// The reason `current4` is not the source: it states the same release as a

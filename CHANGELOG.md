@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.89
+
+**Telegram Desktop gets update checks again.** Telegram changed the name of the file it publishes, and the row could no longer read a version out of it — so it showed a check failure instead of the update waiting behind it.
+
 ## 0.3.88
 
 **Scrolling through your whole app list is smooth again.** A fast scroll through the full list dropped frames; each row now reports its height without having to be built first.

@@ -102,13 +102,21 @@ public struct TestFlightInventory: Sendable {
     /// the DB read. `accessible` defaults to `true` (the caller supplied data); pass
     /// `false` to build the "couldn't read TestFlight" sentinel used when the TCC
     /// gate blocks the real read.
+    ///
+    /// ⚠️ `installedIOSRows` is **already filtered**, and the label says so because
+    /// the filter lives in the SQL rather than here: the reader keeps only iOS rows
+    /// carrying `ZINSTALLSTATUSRAW = 1`. Passing a build the user merely has access
+    /// to builds an inventory the database can never produce, and a case resting on
+    /// it would assert behaviour that only exists in the fixture. `macRows` has no
+    /// such precondition — every mac row is kept, installed or not, because
+    /// ``latest(forBundleID:)`` is asking what is available.
     public init(
         macRows: [(bundleID: String, shortVersion: String, build: String)],
-        iosRows: [(bundleID: String, shortVersion: String, build: String)] = [],
+        installedIOSRows: [(bundleID: String, shortVersion: String, build: String)] = [],
         accessible: Bool = true
     ) {
         self.accessible = accessible
-        self.iosBuildsByBundleID = Self.buildIndex(iosRows)
+        self.iosBuildsByBundleID = Self.buildIndex(installedIOSRows)
         var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
         for row in macRows {
@@ -285,20 +293,59 @@ public struct TestFlightInventory: Sendable {
         }
         defer { sqlite3_close(db) }
 
-        // Both platforms, sorted into two buckets below rather than merged. The
-        // `IN` list is explicit rather than "anything non-null": platforms 2 and 4
-        // also occur (measured on one machine — 86 iOS rows, 5 of platform 2, 18
-        // macOS, 1 of platform 4), nothing here knows what they are, and a bucket
-        // nobody can name is not one to start filing installs under.
-        let sql = """
+        // Two queries, tried in order, because a prepare failure is total: it
+        // returns an empty inventory that still reports `opened`, so every
+        // TestFlight app silently loses its build and no native-Mac beta is
+        // offered an update again. `ZINSTALLSTATUSRAW` only feeds the wrapped-bundle
+        // signal, so a schema that no longer has that column must cost that signal
+        // and nothing else — not the macOS rows this file has read since before it
+        // existed. Naming a column in a SELECT is what makes its absence fatal, so
+        // the fallback names one fewer.
+        if let reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
+            return reading
+        }
+        Log.scan.error("""
+            TestFlight DB prepare failed with ZINSTALLSTATUSRAW — retrying without it; \
+            wrapped iOS apps lose their install signal for this read
+            """)
+        if let reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
+            return reading
+        }
+        Log.scan.error("TestFlight DB prepare failed")
+        return ([], [], true)  // we opened it; the schema just didn't match
+    }
+
+    /// Both platforms, sorted into two buckets by the reader rather than merged.
+    /// The `IN` list is explicit rather than "anything non-null": platforms 2 and 4
+    /// also occur (measured on one machine — 86 iOS rows, 5 of platform 2, 18
+    /// macOS, 1 of platform 4), nothing here knows what they are, and a bucket
+    /// nobody can name is not one to start filing installs under.
+    private static let rowsWithInstallStatusSQL = """
         SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW, ZINSTALLSTATUSRAW
         FROM ZTFAPPBUNDLEMODEL
         WHERE ZPLATFORMRAW IN (1, 3) AND ZBUNDLEID IS NOT NULL AND ZBUNDLEVERSION IS NOT NULL;
         """
+
+    /// The fallback: exactly the columns this file named before the install status
+    /// was read, so it prepares on any schema the old query prepared on. iOS rows
+    /// are not selected at all — without the status column there is no way to tell
+    /// an installed build from one the user merely has access to, and guessing is
+    /// the mistake the status column exists to prevent.
+    private static let macRowsOnlySQL = """
+        SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW
+        FROM ZTFAPPBUNDLEMODEL
+        WHERE ZPLATFORMRAW = 3 AND ZBUNDLEID IS NOT NULL AND ZBUNDLEVERSION IS NOT NULL;
+        """
+
+    /// Runs one of the two queries above. `nil` means it would not prepare, which
+    /// is the caller's cue to try the next one.
+    private static func runRowQuery(
+        _ db: OpaquePointer?, sql: String, hasInstallStatus: Bool
+    ) -> Reading? {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            Log.scan.error("TestFlight DB prepare failed")
-            return ([], [], true)  // we opened it; the schema just didn't match
+            sqlite3_finalize(stmt)
+            return nil
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -323,7 +370,8 @@ public struct TestFlightInventory: Sendable {
                 // Every mac row, installed or not: `latest(forBundleID:)` is
                 // asking which builds are AVAILABLE.
                 rows.append((bundleID, short, build))
-            case Self.iOSPlatform where sqlite3_column_int64(stmt, 4) == Self.installedHere:
+            case Self.iOSPlatform
+                where hasInstallStatus && sqlite3_column_int64(stmt, 4) == Self.installedHere:
                 // Only the one TestFlight says is installed here. These rows
                 // answer a membership question, never an "is there something
                 // newer" one, and an available-but-not-installed iOS build is

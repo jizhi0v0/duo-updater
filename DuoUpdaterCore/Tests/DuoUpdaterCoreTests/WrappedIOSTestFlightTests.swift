@@ -234,7 +234,7 @@ struct WrappedIOSTestFlightTests {
                 bundleID: "com.example.app.ios", build: "64", metadata: nil, in: root)
             let scanner = AppScanner(testflight: TestFlightInventory(
                 macRows: [],
-                iosRows: [(bundleID: "com.example.app.ios", shortVersion: "1.0", build: "64")]))
+                installedIOSRows: [(bundleID: "com.example.app.ios", shortVersion: "1.0", build: "64")]))
             let app = try #require(scanner.scan(bundlesAt: [bundle]).first)
             #expect(app.isiOSAppOnMac, "fixture stopped reading as a wrapped bundle")
             #expect(app.isTestFlightApp)
@@ -252,7 +252,7 @@ struct WrappedIOSTestFlightTests {
                 bundleID: "com.example.app.ios", build: "64", metadata: nil, in: root)
             let scanner = AppScanner(testflight: TestFlightInventory(
                 macRows: [],
-                iosRows: [(bundleID: "com.example.app.ios", shortVersion: "1.1", build: "77")]))
+                installedIOSRows: [(bundleID: "com.example.app.ios", shortVersion: "1.1", build: "77")]))
             let app = try #require(scanner.scan(bundlesAt: [bundle]).first)
             #expect(!app.isTestFlightApp)
             #expect(app.isMASApp)
@@ -271,7 +271,7 @@ struct WrappedIOSTestFlightTests {
             let bundle = try Self.plantNative(bundleID: "com.example.mac", build: "1138", in: root)
             let inventory = TestFlightInventory(
                 macRows: [],
-                iosRows: [(bundleID: "com.example.mac", shortVersion: "1.4.0", build: "1138")])
+                installedIOSRows: [(bundleID: "com.example.mac", shortVersion: "1.4.0", build: "1138")])
             let app = try #require(AppScanner(testflight: inventory).scan(bundlesAt: [bundle]).first)
             #expect(!app.isiOSAppOnMac, "fixture must be a native bundle for this to mean anything")
             #expect(!app.isTestFlightApp)
@@ -291,7 +291,7 @@ struct WrappedIOSTestFlightTests {
     @Test func iOSRowsNeverBecomeTheLatestMacBuild() {
         let inventory = TestFlightInventory(
             macRows: [(bundleID: "ad.neko.mithka", shortVersion: "1.4.0", build: "1138")],
-            iosRows: [(bundleID: "ad.neko.mithka", shortVersion: "1.4.0", build: "1149")])
+            installedIOSRows: [(bundleID: "ad.neko.mithka", shortVersion: "1.4.0", build: "1149")])
         #expect(inventory.latest(forBundleID: "ad.neko.mithka")?.latestBuild == "1138")
         // And the mac-only membership question keeps its old answer, so nothing
         // that was already right starts depending on the new bucket.
@@ -319,7 +319,7 @@ struct WrappedIOSTestFlightTests {
             let after = AppScanner.applyingTestFlightInventory(
                 TestFlightInventory(
                     macRows: [],
-                    iosRows: [(bundleID: "com.example.app.ios", shortVersion: "1.0", build: "64")]),
+                    installedIOSRows: [(bundleID: "com.example.app.ios", shortVersion: "1.0", build: "64")]),
                 to: [before])[0]
             #expect(after.isTestFlightApp)
             #expect(!after.isMASApp)
@@ -329,7 +329,7 @@ struct WrappedIOSTestFlightTests {
     // MARK: - What the SQL itself decides
 
     /// The two buckets are filled in `openAndRead`, which only runs against a real
-    /// database file — the `macRows:`/`iosRows:` seam takes rows that are already
+    /// database file — the `macRows:`/`installedIOSRows:` seam takes rows that are already
     /// sorted, so nothing reaching it can prove the query is right. These cases
     /// build an actual SQLite file instead.
     private static func plantDatabase(
@@ -353,6 +353,56 @@ struct WrappedIOSTestFlightTests {
             #expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK)
         }
         return url
+    }
+
+    /// The schema as it was before `ZINSTALLSTATUSRAW` was read: no such column.
+    private static func plantLegacyDatabase(
+        _ rows: [(bundleID: String, short: String, build: String, platform: Int32)],
+        in root: URL
+    ) throws -> URL {
+        let url = root.appendingPathComponent("Legacy.sqlite")
+        var db: OpaquePointer?
+        #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_exec(db, """
+            CREATE TABLE ZTFAPPBUNDLEMODEL (
+              ZBUNDLEID TEXT, ZSHORTVERSION TEXT, ZBUNDLEVERSION TEXT, ZPLATFORMRAW INTEGER);
+            """, nil, nil, nil) == SQLITE_OK)
+        for row in rows {
+            #expect(sqlite3_exec(db, """
+                INSERT INTO ZTFAPPBUNDLEMODEL VALUES \
+                ('\(row.bundleID)', '\(row.short)', '\(row.build)', \(row.platform));
+                """, nil, nil, nil) == SQLITE_OK)
+        }
+        return url
+    }
+
+    /// Mutation: delete the `macRowsOnlySQL` retry, leaving one query.
+    ///
+    /// Naming a column in a SELECT is what makes its absence fatal, and a prepare
+    /// failure here is total — it returns an empty inventory that still reports
+    /// `accessible`, so nothing retries and nothing looks broken. Without the
+    /// retry, a TestFlight schema that drops `ZINSTALLSTATUSRAW` would take every
+    /// native Mac beta's update with it, for a column only wrapped bundles use.
+    @Test func aSchemaWithoutTheInstallColumnStillYieldsTheMacRows() throws {
+        try Self.withTemporaryRoot { root in
+            let db = try Self.plantLegacyDatabase([
+                (bundleID: "com.example.mac", short: "1.0", build: "100", platform: 3),
+                (bundleID: "com.example.mac", short: "1.1", build: "200", platform: 3),
+                (bundleID: "com.example.app.ios", short: "1.0", build: "64", platform: 1),
+            ], in: root)
+            let inventory = TestFlightInventory(databaseURL: db)
+            #expect(inventory.accessible)
+            // The macOS half survives untouched — this is the part that must not
+            // pay for a column it never needed.
+            #expect(inventory.latest(forBundleID: "com.example.mac")?.latestBuild == "200")
+            #expect(inventory.isManaged(bundleID: "com.example.mac", installedBuild: "100"))
+            // The wrapped-bundle signal is the only casualty, and it fails closed:
+            // with no status column there is no way to tell an installed build from
+            // one the user merely has access to, so it claims neither.
+            #expect(!inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.app.ios", installedBuild: "64"))
+        }
     }
 
     /// Mutation: drop the `where sqlite3_column_int64(stmt, 4) == Self.installedHere`

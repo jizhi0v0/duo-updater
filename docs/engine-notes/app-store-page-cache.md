@@ -26,8 +26,9 @@ to the TTL.
 
 An earlier version of the class doc argued for this cache on a different
 ground: that the pages are "read from more than one call site per app per
-check." That was never true — the paragraph above is the correction. The real
-benefit model is `1 − interval/ttl`:
+check." That was never true — the paragraph above is the correction. The old
+`1 − interval/ttl` benefit model is only an approximation for regular scans
+without invalidation or overlapping fetches; it is not a measured hit rate:
 
 - At a five-minute check interval, eleven rounds in twelve are free (as
   originally measured and quoted in the class doc: 23.6 → 3.0 product-page
@@ -38,24 +39,27 @@ benefit model is `1 − interval/ttl`:
   ttl`: **this class saves nothing between scheduled sweeps** for a user who
   hasn't changed that setting, every round is a cold miss. (How many users
   have changed it is not something this repo can see — no telemetry — so
-  that is as far as this claim goes.) What it still buys is the *second*
-  scan inside one app launch: the scheduler ticks immediately on a cold
-  start, and opening the workbench forces another refresh, so that pair
-  costs one round of page fetches instead of two.
+  that is as far as this claim goes.) The earlier claim that a startup scan
+  and a workbench refresh necessarily
+  share one page fetch is incorrect for a user-present refresh: that path
+  invalidates the page cache before checking. Reuse requires a fresh entry
+  that has not been explicitly invalidated.
 
 ## §2 `shared`: the per-instance cache that measurably did nothing
 
 `AppListModel.makeSources` rebuilds the whole source stack on every check —
 deliberately, so a token change and the signed-in storefront region get
-re-read — so a `MacAppStoreSource` lives about seven seconds. A per-instance
-`AppStorePageCache` with a one-hour TTL is therefore born and destroyed
+re-read. Its lifetime is one check, not a fixed duration; the prior comment's
+"about seven seconds" was an unverified local timing, not a lifecycle guarantee.
+A per-instance `AppStorePageCache` with a one-hour TTL is therefore born and destroyed
 inside a single scan and never survives to answer the next one.
 
 This was a real bug, not a hypothetical: **measured 2026-09-04**, the
 product-page fetches per scan round did not fall at all after the cache
-shipped (20.6 → 23.6 requests, 623 → 786 KB) — traffic went up, if anything —
-while every other change landed in the same batch worked exactly as
-predicted. The unit tests at the time missed it because they exercised one
+shipped (20.6 → 23.6 requests, 623 → 786 KB).
+These figures are quoted from the prior account, not re-measured in this pass;
+no claim about other changes in that batch is needed to establish the lifetime
+bug. The unit tests at the time missed it because they exercised one
 `MacAppStoreSource` instance twice, which is exactly the case that was
 already working; nothing in the suite constructed a *second* stack the way
 production does on every check.
@@ -144,7 +148,22 @@ fetch. The window is one page fetch wide. This isn't new: `invalidateAll`
 had the identical race before it was narrowed to `invalidate(bundleIDs:)`.
 Closing it needs a per-key generation counter checked inside `storeVersion`,
 which nobody has written — this is written down so the next reader doesn't
-take the "forces a live scrape" wording in the source comment at face value.
+mistake invalidation for a barrier against in-flight fetches.
+
+## §6 Verification of the comment follow-up (2026-09-08)
+
+Checked the current implementation: `Preferences` defaults to six hours;
+`AppStorePageCache.init` defaults to 3600 seconds; `MacAppStoreSource` defaults
+to `.shared` and stores successful parses (including nil) while excluding
+unavailable responses. `AppListModel` invalidates all pages for
+`RefreshIntent.restartsChangelogs`, which is true for `.userPresent` and false
+for `.scheduled`. These code checks support the corrections in §1–§3;
+historical traffic measurements remain quoted observations, not new measurements.
+
+The reverse index is retained by both invalidation methods. Its keys can grow
+with all bundle IDs and storefronts resolved during the process lifetime;
+it is not bounded by the currently installed population. Shared track IDs
+allow deliberate over-invalidation between Universal Purchase bundles.
 
 ---
 

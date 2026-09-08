@@ -61,14 +61,14 @@ struct TrafficLedgerPane: View {
     private var summary: TrafficSummary { model.trafficSummary }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: NetworkHeaderMetrics.rowSpacing) {
+        VStack(alignment: .leading, spacing: NetworkPaneMetrics.headerRowSpacing) {
             statStrip
             sourceBar
             caveat
         }
-        .padding(.horizontal, NetworkHeaderMetrics.horizontal)
-        .padding(.top, NetworkHeaderMetrics.top)
-        .padding(.bottom, NetworkHeaderMetrics.bottom)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
+        .padding(.top, NetworkPaneMetrics.headerTop)
+        .padding(.bottom, NetworkPaneMetrics.headerBottom)
     }
 
     /// Grand total and the trailing months, laid out as equal columns. Equal widths
@@ -237,7 +237,7 @@ struct TrafficLedgerPane: View {
             Text("\(model.trafficPresent.count) apps · \(ByteFormat.string(presentBytes))")
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.vertical, 7)
     }
 
@@ -321,7 +321,7 @@ struct TrafficLedgerPane: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary).monospacedDigit()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, NetworkPaneMetrics.gutter)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
@@ -427,7 +427,7 @@ private struct TrafficRow: View {
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         .frame(width: 58, alignment: .trailing)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, NetworkPaneMetrics.gutter)
                 .padding(.vertical, 6)
                 .contentShape(Rectangle())
             }

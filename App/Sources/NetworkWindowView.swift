@@ -104,18 +104,23 @@ struct NetworkWindowView: View {
     }
 }
 
-/// The insets the two tabs' headers share.
+/// The insets the Network window's two panes share.
 ///
-/// One window, one header origin: the panes are swapped in place under a fixed
-/// title bar, so any difference here is a jump the reader sees on every switch
-/// rather than a spacing choice they could ever compare side by side. Measured
-/// on the live window before this existed, the ledger sat 2pt lower than the
-/// request log and its bar 4pt lower — small enough to read as the window
-/// twitching rather than as two layouts.
-enum NetworkHeaderMetrics {
-    static let horizontal: CGFloat = 20
-    static let top: CGFloat = 14
-    static let bottom: CGFloat = 12
-    /// Between the headline block and the stacked bar under it.
-    static let rowSpacing: CGFloat = 12
+/// One window, one left edge and one header origin: the panes are swapped in
+/// place under a fixed title bar, so a difference here is a jump the reader
+/// sees on every switch rather than a spacing choice they could ever compare
+/// side by side. Measured 2026-09-08 on the live window, before this existed:
+/// the ledger's headline sat 2pt lower than the request log's, and its stacked
+/// bar 4pt lower — small enough to read as the window twitching rather than as
+/// two layouts.
+enum NetworkPaneMetrics {
+    /// The left and right gutter, held by everything from the headline down to
+    /// the last row — not the header alone. A header that widened on its own
+    /// would split the pane's left edge down the middle of one screen.
+    static let gutter: CGFloat = 20
+    static let headerTop: CGFloat = 14
+    static let headerBottom: CGFloat = 12
+    /// Between the header's rows: headline block, stacked bar, and — in the
+    /// ledger, which has one — the caveat under that.
+    static let headerRowSpacing: CGFloat = 12
 }

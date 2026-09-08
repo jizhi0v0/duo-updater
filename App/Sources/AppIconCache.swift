@@ -39,4 +39,25 @@ enum AppIconCache {
     /// The real App Store.app icon, used as the source tag for store-managed apps.
     /// Resolved once (the path is fixed) and shared through the same icon cache.
     static let appStore = icon(for: "/System/Applications/App Store.app")
+
+    /// The real TestFlight.app icon, the source tag for TestFlight-managed betas.
+    /// Resolved by bundle id rather than by a fixed path like `appStore` above:
+    /// TestFlight is not part of macOS, so it has no guaranteed location — and it
+    /// is `nil` on a Mac without it, which is what keeps the tag from drawing
+    /// `NSWorkspace.icon(forFile:)`'s generic placeholder for a missing file.
+    ///
+    /// A `var` for one caller only: `RowStateGallery` replaces it with a committed
+    /// fixture before rendering. Because this one resolves through LaunchServices
+    /// rather than a path every Mac has, the reference sheet would otherwise depend
+    /// on whether the machine running `make gallery` happens to have TestFlight —
+    /// on one that doesn't, four tiles regenerate as the word, with every gallery
+    /// gate still green and nothing to say why. (`appStore` has a weaker version of
+    /// the same exposure: its icon is whatever the host's macOS ships.) Nothing in
+    /// the app writes this.
+    private(set) static var testFlight: NSImage? = NSWorkspace.shared
+        .urlForApplication(withBundleIdentifier: "com.apple.TestFlight")
+        .map { icon(for: $0.path) }
+
+    /// Point `testFlight` at a fixture. `RowStateGallery` only — see above.
+    static func overrideTestFlightIconForGallery(_ image: NSImage) { testFlight = image }
 }

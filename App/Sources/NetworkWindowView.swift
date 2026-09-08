@@ -103,3 +103,19 @@ struct NetworkWindowView: View {
         }
     }
 }
+
+/// The insets the two tabs' headers share.
+///
+/// One window, one header origin: the panes are swapped in place under a fixed
+/// title bar, so any difference here is a jump the reader sees on every switch
+/// rather than a spacing choice they could ever compare side by side. Measured
+/// on the live window before this existed, the ledger sat 2pt lower than the
+/// request log and its bar 4pt lower — small enough to read as the window
+/// twitching rather than as two layouts.
+enum NetworkHeaderMetrics {
+    static let horizontal: CGFloat = 20
+    static let top: CGFloat = 14
+    static let bottom: CGFloat = 12
+    /// Between the headline block and the stacked bar under it.
+    static let rowSpacing: CGFloat = 12
+}

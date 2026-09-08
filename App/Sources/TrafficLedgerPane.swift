@@ -61,14 +61,14 @@ struct TrafficLedgerPane: View {
     private var summary: TrafficSummary { model.trafficSummary }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: NetworkHeaderMetrics.rowSpacing) {
             statStrip
             sourceBar
             caveat
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
+        .padding(.horizontal, NetworkHeaderMetrics.horizontal)
+        .padding(.top, NetworkHeaderMetrics.top)
+        .padding(.bottom, NetworkHeaderMetrics.bottom)
     }
 
     /// Grand total and the trailing months, laid out as equal columns. Equal widths

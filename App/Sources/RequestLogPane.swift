@@ -213,7 +213,7 @@ struct RequestLogPane: View {
     private static let stripHeight: CGFloat = 122
 
     private var statStrip: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: NetworkHeaderMetrics.rowSpacing) {
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(ByteFormat.stringOrDash(summary.bytesReceived))
@@ -233,9 +233,9 @@ struct RequestLogPane: View {
             }
             purposeBar
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.horizontal, NetworkHeaderMetrics.horizontal)
+        .padding(.top, NetworkHeaderMetrics.top)
+        .padding(.bottom, NetworkHeaderMetrics.bottom)
         .frame(height: Self.stripHeight, alignment: .topLeading)
     }
 

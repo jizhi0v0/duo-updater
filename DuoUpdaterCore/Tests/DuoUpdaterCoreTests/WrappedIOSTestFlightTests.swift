@@ -648,4 +648,62 @@ struct WrappedIOSTestFlightTests {
             #expect(inventory.latestIOS(forBundleID: "com.jizhi0v0.claude-usage")?.latestBuild == "1301")
         }
     }
+
+    // MARK: - Installing an older build over the current one
+
+    /// TestFlight lets a tester install any previous build over what they have, so
+    /// "installed" and "newest offered" routinely disagree in the *downgrade*
+    /// direction. Nothing was pinning that: the answer today falls out of three
+    /// separate mechanisms agreeing, and a change to any one of them would go red
+    /// somewhere else — or not at all.
+    ///
+    /// The fixture is the measured shape (2026-09-09, `com.jizhi0v0.claude-usage`
+    /// on this machine): the store is a snapshot holding exactly the installed row
+    /// and the currently offered one, superseded builds having been dropped from it.
+    ///
+    /// ```
+    /// 0.3.384 | 1301 | installed = 1     ← on disk
+    /// 0.3.384 | 1307 | 0                 ← what TestFlight offers
+    /// ```
+    ///
+    /// Run for both platform routes, because they reach `latest` through different
+    /// accessors and only the caller knows which (#476).
+    ///
+    /// Mutations, both run:
+    ///   * filter the newest-offered index to `ZINSTALLSTATUSRAW = 1` (the shape the
+    ///     type's header warns about — "keeping only the installed one would make
+    ///     every app permanently up to date") → no update is offered, this fails.
+    ///   * widen #483's staleness gate from "installed is NEWER than the newest
+    ///     offered" to "installed differs from it" → the row becomes
+    ///     `.testFlightManaged` and the user is told nothing, this fails.
+    @Test(arguments: [Int32(3), Int32(1)])
+    func anOlderInstalledBuildIsStillOfferedTheNewestOne(platform: Int32) async throws {
+        let wrapped = platform == 1
+        let inventory = try Self.withTemporaryRoot { root -> TestFlightInventory in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1301",
+                 platform: platform, installed: 1),
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1307",
+                 platform: platform, installed: 0),
+            ], in: root)
+            return TestFlightInventory(databaseURL: db)
+        }
+        #expect(inventory.accessible, "fixture database was not opened")
+
+        let app = InstalledApp(
+            name: "ClaudeUsageApp", bundleID: "com.jizhi0v0.claude-usage",
+            shortVersion: "0.3.384", buildVersion: "1301",
+            path: URL(fileURLWithPath: "/Applications/ClaudeUsageApp.app"),
+            isMASApp: false, isiOSAppOnMac: wrapped, isTestFlightApp: true,
+            sparkleFeedURL: nil)
+        let result = await UpdateChecker(sources: [], testflight: inventory).check(app)
+
+        #expect(result.remote?.version == "1307")
+        guard case .updateAvailable(let latest) = result.status else {
+            Issue.record("expected an update for the \(wrapped ? "iOS" : "mac") route, got \(result.status)")
+            return
+        }
+        // Marketing frozen across the track, so the build disambiguates.
+        #expect(latest == "0.3.384 (1307)")
+    }
 }

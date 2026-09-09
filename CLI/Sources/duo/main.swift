@@ -269,6 +269,12 @@ case "list", "check":
     if !options.sources.isEmpty && !options.checkForUpdates {
         die("--source needs a source to have answered; use `duo check --source …`", code: 2)
     }
+    // Same shape as `--source` above: `list` prints on-disk versions and asks
+    // nothing, so a refresh cannot change a single character of its output — and
+    // this one is not merely useless, it starts an app the user did not start.
+    if options.refreshTestFlight && !options.checkForUpdates {
+        die("--refresh-testflight only changes what a check can see; use `duo check --refresh-testflight`", code: 2)
+    }
     run = { await Check.run(options) }
 
 case "install":

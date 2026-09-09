@@ -57,8 +57,12 @@ public enum Check {
     static func describe(_ outcome: TestFlightRefresh.Outcome) -> String {
         switch outcome {
         case .refreshed(let after):
+            // The moment the store last changed, NOT how long the command waited:
+            // the wait runs on past it by `settleInterval` to be sure the sync has
+            // finished. Measured 6.0s here against 14.0s wall clock, so saying
+            // "took" would be wrong by more than half.
             let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
-            return String(format: "duo: TestFlight refreshed its data (launched in the background, %.1fs)", seconds)
+            return String(format: "duo: TestFlight refreshed its data (launched in the background; new data landed after %.1fs)", seconds)
         case .launchedWithoutChange:
             return "duo: launched TestFlight in the background; its data did not change"
         case .alreadyRunning:
@@ -87,6 +91,17 @@ public enum Check {
 
     public static func run(_ options: Options) async -> Int32 {
         let settings = Settings.load()
+        // Before the scan, not just before the check. `AppScanner` reads the
+        // TestFlight store too — that is where a bundle gets tagged
+        // `isTestFlightApp`, and for a wrapped iPhone/iPad app the store is the
+        // evidence (#456), the receipt being unavailable. Refreshing after the scan
+        // would leave this run's tagging on the stale store and only fix the
+        // version comparison, so a beta installed since the last sync would still
+        // be read as something else until the next invocation.
+        if options.refreshTestFlight {
+            let outcome = await TestFlightRefresh().run()
+            FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
+        }
         let apps = await Inventory.scan(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {
@@ -104,14 +119,6 @@ public enum Check {
             ? settings.appsWorthChecking(
                 selected, named: !options.queries.isEmpty, includeHidden: options.includeHidden)
             : selected
-
-        if options.refreshTestFlight {
-            // Before the inventory is read, not after: `Inventory.checker` builds a
-            // `TestFlightInventory` by reading the store, so a refresh that lands
-            // afterwards would not be seen until the next run.
-            let outcome = await TestFlightRefresh().run()
-            FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
-        }
 
         let results: [UpdateResult]
         if options.checkForUpdates {

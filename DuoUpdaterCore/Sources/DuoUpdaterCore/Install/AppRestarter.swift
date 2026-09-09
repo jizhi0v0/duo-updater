@@ -285,9 +285,21 @@ public enum AppRestarter {
     /// asked for, but every restart-after-update path passes the app's pre-quit
     /// foreground state instead (see `isFrontmost`), so an app that was in the
     /// background comes back in the background.
+    ///
+    /// `hides` is the launch-time equivalent of ⌘H, and is only ever paired with
+    /// `activates: false`. It matters for one caller — `TestFlightRefresh`, which
+    /// starts an app the user did not ask for. Measured 2026-09-09 with
+    /// `CGWindowListCopyWindowInfo`: launched with `activates: false` alone,
+    /// TestFlight puts a real window on screen (layer 0, alpha 1, 1010×717) behind
+    /// whatever the user is working in, visible the moment they open Mission
+    /// Control. Adding this leaves zero windows on screen and the process still
+    /// syncs. Measured harmless for an app that is already up: on both Macs, in
+    /// both the background and the frontmost case, a hidden launch of a running
+    /// TestFlight neither hid its window nor moved the focus.
     @discardableResult
     public static func launchApp(
-        _ bundle: URL, activates: Bool = true, timeout: Duration = launchTimeout
+        _ bundle: URL, activates: Bool = true, hides: Bool = false,
+        timeout: Duration = launchTimeout
     ) async -> Bool {
         return await firstToFinish(timeout: timeout, fallback: false) {
             Log.install.error(
@@ -298,6 +310,7 @@ public enum AppRestarter {
             // boundary to race the timer.
             let config = NSWorkspace.OpenConfiguration()
             config.activates = activates
+            config.hides = hides
             do {
                 _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: config)
                 return true

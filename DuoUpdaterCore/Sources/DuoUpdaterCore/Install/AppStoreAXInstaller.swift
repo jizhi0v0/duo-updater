@@ -873,17 +873,36 @@ public actor AppStoreAXInstaller {
                         // stalled swap here is still diagnosable, without spamming a line
                         // every ~400ms for however long the swap takes.
                         //
-                        // Foregrounding App Store here is NOT optional polish: this file's own
-                        // measurement (`activateAppStore`'s doc comment, Spark 2026-06-08) found
-                        // a *backgrounded* App Store parks the close-to-update sheet and never
-                        // completes the swap even after the app has quit — 94s with no swap
-                        // backgrounded, vs. swapped once foregrounded. Skipping this call would
-                        // leave this branch relying only on the 900-poll (~6 min) hard cap, since
-                        // with the app already gone `askedToQuit` never becomes true (no prompt is
-                        // shown to gate `polls`' increment) and `sheetTicks` never advances either
-                        // (that counter only moves in `.possiblePurchaseConfirmation`) — so neither
-                        // of the faster gates applies here. Only asked once, same as the log line,
-                        // so a lingering sheet doesn't repeatedly steal focus.
+                        // Foregrounding here is cheap insurance, and be precise about how
+                        // well it is evidenced — the two halves are not equally solid.
+                        //
+                        // MEASURED, by reading this loop: skipping it would leave this branch
+                        // with nothing faster than the 900-poll (~6 min) hard cap behind it.
+                        // With the app already gone `askedToQuit` never becomes true (no prompt
+                        // is shown), so `polls` keeps incrementing; `sheetTicks` never advances
+                        // either (that counter only moves in `.possiblePurchaseConfirmation`);
+                        // and `continued` stays false, so the `swapHasStalled` watchdog never
+                        // runs. Neither of the faster gates applies here.
+                        //
+                        // ⚠️ CARRIED OVER, NOT RE-MEASURED: that a *backgrounded* App Store
+                        // parks this sheet and never swaps even after the app has quit (94s
+                        // backgrounded vs. swapped once foregrounded) comes from
+                        // `activateAppStore`'s doc comment, Spark 2026-06-08. It was NOT
+                        // reproduced when this branch was written (2026-09-09): the one real
+                        // observation that reached here — AndroMeld — had App Store in the
+                        // FOREGROUND the whole time and swapped fine, so it neither confirms
+                        // nor refutes the backgrounded case. So this call may well be
+                        // unnecessary; it is kept because foregrounding once costs a single
+                        // focus steal at a moment the user just updated an app, while being
+                        // wrong the other way costs a silent 6-minute stall.
+                        //
+                        // It also only fires ONCE (same gate as the log line, so a lingering
+                        // sheet doesn't repeatedly steal focus), which means it buys the swap
+                        // one chance to start, not a guarantee: if the user clicks back to
+                        // their own window, nothing brings App Store forward again. Closing
+                        // that would need a periodic retry here, or a timeout diagnostic that
+                        // can name this state — neither is justified until someone actually
+                        // reproduces the backgrounded case above.
                         if !loggedAppAlreadyQuitDuringOwnSheet {
                             Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown with the app already quit — nothing to press, waiting for the swap to land")
                             activateAppStore()

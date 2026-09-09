@@ -86,6 +86,16 @@ public actor MASInstaller {
                 if Self.isReceiptImportFailure(output) {
                     return "The App Store blocked mas from finishing this update. \(MASError.appStoreUpdatesHint)"
                 }
+                // mas's own lookup by ADAM ID came up empty. The most common cause is
+                // a wrapped iPhone/iPad app: mas only knows the Mac App Store catalog,
+                // and those live in the iOS one — but the same message also covers an
+                // app that's genuinely been pulled from sale. Either way "this app
+                // isn't in the App Store" would be false (the iOS-on-Mac case is very
+                // much still there), so this only asserts what actually happened: mas's
+                // lookup found nothing, and the App Store app itself is the fallback.
+                if Self.isAdamIDNotFound(output) {
+                    return "mas can’t look up this app by its App Store ID, so it can’t install the update. \(MASError.appStoreUpdatesHint)"
+                }
                 let tail = Self.tail(of: output)
                 return tail.isEmpty ? "mas failed (\(code))." : "mas failed (\(code)): \(tail)"
             }
@@ -162,6 +172,21 @@ public actor MASInstaller {
             // exactly what this classification offers the user.
             return lower.contains("the upgrade failed")
                 || lower.contains("moving files to the final destination")
+        }
+
+        /// True when mas's own store lookup found nothing for the ADAM ID
+        /// ("Error: No apps found in the App Store for ADAM ID …", from both
+        /// `mas info` and `mas install`). This is mas's Mac App Store namespace
+        /// coming up empty — it does not by itself mean the app is unavailable
+        /// everywhere: a wrapped iPhone/iPad app lives in the iOS catalog instead
+        /// and is never in mas's namespace, so this fires for every one of them
+        /// (100% of the time, not intermittently). It also fires for an app that
+        /// really has been removed from sale — this string alone can't tell the
+        /// two apart, so the message built from it (`errorDescription`) only
+        /// claims what's true of both: mas couldn't find it, not that it isn't in
+        /// the App Store.
+        static func isAdamIDNotFound(_ output: String) -> Bool {
+            output.lowercased().contains("no apps found")
         }
     }
 

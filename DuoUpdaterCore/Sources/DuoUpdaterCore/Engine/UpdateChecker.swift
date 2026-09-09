@@ -18,6 +18,12 @@ public struct UpdateChecker: Sendable {
     /// labelled `.testFlightManaged` without a version.
     public let testflight: TestFlightInventory?
 
+    /// What TestFlight has *told the user about*, as a second witness to the store
+    /// above. Only ever used to **refuse** an up-to-date verdict — see
+    /// ``TestFlightAnnouncements``, whose absence proves nothing. nil turns the
+    /// witness off and leaves every verdict exactly as it was.
+    public let announcements: TestFlightAnnouncements?
+
     /// The same store the GitHub source writes its channel proofs to. Held here
     /// so a check that FAILED can still label the row with what an earlier one
     /// proved; nil simply means no such memory (the default, and every app whose
@@ -29,12 +35,14 @@ public struct UpdateChecker: Sendable {
         maxConcurrency: Int = 12,
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
+        announcements: TestFlightAnnouncements? = nil,
         channelStore: ResolvedChannelStore? = nil
     ) {
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
         self.testflight = testflight
+        self.announcements = announcements
         self.channelStore = channelStore
     }
 
@@ -280,6 +288,26 @@ public struct UpdateChecker: Sendable {
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
                 let hasUpdate = VersionComparator.isNewer(latestSide, than: installedSide)
+                // Second witness, and it can only ever take the up-to-date verdict
+                // away. TestFlight announced a build whose id outruns everything this
+                // store holds, so — exactly as above — whatever else is true, the
+                // store's "latest" is not an upper bound for this bundle.
+                //
+                // Only on the `!hasUpdate` side: when the store already knows about
+                // an update there is nothing to refuse, and replacing a concrete
+                // version with "TestFlight manages this" would throw information away
+                // in order to say something weaker.
+                if !hasUpdate,
+                   announcements?.isBehind(testflight?.frontier(forBundleID: app.bundleID)) == true {
+                    Log.check.info("""
+                        \(label, privacy: .public): TestFlight announced a build newer \
+                        than anything its database holds — it cannot bound this app, \
+                        so no up-to-date verdict
+                        """)
+                    // `remote: nil` for the same reason as the branch above: a version
+                    // we have just called unusable must not be the one the row shows.
+                    return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+                }
                 // Beta builds often keep the same marketing version across builds,
                 // so disambiguate with the build number when the short string matches.
                 let display = (latest.latestShortVersion == app.shortVersion)

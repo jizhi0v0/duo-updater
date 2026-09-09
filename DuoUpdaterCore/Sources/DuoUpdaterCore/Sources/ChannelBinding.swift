@@ -257,16 +257,75 @@ public enum ChannelBinding {
     }
 
     /// The user-chosen channel (and feed, for feed-swap apps) for `bundleID`, or
-    /// nil when no bespoke resolver exists.
+    /// nil when no bespoke resolver exists **or when the resolver did not answer
+    /// in time** — see `resolveTimeout` and `BoundedBlockingWork`.
+    ///
+    /// nil is the honest answer for a timed-out resolver, not a shrug. It is the
+    /// same answer an app with no binding at all gets, which leaves
+    /// `ReleaseChannel.detect()` and the bundle's own signed `SUFeedURL` in
+    /// charge — i.e. it declines to be AUTHORITATIVE about a preference we did not
+    /// manage to read. Synthesising `.stable` instead would be worse in exactly
+    /// the direction `CotEditorChannel`'s own comment warns about: an
+    /// authoritative `.stable` silences `detect()`, so a `7.1.0-beta.6` copy whose
+    /// container we could not open would be pinned to the stable line and offered
+    /// a downgrade. With nil, `detect()` still reads `-beta.6` off the version and
+    /// keeps that copy on beta.
+    ///
+    /// The chokepoint could not do better even if it wanted to: each app's
+    /// shipped default lives in its own resolver, and reaching it means running
+    /// the resolver that just hung.
     ///
     /// Matched case-insensitively: a `CFBundleIdentifier` is case-insensitive
     /// (TablePlus ships `com.tinyapp.TablePlus` but its prefs live under the
     /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
     /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
     public static func resolve(bundleID: String?) -> ResolvedChannel? {
-        guard let id = bundleID?.lowercased(), let resolver = resolver(for: id) else { return nil }
-        return resolver()
+        resolve(bundleID: bundleID, bounded: bounded)
     }
+
+    /// The body of the above, with the bound injected.
+    ///
+    /// Tests need a resolver to be treated as stuck without marking the shared
+    /// instance, which is process-wide: another test asserting that Ghostty
+    /// resolves would start failing depending on which test ran first, and
+    /// `swift-testing` runs them in parallel. A fresh instance per test has no
+    /// such reach.
+    ///
+    /// The one thing this seam does NOT pin is that the public entry point hands
+    /// over the *shared* instance rather than a throwaway — a one-line delegation
+    /// `ChannelBindingBoundTests` would not notice being changed, because every
+    /// case there brings its own instance. Said out loud rather than left to be
+    /// discovered: the memo is what keeps a gated file to one stranded thread for
+    /// the life of the process, so a throwaway here would strand one per scan
+    /// with the whole suite still green.
+    static func resolve(bundleID: String?, bounded: BoundedBlockingWork) -> ResolvedChannel? {
+        guard let id = bundleID?.lowercased(), let resolver = resolver(for: id) else { return nil }
+        return bounded.run(key: id, timeout: resolveTimeout, resolver) ?? nil
+    }
+
+    /// How long a resolver gets before it is abandoned.
+    ///
+    /// Every resolver here is one plist read or one `CFPreferences` lookup —
+    /// sub-millisecond warm, single-digit milliseconds cold — so this is three
+    /// orders of magnitude of headroom and nothing near it is a slow disk. What it
+    /// is instead is the gate: see `BoundedBlockingWork`.
+    ///
+    /// Shorter than `TestFlightInventory.openTimeout` (5s) on purpose. That one is
+    /// paid once per scan; this one is paid once per BOUND APP per scan, so on a
+    /// machine where the gate covers several of them the wait multiplies.
+    static let resolveTimeout: TimeInterval = 2
+
+    /// The bound applies at this chokepoint rather than inside each resolver, so
+    /// a resolver added tomorrow is covered by having a `case` in the switch and
+    /// nothing else. That matters more here than the tidiness of it: the
+    /// resolvers are a growing list written one app at a time, and the hazard is
+    /// invisible in the source — `Data(contentsOf:)` against a file that exists
+    /// looks exactly like `Data(contentsOf:)` against a file behind a consent
+    /// prompt. `CFPreferences` resolvers go through it too, not because a
+    /// `cfprefsd` round trip is known to hang, but because exempting them would
+    /// make this a list somebody has to keep correct, which is the thing being
+    /// removed.
+    static let bounded = BoundedBlockingWork(label: "channel binding")
 
     /// Whether this id has a case in the switch at all — asked without running the
     /// resolver, so the answer does not depend on the machine asking.
@@ -290,7 +349,7 @@ public enum ChannelBinding {
 
     /// The one switch both of the above go through. Returns the resolver itself,
     /// unevaluated, so asking "is there one" costs no preference read.
-    private static func resolver(for id: String) -> (() -> ResolvedChannel?)? {
+    private static func resolver(for id: String) -> (@Sendable () -> ResolvedChannel?)? {
         switch id {
         case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent
         case ForkChannel.bundleID.lowercased():     return ForkChannel.resolveCurrent

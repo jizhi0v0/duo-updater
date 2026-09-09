@@ -35,19 +35,24 @@ import ApplicationServices
 ///      stealing focus. The delta then downloads in the background while the user keeps
 ///      working; the button's title reports live progress as "`N% loaded`", parsed into
 ///      `InstallStage.downloading`.
-///   4. Only once the download finishes does App Store raise an `AXSheet` ("Close
-///      This App to Update" / Continue · Cancel) — and only because the app is open.
-///      We gate that sheet behind the UI's Relaunch tap (`confirmQuit`), then finish the
-///      update by **quitting the app ourselves while foregrounding App Store** — we do
-///      *not* press the sheet's Continue, because App Store custom-draws this sheet with
-///      no accessible affirmative button (`AXDefaultButton` is nil and Continue isn't in
-///      the AX tree at all — only Cancel is reachable; verified 2026-06-08). Quitting the
-///      app IS the consent the sheet asks for (graceful `terminate()`; see
-///      `terminateAndWait`), and foregrounding App Store is required for it to complete
-///      the swap — backgrounded, it parks the sheet and never swaps even after the app
-///      exits. A sheet that appears *without* a download behind it is a subscription /
-///      purchase / terms confirmation, which we never touch — we surface it for manual
-///      handling.
+///   4. App Store raises an `AXSheet` ("Close This App to Update" / Continue · Cancel)
+///      once the app needs to quit for the swap to land. **Not always after the
+///      download finishes, and not always with the app still open** — #472 measured it
+///      appearing mid-download (~80% in) with the app already gone (a responsive app can
+///      honor App Store's close request before we ever sample the sheet). If the app is
+///      still open we gate the sheet behind the UI's Relaunch tap (`confirmQuit`), then
+///      finish the update by **quitting the app ourselves while foregrounding App
+///      Store** — we do *not* press the sheet's Continue, because App Store custom-draws
+///      this sheet with no accessible affirmative button (`AXDefaultButton` is nil and
+///      Continue isn't in the AX tree at all — only Cancel is reachable; verified
+///      2026-06-08). Quitting the app IS the consent the sheet asks for (graceful
+///      `terminate()`; see `terminateAndWait`), and foregrounding App Store is required
+///      for it to complete the swap — backgrounded, it parks the sheet and never swaps
+///      even after the app exits. If the app has already quit there is nothing to press
+///      at all — the swap proceeds on its own and the on-disk version change catches
+///      completion. A sheet that appears *before any download has started* is a
+///      subscription / purchase / terms confirmation, which we never touch — we surface
+///      it for manual handling. See `classifyOwnSheet` for how these are told apart.
 public actor AppStoreAXInstaller {
 
     public init() {}
@@ -250,7 +255,7 @@ public actor AppStoreAXInstaller {
 
         let names = AppNames(bundle: appName, store: storeName,
                              localized: AppNames.localizedName(at: appPath))
-        let runningAtStart = bundleID.map { isRunning($0) } ?? false
+        let runningAtStart = bundleID.map { Self.isRunning($0) } ?? false
         Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) needles=\(names.needles.joined(separator: " | "), privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
@@ -303,15 +308,27 @@ public actor AppStoreAXInstaller {
         let baseline = Self.installedVersions(at: appPath, fallbackShort: currentShortVersion)
 
         // Press Update *with the app still running*. App Store downloads the delta in
-        // the background while the user keeps working — it only raises the "Close this
-        // app to update" sheet once the download has finished (verified). We do NOT
-        // quit the app up front (that closed it for the whole download); instead we let
-        // the download run and gate that end-of-download sheet behind the user's
-        // Relaunch tap, pressing Continue ourselves only then (see driveToCompletion).
+        // the background while the user keeps working. It can raise the "Close this app
+        // to update" sheet mid-download rather than only once the download has finished
+        // (#472: measured ~80% in) — and the app may have already quit on its own by
+        // then, in which case there is nothing left to press (see `classifyOwnSheet`).
+        // We do NOT quit the app up front (that closed it for the whole download);
+        // instead we let the download run and, if the app is still open when the sheet
+        // shows, gate it behind the user's Relaunch tap, pressing Continue ourselves
+        // only then (see driveToCompletion).
         // We already know (from detection) an update is due, so press regardless of the
         // localized title — pressing an up-to-date button no-ops. Re-find the button right
         // before pressing: the ref from the wait can go stale if the page re-rendered.
-        guard let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) else {
+        //
+        // #471: this used to be a one-shot `guard` with no retry budget at all, while the
+        // wait above got ~12s — so a page that happened to churn in the ~0ms gap between
+        // the two failed the whole update. Give it a short window (same stability rule as
+        // the wait, over ~1.5s) rather than a single attempt; no re-navigation here, the
+        // page is already up.
+        guard let offer = try await waitForOfferButton(
+            in: axApp, names: names, viaUpdatesList: viaUpdatesList,
+            renavigateTrackID: nil, deadlinePolls: 10, allowNudge: false
+        ) else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
@@ -359,6 +376,30 @@ public actor AppStoreAXInstaller {
             let pid = store.processIdentifier
             Task { await self.refreshUpdatesBadge(pid: pid) }
         }
+    }
+
+    /// Test-only: locate a real product page's offer button end-to-end (App Store
+    /// launch/navigate, then the same `waitForOfferButton` call `update` makes at step
+    /// 2) and report whether it carries the expected `AppStore.offerButton` identifier —
+    /// WITHOUT ever pressing it.
+    ///
+    /// Exists because `AXUIElement` is not `Sendable`: a live #471 harness driving this
+    /// actor from a plain (non-actor-isolated) test function cannot return the element
+    /// itself across that boundary under strict concurrency checking, so this stays
+    /// fully inside the actor and hands back only a `Bool`. See the harness
+    /// (`AppStoreAXLiveHarnessTests.swift`) for why an already-current app (an "Open"
+    /// button) is a safe, valid target: `bind` never reads the button's title.
+    func locateOfferButtonForTesting(trackID: Int, names: AppNames) async throws -> Bool {
+        let (store, didLaunch) = try await ensureAppStoreRunning()
+        if didLaunch { try await Task.sleep(for: .seconds(1)) }
+        try navigateToProductPage(trackID: trackID)
+        let axApp = AXUIElementCreateApplication(store.processIdentifier)
+        guard let offer = try await waitForOfferButton(
+            in: axApp, names: names, viaUpdatesList: false, renavigateTrackID: trackID
+        ) else { return false }
+        var idRef: CFTypeRef?
+        _ = AXUIElementCopyAttributeValue(offer, "AXIdentifier" as CFString, &idRef)
+        return (idRef as? String) == "AppStore.offerButton"
     }
 
     /// Force App Store to recompute its "available updates" count (and thus the Dock
@@ -436,7 +477,10 @@ public actor AppStoreAXInstaller {
         return nil
     }
 
-    private func isRunning(_ bundleID: String) -> Bool {
+    // Static: touches no actor state, and `classifyOwnSheet` (also static, so it is
+    // directly testable) needs to call it to decide `bundleID`'s disposition itself
+    // rather than being handed a pre-computed bool.
+    private static func isRunning(_ bundleID: String) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
     }
 
@@ -529,12 +573,35 @@ public actor AppStoreAXInstaller {
     ///     once the app is fully up lands it on the product page.
     /// The refresh is skipped entirely once the target is present (we return above), so a
     /// cache that already carries the row takes the fast path with no reload.
-    private func waitForOfferButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool, renavigateTrackID: Int? = nil) async throws -> AXUIElement? {
-        let deadline = viaUpdatesList ? 150 : 80   // ~22s (server re-fetch) vs ~12s at 150ms/poll
+    ///
+    /// #471: a poll used to return the INSTANT it found a button, which races an AppKit
+    /// subtree rebuild that can follow right on the heels of `navigateToProductPage` (or,
+    /// while running, a page re-evaluating whether to show "Open" vs "Update"). Measured
+    /// twice (AndroMeld, Aqara Home): the button vanished entirely ~57-59ms after being
+    /// located, so the one-shot re-find right before pressing came up empty and the whole
+    /// update failed closed on a page that plainly had the button. `offerButtonIsStable`
+    /// requires the button to still be findable one MORE poll later before we trust it —
+    /// not the identical element (a rebuild hands back a structurally different one
+    /// anyway), just that the page has stopped churning.
+    ///
+    /// `deadlinePolls` / `allowNudge` let the press-time re-find (see `update`) reuse this
+    /// same stability rule over a much shorter budget, without re-issuing the page's
+    /// refresh — that nudge is for "the page hasn't loaded yet", and at press time it
+    /// already has.
+    private func waitForOfferButton(
+        in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool,
+        renavigateTrackID: Int? = nil, deadlinePolls: Int? = nil, allowNudge: Bool = true
+    ) async throws -> AXUIElement? {
+        let deadline = deadlinePolls ?? (viaUpdatesList ? 150 : 80)   // ~22s (server re-fetch) vs ~12s at 150ms/poll
+        var foundLastPoll = false
         for i in 0..<deadline {
-            if let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) { return offer }
+            let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
+            if Self.offerButtonIsStable(justFound: offer != nil, foundLastPoll: foundLastPoll) {
+                return offer
+            }
+            foundLastPoll = offer != nil
             // An early nudge once the page has settled (~0.6s), then every ~2.4s.
-            if i == 4 || (i > 0 && i % 16 == 0) {
+            if allowNudge, i == 4 || (i > 0 && i % 16 == 0) {
                 if viaUpdatesList {
                     // A product page opened while we were waiting would hide the list,
                     // and ⌘R would then just reload *it*. Uncover the list first.
@@ -549,20 +616,50 @@ public actor AppStoreAXInstaller {
         return nil
     }
 
+    /// Whether a poll that just found the offer button should be trusted immediately, or
+    /// should wait for a second consecutive poll to also find one first.
+    ///
+    /// #471: pinned separately from the loop so the rule — two consecutive finds, not one
+    /// — is directly assertable. A button gone on the very next poll after being seen once
+    /// means we caught the page exactly mid-rebuild, which is the state that used to fail
+    /// closed at press time; a button still there a poll later has survived past whatever
+    /// window that rebuild needed.
+    ///
+    /// This costs latency on every install, not just the ones that would have raced the
+    /// rebuild: `waitForOfferButton` cannot return on the poll that first finds the button,
+    /// it has to wait one more ~150ms poll to confirm it, and the press-time re-find (which
+    /// starts from `foundLastPoll: false`) needs two full polls of its own before it can
+    /// press — so this rule alone adds ~150-450ms to every update, not only the ones that
+    /// were actually churning.
+    ///
+    /// It also trades one failure mode for another. If the page happens to re-render on
+    /// close to a 150ms cadence, "found" and "not found" can keep alternating forever —
+    /// `justFound && foundLastPoll` never holds two polls in a row — and the wait runs out
+    /// its deadline never trusting a button that a plain "found it, use it" would have
+    /// returned on the very first sighting. This is new: the one-shot rule this replaced
+    /// could never fail this way, only the opposite one (#471). Low-probability — it needs
+    /// the rebuild period to land near the poll period — but worth knowing about, since the
+    /// old code had no such window at all.
+    static func offerButtonIsStable(justFound: Bool, foundLastPoll: Bool) -> Bool {
+        justFound && foundLastPoll
+    }
+
     // MARK: - Progress / completion
 
     /// After pressing Update (with the app still running), poll until the install
     /// lands — detected by the on-disk bundle version changing from `baseline`, the
     /// authoritative, language-independent signal.
     ///
-    /// Sheet handling is the delicate part. App Store raises the "Close this app to
-    /// update" sheet only *after* the download finishes and only because the app is
-    /// open; a subscription / purchase / terms sheet, by contrast, appears *before*
-    /// any download (you can't download a paid update without confirming the charge
-    /// first). We use that ordering to tell them apart: a sheet that appears once we've
-    /// seen download progress, with the app still running, is the close-to-update one —
-    /// we gate it behind the user's Relaunch tap (`confirmQuit`), then press its
-    /// Continue. Any other sheet (no download behind it, or the app already gone) is a
+    /// Sheet handling is the delicate part. App Store can raise the "Close this app to
+    /// update" sheet mid-download, not only after it finishes, and the app may or may not
+    /// still be open when it does (#472); a subscription / purchase / terms sheet, by
+    /// contrast, appears *before* any download (you can't download a paid update without
+    /// confirming the charge first). We use THAT ordering to tell them apart, via
+    /// `classifyOwnSheet`: a sheet that appears once we've seen download progress is the
+    /// close-to-update one regardless of whether the app is still running — if it is, we
+    /// gate the sheet behind the user's Relaunch tap (`confirmQuit`) and press its
+    /// Continue; if it already quit on its own there is nothing to press, and the swap is
+    /// simply watched for. Any other sheet (no download behind it at all) is a
     /// confirmation we must never auto-press, surfaced as `.needsManualConfirmation`.
     private func driveToCompletion(
         axApp: AXUIElement,
@@ -592,6 +689,7 @@ public actor AppStoreAXInstaller {
         var stalledTicks = 0            // consecutive polls with the swap not moving
         var lastInstallProgress: Double? // last "Installing: N% Complete" we read
         var lastOfferDump: String?      // shape of the last probe we logged (dedupe)
+        var loggedAppAlreadyQuitDuringOwnSheet = false  // #472: log that state only once
 
         // A sheet already on screen before we press is left over from an earlier
         // install: App Store can leave its "Close This App to Update" sheet up for
@@ -667,7 +765,7 @@ public actor AppStoreAXInstaller {
                 // The app being open is why the number is allowed to stand still, so
                 // the watchdog is told rather than left to read a frozen wait as a
                 // dead swap (see `swapWatchdog`).
-                let stillOpen = bundleID.map { isRunning($0) } ?? false
+                let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
                 let watch = Self.swapWatchdog(
                     progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks,
                     appRunning: stillOpen)
@@ -694,83 +792,140 @@ public actor AppStoreAXInstaller {
                     // terminate() won't force past) — flag it once so a stuck install is
                     // diagnosable.
                     if postContinueTicks == 10 {  // ~4s after we quit + foregrounded
-                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after quit+foreground (app still running=\(bundleID.map { isRunning($0) } ?? false))")
-                    }
-                } else if sawProgress, let bundleID, isRunning(bundleID) {
-                    // Download finished, app still open → App Store's "Close this app to
-                    // update" sheet. Gate it behind the user's Relaunch tap, then finish.
-                    //
-                    // We do NOT press the sheet's affirmative ("Continue" / "Quit & Update")
-                    // button: App Store custom-draws this sheet with NO accessible default
-                    // button — `AXDefaultButton` is nil and the affirmative button isn't in
-                    // the AX tree at all (only "Cancel" is reachable; verified for Spark
-                    // 2026-06-08). Every prior "pressed Continue" was a silent no-op. What the
-                    // sheet actually asks for is the app to quit, so we deliver that ourselves
-                    // (graceful terminate — quitting the app IS the consent the user just gave
-                    // via Relaunch; we never force-kill unsaved work).
-                    //
-                    // Crucially we foreground App Store first: a *backgrounded* App Store parks
-                    // this sheet and never completes the swap even after the app exits (Spark,
-                    // backgrounded + clean quit: no swap for 94s; same app foregrounded:
-                    // swapped — 2026-06-08). This is the only point we steal focus — the whole
-                    // download ran in the background; the user just tapped Relaunch and expects
-                    // the app to cycle.
-                    if !askedToQuit {
-                        Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
-                        requestQuit(appName)
-                        askedToQuit = true
-                    }
-                    sheetlessPromptTicks = 0
-                    // The sheet has two affirmative buttons within the user's reach:
-                    // ours and App Store's own Continue. `QuitPrompt` weighs both, plus
-                    // the disk — so an answer given in the store's window settles this
-                    // too, and a late tap on ours can never quit an app whose update
-                    // has already landed. See there for what going without cost.
-                    switch QuitPrompt.decide(
-                        answer: await quitAnswer(),
-                        sheetPresent: true,
-                        versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
-                        appRunning: isRunning(bundleID)
-                    ) {
-                    case .keepWaiting:
-                        break
-                    case .cancelled:
-                        Log.install.notice("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
-                        withdrawQuit()
-                        pressCancel(in: axApp, appName: appName)
-                        throw AXError.cancelled
-                    case .settledElsewhere:
-                        Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
-                        withdrawQuit()
-                        askedToQuit = false
-                        onStage(.installing)
-                        continued = true
-                        sheetTicks = 0
-                    case .quitTheApp:
-                        withdrawQuit()
-                        askedToQuit = false
-                        onStage(.installing)  // "Relaunching" — quit the app, App Store swaps
-                        activateAppStore()
-                        await terminateAndWait(bundleID: bundleID, appName: appName)
-                        continued = true
-                        sheetTicks = 0
+                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after quit+foreground (app still running=\(bundleID.map { Self.isRunning($0) } ?? false))")
                     }
                 } else {
-                    // A sheet with no download behind it (or the app already gone) is a
-                    // subscription / purchase / terms confirmation. But a *fast* delta can
-                    // raise the close-to-update sheet within ~60ms of the press — before the
-                    // offer button's title flips to a loading/progress state — so `sawProgress`
-                    // is still false for the first poll or two even on a normal update (Spark:
-                    // sheet at +60ms, progress at +420ms). Give sawProgress time to win the
-                    // race before concluding "subscription": a genuine purchase sheet never has
-                    // a download behind it, so it stays past this grace and still bails.
-                    sheetTicks += 1
-                    if sheetTicks == 1 {
-                        Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — waiting to see if a fast delta's progress lands")
-                    }
-                    if sheetTicks >= 8 {  // ~3.2s — well past the ~0.5s a real download takes to report progress
-                        Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — no download after ~3s, bailing without pressing")
-                        throw AXError.needsManualConfirmation
+                    // One LaunchServices lookup, and the id travels with the answer: the
+                    // disposition below and the log line in its last arm are then talking
+                    // about the same instant. Two separate `isRunning` reads could disagree
+                    // — the app quitting mid-poll is the normal case this branch exists for.
+                    let runningBundleID = bundleID.flatMap { Self.isRunning($0) ? $0 : nil }
+                    switch Self.classifyOwnSheet(sawProgress: sawProgress, runningBundleID: runningBundleID) {
+                    case .downloadFinishedAppStillOpen(let bundleID):
+                        // Download finished, app still open → App Store's "Close this app to
+                        // update" sheet. Gate it behind the user's Relaunch tap, then finish.
+                        //
+                        // We do NOT press the sheet's affirmative ("Continue" / "Quit & Update")
+                        // button: App Store custom-draws this sheet with NO accessible default
+                        // button — `AXDefaultButton` is nil and the affirmative button isn't in
+                        // the AX tree at all (only "Cancel" is reachable; verified for Spark
+                        // 2026-06-08). Every prior "pressed Continue" was a silent no-op. What the
+                        // sheet actually asks for is the app to quit, so we deliver that ourselves
+                        // (graceful terminate — quitting the app IS the consent the user just gave
+                        // via Relaunch; we never force-kill unsaved work).
+                        //
+                        // Crucially we foreground App Store first: a *backgrounded* App Store parks
+                        // this sheet and never completes the swap even after the app exits (Spark,
+                        // backgrounded + clean quit: no swap for 94s; same app foregrounded:
+                        // swapped — 2026-06-08). This is the only point we steal focus — the whole
+                        // download ran in the background; the user just tapped Relaunch and expects
+                        // the app to cycle.
+                        //
+                        // `bundleID` here is the associated value `classifyOwnSheet` binds when
+                        // (and only when) it has already confirmed the app is running under it —
+                        // the compiler enforces that, not a cross-function comment (see
+                        // `classifyOwnSheet`'s own `guard let`).
+                        if !askedToQuit {
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
+                            requestQuit(appName)
+                            askedToQuit = true
+                        }
+                        sheetlessPromptTicks = 0
+                        // The sheet has two affirmative buttons within the user's reach:
+                        // ours and App Store's own Continue. `QuitPrompt` weighs both, plus
+                        // the disk — so an answer given in the store's window settles this
+                        // too, and a late tap on ours can never quit an app whose update
+                        // has already landed. See there for what going without cost.
+                        switch QuitPrompt.decide(
+                            answer: await quitAnswer(),
+                            sheetPresent: true,
+                            versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
+                            appRunning: Self.isRunning(bundleID)
+                        ) {
+                        case .keepWaiting:
+                            break
+                        case .cancelled:
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
+                            withdrawQuit()
+                            pressCancel(in: axApp, appName: appName)
+                            throw AXError.cancelled
+                        case .settledElsewhere:
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                            withdrawQuit()
+                            askedToQuit = false
+                            onStage(.installing)
+                            continued = true
+                            sheetTicks = 0
+                        case .quitTheApp:
+                            withdrawQuit()
+                            askedToQuit = false
+                            onStage(.installing)  // "Relaunching" — quit the app, App Store swaps
+                            activateAppStore()
+                            await terminateAndWait(bundleID: bundleID, appName: appName)
+                            continued = true
+                            sheetTicks = 0
+                        }
+                    case .appAlreadyQuitNothingToPress:
+                        // #472: the app already quit on its own (App Store asked for the
+                        // close mid-download, and this app was responsive) — there is nothing
+                        // to press. The swap proceeds on its own; step 1's on-disk
+                        // `versionChanged` check is what catches completion. Log once so a
+                        // stalled swap here is still diagnosable, without spamming a line
+                        // every ~400ms for however long the swap takes.
+                        //
+                        // Foregrounding here is cheap insurance, and be precise about how
+                        // well it is evidenced — the two halves are not equally solid.
+                        //
+                        // MEASURED, by reading this loop: skipping it would leave this branch
+                        // with nothing faster than the 900-poll (~6 min) hard cap behind it.
+                        // With the app already gone `askedToQuit` never becomes true (no prompt
+                        // is shown), so `polls` keeps incrementing; `sheetTicks` never advances
+                        // either (that counter only moves in `.possiblePurchaseConfirmation`);
+                        // and `continued` stays false, so the `swapHasStalled` watchdog never
+                        // runs. Neither of the faster gates applies here.
+                        //
+                        // ⚠️ CARRIED OVER, NOT RE-MEASURED: that a *backgrounded* App Store
+                        // parks this sheet and never swaps even after the app has quit (94s
+                        // backgrounded vs. swapped once foregrounded) comes from
+                        // `activateAppStore`'s doc comment, Spark 2026-06-08. It was NOT
+                        // reproduced when this branch was written (2026-09-09): the one real
+                        // observation that reached here — AndroMeld — had App Store in the
+                        // FOREGROUND the whole time and swapped fine, so it neither confirms
+                        // nor refutes the backgrounded case. So this call may well be
+                        // unnecessary; it is kept because foregrounding once costs a single
+                        // focus steal at a moment the user just updated an app, while being
+                        // wrong the other way costs a silent 6-minute stall.
+                        //
+                        // It also only fires ONCE (same gate as the log line, so a lingering
+                        // sheet doesn't repeatedly steal focus), which means it buys the swap
+                        // one chance to start, not a guarantee: if the user clicks back to
+                        // their own window, nothing brings App Store forward again. Closing
+                        // that would need a periodic retry here, or a timeout diagnostic that
+                        // can name this state — neither is justified until someone actually
+                        // reproduces the backgrounded case above.
+                        if !loggedAppAlreadyQuitDuringOwnSheet {
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown with the app already quit — nothing to press, waiting for the swap to land")
+                            activateAppStore()
+                            loggedAppAlreadyQuitDuringOwnSheet = true
+                        }
+                    case .possiblePurchaseConfirmation:
+                        // A sheet with no download behind it (or the app already gone, before
+                        // #472) is a subscription / purchase / terms confirmation. But a *fast*
+                        // delta can raise the close-to-update sheet within ~60ms of the press —
+                        // before the offer button's title flips to a loading/progress state — so
+                        // `sawProgress` is still false for the first poll or two even on a normal
+                        // update (Spark: sheet at +60ms, progress at +420ms). Give sawProgress
+                        // time to win the race before concluding "subscription": a genuine
+                        // purchase sheet never has a download behind it, so it stays past this
+                        // grace and still bails.
+                        sheetTicks += 1
+                        if sheetTicks == 1 {
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(runningBundleID != nil)) — waiting to see if a fast delta's progress lands")
+                        }
+                        if sheetTicks >= 8 {  // ~3.2s — well past the ~0.5s a real download takes to report progress
+                            Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — no download after ~3s, bailing without pressing")
+                            throw AXError.needsManualConfirmation
+                        }
                     }
                 }
             } else {
@@ -797,7 +952,7 @@ public actor AppStoreAXInstaller {
                         answer: await quitAnswer(),
                         sheetPresent: false,
                         versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
-                        appRunning: bundleID.map { isRunning($0) } ?? false
+                        appRunning: bundleID.map { Self.isRunning($0) } ?? false
                     ) {
                     case .settledElsewhere:
                         Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
@@ -913,7 +1068,7 @@ public actor AppStoreAXInstaller {
         }
         // What a spent budget means depends on what is still true — see
         // `exhaustedBudgetError`.
-        let stillOpen = bundleID.map { isRunning($0) } ?? false
+        let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
         Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
         throw Self.exhaustedBudgetError(appName: appName, continued: continued, appRunning: stillOpen)
     }
@@ -990,7 +1145,7 @@ public actor AppStoreAXInstaller {
             app.terminate()
         }
         for _ in 0..<60 {  // ~12s at 200ms
-            if !isRunning(bundleID) {
+            if !Self.isRunning(bundleID) {
                 Log.install.notice("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
                 return
             }
@@ -1026,6 +1181,59 @@ public actor AppStoreAXInstaller {
     static func classifySheet(onScreen: Bool, ignoringLeftover: Bool) -> (isOurs: Bool, ignoringLeftover: Bool) {
         let stillIgnoring = onScreen && ignoringLeftover
         return (onScreen && !stillIgnoring, stillIgnoring)
+    }
+
+    /// What a not-yet-`continued` sheet that IS ours (`classifySheet` already said so)
+    /// actually means, given the two facts on hand: whether this update's own download
+    /// has started (`sawProgress`), and whether the app being updated is still running
+    /// (decided here from `bundleID`, not handed in as a separate bool — see below).
+    ///
+    /// #472: the old branch condition was `sawProgress, let bundleID, isRunning(bundleID)`
+    /// — `appRunning` gated whether a sheet counted as ours **at all**, so a sheet that
+    /// appeared once a download had started but with the app already gone fell through to
+    /// the subscription/purchase branch and was bailed as `.possiblePurchaseConfirmation`
+    /// after ~3.2s, even though the swap was already under way and landed 18s later
+    /// completely untouched (AndroMeld, 2026-09-09 — App Store raises this sheet mid-
+    /// download, ~80% in, and a responsive app can already be gone by the time we sample
+    /// it: measured 207ms). The comment on the old branch already had the right rule — "a
+    /// genuine purchase sheet never has a download behind it" — `sawProgress` alone
+    /// answers "is this ours"; `appRunning` only answers "does the user still owe App
+    /// Store a quit".
+    enum OwnSheetDisposition: Equatable {
+        /// A download for this update has started and the app is still open. Ask the
+        /// user for Relaunch/Cancel — nothing has quit yet. Carries the bundle id
+        /// `classifyOwnSheet` already confirmed is running, so the caller has a
+        /// non-optional id to quit later without re-deriving (or force-unwrapping) it.
+        case downloadFinishedAppStillOpen(bundleID: String)
+        /// A download for this update has started and the app has already quit on its
+        /// own (App Store can ask for the close mid-download; a responsive app can be
+        /// gone before we ever sample the sheet). Nothing to press: the swap proceeds on
+        /// its own, and step 1's on-disk `versionChanged` check catches completion.
+        case appAlreadyQuitNothingToPress
+        /// No download behind this sheet at all — a subscription / purchase / terms
+        /// confirmation. Never auto-pressed.
+        case possiblePurchaseConfirmation
+    }
+
+    /// Takes the id **only when the caller has already confirmed it is running** —
+    /// `nil` means "no id, or not running", the two cases that need the same answer
+    /// here. That keeps the "app is running" fact and the id needed to act on it from
+    /// ever separating: the caller used to compute a `stillOpen` bool and hand over only
+    /// that, which is how `.downloadFinishedAppStillOpen`'s call site ended up
+    /// re-deriving "the id must be non-nil here" via a force-unwrap backed by a comment.
+    /// Carrying the id makes it a compiler-checked binding instead — the disposition
+    /// cannot be constructed without one.
+    ///
+    /// Deliberately **pure**, like `classifySheet`, `swapWatchdog` and
+    /// `exhaustedBudgetError` beside it: an earlier revision took `bundleID: String?`
+    /// and called `isRunning` itself, which bought the same compiler guarantee but made
+    /// this the one decision function in the file that reads global process state — and
+    /// left its unit tests asserting against whatever happened to be running on the test
+    /// host (Finder), a dependency that is invisible until some runner disagrees.
+    static func classifyOwnSheet(sawProgress: Bool, runningBundleID: String?) -> OwnSheetDisposition {
+        guard sawProgress else { return .possiblePurchaseConfirmation }
+        guard let runningBundleID else { return .appAlreadyQuitNothingToPress }
+        return .downloadFinishedAppStillOpen(bundleID: runningBundleID)
     }
 
     /// One poll of the swap watchdog, as a pure step so the rules that matter are

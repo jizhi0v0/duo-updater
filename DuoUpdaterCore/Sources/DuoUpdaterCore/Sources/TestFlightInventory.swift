@@ -10,10 +10,13 @@ import SQLite3
 ///
 /// The DB lives in TestFlight's sandbox container and stores one row per
 /// (app, build, platform) in `ZTFAPPBUNDLEMODEL`:
-///   - `ZPLATFORMRAW` 3 == macOS, 1 == iOS. Mac builds are what an update can be
-///     *offered* for, so they alone feed ``latest(forBundleID:)`` and
-///     ``isManaged(bundleID:installedBuild:)``. iOS rows are read too but kept
-///     strictly apart, for one question only — see ``hasIOSBuild(bundleID:installedBuild:)``.
+///   - `ZPLATFORMRAW` 3 == macOS, 1 == iOS. The two are read into strictly
+///     separate tables and never merged: mac rows feed ``latest(forBundleID:)``
+///     and ``isManaged(bundleID:installedBuild:)``, iOS rows feed
+///     ``latestIOS(forBundleID:)`` and ``hasInstalledIOSBuild(bundleID:installedBuild:)``,
+///     and it is the CALLER that picks a side, from `isiOSAppOnMac`. A native Mac
+///     app can hold iOS rows of its own, so a merged table would offer it an
+///     iPhone build as its next Mac update.
 ///   - `ZINSTALLSTATUSRAW` 1 == the build currently installed on this machine.
 ///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1,
 ///     never twice for one (bundle, platform) — and all 6 matched an app on disk
@@ -59,6 +62,20 @@ public struct TestFlightInventory: Sendable {
     /// Mithka the iOS build as its next Mac update.
     private let iosBuildsByBundleID: [String: Set<String>]
 
+    /// The newest iOS build TestFlight OFFERS for each bundle — every iOS row,
+    /// installed or not, exactly as `appsByBundleID` is built from every mac row.
+    ///
+    /// Separate from `iosBuildsByBundleID` above because the two answer opposite
+    /// questions and the SQL treats them differently: that one is filtered to
+    /// `ZINSTALLSTATUSRAW = 1` and asks "did TestFlight put this copy here", this
+    /// one must keep the rows the user has NOT installed or it could never offer
+    /// an update. Merging them would either make membership answer yes for a build
+    /// the user merely has access to, or make this one permanently say "current".
+    ///
+    /// Only ``latestIOS(forBundleID:)`` reads it, and only for a wrapped bundle —
+    /// see there for why a native Mac app must never be routed through it.
+    private let iosLatestByBundleID: [String: App]
+
     /// Whether we actually opened the TestFlight database. `false` means the file
     /// was missing or the read was blocked/denied — notably the "access data from
     /// other apps" TCC gate. The UI uses this to tell "we read it and there was
@@ -74,9 +91,10 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, iosRows, opened) = Self.readRows(at: url)
+        let (rows, iosRows, iosAvailableRows, opened) = Self.readRows(at: url)
         self.accessible = opened
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
+        self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
         var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
@@ -110,13 +128,25 @@ public struct TestFlightInventory: Sendable {
     /// it would assert behaviour that only exists in the fixture. `macRows` has no
     /// such precondition — every mac row is kept, installed or not, because
     /// ``latest(forBundleID:)`` is asking what is available.
+    ///
+    /// `availableIOSRows` is the other iOS bucket and carries the opposite
+    /// precondition: it is NOT filtered by install status, because
+    /// ``latestIOS(forBundleID:)`` is asking what TestFlight offers. Passing only
+    /// `installedIOSRows` therefore describes a machine where the user is already
+    /// on the newest beta — a legitimate fixture, and the default, but not the one
+    /// to use for a case about an update being available.
     public init(
         macRows: [(bundleID: String, shortVersion: String, build: String)],
         installedIOSRows: [(bundleID: String, shortVersion: String, build: String)] = [],
+        availableIOSRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
         accessible: Bool = true
     ) {
         self.accessible = accessible
         self.iosBuildsByBundleID = Self.buildIndex(installedIOSRows)
+        // The database always yields the installed rows as a subset of the
+        // available ones, so a fixture that names only the installed rows gets the
+        // same shape rather than an inventory that says "installed but not offered".
+        self.iosLatestByBundleID = Self.newestByBundleID(availableIOSRows ?? installedIOSRows)
         var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
         for row in macRows {
@@ -184,12 +214,54 @@ public struct TestFlightInventory: Sendable {
         return appsByBundleID[bundleID]
     }
 
+    /// The newest iOS build TestFlight offers for a wrapped iPhone/iPad bundle.
+    ///
+    /// ⚠️ **Only for `isiOSAppOnMac` bundles**, and the caller owns that gate — the
+    /// same split `AppScanner` already applies to `hasInstalledIOSBuild`. A native
+    /// Mac app can hold iOS rows of its own, and handing it this answer is the
+    /// exact corruption `iosBuildsByBundleID` was kept separate to prevent:
+    /// measured 2026-09-09, Paste is on the mac track at 29808607 while its iOS
+    /// track sits at 29814462, so a Mac app routed here would be offered an iPhone
+    /// build as its next Mac update.
+    ///
+    /// ⚠️ **Compatibility is not in this database.** Whether a given build runs on
+    /// this Mac lives in TestFlight's API response (`compatible`), not in any
+    /// column here, so a build offered from these rows can turn out to be
+    /// iPhone-only. The cost is bounded — the row's action is "open TestFlight",
+    /// which is where the real answer is, and nothing is downloaded on our side —
+    /// but it is a real gap, not one this can close.
+    public func latestIOS(forBundleID bundleID: String?) -> App? {
+        guard let bundleID else { return nil }
+        return iosLatestByBundleID[bundleID]
+    }
+
+    /// bundleID → the row with the highest build. Shared by both platform buckets
+    /// so they cannot drift apart in how "newest" is decided.
+    private static func newestByBundleID(
+        _ rows: [(bundleID: String, shortVersion: String, build: String)]
+    ) -> [String: App] {
+        var newest: [String: App] = [:]
+        for row in rows {
+            let candidate = App(
+                bundleID: row.bundleID,
+                latestShortVersion: row.shortVersion, latestBuild: row.build)
+            guard let cur = newest[row.bundleID] else {
+                newest[row.bundleID] = candidate
+                continue
+            }
+            if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
+                newest[row.bundleID] = candidate
+            }
+        }
+        return newest
+    }
+
     // MARK: - SQLite
 
     typealias Row = (bundleID: String, shortVersion: String, build: String)
     /// What one read of the database yields: the two platform buckets, plus
     /// whether we got in at all.
-    typealias Reading = (rows: [Row], iosRows: [Row], opened: Bool)
+    typealias Reading = (rows: [Row], iosRows: [Row], iosAvailableRows: [Row], opened: Bool)
 
     /// How long to wait for the database to open before treating it as
     /// unreachable. Generous: a cold sandboxed sqlite open is milliseconds, so
@@ -224,14 +296,14 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], false) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
         // nothing inside".
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
-        } ?? ([], [], false)
+        } ?? ([], [], [], false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -242,7 +314,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], [], false)
+            return ([], [], [], false)
         }
         defer { sqlite3_close(db) }
 
@@ -265,7 +337,7 @@ public struct TestFlightInventory: Sendable {
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed")
-        return ([], [], true)  // we opened it; the schema just didn't match
+        return ([], [], [], true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -312,6 +384,7 @@ public struct TestFlightInventory: Sendable {
 
         var rows: [Row] = []
         var iosRows: [Row] = []
+        var iosAvailableRows: [Row] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             guard let bundleC = sqlite3_column_text(stmt, 0),
                   let buildC = sqlite3_column_text(stmt, 2) else { continue }
@@ -331,18 +404,22 @@ public struct TestFlightInventory: Sendable {
                 // Every mac row, installed or not: `latest(forBundleID:)` is
                 // asking which builds are AVAILABLE.
                 rows.append((bundleID, short, build))
-            case Self.iOSPlatform
-                where hasInstallStatus && sqlite3_column_int64(stmt, 4) == Self.installedHere:
-                // Only the one TestFlight says is installed here. These rows
-                // answer a membership question, never an "is there something
-                // newer" one, and an available-but-not-installed iOS build is
-                // exactly the thing that must not tag a bundle.
-                iosRows.append((bundleID, short, build))
+            case Self.iOSPlatform:
+                // Every iOS row is what TestFlight OFFERS for this bundle, which is
+                // the only bucket an update can come out of.
+                iosAvailableRows.append((bundleID, short, build))
+                // …and, separately, the one TestFlight says is installed here.
+                // These rows answer a membership question, never an "is there
+                // something newer" one, and an available-but-not-installed iOS
+                // build is exactly the thing that must not tag a bundle.
+                if hasInstallStatus && sqlite3_column_int64(stmt, 4) == Self.installedHere {
+                    iosRows.append((bundleID, short, build))
+                }
             default:
                 break
             }
         }
-        return (rows, iosRows, true)
+        return (rows, iosRows, iosAvailableRows, true)
     }
 
     /// `ZPLATFORMRAW` values, both named because both are now matched positively.

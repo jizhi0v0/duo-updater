@@ -19,6 +19,13 @@ public enum Check {
         /// against `RemoteVersion.sourceName` ("Sparkle", "Homebrew", "Vendor",
         /// "GitHub", "App Store", …). Empty means every source.
         public var sources: Set<String> = []
+        /// Ask TestFlight to refresh its local store before checking.
+        ///
+        /// Off by default and never implied: it starts an app the user did not
+        /// start. See `TestFlightRefresh` for why a background launch is the only
+        /// form of this we are willing to offer, and #478 for why the store goes
+        /// stale in the first place.
+        public var refreshTestFlight = false
         public init() {}
     }
 
@@ -44,6 +51,30 @@ public enum Check {
         let route: String?
     }
 
+    /// What to tell the user about a refresh attempt. Written to stderr so `--json`
+    /// stays one object per line, and phrased so that "we launched TestFlight" is
+    /// never left implicit — the user is entitled to know why an app appeared.
+    static func describe(_ outcome: TestFlightRefresh.Outcome) -> String {
+        switch outcome {
+        case .refreshed(let after):
+            // The moment the store last changed, NOT how long the command waited:
+            // the wait runs on past it by `settleInterval` to be sure the sync has
+            // finished. Measured 6.0s here against 14.0s wall clock, so saying
+            // "took" would be wrong by more than half.
+            let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
+            return String(format: "duo: TestFlight refreshed its data (launched in the background; new data landed after %.1fs)", seconds)
+        case .launchedWithoutChange:
+            return "duo: launched TestFlight in the background; its data did not change"
+        case .alreadyRunning:
+            return "duo: TestFlight is already running — a background launch would not refresh it. "
+                 + "Switch to TestFlight yourself if you want its data reloaded."
+        case .notInstalled:
+            return "duo: TestFlight is not installed, so there is nothing to refresh"
+        case .launchFailed:
+            return "duo: could not launch TestFlight"
+        }
+    }
+
     /// A row worth acting on: an update the user has not hidden.
     static func isActionable(_ row: Row) -> Bool { row.hasUpdate && !row.hidden }
 
@@ -60,6 +91,17 @@ public enum Check {
 
     public static func run(_ options: Options) async -> Int32 {
         let settings = Settings.load()
+        // Before the scan, not just before the check. `AppScanner` reads the
+        // TestFlight store too — that is where a bundle gets tagged
+        // `isTestFlightApp`, and for a wrapped iPhone/iPad app the store is the
+        // evidence (#456), the receipt being unavailable. Refreshing after the scan
+        // would leave this run's tagging on the stale store and only fix the
+        // version comparison, so a beta installed since the last sync would still
+        // be read as something else until the next invocation.
+        if options.refreshTestFlight {
+            let outcome = await TestFlightRefresh().run()
+            FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
+        }
         let apps = await Inventory.scan(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {

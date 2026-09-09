@@ -319,9 +319,12 @@ public struct TestFlightInventory: Sendable {
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
         // nothing inside".
+        // Labelled rather than `([], [], [], false)`: with four elements the bare
+        // literal leaves `bounded.run`'s generic parameter ambiguous between the
+        // tuple type and `Reading`, and the compiler rejects it.
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
-        } ?? ([], [], [], false)
+        } ?? (rows: [], iosRows: [], iosAvailableRows: [], opened: false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.

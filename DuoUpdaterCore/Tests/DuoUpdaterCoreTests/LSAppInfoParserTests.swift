@@ -59,11 +59,13 @@ import Testing
     /// The core fix. AndroMeld-shaped: `Version` IS quoted, so without the
     /// `(exited-with-subordinates)` guard this reads as a live running build —
     /// exactly the #473 failure (disk build compares newer than this frozen one
-    /// forever). Mutation this pins: delete the
-    /// `!line.contains("(exited-with-subordinates)")` clause in
+    /// forever). Mutation this pins (**M1**): delete the whole
+    /// `else if line.contains(tombstoneMarker)` branch from
     /// `LSAppInfoParser.runningBuildVersions` → this goes from `nil` to
-    /// `"2608.29.0"`, i.e. red. Verified by actually deleting that clause and
-    /// re-running: this test fails, the baseline above does not.
+    /// `"2608.29.0"`, i.e. red. Measured 2026-09-09 by actually deleting that
+    /// branch and re-running: M1 turns exactly three of this suite's seven cases
+    /// red — this one, `aTombstoneBeforeTheLiveEntryDoesNotBlockIt`, and
+    /// `aMarkerOnALaterLineStillCancelsTheRecord`.
     @Test func quotedVersionTombstoneIsExcluded() {
         let text = entry(
             number: 149, name: "AndroMeld", bundleID: "com.catchingnow.andfiles",
@@ -76,9 +78,10 @@ import Testing
     /// Fixture guard, not a marker-guard mutation: this is the OTHER real shape
     /// measured (a non-sandboxed UIElement helper whose tombstone carries
     /// `Version=[ NULL ]`, unquoted). `quotedValue` already returns `nil` for an
-    /// unquoted value regardless of the marker, so this can't go red by
-    /// deleting the marker guard alone — it grounds the parser against the
-    /// shape actually observed rather than assuming quoting is universal.
+    /// unquoted value regardless of the marker, so this cannot go red under
+    /// either M1 or M2 (measured: green under both) — it grounds the parser
+    /// against the shape actually observed rather than assuming quoting is
+    /// universal.
     @Test func unquotedVersionTombstoneIsAlsoExcluded() {
         let text = entry(
             number: 35, name: "ClaudeWakeHost", bundleID: "",
@@ -96,14 +99,12 @@ import Testing
     /// skipped (tombstone) block must NOT count as "already recorded", or the
     /// live entry that follows it would never get in. This is also the order
     /// #473 actually hit — a bundle path reported once, with the tombstone's
-    /// own entry the only one LaunchServices had. Mutation this pins: deleting
-    /// the `!line.contains("(exited-with-subordinates)")` clause (the same
-    /// mutation `quotedVersionTombstoneIsExcluded` catches) makes the tombstone
-    /// satisfy `map[cur] == nil` and claim the slot first — verified by
-    /// deleting that clause and re-running: this and
-    /// `quotedVersionTombstoneIsExcluded` are the only two of these six tests
-    /// that go red, this one from `nil` to `"9.9.9"` — locking out the live
-    /// entry that follows, not `"1.2.3"`.
+    /// own entry the only one LaunchServices had. Mutation this pins (**M1**,
+    /// the same one `quotedVersionTombstoneIsExcluded` catches): deleting the
+    /// whole `else if line.contains(tombstoneMarker)` branch lets the tombstone
+    /// be held and committed first, so `map[path] == nil` at commit time is no
+    /// longer true when the live entry arrives — measured: this goes to
+    /// `"9.9.9"`, locking out the live entry that follows, not `"1.2.3"`.
     @Test func aTombstoneBeforeTheLiveEntryDoesNotBlockIt() {
         let path = "/Applications/TwoInstances.app"
         let tombstone = entry(
@@ -118,15 +119,16 @@ import Testing
 
     /// The reverse order: once a LIVE version is recorded, a tombstone
     /// appearing later for the same path must not overwrite it with its own
-    /// (frozen, possibly different) version. ⚠️ No corresponding single-line
-    /// mutation of its own — verified: deleting the marker clause alone (the
-    /// mutation the two tests above pin) leaves this one green, because the
-    /// pre-existing `map[cur] == nil` first-wins check already blocks the
-    /// second write regardless of the marker (`live` claims the slot before
-    /// `tombstone` is ever read). This order was never actually broken by
-    /// #473 — only tombstone-before-live was. Kept as a fixture guard: it
-    /// pins that first-wins composes safely with the new marker check in
-    /// BOTH orders, not just the one #473 hit.
+    /// (frozen, possibly different) version. ⚠️ **No mutation of its own** —
+    /// measured: both M1 (deleting the marker branch) and M2 (see
+    /// `aMarkerOnALaterLineStillCancelsTheRecord`) leave this one green, because
+    /// first-wins already blocks the second write regardless of the marker: the
+    /// live record is committed when the tombstone's `bundle path` line opens the
+    /// next record, so `map[path] == nil` is already false by the time the
+    /// tombstone could be held. This order was never actually broken by #473 —
+    /// only tombstone-before-live was. Kept as a fixture guard: it pins that
+    /// first-wins composes safely with the marker check in BOTH orders, not just
+    /// the one #473 hit.
     @Test func aTombstoneAfterTheLiveEntryDoesNotOverwriteIt() {
         let path = "/Applications/TwoInstancesReversed.app"
         let live = entry(
@@ -157,10 +159,13 @@ import Testing
 
     // MARK: - The marker's position within a record
 
-    /// Mutation this pins: committing the version the moment its line is read
+    /// Mutation this pins (**M2**): committing the version the moment its line is read
     /// (`map[cur] = version` inline, i.e. both the pre-review implementation and the
     /// original pre-#473 one) — then the marker arrives too late and Ghost is recorded
-    /// as a live 1.0.0 build, which is #473 verbatim.
+    /// as a live 1.0.0 build, which is #473 verbatim. Measured 2026-09-09: **M2 turns
+    /// this case and only this case red**; the other six stay green, because every
+    /// other fixture has the marker on the same line as `Version`, where committing
+    /// early and clearing a cursor are indistinguishable. It also goes red under M1.
     ///
     /// Every record measured so far carries the marker on the SAME line as `Version`,
     /// where a cursor-clearing guard would also have worked. This case covers the half

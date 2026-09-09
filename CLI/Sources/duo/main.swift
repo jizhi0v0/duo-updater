@@ -42,6 +42,12 @@ list / check options:
                       first line names the schema version.
   --all               Include apps that are already up to date (implied by list).
   --include-hidden    Include apps you ignored or whose version you skipped.
+  --refresh-testflight
+                      Ask TestFlight to reload its data first, by launching it in
+                      the background (it does not take the foreground). Its data
+                      only refreshes while the Mac is idle otherwise, so a machine
+                      in use can be hours behind. Does nothing when TestFlight is
+                      already running — switch to it yourself for that.
   --source <names>    Only apps answered by these sources, comma-separated:
                       sparkle, homebrew, vendor, github, "app store", toolbox,
                       testflight. `check` only — `list` asks no source, so it has
@@ -251,6 +257,7 @@ case "list", "check":
     options.queries = args.operands
     options.json = args.has("json")
     options.includeHidden = args.has("include-hidden")
+    options.refreshTestFlight = args.has("refresh-testflight")
     // `list` is the offline inventory, so "everything" is the only sensible
     // default; `check` shows what needs doing unless asked for the rest.
     options.checkForUpdates = (args.subcommand == "check")

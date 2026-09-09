@@ -19,6 +19,13 @@ public enum Check {
         /// against `RemoteVersion.sourceName` ("Sparkle", "Homebrew", "Vendor",
         /// "GitHub", "App Store", …). Empty means every source.
         public var sources: Set<String> = []
+        /// Ask TestFlight to refresh its local store before checking.
+        ///
+        /// Off by default and never implied: it starts an app the user did not
+        /// start. See `TestFlightRefresh` for why a background launch is the only
+        /// form of this we are willing to offer, and #478 for why the store goes
+        /// stale in the first place.
+        public var refreshTestFlight = false
         public init() {}
     }
 
@@ -42,6 +49,26 @@ public enum Check {
         let hasUpdate: Bool
         let hidden: Bool
         let route: String?
+    }
+
+    /// What to tell the user about a refresh attempt. Written to stderr so `--json`
+    /// stays one object per line, and phrased so that "we launched TestFlight" is
+    /// never left implicit — the user is entitled to know why an app appeared.
+    static func describe(_ outcome: TestFlightRefresh.Outcome) -> String {
+        switch outcome {
+        case .refreshed(let after):
+            let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
+            return String(format: "duo: TestFlight refreshed its data (launched in the background, %.1fs)", seconds)
+        case .launchedWithoutChange:
+            return "duo: launched TestFlight in the background; its data did not change"
+        case .alreadyRunning:
+            return "duo: TestFlight is already running — a background launch would not refresh it. "
+                 + "Switch to TestFlight yourself if you want its data reloaded."
+        case .notInstalled:
+            return "duo: TestFlight is not installed, so there is nothing to refresh"
+        case .launchFailed:
+            return "duo: could not launch TestFlight"
+        }
     }
 
     /// A row worth acting on: an update the user has not hidden.
@@ -77,6 +104,14 @@ public enum Check {
             ? settings.appsWorthChecking(
                 selected, named: !options.queries.isEmpty, includeHidden: options.includeHidden)
             : selected
+
+        if options.refreshTestFlight {
+            // Before the inventory is read, not after: `Inventory.checker` builds a
+            // `TestFlightInventory` by reading the store, so a refresh that lands
+            // afterwards would not be seen until the next run.
+            let outcome = await TestFlightRefresh().run()
+            FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
+        }
 
         let results: [UpdateResult]
         if options.checkForUpdates {

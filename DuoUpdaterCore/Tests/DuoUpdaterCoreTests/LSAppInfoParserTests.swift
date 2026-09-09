@@ -25,12 +25,38 @@ import Testing
 ///     `pid = 1193 … Version=[ NULL ]  … Arch=ARM64 (exited-with-subordinates)`
 @Suite struct LSAppInfoParserTests {
 
+    /// Every fixture path below must NOT exist on the machine running these tests.
+    ///
+    /// `runningBuildVersions` keys its map through `UpdatePolicy.runtimeBundlePath`,
+    /// whose first act is `resolvingSymlinksInPath()`. For a path that does not exist
+    /// that is the identity, so the key is exactly the string in the fixture. For one
+    /// that DOES exist and is a symlink, it is not — and the assertion then compares
+    /// against a key the parser never produced.
+    ///
+    /// This is not hypothetical. The first version of this suite used
+    /// "/Applications/Xcode.app": green on the author's machine, which has no
+    /// `Xcode.app` (it runs Xcode-beta), and RED on CI, whose runner image has one and
+    /// resolves it elsewhere. The `== nil` cases are worse than the failing one,
+    /// because they stay green either way: a key that drifts is simply absent from the
+    /// map, so the case keeps passing while no longer exercising the tombstone rule at
+    /// all. Two of them were pointed at real paths on this machine
+    /// ("/Applications/AndDrive.app", the reporter's own app, and a real
+    /// ClaudeWakeHost bundle).
+    ///
+    /// So: made-up names, and this guard so a future fixture cannot quietly
+    /// reintroduce the dependency.
+    private func assertFixturePathIsAbsent(_ path: String) {
+        #expect(!FileManager.default.fileExists(atPath: path),
+                "fixture path \(path) exists on this host — see assertFixturePathIsAbsent")
+    }
+
     /// One "N) "Name" ASN:…" entry block, shaped like real `lsappinfo list` text.
     /// `pidLineSuffix` is everything on the `pid = …` line after `Arch=ARM64 `,
     /// which is where both the quoted-or-not `Version` and the
     /// `(exited-with-subordinates)` marker (when present) actually live.
     private func entry(number: Int, name: String, bundleID: String, path: String, pidLineSuffix: String) -> String {
-        """
+        assertFixturePathIsAbsent(path)
+        return """
          \(number)) "\(name)" ASN:0x0-0x18fb8fa:
             bundleID="\(bundleID)"
             bundle path="\(path)"
@@ -48,10 +74,10 @@ import Testing
     @Test func anOrdinaryRunningAppIsCaptured() {
         let text = entry(
             number: 1, name: "Xcode", bundleID: "com.apple.dt.Xcode",
-            path: "/Applications/Xcode.app",
+            path: "/Applications/ZZFixture-Ordinary.app",
             pidLineSuffix: "\"16.0\"  fileType=\"APPL\" creator=\"????\" Arch=ARM64 sandboxed ")
         let map = LSAppInfoParser.runningBuildVersions(from: text)
-        #expect(map["/Applications/Xcode.app"] == "16.0")
+        #expect(map["/Applications/ZZFixture-Ordinary.app"] == "16.0")
     }
 
     // MARK: - The tombstone itself
@@ -69,10 +95,10 @@ import Testing
     @Test func quotedVersionTombstoneIsExcluded() {
         let text = entry(
             number: 149, name: "AndroMeld", bundleID: "com.catchingnow.andfiles",
-            path: "/Applications/AndDrive.app",
+            path: "/Applications/ZZFixture-QuotedTombstone.app",
             pidLineSuffix: "\"2608.29.0\"  fileType=\"APPL\" creator=\"????\" Arch=ARM64 sandboxed (exited-with-subordinates)")
         let map = LSAppInfoParser.runningBuildVersions(from: text)
-        #expect(map["/Applications/AndDrive.app"] == nil)
+        #expect(map["/Applications/ZZFixture-QuotedTombstone.app"] == nil)
     }
 
     /// Fixture guard, not a marker-guard mutation: this is the OTHER real shape
@@ -85,10 +111,10 @@ import Testing
     @Test func unquotedVersionTombstoneIsAlsoExcluded() {
         let text = entry(
             number: 35, name: "ClaudeWakeHost", bundleID: "",
-            path: "/Users/bobby/Applications/ClaudeWakeHost.app",
+            path: "/Applications/ZZFixture-UnquotedTombstone.app",
             pidLineSuffix: "[ NULL ]  fileType=\"APPL\" creator=\"aplt\" Arch=ARM64 (exited-with-subordinates)")
         let map = LSAppInfoParser.runningBuildVersions(from: text)
-        #expect(map["/Users/bobby/Applications/ClaudeWakeHost.app"] == nil)
+        #expect(map["/Applications/ZZFixture-UnquotedTombstone.app"] == nil)
     }
 
     // MARK: - Interaction with "first entry wins"
@@ -106,7 +132,7 @@ import Testing
     /// longer true when the live entry arrives — measured: this goes to
     /// `"9.9.9"`, locking out the live entry that follows, not `"1.2.3"`.
     @Test func aTombstoneBeforeTheLiveEntryDoesNotBlockIt() {
-        let path = "/Applications/TwoInstances.app"
+        let path = "/Applications/ZZFixture-TwoInstances.app"
         let tombstone = entry(
             number: 1, name: "TwoInstances", bundleID: "com.example.two",
             path: path, pidLineSuffix: "\"9.9.9\"  fileType=\"APPL\" creator=\"????\" Arch=ARM64 sandboxed (exited-with-subordinates)")
@@ -130,7 +156,7 @@ import Testing
     /// first-wins composes safely with the marker check in BOTH orders, not just
     /// the one #473 hit.
     @Test func aTombstoneAfterTheLiveEntryDoesNotOverwriteIt() {
-        let path = "/Applications/TwoInstancesReversed.app"
+        let path = "/Applications/ZZFixture-TwoInstancesReversed.app"
         let live = entry(
             number: 1, name: "TwoInstancesReversed", bundleID: "com.example.two",
             path: path, pidLineSuffix: "\"1.2.3\"  fileType=\"APPL\" creator=\"????\" Arch=ARM64 sandboxed ")
@@ -151,10 +177,10 @@ import Testing
     @Test func stagedPathComponentIsNormalizedForALiveEntry() {
         let text = entry(
             number: 1, name: "Staged", bundleID: "com.example.staged",
-            path: "/Applications/.duoupdater-staged-Staged.app",
+            path: "/Applications/.duoupdater-staged-ZZFixture-Staged.app",
             pidLineSuffix: "\"4.0\"  fileType=\"APPL\" creator=\"????\" Arch=ARM64 sandboxed ")
         let map = LSAppInfoParser.runningBuildVersions(from: text)
-        #expect(map["/Applications/Staged.app"] == "4.0")
+        #expect(map["/Applications/ZZFixture-Staged.app"] == "4.0")
     }
 
     // MARK: - The marker's position within a record
@@ -177,19 +203,22 @@ import Testing
     /// swallow the one that follows it, which is the way a hold-and-commit parser breaks
     /// if the commit boundary is placed wrong.
     @Test func aMarkerOnALaterLineStillCancelsTheRecord() {
+        // Built by hand rather than via `entry`, so it needs the guard explicitly.
+        assertFixturePathIsAbsent("/Applications/ZZFixture-Ghost.app")
+        assertFixturePathIsAbsent("/Applications/ZZFixture-Live.app")
         let text = """
          1) "Ghost" ASN:0x0-0x1:
             bundleID="com.example.ghost"
-            bundle path="/Applications/Ghost.app"
+            bundle path="/Applications/ZZFixture-Ghost.app"
             pid = 999 token=[sess=100019 pid=999] type="UIElement" flavor=3 Version="1.0.0" fileType="APPL" Arch=ARM64 sandboxed
             \(LSAppInfoParser.tombstoneMarker)
          2) "Live" ASN:0x0-0x2:
             bundleID="com.example.live"
-            bundle path="/Applications/Live.app"
+            bundle path="/Applications/ZZFixture-Live.app"
             pid = 1000 token=[sess=100019 pid=1000] type="UIElement" flavor=3 Version="2.0.0" fileType="APPL" Arch=ARM64 sandboxed
         """
         let map = LSAppInfoParser.runningBuildVersions(from: text)
-        #expect(map["/Applications/Ghost.app"] == nil)
-        #expect(map["/Applications/Live.app"] == "2.0.0")
+        #expect(map["/Applications/ZZFixture-Ghost.app"] == nil)
+        #expect(map["/Applications/ZZFixture-Live.app"] == "2.0.0")
     }
 }

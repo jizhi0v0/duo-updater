@@ -191,6 +191,82 @@ struct TestFlightAnnouncementWitnessTests {
 
     // MARK: - Reading the frontier out of a real schema
 
+    /// The frontier survives a schema that breaks the row queries. Its two columns
+    /// live in different tables from theirs, so "the row queries did not prepare"
+    /// does not imply "this one cannot" — and the whole reason it got its own query
+    /// is that each signal fails on its own.
+    ///
+    /// The fixture drops `ZSHORTVERSION`, which both row queries name and neither
+    /// can do without, while leaving everything the frontier needs.
+    ///
+    /// Mutation: return `([], [], [], [:], true)` from the both-queries-failed path
+    /// instead of calling `readFrontiers` — the frontier comes back nil and this
+    /// fails.
+    @Test func theFrontierIsStillReadWhenTheRowQueriesCannotPrepare() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ZZFixture-noshort-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let dbURL = root.appendingPathComponent("TestFlight.sqlite")
+
+        var db: OpaquePointer?
+        #expect(sqlite3_open(dbURL.path, &db) == SQLITE_OK)
+        let schema = """
+            CREATE TABLE ZTFAPPMODEL (Z_PK INTEGER PRIMARY KEY, ZAPPID INTEGER, ZBUNDLEID VARCHAR);
+            CREATE TABLE ZTFAPPBUNDLEMODEL (
+                Z_PK INTEGER PRIMARY KEY, ZAPP INTEGER, ZBUILDID INTEGER,
+                ZBUNDLEID VARCHAR, ZBUNDLEVERSION VARCHAR, ZPLATFORMRAW INTEGER);
+            INSERT INTO ZTFAPPMODEL VALUES (1, 6761822408, 'zz.fixture.beta');
+            INSERT INTO ZTFAPPBUNDLEMODEL VALUES (1, 1, 234839053, 'zz.fixture.beta', '200', 3);
+            """
+        #expect(sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(db)
+
+        let inventory = TestFlightInventory(databaseURL: dbURL)
+        #expect(inventory.accessible, "fixture database was not opened")
+        #expect(inventory.latest(forBundleID: "zz.fixture.beta") == nil,
+                "fixture guard: the row queries must actually have failed here")
+        let frontier = try #require(
+            inventory.frontier(forBundleID: "zz.fixture.beta"),
+            "the frontier query does not name ZSHORTVERSION, so it must still have run")
+        #expect(frontier.maxBuildID == 234_839_053)
+    }
+
+    /// The notification store read is bounded and abandons its thread, like the
+    /// TestFlight store read beside it. `Task.detached` is not a substitute — a
+    /// detached task still runs on the cooperative pool — and a timeout on the
+    /// caller's wait stops us waiting, not the thread being held.
+    ///
+    /// Mutation: drop the `bounded.run` wrapper and open inline — this fails.
+    /// Pinned in the source text because a hang is not a thing a unit case can wait
+    /// for.
+    @Test func theNotificationStoreReadIsBounded() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightAnnouncements.swift"),
+            encoding: .utf8)
+        #expect(source.contains("bounded.run(key: url.path, timeout: openTimeout)"))
+    }
+
+    /// The install recheck must not pay for a read whose answer it cannot use: it
+    /// deliberately carries a TestFlight inventory with no frontiers, so the witness
+    /// can only ever say "not behind".
+    ///
+    /// Mutation: delete the `announcements:` argument at that call site and let the
+    /// default fire — this fails.
+    @Test func theInstallRecheckPassesTheEmptyWitness() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("CLI/Sources/DuoKit/Install.swift"),
+            encoding: .utf8)
+        #expect(source.contains("TestFlightAnnouncements(announcements: [], accessible: false)"))
+        #expect(source.contains("announcements: recheckAnnouncements"))
+    }
+
     /// The frontier query has to run against TestFlight's actual two-table shape,
     /// not just against the injected seam — the join, the `MAX`, and both column
     /// names are only exercised here.

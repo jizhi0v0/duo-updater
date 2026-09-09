@@ -88,6 +88,24 @@ public struct TestFlightAnnouncements: Sendable {
     /// `TestFlightRefresh.bundleID`.
     static let notifyingApp = "com.apple.testflight"
 
+    /// How long to wait for the notification store before treating it as
+    /// unreachable. Same value and same reason as `TestFlightInventory.openTimeout`:
+    /// a local sqlite open is milliseconds, so anything near this is a gate, not
+    /// slow disk.
+    static let openTimeout: TimeInterval = 5
+
+    /// The bound, shared with nothing. This store is a **different container behind
+    /// a different permission** from TestFlight's own, so it is a separate way to be
+    /// denied and gets its own key space; one unreadable store must never suppress
+    /// reads of the other.
+    ///
+    /// ⚠️ Without this the read was unbounded, and `Task.detached` is not a
+    /// substitute — a detached task still runs on the cooperative pool, so a read
+    /// that never returns parks one of very few threads forever. A timeout on the
+    /// *caller's wait* does not help: it stops us waiting, not the thread being
+    /// held.
+    private static let bounded = BoundedBlockingWork(label: "notification store open")
+
     public init(databaseURL: URL? = nil) {
         let (rows, opened) = Self.read(at: databaseURL ?? Self.defaultDatabaseURL)
         self.announcements = rows
@@ -133,6 +151,16 @@ public struct TestFlightAnnouncements: Sendable {
 
     private static func read(at url: URL) -> ([Announcement], Bool) {
         guard FileManager.default.fileExists(atPath: url.path) else { return ([], false) }
+        // nil covers both give-up modes — this open timed out, or an earlier one for
+        // this path is still stranded — and both mean the same to the caller: we
+        // never got in, so `accessible` is false rather than "read it, nothing there".
+        return bounded.run(key: url.path, timeout: openTimeout) {
+            openAndRead(at: url)
+        } ?? ([], false)
+    }
+
+    /// The actual read. Only ever called from `read(at:)`'s worker thread.
+    private static func openAndRead(at url: URL) -> ([Announcement], Bool) {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)

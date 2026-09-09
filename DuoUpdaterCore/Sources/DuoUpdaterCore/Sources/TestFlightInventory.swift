@@ -408,7 +408,12 @@ public struct TestFlightInventory: Sendable {
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed")
-        return ([], [], [], [:], true)  // we opened it; the schema just didn't match
+        // Still ask for the frontier. Its two columns live in different tables from
+        // the ones above, so a schema that breaks the row queries does not imply this
+        // one cannot prepare — and the whole reason the frontier got its own query is
+        // that each signal fails on its own. Returning here without trying made the
+        // implication run backwards.
+        return ([], [], [], readFrontiers(db), true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.

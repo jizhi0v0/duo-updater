@@ -795,8 +795,12 @@ public actor AppStoreAXInstaller {
                         Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after quit+foreground (app still running=\(bundleID.map { Self.isRunning($0) } ?? false))")
                     }
                 } else {
-                    let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
-                    switch Self.classifyOwnSheet(sawProgress: sawProgress, bundleID: bundleID) {
+                    // One LaunchServices lookup, and the id travels with the answer: the
+                    // disposition below and the log line in its last arm are then talking
+                    // about the same instant. Two separate `isRunning` reads could disagree
+                    // — the app quitting mid-poll is the normal case this branch exists for.
+                    let runningBundleID = bundleID.flatMap { Self.isRunning($0) ? $0 : nil }
+                    switch Self.classifyOwnSheet(sawProgress: sawProgress, runningBundleID: runningBundleID) {
                     case .downloadFinishedAppStillOpen(let bundleID):
                         // Download finished, app still open → App Store's "Close this app to
                         // update" sheet. Gate it behind the user's Relaunch tap, then finish.
@@ -897,7 +901,7 @@ public actor AppStoreAXInstaller {
                         // grace and still bails.
                         sheetTicks += 1
                         if sheetTicks == 1 {
-                            Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(stillOpen)) — waiting to see if a fast delta's progress lands")
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(runningBundleID != nil)) — waiting to see if a fast delta's progress lands")
                         }
                         if sheetTicks >= 8 {  // ~3.2s — well past the ~0.5s a real download takes to report progress
                             Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — no download after ~3s, bailing without pressing")
@@ -1192,18 +1196,25 @@ public actor AppStoreAXInstaller {
         case possiblePurchaseConfirmation
     }
 
-    /// Takes `bundleID` rather than a pre-computed `appRunning: Bool` so the "app is
-    /// running" fact and the id needed to act on it can never separate: the caller used
-    /// to compute `stillOpen` itself and hand over only the bool, which is how
-    /// `.downloadFinishedAppStillOpen`'s call site ended up re-deriving "the id must be
-    /// non-nil here" from that bool via a force-unwrap, backed only by a comment
-    /// explaining why it couldn't fail. `guard let bundleID` here makes the same fact a
-    /// compiler-checked binding instead — the disposition simply cannot be constructed
-    /// without one.
-    static func classifyOwnSheet(sawProgress: Bool, bundleID: String?) -> OwnSheetDisposition {
+    /// Takes the id **only when the caller has already confirmed it is running** —
+    /// `nil` means "no id, or not running", the two cases that need the same answer
+    /// here. That keeps the "app is running" fact and the id needed to act on it from
+    /// ever separating: the caller used to compute a `stillOpen` bool and hand over only
+    /// that, which is how `.downloadFinishedAppStillOpen`'s call site ended up
+    /// re-deriving "the id must be non-nil here" via a force-unwrap backed by a comment.
+    /// Carrying the id makes it a compiler-checked binding instead — the disposition
+    /// cannot be constructed without one.
+    ///
+    /// Deliberately **pure**, like `classifySheet`, `swapWatchdog` and
+    /// `exhaustedBudgetError` beside it: an earlier revision took `bundleID: String?`
+    /// and called `isRunning` itself, which bought the same compiler guarantee but made
+    /// this the one decision function in the file that reads global process state — and
+    /// left its unit tests asserting against whatever happened to be running on the test
+    /// host (Finder), a dependency that is invisible until some runner disagrees.
+    static func classifyOwnSheet(sawProgress: Bool, runningBundleID: String?) -> OwnSheetDisposition {
         guard sawProgress else { return .possiblePurchaseConfirmation }
-        guard let bundleID, isRunning(bundleID) else { return .appAlreadyQuitNothingToPress }
-        return .downloadFinishedAppStillOpen(bundleID: bundleID)
+        guard let runningBundleID else { return .appAlreadyQuitNothingToPress }
+        return .downloadFinishedAppStillOpen(bundleID: runningBundleID)
     }
 
     /// One poll of the swap watchdog, as a pure step so the rules that matter are

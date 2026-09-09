@@ -2082,11 +2082,22 @@ final class AppListModel {
         // again (see `resolvedGitHubToken`).
         let token = await githubToken
         resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, token: token)
+        // Second witness for TestFlight rows, read off-main and bounded. It lives in
+        // Notification Center's container — a different store behind a different
+        // permission from TestFlight's own — so it is a separate way to be denied,
+        // and nil here simply turns the witness off and leaves every verdict as it
+        // was. Bounded for the same reason the TestFlight read above is: a read that
+        // has not returned is a prompt that is still up, and the refresh must not
+        // wait on it.
+        let announcements = await Self.firstResult(
+            of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+            within: .seconds(2))
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
+            announcements: announcements,
             channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
@@ -6053,6 +6064,10 @@ final class AppListModel {
         // this replaced. The checker drops the memo for exactly the array it
         // is about to check — `fresh`, passed once — so the invalidated set and
         // the checked set can no longer drift apart.
+        // No `announcements:` here on purpose, for the same reason `testflight` is
+        // the empty sentinel three lines up: this path is deliberately TestFlight-free
+        // so a post-install recheck never waits on that container's gate. The next
+        // full refresh re-applies both.
         let checker = UpdateChecker(
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,

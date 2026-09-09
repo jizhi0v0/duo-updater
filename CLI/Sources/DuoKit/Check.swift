@@ -62,12 +62,20 @@ public enum Check {
             // finished. Measured 6.0s here against 14.0s wall clock, so saying
             // "took" would be wrong by more than half.
             let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
-            return String(format: "duo: TestFlight refreshed its data (launched in the background; new data landed after %.1fs)", seconds)
+            return String(format: "duo: TestFlight refreshed its data (new data landed after %.1fs)", seconds)
         case .launchedWithoutChange:
             return "duo: launched TestFlight in the background; its data did not change"
-        case .alreadyRunning:
-            return "duo: TestFlight is already running — a background launch would not refresh it. "
-                 + "Switch to TestFlight yourself if you want its data reloaded."
+        case .activatedWithoutChange:
+            return "duo: nudged the running TestFlight; its data did not change"
+        case .activationUnavailable:
+            return "duo: TestFlight is already running, and this macOS does not let us reload it "
+                 + "without taking the screen. Switch to TestFlight yourself if you want its data reloaded."
+        case .refusedSecureInput:
+            return "duo: not touching TestFlight while a password field is active — try again in a moment"
+        case .alreadyFrontmost:
+            return "duo: TestFlight is open in front of you — its own window is more current than anything we can reload"
+        case .activationFailed(let code):
+            return "duo: could not reload the running TestFlight (code \(code))"
         case .notInstalled:
             return "duo: TestFlight is not installed, so there is nothing to refresh"
         case .launchFailed:

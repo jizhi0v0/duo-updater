@@ -4259,28 +4259,14 @@ final class AppListModel {
             kill.cancel()
             guard let text = String(data: data, encoding: .utf8) else { return [:] }
 
-            var map: [String: String] = [:]
-            var current: String?
-            for line in text.split(separator: "\n") {
-                if let path = quotedValue(after: "bundle path", in: line) {
-                    // Resolve symlinks to line up with how `AppScanner` records
-                    // `InstalledApp.path` (and `computeRestartInfo`'s lookup key).
-                    current = UpdatePolicy.runtimeBundlePath(URL(fileURLWithPath: path))
-                } else if let cur = current, map[cur] == nil,
-                          let version = quotedValue(after: "Version", in: line) {
-                    map[cur] = version
-                }
-            }
-            return map
+            // What the text MEANS — including skipping `(exited-with-subordinates)`
+            // tombstones LaunchServices keeps for an app whose own process quit but
+            // left a spawned helper/daemon running (#473) — is a pure function in
+            // Core (`LSAppInfoParser`), so it can be asserted against fixed text
+            // instead of a live process list. This closure only owns invoking the
+            // tool and its timeout/kill backstop.
+            return LSAppInfoParser.runningBuildVersions(from: text)
         }.value
-    }
-
-    /// Extract the value of a `key="value"` pair from a line.
-    nonisolated private static func quotedValue(after key: String, in line: Substring) -> String? {
-        guard let start = line.range(of: key + "=\"") else { return nil }
-        let rest = line[start.upperBound...]
-        guard let end = rest.firstIndex(of: "\"") else { return nil }
-        return String(rest[..<end])
     }
 
     /// Take down a note one of the restart paths wrote — and only if it is still

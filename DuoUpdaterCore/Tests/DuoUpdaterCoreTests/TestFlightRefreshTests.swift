@@ -16,10 +16,15 @@ struct TestFlightRefreshTests {
     private final class Spy: @unchecked Sendable {
         private let lock = NSLock()
         private(set) var launches: [URL] = []
+        private(set) var activations = 0
         private(set) var sleeps = 0
         func launched(_ url: URL) {
             lock.lock(); defer { lock.unlock() }
             launches.append(url)
+        }
+        func activated() {
+            lock.lock(); defer { lock.unlock() }
+            activations += 1
         }
         func slept() {
             lock.lock(); defer { lock.unlock() }
@@ -50,6 +55,7 @@ struct TestFlightRefreshTests {
         installed: Bool = true,
         running: Bool = false,
         launchSucceeds: Bool = true,
+        activation: SilentActivation.Outcome = .activated(heldFor: .milliseconds(120)),
         stamp: Stamp = Stamp(),
         spy: Spy
     ) -> TestFlightRefresh {
@@ -57,22 +63,128 @@ struct TestFlightRefreshTests {
             locate: { installed ? bundle : nil },
             isRunning: { running },
             launch: { url in spy.launched(url); return launchSucceeds },
+            activate: { spy.activated(); return activation },
             storeStamp: { stamp.read() },
             sleep: { _ in spy.slept() })
     }
 
-    /// Measured: with TestFlight already running, a background launch delivers the
-    /// request and the store is still unchanged two minutes later. So this is a
-    /// refusal, and it must come BEFORE the launch — otherwise the caller is told a
-    /// refresh happened, having only started a process.
+    /// Measured four times: with TestFlight already running, a background launch
+    /// delivers the request and the store is still unchanged two minutes later. So
+    /// the running case takes the activation route instead — and it must still
+    /// launch nothing, or the caller is told a refresh happened having only started
+    /// a second process.
     ///
-    /// Mutation: move the `isRunning` guard below `launch(bundle)`, or drop it —
+    /// Mutation: swap the two branches of `if isRunning()`, or drop the check —
     /// `launches` becomes non-empty and this fails.
-    @Test func aRunningTestFlightIsRefusedWithoutLaunchingAnything() async {
+    @Test func aRunningTestFlightIsActivatedAndNeverLaunched() async {
         let spy = Spy()
-        let outcome = await Self.refresher(running: true, spy: spy).run()
-        #expect(outcome == .alreadyRunning)
+        let refresher = Self.refresher(running: true, stamp: Stamp(changesAt: [3]), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30))
+        #expect(outcome == .refreshed(after: .seconds(1)))
         #expect(spy.launches.isEmpty)
+        #expect(spy.activations == 1)
+    }
+
+    /// An activation that changed nothing is reported as its own case: "we nudged
+    /// the running app and its data did not move" is a different sentence from
+    /// "we started it from cold and its data did not move", and the CLI prints
+    /// both.
+    ///
+    /// Mutation: return `.launchedWithoutChange` for both routes — this fails.
+    @Test func anActivationThatChangesNothingIsNotCalledALaunch() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(running: true, spy: spy).run(deadline: .seconds(2))
+        #expect(outcome == .activatedWithoutChange)
+        #expect(spy.launches.isEmpty)
+    }
+
+    /// A macOS without the SkyLight symbols cannot serve a running TestFlight, and
+    /// says so rather than launching a second copy behind the user's back.
+    ///
+    /// Mutation: fall through to `launch(bundle)` on `.unavailable` — `launches`
+    /// becomes non-empty and this fails.
+    @Test func aRunningTestFlightIsNotLaunchedWhenActivationIsUnavailable() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(running: true, activation: .unavailable, spy: spy).run()
+        #expect(outcome == .activationUnavailable)
+        #expect(spy.launches.isEmpty)
+        #expect(spy.sleeps == 0)
+    }
+
+    /// A password field owning the keyboard is surfaced, not worked around.
+    ///
+    /// Mutation: map `.refusedSecureInput` onto `.activationUnavailable` — the
+    /// user is then told this Mac cannot do it at all, which is false and would
+    /// stop them retrying a second later. This fails.
+    @Test func aSecureInputRefusalReachesTheCaller() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(running: true, activation: .refusedSecureInput, spy: spy).run()
+        #expect(outcome == .refusedSecureInput)
+        #expect(spy.launches.isEmpty)
+    }
+
+    /// The user is looking at TestFlight right now. Nothing is launched, nothing is
+    /// activated a second time, and the CLI says so rather than reporting a refresh
+    /// that did not happen — measured: zero network connections in this state.
+    ///
+    /// Mutation: map `.alreadyActive` onto `.activatedWithoutChange` — the user is
+    /// then told their data "did not change" when in fact nothing was ever asked.
+    /// This fails.
+    @Test func aFrontmostTestFlightIsReportedNotNudged() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(running: true, activation: .alreadyActive, spy: spy).run()
+        #expect(outcome == .alreadyFrontmost)
+        #expect(spy.launches.isEmpty)
+        #expect(spy.sleeps == 0)
+    }
+
+    /// A focus that could not be put back is told to the user at once, instead of
+    /// after a 30-second wait for a version number. A window they did not raise is
+    /// the more urgent fact, and the refresh that did happen is on disk for the next
+    /// check regardless.
+    ///
+    /// Mutation: fall through to the wait (`launched = false`) — the outcome becomes
+    /// a refresh verdict, `sleeps` stops being 0, and this fails on both.
+    @Test func aFocusThatCouldNotBeRestoredIsReportedImmediately() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            running: true, activation: .frontNotRestored(code: -600),
+            stamp: Stamp(changesAt: [3]), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30))
+        #expect(outcome == .focusNotRestored(code: -600))
+        #expect(spy.sleeps == 0)
+    }
+
+    /// The production wiring must map "no pid" to nil, not forward -1.
+    /// `NSRunningApplication` documents that applications without a pid return -1 and
+    /// that the object outlives the process — and TestFlight is automatically
+    /// terminated constantly, so this is the common path, not a corner.
+    ///
+    /// Mutation: drop the `pid > 0` check — the `.notRunning` fallback becomes
+    /// unreachable and a quit-during-the-race is reported as `GetProcessForPID(-1)`
+    /// failing. Pinned in the source text because the closure is a live effect.
+    @Test func theProductionWiringTreatsMinusOneAsNoPid() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightRefresh.swift"),
+            encoding: .utf8)
+        #expect(source.contains("pid > 0 else { return nil }"))
+    }
+
+    /// TestFlight quitting between `isRunning()` and the activation is a race, not
+    /// a failure: the cold route serves it.
+    ///
+    /// Mutation: return `.activationFailed` on `.notRunning` — a refresh that
+    /// would have worked is reported as broken. This fails.
+    @Test func anAppThatQuitsDuringTheRaceFallsBackToTheColdLaunch() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            running: true, activation: .notRunning, stamp: Stamp(changesAt: [3]), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30))
+        #expect(outcome == .refreshed(after: .seconds(1)))
+        #expect(spy.launches == [Self.bundle])
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when
@@ -153,14 +265,20 @@ struct TestFlightRefreshTests {
         #expect(spy.sleeps == 4)
     }
 
-    /// The launch must be a background one. This is the whole reason the feature is
-    /// acceptable at all — a foreground activation refreshes in 3s but takes the
-    /// user's screen, and doing that from a background check is what #491 refuses.
+    /// The launch must be background AND hidden. Both halves were measured, and
+    /// each covers a different way of getting in the user's way:
     ///
-    /// Mutation: change the default `launch` to `AppRestarter.launchApp($0)` (which
-    /// defaults to `activates: true`) — the compiler is happy and this case is the
-    /// only thing that objects.
-    @Test func theProductionLaunchDoesNotActivate() async {
+    ///   * `activates: false` — a foreground activation refreshes in 3s but takes
+    ///     the screen, which is what #491 refuses to do from a background check.
+    ///   * `hides: true` — without it the launch still puts a real window on screen
+    ///     behind the user's work (measured 2026-09-09 with
+    ///     `CGWindowListCopyWindowInfo`: layer 0, alpha 1, 1010×717, and visible in
+    ///     Mission Control). With it: zero on-screen windows, same sync.
+    ///
+    /// Mutation: drop either argument — `AppRestarter.launchApp($0)` defaults to
+    /// `activates: true` and `hides: false`, the compiler stays happy, and this case
+    /// is the only thing that objects.
+    @Test func theProductionLaunchIsBackgroundAndHidden() async {
         // The default closure is opaque, so this pins the intent where it is
         // written rather than the closure itself: `activates` must be false.
         let source = try? String(
@@ -171,6 +289,6 @@ struct TestFlightRefreshTests {
                 .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightRefresh.swift"),
             encoding: .utf8)
         let text = try! #require(source)
-        #expect(text.contains("AppRestarter.launchApp($0, activates: false)"))
+        #expect(text.contains("AppRestarter.launchApp($0, activates: false, hides: true)"))
     }
 }

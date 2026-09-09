@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
 
-/// Asks TestFlight to refresh the local store `TestFlightInventory` reads, by
-/// launching it **into the background** while it is not running.
+/// Asks TestFlight to refresh the local store `TestFlightInventory` reads.
 ///
 /// Why this exists at all: that store is written by TestFlight.app and by nothing
 /// else, and the background activity that would refresh it (`com.apple.appstored.
@@ -11,47 +10,59 @@ import Foundation
 /// 2026-09-09, every 30–60s for a whole day, while a build sat available for
 /// hours and the store never learned it (#478).
 ///
-/// Measured 2026-09-09, three trials, two machines:
+/// TestFlight goes and asks the server on exactly two occasions, and this serves
+/// whichever one applies:
 ///
-/// | trial | action | result |
-/// |---|---|---|
-/// | cold + `-g` + deep link | quit, then open `itms-beta://…/v1/app/<adamId>` | store written in **11s**, foreground untouched |
-/// | cold + `-g`, no URL | quit, then just launch the bundle | store written in **9s** |
-/// | cold + `-g`, over ssh, second Mac | same | **8s**, 3 rows → 111 rows |
+///   * **not running** — a hidden background launch. Measured 2026-09-09 across
+///     three trials on two Macs: store written in 11s, 9s, and 8s (3 rows → 111
+///     rows on the second Mac), foreground untouched throughout.
+///   * **already running** — a silent activation, see ``SilentActivation``. A
+///     background launch does *nothing* for a running TestFlight: the request is
+///     delivered, and two minutes later the store still has not learned the build
+///     that was already published. Measured four times.
 ///
-/// and the two negatives that fix the shape of the rule:
+/// The deep link is not needed (the second trial used no URL at all), so this does
+/// not use one: with no URL there is no `/join/<code>` shape nearby to reach for by
+/// mistake, and joining a beta is an account-level side effect.
 ///
-///   * **already running + background launch does nothing.** The URL is delivered,
-///     one request goes out, and two minutes later the store still has not learned
-///     the build that was already published. That is why ``Outcome/alreadyRunning``
-///     is a refusal rather than a launch: there is nothing this can do for a
-///     running TestFlight except steal the user's focus.
-///   * **already running + foreground activation works in 3s** — and is exactly the
-///     thing we will not do behind someone's back.
-///
-/// The deep link is not needed (trial 2), so this does not use one: with no URL
-/// there is no `/join/<code>` shape nearby to reach for by mistake, and joining a
-/// beta is an account-level side effect.
-///
-/// ⚠️ **This is an explicit, user-initiated action.** It starts an app the user did
-/// not start — one that creates a window (measured: `count windows` = 1, behind
-/// everything else) and lingers until macOS's automatic termination collects it.
-/// Do not put it on a periodic check: the system deliberately declines to do this
-/// work while the device is in use, and doing it for the system on a timer would
-/// be overriding that decision on the user's behalf.
+/// ⚠️ **This is an explicit, user-initiated action.** The launch path starts an app
+/// the user did not start, and that app lingers until macOS's automatic termination
+/// collects it — measured 6–10 minutes typically, once 47. The activation path
+/// takes the front process for ``SilentActivation/defaultHold``. Do not put either
+/// on a periodic check: the system deliberately declines to do this work while the
+/// device is in use, and doing it for the system on a timer would be overriding
+/// that decision on the user's behalf.
 public struct TestFlightRefresh: Sendable {
 
     /// What one attempt did. Every case is a thing the caller may want to say out
     /// loud — nothing here is a silent no-op.
     public enum Outcome: Sendable, Equatable {
-        /// Launched, and the store changed within the deadline.
+        /// The store changed within the deadline.
         case refreshed(after: Duration)
-        /// Launched, but the store never changed. Usually "already current"; it can
-        /// also be a sync that did not happen, and this deliberately does not claim
-        /// to know which — the store carries no "last synced" of its own.
+        /// Launched from cold, but the store never changed. Usually "already
+        /// current"; it can also be a sync that did not happen, and this
+        /// deliberately does not claim to know which — the store carries no "last
+        /// synced" of its own.
         case launchedWithoutChange
-        /// TestFlight was already running, so a background launch would do nothing.
-        case alreadyRunning
+        /// Activated a running instance, but the store never changed. Same
+        /// ambiguity as ``launchedWithoutChange``, different route.
+        case activatedWithoutChange
+        /// TestFlight is running, and this macOS does not expose the symbols that
+        /// would let us reach it without stealing the screen.
+        case activationUnavailable
+        /// TestFlight is running, but a password field owns the keyboard.
+        case refusedSecureInput
+        /// TestFlight is the app the user is looking at right now. Nothing to do:
+        /// an already-active app cannot be made to become active, and its own
+        /// window is a better view of this data than anything we could print.
+        case alreadyFrontmost
+        /// TestFlight is running and the activation itself was refused.
+        case activationFailed(code: Int32)
+        /// The activation landed but the user's focus could not be put back, twice.
+        /// Returned **instead of** waiting for the store: a window the user did not
+        /// raise is more urgent than a version number, and the refresh that did
+        /// happen will be on disk for the next check either way.
+        case focusNotRestored(code: Int32)
         /// No TestFlight on this Mac.
         case notInstalled
         /// LaunchServices refused or timed out.
@@ -61,9 +72,9 @@ public struct TestFlightRefresh: Sendable {
     /// Bundle id of the app that owns the store.
     public static let bundleID = "com.apple.TestFlight"
 
-    /// How long to wait for the store to change after the launch. Generous against
-    /// the measured 8–11s, because those were three warm-ish samples on two Macs
-    /// and the work is a network round trip.
+    /// How long to wait for the store to change. Generous against the measured
+    /// 8–11s, because those were three warm-ish samples on two Macs and the work is
+    /// a network round trip.
     public static let defaultDeadline: Duration = .seconds(30)
 
     /// How often to look at the store while waiting.
@@ -93,6 +104,7 @@ public struct TestFlightRefresh: Sendable {
     let locate: @Sendable () -> URL?
     let isRunning: @Sendable () -> Bool
     let launch: @Sendable (URL) async -> Bool
+    let activate: @Sendable () async -> SilentActivation.Outcome
     /// A value that changes when the store is written. Production passes the
     /// write-ahead log's modification date; the main file's is not enough on its
     /// own, since SQLite in WAL mode leaves it alone for long stretches.
@@ -102,13 +114,15 @@ public struct TestFlightRefresh: Sendable {
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
         isRunning: @escaping @Sendable () -> Bool = Self.testFlightIsRunning,
-        launch: @escaping @Sendable (URL) async -> Bool = { await AppRestarter.launchApp($0, activates: false) },
+        launch: @escaping @Sendable (URL) async -> Bool = { await AppRestarter.launchApp($0, activates: false, hides: true) },
+        activate: @escaping @Sendable () async -> SilentActivation.Outcome = Self.activateTestFlight,
         storeStamp: @escaping @Sendable () -> Date? = Self.storeStamp,
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.locate = locate
         self.isRunning = isRunning
         self.launch = launch
+        self.activate = activate
         self.storeStamp = storeStamp
         self.sleep = sleep
     }
@@ -121,13 +135,35 @@ public struct TestFlightRefresh: Sendable {
         settle: Duration = settleInterval
     ) async -> Outcome {
         guard let bundle = locate() else { return .notInstalled }
-        // Checked BEFORE the launch, not after: this is the case the measurement
-        // says we cannot serve, and launching anyway would leave the caller
-        // believing a refresh happened.
-        guard !isRunning() else { return .alreadyRunning }
 
+        // Read the store BEFORE either route touches anything, so the wait below
+        // compares against the state that predates our own writes.
         let before = storeStamp()
-        guard await launch(bundle) else { return .launchFailed }
+        let launched: Bool
+        if isRunning() {
+            switch await activate() {
+            case .activated:
+                launched = false
+            case .frontNotRestored(let code):
+                return .focusNotRestored(code: code)
+            case .unavailable:
+                return .activationUnavailable
+            case .refusedSecureInput:
+                return .refusedSecureInput
+            case .alreadyActive:
+                return .alreadyFrontmost
+            case .failed(let code):
+                return .activationFailed(code: code)
+            case .notRunning:
+                // It quit between the check and the activation. Serve the cold
+                // route rather than reporting a race as a failure.
+                guard await launch(bundle) else { return .launchFailed }
+                launched = true
+            }
+        } else {
+            guard await launch(bundle) else { return .launchFailed }
+            launched = true
+        }
 
         var waited: Duration = .zero
         var seen = before
@@ -152,7 +188,7 @@ public struct TestFlightRefresh: Sendable {
         // Ran out of time. It still changed, so say so rather than pretending
         // nothing happened; the caller gets the last moment we saw it move.
         if let lastChange { return .refreshed(after: lastChange) }
-        return .launchedWithoutChange
+        return launched ? .launchedWithoutChange : .activatedWithoutChange
     }
 
     // MARK: - Live effects
@@ -173,6 +209,35 @@ public struct TestFlightRefresh: Sendable {
     /// behind it.
     public static let testFlightIsRunning: @Sendable () -> Bool = {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+    }
+
+    /// The activation route, bound to TestFlight.
+    ///
+    /// `isHidden` and `setHidden` are read and written through a fresh lookup each
+    /// time rather than captured: `NSRunningApplication` is a snapshot, and the
+    /// whole point of the hidden-state restore is that it reflects what is true
+    /// right before the front changes.
+    public static let activateTestFlight: @Sendable () async -> SilentActivation.Outcome = {
+        await SilentActivation(
+            runningPID: {
+                // -1 means "no pid", not "pid minus one": NSRunningApplication keeps
+                // returning a valid object after the app exits, and TestFlight is
+                // automatically terminated all the time. Forwarding it would make the
+                // quit-during-the-race branch unreachable and report an error where a
+                // cold launch is the right answer.
+                guard let pid = runningTestFlight()?.processIdentifier, pid > 0 else { return nil }
+                return pid
+            },
+            isActive: { runningTestFlight()?.isActive ?? false },
+            isHidden: { runningTestFlight()?.isHidden ?? false },
+            setHidden: { hidden in if hidden { _ = runningTestFlight()?.hide() } }
+        ).run()
+    }
+
+    /// A fresh lookup every time — `NSRunningApplication` is a snapshot, and a
+    /// captured one would answer about the moment the closure was built.
+    static func runningTestFlight() -> NSRunningApplication? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
     }
 
     /// Modification date of the store's write-ahead log.

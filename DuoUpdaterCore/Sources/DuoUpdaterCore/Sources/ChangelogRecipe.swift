@@ -1608,6 +1608,48 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20,
             structuredFormat: .gitHubReleases),
 
+        // Rockxy — GitHub releases, because the appcast holds exactly ONE item.
+        //
+        // `raw.githubusercontent.com/RockxyApp/Rockxy/main/appcast.xml` is the
+        // address the bundle itself declares in `SUFeedURL`, so
+        // `SparkleAppcastSource` already answers for detection and needs no recipe.
+        // What it cannot do is history: the vendor rewrites that file in place, so
+        // it carries the newest release and nothing else (fetched 2026-09-09: 1
+        // `<item>`, 2225 bytes). Its `<description>` is real inline HTML, which the
+        // pane WOULD render — but as a single entry, and the version rail then has
+        // one rung no matter how many builds the user skipped.
+        //
+        // github.com/RockxyApp/Rockxy carries the same notes plus the history, and
+        // the tag is the marketing version verbatim (`v0.38.2` → `0.38.2` via
+        // `stripLeadingV`), which is what `CFBundleShortVersionString` reports.
+        // Measured over the live 40-release page 2026-09-09: 40/40 parse, 0
+        // prereleases, 0 drafts, 0 empty bodies.
+        //
+        // No `skipSections`. Every body opens with a `> **Distribution notice:**`
+        // blockquote about the binary EULA, and the strict pass already drops it —
+        // it is not a top-level `-`/`*`/`+` bullet. Verified against all 40 bodies:
+        // the phrase appears in zero extracted items. Naming it in `skipSections`
+        // would be a no-op anyway, since it sits under no heading of its own.
+        //
+        // ⚠️ What this costs on the FAILURE path, which is unique to this recipe.
+        // `ChangelogPane.fallback` reaches for `changelogURL` BEFORE
+        // `releaseNotesHTML`, so a fetch that fails (`api.github.com` is
+        // unauthenticated at 60/hour/IP and ~70 repos here share that budget) now
+        // web-views the tag page where the pane used to render this appcast's
+        // inline notes natively. Unlike Waku (appcast notes are unparseable raw
+        // markdown) and Shotbase (appcast carries none), Rockxy's appcast has real
+        // inline notes to lose. Accepted rather than reordered: for THIS app the
+        // fallback URL is a single tag page, so the inline notes would be strictly
+        // better — but for a recipe whose `changelogURL` is a full changelog page
+        // the current order is the right one, so the fix is not a local swap.
+        ChangelogRecipe(
+            bundleID: "com.amunx.rockxy.community",
+            source: URL(
+                string: "https://api.github.com/repos/RockxyApp/Rockxy/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases),
+
         // BetterDisplay — the same GitHub release bodies the vendor's own page was
         // already showing, rendered natively instead of in a web view.
         //

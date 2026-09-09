@@ -211,7 +211,27 @@ public struct UpdateChecker: Sendable {
         // track); read TestFlight's cached latest build instead. The action stays
         // "open TestFlight".
         if app.isTestFlightApp {
-            if let latest = testflight?.latest(forBundleID: app.bundleID) {
+            // Which platform's rows may answer for this bundle is decided HERE, not
+            // inside the inventory, and the two are mutually exclusive on purpose.
+            // A wrapped iPhone/iPad bundle's builds are filed under the iOS
+            // platform and it can never install a mac build; a native Mac app can
+            // hold iOS rows of its own and must never be offered one. Measured
+            // 2026-09-09 on one machine: Paste is on the mac track at 29808607
+            // with an iOS track at 29814462, and Claudo — a wrapped bundle —
+            // had 0.3.384 (1300) installed with 1301 offered, both iOS rows, which
+            // the mac-only lookup could not see at all (#476).
+            //
+            // ⚠️ This also lets a wrapped bundle reach `.upToDate`, which it could
+            // not before: with no mac rows it always landed on `.testFlightManaged`
+            // and claimed nothing. That immunity was an accident of the bug, not a
+            // safeguard — but it did mean these rows could never inherit the
+            // staleness this database has (measured six weeks old on one machine
+            // while pushes kept arriving). What closes that is the freshness gate
+            // in #478, for every TestFlight row at once, not a special case here.
+            let known = app.isiOSAppOnMac
+                ? testflight?.latestIOS(forBundleID: app.bundleID)
+                : testflight?.latest(forBundleID: app.bundleID)
+            if let latest = known {
                 let installedBuild = app.buildVersion ?? ""
                 // An installed build NEWER than anything the database holds says
                 // something about the DATABASE, not about the app: whatever else is

@@ -483,4 +483,102 @@ struct WrappedIOSTestFlightTests {
             #expect(inventory.latest(forBundleID: "com.example.other") == nil)
         }
     }
+
+    // MARK: - Which platform's rows may answer (#476)
+
+    /// A wrapped bundle's builds are filed under the iOS platform, so the mac-only
+    /// lookup returned nil for it and the row went to `.testFlightManaged` — never
+    /// an update, however many newer builds TestFlight was offering.
+    ///
+    /// The fixture is the measured one: Claudo on 2026-09-09 had 0.3.384 (1300)
+    /// installed on this Mac with 1301 offered, both iOS rows, both in the local
+    /// database at the moment `duo` reported nothing.
+    ///
+    /// Mutation: put `testflight?.latest(` back in place of the `isiOSAppOnMac`
+    /// branch in `UpdateChecker` — this becomes `.testFlightManaged` and fails.
+    @Test func aWrappedBundleIsOfferedItsNewerIOSBuild() async throws {
+        // The inventory reads the database eagerly, so it outlives the fixture
+        // directory — which is what lets the async check run outside the
+        // (non-async) temporary-root helper.
+        let inventory = try Self.withTemporaryRoot { root -> TestFlightInventory in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1300",
+                 platform: 1, installed: 1),
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1301",
+                 platform: 1, installed: 0),
+            ], in: root)
+            return TestFlightInventory(databaseURL: db)
+        }
+        #expect(inventory.accessible, "fixture database was not opened")
+
+        let app = InstalledApp(
+            name: "ClaudeUsageApp", bundleID: "com.jizhi0v0.claude-usage",
+            shortVersion: "0.3.384", buildVersion: "1300",
+            path: URL(fileURLWithPath: "/Applications/ClaudeUsageApp.app"),
+            isMASApp: false, isiOSAppOnMac: true, isTestFlightApp: true,
+            sparkleFeedURL: nil)
+        let result = await UpdateChecker(sources: [], testflight: inventory).check(app)
+
+        #expect(result.remote?.sourceName == "TestFlight")
+        #expect(result.remote?.version == "1301")
+        guard case .updateAvailable(let latest) = result.status else {
+            Issue.record("expected an update, got \(result.status)")
+            return
+        }
+        // Marketing did not move, so the build disambiguates it.
+        #expect(latest == "0.3.384 (1301)")
+    }
+
+    /// The other half of the same split, and the reason it is a split rather than a
+    /// merge: a native Mac app that ALSO has an iOS track must keep answering from
+    /// the mac rows. Paste's measured shape on 2026-09-09 — mac 6.6.11 (29808607)
+    /// installed, iOS 7.0.0 (29814462) offered.
+    ///
+    /// Mutation: drop the `app.isiOSAppOnMac ?` condition and always ask
+    /// `latestIOS` — this row becomes `updateAvailable("7.0.0")`, an iPhone build
+    /// offered as a Mac update, and the case fails.
+    @Test func aNativeMacAppIsNeverOfferedItsIOSTrack() async throws {
+        let inventory = try Self.withTemporaryRoot { root -> TestFlightInventory in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.wiheads.paste", short: "6.6.11", build: "29808607",
+                 platform: 3, installed: 1),
+                (bundleID: "com.wiheads.paste", short: "7.0.0", build: "29814462",
+                 platform: 1, installed: 0),
+            ], in: root)
+            return TestFlightInventory(databaseURL: db)
+        }
+        #expect(inventory.accessible, "fixture database was not opened")
+
+        let app = InstalledApp(
+            name: "Paste", bundleID: "com.wiheads.paste",
+            shortVersion: "6.6.11", buildVersion: "29808607",
+            path: URL(fileURLWithPath: "/Applications/Paste.app"),
+            isMASApp: false, isiOSAppOnMac: false, isTestFlightApp: true,
+            sparkleFeedURL: nil)
+        let result = await UpdateChecker(sources: [], testflight: inventory).check(app)
+
+        #expect(result.status == .upToDate)
+        #expect(result.remote?.version == "29808607")
+    }
+
+    /// The new availability bucket must not leak into the membership one. An iOS
+    /// build the user merely has access to is offerable — and is still not evidence
+    /// that TestFlight put a copy on this machine, which is the question
+    /// `AppScanner` asks before tagging a bundle at all.
+    ///
+    /// Mutation: build `iosBuildsByBundleID` from the available rows instead of the
+    /// installed ones — the first expectation flips to true and this fails.
+    @Test func anOfferedIOSBuildIsNotEvidenceOfAnInstall() throws {
+        try Self.withTemporaryRoot { root in
+            let db = try Self.plantDatabase([
+                (bundleID: "com.example.app.ios", short: "1.1", build: "77",
+                 platform: 1, installed: 0),
+            ], in: root)
+            let inventory = TestFlightInventory(databaseURL: db)
+            #expect(inventory.accessible, "fixture database was not opened")
+            #expect(!inventory.hasInstalledIOSBuild(
+                bundleID: "com.example.app.ios", installedBuild: "77"))
+            #expect(inventory.latestIOS(forBundleID: "com.example.app.ios")?.latestBuild == "77")
+        }
+    }
 }

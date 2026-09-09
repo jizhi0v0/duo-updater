@@ -154,4 +154,37 @@ import Testing
         let map = LSAppInfoParser.runningBuildVersions(from: text)
         #expect(map["/Applications/Staged.app"] == "4.0")
     }
+
+    // MARK: - The marker's position within a record
+
+    /// Mutation this pins: committing the version the moment its line is read
+    /// (`map[cur] = version` inline, i.e. both the pre-review implementation and the
+    /// original pre-#473 one) — then the marker arrives too late and Ghost is recorded
+    /// as a live 1.0.0 build, which is #473 verbatim.
+    ///
+    /// Every record measured so far carries the marker on the SAME line as `Version`,
+    /// where a cursor-clearing guard would also have worked. This case covers the half
+    /// of the format we have no observation of: a marker that trails `Version` on a
+    /// later line. It is deliberately synthetic — `lsappinfo` has not been seen emitting
+    /// this shape, and the point is that the parser must not depend on it not doing so.
+    ///
+    /// The second entry is not decoration: it pins that cancelling a record does not
+    /// swallow the one that follows it, which is the way a hold-and-commit parser breaks
+    /// if the commit boundary is placed wrong.
+    @Test func aMarkerOnALaterLineStillCancelsTheRecord() {
+        let text = """
+         1) "Ghost" ASN:0x0-0x1:
+            bundleID="com.example.ghost"
+            bundle path="/Applications/Ghost.app"
+            pid = 999 token=[sess=100019 pid=999] type="UIElement" flavor=3 Version="1.0.0" fileType="APPL" Arch=ARM64 sandboxed
+            \(LSAppInfoParser.tombstoneMarker)
+         2) "Live" ASN:0x0-0x2:
+            bundleID="com.example.live"
+            bundle path="/Applications/Live.app"
+            pid = 1000 token=[sess=100019 pid=1000] type="UIElement" flavor=3 Version="2.0.0" fileType="APPL" Arch=ARM64 sandboxed
+        """
+        let map = LSAppInfoParser.runningBuildVersions(from: text)
+        #expect(map["/Applications/Ghost.app"] == nil)
+        #expect(map["/Applications/Live.app"] == "2.0.0")
+    }
 }

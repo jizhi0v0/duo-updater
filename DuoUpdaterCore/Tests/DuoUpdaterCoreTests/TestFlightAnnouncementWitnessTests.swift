@@ -96,6 +96,27 @@ struct TestFlightAnnouncementWitnessTests {
         #expect(!Self.announced([(42, 234_900_000)]).isBehind(nil))
     }
 
+    /// A withdrawn build keeps refusing until its notification ages out, and this
+    /// pins that rather than hiding it. The store's maximum *drops* back when a
+    /// build is expired or rolled back, while the announcement for the withdrawn one
+    /// stays in the window — measured at 5 records spanning three days.
+    ///
+    /// This is an accepted cost, not a bug being asserted: the alternative needs a
+    /// timestamp comparison the announcement does not carry, and the failure is a
+    /// refusal rather than a wrong update. It is a case so that changing it is a
+    /// decision someone makes on purpose — and because the refusal sticks:
+    /// `.testFlightManaged` is not in `UpdatePolicy.settledRowIDs`, so the row does
+    /// not settle for as long as this holds.
+    ///
+    /// Mutation: none — this asserts current behaviour. If a future change starts
+    /// ignoring aged-out announcements, this case is the one that must be updated,
+    /// and its failure is the reminder to update the doc comment with it.
+    @Test func aWithdrawnBuildKeepsRefusingUntilItsNotificationAgesOut() {
+        // Announced 234900000, then pulled; the store falls back to 234839053.
+        let witness = Self.announced([(42, 234_900_000)])
+        #expect(witness.isBehind(Self.frontier(adam: 42, max: 234_839_053)))
+    }
+
     // MARK: - What the checker does with it
 
     private static func app(build: String) -> InstalledApp {

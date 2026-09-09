@@ -23,11 +23,31 @@ import SQLite3
 /// ⚠️ **That comparison assumes build ids increase over time, and the sample is
 /// small.** Sorted by the notification store's own `delivered_date`, the five
 /// announcements are strictly increasing (233627973, 234026569, 234414114,
-/// 234696688, 234839053 across 09-07 to 09-09), and the ids look like one global
-/// TestFlight sequence rather than a per-app counter. **n=5** — enough to prefer
-/// this rule over membership, not enough to call it a documented property. If it is
-/// wrong, the cost is a refusal we should not have made: the row says "TestFlight
-/// manages this" instead of "up to date". It can never invent an update.
+/// 234696688, 234839053 across 09-07 to 09-09). **n=5** — enough to prefer this
+/// rule over membership, not enough to call it a documented property.
+///
+/// ⚠️ **Do not reach for `CFBundleVersion` ordering as extra support for it.** It
+/// looks like it should corroborate and it does not: measured 2026-09-10 over the
+/// 14 comparable same-app pairs in this store, **2 disagree** — one app has
+/// `CFBundleVersion` 12 at build id 227551062 and `CFBundleVersion` 2 at
+/// 227941721. That is the two-build-namespaces problem this repository already
+/// documents (mac and iOS number independently), not a counter-example to the
+/// sequence itself, but it means the proxy is unusable.
+///
+/// If the monotonicity assumption is wrong, the cost is a refusal we should not
+/// have made: the row says "TestFlight manages this" instead of "up to date". It
+/// can never invent an update.
+///
+/// ⚠️ **A refusal is not free, and one shape of it can stick.** `.testFlightManaged`
+/// is not in `UpdatePolicy.settledRowIDs`, so a refused row never settles and any
+/// in-flight install note pinned to it is never retracted. The way to get stuck
+/// there is a build that is expired or rolled back: the store's maximum *drops*
+/// back to the earlier build while the announcement for the withdrawn one stays in
+/// the notification window — measured at 5 records spanning three days — so the
+/// comparison stays true for as long as that record lives. The neighbouring gate
+/// argues expiry needs no special case because its discriminator is the disk; that
+/// argument does **not** carry over here, where the discriminator is a notification
+/// that outlives what it announced.
 ///
 /// **Why a second witness is needed at all.** The store is refreshed by a Duet
 /// activity registered `Require Device Inactivity`, so on a Mac in use it does not
@@ -38,10 +58,17 @@ import SQLite3
 ///
 /// **The payload is structured; nothing here parses the sentence.** Each record
 /// carries `durl` (`https://testflight.apple.com/v1/app/<appAdamId>`) and, inside
-/// `usda`, an archived dictionary with the numeric build id under `b`. Measured
-/// 2026-09-09 against the store's `ZBUILDID` column: 7 announcements, 6 exact
-/// matches, and the seventh's store row had no build id at all — so the two live
-/// in one id space and can be compared as integers.
+/// `usda`, an archived dictionary with the numeric build id under `b`.
+///
+/// That the two live in one id space is *measured*, on two machines and two ways.
+/// **On the second Mac, 2026-09-09**: 7 announcements, 6 exact matches against
+/// `ZBUILDID`, and the seventh's store row had no build id at all. That count does
+/// **not** reproduce on this machine — 5 records here, 2 exact — because the
+/// notification store is a rolling window and the rest have aged out, so it is
+/// evidence from that machine on that day, not a standing property.
+/// **Reproducible here, 2026-09-10**: 111 store rows carry 97 distinct `ZBUILDID`s
+/// and **not one is reused across two different apps**, which is what a global
+/// sequence looks like and what a per-app counter does not.
 ///
 /// ⚠️ **One-directional.** The absence of an announcement proves nothing: on one of
 /// the two Macs measured that day every TestFlight notification was a

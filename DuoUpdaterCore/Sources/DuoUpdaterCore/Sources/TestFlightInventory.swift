@@ -251,16 +251,25 @@ public struct TestFlightInventory: Sendable {
     /// iPhone-only. The cost is bounded — the row's action is "open TestFlight",
     /// which is where the real answer is, and nothing is downloaded on our side —
     /// but it is a real gap, not one this can close.
-    /// What the store knows about this app in TestFlight's own id space, or nil
-    /// when the store has no app row for it (or the frontier query did not run).
-    public func frontier(forBundleID bundleID: String?) -> Frontier? {
-        guard let bundleID else { return nil }
-        return frontierByBundleID[bundleID]
-    }
-
     public func latestIOS(forBundleID bundleID: String?) -> App? {
         guard let bundleID else { return nil }
         return iosLatestByBundleID[bundleID]
+    }
+
+    /// What the store knows about this app in TestFlight's own id space, or nil
+    /// when the store has no app row for it (or the frontier query did not run).
+    ///
+    /// ⚠️ **This one is deliberately NOT split by platform, and that is not the
+    /// merge the warning above forbids.** That warning is about *offering* a build:
+    /// hand a native Mac app its iOS track and it gets an iPhone build as its next
+    /// Mac update. This offers nothing. It answers "how recently has this store
+    /// synced anything at all for this app", and the store syncs every platform in
+    /// one pass, so the newest row of any platform is the better answer to that
+    /// question — a mac-only frontier would call a store stale on the strength of a
+    /// track that simply has no new builds.
+    public func frontier(forBundleID bundleID: String?) -> Frontier? {
+        guard let bundleID else { return nil }
+        return frontierByBundleID[bundleID]
     }
 
     /// bundleID → the newest row. **Every** bucket ranks through here — mac and

@@ -27,10 +27,18 @@ import SQLite3
 ///     that are *available*, and keeping only the installed one would make every
 ///     app permanently up to date.
 ///   - The newest available build is the highest `ZBUNDLEVERSION` among an app's
-///     macOS rows.
+///     rows **on the platform being asked about** — the two platforms are ranked
+///     separately and never against each other.
+///     ⚠️ Highest by BUILD only, which is wrong when one app carries the same
+///     build number under two marketing versions; the database's own unique index
+///     allows exactly that, and it was measured (see #485). Both buckets share the
+///     defect because they share the ranking.
 public struct TestFlightInventory: Sendable {
 
-    /// The macOS TestFlight builds known for one app, newest first by build.
+    /// The newest TestFlight build known for one app on ONE platform. Both buckets
+    /// use this type — `latest(forBundleID:)` returns the mac answer,
+    /// `latestIOS(forBundleID:)` the iOS one — so nothing here names a platform and
+    /// the caller is the only thing that knows which it asked for.
     public struct App: Sendable, Hashable {
         public let bundleID: String
         /// Marketing version of the newest available build (`ZSHORTVERSION`).
@@ -237,6 +245,16 @@ public struct TestFlightInventory: Sendable {
 
     /// bundleID → the row with the highest build. Shared by both platform buckets
     /// so they cannot drift apart in how "newest" is decided.
+    ///
+    /// ⚠️ **Build only, and that is a known defect (#485), not a simplification.**
+    /// The same build number can appear under two marketing versions — the
+    /// database's unique index is `(bundleID, shortVersion, bundleVersion,
+    /// platformRaw)`, and it was measured on 2026-09-09: `com.jizhi0v0.claude-usage`
+    /// held (0.3.370, 1300) and (0.3.384, 1300) at once. `isNewer` is then false in
+    /// both directions and the row SQLite happened to return first wins, which is
+    /// arbitrary. Fixing it means deciding the tie on the marketing version, in
+    /// #485, for both buckets at once — doing it here alone would leave the two
+    /// ranking differently, which is the thing this function exists to prevent.
     private static func newestByBundleID(
         _ rows: [(bundleID: String, shortVersion: String, build: String)]
     ) -> [String: App] {

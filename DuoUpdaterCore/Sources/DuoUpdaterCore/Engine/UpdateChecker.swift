@@ -253,7 +253,21 @@ public struct UpdateChecker: Sendable {
                 // call stale. This does not try to tell the two apart: the answer we
                 // are entitled to give is the same either way, and a guess about
                 // which one it is would be a claim we cannot support.
-                if VersionComparator.isNewer(installedBuild, than: latest.latestBuild) {
+                // Both verdicts compare `VersionSide` pairs, not bare build strings,
+                // because that is the scale the inventory now RANKS on. Mixing the
+                // two is not academic: probed on this branch with mac rows
+                // (1.0, 500) and (2.0, 1) — a major version that restarts build
+                // numbering, which TestFlight allows since build uniqueness is per
+                // marketing version — the ranking correctly picked 2.0, then a
+                // build-only `isNewer("500", "1")` read that as "the database
+                // cannot bound this app" and the row swallowed the update
+                // (`status = testFlightManaged`, remote nil).
+                let installedSide = VersionSide(
+                    marketing: app.shortVersion, build: app.buildVersion)
+                let latestSide = VersionSide(
+                    marketing: latest.latestShortVersion.isEmpty ? nil : latest.latestShortVersion,
+                    build: latest.latestBuild)
+                if VersionComparator.isNewer(installedSide, than: latestSide) {
                     Log.check.info("""
                         \(label, privacy: .public): TestFlight database holds \
                         \(latest.latestBuild, privacy: .public) but \
@@ -265,7 +279,7 @@ public struct UpdateChecker: Sendable {
                     // the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
-                let hasUpdate = VersionComparator.isNewer(latest.latestBuild, than: installedBuild)
+                let hasUpdate = VersionComparator.isNewer(latestSide, than: installedSide)
                 // Beta builds often keep the same marketing version across builds,
                 // so disambiguate with the build number when the short string matches.
                 let display = (latest.latestShortVersion == app.shortVersion)

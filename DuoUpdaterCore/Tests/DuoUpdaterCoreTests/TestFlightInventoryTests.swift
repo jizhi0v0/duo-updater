@@ -176,6 +176,40 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertNil(result.remote)
     }
 
+    /// The verdicts have to be on the same scale the inventory RANKS on. A major
+    /// version that restarts build numbering is legal here — TestFlight's build
+    /// uniqueness is per marketing version — and it puts the two scales in direct
+    /// conflict: 2.0 (1) is the newest row, while its build is far below the
+    /// installed 1.0 (500).
+    ///
+    /// Probed on the branch before this was fixed: the ranking picked 2.0
+    /// correctly, then the build-only `isNewer("500", "1")` read that as "the
+    /// database cannot bound this app" and the row swallowed the update entirely
+    /// (`status = testFlightManaged`, `remote = nil`) — the user never learns 2.0
+    /// exists.
+    ///
+    /// Mutation: put either verdict back on bare build strings
+    /// (`isNewer(installedBuild, than: latest.latestBuild)` or its mirror) — this
+    /// becomes `.testFlightManaged` / `.upToDate` and fails.
+    func testCheckerOffersAMarketingBumpThatRestartsBuildNumbering() async {
+        let tf = TestFlightInventory(macRows: [
+            (bundleID: "com.example.reset", shortVersion: "1.0", build: "500"),
+            (bundleID: "com.example.reset", shortVersion: "2.0", build: "1"),
+        ])
+        let checker = UpdateChecker(sources: [], testflight: tf)
+        let app = InstalledApp(
+            name: "Reset", bundleID: "com.example.reset",
+            shortVersion: "1.0", buildVersion: "500",
+            path: URL(fileURLWithPath: "/Applications/Reset.app"),
+            isMASApp: false, isTestFlightApp: true, sparkleFeedURL: nil)
+        let result = await checker.check(app)
+        guard case .updateAvailable(let latest) = result.status else {
+            return XCTFail("expected an update, got \(result.status)")
+        }
+        XCTAssertEqual(latest, "2.0")
+        XCTAssertEqual(result.remote?.version, "1")
+    }
+
     func testCheckerManagedWhenNoCache() async {
         // TestFlight app but the inventory has nothing for it → managed label.
         let checker = UpdateChecker(sources: [], testflight: TestFlightInventory(macRows: []))

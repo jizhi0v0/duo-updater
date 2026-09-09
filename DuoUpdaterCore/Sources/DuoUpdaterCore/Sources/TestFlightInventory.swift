@@ -17,22 +17,31 @@ import SQLite3
 ///     and it is the CALLER that picks a side, from `isiOSAppOnMac`. A native Mac
 ///     app can hold iOS rows of its own, so a merged table would offer it an
 ///     iPhone build as its next Mac update.
-///   - `ZINSTALLSTATUSRAW` 1 == the build currently installed on this machine.
-///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1,
-///     never twice for one (bundle, platform) — and all 6 matched an app on disk
-///     at exactly that build. It is what separates "TestFlight installed this
-///     here" from "the user merely has access to this build", which is the
-///     question ``hasInstalledIOSBuild(bundleID:installedBuild:)`` asks. Mac rows
+///   - `ZINSTALLSTATUSRAW` 1 == a build TestFlight installed on this machine.
+///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1, and
+///     all 6 matched an app on disk at exactly that build. It is what separates
+///     "TestFlight installed this here" from "the user merely has access to this
+///     build", which is the question ``hasInstalledIOSBuild(bundleID:installedBuild:)``
+///     asks.
+///     ⚠️ **It is NOT unique per (bundle, platform)**, and an earlier version of
+///     this note said it was, on that one sample. Falsified 2026-09-09, watching
+///     TestFlight auto-install a build we had just pushed: both rows stayed marked
+///     installed —
+///     ```
+///     com.jizhi0v0.claude-usage | 0.3.384 | 1300 | platform 1 | installed 1
+///     com.jizhi0v0.claude-usage | 0.3.384 | 1301 | platform 1 | installed 1
+///     ```
+///     while only 1301 was on disk. Membership is the only safe question to ask of
+///     this column: "is this on-disk build one TestFlight put here" survives the
+///     stale row, "which build is installed" does not. Mac rows
 ///     deliberately do NOT filter on it: ``latest(forBundleID:)`` needs the builds
 ///     that are *available*, and keeping only the installed one would make every
 ///     app permanently up to date.
-///   - The newest available build is the highest `ZBUNDLEVERSION` among an app's
-///     rows **on the platform being asked about** — the two platforms are ranked
-///     separately and never against each other.
-///     ⚠️ Highest by BUILD only, which is wrong when one app carries the same
-///     build number under two marketing versions; the database's own unique index
-///     allows exactly that, and it was measured (see #485). Both buckets share the
-///     defect because they share the ranking.
+///   - The newest available build is the newest row **on the platform being asked
+///     about** — the two platforms are ranked separately and never against each
+///     other. Newest means `VersionSide`: `ZSHORTVERSION` first, `ZBUNDLEVERSION`
+///     only to break a marketing tie. Both halves are load-bearing, and the
+///     reasoning (with the rows that measured each) is on ``newestByBundleID``.
 public struct TestFlightInventory: Sendable {
 
     /// The newest TestFlight build known for one app on ONE platform. Both buckets

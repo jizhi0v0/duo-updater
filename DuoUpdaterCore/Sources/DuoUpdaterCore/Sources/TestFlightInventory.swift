@@ -17,22 +17,31 @@ import SQLite3
 ///     and it is the CALLER that picks a side, from `isiOSAppOnMac`. A native Mac
 ///     app can hold iOS rows of its own, so a merged table would offer it an
 ///     iPhone build as its next Mac update.
-///   - `ZINSTALLSTATUSRAW` 1 == the build currently installed on this machine.
-///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1,
-///     never twice for one (bundle, platform) — and all 6 matched an app on disk
-///     at exactly that build. It is what separates "TestFlight installed this
-///     here" from "the user merely has access to this build", which is the
-///     question ``hasInstalledIOSBuild(bundleID:installedBuild:)`` asks. Mac rows
+///   - `ZINSTALLSTATUSRAW` 1 == a build TestFlight installed on this machine.
+///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1, and
+///     all 6 matched an app on disk at exactly that build. It is what separates
+///     "TestFlight installed this here" from "the user merely has access to this
+///     build", which is the question ``hasInstalledIOSBuild(bundleID:installedBuild:)``
+///     asks.
+///     ⚠️ **It is NOT unique per (bundle, platform)**, and an earlier version of
+///     this note said it was, on that one sample. Falsified 2026-09-09, watching
+///     TestFlight auto-install a build we had just pushed: both rows stayed marked
+///     installed —
+///     ```
+///     com.jizhi0v0.claude-usage | 0.3.384 | 1300 | platform 1 | installed 1
+///     com.jizhi0v0.claude-usage | 0.3.384 | 1301 | platform 1 | installed 1
+///     ```
+///     while only 1301 was on disk. Membership is the only safe question to ask of
+///     this column: "is this on-disk build one TestFlight put here" survives the
+///     stale row, "which build is installed" does not. Mac rows
 ///     deliberately do NOT filter on it: ``latest(forBundleID:)`` needs the builds
 ///     that are *available*, and keeping only the installed one would make every
 ///     app permanently up to date.
-///   - The newest available build is the highest `ZBUNDLEVERSION` among an app's
-///     rows **on the platform being asked about** — the two platforms are ranked
-///     separately and never against each other.
-///     ⚠️ Highest by BUILD only, which is wrong when one app carries the same
-///     build number under two marketing versions; the database's own unique index
-///     allows exactly that, and it was measured (see #485). Both buckets share the
-///     defect because they share the ranking.
+///   - The newest available build is the newest row **on the platform being asked
+///     about** — the two platforms are ranked separately and never against each
+///     other. Newest means `VersionSide`: `ZSHORTVERSION` first, `ZBUNDLEVERSION`
+///     only to break a marketing tie. Both halves are load-bearing, and the
+///     reasoning (with the rows that measured each) is on ``newestByBundleID``.
 public struct TestFlightInventory: Sendable {
 
     /// The newest TestFlight build known for one app on ONE platform. Both buckets
@@ -104,23 +113,9 @@ public struct TestFlightInventory: Sendable {
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
-        var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
-        for row in rows {
-            builds[row.bundleID, default: []].insert(row.build)
-            if let cur = latest[row.bundleID] {
-                if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
-                    latest[row.bundleID] = App(
-                        bundleID: row.bundleID,
-                        latestShortVersion: row.shortVersion, latestBuild: row.build)
-                }
-            } else {
-                latest[row.bundleID] = App(
-                    bundleID: row.bundleID,
-                    latestShortVersion: row.shortVersion, latestBuild: row.build)
-            }
-        }
-        self.appsByBundleID = latest
+        for row in rows { builds[row.bundleID, default: []].insert(row.build) }
+        self.appsByBundleID = Self.newestByBundleID(rows)
         self.buildsByBundleID = builds
     }
 
@@ -155,19 +150,9 @@ public struct TestFlightInventory: Sendable {
         // available ones, so a fixture that names only the installed rows gets the
         // same shape rather than an inventory that says "installed but not offered".
         self.iosLatestByBundleID = Self.newestByBundleID(availableIOSRows ?? installedIOSRows)
-        var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
-        for row in macRows {
-            builds[row.bundleID, default: []].insert(row.build)
-            if let cur = latest[row.bundleID] {
-                if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
-                    latest[row.bundleID] = App(bundleID: row.bundleID, latestShortVersion: row.shortVersion, latestBuild: row.build)
-                }
-            } else {
-                latest[row.bundleID] = App(bundleID: row.bundleID, latestShortVersion: row.shortVersion, latestBuild: row.build)
-            }
-        }
-        self.appsByBundleID = latest
+        for row in macRows { builds[row.bundleID, default: []].insert(row.build) }
+        self.appsByBundleID = Self.newestByBundleID(macRows)
         self.buildsByBundleID = builds
     }
 
@@ -243,21 +228,44 @@ public struct TestFlightInventory: Sendable {
         return iosLatestByBundleID[bundleID]
     }
 
-    /// bundleID → the row with the highest build. Shared by both platform buckets
-    /// so they cannot drift apart in how "newest" is decided.
+    /// bundleID → the newest row. **Every** bucket ranks through here — mac and
+    /// iOS, real database and test seam — so they cannot drift apart in how
+    /// "newest" is decided.
     ///
-    /// ⚠️ **Build only, and that is a known defect (#485), not a simplification.**
-    /// The same build number can appear under two marketing versions — the
-    /// database's unique index is `(bundleID, shortVersion, bundleVersion,
-    /// platformRaw)`, and it was measured on 2026-09-09: `com.jizhi0v0.claude-usage`
-    /// held (0.3.370, 1300) and (0.3.384, 1300) at once. `isNewer` is then false in
-    /// both directions and the row SQLite happened to return first wins, which is
-    /// arbitrary. Fixing it means deciding the tie on the marketing version, in
-    /// #485, for both buckets at once — doing it here alone would leave the two
-    /// ranking differently, which is the thing this function exists to prevent.
+    /// Newest means `VersionSide`: marketing version first, build only to break a
+    /// marketing tie. Both halves are load-bearing here, and each is the whole
+    /// answer for some app in this database:
+    ///
+    ///   * **Build alone is not enough.** The same build number can appear under
+    ///     two marketing versions — the database's unique index is `(bundleID,
+    ///     shortVersion, bundleVersion, platformRaw)`, and ASC's build-number
+    ///     uniqueness is per marketing version, so this is a shape it is designed
+    ///     to hold. Measured 2026-09-09: `com.jizhi0v0.claude-usage` held
+    ///     (0.3.370, 1300) and (0.3.384, 1300) at once. Comparing builds alone made
+    ///     `isNewer` false in both directions, so whichever row SQLite happened to
+    ///     return first won — and the query has no `ORDER BY`, so "newest" was
+    ///     arbitrary and could name an expired version older than the installed one
+    ///     (#485).
+    ///   * **Marketing alone is not enough.** Beta tracks routinely freeze it:
+    ///     APTV's rows are all `1.0` with builds 300/301/304, and Claudo shipped
+    ///     0.3.384 twice (1300, then 1301). For those apps the build is the whole
+    ///     comparison.
+    ///
+    /// A blank `ZSHORTVERSION` is folded to nil rather than passed through: the
+    /// comparator's tokenizer reads a string with no digits the same as `"0"`, so
+    /// an empty marketing string would lose every comparison it entered instead of
+    /// standing aside and letting the build decide.
+    ///
+    /// ⚠️ Marketing-first means a row whose build is higher but whose marketing
+    /// version is LOWER does not win — a hotfix cut from an older line, say. That
+    /// is `VersionComparator`'s rule everywhere in this codebase rather than a
+    /// choice made here, and the alternative (build-first) is what #485 was.
     private static func newestByBundleID(
         _ rows: [(bundleID: String, shortVersion: String, build: String)]
     ) -> [String: App] {
+        func side(marketing: String, build: String) -> VersionSide {
+            VersionSide(marketing: marketing.isEmpty ? nil : marketing, build: build)
+        }
         var newest: [String: App] = [:]
         for row in rows {
             let candidate = App(
@@ -267,7 +275,10 @@ public struct TestFlightInventory: Sendable {
                 newest[row.bundleID] = candidate
                 continue
             }
-            if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
+            if VersionComparator.isNewer(
+                side(marketing: row.shortVersion, build: row.build),
+                than: side(marketing: cur.latestShortVersion, build: cur.latestBuild)
+            ) {
                 newest[row.bundleID] = candidate
             }
         }

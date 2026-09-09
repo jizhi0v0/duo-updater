@@ -581,4 +581,71 @@ struct WrappedIOSTestFlightTests {
             #expect(inventory.latestIOS(forBundleID: "com.example.app.ios")?.latestBuild == "77")
         }
     }
+
+    // MARK: - Ranking (#485)
+
+    /// The same build number under two marketing versions is a shape this database
+    /// is designed to hold — ASC's build-number uniqueness is per marketing
+    /// version — and it was measured on 2026-09-09: `com.jizhi0v0.claude-usage`
+    /// held (0.3.370, 1300) and (0.3.384, 1300) at once, with 0.3.370 long expired.
+    ///
+    /// Ranking on the build alone made `isNewer` false in both directions, so the
+    /// winner was whichever row SQLite returned first — and the query has no
+    /// `ORDER BY`. **Both insertion orders are asserted** because one of them
+    /// passes under the broken rule by luck, and a case that only tried that one
+    /// would have been green on the bug.
+    ///
+    /// Mutation: rank on `row.build` alone again — the second order fails.
+    @Test(arguments: [false, true])
+    func aMarketingBumpWinsATiedBuildInEitherOrder(reversed: Bool) throws {
+        var rows: [(bundleID: String, short: String, build: String, platform: Int32, installed: Int32)] = [
+            (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.370", build: "1300",
+             platform: 1, installed: 0),
+            (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1300",
+             platform: 1, installed: 1),
+        ]
+        if reversed { rows.reverse() }
+        try Self.withTemporaryRoot { root in
+            let inventory = TestFlightInventory(databaseURL: try Self.plantDatabase(rows, in: root))
+            #expect(inventory.accessible, "fixture database was not opened")
+            let latest = inventory.latestIOS(forBundleID: "com.jizhi0v0.claude-usage")
+            #expect(latest?.latestShortVersion == "0.3.384")
+            #expect(latest?.latestBuild == "1300")
+        }
+    }
+
+    /// The mac bucket ranks through the same function, so the fix has to hold there
+    /// too — and it is the bucket every native TestFlight app uses.
+    ///
+    /// Mutation: give `appsByBundleID` its own build-only loop back (the shape both
+    /// initialisers carried before) — the second order fails here instead.
+    @Test(arguments: [false, true])
+    func theMacBucketRanksByTheSameRule(reversed: Bool) throws {
+        var rows: [(bundleID: String, short: String, build: String, platform: Int32, installed: Int32)] = [
+            (bundleID: "com.example.mac", short: "2.0", build: "500", platform: 3, installed: 0),
+            (bundleID: "com.example.mac", short: "2.1", build: "500", platform: 3, installed: 0),
+        ]
+        if reversed { rows.reverse() }
+        try Self.withTemporaryRoot { root in
+            let inventory = TestFlightInventory(databaseURL: try Self.plantDatabase(rows, in: root))
+            #expect(inventory.latest(forBundleID: "com.example.mac")?.latestShortVersion == "2.1")
+        }
+    }
+
+    /// The other half of the rule, and the one a marketing-only fix would break: a
+    /// frozen marketing version is the norm on a beta track (APTV's rows are all
+    /// `1.0`; Claudo shipped 0.3.384 twice), so the build has to decide the tie.
+    ///
+    /// Mutation: rank on marketing alone — this returns 1300 and fails.
+    @Test func afrozenMarketingVersionStillLetsTheBuildDecide() throws {
+        try Self.withTemporaryRoot { root in
+            let inventory = TestFlightInventory(databaseURL: try Self.plantDatabase([
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1300",
+                 platform: 1, installed: 1),
+                (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1301",
+                 platform: 1, installed: 0),
+            ], in: root))
+            #expect(inventory.latestIOS(forBundleID: "com.jizhi0v0.claude-usage")?.latestBuild == "1301")
+        }
+    }
 }

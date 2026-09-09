@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.90
 
-**Rockxy now shows its full release history.** The feed Rockxy publishes is rewritten in place and only ever holds the newest release, so the window had a single entry to show no matter how many builds you had skipped.
+**Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.
 
 ## 0.3.89
 

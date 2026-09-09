@@ -76,6 +76,17 @@ GitHub releases 有同一份正文加上完整历史，tag 就是 marketing 版�
 （`v0.38.2` → `stripLeadingV` → `0.38.2`，与 `CFBundleShortVersionString` 一致）。
 recipe 在渲染优先级上高于 `releaseNotesHTML`，所以加了它就是用 20 条历史换 1 条内联。
 
+⚠️ **代价记在这里，而且这条 recipe 是唯一有这个代价的。** `ChangelogPane` 的
+`fallback`（recipe 加载**失败**时走的那条）先看 `changelogURL`、后看
+`releaseNotesHTML`。Rockxy 的 appcast 两样都给了，于是一次抓取失败
+（`api.github.com` 未带 token、60 次/小时/IP，仓库里约 70 个 repo 共用这个额度）
+会把面板从「原生渲染的内联 notes」变成「嵌一个 GitHub tag 页」。
+Waku 的 appcast notes 是解析不出来的裸 markdown、Shotbase 的 appcast 根本没有 notes，
+所以那两条 recipe 没有东西可失去，只有这条有。
+**没有顺手把顺序调过来**：对这个 app 而言 `changelogURL` 只是一个 tag 页、内联稳赢，
+但对一条 `changelogURL` 指向完整变更日志页的 recipe 而言现在的顺序才是对的 ——
+所以那不是一处局部交换能修的事，要修得单独立项。
+
 **不需要 `skipSections`。** 每条 release 正文都以
 `> **Distribution notice:** …`（二进制 EULA 声明）开头，但它是引用块、不是顶层
 `-`/`*`/`+` 列表项，`GitHubMarkdownParser` 的 strict pass 直接略过。2026-09-09 对

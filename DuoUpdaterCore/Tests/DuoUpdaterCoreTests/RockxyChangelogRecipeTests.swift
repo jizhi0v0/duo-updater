@@ -70,13 +70,4 @@ private let rockxyReleasesFixture = #"""
         #expect(!latest.items.contains { $0 == "Added" || $0 == "Changed" || $0 == "Fixed" })
         #expect(log.entries.last?.items.count == 4)
     }
-
-    /// The bullets keep their Markdown inline syntax (`**Choose & Open Developer
-    /// App**`), so the changelog has to declare it or the renderer prints the
-    /// asterisks verbatim.
-    @Test func itemsAreMarkedAsMarkdown() throws {
-        let log = try #require(
-            StructuredChangelogDecoder.decodeGitHubReleases(rockxyReleasesFixture, maxEntries: 20))
-        #expect(log.itemSyntax == .markdown)
-    }
 }

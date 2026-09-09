@@ -1630,6 +1630,18 @@ public enum ChangelogRecipeRegistry {
         // it is not a top-level `-`/`*`/`+` bullet. Verified against all 40 bodies:
         // the phrase appears in zero extracted items. Naming it in `skipSections`
         // would be a no-op anyway, since it sits under no heading of its own.
+        //
+        // ⚠️ What this costs on the FAILURE path, which is unique to this recipe.
+        // `ChangelogPane.fallback` reaches for `changelogURL` BEFORE
+        // `releaseNotesHTML`, so a fetch that fails (`api.github.com` is
+        // unauthenticated at 60/hour/IP and ~70 repos here share that budget) now
+        // web-views the tag page where the pane used to render this appcast's
+        // inline notes natively. Unlike Waku (appcast notes are unparseable raw
+        // markdown) and Shotbase (appcast carries none), Rockxy's appcast has real
+        // inline notes to lose. Accepted rather than reordered: for THIS app the
+        // fallback URL is a single tag page, so the inline notes would be strictly
+        // better — but for a recipe whose `changelogURL` is a full changelog page
+        // the current order is the right one, so the fix is not a local swap.
         ChangelogRecipe(
             bundleID: "com.amunx.rockxy.community",
             source: URL(

@@ -151,6 +151,31 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertEqual(result.status, .upToDate)
     }
 
+    /// The database is written by TestFlight.app and by nothing else, so a build it
+    /// installed in the background can sit on disk while the store still names an
+    /// older one as newest. Measured 2026-09-09: APTV on disk at 319 against a store
+    /// holding 300/301/304, reported up to date; ScreenCam on the same machine was
+    /// the second case. A store whose "latest" is below what is installed cannot
+    /// bound this app, so no up-to-date verdict may rest on it.
+    ///
+    /// Mutation: delete the `isNewer(installedBuild, than: latest.latestBuild)`
+    /// early return in `UpdateChecker` — this becomes `.upToDate` and fails, while
+    /// `testCheckerUpToDateOnNewestBuild` (equal builds) stays green, so the two
+    /// together pin the boundary rather than just the direction.
+    func testCheckerRefusesUpToDateWhenInstalledBuildOutrunsTheDatabase() async {
+        let tf = inventory()
+        let checker = UpdateChecker(sources: [], testflight: tf)
+        let app = InstalledApp(
+            name: "Paste", bundleID: "com.wiheads.paste",
+            shortVersion: "6.6.2", buildVersion: "18999",  // > the store's newest, 18706
+            path: URL(fileURLWithPath: "/Applications/Paste.app"),
+            isMASApp: false, isTestFlightApp: true, sparkleFeedURL: nil)
+        let result = await checker.check(app)
+        XCTAssertEqual(result.status, .testFlightManaged)
+        // The version we just called unusable must not reach the row either.
+        XCTAssertNil(result.remote)
+    }
+
     func testCheckerManagedWhenNoCache() async {
         // TestFlight app but the inventory has nothing for it → managed label.
         let checker = UpdateChecker(sources: [], testflight: TestFlightInventory(macRows: []))

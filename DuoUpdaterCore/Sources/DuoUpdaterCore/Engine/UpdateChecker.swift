@@ -213,6 +213,38 @@ public struct UpdateChecker: Sendable {
         if app.isTestFlightApp {
             if let latest = testflight?.latest(forBundleID: app.bundleID) {
                 let installedBuild = app.buildVersion ?? ""
+                // An installed build NEWER than anything the database holds says
+                // something about the DATABASE, not about the app: whatever else is
+                // true, its "latest" is not an upper bound for this bundle. That
+                // rules out `.upToDate`, which is precisely the answer that claims it
+                // is one — and it rules it out without anyone having to pick a
+                // staleness threshold.
+                //
+                // It happens because the database is written by TestFlight.app and by
+                // nothing else — not by the push that announces a build, not by the
+                // background install that lands one. Measured 2026-09-09 on a Mac
+                // whose TestFlight had not been opened since July: TestFlight itself
+                // had installed APTV 319 the day before and said so in a notification,
+                // while the store still held only 300/301/304, and this branch called
+                // that up to date. ScreenCam on the same machine was the second case.
+                //
+                // A build can also expire out of the store while staying on disk,
+                // which produces the same comparison with a database nobody would
+                // call stale. This does not try to tell the two apart: the answer we
+                // are entitled to give is the same either way, and a guess about
+                // which one it is would be a claim we cannot support.
+                if VersionComparator.isNewer(installedBuild, than: latest.latestBuild) {
+                    Log.check.info("""
+                        \(label, privacy: .public): TestFlight database holds \
+                        \(latest.latestBuild, privacy: .public) but \
+                        \(installedBuild, privacy: .public) is installed — it cannot \
+                        bound this app, so no up-to-date verdict
+                        """)
+                    // `remote: nil` for the same reason the no-cache branch below
+                    // passes nil: a version we have just called unusable must not be
+                    // the one the row shows.
+                    return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+                }
                 let hasUpdate = VersionComparator.isNewer(latest.latestBuild, than: installedBuild)
                 // Beta builds often keep the same marketing version across builds,
                 // so disambiguate with the build number when the short string matches.

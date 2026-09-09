@@ -128,6 +128,65 @@ struct BoundedBlockingWorkTests {
                 "a worker that finally came back must let its key be tried again")
     }
 
+    /// The two orderings of the give-up race, pinned on `Slot` itself because
+    /// `run` cannot be made to hit them on purpose: the window is between
+    /// `done.wait` reporting `.timedOut` and the very next line.
+    ///
+    /// Mutation: drop the `guard !abandoned` from `complete` and the
+    /// `guard stored == nil` from `abandon` (i.e. let both always succeed) — the
+    /// return values below stop discriminating and both cases fail.
+    @Test func exactlyOneOfTheWorkerAndTheDeadlineWinsTheSlot() {
+        let workFirst = BoundedBlockingWork.Slot<Int>()
+        #expect(workFirst.complete(7))
+        #expect(workFirst.abandon() == false,
+                "the deadline must not claim a give-up over work that already landed")
+        #expect(workFirst.value == 7, "and the answer must survive to be returned")
+
+        let deadlineFirst = BoundedBlockingWork.Slot<Int>()
+        #expect(deadlineFirst.abandon())
+        #expect(deadlineFirst.complete(7) == false,
+                "work that finishes after the caller gave up must not resurrect an answer")
+        #expect(deadlineFirst.value == nil)
+    }
+
+    /// The `run`-level half of the case above: when the worker lands its answer
+    /// inside the give-up window, `run` must return that answer rather than nil.
+    ///
+    /// Held open with `onDeadline`, which is why that hook exists — the real
+    /// window is the few instructions between `wait` reporting `.timedOut` and
+    /// `abandon()`, and nothing outside `run` can aim at it. The hook releases the
+    /// worker and waits until its result is in the slot, so the ordering is
+    /// arranged rather than hoped for.
+    ///
+    /// What it buys beyond a dropped answer: the first version of this code, and
+    /// of `TestFlightInventory` where it was extracted from, wrote `stuck = true`
+    /// on top of the worker's `stuck = false` here. Nothing clears that mark
+    /// afterwards — no thread is stranded to clear it — so on the channel path a
+    /// bound app would answer nil for the rest of the process, silently losing its
+    /// authoritative channel.
+    ///
+    /// Mutation: delete `guard slot.abandon() else { return slot.value }` (the
+    /// unconditional give-up this replaced) — `run` answers nil and this fails.
+    @Test func anAnswerThatLandsInsideTheGiveUpWindowIsReturned() {
+        let bounded = BoundedBlockingWork(label: "test")
+        let release = DispatchSemaphore(value: 0)
+
+        let answer = bounded.run(
+            key: "raced",
+            timeout: 0.05,
+            onDeadline: { slot in
+                release.signal()
+                while slot.value == nil { usleep(200) }
+            }
+        ) { () -> Int in
+            release.wait()
+            return 7
+        }
+
+        #expect(answer == 7,
+                "the deadline must not discard an answer that arrived before it claimed the give-up")
+    }
+
     /// Mutation: replace the `Set<String>` memo with a single `Bool` — the second
     /// expectation fails. One gated file must not silence an unrelated resolver,
     /// which on this path means one app's pending prompt deciding another app's

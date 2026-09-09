@@ -86,12 +86,32 @@ final class BoundedBlockingWork: @unchecked Sendable {
         timeout: TimeInterval,
         _ work: @escaping @Sendable () -> T
     ) -> T? {
+        run(key: key, timeout: timeout, onDeadline: { _ in }, work)
+    }
+
+    /// The above, with a hook that runs after the deadline passes and before the
+    /// give-up is claimed.
+    ///
+    /// Only a test passes one, and it is not a convenience: the race the claim
+    /// exists to settle lives in the handful of instructions between `wait`
+    /// returning `.timedOut` and `abandon()`, which is not a window anything can
+    /// aim at from outside. The hook is that window, held open. Without it the one
+    /// line that fixes the bug would be pinned by review alone.
+    func run<T: Sendable>(
+        key: String,
+        timeout: TimeInterval,
+        onDeadline: (Slot<T>) -> Void,
+        _ work: @escaping @Sendable () -> T
+    ) -> T? {
         guard !isStuck(key) else { return nil }
 
-        let box = Box<T>()
+        let slot = Slot<T>()
         let done = DispatchSemaphore(value: 0)
         let worker = Thread { [self] in
-            box.value = work()
+            _ = slot.complete(work())
+            // Unconditionally, including when the caller already gave up: the
+            // mark says "a thread is stranded on this key", and this thread is
+            // not, whoever is still listening.
             mark(key, stuck: false)
             done.signal()
         }
@@ -101,6 +121,20 @@ final class BoundedBlockingWork: @unchecked Sendable {
         worker.start()
 
         if done.wait(timeout: .now() + timeout) == .timedOut {
+            // ⚠️ `.timedOut` does NOT mean the work is still running. The worker
+            // can finish in the gap between the deadline passing and this line,
+            // and the first version of this — and of `TestFlightInventory`, where
+            // it was extracted from — then wrote `stuck = true` on top of the
+            // worker's `stuck = false`. Nothing clears that mark afterwards,
+            // because no thread is stranded to clear it: the key would answer nil
+            // for the rest of the process. On the channel path that is a bound app
+            // silently losing its authoritative channel until the app is
+            // relaunched.
+            //
+            // So the give-up is CLAIMED rather than assumed. Losing the claim means
+            // the answer landed in the gap, and it is a perfectly good answer.
+            onDeadline(slot)
+            guard slot.abandon() else { return slot.value }
             mark(key, stuck: true)
             Log.scan.error("""
                 \(self.label, privacy: .public): \(key, privacy: .public) did not return within \
@@ -108,17 +142,43 @@ final class BoundedBlockingWork: @unchecked Sendable {
                 """)
             return nil
         }
-        return box.value
+        return slot.value
     }
 
-    /// A slot one thread fills and another reads. Needed rather than a captured
-    /// `var` because the reader can give up before the writer stores anything.
-    private final class Box<T>: @unchecked Sendable {
+    /// A slot one thread fills and another reads, plus the race between them.
+    /// Needed rather than a captured `var` because the reader can give up before
+    /// the writer stores anything — and, less obviously, because the two can
+    /// arrive at the same instant and exactly one of them has to win.
+    /// Not private: this is the race, and `BoundedBlockingWorkTests` pins both
+    /// orderings on it directly. Driving them through `run` would mean timing the
+    /// gap between a deadline and the line after it, which is not something a
+    /// test can arrange on purpose.
+    final class Slot<T>: @unchecked Sendable {
         private let lock = NSLock()
         private var stored: T?
+        private var abandoned = false
+
+        /// Store the result. False means the caller had already given up, so the
+        /// value is too late to be returned to it.
+        func complete(_ value: T) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            guard !abandoned else { return false }
+            stored = value
+            return true
+        }
+
+        /// Claim the give-up. False means the work finished first and `value`
+        /// holds a real answer.
+        func abandon() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            guard stored == nil else { return false }
+            abandoned = true
+            return true
+        }
+
         var value: T? {
-            get { lock.lock(); defer { lock.unlock() }; return stored }
-            set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+            lock.lock(); defer { lock.unlock() }
+            return stored
         }
     }
 }

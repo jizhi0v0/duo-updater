@@ -104,23 +104,9 @@ public struct TestFlightInventory: Sendable {
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
-        var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
-        for row in rows {
-            builds[row.bundleID, default: []].insert(row.build)
-            if let cur = latest[row.bundleID] {
-                if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
-                    latest[row.bundleID] = App(
-                        bundleID: row.bundleID,
-                        latestShortVersion: row.shortVersion, latestBuild: row.build)
-                }
-            } else {
-                latest[row.bundleID] = App(
-                    bundleID: row.bundleID,
-                    latestShortVersion: row.shortVersion, latestBuild: row.build)
-            }
-        }
-        self.appsByBundleID = latest
+        for row in rows { builds[row.bundleID, default: []].insert(row.build) }
+        self.appsByBundleID = Self.newestByBundleID(rows)
         self.buildsByBundleID = builds
     }
 
@@ -155,19 +141,9 @@ public struct TestFlightInventory: Sendable {
         // available ones, so a fixture that names only the installed rows gets the
         // same shape rather than an inventory that says "installed but not offered".
         self.iosLatestByBundleID = Self.newestByBundleID(availableIOSRows ?? installedIOSRows)
-        var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
-        for row in macRows {
-            builds[row.bundleID, default: []].insert(row.build)
-            if let cur = latest[row.bundleID] {
-                if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
-                    latest[row.bundleID] = App(bundleID: row.bundleID, latestShortVersion: row.shortVersion, latestBuild: row.build)
-                }
-            } else {
-                latest[row.bundleID] = App(bundleID: row.bundleID, latestShortVersion: row.shortVersion, latestBuild: row.build)
-            }
-        }
-        self.appsByBundleID = latest
+        for row in macRows { builds[row.bundleID, default: []].insert(row.build) }
+        self.appsByBundleID = Self.newestByBundleID(macRows)
         self.buildsByBundleID = builds
     }
 
@@ -243,21 +219,44 @@ public struct TestFlightInventory: Sendable {
         return iosLatestByBundleID[bundleID]
     }
 
-    /// bundleID → the row with the highest build. Shared by both platform buckets
-    /// so they cannot drift apart in how "newest" is decided.
+    /// bundleID → the newest row. **Every** bucket ranks through here — mac and
+    /// iOS, real database and test seam — so they cannot drift apart in how
+    /// "newest" is decided.
     ///
-    /// ⚠️ **Build only, and that is a known defect (#485), not a simplification.**
-    /// The same build number can appear under two marketing versions — the
-    /// database's unique index is `(bundleID, shortVersion, bundleVersion,
-    /// platformRaw)`, and it was measured on 2026-09-09: `com.jizhi0v0.claude-usage`
-    /// held (0.3.370, 1300) and (0.3.384, 1300) at once. `isNewer` is then false in
-    /// both directions and the row SQLite happened to return first wins, which is
-    /// arbitrary. Fixing it means deciding the tie on the marketing version, in
-    /// #485, for both buckets at once — doing it here alone would leave the two
-    /// ranking differently, which is the thing this function exists to prevent.
+    /// Newest means `VersionSide`: marketing version first, build only to break a
+    /// marketing tie. Both halves are load-bearing here, and each is the whole
+    /// answer for some app in this database:
+    ///
+    ///   * **Build alone is not enough.** The same build number can appear under
+    ///     two marketing versions — the database's unique index is `(bundleID,
+    ///     shortVersion, bundleVersion, platformRaw)`, and ASC's build-number
+    ///     uniqueness is per marketing version, so this is a shape it is designed
+    ///     to hold. Measured 2026-09-09: `com.jizhi0v0.claude-usage` held
+    ///     (0.3.370, 1300) and (0.3.384, 1300) at once. Comparing builds alone made
+    ///     `isNewer` false in both directions, so whichever row SQLite happened to
+    ///     return first won — and the query has no `ORDER BY`, so "newest" was
+    ///     arbitrary and could name an expired version older than the installed one
+    ///     (#485).
+    ///   * **Marketing alone is not enough.** Beta tracks routinely freeze it:
+    ///     APTV's rows are all `1.0` with builds 300/301/304, and Claudo shipped
+    ///     0.3.384 twice (1300, then 1301). For those apps the build is the whole
+    ///     comparison.
+    ///
+    /// A blank `ZSHORTVERSION` is folded to nil rather than passed through: the
+    /// comparator's tokenizer reads a string with no digits the same as `"0"`, so
+    /// an empty marketing string would lose every comparison it entered instead of
+    /// standing aside and letting the build decide.
+    ///
+    /// ⚠️ Marketing-first means a row whose build is higher but whose marketing
+    /// version is LOWER does not win — a hotfix cut from an older line, say. That
+    /// is `VersionComparator`'s rule everywhere in this codebase rather than a
+    /// choice made here, and the alternative (build-first) is what #485 was.
     private static func newestByBundleID(
         _ rows: [(bundleID: String, shortVersion: String, build: String)]
     ) -> [String: App] {
+        func side(marketing: String, build: String) -> VersionSide {
+            VersionSide(marketing: marketing.isEmpty ? nil : marketing, build: build)
+        }
         var newest: [String: App] = [:]
         for row in rows {
             let candidate = App(
@@ -267,7 +266,10 @@ public struct TestFlightInventory: Sendable {
                 newest[row.bundleID] = candidate
                 continue
             }
-            if VersionComparator.isNewer(row.build, than: cur.latestBuild) {
+            if VersionComparator.isNewer(
+                side(marketing: row.shortVersion, build: row.build),
+                than: side(marketing: cur.latestShortVersion, build: cur.latestBuild)
+            ) {
                 newest[row.bundleID] = candidate
             }
         }

@@ -212,6 +212,62 @@ private let receiptImportLog =
     #expect(msg.contains(MASInstaller.MASError.appStoreUpdatesHint))
 }
 
+// The exact shape from #474's field report, captured by running `mas install
+// 1248669703` by hand (Aqara Home). ⚠️ That app is a wrapped iPhone/iPad one, and
+// three upstream gates keep those away from this installer entirely — the sample
+// is the string's shape, not the case that reaches this code. What reaches it is
+// an app pulled from sale (see `isAdamIDNotFound`).
+private let adamIDNotFoundLog = "Error: No apps found in the App Store for ADAM ID 1248669703"
+
+/// mas's own lookup came up empty for the ADAM ID. Before this, the surfaced
+/// message was mas's raw text verbatim ("mas failed (1): Error: No apps found in
+/// the App Store for ADAM ID …") — which reads as "this app isn't in the App
+/// Store", a claim the string does not support: for a delisted app it guesses at
+/// why the lookup failed, and for a wrapped app it would be flatly wrong.
+/// Mutation this catches: deleting the
+/// `isAdamIDNotFound` branch in `errorDescription` (falls through to the raw
+/// `tail`, which both re-leaks "ADAM ID" and drops the "Open App Store" hint) —
+/// confirmed red by commenting the branch out and rerunning.
+@Test func classifiesAdamIDNotFound() {
+    #expect(MASInstaller.MASError.isAdamIDNotFound(adamIDNotFoundLog))
+    // Case-insensitive, and matches both `mas info` and `mas install`'s wording
+    // (identical string per the issue's repro).
+    #expect(MASInstaller.MASError.isAdamIDNotFound("ERROR: NO APPS FOUND IN THE APP STORE FOR ADAM ID 1"))
+    // Doesn't fire on unrelated definitive answers — over-broad matching would
+    // also swallow "Not purchased" into the wrong message.
+    #expect(!MASInstaller.MASError.isAdamIDNotFound("Error: Not purchased"))
+    #expect(!MASInstaller.MASError.isAdamIDNotFound(transientLog))
+    #expect(!MASInstaller.MASError.isAdamIDNotFound(receiptImportLog))
+
+    let msg = MASInstaller.MASError.failed(code: 1, output: adamIDNotFoundLog).errorDescription ?? ""
+    // Actionable guidance is present (the UI keys its "Open App Store" button off
+    // this sentinel — same contract as the receipt-import message).
+    #expect(msg.contains(MASInstaller.MASError.appStoreUpdatesHint))
+    // The raw mas line — and the specific false claim "isn't in the App Store" —
+    // must not appear. The message may only say mas's lookup failed, not why.
+    #expect(!msg.contains("No apps found"))
+    #expect(!msg.contains("ADAM ID"))
+    #expect(!msg.lowercased().contains("isn’t in the app store"))
+    #expect(!msg.lowercased().contains("isn't in the app store"))
+}
+
+/// "No apps found" is one of the definitive store answers ("Not purchased" is the
+/// other one already covered by `doesNotRetryDefinitiveMasFailure") — retrying just
+/// re-runs the same doomed lookup. Mutation this catches: adding
+/// `isAdamIDNotFound` output to `isTransientNetworkFailure`'s or
+/// `isReceiptImportFailure`'s matched set (either would make `install` retry it) —
+/// confirmed red by temporarily making `isTransientNetworkFailure` return `true`
+/// for this log and rerunning (calls goes from 1 to 4, the retry ceiling).
+@Test func doesNotRetryAdamIDNotFound() async {
+    let runner = ScriptedMASRunner([(1, adamIDNotFoundLog)])
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    await #expect(throws: MASInstaller.MASError.self) {
+        try await installer.install(adamID: 900000006) { _ in }
+    }
+    let calls = await runner.calls
+    #expect(calls == 1)  // no retry on a definitive failure
+}
+
 @Test func masFailureTailStaysShortAndDropsProgressNoise() {
     // mas draws progress with carriage returns, so splitting on "\n" alone left the
     // whole blob as one "line" — the popover rendered ~40 lines of red text.

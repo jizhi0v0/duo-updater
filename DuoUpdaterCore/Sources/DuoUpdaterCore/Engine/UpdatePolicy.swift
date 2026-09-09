@@ -501,7 +501,15 @@ public enum UpdatePolicy {
     /// `.toolboxManaged` and `.testFlightManaged` from the *same* "no source could
     /// answer" branch that produces `.unknown` for everything else, so treating
     /// them as settlements would delete a live error on nothing more than a
-    /// transient lookup miss. That is not hypothetical for App Store rows, where
+    /// transient lookup miss.
+    ///
+    /// ⚠️ `.testFlightManaged` now has a SECOND producer where a source did answer:
+    /// the checker refuses an up-to-date verdict when the installed build outruns
+    /// everything TestFlight's database holds. Not settling is still right there —
+    /// that row's whole point is that we could not establish it is current — but
+    /// "nobody answered" is no longer what the status means, so do not build a rule
+    /// (a retry, a settlement once a source is known to have replied) on that
+    /// reading. That is not hypothetical for App Store rows, where
     /// the error text is also what gates the row's recovery buttons
     /// (`showsHelperApprovalFallback` and friends read `installErrors`): one
     /// unanswered check would take away the message *and* the only route to the

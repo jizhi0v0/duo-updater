@@ -196,43 +196,13 @@ public struct TestFlightInventory: Sendable {
     /// anything near this is the gate, not slow disk.
     static let openTimeout: TimeInterval = 5
 
-    /// A slot one thread fills and another reads. Needed because the reader can
-    /// give up before the writer finishes — see `readRows(at:)`.
-    private final class ResultBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value: Reading?
-        func set(_ v: Reading) {
-            lock.lock(); defer { lock.unlock() }
-            value = v
-        }
-        func take() -> Reading? {
-            lock.lock(); defer { lock.unlock() }
-            return value
-        }
-    }
-
-    /// Paths whose open is *still* stuck behind the gate. Once one is, we stop
-    /// starting new opens for it: in a long-running process (the menu-bar app) a
-    /// scan happens periodically, and without this each one would strand another
-    /// thread. Bounded at one stranded thread per path, and cleared the moment
-    /// that open finally returns — so granting access mid-session recovers on
-    /// the next scan without a restart.
-    ///
-    /// Keyed by path rather than a single flag so one unreadable database can
-    /// never suppress reads of a different one.
-    private final class ProbeState: @unchecked Sendable {
-        private let lock = NSLock()
-        private var stuck: Set<String> = []
-        func isStuck(_ path: String) -> Bool {
-            lock.lock(); defer { lock.unlock() }
-            return stuck.contains(path)
-        }
-        func mark(_ path: String, stuck isStuck: Bool) {
-            lock.lock(); defer { lock.unlock() }
-            if isStuck { stuck.insert(path) } else { stuck.remove(path) }
-        }
-    }
-    private static let probe = ProbeState()
+    /// The bound itself, plus the memo of paths whose open never came back. Both
+    /// live in `BoundedBlockingWork`, which is this code generalised — see its
+    /// doc comment for why the thread is abandoned rather than pooled, and why
+    /// one stranded thread per path is the ceiling. Keyed by path rather than a
+    /// single flag so one unreadable database can never suppress reads of a
+    /// different one.
+    private static let bounded = BoundedBlockingWork(label: "TestFlight DB open")
 
     /// Returns the macOS rows, the iOS rows, and whether the DB was actually
     /// opened. `opened` is `false` for a missing file or a failed/denied open (the
@@ -255,30 +225,13 @@ public struct TestFlightInventory: Sendable {
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
         guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], false) }
-        guard !probe.isStuck(url.path) else { return ([], [], false) }
-
-        let box = ResultBox()
-        let done = DispatchSemaphore(value: 0)
-        // A Thread, not a Task: a blocked syscall on a cooperative-pool thread
-        // starves the pool, and a structured child would pin its parent until it
-        // returned — which is the bug this replaces.
-        let worker = Thread {
-            box.set(openAndRead(at: url))
-            probe.mark(url.path, stuck: false)
-            done.signal()
-        }
-        worker.stackSize = 512 * 1024
-        worker.start()
-
-        if done.wait(timeout: .now() + openTimeout) == .timedOut {
-            probe.mark(url.path, stuck: true)
-            Log.scan.error("""
-                TestFlight DB open did not return within \(openTimeout, privacy: .public)s at \
-                \(url.path, privacy: .public) — treating it as inaccessible (app-data privacy gate)
-                """)
-            return ([], [], false)
-        }
-        return box.take() ?? ([], [], false)
+        // nil covers both give-up modes — this open timed out, or an earlier one
+        // for this path is still stranded — and both mean the same thing to the
+        // caller: we never got in, so `opened` is false rather than "read it,
+        // nothing inside".
+        return bounded.run(key: url.path, timeout: openTimeout) {
+            openAndRead(at: url)
+        } ?? ([], [], false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.

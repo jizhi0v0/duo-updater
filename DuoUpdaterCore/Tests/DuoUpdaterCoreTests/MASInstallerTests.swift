@@ -212,15 +212,19 @@ private let receiptImportLog =
     #expect(msg.contains(MASInstaller.MASError.appStoreUpdatesHint))
 }
 
-// The exact shape from #474's field report (Aqara Home, ADAM ID 1248669703 —
-// a wrapped iPhone/iPad app, which mas's Mac App Store lookup can never find).
+// The exact shape from #474's field report, captured by running `mas install
+// 1248669703` by hand (Aqara Home). ⚠️ That app is a wrapped iPhone/iPad one, and
+// three upstream gates keep those away from this installer entirely — the sample
+// is the string's shape, not the case that reaches this code. What reaches it is
+// an app pulled from sale (see `isAdamIDNotFound`).
 private let adamIDNotFoundLog = "Error: No apps found in the App Store for ADAM ID 1248669703"
 
 /// mas's own lookup came up empty for the ADAM ID. Before this, the surfaced
 /// message was mas's raw text verbatim ("mas failed (1): Error: No apps found in
 /// the App Store for ADAM ID …") — which reads as "this app isn't in the App
-/// Store", and for the #474 sample that's false (it's an iOS-on-Mac app; mas's
-/// Mac-only namespace just doesn't carry it). Mutation this catches: deleting the
+/// Store", a claim the string does not support: for a delisted app it guesses at
+/// why the lookup failed, and for a wrapped app it would be flatly wrong.
+/// Mutation this catches: deleting the
 /// `isAdamIDNotFound` branch in `errorDescription` (falls through to the raw
 /// `tail`, which both re-leaks "ADAM ID" and drops the "Open App Store" hint) —
 /// confirmed red by commenting the branch out and rerunning.

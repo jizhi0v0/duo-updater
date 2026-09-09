@@ -86,13 +86,15 @@ public actor MASInstaller {
                 if Self.isReceiptImportFailure(output) {
                     return "The App Store blocked mas from finishing this update. \(MASError.appStoreUpdatesHint)"
                 }
-                // mas's own lookup by ADAM ID came up empty. The most common cause is
-                // a wrapped iPhone/iPad app: mas only knows the Mac App Store catalog,
-                // and those live in the iOS one — but the same message also covers an
-                // app that's genuinely been pulled from sale. Either way "this app
-                // isn't in the App Store" would be false (the iOS-on-Mac case is very
-                // much still there), so this only asserts what actually happened: mas's
-                // lookup found nothing, and the App Store app itself is the fallback.
+                // mas's own lookup by ADAM ID came up empty. In production that means
+                // the app has been pulled from sale: the other thing mas cannot find —
+                // a wrapped iPhone/iPad app, which lives in the iOS catalog and never in
+                // mas's Mac-only one — cannot reach this installer at all (see
+                // `isAdamIDNotFound` for where it is turned away). The message must
+                // therefore not say "this app isn't in the App Store" either: for a
+                // delisted app that is a guess about why the lookup failed, and if a
+                // wrapped app ever did reach here it would be flatly false. It asserts
+                // only what happened — mas found nothing — and points at the App Store.
                 if Self.isAdamIDNotFound(output) {
                     return "mas can’t look up this app by its App Store ID, so it can’t install the update. \(MASError.appStoreUpdatesHint)"
                 }
@@ -176,15 +178,24 @@ public actor MASInstaller {
 
         /// True when mas's own store lookup found nothing for the ADAM ID
         /// ("Error: No apps found in the App Store for ADAM ID …", from both
-        /// `mas info` and `mas install`). This is mas's Mac App Store namespace
-        /// coming up empty — it does not by itself mean the app is unavailable
-        /// everywhere: a wrapped iPhone/iPad app lives in the iOS catalog instead
-        /// and is never in mas's namespace, so this fires for every one of them
-        /// (100% of the time, not intermittently). It also fires for an app that
-        /// really has been removed from sale — this string alone can't tell the
-        /// two apart, so the message built from it (`errorDescription`) only
-        /// claims what's true of both: mas couldn't find it, not that it isn't in
-        /// the App Store.
+        /// `mas info` and `mas install`). That is mas's Mac App Store namespace
+        /// coming up empty, which is not the same as the app being unavailable —
+        /// hence the deliberately narrow message in `errorDescription`.
+        ///
+        /// ⚠️ **What actually reaches this in production is a delisted app.** The
+        /// other candidate — a wrapped iPhone/iPad app, which lives in the iOS
+        /// catalog and is never in mas's namespace — cannot get here: measured
+        /// 2026-09-09, `masInstaller.install` has exactly two call sites
+        /// (`AppListModel` ~3206 / ~3241) and three gates stand in front of them —
+        /// `UpdatePolicy.canAutoInstall` excludes `isiOSAppOnMac` on the `.full`
+        /// route, `AppListModel` redirects those rows to the App Store deep link
+        /// before any install runs, and the `.incremental` route excludes them from
+        /// the mas fallback too. The CLI cannot reach it either (`DuoKit/Install`
+        /// refuses the whole `.appStore` route). Routing them here would be the
+        /// change to make deliberately, not something to infer from this comment.
+        ///
+        /// The string alone still cannot tell the two apart, which is why the
+        /// message claims only that mas could not find it.
         static func isAdamIDNotFound(_ output: String) -> Bool {
             output.lowercased().contains("no apps found")
         }

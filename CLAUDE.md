@@ -392,6 +392,48 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
   给出的是同样被过滤的 40 行——那条提示是假的)。
 
+## 测试不能问宿主「你装了什么、在跑什么」——包括隐式地问
+
+2026-09-09:三个 PR 里两个各带一处这个形状,**一处被复审抓住,一处没有,是 CI 抓的**
+(本机三轮全绿)。差别在于前者显式、后者隐式。
+
+**显式的那处**:`classifyOwnSheet` 一度为了拿到编译器保证而改成自己调
+`NSRunningApplication`,于是它的单测只能拿 `com.apple.finder` 当「肯定在跑的 app」,
+理由写的是「Finder 在每台机器、每个 CI runner 上都在跑」——一条**未验证的断言**,
+而且一旦哪天不成立,失败会长得像一条真回归。这处复审时抓住了,因为 diff 里
+有一个显眼的系统调用。
+
+**隐式的那处没抓住**:另一份 PR 的 fixture 拿 `/Applications/Xcode.app` 当路径。
+`runningBuildVersions` 的 key 要过 `UpdatePolicy.runtimeBundlePath`,而它第一步是
+`resolvingSymlinksInPath()` —— **对不存在的路径是恒等变换,对存在的符号链接不是**。
+本机没有 `Xcode.app`(跑的是 Xcode-beta)所以绿;CI runner 镜像里有一个、解析到别处,所以红。
+
+⚠️ **`== nil` 的断言对这种漂移免疫,所以它在哪里都绿。** key 一漂,查不到就是 nil,
+用例照样通过,但已经不在量它声称在量的那条规则了。同一份 PR 里两条 tombstone 用例分别指着
+`/Applications/AndDrive.app`(正是那个 bug 报告里的 app)和一个真的 ClaudeWakeHost bundle,
+它们在本机的变异覆盖是**靠运气挣来的**:这两个今天碰巧不是符号链接。**失败的那条反而是
+好消息——它至少响了;真正危险的是那两条一直绿着的。**
+
+规矩:
+
+- **fixture 路径一律编造**(`ZZFixture-*` 之类),别用任何真实存在的 app 名,哪怕它正是
+  这个 bug 的当事人。真实路径读起来更「真」,代价是把文件系统写进了等式。
+- **做成会红的闸,不是一句注释。** `entry()` 那类 helper 在构造记录前
+  `#expect(!FileManager.default.fileExists(atPath: path))`,手搓的 fixture 单独断言。
+  变异验过:把一个 fixture 指回真实路径,闸红并点名那条用例。
+- **判定函数别为了拿编译器保证而去读全局状态。** 想要「不可能构造出非法组合」这个保证,
+  就传一个**调用方已经确认过的值**(`runningBundleID: String?`,nil 表示「没有 id,或没在跑」),
+  而不是让函数自己去查。编译器保证和纯函数可以同时拿到——同一个文件里
+  `classifySheet` / `swapWatchdog` / `exhaustedBudgetError` 都是收 `appRunning: Bool` 的纯函数,
+  那才是这里的既有范式。顺带还省掉一次重复查询:自己查的写法在同一个循环里
+  查两次 `isRunning`,两次非原子,**日志可能印出与实际所走分支矛盾的 `running=`**。
+- 判据一句话:**这条用例换一台机器跑,答案会不会变?** 会变就说明它在量宿主,不在量代码。
+
+顺带一条通用的、这轮咬过一次的:**`git push` 打印的提示不是回执**。一次 `git push`
+只吐了一段关于 upstream 命名的建议就退出,远端 SHA 纹丝未动,而我差点当成推成功了。
+判据是去问远端:`git ls-remote origin <branch>` 跟 `git rev-parse HEAD` 比。
+形状同「`gh pr merge --auto` 返回 0 不代表合了」——**回执不是状态,去问那个真实状态**。
+
 ## 装 app 的路径是全机独占的,靠 `InstallLock`
 
 生产的 scratch 目录名**跨进程稳定**:`DuoUpdater-<scratchSlug>-<版本>`(Sparkle)、

@@ -19,6 +19,14 @@ struct SilentActivationTests {
         private(set) var hiddenWrites: [Bool] = []
         func note(_ s: String) { lock.lock(); log.append(s); lock.unlock() }
         func wroteHidden(_ v: Bool) { lock.lock(); hiddenWrites.append(v); lock.unlock() }
+        private var restoreCalls = 0
+        func nextRestoreCode(_ codes: [Int32]) -> Int32 {
+            lock.lock(); defer { lock.unlock() }
+            defer { restoreCalls += 1 }
+            return restoreCalls < codes.count ? codes[restoreCalls] : codes.last ?? 0
+        }
+        var restoreAttempts: Int { log.filter { $0 == "restoreFront" }.count }
+        var saveAttempts: Int { log.filter { $0 == "saveFront" }.count }
         var frontWasTaken: Bool { log.contains("makeFront") }
         var frontWasRestored: Bool { log.contains("restoreFront") }
     }
@@ -29,7 +37,8 @@ struct SilentActivationTests {
         pid: pid_t? = 4242,
         active: Bool = false,
         hidden: Bool = false,
-        saveCode: Int32 = 0,
+        saveFails: Int32? = nil,
+        restoreCodes: [Int32] = [0],
         frontCode: Int32 = 0,
         spy: Spy
     ) -> SilentActivation {
@@ -40,10 +49,21 @@ struct SilentActivationTests {
             isActive: { spy.note("isActive"); return active },
             isHidden: { spy.note("isHidden"); return hidden },
             setHidden: { spy.note("setHidden"); spy.wroteHidden($0) },
-            saveFront: { spy.note("saveFront"); return saveCode },
+            saveFront: {
+                spy.note("saveFront")
+                if let saveFails { return .unreadable(code: saveFails) }
+                return .saved(SilentActivation.FrontProcess(hi: 0, lo: 99))
+            },
             makeFront: { _ in spy.note("makeFront"); return frontCode },
-            restoreFront: { spy.note("restoreFront"); return 0 },
-            sleep: { _ in spy.note("sleep") })
+            restoreFront: { front in
+                spy.note("restoreFront")
+                #expect(front == SilentActivation.FrontProcess(hi: 0, lo: 99))
+                return spy.nextRestoreCode(restoreCodes)
+            },
+            sleep: { _ in spy.note("sleep") },
+            // Inline rather than a real Dispatch hop: the cases assert on ordering,
+            // and production's hop is pinned separately by `theProductionHopIsOffPool`.
+            offPool: { work in work() })
     }
 
     /// A password field owns the keyboard, so the 120ms window would send the
@@ -89,8 +109,11 @@ struct SilentActivationTests {
         #expect(outcome == .activated(heldFor: .milliseconds(1)))
         #expect(spy.frontWasRestored)
         // Ordering is the point: restore comes after the hold, not before it.
-        #expect(spy.log.firstIndex(of: "makeFront")! < spy.log.firstIndex(of: "sleep")!)
-        #expect(spy.log.firstIndex(of: "sleep")! < spy.log.firstIndex(of: "restoreFront")!)
+        // Optional-compared rather than force-unwrapped, so a mutation that removes
+        // one of these fails the case instead of trapping and killing the run.
+        let order = ["makeFront", "sleep", "restoreFront"].map { spy.log.firstIndex(of: $0) }
+        #expect(order.allSatisfy { $0 != nil })
+        #expect(order == order.compactMap { $0 }.sorted().map { Optional($0) })
     }
 
     /// An app the user had hidden goes back to hidden: activating unhides it, and
@@ -123,7 +146,7 @@ struct SilentActivationTests {
     /// Mutation: ignore `saveFront()`'s return value — `frontWasTaken` becomes true.
     @Test func aFrontProcessThatCannotBeSavedIsNeverReplaced() async {
         let spy = Spy()
-        let outcome = await Self.activation(saveCode: -1, spy: spy).run()
+        let outcome = await Self.activation(saveFails: -1, spy: spy).run()
         #expect(outcome == .failed(code: -1))
         #expect(!spy.frontWasTaken)
     }
@@ -152,6 +175,99 @@ struct SilentActivationTests {
         #expect(outcome == .alreadyActive)
         #expect(!spy.frontWasTaken)
         #expect(spy.hiddenWrites.isEmpty)
+    }
+
+    /// A failed restore is retried once and then reported. Leaving someone's focus
+    /// where they did not put it is the worst thing this type can do, so it is the
+    /// one failure that must not be folded into the success case.
+    ///
+    /// Mutation: write `_ = restoreFront(previousFront)` and return `.activated`
+    /// unconditionally (the shape this file shipped with first) — the outcome and
+    /// the retry count both change, and this fails on both.
+    @Test func aFailedRestoreIsRetriedAndThenReported() async {
+        let spy = Spy()
+        let outcome = await Self.activation(restoreCodes: [-1, -1], spy: spy)
+            .run(hold: .milliseconds(1))
+        #expect(outcome == .frontNotRestored(code: -1))
+        #expect(spy.restoreAttempts == 2)
+    }
+
+    /// ...and a restore that succeeds on the retry is an ordinary success, not a
+    /// reported failure.
+    ///
+    /// Mutation: drop the retry — the outcome becomes `.frontNotRestored` and this
+    /// fails. Without this case the retry could be deleted and the suite stay green.
+    @Test func aRestoreThatSucceedsOnTheRetryIsStillASuccess() async {
+        let spy = Spy()
+        let outcome = await Self.activation(restoreCodes: [-1, 0], spy: spy)
+            .run(hold: .milliseconds(1))
+        #expect(outcome == .activated(heldFor: .milliseconds(1)))
+        #expect(spy.restoreAttempts == 2)
+    }
+
+    /// The front process is read **once**. The first version of this asked twice —
+    /// once in the `guard`, once in its `else` — so a transient failure followed by a
+    /// success returned `.failed(code: -1)`, a code the API never produced, and threw
+    /// away a perfectly good snapshot.
+    ///
+    /// ⚠️ This case exists because the *mutation was run and nothing went red*: every
+    /// other case stubs `saveFront` as a constant, so the correct implementation and
+    /// the double-reading one give identical answers for every input. Counting the
+    /// calls is the only thing that separates them.
+    ///
+    /// Mutation: read `saveFront()` a second time in the failure path — `saveAttempts`
+    /// becomes 2 and this fails.
+    @Test func theFrontProcessIsReadExactlyOnce() async {
+        for failing in [true, false] {
+            let spy = Spy()
+            _ = await Self.activation(saveFails: failing ? -1 : nil, spy: spy)
+                .run(hold: .milliseconds(1))
+            #expect(spy.saveAttempts == 1)
+        }
+    }
+
+    /// A `makeFront` that reports failure still gets a restore. A non-zero return
+    /// from a symbol with no contract is not evidence that nothing moved, and that
+    /// is the one premise whose failure costs the user their focus silently.
+    ///
+    /// Mutation: return `.refused(.failed(code:))` without the `restoreFront` /
+    /// `setHidden` pair — `restoreAttempts` drops to 0 and this fails.
+    @Test func aFrontChangeThatReportedFailureIsStillPutBack() async {
+        let spy = Spy()
+        let outcome = await Self.activation(hidden: true, frontCode: -600, spy: spy).run()
+        #expect(outcome == .failed(code: -600))
+        #expect(spy.restoreAttempts == 1)
+        #expect(spy.hiddenWrites == [true])
+    }
+
+    /// The three symbols really do resolve on a Mac. Everything else in this file
+    /// stubs `Live` out entirely, so without this the whole live side — the dlopen,
+    /// the three dlsym names, `GetProcessForPID` coming from the `import Carbon`
+    /// rather than an explicit handle — could be replaced with `return 0` and the
+    /// suite would stay green.
+    ///
+    /// ⚠️ Vacuity: this asserts the symbols exist, not that they do anything. It is a
+    /// smoke test for the resolution step, and it is expected to start failing on
+    /// some future macOS — that failure is the signal, and the product degrades to
+    /// `.unavailable` rather than misbehaving.
+    @Test func theLiveSymbolsResolveOnThisMac() {
+        #expect(SilentActivation.Live.available())
+    }
+
+    /// Production must hop off the cooperative pool: `dlopen`, XPC to LaunchServices,
+    /// and Mach IPC to the WindowServer all block, and this repository has already
+    /// lost a whole test process to blocking that pool.
+    ///
+    /// Mutation: change the default to `{ work in work() }` — this fails. Pinned in
+    /// the source text because the default closure is otherwise opaque.
+    @Test func theProductionHopIsOffPool() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/DuoUpdaterCore/Support/SilentActivation.swift"),
+            encoding: .utf8)
+        #expect(source.contains("try? await offCooperativePool { work() }"))
     }
 
     /// The hold is a measured value, not a guess: 50ms produced a single store

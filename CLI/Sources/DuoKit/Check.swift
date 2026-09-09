@@ -71,11 +71,18 @@ public enum Check {
             return "duo: TestFlight is already running, and this macOS does not let us reload it "
                  + "without taking the screen. Switch to TestFlight yourself if you want its data reloaded."
         case .refusedSecureInput:
-            return "duo: not touching TestFlight while a password field is active — try again in a moment"
+            // Secure keyboard entry is session-wide, and Terminal's own Secure
+            // Keyboard Entry holds it for the life of the terminal you are probably
+            // reading this in. So this must not promise it will clear on its own.
+            return "duo: secure keyboard entry is on, so TestFlight was left alone. "
+                 + "A password field, a password manager, or your terminal's Secure Keyboard Entry holds it."
         case .alreadyFrontmost:
             return "duo: TestFlight is open in front of you — its own window is more current than anything we can reload"
         case .activationFailed(let code):
             return "duo: could not reload the running TestFlight (code \(code))"
+        case .focusNotRestored(let code):
+            return "duo: reloaded TestFlight, but could not put your focus back (code \(code)) — "
+                 + "TestFlight may be in front now"
         case .notInstalled:
             return "duo: TestFlight is not installed, so there is nothing to refresh"
         case .launchFailed:

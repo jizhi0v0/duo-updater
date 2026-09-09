@@ -138,6 +138,41 @@ struct TestFlightRefreshTests {
         #expect(spy.sleeps == 0)
     }
 
+    /// A focus that could not be put back is told to the user at once, instead of
+    /// after a 30-second wait for a version number. A window they did not raise is
+    /// the more urgent fact, and the refresh that did happen is on disk for the next
+    /// check regardless.
+    ///
+    /// Mutation: fall through to the wait (`launched = false`) — the outcome becomes
+    /// a refresh verdict, `sleeps` stops being 0, and this fails on both.
+    @Test func aFocusThatCouldNotBeRestoredIsReportedImmediately() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            running: true, activation: .frontNotRestored(code: -600),
+            stamp: Stamp(changesAt: [3]), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30))
+        #expect(outcome == .focusNotRestored(code: -600))
+        #expect(spy.sleeps == 0)
+    }
+
+    /// The production wiring must map "no pid" to nil, not forward -1.
+    /// `NSRunningApplication` documents that applications without a pid return -1 and
+    /// that the object outlives the process — and TestFlight is automatically
+    /// terminated constantly, so this is the common path, not a corner.
+    ///
+    /// Mutation: drop the `pid > 0` check — the `.notRunning` fallback becomes
+    /// unreachable and a quit-during-the-race is reported as `GetProcessForPID(-1)`
+    /// failing. Pinned in the source text because the closure is a live effect.
+    @Test func theProductionWiringTreatsMinusOneAsNoPid() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightRefresh.swift"),
+            encoding: .utf8)
+        #expect(source.contains("pid > 0 else { return nil }"))
+    }
+
     /// TestFlight quitting between `isRunning()` and the activation is a race, not
     /// a failure: the cold route serves it.
     ///

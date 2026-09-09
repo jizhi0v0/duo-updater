@@ -58,6 +58,11 @@ public struct TestFlightRefresh: Sendable {
         case alreadyFrontmost
         /// TestFlight is running and the activation itself was refused.
         case activationFailed(code: Int32)
+        /// The activation landed but the user's focus could not be put back, twice.
+        /// Returned **instead of** waiting for the store: a window the user did not
+        /// raise is more urgent than a version number, and the refresh that did
+        /// happen will be on disk for the next check either way.
+        case focusNotRestored(code: Int32)
         /// No TestFlight on this Mac.
         case notInstalled
         /// LaunchServices refused or timed out.
@@ -139,6 +144,8 @@ public struct TestFlightRefresh: Sendable {
             switch await activate() {
             case .activated:
                 launched = false
+            case .frontNotRestored(let code):
+                return .focusNotRestored(code: code)
             case .unavailable:
                 return .activationUnavailable
             case .refusedSecureInput:
@@ -212,7 +219,15 @@ public struct TestFlightRefresh: Sendable {
     /// right before the front changes.
     public static let activateTestFlight: @Sendable () async -> SilentActivation.Outcome = {
         await SilentActivation(
-            runningPID: { runningTestFlight()?.processIdentifier },
+            runningPID: {
+                // -1 means "no pid", not "pid minus one": NSRunningApplication keeps
+                // returning a valid object after the app exits, and TestFlight is
+                // automatically terminated all the time. Forwarding it would make the
+                // quit-during-the-race branch unreachable and report an error where a
+                // cold launch is the right answer.
+                guard let pid = runningTestFlight()?.processIdentifier, pid > 0 else { return nil }
+                return pid
+            },
             isActive: { runningTestFlight()?.isActive ?? false },
             isHidden: { runningTestFlight()?.isHidden ?? false },
             setHidden: { hidden in if hidden { _ = runningTestFlight()?.hide() } }

@@ -505,11 +505,21 @@ struct AppStoreOfferButtonTests {
 
     // MARK: - #472: a close-to-update sheet's meaning doesn't depend on the app still running
 
+    // `classifyOwnSheet` now decides "is the app running" itself from a `bundleID:
+    // String?`, rather than being handed a pre-computed bool — so these tests need real
+    // bundle ids to check against `NSRunningApplication`. "com.apple.finder" is a stable
+    // choice for "definitely running": Finder cannot be quit on a normal macOS host (and
+    // certainly not from inside a test process), so it is running on every machine and
+    // every CI runner this suite executes on.
+
+    private static let aRunningBundleID = "com.apple.finder"
+    private static let aNotRunningBundleID = "com.duoupdater.tests.definitely-not-a-running-bundle-id"
+
     /// The ordinary case this whole branch exists for: a download started and the app is
-    /// still open. Ask the user for Relaunch/Cancel.
+    /// still open. Ask the user for Relaunch/Cancel, carrying the bundle id forward.
     @Test func aDownloadedSheetWithTheAppStillOpenAsksToQuit() {
-        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: true, appRunning: true)
-                == .downloadFinishedAppStillOpen)
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: true, bundleID: Self.aRunningBundleID)
+                == .downloadFinishedAppStillOpen(bundleID: Self.aRunningBundleID))
     }
 
     /// The regression. AndroMeld (2026-09-09): the download started, the app quit on its
@@ -519,10 +529,17 @@ struct AppStoreOfferButtonTests {
     /// `.possiblePurchaseConfirmation` and bailed with `.needsManualConfirmation` after
     /// ~3.2s, while the swap that was already running landed untouched 18s later.
     ///
-    /// Mutation: swap the guard to `guard sawProgress, appRunning else { return
-    /// .possiblePurchaseConfirmation }` — red here (the old bug, verbatim).
+    /// Mutation: swap the guard to `guard sawProgress, let bundleID, isRunning(bundleID)
+    /// else { return .possiblePurchaseConfirmation }` — red here (the old bug, verbatim).
     @Test func aDownloadedSheetWithTheAppAlreadyQuitNeedsNothingPressed() {
-        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: true, appRunning: false)
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: true, bundleID: Self.aNotRunningBundleID)
+                == .appAlreadyQuitNothingToPress)
+    }
+
+    /// A `nil` bundle id (no bundle id was known at all) behaves the same as a known,
+    /// not-running one: nothing to press, wait for the on-disk version to change.
+    @Test func aDownloadedSheetWithNoBundleIDNeedsNothingPressed() {
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: true, bundleID: nil)
                 == .appAlreadyQuitNothingToPress)
     }
 
@@ -530,27 +547,37 @@ struct AppStoreOfferButtonTests {
     /// whether or not the app happens to be running — the comment this code was written
     /// against says why: "a genuine purchase sheet never has a download behind it".
     ///
-    /// Mutation: swap the guard to key off `appRunning` instead of `sawProgress` — red on
-    /// at least one of these two expectations.
+    /// Mutation: swap the guard to key off the running check instead of `sawProgress` —
+    /// red on at least one of these two expectations.
     @Test func noDownloadAtAllIsAlwaysAPossiblePurchaseConfirmation() {
-        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: false, appRunning: true)
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: false, bundleID: Self.aRunningBundleID)
                 == .possiblePurchaseConfirmation)
-        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: false, appRunning: false)
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: false, bundleID: Self.aNotRunningBundleID)
+                == .possiblePurchaseConfirmation)
+        #expect(AppStoreAXInstaller.classifyOwnSheet(sawProgress: false, bundleID: nil)
                 == .possiblePurchaseConfirmation)
     }
 
-    /// Exhaustive sweep: `sawProgress` alone decides "is this ours"; `appRunning` only
-    /// decides which of the two "ours" outcomes applies. A future "simplify the
-    /// condition" that reintroduces `appRunning` as a gate on "ours" fails here.
+    /// Exhaustive sweep: `sawProgress` alone decides "is this ours"; whether the app is
+    /// running (derived from `bundleID`) only decides which of the two "ours" outcomes
+    /// applies. A future "simplify the condition" that reintroduces the running check as
+    /// a gate on "ours" fails here.
     @Test func sawProgressAloneGatesWhetherTheSheetIsOurs() {
+        let candidates: [(bundleID: String?, isRunning: Bool)] = [
+            (Self.aRunningBundleID, true),
+            (Self.aNotRunningBundleID, false),
+            (nil, false),
+        ]
         for sawProgress in [true, false] {
-            for appRunning in [true, false] {
+            for candidate in candidates {
                 let expected: AppStoreAXInstaller.OwnSheetDisposition =
                     !sawProgress ? .possiblePurchaseConfirmation
-                    : (appRunning ? .downloadFinishedAppStillOpen : .appAlreadyQuitNothingToPress)
+                    : (candidate.isRunning
+                       ? .downloadFinishedAppStillOpen(bundleID: candidate.bundleID!)
+                       : .appAlreadyQuitNothingToPress)
                 #expect(
-                    AppStoreAXInstaller.classifyOwnSheet(sawProgress: sawProgress, appRunning: appRunning) == expected,
-                    "sawProgress=\(sawProgress) appRunning=\(appRunning) must be \(expected)")
+                    AppStoreAXInstaller.classifyOwnSheet(sawProgress: sawProgress, bundleID: candidate.bundleID) == expected,
+                    "sawProgress=\(sawProgress) bundleID=\(candidate.bundleID ?? "nil") must be \(expected)")
             }
         }
     }

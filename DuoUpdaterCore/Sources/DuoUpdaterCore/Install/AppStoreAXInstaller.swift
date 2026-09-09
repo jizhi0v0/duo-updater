@@ -255,7 +255,7 @@ public actor AppStoreAXInstaller {
 
         let names = AppNames(bundle: appName, store: storeName,
                              localized: AppNames.localizedName(at: appPath))
-        let runningAtStart = bundleID.map { isRunning($0) } ?? false
+        let runningAtStart = bundleID.map { Self.isRunning($0) } ?? false
         Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) needles=\(names.needles.joined(separator: " | "), privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
@@ -477,7 +477,10 @@ public actor AppStoreAXInstaller {
         return nil
     }
 
-    private func isRunning(_ bundleID: String) -> Bool {
+    // Static: touches no actor state, and `classifyOwnSheet` (also static, so it is
+    // directly testable) needs to call it to decide `bundleID`'s disposition itself
+    // rather than being handed a pre-computed bool.
+    private static func isRunning(_ bundleID: String) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
     }
 
@@ -621,6 +624,22 @@ public actor AppStoreAXInstaller {
     /// means we caught the page exactly mid-rebuild, which is the state that used to fail
     /// closed at press time; a button still there a poll later has survived past whatever
     /// window that rebuild needed.
+    ///
+    /// This costs latency on every install, not just the ones that would have raced the
+    /// rebuild: `waitForOfferButton` cannot return on the poll that first finds the button,
+    /// it has to wait one more ~150ms poll to confirm it, and the press-time re-find (which
+    /// starts from `foundLastPoll: false`) needs two full polls of its own before it can
+    /// press — so this rule alone adds ~150-450ms to every update, not only the ones that
+    /// were actually churning.
+    ///
+    /// It also trades one failure mode for another. If the page happens to re-render on
+    /// close to a 150ms cadence, "found" and "not found" can keep alternating forever —
+    /// `justFound && foundLastPoll` never holds two polls in a row — and the wait runs out
+    /// its deadline never trusting a button that a plain "found it, use it" would have
+    /// returned on the very first sighting. This is new: the one-shot rule this replaced
+    /// could never fail this way, only the opposite one (#471). Low-probability — it needs
+    /// the rebuild period to land near the poll period — but worth knowing about, since the
+    /// old code had no such window at all.
     static func offerButtonIsStable(justFound: Bool, foundLastPoll: Bool) -> Bool {
         justFound && foundLastPoll
     }
@@ -746,7 +765,7 @@ public actor AppStoreAXInstaller {
                 // The app being open is why the number is allowed to stand still, so
                 // the watchdog is told rather than left to read a frozen wait as a
                 // dead swap (see `swapWatchdog`).
-                let stillOpen = bundleID.map { isRunning($0) } ?? false
+                let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
                 let watch = Self.swapWatchdog(
                     progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks,
                     appRunning: stillOpen)
@@ -773,12 +792,12 @@ public actor AppStoreAXInstaller {
                     // terminate() won't force past) — flag it once so a stuck install is
                     // diagnosable.
                     if postContinueTicks == 10 {  // ~4s after we quit + foregrounded
-                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after quit+foreground (app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after quit+foreground (app still running=\(bundleID.map { Self.isRunning($0) } ?? false))")
                     }
                 } else {
-                    let stillOpen = bundleID.map { isRunning($0) } ?? false
-                    switch Self.classifyOwnSheet(sawProgress: sawProgress, appRunning: stillOpen) {
-                    case .downloadFinishedAppStillOpen:
+                    let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
+                    switch Self.classifyOwnSheet(sawProgress: sawProgress, bundleID: bundleID) {
+                    case .downloadFinishedAppStillOpen(let bundleID):
                         // Download finished, app still open → App Store's "Close this app to
                         // update" sheet. Gate it behind the user's Relaunch tap, then finish.
                         //
@@ -798,11 +817,10 @@ public actor AppStoreAXInstaller {
                         // download ran in the background; the user just tapped Relaunch and expects
                         // the app to cycle.
                         //
-                        // `classifyOwnSheet` only returns this case when `stillOpen` is true, which
-                        // in turn only happens when `bundleID` is non-nil (`stillOpen` comes from
-                        // `bundleID.map { isRunning($0) } ?? false`) — so the force-unwrap below is
-                        // safe.
-                        let bundleID = bundleID!
+                        // `bundleID` here is the associated value `classifyOwnSheet` binds when
+                        // (and only when) it has already confirmed the app is running under it —
+                        // the compiler enforces that, not a cross-function comment (see
+                        // `classifyOwnSheet`'s own `guard let`).
                         if !askedToQuit {
                             Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
                             requestQuit(appName)
@@ -818,7 +836,7 @@ public actor AppStoreAXInstaller {
                             answer: await quitAnswer(),
                             sheetPresent: true,
                             versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
-                            appRunning: isRunning(bundleID)
+                            appRunning: Self.isRunning(bundleID)
                         ) {
                         case .keepWaiting:
                             break
@@ -850,8 +868,21 @@ public actor AppStoreAXInstaller {
                         // `versionChanged` check is what catches completion. Log once so a
                         // stalled swap here is still diagnosable, without spamming a line
                         // every ~400ms for however long the swap takes.
+                        //
+                        // Foregrounding App Store here is NOT optional polish: this file's own
+                        // measurement (`activateAppStore`'s doc comment, Spark 2026-06-08) found
+                        // a *backgrounded* App Store parks the close-to-update sheet and never
+                        // completes the swap even after the app has quit — 94s with no swap
+                        // backgrounded, vs. swapped once foregrounded. Skipping this call would
+                        // leave this branch relying only on the 900-poll (~6 min) hard cap, since
+                        // with the app already gone `askedToQuit` never becomes true (no prompt is
+                        // shown to gate `polls`' increment) and `sheetTicks` never advances either
+                        // (that counter only moves in `.possiblePurchaseConfirmation`) — so neither
+                        // of the faster gates applies here. Only asked once, same as the log line,
+                        // so a lingering sheet doesn't repeatedly steal focus.
                         if !loggedAppAlreadyQuitDuringOwnSheet {
                             Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown with the app already quit — nothing to press, waiting for the swap to land")
+                            activateAppStore()
                             loggedAppAlreadyQuitDuringOwnSheet = true
                         }
                     case .possiblePurchaseConfirmation:
@@ -898,7 +929,7 @@ public actor AppStoreAXInstaller {
                         answer: await quitAnswer(),
                         sheetPresent: false,
                         versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
-                        appRunning: bundleID.map { isRunning($0) } ?? false
+                        appRunning: bundleID.map { Self.isRunning($0) } ?? false
                     ) {
                     case .settledElsewhere:
                         Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
@@ -1014,7 +1045,7 @@ public actor AppStoreAXInstaller {
         }
         // What a spent budget means depends on what is still true — see
         // `exhaustedBudgetError`.
-        let stillOpen = bundleID.map { isRunning($0) } ?? false
+        let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
         Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
         throw Self.exhaustedBudgetError(appName: appName, continued: continued, appRunning: stillOpen)
     }
@@ -1091,7 +1122,7 @@ public actor AppStoreAXInstaller {
             app.terminate()
         }
         for _ in 0..<60 {  // ~12s at 200ms
-            if !isRunning(bundleID) {
+            if !Self.isRunning(bundleID) {
                 Log.install.notice("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
                 return
             }
@@ -1131,7 +1162,8 @@ public actor AppStoreAXInstaller {
 
     /// What a not-yet-`continued` sheet that IS ours (`classifySheet` already said so)
     /// actually means, given the two facts on hand: whether this update's own download
-    /// has started (`sawProgress`), and whether the app being updated is still running.
+    /// has started (`sawProgress`), and whether the app being updated is still running
+    /// (decided here from `bundleID`, not handed in as a separate bool — see below).
     ///
     /// #472: the old branch condition was `sawProgress, let bundleID, isRunning(bundleID)`
     /// — `appRunning` gated whether a sheet counted as ours **at all**, so a sheet that
@@ -1146,8 +1178,10 @@ public actor AppStoreAXInstaller {
     /// Store a quit".
     enum OwnSheetDisposition: Equatable {
         /// A download for this update has started and the app is still open. Ask the
-        /// user for Relaunch/Cancel — nothing has quit yet.
-        case downloadFinishedAppStillOpen
+        /// user for Relaunch/Cancel — nothing has quit yet. Carries the bundle id
+        /// `classifyOwnSheet` already confirmed is running, so the caller has a
+        /// non-optional id to quit later without re-deriving (or force-unwrapping) it.
+        case downloadFinishedAppStillOpen(bundleID: String)
         /// A download for this update has started and the app has already quit on its
         /// own (App Store can ask for the close mid-download; a responsive app can be
         /// gone before we ever sample the sheet). Nothing to press: the swap proceeds on
@@ -1158,9 +1192,18 @@ public actor AppStoreAXInstaller {
         case possiblePurchaseConfirmation
     }
 
-    static func classifyOwnSheet(sawProgress: Bool, appRunning: Bool) -> OwnSheetDisposition {
+    /// Takes `bundleID` rather than a pre-computed `appRunning: Bool` so the "app is
+    /// running" fact and the id needed to act on it can never separate: the caller used
+    /// to compute `stillOpen` itself and hand over only the bool, which is how
+    /// `.downloadFinishedAppStillOpen`'s call site ended up re-deriving "the id must be
+    /// non-nil here" from that bool via a force-unwrap, backed only by a comment
+    /// explaining why it couldn't fail. `guard let bundleID` here makes the same fact a
+    /// compiler-checked binding instead — the disposition simply cannot be constructed
+    /// without one.
+    static func classifyOwnSheet(sawProgress: Bool, bundleID: String?) -> OwnSheetDisposition {
         guard sawProgress else { return .possiblePurchaseConfirmation }
-        return appRunning ? .downloadFinishedAppStillOpen : .appAlreadyQuitNothingToPress
+        guard let bundleID, isRunning(bundleID) else { return .appAlreadyQuitNothingToPress }
+        return .downloadFinishedAppStillOpen(bundleID: bundleID)
     }
 
     /// One poll of the swap watchdog, as a pure step so the rules that matter are

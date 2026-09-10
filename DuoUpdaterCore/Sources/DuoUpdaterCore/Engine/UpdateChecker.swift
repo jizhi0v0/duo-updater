@@ -219,6 +219,21 @@ public struct UpdateChecker: Sendable {
         // track); read TestFlight's cached latest build instead. The action stays
         // "open TestFlight".
         if app.isTestFlightApp {
+            // The store knows which betas the signed-in account is testing, and this
+            // is not one of them: signed out, a different Apple Account, or testing
+            // stopped. What is left for it is not an offer — an installed build
+            // survives as a placeholder (`TestFlightInventory.readTesters`) — so the
+            // store cannot bound this app, and `.upToDate` is exactly the answer it
+            // must not give. nil means the signal is off and leaves every verdict as
+            // it was.
+            if testflight?.isTesting(bundleID: app.bundleID) == false {
+                Log.check.info("""
+                    \(label, privacy: .public): the signed-in TestFlight account is not \
+                    testing this beta — the store cannot bound it
+                    """)
+                return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+            }
+
             // Which platform's rows may answer for this bundle is decided HERE, not
             // inside the inventory, and the two are mutually exclusive on purpose.
             // A wrapped iPhone/iPad bundle's builds are filed under the iOS

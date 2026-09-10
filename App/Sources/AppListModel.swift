@@ -4911,10 +4911,12 @@ final class AppListModel {
     /// whether to ask (missing, something was turned away, at most twice). A user
     /// still in the Welcome window is left to its card; ignored apps, and apps no
     /// longer on this Mac, are not reasons.
-    @ObservationIgnored private var fullDiskAccessExplainedThisSession = false
+    ///
+    /// No once-per-launch guard on top: the stored state already stops a repeat
+    /// about the same apps, and a menu-bar app can run for weeks — a guard here
+    /// would hold the second ask, for an app that turned up since, until a relaunch.
     func offerFullDiskAccessIfNeeded() {
-        guard !fullDiskAccessExplainedThisSession,
-              UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") else { return }
+        guard UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") else { return }
         let refused = FullDiskAccessNeeds.shared.refused()
         guard !refused.isEmpty else { return }
         let key: (InstalledApp) -> String = { $0.bundleID ?? $0.id }
@@ -4931,7 +4933,6 @@ final class AppListModel {
             fullDiskAccess: TCCPreflight.fullDiskAccessStatus(), needing: ids,
             state: prefs.fullDiskAccessGuidance)
         else { return }
-        fullDiskAccessExplainedThisSession = true
         prefs.fullDiskAccessGuidance = FullDiskAccessGuidance.recordingAsk(
             prefs.fullDiskAccessGuidance, needing: ids)
         Log.app.notice("permissions: explaining Full Disk Access (\(self.prefs.fullDiskAccessGuidance.timesAsked, privacy: .public) of \(FullDiskAccessGuidance.maximumAsks, privacy: .public)) for \(ids.count, privacy: .public) app(s)")

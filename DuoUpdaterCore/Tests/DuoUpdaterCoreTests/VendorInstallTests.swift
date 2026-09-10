@@ -266,6 +266,10 @@ import CryptoKit
 @Test func channelAnchorSurfaceCoversEveryRecipeField() {
     let recipe = VendorProbeRegistry.recipes[0]
     let labels = Mirror(reflecting: recipe).children.compactMap(\.label)
+    // 25 since `buildLineage` (2026-09-11). It stays IN: it names a document and a
+    // pattern the recipe READS, which is what this surface is, and neither carries
+    // a channel token for an anchor to be tautological about.
+    //
     // 24 since `trackClosedPattern` (2026-09-04). It stays IN, and unlike its
     // sibling `transientBodyPattern` it is not channel-neutral: only the beta
     // recipe carries one, and the string it holds names a beta-specific key
@@ -284,7 +288,7 @@ import CryptoKit
     // is a bad proof, not a tautological one, and a proof must name the fields it
     // relies on anyway (#110). Useless as an anchor, harmless in the surface,
     // same as every other Bool here.
-    #expect(labels.count == 24,
+    #expect(labels.count == 25,
             "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
     // A renamed field would turn its exclusion into a silent no-op, quietly
     // widening the surface instead of narrowing it. Same class of bug, other

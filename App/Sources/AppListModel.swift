@@ -219,6 +219,12 @@ final class AppListModel {
     /// private `TCCAccessPreflight` SPI. `.unknown` when the SPI is unavailable — the UI
     /// falls back to its honest "can't verify, grant to be safe" presentation then.
     private(set) var appManagementStatus = TCCPreflight.appManagementStatus()
+    /// Live Full Disk Access status, for the Welcome card and the Diagnostics row —
+    /// asked by opening files only it opens, so it follows the switch while
+    /// DuoUpdater runs (`TCCPreflight.fullDiskAccessStatus`). Whether TestFlight's
+    /// store is read is asked live instead (`mayReadTestFlightStore`): this copy
+    /// only moves while a window watches it.
+    private(set) var fullDiskAccessStatus = TCCPreflight.fullDiskAccessStatus()
     /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
     /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
     /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
@@ -447,9 +453,41 @@ final class AppListModel {
         }
     }
 
-    /// Bring TestFlight forward — the action for every TestFlight-managed row, in
+    /// Open TestFlight on this row's app — the action for every TestFlight row, in
     /// both windows and in the row menu. On the model for the same reason
     /// `openToolbox` is: one row, one behaviour.
+    ///
+    /// The app's id is read from TestFlight's store at the moment of the click, so
+    /// it is never a stale copy, and the read is bounded like every other read of
+    /// that store. A prompt still up, or an app the store has no id for, falls back
+    /// to opening TestFlight on its list, which is what this always did.
+    func openTestFlight(for result: UpdateResult) {
+        let bundleID = result.app.bundleID
+        // Without Full Disk Access the read cannot succeed and would only post a
+        // system notice; the list is where it would have landed anyway.
+        guard mayReadTestFlightStore else {
+            Log.app.info("TestFlight: no Full Disk Access to read an app id — opening its list")
+            openTestFlight()
+            return
+        }
+        Task {
+            let page = await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) {
+                    TestFlightInventory().frontier(forBundleID: bundleID)?.appPageURL
+                },
+                within: .seconds(2))
+            if let url = page ?? nil {
+                Log.app.info("TestFlight: opening \(url.absoluteString, privacy: .public)")
+                NSWorkspace.shared.open(url)
+            } else {
+                Log.app.info("TestFlight: no app id for \(bundleID ?? "?", privacy: .public) — opening its list")
+                openTestFlight()
+            }
+        }
+    }
+
+    /// Bring TestFlight forward on its list — the fallback for
+    /// `openTestFlight(for:)` when there is no app page to open.
     func openTestFlight() {
         if let url = NSWorkspace.shared.urlForApplication(
             withBundleIdentifier: "com.apple.TestFlight") {
@@ -1128,13 +1166,17 @@ final class AppListModel {
     @ObservationIgnored private var trustPollers = 0
     @ObservationIgnored private var trustObserver: NSObjectProtocol?
     /// Set while a drag-panel is up, so the moment we detect the corresponding grant we
-    /// can dismiss that now-pointless panel. Both are now detectable — Accessibility via
-    /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI.
+    /// can dismiss that now-pointless panel. All three are detectable — Accessibility via
+    /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI, Full
+    /// Disk Access by opening files only it opens (`FullDiskAccessProbe`).
     @ObservationIgnored private var awaitingAccessibilityGrant = false
     @ObservationIgnored private var awaitingAppManagementGrant = false
+    @ObservationIgnored private var awaitingFullDiskAccessGrant = false
 
-    /// Refresh both mirrored permission states once, and auto-dismiss a drag-panel whose
-    /// grant just landed. Cheap: `AXIsProcessTrusted()` + one `TCCAccessPreflight` call.
+    /// Refresh the mirrored permission states once, and auto-dismiss a drag-panel whose
+    /// grant just landed. Cheap: `AXIsProcessTrusted()`, a `TCCAccessPreflight` call, and
+    /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
+    /// refused.
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -1155,6 +1197,22 @@ final class AppListModel {
         if appMgmt == .granted, awaitingAppManagementGrant {
             awaitingAppManagementGrant = false
             permissionFlow.closePanel(returnToPreviousApp: true)
+        }
+
+        let fullDisk = TCCPreflight.fullDiskAccessStatus()
+        let couldReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccessStatus)
+        fullDiskAccessStatus = fullDisk
+        if fullDisk == .granted, awaitingFullDiskAccessGrant {
+            awaitingFullDiskAccessGrant = false
+            permissionFlow.closePanel(returnToPreviousApp: true)
+        }
+        // Turned on or off while DuoUpdater runs, which it sees now that the status
+        // comes from opening files rather than a preflight frozen at launch. The
+        // TestFlight rows are answered again right away instead of at the next
+        // refresh: granted, they can be read; revoked, they must stop claiming what
+        // nothing can confirm.
+        if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) != couldReadTestFlight {
+            Task { await recheckTestFlightRows() }
         }
 
         // Mirror the helper's approval into observable state, and refresh the client's
@@ -1218,13 +1276,25 @@ final class AppListModel {
         }
     }
 
-    /// Whether a *user-present* refresh has read the TestFlight container yet this
-    /// launch. The silent background scheduler never reads it (so a cold launch
-    /// can't trigger the "access data from other apps" prompt out of nowhere); the
-    /// first time the user actually opens the menu/workbench we read it once — a
-    /// natural, user-initiated moment for the TCC prompt. A Developer ID signature
-    /// makes that grant persist across launches, so it's a one-time ask.
+    /// Whether a round has read the TestFlight container yet this launch. With Full
+    /// Disk Access the scheduler's tick reads it too
+    /// (`RefreshIntent.readsTestFlight(fullDiskAccess:)`); when that cannot be
+    /// asked, the first time the user opens the menu or the workbench we read it
+    /// once (`owesTestFlightRead`).
     private(set) var testFlightReadThisSession = false
+
+    /// Whether anything may read TestFlight's store right now: only with Full Disk
+    /// Access, since without it the read cannot succeed and each attempt posts a
+    /// system notice (`TCCPreflight.admitsOtherAppsData`). Asked live rather than
+    /// from `fullDiskAccessStatus`, which is only kept fresh while a window shows it.
+    private var mayReadTestFlightStore: Bool {
+        TCCPreflight.admitsOtherAppsData(fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
+    }
+
+    /// Whether opening the menu or the workbench should run the full refresh that
+    /// reads TestFlight. Not without the grant: there is nothing that refresh could
+    /// read, and every open would otherwise be a full networked check.
+    var owesTestFlightRead: Bool { !testFlightReadThisSession && mayReadTestFlightStore }
 
     init(prefs: Preferences = .shared) {
         self.prefs = prefs
@@ -1789,6 +1859,10 @@ final class AppListModel {
     /// left as they were — so `refresh` checks this and runs one user-present
     /// follow-up (`RefreshIntent.owesFollowUp`).
     @ObservationIgnored private var refreshTaskIntent: RefreshIntent?
+    /// Whether the in-flight round could read TestFlight's store when it began —
+    /// nil until it has asked. `recheckTestFlightRows` waits only for a round that
+    /// began on the other side of a Full Disk Access change.
+    @ObservationIgnored private var refreshTaskMayReadTestFlight: Bool?
 
     /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
     /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
@@ -1810,10 +1884,12 @@ final class AppListModel {
     /// return instead of starting a second one.
     ///
     /// `intent` says who asked, and `RefreshIntent` spells out what follows from
-    /// it: a user-present refresh (menu/window open, the manual button, a re-check
-    /// after a permission grant) may take the TestFlight read that triggers the
-    /// "access data from other apps" TCC prompt, and starts the release notes over;
-    /// the silent scheduler's tick does neither, so a cold launch never prompts
+    /// it: a refresh the user is present for (menu/window open, the manual button,
+    /// a re-check after a permission grant) may take the TestFlight read that
+    /// triggers the "access data from other apps" TCC prompt, and starts the
+    /// release notes over; the manual button alone also asks TestFlight to sync;
+    /// the silent scheduler's tick does none of it — it reads TestFlight only when
+    /// Full Disk Access makes that read silent — so a cold launch never prompts
     /// unprompted and an hourly check never blanks the notes being read.
     func refresh(intent: RefreshIntent = .userPresent) async {
         if let existing = refreshTask {
@@ -1825,15 +1901,17 @@ final class AppListModel {
             let needFollowUp = refreshTaskIntent.map(intent.owesFollowUp(afterCoalescingOnto:)) ?? false
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
-            // Run one fresh user-present refresh. This recurses at most once: that
-            // refresh starts as `.userPresent`, so it can't re-trigger this branch
-            // and loop. (`reapplyTestFlightWhenGranted` also folds in, so no
-            // duplicate prompt.) It is also what makes "refresh" mean fresh notes
-            // when the click landed mid-tick: the scheduled pass that just finished
-            // left them alone, and this one restarts them.
+            // Run one fresh refresh of the caller's own kind. No intent owes a
+            // follow-up to its own kind (`owesFollowUp`), so this cannot land back
+            // here against itself and loop. (`reapplyTestFlightWhenGranted` also
+            // folds in, so no duplicate prompt.) It is also what makes "refresh"
+            // mean fresh notes when the click landed mid-tick — the scheduled pass
+            // that just finished left them alone, and this one restarts them — and
+            // what makes the button sync TestFlight when the click landed on a pass
+            // the menu's opening had started, which syncs nothing.
             if needFollowUp {
-                Log.app.info("refresh: coalesced onto a scheduled refresh — running user-present follow-up")
-                await refresh(intent: .userPresent)
+                Log.app.info("refresh: coalesced onto a pass that does less — running a \(String(describing: intent), privacy: .public) follow-up")
+                await refresh(intent: intent)
             }
             return
         }
@@ -1852,6 +1930,7 @@ final class AppListModel {
             await self.performRefresh(intent: intent)
             self.refreshTask = nil
             self.refreshTaskIntent = nil
+            self.refreshTaskMayReadTestFlight = nil
         }
         refreshTask = task
         refreshTaskIntent = intent
@@ -1925,6 +2004,91 @@ final class AppListModel {
         }
     }
 
+    /// Whether a TestFlight-only recheck is running, and whether another is owed
+    /// once it ends: a permission that flips twice while one runs must end on the
+    /// last answer, not the first.
+    @ObservationIgnored private var testFlightRecheckRunning = false
+    @ObservationIgnored private var testFlightRecheckOwed = false
+
+    /// Answer the TestFlight rows again, and only them, after Full Disk Access
+    /// changed while DuoUpdater runs: granted, they are read now instead of at the
+    /// next refresh; revoked, they stop claiming what nothing can confirm.
+    ///
+    /// Local only — TestFlight's store and Notification Center's, never the
+    /// network — so meeting the scheduler's tick costs a few milliseconds of
+    /// reading twice, not a second check.
+    ///
+    /// A round in flight is waited for only when it began on the other side of the
+    /// change: it answers these rows from the old state, and its write-back would
+    /// put that answer over anything done first. A round that began after the
+    /// change, or has not yet asked, reads the new state itself, and its write-back
+    /// keeps rows that moved under it (`CheckRoundWriteBack`) — so waiting on it
+    /// only held the answer back by a whole networked check. Measured 2026-09-11 on
+    /// the first grant of a launch, where opening the menu started such a round:
+    /// the rows changed 3.4s after the grant instead of at once.
+    private func recheckTestFlightRows() async {
+        guard !testFlightRecheckRunning else {
+            testFlightRecheckOwed = true
+            return
+        }
+        testFlightRecheckRunning = true
+        defer { testFlightRecheckRunning = false }
+        repeat {
+            testFlightRecheckOwed = false
+            if let running = refreshTask,
+               let began = refreshTaskMayReadTestFlight,
+               began != mayReadTestFlightStore {
+                await running.value
+            }
+            await recheckTestFlightRowsOnce()
+        } while testFlightRecheckOwed
+    }
+
+    private func recheckTestFlightRowsOnce() async {
+        let apps = results.map(\.app).filter { prefs.deservesCheck($0) }
+        guard !apps.isEmpty else { return }
+        let mayRead = mayReadTestFlightStore
+        let unread = TestFlightInventory(macRows: [], accessible: false)
+        let inventory = mayRead
+            ? await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                within: .seconds(2)) ?? unread
+            : unread
+        // Granted, but the store did not open in time or at all: leave the rows as
+        // they are. Answering them from `unread` would replace verdicts that were
+        // right a moment ago with "can't tell", and nothing here would read again;
+        // the next round does.
+        if mayRead, !inventory.accessible {
+            Log.app.notice("permissions: Full Disk Access granted while running, but TestFlight's store did not open — rows left for the next round")
+            return
+        }
+        // Tagging first, as after a sync: a wrapped iPhone/iPad app is recognized
+        // from the store itself (#456).
+        let targets = (inventory.accessible
+            ? AppScanner.applyingTestFlightInventory(inventory, to: apps) : apps)
+            .filter(\.isTestFlightApp)
+        guard !targets.isEmpty else { return }
+        let announcements: TestFlightAnnouncements? = mayRead
+            ? await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                within: .seconds(2))
+            : nil
+        let signedIn: Bool? = mayRead ? await AppStoreSignIn.current() : nil
+        // No sources: a TestFlight app is answered from the store and returns before
+        // any source is asked (`UpdateChecker`'s TestFlight branch).
+        let checker = UpdateChecker(
+            sources: [],
+            maxConcurrency: prefs.maxConcurrency,
+            testflight: inventory,
+            announcements: announcements,
+            appStoreSignedIn: signedIn,
+            channelStore: ResolvedChannelStore.shared)
+        let rechecked = await checker.check(targets)
+        if inventory.accessible { testFlightReadThisSession = true }
+        results = sorted(TestFlightRefresh.merging(results, resynced: rechecked))
+        Log.app.notice("permissions: Full Disk Access \(mayRead ? "granted" : "missing", privacy: .public) while running — re-checked \(rechecked.count, privacy: .public) TestFlight rows")
+    }
+
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
@@ -1952,10 +2116,29 @@ final class AppListModel {
     }
 
     private func performRefresh(intent: RefreshIntent) async {
-        let allowTestFlight = intent.readsTestFlight
-        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public))")
+        // Without Full Disk Access no read of TestFlight's store can succeed, and on
+        // macOS 27 each attempt costs the user a "Data Access Blocked" notice — so
+        // none is attempted: not the store, not the sync that exists to feed it, not
+        // the notices that only ever qualify what it says. With it the read is
+        // silent, so even the scheduler's tick takes it. Asked once, here, so the
+        // whole round agrees (`RefreshIntent.readsTestFlight(fullDiskAccess:)`).
+        let fullDiskAccess = TCCPreflight.fullDiskAccessStatus()
+        let mayReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess)
+        refreshTaskMayReadTestFlight = mayReadTestFlight
+        let allowTestFlight = intent.readsTestFlight(fullDiskAccess: fullDiskAccess)
+        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
+        // The refresh button, and only the button, also asks TestFlight to sync —
+        // in a hidden instance of our own; see `TestFlightRefresh`. Started first
+        // and awaited only after the network check, because its wait is long and
+        // unrelated to everything else here: a store that never moves holds it for
+        // the whole `TestFlightRefresh.defaultDeadline`. Awaited up front, that is
+        // how long the button would spin before the scan even began.
+        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>? =
+            intent.refreshesTestFlight && mayReadTestFlight
+            ? Task.detached(priority: .utility) { await TestFlightRefresh().run() }
+            : nil
         // Once per session, before the scan: recover any app left at
         // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
         // power loss / force-quit on the non-admin install path). Restoring it here
@@ -2009,9 +2192,14 @@ final class AppListModel {
         // briefly show as a MAS app until then; the re-tag below corrects it.
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
 
-        // Start the TCC-gated TestFlight read OFF the critical path. Skipped on a
-        // silent background refresh, which must never surface the prompt unprompted;
-        // managed-app tagging then carries over from the last user-present check.
+        // Start the TCC-gated TestFlight read OFF the critical path. Skipped by a
+        // round that may not take it — every round without Full Disk Access, and the
+        // scheduler's tick when the grant cannot be asked about, since that must
+        // never surface the prompt unprompted; managed-app tagging then carries over
+        // from the last round that read it. TestFlight verdicts carry over only in
+        // the tick that skipped the read by rule; a round without the grant answers
+        // them again, and they say they cannot tell (`ScanRowAssembly.roundPlan`,
+        // below).
         let tfLoader: Task<TestFlightInventory, Never>? =
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
@@ -2089,15 +2277,25 @@ final class AppListModel {
         // was. Bounded for the same reason the TestFlight read above is: a read that
         // has not returned is a prompt that is still up, and the refresh must not
         // wait on it.
-        let announcements = await Self.firstResult(
-            of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
-            within: .seconds(2))
+        // Not read at all when TestFlight's store may not be: it only ever qualifies
+        // what that store says, and it sits in another app's container too.
+        let announcements: TestFlightAnnouncements? = mayReadTestFlight
+            ? await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                within: .seconds(2))
+            : nil
+        // Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read only
+        // by a round that may read TestFlight's store at all: signing out of
+        // TestFlight leaves that store looking signed in until TestFlight next runs,
+        // and this is what says otherwise. nil when it cannot be read.
+        let appStoreSignedIn: Bool? = allowTestFlight ? await AppStoreSignIn.current() : nil
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
+            appStoreSignedIn: appStoreSignedIn,
             channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
@@ -2123,7 +2321,50 @@ final class AppListModel {
         // that actually matters — the app was already ignored when DuoUpdater
         // launched — there is no prior row to read, because nothing ever checked
         // it. The store is the only thing that survives a restart.
-        let checkedRows = await checker.check(checkable)
+        // A round that skips TestFlight's store by rule keeps the TestFlight rows it
+        // already has, instead of re-deriving them from an empty one; a round that
+        // cannot read it at all re-derives them, and they say they cannot tell
+        // (`RefreshIntent.keepsTestFlightVerdicts`).
+        let plan = ScanRowAssembly.roundPlan(
+            checkable,
+            keepsTestFlightRows: intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess),
+            onScreen: roundBaseline)
+        var checkedRows = await checker.check(plan.check) + plan.carried
+        // The TestFlight rows above were answered from the store as it stood when
+        // this round began. If the sync changed it, answer them again from the new
+        // one — and only them, since nothing else reads that store. Tagging is
+        // re-applied first because a wrapped iPhone/iPad app is recognized from the
+        // store itself (#456), so a beta the sync just told us about is not yet a
+        // TestFlight row in `checkable`. Not `recheckMany`: that path is
+        // TestFlight-free on purpose, and would strip exactly those tags. The
+        // re-read is bounded like the first one, for the same reason — a read that
+        // has not returned is a prompt that is still up.
+        if let testFlightSync {
+            let outcome = await testFlightSync.value
+            Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")
+            if outcome.storeChanged,
+               let synced = await Self.firstResult(
+                   of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                   within: .seconds(2)),
+               synced.accessible {
+                let targets = AppScanner.applyingTestFlightInventory(synced, to: checkable)
+                    .filter(\.isTestFlightApp)
+                let syncedAnnouncements = await Self.firstResult(
+                    of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                    within: .seconds(2))
+                let resync = UpdateChecker(
+                    sources: makeSources(token: token),
+                    maxConcurrency: prefs.maxConcurrency,
+                    toolbox: ToolboxSource(inventory: toolbox),
+                    testflight: synced,
+                    announcements: syncedAnnouncements,
+                    appStoreSignedIn: appStoreSignedIn,
+                    channelStore: ResolvedChannelStore.shared)
+                let rechecked = await resync.check(targets)
+                Log.app.notice("TestFlight sync: re-checked \(rechecked.count, privacy: .public) TestFlight rows against the synced store")
+                checkedRows = TestFlightRefresh.merging(checkedRows, resynced: rechecked)
+            }
+        }
         // Read after the check, not before: the round just flushed whatever it
         // proved, and a copy that was un-ignored and re-ignored between passes
         // should pick that up. A second read of a small file, once per round.
@@ -2346,8 +2587,15 @@ final class AppListModel {
         // path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
+        // The scanner's default reads TestFlight's store — not when that read
+        // cannot succeed (`mayReadTestFlightStore`).
+        let readsTestFlight = mayReadTestFlightStore
         let found = await Task.detached(priority: .userInitiated) {
-            AppScanner(extraLocations: extraScan).scan()
+            AppScanner(
+                extraLocations: extraScan,
+                testflight: readsTestFlight
+                    ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+            ).scan()
         }.value
         results = sorted(mergeScanned(found))
         await computeRestartInfo()
@@ -4733,8 +4981,23 @@ final class AppListModel {
         // This pane takes over the panel; swap which grant we're watching to auto-close.
         awaitingAccessibilityGrant = false
         awaitingAppManagementGrant = true
+        awaitingFullDiskAccessGrant = false
         permissionFlow.authorize(
             pane: .appManagement,
+            suggestedAppURLs: [Bundle.main.bundleURL],
+            sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
+        )
+    }
+
+    /// The same drag-to-authorize panel, on Full Disk Access — what lets DuoUpdater
+    /// read TestFlight's store (`mayReadTestFlightStore`). Only ever opened from a
+    /// button the user pressed: nothing asks for this on its own.
+    func presentFullDiskAccessPermissionFlow(sourceFrameInScreen: CGRect? = nil) {
+        awaitingAccessibilityGrant = false
+        awaitingAppManagementGrant = false
+        awaitingFullDiskAccessGrant = true
+        permissionFlow.authorize(
+            pane: .fullDiskAccess,
             suggestedAppURLs: [Bundle.main.bundleURL],
             sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
         )
@@ -4794,6 +5057,7 @@ final class AppListModel {
         // polling + TCC-change observer are live to detect the grant and trigger the close.
         awaitingAccessibilityGrant = true
         awaitingAppManagementGrant = false
+        awaitingFullDiskAccessGrant = false
         permissionFlow.authorize(
             pane: .accessibility,
             suggestedAppURLs: [Bundle.main.bundleURL],
@@ -5575,7 +5839,7 @@ final class AppListModel {
     private func logPermissionsOnce() {
         guard !didLogPermissions else { return }
         didLogPermissions = true
-        Log.app.info("permissions: accessibility=\(self.accessibilityTrusted, privacy: .public) appManagement=\(String(describing: self.appManagementStatus), privacy: .public)")
+        Log.app.info("permissions: accessibility=\(self.accessibilityTrusted, privacy: .public) appManagement=\(String(describing: self.appManagementStatus), privacy: .public) fullDiskAccess=\(String(describing: self.fullDiskAccessStatus), privacy: .public)")
     }
 
 
@@ -5655,10 +5919,11 @@ final class AppListModel {
 
     /// A scheduled check. Notifications are emitted by `notifyNewUpdates` at the
     /// end of every refresh (manual or background), so this just runs the check —
-    /// as `.scheduled`, which skips the TestFlight container read so a silent check
-    /// (notably the one a cold launch fires immediately) can't surface the "access
-    /// data from other apps" prompt unprompted, and leaves the release notes the
-    /// user may be reading in place (`RefreshIntent`).
+    /// as `.scheduled`, which reads the TestFlight container only when Full Disk
+    /// Access makes that read silent, so a silent check (notably the one a cold
+    /// launch fires immediately) can't surface the "access data from other apps"
+    /// prompt unprompted, and leaves the release notes the user may be reading in
+    /// place (`RefreshIntent`).
     private func backgroundRefresh() async {
         await refresh(intent: .scheduled)
     }
@@ -5771,8 +6036,14 @@ final class AppListModel {
     private func clearSettledExternalUpdates() async {
         guard !results.isEmpty else { return }
         let extraScan = prefs.customScanLocations
+        // Same gate as `refreshLocal`: the scanner's default reads TestFlight's store.
+        let readsTestFlight = mayReadTestFlightStore
         let found = await Task.detached(priority: .utility) {
-            AppScanner(extraLocations: extraScan).scan()
+            AppScanner(
+                extraLocations: extraScan,
+                testflight: readsTestFlight
+                    ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+            ).scan()
         }.value
         let mergedByID = Dictionary(
             mergeScanned(found).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })

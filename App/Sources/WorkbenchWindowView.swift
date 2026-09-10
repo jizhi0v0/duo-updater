@@ -199,12 +199,12 @@ struct WorkbenchWindowView: View {
             let hadRequest = model.requestedWorkbenchAppID != nil
             if hadRequest { applyRequestedApp() }
             // First open with no data: full (networked) check. Otherwise, if no
-            // user-present check has read TestFlight yet this launch, run one full
-            // refresh (the natural moment to surface the TCC prompt); past that a
-            // cheap, network-free rescan that catches background self-updates.
+            // round has read TestFlight yet this launch and one may
+            // (`owesTestFlightRead`), run one full refresh; past that a cheap,
+            // network-free rescan that catches background self-updates.
             if model.results.isEmpty {
                 await model.refresh()
-            } else if !model.testFlightReadThisSession {
+            } else if model.owesTestFlightRead {
                 await model.refresh()
             } else {
                 await model.refreshLocal()
@@ -1038,7 +1038,7 @@ private struct DetailHeader: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight() }),
+                        openTestFlight: { model.openTestFlight(for: result) }),
                     helperEnabled: model.helperEnabled)
                 if let url = changelogURL {
                     Link(destination: url) {

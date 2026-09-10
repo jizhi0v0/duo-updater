@@ -20,6 +20,15 @@ import SQLite3
 /// against the store's maximum fires on **none** of them, which is the right answer
 /// for a machine whose store is current.
 ///
+/// ⚠️ **"No history" is a property of the *route*, not of the store.** Measured
+/// 2026-09-10 on two Macs: a **cold launch** rewrites the store — its write-ahead
+/// log is truncated to the same size on both machines — and leaves the current
+/// build plus whatever is installed; an **activation appends** without pruning. The
+/// second Mac held builds 1310, 1311 and 1314 at once after an activation, and a
+/// single build after the next cold launch. Comparing against the maximum is robust
+/// to both shapes, which is the point — but do not repeat the sentence above as
+/// though the store were always one row deep.
+///
 /// ⚠️ **That comparison assumes build ids increase over time, and the sample is
 /// small.** Sorted by the notification store's own `delivered_date`, the five
 /// announcements are strictly increasing (233627973, 234026569, 234414114,
@@ -70,11 +79,16 @@ import SQLite3
 /// and **not one is reused across two different apps**, which is what a global
 /// sequence looks like and what a per-app counter does not.
 ///
-/// ⚠️ **One-directional.** The absence of an announcement proves nothing: on one of
-/// the two Macs measured that day every TestFlight notification was a
-/// *post-install* "is Now Up to Date", and the two builds actually waiting to be
-/// installed were never announced at all. Use this to refuse a claim, never to
-/// make one.
+/// ⚠️ **One-directional, and the sample says so more loudly than it first did.**
+/// The absence of an announcement proves nothing. On **both** Macs measured
+/// 2026-09-10 every TestFlight notification was a *post-install* "is Now Up to
+/// Date" — 5 of 5 on this one — and the builds actually waiting to be installed
+/// were never announced at all. Four builds were published to a real app that day;
+/// each produced an "is now available to test" **email** and **none** produced a
+/// notification on either Mac. So on this vendor path the "a build is waiting"
+/// announcement does not appear to exist, and what this witness actually catches is
+/// a *post-install* notice mirrored from another device arriving before the local
+/// store has caught up. Use it to refuse a claim, never to make one.
 ///
 /// ⚠️ **It is a rolling window, not a log.** Records are pruned: the mini held 13
 /// spanning three days while the same database kept 652 records for other apps

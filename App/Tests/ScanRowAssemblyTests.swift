@@ -248,3 +248,78 @@ struct ScanRowAssemblyTests {
         #expect(rows[0].effectiveReleaseChannel == .beta)
     }
 }
+
+// MARK: - roundPlan: what a round that cannot read TestFlight does with its rows
+
+extension ScanRowAssemblyTests {
+    /// Invented paths: `roundPlan` keys on the path string and resolves nothing.
+    private func planApp(_ name: String, testFlight: Bool) -> InstalledApp {
+        InstalledApp(
+            name: name, bundleID: "com.example.\(name.lowercased())",
+            shortVersion: "1.0", buildVersion: "64",
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-\(name).app"),
+            isMASApp: false, isToolboxManaged: false, isTestFlightApp: testFlight,
+            sparkleFeedURL: nil)
+    }
+
+    /// The scheduler's tick keeps a TestFlight row's verdict. Mutation: return
+    /// `(checkable, [])` unconditionally — the beta goes back to the checker,
+    /// which answers "no cached build" from an empty store, and its update is
+    /// gone within one tick.
+    @Test func aRoundThatCannotReadTestFlightKeepsItsRows() {
+        let beta = planApp("Beta", testFlight: true)
+        let plain = planApp("Plain", testFlight: false)
+        let onScreen = [
+            UpdateResult(app: beta, remote: nil, status: .updateAvailable(latest: "1.0")),
+            UpdateResult(app: plain, remote: nil, status: .upToDate),
+        ]
+        let plan = ScanRowAssembly.roundPlan([beta, plain], keepsTestFlightRows: true, onScreen: onScreen)
+        #expect(plan.check.map(\.id) == [plain.id])
+        #expect(plan.carried.map(\.id) == [beta.id])
+        if case .updateAvailable = plan.carried.first?.status {} else {
+            Issue.record("the carried row lost its verdict: \(String(describing: plan.carried.first?.status))")
+        }
+    }
+
+    /// A round that keeps no rows checks everything — one that reads the store,
+    /// and one without the grant, whose rows must say they cannot tell. Mutation:
+    /// drop the `keepsTestFlightRows` guard — then a refresh the user asked for
+    /// carries the old verdict too and never learns a build the store has, and a
+    /// revoked grant keeps "up to date" rows nothing can refresh.
+    @Test func aRoundThatReadsTestFlightChecksEverything() {
+        let beta = planApp("Beta", testFlight: true)
+        let plain = planApp("Plain", testFlight: false)
+        let onScreen = [UpdateResult(app: beta, remote: nil, status: .updateAvailable(latest: "1.0"))]
+        let plan = ScanRowAssembly.roundPlan([beta, plain], keepsTestFlightRows: false, onScreen: onScreen)
+        #expect(plan.check.map(\.id) == [beta.id, plain.id])
+        #expect(plan.carried.isEmpty)
+    }
+
+    /// With no row on screen there is nothing to keep, so the beta is checked.
+    /// Mutation: skip a TestFlight app that has no row instead of checking it —
+    /// then a beta installed since the last round never reaches the checker.
+    @Test func aBetaWithNoRowYetIsStillChecked() {
+        let beta = planApp("Beta", testFlight: true)
+        let plan = ScanRowAssembly.roundPlan([beta], keepsTestFlightRows: true, onScreen: [])
+        #expect(plan.check.map(\.id) == [beta.id])
+        #expect(plan.carried.isEmpty)
+    }
+}
+
+// MARK: - roundPlan: the shape production actually puts on screen
+
+extension ScanRowAssemblyTests {
+    /// A cold launch's first round, and an app installed since the last one, both
+    /// put this round's own unchecked placeholder on screen before the check — so
+    /// "no row yet" (`aBetaWithNoRowYetIsStillChecked`) is a shape production never
+    /// has, and this is the one it does. Mutation: drop `row.status != .unknown`
+    /// from `roundPlan` — the placeholder is carried, the beta stays blank until a
+    /// round reads TestFlight, and this fails.
+    @Test func aPlaceholderRowIsNotAVerdict() {
+        let beta = planApp("Beta", testFlight: true)
+        let onScreen = [ScanRowAssembly.unchecked(beta, proofs: noProofs)]
+        let plan = ScanRowAssembly.roundPlan([beta], keepsTestFlightRows: true, onScreen: onScreen)
+        #expect(plan.check.map(\.id) == [beta.id])
+        #expect(plan.carried.isEmpty)
+    }
+}

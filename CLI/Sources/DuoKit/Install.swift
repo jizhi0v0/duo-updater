@@ -525,7 +525,8 @@ public enum Install {
         let recheckToolbox = ToolboxInventory()
         let recheckChecker = Inventory.checker(
             settings, testflight: recheckTestflight,
-            announcements: recheckAnnouncements, toolbox: recheckToolbox)
+            announcements: recheckAnnouncements, toolbox: recheckToolbox,
+            appStoreSignedIn: nil)
         var failed = 0
         var installedCount = 0
         var skippedCount = 0

@@ -57,6 +57,19 @@ struct DiagnosticsSettingsPage: View {
                 }
             }
             SettingsDivider()
+            // Optional: without it nothing reads TestFlight's store, and its rows
+            // show a question mark (`TCCPreflight.admitsOtherAppsData`).
+            SettingsField(title: "Full Disk Access", detail: "Lets TestFlight betas show whether they’re current") {
+                if model.fullDiskAccessStatus == .granted {
+                    Label("Granted", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .labelStyle(.titleAndIcon)
+                } else {
+                    Button("Grant…") { model.presentFullDiskAccessPermissionFlow() }
+                        .settingsGlassButton()
+                }
+            }
+            SettingsDivider()
             // Privileged helper: a one-time approval that lets App Store ("full")
             // updates run without a password each time.
             HelperStatusRow(helper: model.helperClient)

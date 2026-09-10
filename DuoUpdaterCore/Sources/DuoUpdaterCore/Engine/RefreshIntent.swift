@@ -3,11 +3,12 @@ import Foundation
 /// Why a full refresh (disk scan + network check) is running — and therefore
 /// what it is allowed to touch besides the app list.
 ///
-/// One refresh body serves two very different callers, and the difference is
-/// not only whether the user is looking. A user-present refresh is a request:
-/// *check again, and show me what is current* — so it may take the one read
-/// that can raise a TCC prompt, and it starts the release notes over so what
-/// the user opens next is re-read. The scheduler's tick is housekeeping the
+/// One refresh body serves three callers, and the difference is not only
+/// whether the user is looking. A refresh the user is present for may take the
+/// one read that can raise a TCC prompt, and it starts the release notes over so
+/// what the user opens next is re-read; one they explicitly asked for — the
+/// button — also asks TestFlight to sync, since that starts an app. The
+/// scheduler's tick is housekeeping the
 /// user did not ask for and may not even notice: it must never prompt, and it
 /// must not take away what is on screen — the notes the user is reading in
 /// the workbench are not made stale by a check that found nothing new for
@@ -20,19 +21,58 @@ import Foundation
 /// wholesale changelog reset — came to run on every hourly tick under a
 /// comment scoping it to a manual refresh.
 public enum RefreshIntent: Sendable, Equatable {
-    /// The user is here: the refresh button, a first menu/window open, or a
-    /// re-check after they granted a permission.
+    /// The user asked for a fresh answer: the refresh button. Everything a
+    /// user-present refresh does, and one thing more — it asks TestFlight to
+    /// sync first (`refreshesTestFlight`).
+    case userRequested
+    /// The user is here, but did not ask for a check: a first menu/window open,
+    /// or a re-check after they granted a permission.
     case userPresent
     /// The scheduler's silent tick, including the one a cold launch fires.
     case scheduled
 
-    /// Whether this refresh may read the TestFlight container — the one read
-    /// that triggers macOS's "access data from other apps" prompt. A silent
-    /// check must never surface that unprompted.
+    /// Whether this refresh may read the TestFlight container when nothing is
+    /// known about Full Disk Access — the read that triggers macOS's "access data
+    /// from other apps" prompt, which a silent check must never surface
+    /// unprompted. What a round actually does is
+    /// ``readsTestFlight(fullDiskAccess:)``.
     public var readsTestFlight: Bool {
         switch self {
-        case .userPresent: true
+        case .userRequested, .userPresent: true
         case .scheduled: false
+        }
+    }
+
+    /// Whether this round reads TestFlight's store, given this Mac's Full Disk
+    /// Access. With it the read is silent — no prompt, no notice — so even the
+    /// scheduler's tick takes it, and a launch shows TestFlight rows answered
+    /// instead of a question mark until the menu is opened. Without it nothing
+    /// reads (`TCCPreflight.admitsOtherAppsData`). When the status cannot be read
+    /// at all, only a round the user is present for does, as before the grant
+    /// could be asked about: the tick must never be what raises a prompt.
+    public func readsTestFlight(fullDiskAccess: TCCAuthStatus) -> Bool {
+        switch fullDiskAccess {
+        case .granted: true
+        case .unknown: readsTestFlight
+        case .denied, .notDetermined: false
+        }
+    }
+
+    /// Whether a round that does not read TestFlight's store keeps the TestFlight
+    /// verdicts already on screen rather than re-deriving them from an empty store.
+    ///
+    /// Only the scheduler's tick when Full Disk Access cannot be asked about: it
+    /// skips a read that a refresh the user is present for would take, so the rows
+    /// hold the last verdicts anything established, and throwing them away is how
+    /// the tick used to erase the updates a refresh had found. Not when the grant
+    /// is known to be missing: nothing can read the store then, so a kept verdict
+    /// is one nothing will refresh. Measured 2026-09-10 on macOS 26.6: revoked with
+    /// "Later", a refresh afterwards still showed the rows as "up to date", while
+    /// the release notes and the README say such rows show a question mark.
+    public func keepsTestFlightVerdicts(fullDiskAccess: TCCAuthStatus) -> Bool {
+        switch fullDiskAccess {
+        case .unknown: !readsTestFlight
+        case .granted, .denied, .notDetermined: false
         }
     }
 
@@ -42,7 +82,7 @@ public enum RefreshIntent: Sendable, Equatable {
     /// prewarm that follows and the next open re-read them.
     public var restartsChangelogs: Bool {
         switch self {
-        case .userPresent: true
+        case .userRequested, .userPresent: true
         case .scheduled: false
         }
     }
@@ -59,22 +99,48 @@ public enum RefreshIntent: Sendable, Equatable {
     /// screen.
     public func dropsChangelogEntry(failed: Bool) -> Bool {
         switch self {
-        case .userPresent: true
+        case .userRequested, .userPresent: true
         case .scheduled: failed
+        }
+    }
+
+    /// Whether this refresh asks TestFlight to sync its store first, by starting
+    /// a hidden instance of TestFlight of our own (`TestFlightRefresh`).
+    ///
+    /// The button only. That starts an app the user did not start, and the
+    /// system deliberately declines this work while the Mac is in use — so it
+    /// happens when the user asks for a fresh answer and at no other time.
+    /// Opening the menu is not asking: it would start TestFlight in the
+    /// background on every glance at the list.
+    public var refreshesTestFlight: Bool {
+        switch self {
+        case .userRequested: true
+        case .userPresent, .scheduled: false
         }
     }
 
     /// Whether a caller with this intent that coalesced onto an in-flight
     /// refresh still owes a pass of its own once that one finishes.
     ///
-    /// Only one refresh runs at a time; a second caller awaits the first. A
-    /// user-present caller landing on a scheduled tick would otherwise return
-    /// with neither of its consequences delivered — no TestFlight read, and
-    /// notes left exactly as they were — so it runs one full user-present pass
-    /// afterwards. That pass starts with `.userPresent`, so it cannot land in
-    /// this branch again against itself. Every other pairing is satisfied by
-    /// the pass already running.
+    /// Only one refresh runs at a time; a second caller awaits the first, and
+    /// gets only what that pass delivered. So the question is whether the pass
+    /// in flight does everything this one would have: a user-present caller
+    /// landing on a scheduled tick gets notes left exactly as they were, and no
+    /// TestFlight read unless Full Disk Access gave the tick one (asked per
+    /// intent here, so that case still runs its own pass — owed for the notes
+    /// anyway); a click on the button landing on a pass the menu's
+    /// opening started gets no TestFlight sync. Either one runs its own pass
+    /// afterwards.
+    ///
+    /// Asked per consequence rather than as a table of pairs, so a consequence
+    /// added later is covered without anyone remembering this function. The
+    /// table this replaced (`.userPresent` onto `.scheduled`, nothing else) is
+    /// exactly what a click on the button would have fallen through. No intent
+    /// owes a pass to its own kind, which is what bounds the follow-up: it
+    /// cannot land in this branch against itself.
     public func owesFollowUp(afterCoalescingOnto inFlight: RefreshIntent) -> Bool {
-        self == .userPresent && inFlight == .scheduled
+        (readsTestFlight && !inFlight.readsTestFlight)
+            || (restartsChangelogs && !inFlight.restartsChangelogs)
+            || (refreshesTestFlight && !inFlight.refreshesTestFlight)
     }
 }

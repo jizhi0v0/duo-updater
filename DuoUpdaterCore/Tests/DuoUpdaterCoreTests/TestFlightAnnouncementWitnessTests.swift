@@ -177,7 +177,8 @@ struct TestFlightAnnouncementWitnessTests {
             Issue.record("expected the store's update to survive, got \(result.status)")
             return
         }
-        #expect(latest == "1.0 (200)")
+        #expect(latest == "1.0")
+        #expect(result.buildBump(latest: latest)?.remote == "200")
         #expect(result.remote?.version == "200")
     }
 

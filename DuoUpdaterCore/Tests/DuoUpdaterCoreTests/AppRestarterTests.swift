@@ -27,6 +27,17 @@ import Foundation
         #expect(!AppRestarter.matchesBundlePath(sibling, target: target))
     }
 
+    /// An instance we started hidden is ours to end only while nothing shows it is
+    /// in use; each sign on its own keeps it running. Mutations: drop any one of
+    /// the three terms in `userAdoptedInstance` — its line below fails; make it
+    /// always true — the first line fails, and every refresh leaves one behind.
+    @Test func anInstanceInUseIsNotOursToEnd() {
+        #expect(!AppRestarter.userAdoptedInstance(isHidden: true, isActive: false, windowsOnScreen: 0))
+        #expect(AppRestarter.userAdoptedInstance(isHidden: false, isActive: false, windowsOnScreen: 0))
+        #expect(AppRestarter.userAdoptedInstance(isHidden: true, isActive: true, windowsOnScreen: 0))
+        #expect(AppRestarter.userAdoptedInstance(isHidden: true, isActive: false, windowsOnScreen: 1))
+    }
+
     @Test func theExactBundlePathMatches() {
         let path = URL(fileURLWithPath: "/Applications/Fixture.app")
         let target = UpdatePolicy.runtimeBundlePath(path)

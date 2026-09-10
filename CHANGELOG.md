@@ -21,6 +21,28 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.90
 
+**Microsoft Edge Beta could offer you a stable Edge build.** While Microsoft's feed briefly carried no Mac release on the beta channel, the rule read past the end of that channel and took the next one's — so the row named a stable version, and updating would have put it over your beta.
+
+**The refresh button now asks TestFlight for its latest builds.** TestFlight's own data only refreshes while your Mac is idle, so a beta could show no update for hours after a new build was out; refreshing now checks with TestFlight in the background, without bringing it to the front.
+
+**The TestFlight button now takes you to that beta's page in TestFlight.** It used to open TestFlight on its list, leaving you to find the app yourself.
+
+**A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes used to throw away what the last refresh had found. With Full Disk Access it now reads TestFlight's data itself, so TestFlight rows are right from launch.
+
+**A TestFlight row shows the build you have as well as the one on offer.** A beta that keeps its version number between builds showed only the new build's number.
+
+**A TestFlight beta no longer shows as up to date when TestFlight can't offer it to you.** Signed out of TestFlight, signed in with a different Apple Account, or no longer testing it, the row now says it can't tell instead of calling the build you have the latest, and refreshing no longer opens TestFlight just to ask you to sign in.
+
+**Without Full Disk Access, Duo Updater stops setting off macOS's warnings about reading other apps' data.** Reading TestFlight's list of builds needs Full Disk Access, and without it every attempt was refused with a system notice. Duo Updater now leaves that list alone and shows TestFlight rows with a question mark; the welcome window and Settings → Diagnostics show whether it's granted, with a button to grant it.
+
+**A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
+
+**`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.
+
+**`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.
+
+**`duo` also stops calling a TestFlight refresh finished while it is still running.** The versions printed immediately afterwards could be the ones from before it.
+
 **super.engineering is now supported: update checks, release notes and one-click install.** A new nightly shows up in the list with what changed in it, and Update installs it for you.
 
 **Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.

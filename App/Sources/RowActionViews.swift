@@ -206,7 +206,7 @@ struct WorkbenchRowAction: View {
                 .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
 
         case .managedElsewhere(.testFlight):
-            testFlightManagedTile
+            testFlightUnboundedTile
 
         case .upToDate(let channel):
             // Blank is deliberate for `.none` (`mayBeBlank` in the gallery says
@@ -230,8 +230,9 @@ struct WorkbenchRowAction: View {
             .help("Managed by the App Store — it handles this app's updates")
     }
 
-    /// Shared between `.managedElsewhere(.testFlight)` and a current row that
-    /// keeps naming TestFlight (`.upToDate(channel: .testFlight)`).
+    /// A current row that keeps naming TestFlight (`.upToDate(channel: .testFlight)`).
+    /// `.managedElsewhere(.testFlight)` used to share it; `testFlightUnboundedTile`
+    /// says why it no longer does.
     ///
     /// TestFlight's own icon, matching `appStoreManagedTile` above and the
     /// popover's tag for the same state; the word is the fallback for a Mac with
@@ -250,6 +251,24 @@ struct WorkbenchRowAction: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Managed by TestFlight — it handles this beta's updates")
         }
+    }
+
+    /// `.managedElsewhere(.testFlight)` — the popover's `testFlightUnboundedLabel`
+    /// explains the state; this is the same mark at this surface's size.
+    @ViewBuilder
+    private var testFlightUnboundedTile: some View {
+        Group {
+            if let icon = AppIconCache.testFlight {
+                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
+            } else {
+                Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("TestFlight")
+        .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
     }
 
     /// The install action for an actionable update, mirroring the popover's routing
@@ -453,5 +472,21 @@ struct ProgressRing: View {
         }
         .frame(width: 15, height: 15)
         .animation(.easeOut(duration: 0.2), value: value)
+    }
+}
+
+/// The question mark on a TestFlight row whose store could not bound it. One
+/// view for both surfaces, so the popover and the workbench cannot drift into
+/// two different marks for one state.
+///
+/// Not inside a button on purpose: `ImageRenderer` draws an SF Symbol in a
+/// borderless button as a placeholder, and the gallery would then have to
+/// list this state as unfaithful.
+struct TestFlightUnboundedMark: View {
+    var body: some View {
+        Image(systemName: "questionmark.circle.fill")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.secondary)
+            .background(Circle().fill(.background).padding(1))
     }
 }

@@ -95,4 +95,46 @@ enum ScanRowAssembly {
             return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
         }
     }
+
+    /// Which of a round's apps to check, and which TestFlight rows to keep
+    /// instead.
+    ///
+    /// The scheduler's silent tick, when Full Disk Access cannot be asked about,
+    /// skips TestFlight's store by rule and has nothing to answer a TestFlight row
+    /// with: the checker would consult an empty store and call every one of them
+    /// "no cached build". Measured 2026-09-10 on a Mac checking every five minutes:
+    /// a refresh the user asked for found the TestFlight updates, and the
+    /// scheduler's next tick, with nothing else in between, published the same
+    /// list minus exactly those rows. So in such a round they are not checked;
+    /// they keep the row already on screen, which `merged` carried forward with
+    /// its status untouched (`keepsTestFlightRows`, from
+    /// `RefreshIntent.keepsTestFlightVerdicts(fullDiskAccess:)`).
+    ///
+    /// Not a round without the grant: nothing can read the store then, so a kept
+    /// verdict is one nothing will ever refresh. Those rows are checked, and say
+    /// they cannot tell, as the release notes promise.
+    ///
+    /// A TestFlight app whose row holds no verdict has nothing to keep, so it is
+    /// checked as before and says what an empty store lets it say. That is not the
+    /// rare case it looks like: a cold launch's first round, and any app installed
+    /// since the last one, both put this round's own unchecked placeholder
+    /// (`unchecked`, `.unknown`) on screen before the check. Carrying that left a
+    /// beta blank — "no source covers it" — until a round that reads TestFlight;
+    /// observed 2026-09-10 on the first menu open after an install.
+    static func roundPlan(
+        _ checkable: [InstalledApp], keepsTestFlightRows: Bool, onScreen: [UpdateResult]
+    ) -> (check: [InstalledApp], carried: [UpdateResult]) {
+        guard keepsTestFlightRows else { return (checkable, []) }
+        let rows = Dictionary(onScreen.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var check: [InstalledApp] = []
+        var carried: [UpdateResult] = []
+        for app in checkable {
+            if app.isTestFlightApp, let row = rows[app.id], row.status != .unknown {
+                carried.append(row)
+            } else {
+                check.append(app)
+            }
+        }
+        return (check, carried)
+    }
 }

@@ -43,11 +43,13 @@ list / check options:
   --all               Include apps that are already up to date (implied by list).
   --include-hidden    Include apps you ignored or whose version you skipped.
   --refresh-testflight
-                      Ask TestFlight to reload its data first, by launching it in
-                      the background (it does not take the foreground). Its data
-                      only refreshes while the Mac is idle otherwise, so a machine
-                      in use can be hours behind. Does nothing when TestFlight is
-                      already running — switch to it yourself for that.
+                      Ask TestFlight to reload its data first. Its data otherwise
+                      only refreshes while the Mac is idle, so a machine in use can
+                      be hours behind. This runs a hidden background copy of
+                      TestFlight and closes it again: nothing takes the foreground,
+                      and a TestFlight you already have open is left alone. It may
+                      make TestFlight queue its own automatic updates, exactly as
+                      opening TestFlight yourself would.
   --source <names>    Only apps answered by these sources, comma-separated:
                       sparkle, homebrew, vendor, github, "app store", toolbox,
                       testflight. `check` only — `list` asks no source, so it has

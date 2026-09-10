@@ -18,6 +18,8 @@ import SQLite3
 ///     app can hold iOS rows of its own, so a merged table would offer it an
 ///     iPhone build as its next Mac update.
 ///   - `ZINSTALLSTATUSRAW` 1 == a build TestFlight installed on this machine.
+///   - `ZTFAPPMODEL.ZISTESTER` 1, reached through a build row's `ZAPP` == the signed-in
+///     account is testing that app. Read by its own query; see `readTesters`.
 ///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1, and
 ///     all 6 matched an app on disk at exactly that build. It is what separates
 ///     "TestFlight installed this here" from "the user merely has access to this
@@ -118,6 +120,10 @@ public struct TestFlightInventory: Sendable {
     /// which costs this signal and nothing else.
     private let frontierByBundleID: [String: Frontier]
 
+    /// Bundles the signed-in account is testing, or nil when the tester query did
+    /// not run — see `readTesters`, and `isTesting(bundleID:)` for what nil means.
+    private let testerBundleIDs: Set<String>?
+
     /// Whether we actually opened the TestFlight database. `false` means the file
     /// was missing or the read was blocked/denied — notably the "access data from
     /// other apps" TCC gate. The UI uses this to tell "we read it and there was
@@ -133,9 +139,10 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, iosRows, iosAvailableRows, frontiers, opened) = Self.readRows(at: url)
+        let (rows, iosRows, iosAvailableRows, frontiers, testers, opened) = Self.readRows(at: url)
         self.accessible = opened
         self.frontierByBundleID = frontiers
+        self.testerBundleIDs = testers
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
@@ -169,10 +176,12 @@ public struct TestFlightInventory: Sendable {
         installedIOSRows: [(bundleID: String, shortVersion: String, build: String)] = [],
         availableIOSRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
         frontiers: [String: Frontier] = [:],
+        testers: Set<String>? = nil,
         accessible: Bool = true
     ) {
         self.accessible = accessible
         self.frontierByBundleID = frontiers
+        self.testerBundleIDs = testers
         self.iosBuildsByBundleID = Self.buildIndex(installedIOSRows)
         // The database always yields the installed rows as a subset of the
         // available ones, so a fixture that names only the installed rows gets the
@@ -272,6 +281,23 @@ public struct TestFlightInventory: Sendable {
         return frontierByBundleID[bundleID]
     }
 
+    /// Whether the signed-in account is testing this bundle.
+    ///
+    /// `false` when the store says it is not — signed out, a different Apple
+    /// Account, or testing stopped — and then whatever rows are left for the
+    /// bundle are not offers: see `readTesters` for what survives. nil when the
+    /// store cannot say (no bundle id, a read that never got in, or a tester query
+    /// that did not prepare), which a caller must treat as "no signal", never as
+    /// "not testing".
+    public func isTesting(bundleID: String?) -> Bool? {
+        guard let bundleID, let testerBundleIDs else { return nil }
+        return testerBundleIDs.contains(bundleID)
+    }
+
+    /// True when the store says the signed-in account is testing nothing at all —
+    /// the shape of a signed-out store. False when it cannot say.
+    public var isTestingNothing: Bool { testerBundleIDs?.isEmpty == true }
+
     /// bundleID → the newest row. **Every** bucket ranks through here — mac and
     /// iOS, real database and test seam — so they cannot drift apart in how
     /// "newest" is decided.
@@ -336,7 +362,7 @@ public struct TestFlightInventory: Sendable {
     /// whether we got in at all.
     typealias Reading = (
         rows: [Row], iosRows: [Row], iosAvailableRows: [Row],
-        frontiers: [String: Frontier], opened: Bool)
+        frontiers: [String: Frontier], testers: Set<String>?, opened: Bool)
 
     /// How long to wait for the database to open before treating it as
     /// unreachable. Generous: a cold sandboxed sqlite open is milliseconds, so
@@ -371,7 +397,7 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], [:], false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], [:], nil, false) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
@@ -381,7 +407,7 @@ public struct TestFlightInventory: Sendable {
         // tuple type and `Reading`, and the compiler rejects it.
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
-        } ?? (rows: [], iosRows: [], iosAvailableRows: [], frontiers: [:], opened: false)
+        } ?? (rows: [], iosRows: [], iosAvailableRows: [], frontiers: [:], testers: nil, opened: false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -392,7 +418,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], [], [], [:], false)
+            return ([], [], [], [:], nil, false)
         }
         defer { sqlite3_close(db) }
 
@@ -406,6 +432,7 @@ public struct TestFlightInventory: Sendable {
         // the fallback names one fewer.
         if var reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
             reading.frontiers = readFrontiers(db)
+            reading.testers = readTesters(db)
             return reading
         }
         Log.scan.error("""
@@ -414,6 +441,7 @@ public struct TestFlightInventory: Sendable {
             """)
         if var reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
             reading.frontiers = readFrontiers(db)
+            reading.testers = readTesters(db)
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed")
@@ -422,7 +450,7 @@ public struct TestFlightInventory: Sendable {
         // one cannot prepare — and the whole reason the frontier got its own query is
         // that each signal fails on its own. Returning here without trying made the
         // implication run backwards.
-        return ([], [], [], readFrontiers(db), true)  // we opened it; the schema just didn't match
+        return ([], [], [], readFrontiers(db), readTesters(db), true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -487,6 +515,47 @@ public struct TestFlightInventory: Sendable {
         GROUP BY a.Z_PK;
         """
 
+    /// Which bundles the signed-in account is actually testing: a build row whose
+    /// app row carries `ZISTESTER = 1`.
+    ///
+    /// Measured 2026-09-10 by snapshotting the store while the account changed
+    /// under a running TestFlight. Signed in, every installed beta's rows hang off
+    /// an app row with its bundle id filled in and `ZISTESTER = 1`. Signed out —
+    /// and again signed in to a different Apple Account — the installed rows
+    /// survive, but hang off placeholder app rows with no bundle id, no name and
+    /// `ZISTESTER = 0`, and every offer row is gone. Read without this, the
+    /// installed row was the only row left, so it was taken as the newest build and
+    /// the beta called up to date, for an account that cannot even see it.
+    /// Stopping testing a beta that is not installed removed its app row outright;
+    /// one that is installed was not measured.
+    ///
+    /// Joined through `ZAPP` rather than matched on bundle id: the placeholders
+    /// carry no bundle id, so a bundle-id match would agree here, but only by
+    /// accident of what a placeholder happens to omit.
+    ///
+    /// **Its own query, and its own failure**, like the frontier: nil means it did
+    /// not prepare, which switches this signal off and changes no verdict.
+    private static func readTesters(_ db: OpaquePointer?) -> Set<String>? {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, Self.testerSQL, -1, &stmt, nil) == SQLITE_OK else {
+            sqlite3_finalize(stmt)
+            Log.scan.error("TestFlight DB tester query did not prepare — the signed-in account's betas are unknown for this read")
+            return nil
+        }
+        defer { sqlite3_finalize(stmt) }
+        var out: Set<String> = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let raw = sqlite3_column_text(stmt, 0) { out.insert(String(cString: raw)) }
+        }
+        return out
+    }
+
+    private static let testerSQL = """
+        SELECT DISTINCT b.ZBUNDLEID
+        FROM ZTFAPPBUNDLEMODEL b JOIN ZTFAPPMODEL a ON b.ZAPP = a.Z_PK
+        WHERE a.ZISTESTER = 1 AND b.ZBUNDLEID IS NOT NULL;
+        """
+
     /// Runs one of the two queries above. `nil` means it would not prepare, which
     /// is the caller's cue to try the next one.
     ///
@@ -545,7 +614,7 @@ public struct TestFlightInventory: Sendable {
             }
         }
         // Frontiers are filled in by `openAndRead`, from its own query.
-        return (rows, iosRows, iosAvailableRows, [:], true)
+        return (rows, iosRows, iosAvailableRows, [:], nil, true)
     }
 
     /// `ZPLATFORMRAW` values, both named because both are now matched positively.
@@ -553,4 +622,22 @@ public struct TestFlightInventory: Sendable {
     private static let iOSPlatform: Int64 = 1
     /// `ZINSTALLSTATUSRAW` for "this build is the one installed on this machine".
     private static let installedHere: Int64 = 1
+}
+
+extension TestFlightInventory.Frontier {
+    /// TestFlight's page for this app: `itms-beta://beta.itunes.apple.com/v1/app/<id>`.
+    ///
+    /// Measured 2026-09-10 against a running TestFlight (Darwin 27.0.0), with the
+    /// detail pane's title read through Accessibility as the witness: two ids in
+    /// turn each landed on their own app's page, and `open -g` did not bring the
+    /// window forward. A comment in this repository used to say this form "just
+    /// opens the app list" on macOS; here it did not. Not measured: a TestFlight
+    /// that is not already running.
+    ///
+    /// ⚠️ Never a `/join/<code>` URL. That form *joins a beta*, an account-level
+    /// side effect, and this is only reached from a button that says "open".
+    public var appPageURL: URL? {
+        guard adamID > 0 else { return nil }
+        return URL(string: "itms-beta://beta.itunes.apple.com/v1/app/\(adamID)")
+    }
 }

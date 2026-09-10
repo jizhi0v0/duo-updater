@@ -23,6 +23,11 @@ public struct UpdateChecker: Sendable {
     /// ``TestFlightAnnouncements``, whose absence proves nothing. nil turns the
     /// witness off and leaves every verdict exactly as it was.
     public let announcements: TestFlightAnnouncements?
+    /// Whether this Mac is signed in to the App Store, which is what TestFlight
+    /// signs in with (`AppStoreSignIn`); nil when unknown or not read this round.
+    /// Needed beside the store's own tester signal because signing out of
+    /// TestFlight does not rewrite the store until TestFlight next runs.
+    public let appStoreSignedIn: Bool?
 
     /// The same store the GitHub source writes its channel proofs to. Held here
     /// so a check that FAILED can still label the row with what an earlier one
@@ -36,6 +41,7 @@ public struct UpdateChecker: Sendable {
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
+        appStoreSignedIn: Bool? = nil,
         channelStore: ResolvedChannelStore? = nil
     ) {
         self.sources = sources
@@ -43,6 +49,7 @@ public struct UpdateChecker: Sendable {
         self.toolbox = toolbox
         self.testflight = testflight
         self.announcements = announcements
+        self.appStoreSignedIn = appStoreSignedIn
         self.channelStore = channelStore
     }
 
@@ -219,6 +226,34 @@ public struct UpdateChecker: Sendable {
         // track); read TestFlight's cached latest build instead. The action stays
         // "open TestFlight".
         if app.isTestFlightApp {
+            // Signed out of the App Store, which TestFlight signs in with. The store
+            // cannot say so yet — measured 2026-09-10, it keeps its signed-in shape,
+            // offer rows and `ZISTESTER = 1` included, until TestFlight next runs — so
+            // whatever it offers is not an offer to this Mac right now. nil (unknown,
+            // or not read this round) leaves the verdict to the store.
+            if appStoreSignedIn == false {
+                Log.check.info("""
+                    \(label, privacy: .public): this Mac is not signed in to the App \
+                    Store, which TestFlight signs in with — the store cannot bound it
+                    """)
+                return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+            }
+
+            // The store knows which betas the signed-in account is testing, and this
+            // is not one of them: signed out, a different Apple Account, or testing
+            // stopped. What is left for it is not an offer — an installed build
+            // survives as a placeholder (`TestFlightInventory.readTesters`) — so the
+            // store cannot bound this app, and `.upToDate` is exactly the answer it
+            // must not give. nil means the signal is off and leaves every verdict as
+            // it was.
+            if testflight?.isTesting(bundleID: app.bundleID) == false {
+                Log.check.info("""
+                    \(label, privacy: .public): the signed-in TestFlight account is not \
+                    testing this beta — the store cannot bound it
+                    """)
+                return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+            }
+
             // Which platform's rows may answer for this bundle is decided HERE, not
             // inside the inventory, and the two are mutually exclusive on purpose.
             // A wrapped iPhone/iPad bundle's builds are filed under the iOS
@@ -308,10 +343,15 @@ public struct UpdateChecker: Sendable {
                     // we have just called unusable must not be the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
-                // Beta builds often keep the same marketing version across builds,
-                // so disambiguate with the build number when the short string matches.
-                let display = (latest.latestShortVersion == app.shortVersion)
-                    ? "\(latest.latestShortVersion) (\(latest.latestBuild))"
+                // The marketing version alone, even when it did not move. A beta
+                // that keeps its version across builds is the common case, and the
+                // row shows both builds through `UpdateResult.buildBump` — which
+                // only recognizes a build bump when `latest` IS the marketing
+                // version. Baking the build in here, as this used to, made the row
+                // show the new build and hide the installed one. A blank marketing
+                // version falls back to the build, so the row never names nothing.
+                let display = latest.latestShortVersion.isEmpty
+                    ? latest.latestBuild
                     : latest.latestShortVersion
                 let remote = RemoteVersion(
                     shortVersion: latest.latestShortVersion,

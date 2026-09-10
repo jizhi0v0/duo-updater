@@ -525,8 +525,13 @@ struct WrappedIOSTestFlightTests {
             Issue.record("expected an update, got \(result.status)")
             return
         }
-        // Marketing did not move, so the build disambiguates it.
-        #expect(latest == "0.3.384 (1301)")
+        // Marketing did not move. `latest` is the marketing version alone, and the
+        // row shows both builds through `buildBump`, the installed one included.
+        // Mutation: bake the build back into `latest` in `UpdateChecker` — then
+        // `buildBump` answers nil and the installed build vanishes from the row.
+        #expect(latest == "0.3.384")
+        #expect(result.buildBump(latest: latest)?.installed == "1300")
+        #expect(result.buildBump(latest: latest)?.remote == "1301")
     }
 
     /// The other half of the same split, and the reason it is a split rather than a
@@ -703,7 +708,10 @@ struct WrappedIOSTestFlightTests {
             Issue.record("expected an update for the \(wrapped ? "iOS" : "mac") route, got \(result.status)")
             return
         }
-        // Marketing frozen across the track, so the build disambiguates.
-        #expect(latest == "0.3.384 (1307)")
+        // Marketing frozen across the track: both builds reach the row through
+        // `buildBump`, not through `latest`.
+        #expect(latest == "0.3.384")
+        #expect(result.buildBump(latest: latest)?.installed == "1301")
+        #expect(result.buildBump(latest: latest)?.remote == "1307")
     }
 }

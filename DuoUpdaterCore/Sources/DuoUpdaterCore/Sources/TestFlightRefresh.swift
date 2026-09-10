@@ -221,7 +221,8 @@ public struct TestFlightRefresh: Sendable {
         // Ours to end, on every path from here on — the wait has several. The two
         // returns above this line have no process to end. Leaving one behind would
         // be worse than the old cold-launch path, which at least had macOS
-        // collecting a single instance eventually.
+        // collecting a single instance eventually. The live `terminate` leaves it
+        // running if the user has started using it (`AppRestarter.terminateOwnInstance`).
         defer { terminate(pid) }
 
         var waited: Duration = .zero

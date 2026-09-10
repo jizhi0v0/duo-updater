@@ -395,11 +395,48 @@ public enum AppRestarter {
     /// ⚠️ There is no forced fallback. An app that declines to quit stays up, which
     /// is the right way round: this is someone else's app, and the alternative is
     /// killing a process that may be mid-write.
+    ///
+    /// ⚠️ **Not once the user has started using it.** With no instance of their own
+    /// running, opening the app during the wait — a row's TestFlight button, the
+    /// Dock — can land in ours, and quitting it then closes the window they are
+    /// looking at, possibly mid-install. So an instance that shows any sign of use
+    /// (`userAdoptedInstance`) is left running. Measured 2026-09-10 on macOS 27 and
+    /// 26.6: an untouched instance read hidden, inactive and windowless from about
+    /// 1s after launch to the end of an 8s wait (a refresh never ends one sooner
+    /// than 6.5s), and a plain open of TestFlight while the user's own instance ran
+    /// went to theirs and left ours hidden. Not measured: an open landing in ours,
+    /// which is the case this guards.
     public static func terminateOwnInstance(_ pid: pid_t) {
         guard pid > 0,
               let app = NSRunningApplication(processIdentifier: pid)
         else { return }
+        if userAdoptedInstance(
+            isHidden: app.isHidden, isActive: app.isActive,
+            windowsOnScreen: windowsOnScreen(ownedBy: pid)) {
+            Log.install.notice(
+                "app-restarter: leaving our instance \(pid, privacy: .public) running — it is in use")
+            return
+        }
         app.terminate()
+    }
+
+    /// Whether an instance we started hidden has since been put to use. Any one
+    /// sign is enough: leaving an instance up costs what the old cold-launch path
+    /// always cost (macOS collects it), while quitting one in use costs the user
+    /// their window.
+    static func userAdoptedInstance(isHidden: Bool, isActive: Bool, windowsOnScreen: Int) -> Bool {
+        !isHidden || isActive || windowsOnScreen > 0
+    }
+
+    /// Normal-layer windows on screen owned by `pid`, from the window server — so
+    /// it does not rest on an `NSRunningApplication` being current.
+    static func windowsOnScreen(ownedBy pid: pid_t) -> Int {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return windows.filter {
+            ($0[kCGWindowOwnerPID as String] as? Int32) == pid
+                && ($0[kCGWindowLayer as String] as? Int) == 0
+        }.count
     }
 
     /// How long `launchApp` gives LaunchServices before it stops waiting.

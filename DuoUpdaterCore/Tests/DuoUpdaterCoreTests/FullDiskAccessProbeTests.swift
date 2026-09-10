@@ -6,11 +6,19 @@ import Foundation
 struct FullDiskAccessProbeTests {
     typealias P = FullDiskAccessProbe
 
-    /// One file that opens is the grant, whatever the others say. Mutation:
+    /// One file that opens is the grant when nothing was refused. Mutation:
     /// require every open to succeed — a Mac with no Safari data, or a `700` TCC
     /// directory, would never read as granted.
     @Test func oneFileThatOpensIsTheGrant() {
-        #expect(P.verdict([EPERM, nil, ENOENT, EACCES]) == .granted)
+        #expect(P.verdict([nil, ENOENT, EACCES, ENOENT]) == .granted)
+    }
+
+    /// A refusal outranks an open: with the grant nothing here is refused, so one
+    /// path that opens beside refusals is a path that stopped being protected, not
+    /// a grant. Mutation: check for an open before a refusal — this reads as
+    /// granted, and TestFlight's store is read without the grant.
+    @Test func aRefusalOutranksAnOpen() {
+        #expect(P.verdict([EPERM, nil, EPERM, ENOENT]) == .denied)
     }
 
     /// TCC's refusal is `EPERM`. Mutation: drop the `EPERM` branch — a Mac without

@@ -2065,6 +2065,14 @@ final class AppListModel {
                 of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
                 within: .seconds(2)) ?? unread
             : unread
+        // Granted, but the store did not open in time or at all: leave the rows as
+        // they are. Answering them from `unread` would replace verdicts that were
+        // right a moment ago with "can't tell", and nothing here would read again;
+        // the next round does.
+        if mayRead, !inventory.accessible {
+            Log.app.notice("permissions: Full Disk Access granted while running, but TestFlight's store did not open — rows left for the next round")
+            return
+        }
         // Tagging first, as after a sync: a wrapped iPhone/iPad app is recognized
         // from the store itself (#456).
         let targets = (inventory.accessible

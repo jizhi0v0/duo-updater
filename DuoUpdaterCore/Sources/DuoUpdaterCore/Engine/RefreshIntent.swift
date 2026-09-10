@@ -67,8 +67,8 @@ public enum RefreshIntent: Sendable, Equatable {
     /// the tick used to erase the updates a refresh had found. Not when the grant
     /// is known to be missing: nothing can read the store then, so a kept verdict
     /// is one nothing will refresh. Measured 2026-09-10 on macOS 26.6: revoked with
-    /// "Later", the rows kept "up to date" until a relaunch, while the release
-    /// notes and the README say such rows show a question mark.
+    /// "Later", a refresh afterwards still showed the rows as "up to date", while
+    /// the release notes and the README say such rows show a question mark.
     public func keepsTestFlightVerdicts(fullDiskAccess: TCCAuthStatus) -> Bool {
         switch fullDiskAccess {
         case .unknown: !readsTestFlight

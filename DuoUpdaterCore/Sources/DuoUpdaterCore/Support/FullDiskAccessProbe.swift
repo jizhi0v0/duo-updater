@@ -51,14 +51,20 @@ public enum FullDiskAccessProbe {
         }
     }
 
-    /// Any open that succeeded is the grant. Otherwise an `EPERM` is TCC's refusal.
-    /// Anything else says nothing about it: a missing file, or `EACCES`, which is
-    /// the file's own permissions — the TCC directory is reported in Apple's
-    /// developer forums to be `700` on some Macs, where it fails that way with the
-    /// grant too.
+    /// An `EPERM` is TCC's refusal, and it outranks an open: with the grant none of
+    /// these paths was refused (measured 2026-09-10 on macOS 27 and 26.6 — every
+    /// one opened or was missing), so a refusal means the grant is missing even if
+    /// another path opened. The other way round, a path that some macOS stopped
+    /// protecting would turn every Mac into a granted one, and TestFlight's store
+    /// would be read without the grant. Failing on a refusal is failing closed.
+    ///
+    /// Otherwise any open that succeeded is the grant. Anything else says nothing
+    /// about it: a missing file, or `EACCES`, which is the file's own permissions —
+    /// the TCC directory is reported in Apple's developer forums to be `700` on some
+    /// Macs, where it fails that way with the grant too.
     public static func verdict(_ results: [Int32?]) -> Verdict {
-        if results.contains(where: { $0 == nil }) { return .granted }
         if results.contains(where: { $0 == EPERM }) { return .denied }
+        if results.contains(where: { $0 == nil }) { return .granted }
         return .inconclusive
     }
 }

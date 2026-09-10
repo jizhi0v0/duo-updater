@@ -1442,7 +1442,18 @@ public enum VendorProbeRegistry {
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
-            versionPattern: #"(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            versionPattern: #"(?s)"Product"\s*:\s*"Stable"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            // How this vendor signals "no build on this track right now": the
+            // product's block is present and contains no MacOS release at all.
+            // Consulted only after the version pattern already missed, so a
+            // publishing track can never be talked into looking closed.
+            //
+            // Measured 2026-09-10 on the live body, both directions: with Beta's
+            // MacOS list empty this matches and Dev/Stable do not; with a MacOS
+            // release put back into Beta it stops matching. Only Beta was dormant
+            // that day — the signal is structural to this API, so all three declare
+            // it, but only Beta's has been seen to fire.
+            trackClosedPattern: #"(?s)"Product"\s*:\s*"Stable"(?:(?!"Platform"\s*:\s*"MacOS")(?!"Product"\s*:)[\s\S])*?(?:"Product"\s*:|$)"#,
             downloadURL: URL(string: "https://www.microsoft.com/edge/download"),
             changelogURL: URL(
                 string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel"),
@@ -1453,24 +1464,46 @@ public enum VendorProbeRegistry {
             bundleID: "com.microsoft.edgemac.Beta",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
-            versionPattern: #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            versionPattern: #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            // How this vendor signals "no build on this track right now": the
+            // product's block is present and contains no MacOS release at all.
+            // Consulted only after the version pattern already missed, so a
+            // publishing track can never be talked into looking closed.
+            //
+            // Measured 2026-09-10 on the live body, both directions: with Beta's
+            // MacOS list empty this matches and Dev/Stable do not; with a MacOS
+            // release put back into Beta it stops matching. Only Beta was dormant
+            // that day — the signal is structural to this API, so all three declare
+            // it, but only Beta's has been seen to fire.
+            trackClosedPattern: #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Platform"\s*:\s*"MacOS")(?!"Product"\s*:)[\s\S])*?(?:"Product"\s*:|$)"#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             changelogURL: URL(
                 string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
+                    #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
                 kind: .pkg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Dev",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
-            versionPattern: #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            versionPattern: #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            // How this vendor signals "no build on this track right now": the
+            // product's block is present and contains no MacOS release at all.
+            // Consulted only after the version pattern already missed, so a
+            // publishing track can never be talked into looking closed.
+            //
+            // Measured 2026-09-10 on the live body, both directions: with Beta's
+            // MacOS list empty this matches and Dev/Stable do not; with a MacOS
+            // release put back into Beta it stops matching. Only Beta was dormant
+            // that day — the signal is structural to this API, so all three declare
+            // it, but only Beta's has been seen to fire.
+            trackClosedPattern: #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Platform"\s*:\s*"MacOS")(?!"Product"\s*:)[\s\S])*?(?:"Product"\s*:|$)"#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
+                    #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
                 kind: .pkg),
             channel: .dev),
 

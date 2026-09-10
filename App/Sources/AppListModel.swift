@@ -1206,10 +1206,19 @@ final class AppListModel {
         }
 
         let fullDisk = TCCPreflight.fullDiskAccessStatus()
+        let couldReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccessStatus)
         fullDiskAccessStatus = fullDisk
         if fullDisk == .granted, awaitingFullDiskAccessGrant {
             awaitingFullDiskAccessGrant = false
             permissionFlow.closePanel(returnToPreviousApp: true)
+        }
+        // Turned on or off while DuoUpdater runs, which it sees now that the status
+        // comes from opening files rather than a preflight frozen at launch. The
+        // TestFlight rows are answered again right away instead of at the next
+        // refresh: granted, they can be read; revoked, they must stop claiming what
+        // nothing can confirm.
+        if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) != couldReadTestFlight {
+            Task { await recheckTestFlightRows() }
         }
 
         // Mirror the helper's approval into observable state, and refresh the client's
@@ -1996,6 +2005,73 @@ final class AppListModel {
         }
     }
 
+    /// Whether a TestFlight-only recheck is running, and whether another is owed
+    /// once it ends: a permission that flips twice while one runs must end on the
+    /// last answer, not the first.
+    @ObservationIgnored private var testFlightRecheckRunning = false
+    @ObservationIgnored private var testFlightRecheckOwed = false
+
+    /// Answer the TestFlight rows again, and only them, after Full Disk Access
+    /// changed while DuoUpdater runs: granted, they are read now instead of at the
+    /// next refresh; revoked, they stop claiming what nothing can confirm.
+    ///
+    /// Local only — TestFlight's store and Notification Center's, never the
+    /// network — so meeting the scheduler's tick costs a few milliseconds of
+    /// reading twice, not a second check. A round already in flight is waited
+    /// for: it asked about the grant when it began, so it answers these rows from
+    /// the old state and would overwrite anything done first. A round that starts
+    /// afterwards reads the new state itself.
+    private func recheckTestFlightRows() async {
+        guard !testFlightRecheckRunning else {
+            testFlightRecheckOwed = true
+            return
+        }
+        testFlightRecheckRunning = true
+        defer { testFlightRecheckRunning = false }
+        repeat {
+            testFlightRecheckOwed = false
+            if let running = refreshTask { await running.value }
+            await recheckTestFlightRowsOnce()
+        } while testFlightRecheckOwed
+    }
+
+    private func recheckTestFlightRowsOnce() async {
+        let apps = results.map(\.app).filter { prefs.deservesCheck($0) }
+        guard !apps.isEmpty else { return }
+        let mayRead = mayReadTestFlightStore
+        let unread = TestFlightInventory(macRows: [], accessible: false)
+        let inventory = mayRead
+            ? await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                within: .seconds(2)) ?? unread
+            : unread
+        // Tagging first, as after a sync: a wrapped iPhone/iPad app is recognized
+        // from the store itself (#456).
+        let targets = (inventory.accessible
+            ? AppScanner.applyingTestFlightInventory(inventory, to: apps) : apps)
+            .filter(\.isTestFlightApp)
+        guard !targets.isEmpty else { return }
+        let announcements: TestFlightAnnouncements? = mayRead
+            ? await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                within: .seconds(2))
+            : nil
+        let signedIn: Bool? = mayRead ? await AppStoreSignIn.current() : nil
+        // No sources: a TestFlight app is answered from the store and returns before
+        // any source is asked (`UpdateChecker`'s TestFlight branch).
+        let checker = UpdateChecker(
+            sources: [],
+            maxConcurrency: prefs.maxConcurrency,
+            testflight: inventory,
+            announcements: announcements,
+            appStoreSignedIn: signedIn,
+            channelStore: ResolvedChannelStore.shared)
+        let rechecked = await checker.check(targets)
+        if inventory.accessible { testFlightReadThisSession = true }
+        results = sorted(TestFlightRefresh.merging(results, resynced: rechecked))
+        Log.app.notice("permissions: Full Disk Access \(mayRead ? "granted" : "missing", privacy: .public) while running — re-checked \(rechecked.count, privacy: .public) TestFlight rows")
+    }
+
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
@@ -2102,8 +2178,10 @@ final class AppListModel {
         // round that may not take it — every round without Full Disk Access, and the
         // scheduler's tick when the grant cannot be asked about, since that must
         // never surface the prompt unprompted; managed-app tagging then carries over
-        // from the last round that read it, and so do TestFlight verdicts
-        // (`ScanRowAssembly.roundPlan`, below).
+        // from the last round that read it. TestFlight verdicts carry over only in
+        // the tick that skipped the read by rule; a round without the grant answers
+        // them again, and they say they cannot tell (`ScanRowAssembly.roundPlan`,
+        // below).
         let tfLoader: Task<TestFlightInventory, Never>? =
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
@@ -2231,10 +2309,14 @@ final class AppListModel {
         // that actually matters — the app was already ignored when DuoUpdater
         // launched — there is no prior row to read, because nothing ever checked
         // it. The store is the only thing that survives a restart.
-        // A round that cannot read TestFlight's store keeps the TestFlight rows it
-        // already has, instead of re-deriving them from an empty one.
+        // A round that skips TestFlight's store by rule keeps the TestFlight rows it
+        // already has, instead of re-deriving them from an empty one; a round that
+        // cannot read it at all re-derives them, and they say they cannot tell
+        // (`RefreshIntent.keepsTestFlightVerdicts`).
         let plan = ScanRowAssembly.roundPlan(
-            checkable, readsTestFlight: allowTestFlight, onScreen: roundBaseline)
+            checkable,
+            keepsTestFlightRows: intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess),
+            onScreen: roundBaseline)
         var checkedRows = await checker.check(plan.check) + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
         // this round began. If the sync changed it, answer them again from the new

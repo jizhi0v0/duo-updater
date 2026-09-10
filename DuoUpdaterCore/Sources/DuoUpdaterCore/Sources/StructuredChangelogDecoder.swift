@@ -61,6 +61,8 @@ public enum StructuredChangelogDecoder {
             return decodeNotionPageChunk(body, maxEntries: maxEntries)
         case .appleDeveloperReleaseNotes:
             return decodeAppleDeveloperReleaseNotes(body, maxEntries: maxEntries)
+        case .superconductorChangelog:
+            return decodeSuperconductor(body, maxEntries: maxEntries)
         }
     }
 
@@ -330,6 +332,62 @@ public enum StructuredChangelogDecoder {
                 version: version,
                 date: isoDay(release.date),
                 items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - super.engineering (releases.superconductor.so/changelog.json)
+
+    private struct SuperconductorFeed: Decodable {
+        let releases: [SuperconductorRelease]?
+    }
+    private struct SuperconductorRelease: Decodable {
+        let version: String?
+        let date: String?
+        let groups: [SuperconductorGroup]?
+    }
+    private struct SuperconductorGroup: Decodable {
+        let title: String?
+        let commits: [SuperconductorCommit]?
+    }
+    /// `pr` is a number on most commits and `null` on some, and nothing here
+    /// shows it, so it is not decoded at all.
+    private struct SuperconductorCommit: Decodable {
+        let message: String?
+    }
+
+    /// Newest-first, kept in document order. Each entry's heading is the first
+    /// eight hex digits of its commit — what the installed bundle and the vendor
+    /// probe both report — and each group's title leads its own commits. A group
+    /// with no non-empty commit is dropped with its title (the vendor ships both: a
+    /// `Features` group with `commits: []`, and a commit whose message is `""`), and
+    /// a release left with nothing is skipped and does not count toward the cap.
+    static func decodeSuperconductor(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let feed = try? JSONDecoder().decode(SuperconductorFeed.self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for release in feed.releases ?? [] {
+            guard let commit = release.version?
+                    .trimmingCharacters(in: .whitespaces).lowercased(),
+                  commit.count >= 8
+            else { continue }
+            var items: [String] = []
+            for group in release.groups ?? [] {
+                let lines = (group.commits ?? [])
+                    .compactMap { $0.message?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                guard !lines.isEmpty else { continue }
+                if let title = group.title?.trimmingCharacters(in: .whitespaces), !title.isEmpty {
+                    items.append(title)
+                }
+                items.append(contentsOf: lines)
+            }
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: String(commit.prefix(8)), date: isoDay(release.date), items: items))
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)

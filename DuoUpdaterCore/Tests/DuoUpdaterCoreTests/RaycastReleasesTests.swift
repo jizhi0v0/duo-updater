@@ -145,6 +145,13 @@ private let raycastChangelogFixture = #"""
             "vendor:com.bombich.ccc:beta",
             "vendor:com.bombich.ccc:stable:ccc6",
             "vendor:com.bombich.ccc:stable:ccc5",
+            // super.engineering: `latest.json` names exactly one dmg and it is
+            // arm64-only (the filename says so and `lipo -archs` on the 2026-09-10
+            // build agrees), with `LSMinimumSystemVersion` 14.0 in the bundle. The
+            // manifest carries no OS bounds of its own, and like CapCut there is no
+            // other train to land an Intel or pre-Sonoma Mac on — so those read
+            // "unknown" rather than being offered a build that cannot run.
+            "vendor:com.zarifpour.superconductor:nightly",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

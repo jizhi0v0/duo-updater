@@ -556,6 +556,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `channel` | this endpoint serves a non-stable track (source refuses cross-channel) |
 | `variant` | one channel legitimately has more than one endpoint worth asking |
 | `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half**. A STATIC per-generation floor only; a bound that moves release to release must be read from the feed instead, never frozen here |
+| `buildLineage` | the version is a commit hash (no order of its own) and the vendor publishes its release history: the engine orders by position there instead of `VersionComparator`, which on hashes is a coin flip. See `BuildLineage` |
 | `identities` (`ProbeIdentity`) | the endpoint only answers for a machine id the app already wrote to disk |
 | `track` (`RolloutTrack`) | one URL, several vendor-assigned tracks, picked by a request-borne value |
 | `requestBody` | the service answers nothing to a GET (Omaha-style) |

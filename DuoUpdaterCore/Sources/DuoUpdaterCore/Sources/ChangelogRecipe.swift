@@ -395,6 +395,15 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// first fragment, so a quarter of the notes would be silently truncated
         /// mid-sentence ("When streaming " — the rest lives past a `codeVoice`).
         case appleDeveloperReleaseNotes
+        /// super.engineering's `releases.superconductor.so/changelog.json` — a
+        /// `releases[]` array, newest first, of `{version, date, groups[{title,
+        /// commits[{message, pr}]}]}`. `version` is a commit hash (40 hex digits
+        /// for most releases, 8 for the oldest ones); the decoder shortens it to
+        /// the eight the installed bundle reports, so an entry's heading is the
+        /// same string the row shows. Group titles ("Features", "Bug Fixes", …)
+        /// become lines of their own ahead of their commits, as
+        /// `alcoveChangelog`'s do.
+        case superconductorChangelog
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -797,6 +806,18 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 20,
             structuredFormat: .chatwiseReleases),
+
+        // super.engineering — the same `changelog.json` the app's own "What's New
+        // in Nightly" reads (that URL sits next to the string in the binary), and
+        // the same document the vendor probe reads its release ORDER from. Every
+        // release lists its commits under the vendor's section titles; see
+        // `StructuredFormat.superconductorChangelog`.
+        ChangelogRecipe(
+            bundleID: "com.zarifpour.superconductor",
+            source: URL(string: "https://releases.superconductor.so/changelog.json")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .superconductorChangelog),
 
         // VS Code — the official `/updates` page redirects to the latest stable
         // release page (e.g. /updates/v1_123). The top summary is:

@@ -168,6 +168,7 @@ public enum ChannelBinding {
         CapCutChannel.bundleID.lowercased(),
         CotEditorChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
+        SuperconductorChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -243,6 +244,14 @@ public enum ChannelBinding {
         // `~/Library/Preferences/com.windscribe.Windscribe2.plist`, already
         // inside the first root. Said out loud because the file name is NOT the
         // bundle id, which is the shape that makes a reader check.
+        //
+        // super.engineering deliberately adds nothing either, for the opposite
+        // reason: its choice IS outside every root above
+        // (`~/.superconductor/settings.json`), but that directory is also where the
+        // app writes its logs, and FSEvents streams are recursive — a root there
+        // would fire continuously while the app runs, for a picker that currently
+        // has one possible value. Its key is re-read on every scan and on the app's
+        // own launch and quit instead. See `SuperconductorChannel`.
         return roots
     }
 
@@ -367,6 +376,8 @@ public enum ChannelBinding {
         case CotEditorChannel.bundleID.lowercased(): return CotEditorChannel.resolveCurrent
         case WindscribeChannel.bundleID.lowercased():
             return WindscribeChannel.resolveCurrent
+        case SuperconductorChannel.bundleID.lowercased():
+            return SuperconductorChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -460,18 +471,18 @@ public enum ChannelBinding {
     // Its channel is `.stable` either way: the key selects an ENTITLEMENT, not a
     // train, so there is no other channel for it to cross into.
 
-    /// The four bindings `allResolutions` deliberately does NOT cover, lower-cased.
+    /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
-    /// OrbStack, Alfred, Tailscale and CapCut have bindings, but the binding only
-    /// picks which `VendorProbeRecipe` runs; the install comes from that recipe,
-    /// so their cross-channel question is already answered by
-    /// `ChannelProofRegistry.proofs` and enumerating them here would double-count
-    /// them into a second registry.
+    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe and super.engineering have
+    /// bindings, but the binding only picks which `VendorProbeRecipe` runs; the
+    /// install comes from that recipe, so their cross-channel question is already
+    /// answered by `ChannelProofRegistry.proofs` and enumerating them here would
+    /// double-count them into a second registry.
     ///
     /// Used two ways, and honest about the weaker one: it is what
     /// `everyBindingIsEnumerated` subtracts to compute what SHOULD be enumerated,
     /// and it is a term in `channelBindingsNeedingProof`'s predicate where it is
-    /// currently INERT — none of these four appears in `allResolutions`, so the
+    /// currently INERT — none of them appears in `allResolutions`, so the
     /// term never excludes anything. `vendorProbeBackedBindingsAreNotEnumerated`
     /// measures that inertness rather than leaving it assumed, so the day one of
     /// them does get enumerated (a binding that both overrides the feed and
@@ -482,5 +493,6 @@ public enum ChannelBinding {
         TailscaleChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
+        SuperconductorChannel.bundleID.lowercased(),
     ]
 }

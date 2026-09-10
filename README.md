@@ -209,50 +209,59 @@ data store, so vendor cookies do not survive a relaunch.
 
 ## Permissions
 
-macOS will ask for several of these, usually at the moment they are first needed
-and without much explanation. Nothing here is required to *see* your apps — the
-list, the version checks and the changelogs all work with everything denied. What
-the permissions buy is stated plainly below, including what you lose by saying no.
+macOS asks for some of these the first time they are needed, and for one of them
+it never asks at all. Nothing here is required to *see* your apps — the list, the
+version checks and the changelogs all work with everything denied. What each
+permission buys is stated below, including what you lose without it. The Full Disk
+Access and Automation lines were measured on macOS 27 with an app that had been
+granted nothing.
 
-**Full Disk Access** — the one worth granting up front.
+**Full Disk Access** — only for TestFlight betas and CotEditor. macOS never asks
+for it: you add DuoUpdater yourself in **System Settings → Privacy & Security →
+Full Disk Access**, and because the app is signed with a stable identity the grant
+survives every update. It covers two reads, and nothing else DuoUpdater looks at
+needs it:
 
-The prompt reads *"DuoUpdater would like to access data from other apps"*, which
-tells you nothing. What it actually covers is reading a handful of other apps'
-own preferences and containers, because that is the only place some facts live:
+- the builds TestFlight offers you, for a beta installed from TestFlight. Without
+  it the beta is still recognized, but its row shows a question mark instead of
+  the latest build.
+- CotEditor's update channel, which that sandboxed app keeps in its container.
+  Without it, CotEditor is checked against its stable releases even if you asked
+  it for prereleases (a prerelease you already run is still recognized from its
+  version).
 
-- which release channel an app is set to — CleanShot, TablePlus, Fork, IINA,
-  OrbStack, Tailscale. Denied, they are assumed to be on stable, so a beta
-  install may be told it is out of date against the stable feed, or the other way
-  around.
-- whether an app came from TestFlight rather than the App Store. Denied, a
-  TestFlight build can be mistaken for a release build.
-- your App Store storefront, used to flag region-locked apps.
-
-Denying it degrades those specific answers **silently** — the app still lists
-everything and still installs updates. Grant it once in **System Settings →
-Privacy & Security → Full Disk Access**; because the app is signed with a stable
-identity, the grant survives every future update. Without it, DuoUpdater does
-not try to read TestFlight's data at all — every attempt would be refused, and on
-macOS 27 announced with a "Data Access Blocked" notice — so TestFlight rows show a
-question mark instead. The welcome window and Settings → Diagnostics show whether
-it is granted.
+Other apps' settings — the release channel of Fork, TablePlus, OrbStack, IINA,
+Tailscale, CleanShot and the rest — your App Store storefront, and files under
+Application Support are all read without it. Without Full Disk Access DuoUpdater
+does not attempt the two reads at all: every attempt would be refused, and on
+macOS 27 a refused TestFlight read posts a "Data Access Blocked" notice. If you
+have a TestFlight beta or CotEditor, opening the menu explains this once, and at
+most once more if another such app appears; the welcome window and Settings →
+Diagnostics show whether it is granted, and tapping the question mark on a
+TestFlight row says why it is there — offering to grant it when that is the
+reason. A stable CotEditor carries a small lock beside its name that does the
+same.
 
 **App Management** — required to install anything. Replacing an app in
 `/Applications` that some other installer put there is gated on this, and macOS
 provides no API to ask for it in advance, so the first install triggers the
-system prompt. Deny it and detection still works; installs fail.
+system prompt. Deny it and detection still works; installs fail, and DuoUpdater
+opens the setting for you.
 
-**Automation** — required to quit and relaunch an app after updating it, so the
-new version actually takes effect. Deny it and the update still installs; the row
-keeps a **Relaunch** button for you to press yourself.
+**Notifications** — asked for at launch, only for telling you updates were found
+and for the Dock badge count. Entirely optional. Note the badge needs the *Badges*
+switch specifically, not just alerts.
 
-**Notifications** — only for telling you updates were found, and for the Dock
-badge count. Entirely optional. Note the badge needs the *Badges* switch
-specifically, not just alerts.
+**Background helper** — App Store updates run through a background item that
+macOS asks you to approve once, under Login Items & Extensions. Without it, App
+Store updates fail and DuoUpdater says where to switch it on.
 
-**Accessibility** — not needed by default. It is used only if you switch App
-Store installs to the GUI route in Settings; the default route uses a full
-download and asks for nothing extra.
+**Accessibility** — not needed by default. It is used if you switch App Store
+installs to the GUI route in Settings, and to close Installer's window after a
+package update; without it that window stays open for you to close.
+
+**Automation** — not requested. Quitting and relaunching an app after updating it
+does not ask for it.
 
 ## `duo`, the command line
 

@@ -146,7 +146,7 @@ struct WelcomeView: View {
             PermissionCard(
                 systemImage: "internaldrive",
                 title: String(localized: "Full Disk Access"),
-                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds, so a TestFlight beta can show whether it’s current. Optional — without it, those rows show a question mark."),
+                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — without it, TestFlight betas show a question mark."),
                 status: fullDiskAccessCardStatus,
                 action: { model.presentFullDiskAccessPermissionFlow() }
             )

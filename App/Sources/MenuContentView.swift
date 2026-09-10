@@ -158,6 +158,8 @@ struct MenuContentView: View {
                 Log.app.info("menu .task: results present → refreshLocal()")
                 await model.refreshLocal()
             }
+            // After the check, so the rows it names are this open's rows.
+            model.offerFullDiskAccessIfNeeded()
         }
         // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
         // concurrently so it never delays the app check above.
@@ -835,6 +837,9 @@ private struct AppRow: View {
         if model.isRunning(result) { width += 6 + 6 }   // dot + HStack spacing
         let tag = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if tag > 0 { width += tag + 6 }
+        if !model.fullDiskAccessNeedsAffecting(result).isEmpty {
+            width += FullDiskAccessMark.width() + 6
+        }
         return width
     }
 
@@ -870,6 +875,9 @@ private struct AppRow: View {
                 RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
             }
             ChannelTag(channel: result.effectiveReleaseChannel)
+            FullDiskAccessMark(
+                needs: model.fullDiskAccessNeedsAffecting(result),
+                grant: { model.presentFullDiskAccessPermissionFlow() })
             // No optical nudge here: this mark is nearly cap-height, so it is judged
             // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
             if let runtime {
@@ -1008,11 +1016,13 @@ private struct AppRow: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) }),
+                        openTestFlight: { model.openTestFlight(for: result) },
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
-                    showsStageLabel: showsStageLabel)
+                    showsStageLabel: showsStageLabel,
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

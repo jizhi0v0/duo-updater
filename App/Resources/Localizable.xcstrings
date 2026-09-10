@@ -6779,6 +6779,47 @@
         }
       }
     },
+    "Checked without Full Disk Access — click for why": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff geprüft – klicken für den Grund"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobado sin acceso total al disco: haz clic para saber por qué"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifié sans accès complet au disque — cliquez pour savoir pourquoi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスなしで確認しました。クリックすると理由を表示します"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверено без полного доступа к диску — нажмите, чтобы узнать почему"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未获完全磁盘访问权限时的检查结果——点按查看原因"
+          }
+        }
+      }
+    },
     "Checking": {
       "extractionState": "manual",
       "localizations": {
@@ -7439,6 +7480,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制 URL（不含查询串）"
+          }
+        }
+      }
+    },
+    "CotEditor: Duo Updater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor: Duo Updater liest den Update-Kanal. Ohne den Zugriff wird CotEditor mit seinen stabilen Versionen verglichen, auch wenn du Vorabversionen gewählt hast."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor: Duo Updater lee su canal de actualización. Sin él, CotEditor se compara con sus versiones estables aunque hayas elegido versiones preliminares."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor : Duo Updater lit son canal de mise à jour. Sans cet accès, CotEditor est comparé à ses versions stables même si vous avez choisi les préversions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor：アップデートチャンネルを読み取ります。許可しない場合、プレリリースを選んでいても CotEditor は安定版と比較されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor: Duo Updater читает его канал обновлений. Без доступа CotEditor сравнивается со стабильными версиями, даже если вы выбрали предварительные."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CotEditor：Duo Updater 会读取它的更新渠道。不授权时，即使你选择了预发布版本，CotEditor 也会按正式版检查。"
           }
         }
       }
@@ -9886,6 +9968,88 @@
         }
       }
     },
+    "Full Disk Access lets Duo Updater check these apps": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Festplattenvollzugriff kann Duo Updater diese Apps prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con el acceso total al disco, Duo Updater puede comprobar estas apps"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’accès complet au disque permet à Duo Updater de vérifier ces apps"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスがあれば、Duo Updater でこれらの App を確認できます"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полный доступ к диску позволит Duo Updater проверять эти приложения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授予完全磁盘访问权限后，Duo Updater 才能检查这些 App"
+          }
+        }
+      }
+    },
+    "Full Disk Access needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Festplattenvollzugriff erforderlich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se necesita acceso total al disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès complet au disque requis"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスが必要です"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужен полный доступ к диску"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要完全磁盘访问权限"
+          }
+        }
+      }
+    },
     "Full download": {
       "extractionState": "manual",
       "localizations": {
@@ -11731,43 +11895,43 @@
         }
       }
     },
-    "Lets Duo Updater read TestFlight’s list of builds, so a TestFlight beta can show whether it’s current. Optional — without it, those rows show a question mark.": {
+    "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — without it, TestFlight betas show a question mark.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit kann Duo Updater die Build-Liste von TestFlight lesen, sodass eine TestFlight-Beta zeigen kann, ob sie aktuell ist. Optional – ohne diesen Zugriff zeigen diese Zeilen ein Fragezeichen."
+            "value": "Damit kann Duo Updater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – ohne diesen Zugriff zeigen TestFlight-Betas ein Fragezeichen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite a Duo Updater leer la lista de compilaciones de TestFlight, para que una beta de TestFlight pueda mostrar si está al día. Opcional: sin él, esas filas muestran un signo de interrogación."
+            "value": "Permite a Duo Updater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: sin él, las betas de TestFlight muestran un signo de interrogación."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à Duo Updater de lire la liste des versions de TestFlight, pour qu’une bêta TestFlight puisse indiquer si elle est à jour. Facultatif — sans cet accès, ces lignes affichent un point d’interrogation."
+            "value": "Permet à Duo Updater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — sans cet accès, les bêtas TestFlight affichent un point d’interrogation."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater が TestFlight のビルド一覧を読めるようになり、TestFlight のベータ版が最新かどうかを表示できます。任意です。許可しない場合、それらの行には疑問符が表示されます。"
+            "value": "Duo Updater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。許可しない場合、TestFlight のベータ版には疑問符が表示されます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет Duo Updater читать список сборок TestFlight, чтобы бета-версия из TestFlight показывала, актуальна ли она. Необязательно — без этого доступа в таких строках будет вопросительный знак."
+            "value": "Позволяет Duo Updater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — без этого доступа у бета-версий TestFlight будет вопросительный знак."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让 Duo Updater 读取 TestFlight 的版本列表，TestFlight 测试版才能显示是否已是最新。可选——不授权时，这些行显示问号。"
+            "value": "让 Duo Updater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——不授权时，TestFlight 测试版显示问号。"
           }
         }
       }
@@ -11850,47 +12014,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许 Duo Updater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 未在此系统上报告其状态 — 为安全起见请授予该权限。"
-          }
-        }
-      }
-    },
-    "Lets TestFlight betas show whether they’re current": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Damit TestFlight-Betas zeigen können, ob sie aktuell sind"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permite que las betas de TestFlight muestren si están al día"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permet aux bêtas TestFlight d’indiquer si elles sont à jour"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight のベータ版が最新かどうかを表示できるようにします"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Позволяет бета-версиям TestFlight показывать, актуальны ли они"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "让 TestFlight 测试版能显示是否已是最新"
           }
         }
       }
@@ -12752,6 +12875,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "原生"
+          }
+        }
+      }
+    },
+    "Needed to check TestFlight betas and CotEditor’s beta channel": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nötig, um TestFlight-Betas und den Beta-Kanal von CotEditor zu prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Necesario para comprobar las betas de TestFlight y el canal beta de CotEditor"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessaire pour vérifier les bêtas TestFlight et le canal bêta de CotEditor"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight のベータ版と CotEditor のベータチャンネルの確認に必要です"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужен для проверки бета-версий TestFlight и бета-канала CotEditor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查 TestFlight 测试版和 CotEditor 测试渠道时需要"
           }
         }
       }
@@ -18790,6 +18954,47 @@
         }
       }
     },
+    "Some of your apps keep what Duo Updater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n%@\n\nYou can grant it later in Duo Updater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige deiner Apps legen das, was Duo Updater zum Prüfen braucht, dort ab, wo macOS nur mit Festplattenvollzugriff hineinschauen lässt. Nichts davon verlässt deinen Mac.\n\n%@\n\nDu kannst ihn später in Duo Updater unter Einstellungen → Diagnose erteilen oder in Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas de tus apps guardan lo que Duo Updater necesita para comprobarlas donde macOS solo le deja mirar con acceso total al disco. Nada de lo que lee sale de tu Mac.\n\n%@\n\nPuedes concederlo más tarde en Duo Updater, en Ajustes → Diagnóstico, o en Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certaines de vos apps rangent ce dont Duo Updater a besoin pour les vérifier là où macOS ne le laisse regarder qu’avec l’accès complet au disque. Rien de ce qui est lu ne quitte votre Mac.\n\n%@\n\nVous pourrez l’accorder plus tard dans Duo Updater, sous Réglages → Diagnostic, ou dans Réglages Système → Confidentialité et sécurité → Accès complet au disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部の App は、Duo Updater が確認に必要とする情報を、フルディスクアクセスがないと macOS が読ませない場所に保管しています。読み取った内容が Mac の外に出ることはありません。\n\n%@\n\n後から Duo Updater の「設定」→「診断」、またはシステム設定の「プライバシーとセキュリティ」→「フルディスクアクセス」で許可できます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Некоторые ваши приложения хранят то, что нужно Duo Updater для их проверки, там, куда macOS пускает только с полным доступом к диску. Ничего из прочитанного не покидает ваш Mac.\n\n%@\n\nПредоставить его можно позже в Duo Updater: Настройки → Диагностика, или в «Системных настройках» → «Конфиденциальность и безопасность» → «Полный доступ к диску»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的部分 App 把 Duo Updater 检查它们所需的信息存放在只有完全磁盘访问权限才能读取的位置。读取的内容不会离开你的 Mac。\n\n%@\n\n之后可在 Duo Updater 的「设置」→「诊断」中授权，或前往「系统设置」→「隐私与安全性」→「完全磁盘访问权限」。"
+          }
+        }
+      }
+    },
     "Sort": {
       "extractionState": "manual",
       "localizations": {
@@ -19206,6 +19411,47 @@
         }
       }
     },
+    "TestFlight betas (%@): Duo Updater reads the builds TestFlight offers you. Without it, their rows show a question mark.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight-Betas (%@): Duo Updater liest die Builds, die TestFlight dir anbietet. Ohne den Zugriff zeigen diese Zeilen ein Fragezeichen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betas de TestFlight (%@): Duo Updater lee las compilaciones que TestFlight te ofrece. Sin él, esas filas muestran un signo de interrogación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bêtas TestFlight (%@) : Duo Updater lit les versions que TestFlight vous propose. Sans cet accès, ces lignes affichent un point d’interrogation."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight のベータ版（%@）：TestFlight から提供されるビルドを読み取ります。許可しない場合、これらの行には疑問符が表示されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-версии TestFlight (%@): Duo Updater читает сборки, которые предлагает вам TestFlight. Без доступа в этих строках будет вопросительный знак."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 测试版（%@）：Duo Updater 会读取 TestFlight 向你提供的版本。不授权时，这些行显示问号。"
+          }
+        }
+      }
+    },
     "TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current": {
       "extractionState": "manual",
       "localizations": {
@@ -19243,6 +19489,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "TestFlight 尚未提供此测试版的最新版本信息，或 Duo Updater 没有读取它所需的完全磁盘访问权限，因此无法判断它是否已是最新"
+          }
+        }
+      }
+    },
+    "TestFlight hasn’t told Duo Updater this beta’s latest build yet. Refreshing asks TestFlight to check.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight hat Duo Updater den neuesten Build dieser Beta noch nicht mitgeteilt. Beim Aktualisieren wird TestFlight gebeten nachzusehen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight aún no le ha indicado a Duo Updater la compilación más reciente de esta beta. Al actualizar se le pide a TestFlight que lo compruebe."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight n’a pas encore indiqué à Duo Updater la dernière version de cette bêta. Actualiser demande à TestFlight de vérifier."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight からこのベータ版の最新ビルドがまだ知らされていません。更新すると TestFlight に確認を依頼します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight ещё не сообщил Duo Updater последнюю сборку этой бета-версии. Обновление попросит TestFlight проверить."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未告知 Duo Updater 此测试版的最新版本。刷新会请 TestFlight 检查。"
           }
         }
       }
@@ -21791,6 +22078,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "Duo Updater 在哪里查找已安装的应用。"
+          }
+        }
+      }
+    },
+    "Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff kann Duo Updater die Builds, die TestFlight dir anbietet, nicht lesen – daher lässt sich nicht sagen, ob diese Beta aktuell ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin acceso total al disco, Duo Updater no puede leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans l’accès complet au disque, Duo Updater ne peut pas lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスがないと、Duo Updater は TestFlight から提供されるビルドを読み取れないため、このベータ版が最新かどうか判断できません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без полного доступа к диску Duo Updater не может прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有完全磁盘访问权限，Duo Updater 无法读取 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新。"
+          }
+        }
+      }
+    },
+    "Without Full Disk Access, Duo Updater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff kann Duo Updater nicht sehen, ob du in CotEditor Vorabversionen gewählt hast, daher werden nur stabile Versionen angeboten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin acceso total al disco, Duo Updater no puede ver si elegiste versiones preliminares en CotEditor, así que solo se ofrecen sus versiones estables."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans l’accès complet au disque, Duo Updater ne peut pas voir si vous avez choisi les préversions dans CotEditor : seules ses versions stables sont proposées."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスがないと、CotEditor でプレリリースを選んでいるかどうかを Duo Updater が確認できないため、安定版だけが提示されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без полного доступа к диску Duo Updater не видит, выбраны ли в CotEditor предварительные версии, поэтому предлагаются только стабильные."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有完全磁盘访问权限，Duo Updater 无法得知你是否在 CotEditor 中选择了预发布版本，因此只会提供正式版。"
           }
         }
       }

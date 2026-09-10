@@ -233,6 +233,10 @@ struct WorkbenchWindowView: View {
             // (measured: AXFocusedUIElement back on the search text field).
             // Skipped mid-search, where the caret is where the user wants it.
             if searchText.isEmpty { appsListFocused = true }
+            // The lock and the TestFlight tip offer "Grant…" from a mirror of the
+            // permission that only the menu's open and the Welcome/Settings polling
+            // refresh. Coming back from System Settings is exactly this moment.
+            model.refreshPermissionStatus()
             Task { await model.refreshLocal() }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
@@ -513,7 +517,9 @@ struct WorkbenchWindowView: View {
                         result.app, version: result.remote?.versionSide),
                     toggleIgnore: { model.toggleIgnore(result) },
                     skipVersion: { model.skipThisVersion(result) },
-                    clearSkip: { model.prefs.clearSkip(result.app) })
+                    clearSkip: { model.prefs.clearSkip(result.app) },
+                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
                     .tag(result.id)
             }
         }
@@ -544,7 +550,9 @@ struct WorkbenchWindowView: View {
                         result.app, version: result.remote?.versionSide),
                     toggleIgnore: { model.toggleIgnore(result) },
                     skipVersion: { model.skipThisVersion(result) },
-                    clearSkip: { model.prefs.clearSkip(result.app) })
+                    clearSkip: { model.prefs.clearSkip(result.app) },
+                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -642,6 +650,10 @@ private struct WorkbenchSidebarRow: View {
     let toggleIgnore: () -> Void
     let skipVersion: () -> Void
     let clearSkip: () -> Void
+    /// The reads turned away for this app that could change its answer
+    /// (`AppListModel.fullDiskAccessNeedsAffecting`), and the way to grant them.
+    let fullDiskAccessNeeds: [FullDiskAccessNeed]
+    let grantFullDiskAccess: () -> Void
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -661,6 +673,7 @@ private struct WorkbenchSidebarRow: View {
         if isRunning { used += 5 + 6 }
         let channel = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if channel > 0 { used += channel + 6 }
+        if !fullDiskAccessNeeds.isEmpty { used += FullDiskAccessMark.width() + 6 }
         return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
     }
 
@@ -679,6 +692,7 @@ private struct WorkbenchSidebarRow: View {
                         RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
                     }
                     ChannelTag(channel: result.effectiveReleaseChannel)
+                    FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
                     if let runtimeTag {
                         RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
                                    overHighlight: isSelected, interactive: false)
@@ -1012,6 +1026,10 @@ private struct DetailHeader: View {
                         Text(result.app.name).font(.title2).bold()
                         if model.isRunning(result) { RunningIndicator(size: 7) }
                         ChannelTag(channel: result.effectiveReleaseChannel)
+                        FullDiskAccessMark(
+                            needs: model.fullDiskAccessNeedsAffecting(result),
+                            grant: { model.presentFullDiskAccessPermissionFlow() },
+                            size: 15)
                         // Sized up to sit beside a `.title2` name rather than a
                         // list row's body text — the marks are drawn in a unit box,
                         // so they scale without losing their stroke ratio.
@@ -1038,8 +1056,10 @@ private struct DetailHeader: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) }),
-                    helperEnabled: model.helperEnabled)
+                        openTestFlight: { model.openTestFlight(for: result) },
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
+                    helperEnabled: model.helperEnabled,
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

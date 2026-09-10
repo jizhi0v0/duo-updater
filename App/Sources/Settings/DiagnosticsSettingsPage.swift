@@ -57,9 +57,9 @@ struct DiagnosticsSettingsPage: View {
                 }
             }
             SettingsDivider()
-            // Optional: without it nothing reads TestFlight's store, and its rows
-            // show a question mark (`TCCPreflight.admitsOtherAppsData`).
-            SettingsField(title: "Full Disk Access", detail: "Lets TestFlight betas show whether they’re current") {
+            // Optional: without it nothing reads TestFlight's store or CotEditor's
+            // container (`TCCPreflight.admitsOtherAppsData`).
+            SettingsField(title: "Full Disk Access", detail: "Needed to check TestFlight betas and CotEditor’s beta channel") {
                 if model.fullDiskAccessStatus == .granted {
                     Label("Granted", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)

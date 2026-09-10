@@ -73,26 +73,11 @@ public enum Check {
                 format: "duo: TestFlight was still writing when we stopped waiting "
                       + "(last seen moving after %.1fs); the versions below may predate the sync",
                 seconds)
-        case .launchedWithoutChange:
-            return "duo: launched TestFlight in the background; its data did not change"
-        case .activatedWithoutChange:
-            return "duo: nudged the running TestFlight; its data did not change"
-        case .activationUnavailable:
-            return "duo: TestFlight is already running, and this macOS does not let us reload it "
-                 + "without taking the screen. Switch to TestFlight yourself if you want its data reloaded."
-        case .refusedSecureInput:
-            // Secure keyboard entry is session-wide, and Terminal's own Secure
-            // Keyboard Entry holds it for the life of the terminal you are probably
-            // reading this in. So this must not promise it will clear on its own.
-            return "duo: secure keyboard entry is on, so TestFlight was left alone. "
-                 + "A password field, a password manager, or your terminal's Secure Keyboard Entry holds it."
-        case .alreadyFrontmost:
-            return "duo: TestFlight is open in front of you — its own window is more current than anything we can reload"
-        case .activationFailed(let code):
-            return "duo: could not reload the running TestFlight (code \(code))"
-        case .focusNotRestored(let code):
-            return "duo: reloaded TestFlight, but could not put your focus back (code \(code)) — "
-                 + "TestFlight may be in front now"
+        case .noChange:
+            // One sentence for one route. It deliberately does not say "already
+            // current": the store has no "last synced" of its own, so a sync that
+            // did not happen looks exactly like one that had nothing to fetch.
+            return "duo: TestFlight reloaded in the background; its data did not change"
         case .notInstalled:
             return "duo: TestFlight is not installed, so there is nothing to refresh"
         case .launchFailed:

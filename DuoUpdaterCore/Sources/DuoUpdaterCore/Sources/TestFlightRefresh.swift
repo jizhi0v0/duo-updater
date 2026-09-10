@@ -125,7 +125,7 @@ public struct TestFlightRefresh: Sendable {
     /// nothing: the loop returns as soon as it does, so a healthy refresh still
     /// comes back in the 15–25s the same trials measured. Two cases wait all 90s:
     /// a store that keeps moving, and one that never changes at all
-    /// (`launchedWithoutChange` / `activatedWithoutChange`), which has no write to
+    /// (`noChange`), which has no write to
     /// settle after. All five trials above wrote, so that second case is unmeasured.
     public static let defaultDeadline: Duration = .seconds(90)
 

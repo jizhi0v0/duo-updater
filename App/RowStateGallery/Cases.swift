@@ -296,17 +296,20 @@ enum RowStateGalleryCases {
         // Popover only: both are an amber triangle opening an explanation popover,
         // and a tile cannot show which explanation appears.
         ["popover/18-update-major-upgrade", "popover/22-update-app-store-mac-incompatible"],
-        // Deliberate on both surfaces: a store-managed / TestFlight-managed app
-        // that is CURRENT keeps the same marker as one the store/TestFlight
-        // manages generally, so a managed row never reads like something we could
-        // update ourselves. `RowAction.state` returns the same tile either way —
-        // `.managedElsewhere(.appStore)` and `.upToDate(channel: .appStore)` share
-        // one branch in both `PopoverRowAction` and `WorkbenchRowAction` now that
-        // the workbench actually draws `.upToDate`'s channel instead of `EmptyView`.
+        // Deliberate on both surfaces: a store-managed app that is CURRENT keeps
+        // the same marker as one the store manages generally, so a managed row
+        // never reads like something we could update ourselves. `RowAction.state`
+        // returns the same tile either way — `.managedElsewhere(.appStore)` and
+        // `.upToDate(channel: .appStore)` share one branch in both
+        // `PopoverRowAction` and `WorkbenchRowAction` now that the workbench
+        // actually draws `.upToDate`'s channel instead of `EmptyView`.
+        //
+        // TestFlight's pair used to be listed here too, and deliberately is not any
+        // more: its `.managedElsewhere` is the store failing to bound the app, not
+        // the app being current, and drawing the two alike told the user a beta was
+        // up to date when nothing had established it.
         ["popover/27-managed-app-store", "popover/31-up-to-date-app-store"],
         ["workbench/27-managed-app-store", "workbench/31-up-to-date-app-store"],
-        ["popover/29-managed-testflight", "popover/32-up-to-date-testflight"],
-        ["workbench/29-managed-testflight", "workbench/32-up-to-date-testflight"],
     ]
 
     /// Tiles whose PICTURE is a harness artifact and must not be read as the real

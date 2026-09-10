@@ -19083,6 +19083,47 @@
         }
       }
     },
+    "TestFlight hasn't told us this beta's latest build, so we can't say whether it's current": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight hat uns den neuesten Build dieser Beta nicht mitgeteilt, daher können wir nicht sagen, ob sie aktuell ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight no nos ha indicado la compilación más reciente de esta beta, así que no podemos saber si está al día"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight ne nous a pas indiqué la dernière version de cette bêta : impossible de dire si elle est à jour"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight からこのベータ版の最新ビルドが知らされていないため、最新かどうか判断できません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight не сообщил последнюю сборку этой бета-версии, поэтому нельзя сказать, актуальна ли она"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未提供此测试版的最新版本信息，因此无法判断它是否已是最新"
+          }
+        }
+      }
+    },
     "That folder is already covered.": {
       "extractionState": "manual",
       "localizations": {

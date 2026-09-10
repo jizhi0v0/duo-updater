@@ -102,7 +102,7 @@ struct PopoverRowAction: View {
             toolboxButton
 
         case .managedElsewhere(.testFlight):
-            testFlightManagedLabel
+            testFlightUnboundedLabel
 
         case .upToDate(let channel):
             // The channel comes from the state, not a fresh read of
@@ -640,9 +640,9 @@ struct PopoverRowAction: View {
             .help("Managed by the App Store — it handles this app's updates")
     }
 
-    /// The TestFlight tag shown for a TestFlight-managed app that's current (or
-    /// whose cache returned nothing). Updates are TestFlight's job, so the row
-    /// shows the channel rather than an action we can't perform here.
+    /// The TestFlight tag shown for a TestFlight app that is current. Updates are
+    /// TestFlight's job, so the row shows the channel rather than an action we
+    /// can't perform here.
     ///
     /// TestFlight's own icon, matching `appStoreManagedLabel` above — the two tags
     /// mean the same thing ("someone else owns this app's updates") and used to be
@@ -664,6 +664,29 @@ struct PopoverRowAction: View {
             Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
                 .help("Managed by TestFlight — it handles this beta's updates")
         }
+    }
+
+    /// `.managedElsewhere(.testFlight)`: TestFlight owns this beta, and its store
+    /// could not bound it — no build on file for it, an installed build newer than
+    /// anything on file, or a build TestFlight announced that the store has not
+    /// caught up with (`UpdateChecker`'s TestFlight branch). It used to share the
+    /// plain tag above, which read as "up to date" — exactly the claim this state
+    /// exists to withhold — so it carries a question mark.
+    @ViewBuilder
+    private var testFlightUnboundedLabel: some View {
+        Group {
+            if let icon = AppIconCache.testFlight {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 16, height: 16)
+            } else {
+                Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("TestFlight")
+        .help("TestFlight hasn't told us this beta's latest build, so we can't say whether it's current")
     }
 
     /// A source was tried and failed — most often a transient GitHub rate-limit.

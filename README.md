@@ -181,7 +181,7 @@ request goes straight to the vendor whose app is being checked (or to
 that request needs: the app's own version, so a vendor feed can answer for the
 right channel.
 
-Three things are worth calling out explicitly, because they involve reading
+Four things are worth calling out explicitly, because they involve reading
 outside our own container:
 
 - **CleanShot X** — if it is installed, its `activationKey` is read from its
@@ -195,6 +195,12 @@ outside our own container:
   taken from `GITHUB_TOKEN`/`GH_TOKEN` or, failing that, from `gh auth token`.
   It is sent only to `api.github.com`, and is stripped from any redirect that
   leaves that host.
+- **Your App Store sign-in** — whenever TestFlight's data is read, the system
+  accounts database is read for one thing: whether the active App Store account's
+  media types include the App Store. It decides whether a TestFlight beta can be
+  offered to you right now, and keeps the refresh button from starting TestFlight
+  just to ask you to sign in. Nothing else is read from it — no Apple ID, no name,
+  no identifier — and nothing read there leaves the Mac.
 
 Credentials you enter yourself (a GitHub token, an Alcove licence) are stored in
 the login Keychain as `AfterFirstUnlockThisDeviceOnly` — not synced, not in a

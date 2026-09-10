@@ -144,6 +144,13 @@ struct WelcomeView: View {
                 action: { model.presentAppManagementPermissionFlow() }
             )
             PermissionCard(
+                systemImage: "internaldrive",
+                title: String(localized: "Full Disk Access"),
+                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds, so a TestFlight beta can show whether it’s current. Optional — without it, those rows show a question mark."),
+                status: fullDiskAccessCardStatus,
+                action: { model.presentFullDiskAccessPermissionFlow() }
+            )
+            PermissionCard(
                 systemImage: "key",
                 title: String(localized: "GitHub access"),
                 detail: githubDetail,
@@ -224,6 +231,19 @@ struct WelcomeView: View {
             return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.")
         }
         return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).")
+    }
+
+    // MARK: - Full Disk Access (optional)
+
+    /// Optional, like GitHub: without it TestFlight rows show a question mark and
+    /// nothing reads TestFlight's store, so the missing state is the subdued button,
+    /// never the prominent one.
+    private var fullDiskAccessCardStatus: PermissionCard.Status {
+        switch model.fullDiskAccessStatus {
+        case .granted: return .granted
+        case .denied, .notDetermined: return .optional
+        case .unknown: return .unverifiable
+        }
     }
 
     // MARK: - GitHub access (optional)

@@ -268,7 +268,7 @@ struct WorkbenchRowAction: View {
         .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help("TestFlight hasn't told us this beta's latest build, so we can't say whether it's current")
+        .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
     }
 
     /// The install action for an actionable update, mirroring the popover's routing

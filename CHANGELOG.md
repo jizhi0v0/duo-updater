@@ -31,6 +31,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A TestFlight row shows the build you have as well as the one on offer.** A beta that keeps its version number between builds showed only the new build's number.
 
+**A TestFlight beta no longer shows as up to date when TestFlight can't offer it to you.** Signed out of TestFlight, signed in with a different Apple Account, or no longer testing it, the row now says it can't tell instead of calling the build you have the latest.
+
 **A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
 
 **`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.

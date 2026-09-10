@@ -170,6 +170,12 @@ public enum ChannelProofRegistry {
         // own token rather than a filename convention we inferred.
         ChannelProofKey("com.lemon.lvoverseas", .beta): .artifact(#"_capcutpc_beta_"#),
 
+        // super.engineering: the dmg lives under `/nightly/` and is named
+        // `Superconductor-nightly-<sha8>-arm64.dmg` — the vendor's own track name,
+        // twice, in the URL `latest.json`'s `"nightly"` entry gives (2026-09-10).
+        ChannelProofKey("com.zarifpour.superconductor", .nightly):
+            .artifact(#"/nightly/Superconductor-nightly-[0-9a-f]{8}-arm64\.dmg$"#),
+
         // MARK: Chat / messaging
         ChannelProofKey("org.whispersystems.signal-desktop-beta", .beta): .artifact(#"signal-desktop-beta-mac-"#),
         ChannelProofKey("im.riot.nightly", .nightly): .artifact(#"/nightly/"#),

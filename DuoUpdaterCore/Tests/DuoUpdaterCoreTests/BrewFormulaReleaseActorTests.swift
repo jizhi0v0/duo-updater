@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Darwin
 @testable import DuoUpdaterCore
 
 /// `BrewFormulaReleaseService` runs `brew info` (a ~0.5s subprocess) on the way to
@@ -34,10 +35,49 @@ struct BrewFormulaReleaseActorTests {
         return URLSession(configuration: configuration)
     }
 
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        func increment() { lock.lock(); count += 1; lock.unlock() }
+        var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+    }
+
     /// A disk-cached formula must stay instantly readable while a prewarm-sized batch
     /// of uncached `release(...)` calls is in flight. Guards the executor hop in
-    /// `brewInfoOffActor`: revert it to a synchronous `Self.brewInfo(name:)` and the
-    /// `cached(...)` below queues behind every subprocess in the batch instead.
+    /// `brewInfoOffActor`: revert it to a synchronous `Self.brewInfo(name:)` and each
+    /// subprocess holds the actor for its whole run, so a `cached(...)` issued beside
+    /// one can only return after it exits.
+    ///
+    /// Ordering, not wall clock. Two bounds were tried and both went red on healthy
+    /// builds on the 3-core runner: a fixed 0.2s (#394), then half of one `brew info`
+    /// timed after the batch. The second failed 3 times in ~113 CI runs, at 0.53-1.44s.
+    /// Instrumented runs of the whole core suite there (2026-09-10, runs 34460475080 and
+    /// 34461525444, 32 samples) showed why a bound can't hold. The suite runs ~2,500
+    /// tests in parallel in this process, so the cooperative pool is saturated:
+    ///   - the old 0.1s settle sleep woke 0.1-6.4s late;
+    ///   - the batch's `brew info` started 1.1-9.4s after its tasks were created and
+    ///     ran 0.6-7.1s, while the post-batch `solo` ran 0.39-0.99s. The bound was
+    ///     measured at a different load from the read it judged, and on a fast
+    ///     runner `solo` fell under the old `solo > 4 * settle` guard;
+    ///   - a healthy read usually ran inline in ~0.2ms. But in 2 of 32 samples (and 3
+    ///     of 6 local full-suite runs) it waited 12-82ms to enter the actor, behind
+    ///     batch members whose own entry jobs were still waiting for a pool thread.
+    ///     No subprocess was involved. The three CI failures were not captured under
+    ///     instrumentation, but that queueing is the only way the instrumented runs
+    ///     show a healthy read waiting at all, and pool waits there reached seconds.
+    ///
+    /// So the read is issued only once every batch member is inside `brew info` at the
+    /// same time. A live subprocess means its member has made its actor entry and hopped
+    /// off, and none has come back yet, so the actor has nothing queued for the read to
+    /// wait behind — nothing except the actor being held, which is the one thing this
+    /// is here to catch. The verdict is then an ordering: at least one of those
+    /// subprocesses must still be running when `cached()` returns. With the hop
+    /// reverted that gate can never be met — each subprocess holds the actor, so at
+    /// most one is ever alive (at most 1 of 4 in all 3 hop-reverted samples, run in
+    /// their own job on a 3-core runner) — and the test fails and says so.
+    ///
+    /// Only this process's own children, under names made up here, are looked at, so
+    /// the answer doesn't depend on what else the host is running.
     @Test func cachedStaysResponsiveWhileUncachedFormulaeAreComputing() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("BrewFormulaReleaseActorTest-\(UUID().uuidString)")
@@ -56,68 +96,117 @@ struct BrewFormulaReleaseActorTests {
         await service.persist(seeded, name: cachedName, version: cachedVersion)
 
         // Guard against a vacuous pass: a `cached` that misses returns nil instantly,
-        // and the timing assertion below would then prove nothing.
+        // and the ordering check below would then prove nothing.
         #expect(await service.cached(for: cachedName, version: cachedVersion) == seeded,
                 "seeded entry must be readable before timing it")
 
         // A prewarm-sized batch of uncached formulae, each paying a full `brew info`.
+        // Up to three batches: the poll below sleeps on the same saturated pool, and one
+        // that oversleeps a whole batch must not decide the verdict. A pass needs the
+        // gate met once; with the hop reverted it is never met, and that costs three
+        // serialized batches before the failure.
         let batch = 4
-        let inFlight = (0..<batch).map { i in
-            Task {
-                _ = await service.release(
-                    for: "duo-uncached-formula-\(i)", version: "9.9.9", token: nil)
+        let rounds = 3
+        var peaks: [Int] = []
+        var stillRunningAfterRead: Set<String>?
+        var elapsed: TimeInterval = 0
+        for round in 0..<rounds {
+            let names = (0..<batch).map { "duo-uncached-formula-r\(round)-\($0)" }
+            let finished = Counter()
+            let inFlight = names.map { name in
+                Task {
+                    _ = await service.release(for: name, version: "9.9.9", token: nil)
+                    finished.increment()
+                }
+            }
+            var peak = 0
+            while finished.value < batch {
+                let running = Self.runningBrewInfo(named: names)
+                peak = max(peak, running.count)
+                if running.count == batch {
+                    // Nothing suspends between the snapshot and the read, so the
+                    // snapshot still describes the actor the read meets.
+                    let start = Date()
+                    let hit = await service.cached(for: cachedName, version: cachedVersion)
+                    elapsed = Date().timeIntervalSince(start)
+                    stillRunningAfterRead = Self.runningBrewInfo(named: names)
+                    #expect(hit == seeded)
+                    break
+                }
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+            for task in inFlight { await task.value }
+            peaks.append(peak)
+            if stillRunningAfterRead != nil { break }
+        }
+
+        guard let stillRunningAfterRead else {
+            let most = peaks.max() ?? 0
+            let why = switch most {
+            case 0: """
+                premise gone: no `brew info` was ever seen running, so there is nothing \
+                for `cached()` to be kept waiting behind. Re-tune or delete this test.
+                """
+            case 1: """
+                `brew info` was never seen running more than one at a time, which is what \
+                a held actor looks like: each subprocess holds it for its whole run, so \
+                `cached()` would queue behind every one of them. A batch too short-lived \
+                for this poll to catch two together looks the same, so check how long \
+                `brew info` takes here before blaming the actor.
+                """
+            default: """
+                the batch overlapped (so the actor is not serializing it) but was never \
+                seen all \(batch) at once, so `cached()` was never checked against it.
+                """
+            }
+            Issue.record("\(why) Most seen running at once per round: \(peaks).")
+            return
+        }
+        #expect(!stillRunningAfterRead.isEmpty, """
+            cached() returned only after all \(batch) `brew info` subprocesses it was \
+            issued beside had exited (\(elapsed)s): something held the actor while they ran
+            """)
+    }
+
+    /// Which of `names` are in `brew info` right now, read from this process's own
+    /// children. `brew` execs into Ruby under the same pid and keeps the formula name as
+    /// its last argument, so argv tells the batch apart with no hook in the code under
+    /// test. An exited child that hasn't been reaped yet has no argv and doesn't count.
+    private static func runningBrewInfo(named names: [String]) -> Set<String> {
+        let wanted = Set(names)
+        var pids = [pid_t](repeating: 0, count: 4096)
+        let listed = proc_listchildpids(
+            getpid(), &pids, Int32(pids.count * MemoryLayout<pid_t>.stride))
+        guard listed >= 0 else { return [] }
+        var running: Set<String> = []
+        for pid in pids where pid > 0 {
+            if let name = arguments(of: pid)?.last, wanted.contains(name) {
+                running.insert(name)
             }
         }
-        defer { for task in inFlight { task.cancel() } }
+        return running
+    }
 
-        // Let the batch enter the actor before timing the interactive read.
-        let settle = 0.1
-        try await Task.sleep(nanoseconds: UInt64(settle * 1_000_000_000))
-
-        let start = Date()
-        let hit = await service.cached(for: cachedName, version: cachedVersion)
-        let elapsed = Date().timeIntervalSince(start)
-        #expect(hit == seeded)
-
-        for task in inFlight { await task.value }
-
-        // What one `brew info` costs on THIS host, measured with nothing else on the
-        // actor — which is the whole point of taking it here rather than reusing the
-        // batch's wall clock. A bound derived from the batch would inflate ~4x in
-        // exactly the case this test exists to catch (the batch is serialized when the
-        // bug is present), so `batchElapsed / 2` would be ~2 subprocesses of room — and a
-        // `cached()` admitted after only one `brewInfo` is the bug, per the reasoning
-        // below. Measured 2026-09-07 by reverting the hop: `solo` moved 0.563s -> 0.571s
-        // while `batchElapsed` went to 2.459s. The batch is over when this runs, so
-        // nothing contends and the number does not inflate with the bug.
-        let soloStart = Date()
-        _ = await service.release(for: "duo-uncached-formula-solo", version: "9.9.9", token: nil)
-        let solo = Date().timeIntervalSince(soloStart)
-
-        // Half a subprocess. The floor of the broken case is `solo - settle`: the batch
-        // has been running for `settle` when the read starts, so a `cached()` that has
-        // to wait for the actor waits out at least the remainder of the subprocess
-        // holding it. Half sits under that floor with room at every host speed the
-        // guard below admits, and unlike the old hard-coded 0.2s it means the same
-        // thing on a 14-core laptop and a 3-core runner — where 0.2s is a much thinner
-        // slice of a much slower subprocess, and went red on a healthy build (#394).
-        let bound = solo / 2
-        #expect(elapsed < bound, """
-            cached() waited \(elapsed)s behind the brew info batch, over the \(bound)s \
-            bound derived from a \(solo)s `brew info` on this host
-            """)
-
-        // Vacuity guard on this test's own premise, and it has to be an absolute floor
-        // now: the old ratio guard (`batch * batchElapsed > 3 * bound`) becomes a
-        // tautology once the bound is derived from the same measurement. What actually
-        // has to hold is that a subprocess outlasts `settle` by enough to be visible —
-        // at `solo == 4 * settle` the broken case still floors at 3x `settle` against a
-        // 2x-`settle` bound. Below that the two cases stop being separable and a pass
-        // proves nothing.
-        #expect(solo > 4 * settle, """
-            premise gone: one `brew info` now takes \(solo)s, too close to the \(settle)s \
-            the batch is given to settle, so "actor held" and "actor free" are no longer \
-            distinguishable here. Re-tune or delete this test.
-            """)
+    /// argv of `pid` from `KERN_PROCARGS2`: an `Int32` argc, the exec path, NUL padding,
+    /// then argc NUL-terminated arguments.
+    private static func arguments(of pid: pid_t) -> [String]? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0,
+              size > MemoryLayout<Int32>.size else { return nil }
+        let argc = buffer.withUnsafeBytes { $0.load(as: Int32.self) }
+        var i = MemoryLayout<Int32>.size
+        while i < size, buffer[i] != 0 { i += 1 }
+        while i < size, buffer[i] == 0 { i += 1 }
+        var arguments: [String] = []
+        while arguments.count < argc, i < size {
+            let start = i
+            while i < size, buffer[i] != 0 { i += 1 }
+            arguments.append(String(decoding: buffer[start..<i], as: UTF8.self))
+            i += 1
+        }
+        return arguments
     }
 }

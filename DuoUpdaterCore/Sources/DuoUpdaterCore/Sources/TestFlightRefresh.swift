@@ -121,10 +121,12 @@ public struct TestFlightRefresh: Sendable {
     ///
     /// 90s is not fitted to that 40 — it is roughly twice it, because five samples
     /// establish that the work is a network round trip whose tail is long, not
-    /// where the tail ends. The cost of the larger number is bounded: the loop
-    /// returns as soon as the store settles, so a healthy refresh still comes back
-    /// in the 15–25s the same trials measured, and only a store that keeps moving
-    /// waits longer.
+    /// where the tail ends. For a store that settles the larger number costs
+    /// nothing: the loop returns as soon as it does, so a healthy refresh still
+    /// comes back in the 15–25s the same trials measured. Two cases wait all 90s:
+    /// a store that keeps moving, and one that never changes at all
+    /// (`launchedWithoutChange` / `activatedWithoutChange`), which has no write to
+    /// settle after. All five trials above wrote, so that second case is unmeasured.
     public static let defaultDeadline: Duration = .seconds(90)
 
     /// How often to look at the store while waiting.

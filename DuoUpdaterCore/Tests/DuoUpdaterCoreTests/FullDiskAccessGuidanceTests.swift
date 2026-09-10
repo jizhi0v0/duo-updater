@@ -47,19 +47,6 @@ struct FullDiskAccessGuidanceTests {
         let after = G.recordingAsk(G.State(timesAsked: 1, appsWhenLastAsked: ["a"]), needing: ["a", "b"])
         #expect(after == G.State(timesAsked: 2, appsWhenLastAsked: ["a", "b"]))
     }
-
-    /// Once Grant… has been pressed this run and it is still missing, the tips
-    /// offer a relaunch: the running process does not see the switch until it
-    /// restarts. Mutations: drop the `grantRequestedThisRun` term — every tip
-    /// offers a relaunch before anyone pressed Grant…; answer true for `.granted`
-    /// or `.unknown` — a Mac that has it, or cannot tell, is told to relaunch.
-    @Test func offersARelaunchOnlyAfterGrantWasPressed() {
-        #expect(!G.offersRelaunch(fullDiskAccess: .denied, grantRequestedThisRun: false))
-        #expect(G.offersRelaunch(fullDiskAccess: .denied, grantRequestedThisRun: true))
-        #expect(G.offersRelaunch(fullDiskAccess: .notDetermined, grantRequestedThisRun: true))
-        #expect(!G.offersRelaunch(fullDiskAccess: .granted, grantRequestedThisRun: true))
-        #expect(!G.offersRelaunch(fullDiskAccess: .unknown, grantRequestedThisRun: true))
-    }
 }
 
 @Suite("FullDiskAccessNeeds")

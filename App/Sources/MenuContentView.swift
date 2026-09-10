@@ -877,9 +877,7 @@ private struct AppRow: View {
             ChannelTag(channel: result.effectiveReleaseChannel)
             FullDiskAccessMark(
                 needs: model.fullDiskAccessNeedsAffecting(result),
-                awaitingRelaunch: model.fullDiskAccessAwaitingRelaunch,
-                grant: { model.presentFullDiskAccessPermissionFlow() },
-                relaunch: { model.relaunchSelf() })
+                grant: { model.presentFullDiskAccessPermissionFlow() })
             // No optical nudge here: this mark is nearly cap-height, so it is judged
             // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
             if let runtime {
@@ -1019,14 +1017,12 @@ private struct AppRow: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                        relaunchForFullDiskAccess: { model.relaunchSelf() }),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
                     showsStageLabel: showsStageLabel,
-                    fullDiskAccessMissing: model.fullDiskAccessMissing,
-                    fullDiskAccessAwaitingRelaunch: model.fullDiskAccessAwaitingRelaunch)
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

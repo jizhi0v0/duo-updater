@@ -78,7 +78,6 @@ struct RowActions {
     var openToolbox: () -> Void = {}
     var openTestFlight: () -> Void = {}
     var grantFullDiskAccess: () -> Void = {}
-    var relaunchForFullDiskAccess: () -> Void = {}
 
     /// The full set, with no defaults — for a real window, where a missing action
     /// is a dead control rather than a deliberate omission.
@@ -92,15 +91,13 @@ struct RowActions {
         openSelfUpdater: @escaping () -> Void,
         openToolbox: @escaping () -> Void,
         openTestFlight: @escaping () -> Void,
-        grantFullDiskAccess: @escaping () -> Void,
-        relaunchForFullDiskAccess: @escaping () -> Void
+        grantFullDiskAccess: @escaping () -> Void
     ) -> RowActions {
         RowActions(
             install: install, openStagedPackage: openStagedPackage, retry: retry,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
-            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
-            relaunchForFullDiskAccess: relaunchForFullDiskAccess)
+            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess)
     }
 }
 
@@ -117,9 +114,6 @@ struct WorkbenchRowAction: View {
     /// TestFlight row explains, and whether it offers to grant it. An input for
     /// the same reason as `helperEnabled`.
     var fullDiskAccessMissing: Bool = false
-    /// Whether that tip offers a relaunch instead of the grant
-    /// (`FullDiskAccessGuidance.offersRelaunch`).
-    var fullDiskAccessAwaitingRelaunch: Bool = false
 
     @State private var showTestFlightTip = false
 
@@ -291,10 +285,7 @@ struct WorkbenchRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                fullDiskAccessMissing: fullDiskAccessMissing,
-                awaitingRelaunch: fullDiskAccessAwaitingRelaunch,
-                grant: actions.grantFullDiskAccess,
-                relaunch: actions.relaunchForFullDiskAccess)
+                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
         }
     }
 
@@ -525,9 +516,8 @@ struct TestFlightUnboundedMark: View {
 /// to `String` and skip localization.
 struct TestFlightUnboundedTip: View {
     let fullDiskAccessMissing: Bool
-    let awaitingRelaunch: Bool
     let grant: () -> Void
-    let relaunch: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -541,49 +531,20 @@ struct TestFlightUnboundedTip: View {
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)
             if fullDiskAccessMissing {
-                FullDiskAccessTipAction(
-                    awaitingRelaunch: awaitingRelaunch, grant: grant, relaunch: relaunch)
+                // Trailing, where macOS puts the action in a dialog or popover.
+                HStack {
+                    Spacer()
+                    Button("Grant…") {
+                        dismiss()
+                        grant()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
             }
         }
         .padding(12)
         .frame(width: 260, alignment: .leading)
-    }
-}
-
-/// The foot of both Full Disk Access tips: the grant, or — once Grant… has been
-/// pressed this run and it is still missing — a relaunch, since the running
-/// process does not see the switch turned on until it restarts
-/// (`FullDiskAccessGuidance.offersRelaunch`). One view, so the two tips cannot
-/// drift into offering different things in the same state.
-struct FullDiskAccessTipAction: View {
-    let awaitingRelaunch: Bool
-    let grant: () -> Void
-    let relaunch: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        if awaitingRelaunch {
-            Text("Already turned it on? Relaunch Duo Updater for it to take effect.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        // Trailing, where macOS puts the action in a dialog or popover.
-        HStack {
-            Spacer()
-            if awaitingRelaunch {
-                Button("Relaunch DuoUpdater") { relaunch() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-            } else {
-                Button("Grant…") {
-                    dismiss()
-                    grant()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-        }
     }
 }
 
@@ -594,9 +555,7 @@ struct FullDiskAccessTipAction: View {
 /// `TestFlightUnboundedMark`.
 struct FullDiskAccessMark: View {
     let needs: [FullDiskAccessNeed]
-    let awaitingRelaunch: Bool
     let grant: () -> Void
-    let relaunch: () -> Void
     var size: CGFloat = 11
 
     @State private var showTip = false
@@ -619,9 +578,7 @@ struct FullDiskAccessMark: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { showTip = true }
                 .popover(isPresented: $showTip, arrowEdge: .bottom) {
-                    FullDiskAccessTip(
-                        needs: needs, awaitingRelaunch: awaitingRelaunch,
-                        grant: grant, relaunch: relaunch)
+                    FullDiskAccessTip(needs: needs, grant: grant)
                 }
         }
     }
@@ -630,9 +587,8 @@ struct FullDiskAccessMark: View {
 /// What that mark opens: one sentence per read turned away, and the grant.
 struct FullDiskAccessTip: View {
     let needs: [FullDiskAccessNeed]
-    let awaitingRelaunch: Bool
     let grant: () -> Void
-    let relaunch: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -641,8 +597,15 @@ struct FullDiskAccessTip: View {
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            FullDiskAccessTipAction(
-                awaitingRelaunch: awaitingRelaunch, grant: grant, relaunch: relaunch)
+            HStack {
+                Spacer()
+                Button("Grant…") {
+                    dismiss()
+                    grant()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
         }
         .padding(12)
         .frame(width: 260, alignment: .leading)

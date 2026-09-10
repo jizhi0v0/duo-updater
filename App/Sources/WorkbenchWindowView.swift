@@ -233,12 +233,9 @@ struct WorkbenchWindowView: View {
             // (measured: AXFocusedUIElement back on the search text field).
             // Skipped mid-search, where the caret is where the user wants it.
             if searchText.isEmpty { appsListFocused = true }
-            // Keeps the mirror the lock and the TestFlight tip read current; the
-            // menu's open and the Welcome/Settings polling are its only other
-            // refreshes. It cannot finish a grant: measured on macOS 26.6, a switch
-            // turned on with "Later" is not seen by the running process until it
-            // relaunches — which is why the tips offer a relaunch once Grant… has
-            // been pressed (`FullDiskAccessGuidance.offersRelaunch`).
+            // The lock and the TestFlight tip offer "Grant…" from a mirror of the
+            // permission that only the menu's open and the Welcome/Settings polling
+            // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
             Task { await model.refreshLocal() }
         }
@@ -522,9 +519,7 @@ struct WorkbenchWindowView: View {
                     skipVersion: { model.skipThisVersion(result) },
                     clearSkip: { model.prefs.clearSkip(result.app) },
                     fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                    fullDiskAccessAwaitingRelaunch: model.fullDiskAccessAwaitingRelaunch,
-                    relaunchForFullDiskAccess: { model.relaunchSelf() })
+                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
                     .tag(result.id)
             }
         }
@@ -557,9 +552,7 @@ struct WorkbenchWindowView: View {
                     skipVersion: { model.skipThisVersion(result) },
                     clearSkip: { model.prefs.clearSkip(result.app) },
                     fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                    fullDiskAccessAwaitingRelaunch: model.fullDiskAccessAwaitingRelaunch,
-                    relaunchForFullDiskAccess: { model.relaunchSelf() })
+                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -658,12 +651,9 @@ private struct WorkbenchSidebarRow: View {
     let skipVersion: () -> Void
     let clearSkip: () -> Void
     /// The reads turned away for this app that could change its answer
-    /// (`AppListModel.fullDiskAccessNeedsAffecting`), the way to grant them, and —
-    /// once Grant… has been pressed this run — the relaunch that finishes it.
+    /// (`AppListModel.fullDiskAccessNeedsAffecting`), and the way to grant them.
     let fullDiskAccessNeeds: [FullDiskAccessNeed]
     let grantFullDiskAccess: () -> Void
-    let fullDiskAccessAwaitingRelaunch: Bool
-    let relaunchForFullDiskAccess: () -> Void
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -702,10 +692,7 @@ private struct WorkbenchSidebarRow: View {
                         RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
                     }
                     ChannelTag(channel: result.effectiveReleaseChannel)
-                    FullDiskAccessMark(
-                        needs: fullDiskAccessNeeds,
-                        awaitingRelaunch: fullDiskAccessAwaitingRelaunch,
-                        grant: grantFullDiskAccess, relaunch: relaunchForFullDiskAccess)
+                    FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
                     if let runtimeTag {
                         RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
                                    overHighlight: isSelected, interactive: false)
@@ -1041,9 +1028,7 @@ private struct DetailHeader: View {
                         ChannelTag(channel: result.effectiveReleaseChannel)
                         FullDiskAccessMark(
                             needs: model.fullDiskAccessNeedsAffecting(result),
-                            awaitingRelaunch: model.fullDiskAccessAwaitingRelaunch,
                             grant: { model.presentFullDiskAccessPermissionFlow() },
-                            relaunch: { model.relaunchSelf() },
                             size: 15)
                         // Sized up to sit beside a `.title2` name rather than a
                         // list row's body text — the marks are drawn in a unit box,
@@ -1072,11 +1057,9 @@ private struct DetailHeader: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                        relaunchForFullDiskAccess: { model.relaunchSelf() }),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
                     helperEnabled: model.helperEnabled,
-                    fullDiskAccessMissing: model.fullDiskAccessMissing,
-                    fullDiskAccessAwaitingRelaunch: model.fullDiskAccessAwaitingRelaunch)
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

@@ -5043,47 +5043,6 @@
         }
       }
     },
-    "Already turned it on? Relaunch Duo Updater for it to take effect.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schon eingeschaltet? Starte Duo Updater neu, damit der Zugriff wirkt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Ya lo activaste? Reinicia Duo Updater para que el acceso surta efecto."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Déjà activé ? Relancez Duo Updater pour qu’il prenne effet."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すでにオンにしましたか？Duo Updater を再起動すると有効になります。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Уже включили? Перезапустите Duo Updater, чтобы доступ заработал."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已经打开了？重新启动 Duo Updater 后才会生效。"
-          }
-        }
-      }
-    },
     "Always replace": {
       "extractionState": "manual",
       "localizations": {

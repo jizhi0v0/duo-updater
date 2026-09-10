@@ -229,16 +229,6 @@ final class AppListModel {
     var fullDiskAccessMissing: Bool {
         fullDiskAccessStatus == .denied || fullDiskAccessStatus == .notDetermined
     }
-    /// Whether Grant… was pressed this run — anywhere, since every Grant… goes
-    /// through `presentFullDiskAccessPermissionFlow`.
-    private(set) var fullDiskAccessGrantRequestedThisRun = false
-    /// Whether the Full Disk Access tips offer a relaunch rather than the grant
-    /// (`FullDiskAccessGuidance.offersRelaunch`).
-    var fullDiskAccessAwaitingRelaunch: Bool {
-        FullDiskAccessGuidance.offersRelaunch(
-            fullDiskAccess: fullDiskAccessStatus,
-            grantRequestedThisRun: fullDiskAccessGrantRequestedThisRun)
-    }
     /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
     /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
     /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
@@ -4907,30 +4897,11 @@ final class AppListModel {
         awaitingAccessibilityGrant = false
         awaitingAppManagementGrant = false
         awaitingFullDiskAccessGrant = true
-        fullDiskAccessGrantRequestedThisRun = true
         permissionFlow.authorize(
             pane: .fullDiskAccess,
             suggestedAppURLs: [Bundle.main.bundleURL],
             sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
         )
-    }
-
-    /// Spawn a fresh instance, then terminate this one — the standard "restart
-    /// myself" handoff. `open -n` launches a new copy that outlives our exit, so a
-    /// permission granted via the drag panel takes effect without the user hunting
-    /// for the app in Finder. Diagnostics' button and the Full Disk Access tips
-    /// both use it.
-    func relaunchSelf() {
-        let bundleURL = Bundle.main.bundleURL
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = ["-n", bundleURL.path]
-        do {
-            try task.run()
-            NSApp.terminate(nil)
-        } catch {
-            Log.app.error("relaunch failed: \(error.localizedDescription, privacy: .public)")
-        }
     }
 
     /// The one place DuoUpdater brings up Full Disk Access on its own — macOS has

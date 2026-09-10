@@ -80,7 +80,7 @@ struct DiagnosticsSettingsPage: View {
                     model.surfaceWindow(sceneID: WelcomeView.windowID)
                 }
                 .settingsGlassButton()
-                Button("Relaunch DuoUpdater") { Self.relaunch() }
+                Button("Relaunch DuoUpdater") { model.relaunchSelf() }
                     .settingsGlassButton()
                 Spacer(minLength: 0)
             }
@@ -146,23 +146,6 @@ struct DiagnosticsSettingsPage: View {
             Text(entry.source).font(.caption2).foregroundStyle(.tertiary)
         }
         .settingsRow()
-    }
-
-    /// Spawn a fresh instance, then terminate this one — the standard "restart
-    /// myself" handoff. `open -n` launches a new copy that outlives our exit, so a
-    /// permission granted via the drag panel takes effect without the user hunting
-    /// for the app in Finder.
-    private static func relaunch() {
-        let bundleURL = Bundle.main.bundleURL
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = ["-n", bundleURL.path]
-        do {
-            try task.run()
-            NSApp.terminate(nil)
-        } catch {
-            Log.app.error("relaunch failed: \(error.localizedDescription, privacy: .public)")
-        }
     }
 }
 

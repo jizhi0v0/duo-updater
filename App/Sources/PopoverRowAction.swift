@@ -29,6 +29,9 @@ struct PopoverRowAction: View {
     /// Whether Full Disk Access is missing — decides what the question mark on a
     /// TestFlight row explains, and whether it offers to grant it.
     var fullDiskAccessMissing: Bool = false
+    /// Whether that tip offers a relaunch instead of the grant
+    /// (`FullDiskAccessGuidance.offersRelaunch`).
+    var fullDiskAccessAwaitingRelaunch: Bool = false
 
     /// Owned here rather than by the row: the licence-boundary warning belongs to
     /// this control, and nothing outside it reads the flag.
@@ -699,7 +702,10 @@ struct PopoverRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
+                fullDiskAccessMissing: fullDiskAccessMissing,
+                awaitingRelaunch: fullDiskAccessAwaitingRelaunch,
+                grant: actions.grantFullDiskAccess,
+                relaunch: actions.relaunchForFullDiskAccess)
         }
     }
 

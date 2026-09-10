@@ -21,6 +21,14 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.90
 
+**Microsoft Edge Beta could offer you a stable Edge build.** While Microsoft's feed briefly carried no Mac release on the beta channel, the rule read past the end of that channel and took the next one's — so the row named a stable version, and updating would have put it over your beta.
+
+**`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now. The window is unchanged: a beta TestFlight manages has always carried its marker there rather than a plain tick.
+
+**`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.
+
+**`duo` also stops calling a TestFlight refresh finished while it is still running.** The versions printed immediately afterwards could be the ones from before it.
+
 **Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.
 
 ## 0.3.89

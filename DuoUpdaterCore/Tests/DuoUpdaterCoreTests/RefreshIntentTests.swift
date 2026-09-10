@@ -41,6 +41,23 @@ struct RefreshIntentTests {
         #expect(!RefreshIntent.scheduled.readsTestFlight(fullDiskAccess: .unknown))
     }
 
+    /// Only the tick that skipped a read by rule keeps the TestFlight verdicts on
+    /// screen. Mutations: answer `true` for `.denied` — a revoked grant keeps "up to
+    /// date" rows that nothing can refresh; answer `false` for the tick with an
+    /// unknown grant — it throws away the TestFlight updates a refresh had found;
+    /// answer `true` for a user-present round with an unknown grant — it reads the
+    /// store, and keeping would hide what it read.
+    @Test func onlyTheTickThatSkippedByRuleKeepsTestFlightVerdicts() {
+        #expect(RefreshIntent.scheduled.keepsTestFlightVerdicts(fullDiskAccess: .unknown))
+        #expect(!RefreshIntent.userPresent.keepsTestFlightVerdicts(fullDiskAccess: .unknown))
+        #expect(!RefreshIntent.userRequested.keepsTestFlightVerdicts(fullDiskAccess: .unknown))
+        for intent in [RefreshIntent.userRequested, .userPresent, .scheduled] {
+            #expect(!intent.keepsTestFlightVerdicts(fullDiskAccess: .granted))
+            #expect(!intent.keepsTestFlightVerdicts(fullDiskAccess: .denied))
+            #expect(!intent.keepsTestFlightVerdicts(fullDiskAccess: .notDetermined))
+        }
+    }
+
     /// A refresh the user is present for starts the notes over; the scheduled
     /// one keeps what is on screen. This is #228.
     @Test func onlyTheScheduledRefreshKeepsChangelogs() {

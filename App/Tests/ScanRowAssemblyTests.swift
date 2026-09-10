@@ -273,7 +273,7 @@ extension ScanRowAssemblyTests {
             UpdateResult(app: beta, remote: nil, status: .updateAvailable(latest: "1.0")),
             UpdateResult(app: plain, remote: nil, status: .upToDate),
         ]
-        let plan = ScanRowAssembly.roundPlan([beta, plain], readsTestFlight: false, onScreen: onScreen)
+        let plan = ScanRowAssembly.roundPlan([beta, plain], keepsTestFlightRows: true, onScreen: onScreen)
         #expect(plan.check.map(\.id) == [plain.id])
         #expect(plan.carried.map(\.id) == [beta.id])
         if case .updateAvailable = plan.carried.first?.status {} else {
@@ -281,14 +281,16 @@ extension ScanRowAssemblyTests {
         }
     }
 
-    /// A round that can read the store checks everything. Mutation: drop the
-    /// `readsTestFlight` guard — then a refresh the user asked for carries the
-    /// old verdict too, and never learns a build the store has.
+    /// A round that keeps no rows checks everything — one that reads the store,
+    /// and one without the grant, whose rows must say they cannot tell. Mutation:
+    /// drop the `keepsTestFlightRows` guard — then a refresh the user asked for
+    /// carries the old verdict too and never learns a build the store has, and a
+    /// revoked grant keeps "up to date" rows nothing can refresh.
     @Test func aRoundThatReadsTestFlightChecksEverything() {
         let beta = planApp("Beta", testFlight: true)
         let plain = planApp("Plain", testFlight: false)
         let onScreen = [UpdateResult(app: beta, remote: nil, status: .updateAvailable(latest: "1.0"))]
-        let plan = ScanRowAssembly.roundPlan([beta, plain], readsTestFlight: true, onScreen: onScreen)
+        let plan = ScanRowAssembly.roundPlan([beta, plain], keepsTestFlightRows: false, onScreen: onScreen)
         #expect(plan.check.map(\.id) == [beta.id, plain.id])
         #expect(plan.carried.isEmpty)
     }
@@ -298,7 +300,7 @@ extension ScanRowAssemblyTests {
     /// then a beta installed since the last round never reaches the checker.
     @Test func aBetaWithNoRowYetIsStillChecked() {
         let beta = planApp("Beta", testFlight: true)
-        let plan = ScanRowAssembly.roundPlan([beta], readsTestFlight: false, onScreen: [])
+        let plan = ScanRowAssembly.roundPlan([beta], keepsTestFlightRows: true, onScreen: [])
         #expect(plan.check.map(\.id) == [beta.id])
         #expect(plan.carried.isEmpty)
     }
@@ -316,7 +318,7 @@ extension ScanRowAssemblyTests {
     @Test func aPlaceholderRowIsNotAVerdict() {
         let beta = planApp("Beta", testFlight: true)
         let onScreen = [ScanRowAssembly.unchecked(beta, proofs: noProofs)]
-        let plan = ScanRowAssembly.roundPlan([beta], readsTestFlight: false, onScreen: onScreen)
+        let plan = ScanRowAssembly.roundPlan([beta], keepsTestFlightRows: true, onScreen: onScreen)
         #expect(plan.check.map(\.id) == [beta.id])
         #expect(plan.carried.isEmpty)
     }

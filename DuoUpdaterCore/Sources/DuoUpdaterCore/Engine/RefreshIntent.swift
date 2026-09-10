@@ -58,6 +58,24 @@ public enum RefreshIntent: Sendable, Equatable {
         }
     }
 
+    /// Whether a round that does not read TestFlight's store keeps the TestFlight
+    /// verdicts already on screen rather than re-deriving them from an empty store.
+    ///
+    /// Only the scheduler's tick when Full Disk Access cannot be asked about: it
+    /// skips a read that a refresh the user is present for would take, so the rows
+    /// hold the last verdicts anything established, and throwing them away is how
+    /// the tick used to erase the updates a refresh had found. Not when the grant
+    /// is known to be missing: nothing can read the store then, so a kept verdict
+    /// is one nothing will refresh. Measured 2026-09-10 on macOS 26.6: revoked with
+    /// "Later", the rows kept "up to date" until a relaunch, while the release
+    /// notes and the README say such rows show a question mark.
+    public func keepsTestFlightVerdicts(fullDiskAccess: TCCAuthStatus) -> Bool {
+        switch fullDiskAccess {
+        case .unknown: !readsTestFlight
+        case .granted, .denied, .notDetermined: false
+        }
+    }
+
     /// Whether this refresh starts the release notes over: expire the
     /// network-level changelog cache, drop every loaded/loading entry, and
     /// forget which entries the network has confirmed this session, so the

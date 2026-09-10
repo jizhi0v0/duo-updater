@@ -1038,7 +1038,7 @@ private struct DetailHeader: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight() }),
+                        openTestFlight: { model.openTestFlight(for: result) }),
                     helperEnabled: model.helperEnabled)
                 if let url = changelogURL {
                     Link(destination: url) {

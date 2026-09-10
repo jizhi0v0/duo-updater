@@ -477,8 +477,8 @@ struct PopoverRowAction: View {
     }
 
 
-    /// TestFlight manages this beta's updates. There's no per-app deep link we can
-    /// rely on, so we just open TestFlight, where the user installs the update
+    /// TestFlight manages this beta's updates, so the button opens TestFlight on
+    /// this app's page (`Frontier.appPageURL`), where the user installs the update
     /// through its own channel.
     private var testFlightButton: some View {
         Button("TestFlight") { actions.openTestFlight() }

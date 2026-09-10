@@ -145,6 +145,13 @@ struct MenuContentView: View {
             if model.results.isEmpty {
                 Log.app.info("menu .task: results empty → full refresh()")
                 await model.refresh()
+            } else if !model.testFlightReadThisSession {
+                // The rule the workbench's open already follows. The scheduler's
+                // tick never reads TestFlight, so a list it filled after launch has
+                // no TestFlight verdicts in it until a refresh the user is present
+                // for — and this open is that refresh.
+                Log.app.info("menu .task: TestFlight not read this session → full refresh()")
+                await model.refresh()
             } else {
                 Log.app.info("menu .task: results present → refreshLocal()")
                 await model.refreshLocal()
@@ -999,7 +1006,7 @@ private struct AppRow: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight() }),
+                        openTestFlight: { model.openTestFlight(for: result) }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
@@ -1165,10 +1172,9 @@ private struct AppRow: View {
                 Button("Open in App Store") { openAppStorePage() }
             }
             if result.app.isTestFlightApp {
-                // TestFlight has no working per-app deep link on macOS (the iOS
-                // `itms-beta://…/v1/app/<id>` form just opens the app list), so this
-                // only launches TestFlight — labelled plainly to not over-promise.
-                Button("Open TestFlight") { model.openTestFlight() }
+                // Opens TestFlight on this app's own page (`Frontier.appPageURL`),
+                // or on its list when the store has no id for it.
+                Button("Open TestFlight") { model.openTestFlight(for: result) }
             }
         }
     }

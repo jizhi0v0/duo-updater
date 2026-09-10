@@ -323,7 +323,7 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 - **它覆盖的是「纯的那一半」,接线仍然只有复审看着。** `ScanRowAssembly` 被执行了,但
   「哪份快照在什么时候取」还在 `AppListModel` 里、还在 target 之外——而 #314 那 4 条缺陷
   恰恰是这类。可以真的试一下:把 `performRefresh` 里的
-  `let provenNow = ResolvedChannelStore.Snapshot()` 挪到 `await checker.check(checkable)`
+  `let provenNow = ResolvedChannelStore.Snapshot()` 挪到 `await checker.check(plan.check)`
   **之前**,它就违反了紧挨着的那句注释("Read after the check, not before"),而**编译通过、
   9 条测试全绿**。给 `merged` 传一份过期的 `prior` 同理。别把这一节读成「App 层的行组装
   现在有覆盖了」。

@@ -447,9 +447,34 @@ final class AppListModel {
         }
     }
 
-    /// Bring TestFlight forward — the action for every TestFlight-managed row, in
+    /// Open TestFlight on this row's app — the action for every TestFlight row, in
     /// both windows and in the row menu. On the model for the same reason
     /// `openToolbox` is: one row, one behaviour.
+    ///
+    /// The app's id is read from TestFlight's store at the moment of the click, so
+    /// it is never a stale copy, and the read is bounded like every other read of
+    /// that store. A prompt still up, or an app the store has no id for, falls back
+    /// to opening TestFlight on its list, which is what this always did.
+    func openTestFlight(for result: UpdateResult) {
+        let bundleID = result.app.bundleID
+        Task {
+            let page = await Self.firstResult(
+                of: Task.detached(priority: .userInitiated) {
+                    TestFlightInventory().frontier(forBundleID: bundleID)?.appPageURL
+                },
+                within: .seconds(2))
+            if let url = page ?? nil {
+                Log.app.info("TestFlight: opening \(url.absoluteString, privacy: .public)")
+                NSWorkspace.shared.open(url)
+            } else {
+                Log.app.info("TestFlight: no app id for \(bundleID ?? "?", privacy: .public) — opening its list")
+                openTestFlight()
+            }
+        }
+    }
+
+    /// Bring TestFlight forward on its list — the fallback for
+    /// `openTestFlight(for:)` when there is no app page to open.
     func openTestFlight() {
         if let url = NSWorkspace.shared.urlForApplication(
             withBundleIdentifier: "com.apple.TestFlight") {
@@ -2023,7 +2048,8 @@ final class AppListModel {
 
         // Start the TCC-gated TestFlight read OFF the critical path. Skipped on a
         // silent background refresh, which must never surface the prompt unprompted;
-        // managed-app tagging then carries over from the last user-present check.
+        // managed-app tagging then carries over from the last user-present check, and
+        // so do TestFlight verdicts (`ScanRowAssembly.roundPlan`, below).
         let tfLoader: Task<TestFlightInventory, Never>? =
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
@@ -2135,7 +2161,11 @@ final class AppListModel {
         // that actually matters — the app was already ignored when DuoUpdater
         // launched — there is no prior row to read, because nothing ever checked
         // it. The store is the only thing that survives a restart.
-        var checkedRows = await checker.check(checkable)
+        // A round that cannot read TestFlight's store keeps the TestFlight rows it
+        // already has, instead of re-deriving them from an empty one.
+        let plan = ScanRowAssembly.roundPlan(
+            checkable, readsTestFlight: allowTestFlight, onScreen: roundBaseline)
+        var checkedRows = await checker.check(plan.check) + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
         // this round began. If the sync changed it, answer them again from the new
         // one — and only them, since nothing else reads that store. Tagging is

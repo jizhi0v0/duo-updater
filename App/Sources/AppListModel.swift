@@ -1262,9 +1262,11 @@ final class AppListModel {
         }
     }
 
-    /// Whether a *user-present* refresh has read the TestFlight container yet this
-    /// launch. The silent background scheduler never reads it; the first time the
-    /// user opens the menu or the workbench we read it once (`owesTestFlightRead`).
+    /// Whether a round has read the TestFlight container yet this launch. With Full
+    /// Disk Access the scheduler's tick reads it too
+    /// (`RefreshIntent.readsTestFlight(fullDiskAccess:)`); when that cannot be
+    /// asked, the first time the user opens the menu or the workbench we read it
+    /// once (`owesTestFlightRead`).
     private(set) var testFlightReadThisSession = false
 
     /// Whether anything may read TestFlight's store right now: only with Full Disk
@@ -1868,7 +1870,8 @@ final class AppListModel {
     /// a re-check after a permission grant) may take the TestFlight read that
     /// triggers the "access data from other apps" TCC prompt, and starts the
     /// release notes over; the manual button alone also asks TestFlight to sync;
-    /// the silent scheduler's tick does none of it, so a cold launch never prompts
+    /// the silent scheduler's tick does none of it — it reads TestFlight only when
+    /// Full Disk Access makes that read silent — so a cold launch never prompts
     /// unprompted and an hourly check never blanks the notes being read.
     func refresh(intent: RefreshIntent = .userPresent) async {
         if let existing = refreshTask {
@@ -2012,10 +2015,12 @@ final class AppListModel {
         // Without Full Disk Access no read of TestFlight's store can succeed, and on
         // macOS 27 each attempt costs the user a "Data Access Blocked" notice — so
         // none is attempted: not the store, not the sync that exists to feed it, not
-        // the notices that only ever qualify what it says. Asked once, here, so the
-        // whole round agrees (`TCCPreflight.admitsOtherAppsData`).
-        let mayReadTestFlight = mayReadTestFlightStore
-        let allowTestFlight = intent.readsTestFlight && mayReadTestFlight
+        // the notices that only ever qualify what it says. With it the read is
+        // silent, so even the scheduler's tick takes it. Asked once, here, so the
+        // whole round agrees (`RefreshIntent.readsTestFlight(fullDiskAccess:)`).
+        let fullDiskAccess = TCCPreflight.fullDiskAccessStatus()
+        let mayReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess)
+        let allowTestFlight = intent.readsTestFlight(fullDiskAccess: fullDiskAccess)
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
@@ -2082,10 +2087,12 @@ final class AppListModel {
         // briefly show as a MAS app until then; the re-tag below corrects it.
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
 
-        // Start the TCC-gated TestFlight read OFF the critical path. Skipped on a
-        // silent background refresh, which must never surface the prompt unprompted;
-        // managed-app tagging then carries over from the last user-present check, and
-        // so do TestFlight verdicts (`ScanRowAssembly.roundPlan`, below).
+        // Start the TCC-gated TestFlight read OFF the critical path. Skipped by a
+        // round that may not take it — every round without Full Disk Access, and the
+        // scheduler's tick when the grant cannot be asked about, since that must
+        // never surface the prompt unprompted; managed-app tagging then carries over
+        // from the last round that read it, and so do TestFlight verdicts
+        // (`ScanRowAssembly.roundPlan`, below).
         let tfLoader: Task<TestFlightInventory, Never>? =
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
@@ -5801,10 +5808,11 @@ final class AppListModel {
 
     /// A scheduled check. Notifications are emitted by `notifyNewUpdates` at the
     /// end of every refresh (manual or background), so this just runs the check —
-    /// as `.scheduled`, which skips the TestFlight container read so a silent check
-    /// (notably the one a cold launch fires immediately) can't surface the "access
-    /// data from other apps" prompt unprompted, and leaves the release notes the
-    /// user may be reading in place (`RefreshIntent`).
+    /// as `.scheduled`, which reads the TestFlight container only when Full Disk
+    /// Access makes that read silent, so a silent check (notably the one a cold
+    /// launch fires immediately) can't surface the "access data from other apps"
+    /// prompt unprompted, and leaves the release notes the user may be reading in
+    /// place (`RefreshIntent`).
     private func backgroundRefresh() async {
         await refresh(intent: .scheduled)
     }

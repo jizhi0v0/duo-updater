@@ -272,6 +272,33 @@ public struct VendorProbeRecipe: Sendable {
     /// it — see `matchesInstalled(version:)`.
     public let installedVersionPattern: String?
 
+    /// Where to read the vendor's release ORDER, for a vendor whose build ids have
+    /// none of their own — commit hashes. nil (every recipe but one) changes
+    /// nothing. See `BuildLineage` for why `VersionComparator` cannot stand in.
+    ///
+    /// When set, the probe fetches the lineage after reading the version, and the
+    /// remote it produces always carries it — the engine then asks the lineage
+    /// instead of `VersionComparator` wherever it decides "is this newer". A
+    /// lineage that cannot be fetched, matches nothing, or does not list the
+    /// version just read FAILS the probe: a remote without one would silently fall
+    /// back to the coin flip this field exists to replace.
+    public let buildLineage: BuildLineageSpec?
+
+    /// A document listing every release newest first, and how to read one
+    /// release's build id out of it.
+    public struct BuildLineageSpec: Sendable {
+        public let url: URL
+        /// Capture group 1 is one release's build id, written to yield EXACTLY the
+        /// form the installed bundle reports: the lineage is compared by equality,
+        /// never by prefix.
+        public let entryPattern: String
+
+        public init(url: URL, entryPattern: String) {
+            self.url = url
+            self.entryPattern = entryPattern
+        }
+    }
+
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
     /// When `identity` is set this carries its placeholder token and is NOT a
@@ -701,7 +728,8 @@ public struct VendorProbeRecipe: Sendable {
         track: RolloutTrack? = nil,
         variant: String? = nil,
         hostRequirement: VendorHostRequirement? = nil,
-        installedVersionPattern: String? = nil
+        installedVersionPattern: String? = nil,
+        buildLineage: BuildLineageSpec? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -711,6 +739,7 @@ public struct VendorProbeRecipe: Sendable {
         self.variant = variant
         self.hostRequirement = hostRequirement
         self.installedVersionPattern = installedVersionPattern
+        self.buildLineage = buildLineage
         self.mode = mode
         self.versionPattern = versionPattern
         self.transientBodyPattern = transientBodyPattern
@@ -1066,6 +1095,20 @@ public enum VendorProbeRegistry {
     static let cometStableGateway = URL(
         string: "https://www.perplexity.ai/rest/browser/download"
             + "?channel=stable&platform=mac_arm64")!
+
+    /// Whether the recipe with this id orders its builds by a `BuildLineage` — the
+    /// one fact `duo verify` needs about a finding's version before comparing it
+    /// with an earlier sweep's, since on such a recipe the version is a hash
+    /// `VersionComparator` cannot order.
+    public static func ordersByLineage(recipeID: String) -> Bool {
+        recipes.contains { $0.recipeID == recipeID && $0.buildLineage != nil }
+    }
+
+    /// The same question asked by app rather than by recipe — for a check keyed on
+    /// the bundle (the changelog sweep) that has no probe recipe id to hand.
+    public static func ordersByLineage(bundleID: String) -> Bool {
+        recipes.contains { $0.bundleID == bundleID && $0.buildLineage != nil }
+    }
 
     public static let recipes: [VendorProbeRecipe] = [
         // WhatsApp — the downloads page's link 302s to a versioned dmg on fbcdn:
@@ -2915,6 +2958,63 @@ public enum VendorProbeRegistry {
             variant: "v2",
             hostRequirement: VendorHostRequirement(
                 minimumSystemVersion: "26.0", architectures: [.arm64])),
+
+        // super.engineering (Superconductor) — `latest.json` is the manifest the
+        // app's own updater reads (the URL, the `superconductor-updater` UA and
+        // "nightly entry missing valid sha" all sit in its binary). Shape,
+        // 2026-09-10:
+        //   {"nightly": {"sha": "<40 hex>", "url": "https://releases.superconductor.so/
+        //     nightly/Superconductor-nightly-<sha8>-arm64.dmg", "sha256": "<hex>",
+        //     "date": "2026-09-10"}}
+        //
+        // The version IS a commit hash. The bundle reports its first eight hex
+        // digits as both `CFBundleShortVersionString` and `CFBundleVersion`
+        // ("8545a7d8"), so the pattern captures exactly those eight: all forty would
+        // never equal the bundle's string and would read as newer forever. Hashes
+        // have no order, so `buildLineage` reads it from `changelog.json` — every
+        // published build, newest first, and the same document the release notes
+        // come from. See `BuildLineage` for what `VersionComparator` does instead.
+        //
+        // Channel: `.nightly`, the app's own name for it. The vendor retired its
+        // stable track (#711 in its own changelog, 2026-04-05) and the app's Settings
+        // say "Nightly is currently the only release track available" — but the
+        // picker is still there, and its choice is `update_channel` in
+        // `~/.superconductor/settings.json`. `SuperconductorChannel` reads it, so a
+        // copy set to anything but nightly resolves to a channel with no recipe and
+        // is never offered this build. Every pattern below is anchored inside the
+        // manifest's `"nightly"` object for the same reason: the updater looks its
+        // entry up by channel name ("nightly entry missing from release manifest"),
+        // so a second track would arrive as a sibling key, and first-match would
+        // take whichever the vendor happened to list first.
+        //
+        // One-click: the dmg `url` names, Developer ID Team MR38E36N26, notarized
+        // (the 2026-09-10 build, mounted and checked). `sha256` is a hex SHA-256,
+        // which `checksumPattern` (base64 SHA-512) cannot consume, so the Team gate
+        // stands in. arm64-only (the filename says so and `lipo` agrees);
+        // `LSMinimumSystemVersion` 14.0.
+        //
+        // Reads the newest build on the only track — the dmg the site's own
+        // Download button (`super.engineering/api/download`, a 302 to the same URL
+        // on 2026-09-10) and the app's updater hand every user.
+        VendorProbeRecipe(
+            bundleID: "com.zarifpour.superconductor",
+            url: URL(string: "https://releases.superconductor.so/latest.json")!,
+            mode: .responseBody,
+            versionPattern:
+                #""nightly"\s*:\s*\{[^{}]*?"sha"\s*:\s*"([0-9a-f]{8})[0-9a-f]{32}""#,
+            downloadURL: URL(string: "https://super.engineering/"),
+            publishedAtPattern:
+                #""nightly"\s*:\s*\{[^{}]*?"date"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""nightly"\s*:\s*\{[^{}]*?"url"\s*:\s*"(https://releases\.superconductor\.so/[^"]+-arm64\.dmg)""#),
+                kind: .dmg),
+            channel: .nightly,
+            hostRequirement: VendorHostRequirement(
+                minimumSystemVersion: "14.0", architectures: [.arm64]),
+            buildLineage: .init(
+                url: URL(string: "https://releases.superconductor.so/changelog.json")!,
+                entryPattern: #""version"\s*:\s*"([0-9a-f]{8})[0-9a-f]*""#)),
 
         // Docker Desktop — Sparkle appcast. Titles read "<ver> (<build>)" (and
         // "Version <ver> (<build>)"); take the highest since the feed isn't

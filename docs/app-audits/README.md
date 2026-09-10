@@ -54,6 +54,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
 - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
+- [x] [**super.engineering**](com-zarifpour-superconductor.md) · `com.zarifpour.superconductor` — P C B (one-click) · ✓ src=Vendor · 版本是 commit hash，按 `changelog.json` 的发布顺序比较 · 审计 2026-09-11
 - [x] **Codex → ChatGPT** · `com.openai.codex` — P C (one-click) · ✓ src=Vendor · 独立 Codex 桌面端 2026-07 并入 ChatGPT app（cask `codex-app` 已 `deprecate! … replacement_cask: "chatgpt"`），**bundle id 未变**——真包核实 ChatGPT.app 仍登记 `com.openai.codex` / `26.825.51511`，既有 recipe 全链 ✓（2026-08-30 复验）
 - [x] **Cursor** · `com.todesktop.230313mzl4w4u92` — P · ✓ src=Vendor
 - [x] [**Notion**](notion-id.md) · `notion.id` — P C · ✓ src=Vendor · **三个产物版本互不同步**（官网 307 universal / `latest-mac.yml` 纯 x64 / `arm64-mac.yml` 是独立轨）· `arm64-mac.yml` 不是另一个架构而是 `channel: arm64` 的另一条轨，故 ElectronManifestSource 不应接管 · 2026-09-01

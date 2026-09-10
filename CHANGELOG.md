@@ -43,6 +43,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **`duo` also stops calling a TestFlight refresh finished while it is still running.** The versions printed immediately afterwards could be the ones from before it.
 
+**super.engineering is now supported: update checks, release notes and one-click install.** A new nightly shows up in the list with what changed in it, and Update installs it for you.
+
 **Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.
 
 ## 0.3.89

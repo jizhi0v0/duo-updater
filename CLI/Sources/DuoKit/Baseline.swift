@@ -271,7 +271,11 @@ public struct Baseline: Codable, Sendable {
         var complaints: [String] = []
 
         if let version = finding.version, finding.status != .infra {
+            // A recipe whose builds are hashes has no order a version string can
+            // show (see `BuildLineage`); asking `VersionComparator` here would
+            // report every other release as a regression.
             if let previous = entry.lastGoodVersion, previous != version,
+               !VendorProbeRegistry.ordersByLineage(recipeID: finding.recipeID),
                VersionComparator.isNewer(previous, than: version) {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "

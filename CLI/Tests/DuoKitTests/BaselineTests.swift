@@ -44,6 +44,39 @@ import DuoUpdaterCore
         #expect(!baseline.isReportable("vendor:com.example.app:stable"))
     }
 
+    /// A recipe whose builds are commit hashes has no order a version string can
+    /// show (`BuildLineage`), so "went BACKWARDS" must not fire for it — on hashes
+    /// it would fire for every other release. Pinned with a real FORWARD step from
+    /// super.engineering's history (2026-09-03 → 2026-09-07) that digit runs read
+    /// as a regression, and checked against an ordinary recipe too, so the check is
+    /// shown to be scoped rather than switched off.
+    @Test func aLineageOrderedRecipeIsNeverReportedAsGoingBackwards() {
+        let id = "vendor:com.zarifpour.superconductor:nightly"
+        #expect(VendorProbeRegistry.ordersByLineage(recipeID: id))
+        #expect(VersionComparator.isNewer("1f68f34a", than: "c437b979"))
+
+        var lineageOrdered = Baseline()
+        _ = lineageOrdered.reconcile(finding(id, status: .ok, version: "1f68f34a"))
+        #expect(!lineageOrdered.reconcile(finding(id, status: .ok, version: "c437b979"))
+            .contains { $0.contains("BACKWARDS") })
+
+        var ordinary = Baseline()
+        _ = ordinary.reconcile(finding(status: .ok, version: "1f68f34a"))
+        #expect(ordinary.reconcile(finding(status: .ok, version: "c437b979"))
+            .contains { $0.contains("BACKWARDS") })
+    }
+
+    /// The changelog cross-check has the same blind spot: between two hashes,
+    /// "the changelog trails the detected version" is a coin flip. A real pair from
+    /// super.engineering's history with the changelog one build AHEAD of the probe
+    /// — which digit runs read as a whole release behind.
+    @Test func aLineageOrderedChangelogIsNotCrossCheckedByDigitRuns() {
+        #expect(VendorProbeRegistry.ordersByLineage(bundleID: "com.zarifpour.superconductor"))
+        #expect(Verify.changelogLagComplaint(entry: "1f68f34a", detected: "5b73c7f4") != nil)
+        #expect(Verify.changelogLagComplaint(
+            entry: "1f68f34a", detected: "5b73c7f4", ordersByLineage: true) == nil)
+    }
+
     /// Infrastructure trouble must be inert against the *actionable* streak in
     /// both directions: it can't push a recipe over the threshold, and it can't
     /// reset a real failure streak that is still running. Getting the second half

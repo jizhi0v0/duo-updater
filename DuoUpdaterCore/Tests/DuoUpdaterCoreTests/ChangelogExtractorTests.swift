@@ -912,6 +912,49 @@ private let ollamaFixture = """
 </section>
 """
 
+// Trimmed real markup from github.com/ollama/ollama/releases, read 2026-09-11.
+// v0.34.0 is written as prose — paragraphs and no <li> at all — and v0.33.0 puts
+// a prose paragraph ahead of its bullet lists. Section ids and timestamps are the
+// live ones; the frame between them is abbreviated as in `ollamaFixture`. Bodies
+// are verbatim except that v0.34.0's signed image URL is replaced, v0.33.0's image
+// is dropped, and v0.33.0 keeps 3 of its 7 bullets.
+private let ollamaProseFixture = """
+<section id="release-v0.34.0" aria-labelledby="hd-ddc17a0b" data-release-anchor="release-v0.34.0" style="scroll-margin-top: 24px;">
+        <h2 class="sr-only" id="hd-ddc17a0b">v0.34.0</h2>
+        <div class="tmp-my-5">
+          <relative-time class="no-wrap" prefix="" datetime="2026-09-05T23:49:00Z">
+        05 Sep 23:49
+      </relative-time>
+        <div data-pjax="true" data-test-selector="body-content" data-view-component="true" class="markdown-body tmp-my-3"><h2>Use Ollama models in ChatGPT Desktop</h2>
+<p>Ollama models can now be used directly in ChatGPT Desktop, so you can keep your existing workflow while running open models. Setup is available from the Ollama app on MacOS.</p>
+<a target="_blank" rel="noopener noreferrer" href="https://example.invalid/image.png"><img width="1374" height="1300" alt="CleanShot 2026-09-08 at 11 04 07 AM@2x" src="https://example.invalid/image.png" style="max-width: 100%; height: auto; max-height: 1300px;"></a>
+<p>This release also improves structured output performance on Apple Silicon, adds support for OpenAI-compatible client tool search and response compaction.</p>
+<p><strong>Full Changelog</strong>: <a class="commit-link" href="https://github.com/ollama/ollama/compare/v0.33.3...v0.34.0"><tt>v0.33.3...v0.34.0</tt></a></p></div>
+</div>
+</section>
+<section id="release-v0.33.0" aria-labelledby="hd-9722df32" data-release-anchor="release-v0.33.0" style="scroll-margin-top: 24px;">
+        <h2 class="sr-only" id="hd-9722df32">v0.33.0</h2>
+        <div class="tmp-my-5">
+          <relative-time class="no-wrap" prefix="" datetime="2026-08-21T22:52:46Z">
+        21 Aug 22:52
+      </relative-time>
+        <div data-pjax="true" data-test-selector="body-content" data-view-component="true" class="markdown-body tmp-my-3"><h2>What's Changed</h2>
+<h3>Claude Desktop</h3>
+<p>Developers can now easily configure Claude Desktop to seamlessly work with Ollama as a third-party gateway provider.</p>
+<h3>Improved caching</h3>
+<ul>
+<li>Fixed a hang where agent clients that cancel long prefills</li>
+<li>Disabled Claude Code's "tokens left" token-countdown system message, which Ollama moved to the front of the prompt and broke the KV cache on every request</li>
+</ul>
+<h3>Other improvements</h3>
+<ul>
+<li>Fixed broken default packaging caused by macOS-specific assumptions affecting Linux/Windows builds</li>
+</ul>
+<p><strong>Full Changelog</strong>: <a class="commit-link" href="https://github.com/ollama/ollama/compare/v0.32.15...v0.33.0"><tt>v0.32.15...v0.33.0</tt></a></p></div>
+</div>
+</section>
+"""
+
 // Trimmed real markup from github.com/rustdesk/rustdesk/releases. Same GitHub
 // release-section shape as Ollama, but the sr-only <h2> carries a bare version
 // ("1.4.7", no leading "v"). Body opens with a screenshot link before the
@@ -1004,6 +1047,28 @@ private let orbStackFixture = """
     #expect(changelog.entries[1].date == "2026-05-13")
     #expect(changelog.entries[1].items.count == 2)
     #expect(changelog.entries[1].items[1] == "Bug fixes & stability improvements")
+}
+
+// A release written as prose used to yield no items and be dropped — and it was
+// the newest one, so the pane started a release behind and `duo verify` said so
+// (#507). Each assertion is one way to get the fallback wrong: without it the
+// entry disappears; without its compare-link exclusion that line becomes the last
+// item; tried before the bullets, v0.33.0's intro paragraph replaces its list.
+@Test func extractsOllamaProseReleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.electron.ollama"))
+    let changelog = try #require(ChangelogExtractor.extract(from: ollamaProseFixture, using: recipe))
+
+    #expect(changelog.entries.map(\.version) == ["0.34.0", "0.33.0"])
+    #expect(changelog.entries[0].date == "2026-09-05")
+    #expect(changelog.entries[0].items == [
+        "Ollama models can now be used directly in ChatGPT Desktop, so you can keep your existing workflow while running open models. Setup is available from the Ollama app on MacOS.",
+        "This release also improves structured output performance on Apple Silicon, adds support for OpenAI-compatible client tool search and response compaction.",
+    ])
+    #expect(changelog.entries[1].items == [
+        "Fixed a hang where agent clients that cancel long prefills",
+        #"Disabled Claude Code's "tokens left" token-countdown system message, which Ollama moved to the front of the prompt and broke the KV cache on every request"#,
+        "Fixed broken default packaging caused by macOS-specific assumptions affecting Linux/Windows builds",
+    ])
 }
 
 @Test func extractsOrbStackEntriesInOrder() throws {

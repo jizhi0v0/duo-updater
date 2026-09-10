@@ -61,7 +61,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   commit already carrying the `GitHubMarkdownParser.isImageOnly` HTML `<img>`
     ///   arm (`9963e3e`) and `ChangelogRecipe.skipSections` (`a6ac16b`), so those are
     ///   folded into generation 1 rather than triggering a bump on their own.
-    public static let parserGeneration = 1
+    /// - 2: Ollama's recipe gained a paragraph item pattern, so a release written as
+    ///   prose (no bullet list) parses to an entry instead of being dropped. Notes
+    ///   already cached for 0.34.0 were stored without 0.34.0's own entry.
+    public static let parserGeneration = 2
 
     public let entries: [Entry]
 

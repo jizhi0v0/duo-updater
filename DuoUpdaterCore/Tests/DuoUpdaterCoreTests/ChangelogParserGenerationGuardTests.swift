@@ -51,8 +51,12 @@ import Foundation
     /// changes NEITHER fixture's output (a bump "just in case") is caught here for
     /// the opposite reason — it's a signal the bump might be unnecessary, worth a
     /// second look rather than a silent no-op.
+    ///
+    /// 2 moves neither fixture: it is Ollama's paragraph fallback, which changes
+    /// what a release written as prose parses to — pinned by
+    /// `extractsOllamaProseReleases`, not here.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 1)
+        #expect(Changelog.parserGeneration == 2)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

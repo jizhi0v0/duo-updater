@@ -1252,6 +1252,16 @@ public enum ChangelogRecipeRegistry {
         // (ISO datetime), and a <div class="markdown-body …"> with the release
         // body. The version group strips the leading "v" by not capturing it.
         // Only <h2> values matching v+digits are captured so nav sections skip.
+        //
+        // Most releases are a bullet list, but some are written as prose with no
+        // <li> at all — v0.34.0 and v0.32.12 on the live page, 2026-09-11. An entry
+        // that yields no items is dropped, so the newest release vanished from the
+        // pane and `duo verify` read the changelog as a whole release behind
+        // (#507). Item patterns are tried in order and the first that yields
+        // anything wins, so the paragraph fallback only ever speaks for a release
+        // with no bullets. It skips the "Full Changelog: vA...vB" compare-link line
+        // (all ten releases on the page that day end with it), which would
+        // otherwise be a prose release's last item.
         ChangelogRecipe(
             bundleID: "com.electron.ollama",
             source: URL(string: "https://github.com/ollama/ollama/releases")!,
@@ -1260,7 +1270,10 @@ public enum ChangelogRecipeRegistry {
                 + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>.*?"#
                 + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+            itemPatterns: [
+                #"<li>(?<item>.*?)</li>"#,
+                #"<p>(?!<strong>Full Changelog</strong>)(?<item>.*?)</p>"#,
+            ]),
 
         // RustDesk — GitHub releases page, same shape as Ollama but the sr-only
         // <h2> carries a bare version ("1.4.7", no leading "v"), so the version

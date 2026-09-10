@@ -308,10 +308,15 @@ public struct UpdateChecker: Sendable {
                     // we have just called unusable must not be the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
-                // Beta builds often keep the same marketing version across builds,
-                // so disambiguate with the build number when the short string matches.
-                let display = (latest.latestShortVersion == app.shortVersion)
-                    ? "\(latest.latestShortVersion) (\(latest.latestBuild))"
+                // The marketing version alone, even when it did not move. A beta
+                // that keeps its version across builds is the common case, and the
+                // row shows both builds through `UpdateResult.buildBump` — which
+                // only recognizes a build bump when `latest` IS the marketing
+                // version. Baking the build in here, as this used to, made the row
+                // show the new build and hide the installed one. A blank marketing
+                // version falls back to the build, so the row never names nothing.
+                let display = latest.latestShortVersion.isEmpty
+                    ? latest.latestBuild
                     : latest.latestShortVersion
                 let remote = RemoteVersion(
                     shortVersion: latest.latestShortVersion,

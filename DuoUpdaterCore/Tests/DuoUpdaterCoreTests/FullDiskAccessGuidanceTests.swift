@@ -52,6 +52,22 @@ struct FullDiskAccessGuidanceTests {
 @Suite("FullDiskAccessNeeds")
 struct FullDiskAccessNeedsTests {
 
+    /// Mutation: answer `true` for a prerelease — a CotEditor beta, whose version
+    /// already settles its channel, carries a mark for nothing; answer `false` for
+    /// stable — the one copy the missing read can mislead is never marked.
+    @Test func cotEditorIsMarkedOnlyOnAStableCopy() {
+        #expect(FullDiskAccessNeed.cotEditorChannel.mayAffect(releaseChannel: .stable))
+        #expect(!FullDiskAccessNeed.cotEditorChannel.mayAffect(releaseChannel: .beta))
+    }
+
+    /// Mutation: answer `true` — a TestFlight row would carry this mark next to its
+    /// own question mark, saying the same thing twice.
+    @Test func aTestFlightRowIsNeverMarkedTwice() {
+        for channel in ReleaseChannel.allCases {
+            #expect(!FullDiskAccessNeed.testFlight.mayAffect(releaseChannel: channel))
+        }
+    }
+
     /// Mutation: drop the `recordRefusal` call in `mayRead` — the read is still
     /// skipped, but the menu never learns which app it cost.
     @Test func aRefusedReadIsSkippedAndRemembersItsApps() {

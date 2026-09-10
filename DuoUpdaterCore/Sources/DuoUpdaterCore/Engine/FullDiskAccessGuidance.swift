@@ -18,6 +18,21 @@ public enum FullDiskAccessNeed: String, CaseIterable, Sendable {
     case testFlight
     /// CotEditor's update channel, which the sandboxed app keeps in its container.
     case cotEditorChannel
+
+    /// Whether this read, turned away, can change what a row says about a copy on
+    /// `releaseChannel` — as detected from the copy's own version, since the read
+    /// that could have said otherwise was not taken. Decides whether the row's name
+    /// line carries a mark.
+    ///
+    /// TestFlight: never — its row already says it cannot tell, with its own
+    /// question mark. CotEditor: only a stable copy; a prerelease is recognized
+    /// from its version, so the setting could not change the answer.
+    public func mayAffect(releaseChannel: ReleaseChannel) -> Bool {
+        switch self {
+        case .testFlight: false
+        case .cotEditorChannel: releaseChannel == .stable
+        }
+    }
 }
 
 /// The gate every read that only Full Disk Access can reach goes through, and the

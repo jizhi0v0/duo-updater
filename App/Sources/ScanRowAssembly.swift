@@ -95,4 +95,36 @@ enum ScanRowAssembly {
             return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
         }
     }
+
+    /// Which of a round's apps to check, and which TestFlight rows to keep
+    /// instead.
+    ///
+    /// A round that may not read TestFlight's store (the scheduler's silent tick —
+    /// `RefreshIntent.readsTestFlight`) has nothing to answer a TestFlight row
+    /// with: the checker would consult an empty store and call every one of them
+    /// "no cached build". Measured 2026-09-10 on a Mac checking every five
+    /// minutes: a refresh the user asked for found the TestFlight updates, and the
+    /// scheduler's next tick, with nothing else in between, published the same
+    /// list minus exactly those rows. So in such a round they are not checked;
+    /// they keep the row already on screen, which `merged` carried forward with
+    /// its status untouched.
+    ///
+    /// A TestFlight app with no row on screen has nothing to keep, so it is
+    /// checked as before and says what an empty store lets it say.
+    static func roundPlan(
+        _ checkable: [InstalledApp], readsTestFlight: Bool, onScreen: [UpdateResult]
+    ) -> (check: [InstalledApp], carried: [UpdateResult]) {
+        guard !readsTestFlight else { return (checkable, []) }
+        let rows = Dictionary(onScreen.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var check: [InstalledApp] = []
+        var carried: [UpdateResult] = []
+        for app in checkable {
+            if app.isTestFlightApp, let row = rows[app.id] {
+                carried.append(row)
+            } else {
+                check.append(app)
+            }
+        }
+        return (check, carried)
+    }
 }

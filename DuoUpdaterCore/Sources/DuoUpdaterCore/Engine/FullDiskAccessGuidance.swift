@@ -130,5 +130,22 @@ public enum FullDiskAccessGuidance {
     public static func recordingAsk(_ state: State, needing: Set<String>) -> State {
         State(timesAsked: state.timesAsked + 1, appsWhenLastAsked: needing)
     }
+
+    /// Whether a tip offering Full Disk Access should offer a relaunch instead of
+    /// the grant: it is still missing, and Grant… was already pressed this run.
+    ///
+    /// Measured 2026-09-10 on macOS 26.6: turned on in System Settings with
+    /// "Later", the grant was recorded, yet the running DuoUpdater still read it as
+    /// denied 50s later, and read it as granted after a relaunch. Pressing Grant…
+    /// again would only open a switch that is already on. Not when the status
+    /// cannot be read, for the same reason as `shouldAsk`.
+    public static func offersRelaunch(
+        fullDiskAccess: TCCAuthStatus, grantRequestedThisRun: Bool
+    ) -> Bool {
+        switch fullDiskAccess {
+        case .granted, .unknown: return false
+        case .denied, .notDetermined: return grantRequestedThisRun
+        }
+    }
 }
 #endif

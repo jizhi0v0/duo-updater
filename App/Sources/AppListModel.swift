@@ -1810,10 +1810,11 @@ final class AppListModel {
     /// return instead of starting a second one.
     ///
     /// `intent` says who asked, and `RefreshIntent` spells out what follows from
-    /// it: a user-present refresh (menu/window open, the manual button, a re-check
-    /// after a permission grant) may take the TestFlight read that triggers the
-    /// "access data from other apps" TCC prompt, and starts the release notes over;
-    /// the silent scheduler's tick does neither, so a cold launch never prompts
+    /// it: a refresh the user is present for (menu/window open, the manual button,
+    /// a re-check after a permission grant) may take the TestFlight read that
+    /// triggers the "access data from other apps" TCC prompt, and starts the
+    /// release notes over; the manual button alone also asks TestFlight to sync;
+    /// the silent scheduler's tick does none of it, so a cold launch never prompts
     /// unprompted and an hourly check never blanks the notes being read.
     func refresh(intent: RefreshIntent = .userPresent) async {
         if let existing = refreshTask {
@@ -1825,15 +1826,17 @@ final class AppListModel {
             let needFollowUp = refreshTaskIntent.map(intent.owesFollowUp(afterCoalescingOnto:)) ?? false
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
-            // Run one fresh user-present refresh. This recurses at most once: that
-            // refresh starts as `.userPresent`, so it can't re-trigger this branch
-            // and loop. (`reapplyTestFlightWhenGranted` also folds in, so no
-            // duplicate prompt.) It is also what makes "refresh" mean fresh notes
-            // when the click landed mid-tick: the scheduled pass that just finished
-            // left them alone, and this one restarts them.
+            // Run one fresh refresh of the caller's own kind. No intent owes a
+            // follow-up to its own kind (`owesFollowUp`), so this cannot land back
+            // here against itself and loop. (`reapplyTestFlightWhenGranted` also
+            // folds in, so no duplicate prompt.) It is also what makes "refresh"
+            // mean fresh notes when the click landed mid-tick — the scheduled pass
+            // that just finished left them alone, and this one restarts them — and
+            // what makes the button sync TestFlight when the click landed on a pass
+            // the menu's opening had started, which syncs nothing.
             if needFollowUp {
-                Log.app.info("refresh: coalesced onto a scheduled refresh — running user-present follow-up")
-                await refresh(intent: .userPresent)
+                Log.app.info("refresh: coalesced onto a pass that does less — running a \(String(describing: intent), privacy: .public) follow-up")
+                await refresh(intent: intent)
             }
             return
         }
@@ -1956,6 +1959,15 @@ final class AppListModel {
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
+        // The refresh button, and only the button, also asks TestFlight to sync —
+        // in a hidden instance of our own; see `TestFlightRefresh`. Started first
+        // and awaited only after the network check, because its wait is long and
+        // unrelated to everything else here: a store that never moves holds it for
+        // the whole `TestFlightRefresh.defaultDeadline`. Awaited up front, that is
+        // how long the button would spin before the scan even began.
+        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>? = intent.refreshesTestFlight
+            ? Task.detached(priority: .utility) { await TestFlightRefresh().run() }
+            : nil
         // Once per session, before the scan: recover any app left at
         // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
         // power loss / force-quit on the non-admin install path). Restoring it here
@@ -2123,7 +2135,41 @@ final class AppListModel {
         // that actually matters — the app was already ignored when DuoUpdater
         // launched — there is no prior row to read, because nothing ever checked
         // it. The store is the only thing that survives a restart.
-        let checkedRows = await checker.check(checkable)
+        var checkedRows = await checker.check(checkable)
+        // The TestFlight rows above were answered from the store as it stood when
+        // this round began. If the sync changed it, answer them again from the new
+        // one — and only them, since nothing else reads that store. Tagging is
+        // re-applied first because a wrapped iPhone/iPad app is recognized from the
+        // store itself (#456), so a beta the sync just told us about is not yet a
+        // TestFlight row in `checkable`. Not `recheckMany`: that path is
+        // TestFlight-free on purpose, and would strip exactly those tags. The
+        // re-read is bounded like the first one, for the same reason — a read that
+        // has not returned is a prompt that is still up.
+        if let testFlightSync {
+            let outcome = await testFlightSync.value
+            Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")
+            if outcome.storeChanged,
+               let synced = await Self.firstResult(
+                   of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                   within: .seconds(2)),
+               synced.accessible {
+                let targets = AppScanner.applyingTestFlightInventory(synced, to: checkable)
+                    .filter(\.isTestFlightApp)
+                let syncedAnnouncements = await Self.firstResult(
+                    of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                    within: .seconds(2))
+                let resync = UpdateChecker(
+                    sources: makeSources(token: token),
+                    maxConcurrency: prefs.maxConcurrency,
+                    toolbox: ToolboxSource(inventory: toolbox),
+                    testflight: synced,
+                    announcements: syncedAnnouncements,
+                    channelStore: ResolvedChannelStore.shared)
+                let rechecked = await resync.check(targets)
+                Log.app.notice("TestFlight sync: re-checked \(rechecked.count, privacy: .public) TestFlight rows against the synced store")
+                checkedRows = TestFlightRefresh.merging(checkedRows, resynced: rechecked)
+            }
+        }
         // Read after the check, not before: the round just flushed whatever it
         // proved, and a copy that was un-ignored and re-ignored between passes
         // should pick that up. A second read of a small file, once per round.

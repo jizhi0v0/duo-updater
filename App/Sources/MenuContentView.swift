@@ -439,7 +439,7 @@ struct MenuContentView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     Button {
-                        Task { await model.refresh() }
+                        Task { await model.refresh(intent: .userRequested) }
                     } label: {
                         // Keep both refresh states in the same 16pt layout box.
                         Group {

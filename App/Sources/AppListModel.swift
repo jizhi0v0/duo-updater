@@ -219,9 +219,11 @@ final class AppListModel {
     /// private `TCCAccessPreflight` SPI. `.unknown` when the SPI is unavailable — the UI
     /// falls back to its honest "can't verify, grant to be safe" presentation then.
     private(set) var appManagementStatus = TCCPreflight.appManagementStatus()
-    /// Live Full Disk Access status, read the same way, for the Welcome card and the
-    /// Diagnostics row. Whether TestFlight's store is read is asked live instead
-    /// (`mayReadTestFlightStore`): this copy only moves while a window watches it.
+    /// Live Full Disk Access status, for the Welcome card and the Diagnostics row —
+    /// asked by opening files only it opens, so it follows the switch while
+    /// DuoUpdater runs (`TCCPreflight.fullDiskAccessStatus`). Whether TestFlight's
+    /// store is read is asked live instead (`mayReadTestFlightStore`): this copy
+    /// only moves while a window watches it.
     private(set) var fullDiskAccessStatus = TCCPreflight.fullDiskAccessStatus()
     /// Whether it is known to be missing — what the question mark on a TestFlight
     /// row explains, and when it offers "Grant…". Not when the status cannot be
@@ -1170,14 +1172,17 @@ final class AppListModel {
     @ObservationIgnored private var trustPollers = 0
     @ObservationIgnored private var trustObserver: NSObjectProtocol?
     /// Set while a drag-panel is up, so the moment we detect the corresponding grant we
-    /// can dismiss that now-pointless panel. Both are now detectable — Accessibility via
-    /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI.
+    /// can dismiss that now-pointless panel. All three are detectable — Accessibility via
+    /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI, Full
+    /// Disk Access by opening files only it opens (`FullDiskAccessProbe`).
     @ObservationIgnored private var awaitingAccessibilityGrant = false
     @ObservationIgnored private var awaitingAppManagementGrant = false
     @ObservationIgnored private var awaitingFullDiskAccessGrant = false
 
-    /// Refresh both mirrored permission states once, and auto-dismiss a drag-panel whose
-    /// grant just landed. Cheap: `AXIsProcessTrusted()` + one `TCCAccessPreflight` call.
+    /// Refresh the mirrored permission states once, and auto-dismiss a drag-panel whose
+    /// grant just landed. Cheap: `AXIsProcessTrusted()`, a `TCCAccessPreflight` call, and
+    /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
+    /// refused.
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps

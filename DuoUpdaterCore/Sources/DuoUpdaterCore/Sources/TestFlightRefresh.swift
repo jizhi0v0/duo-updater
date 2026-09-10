@@ -93,6 +93,11 @@ public struct TestFlightRefresh: Sendable {
         /// bounce in the Dock for attention. The store only learns of a sign-out the
         /// next time TestFlight runs, so the first refresh after one still starts it.
         case accountTestsNothing
+        /// This Mac's Apple Account is not signed in to the App Store, which is what
+        /// TestFlight signs in with, so nothing was started — it would only ask the
+        /// user to sign in (`AppStoreSignIn`). Unlike `accountTestsNothing`, this is
+        /// known right after a sign-out, before TestFlight has run again.
+        case notSignedIn
         /// No TestFlight on this Mac.
         case notInstalled
         /// LaunchServices refused or timed out.
@@ -154,7 +159,9 @@ public struct TestFlightRefresh: Sendable {
     let storeStamp: @Sendable () -> Date?
     let sleep: @Sendable (Duration) async -> Void
     /// Whether the store shows no account testing anything (`accountTestsNothing`).
-    let testsNothing: @Sendable () -> Bool
+    let testsNothing: @Sendable () async -> Bool
+    /// Whether this Mac is signed in to the App Store (`notSignedIn`); nil is no signal.
+    let appStoreSignedIn: @Sendable () async -> Bool?
 
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
@@ -162,7 +169,8 @@ public struct TestFlightRefresh: Sendable {
         terminate: @escaping @Sendable (pid_t) -> Void = { AppRestarter.terminateOwnInstance($0) },
         storeStamp: @escaping @Sendable () -> Date? = Self.storeStamp,
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
-        testsNothing: @escaping @Sendable () -> Bool = Self.storeTestsNothing
+        testsNothing: @escaping @Sendable () async -> Bool = Self.storeTestsNothing,
+        appStoreSignedIn: @escaping @Sendable () async -> Bool? = Self.appStoreSignIn
     ) {
         self.locate = locate
         self.spawn = spawn
@@ -170,6 +178,7 @@ public struct TestFlightRefresh: Sendable {
         self.storeStamp = storeStamp
         self.sleep = sleep
         self.testsNothing = testsNothing
+        self.appStoreSignedIn = appStoreSignedIn
     }
 
     /// Run one attempt. Never throws: every failure is an `Outcome` the caller can
@@ -181,9 +190,13 @@ public struct TestFlightRefresh: Sendable {
     ) async -> Outcome {
         guard let bundle = locate() else { return .notInstalled }
 
-        // Nothing to fetch for an account that tests nothing, and starting
-        // TestFlight then only asks the user to sign in (`accountTestsNothing`).
-        if testsNothing() { return .accountTestsNothing }
+        // Nothing to fetch without an account, and starting TestFlight then only
+        // asks the user to sign in. The App Store sign-in goes first because it is
+        // known right after a sign-out (`notSignedIn`); the store only learns of one
+        // the next time TestFlight runs (`accountTestsNothing`). A signal that cannot
+        // answer lets the refresh through.
+        if await appStoreSignedIn() == false { return .notSignedIn }
+        if await testsNothing() { return .accountTestsNothing }
 
         // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.
@@ -239,8 +252,17 @@ public struct TestFlightRefresh: Sendable {
     /// signed-out store looks like once TestFlight has run (only placeholders
     /// left; see `TestFlightInventory.readTesters`). False whenever the store
     /// cannot say, so an unreadable store never stops a refresh.
-    public static let storeTestsNothing: @Sendable () -> Bool = {
-        TestFlightInventory().isTestingNothing
+    ///
+    /// Off the cooperative pool: the read is a bounded but blocking open, and it is
+    /// called from `run()`, which is async (see `offCooperativePool`).
+    public static let storeTestsNothing: @Sendable () async -> Bool = {
+        (try? await offCooperativePool { TestFlightInventory().isTestingNothing }) ?? false
+    }
+
+    /// Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read off the
+    /// cooperative pool for the same reason. nil when it cannot say.
+    public static let appStoreSignIn: @Sendable () async -> Bool? = {
+        await AppStoreSignIn.current()
     }
 
     /// Modification date of the store's write-ahead log.
@@ -263,7 +285,7 @@ extension TestFlightRefresh.Outcome {
     public var storeChanged: Bool {
         switch self {
         case .refreshed, .changedWithoutSettling: true
-        case .noChange, .accountTestsNothing, .notInstalled, .launchFailed: false
+        case .noChange, .notSignedIn, .accountTestsNothing, .notInstalled, .launchFailed: false
         }
     }
 }

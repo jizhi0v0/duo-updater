@@ -62,6 +62,7 @@ struct TestFlightRefreshTests {
         launchSucceeds: Bool = true,
         stamp: Stamp = Stamp(),
         testsNothing: Bool = false,
+        appStoreSignedIn: Bool? = nil,
         spy: Spy
     ) -> TestFlightRefresh {
         TestFlightRefresh(
@@ -73,7 +74,8 @@ struct TestFlightRefreshTests {
             terminate: { spy.terminatedInstance($0) },
             storeStamp: { stamp.read() },
             sleep: { _ in spy.slept() },
-            testsNothing: { testsNothing })
+            testsNothing: { testsNothing },
+            appStoreSignedIn: { appStoreSignedIn })
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when
@@ -273,6 +275,7 @@ extension TestFlightRefreshTests {
         (.changedWithoutSettling(lastChange: .seconds(40)), true),
         (.noChange, false),
         (.accountTestsNothing, false),
+        (.notSignedIn, false),
         (.notInstalled, false),
         (.launchFailed, false),
     ])
@@ -350,3 +353,27 @@ extension TestFlightRefreshTests {
     }
 }
 
+// MARK: - The App Store sign-in, read before the store
+
+extension TestFlightRefreshTests {
+    /// Signed out of the App Store: nothing starts, even though the store may still
+    /// look signed in — which is exactly the first refresh after a sign-out.
+    /// Mutation: delete the `appStoreSignedIn()` check in `run()` — the spawn
+    /// happens and this fails.
+    @Test func aMacSignedOutOfTheAppStoreStartsNothing() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(appStoreSignedIn: false, spy: spy).run()
+        #expect(outcome == .notSignedIn)
+        #expect(spy.launches.isEmpty)
+        #expect(spy.terminated.isEmpty)
+    }
+
+    /// A sign-in that cannot be read does not stop the refresh. Mutation: write the
+    /// check as `!= true` — an unreadable accounts database then stops every
+    /// refresh, and this fails.
+    @Test func anUnknownSignInLetsTheRefreshThrough() async {
+        let spy = Spy()
+        _ = await Self.refresher(appStoreSignedIn: nil, spy: spy).run()
+        #expect(spy.launches.count == 1)
+    }
+}

@@ -78,6 +78,9 @@ public enum Check {
             // current": the store has no "last synced" of its own, so a sync that
             // did not happen looks exactly like one that had nothing to fetch.
             return "duo: TestFlight reloaded in the background; its data did not change"
+        case .notSignedIn:
+            return "duo: this Mac is not signed in to the App Store, which TestFlight signs in with, "
+                + "so TestFlight was not started; it would only have asked you to sign in"
         case .accountTestsNothing:
             // The store cannot tell "signed out" from "signed in to an account
             // with no betas", so this names what it saw and guesses in brackets.

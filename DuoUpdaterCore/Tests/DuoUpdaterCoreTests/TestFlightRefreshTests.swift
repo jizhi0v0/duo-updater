@@ -233,22 +233,51 @@ struct TestFlightRefreshTests {
         #expect(spy.launches == [Self.bundle])
     }
 
-    /// The settle rule must not swallow the answer when the store keeps moving past
-    /// the deadline: a refresh that did happen is still reported, with the last
-    /// moment it was seen moving.
+    /// A store still moving at the deadline is reported — something did happen and
+    /// saying nothing would be worse — but it is NOT called a refresh. The sync may
+    /// still be in flight, and the caller reads the store on the next line.
     ///
-    /// Mutation: drop the post-loop `if let lastChange { return .refreshed(…) }` —
-    /// this becomes `.launchedWithoutChange` and fails.
-    @Test func aStoreStillMovingAtTheDeadlineIsStillARefresh() async {
+    /// Mutation: drop the post-loop `if let lastChange { … }` — this becomes
+    /// `.launchedWithoutChange` and fails. Change it back to `.refreshed(after:)` —
+    /// the `guard case` fails and names what came back.
+    @Test func aStoreStillMovingAtTheDeadlineIsNotCalledARefresh() async {
         let spy = Spy()
         // Changes on every poll, so it never settles.
         let refresher = Self.refresher(stamp: Stamp(changesAt: Set(1...20)), spy: spy)
         let outcome = await refresher.run(deadline: .seconds(2), settle: .seconds(3))
-        guard case .refreshed(let after) = outcome else {
-            Issue.record("expected a refresh, got \(outcome)")
+        guard case .changedWithoutSettling(let lastChange) = outcome else {
+            Issue.record("expected an unsettled change, got \(outcome)")
             return
         }
-        #expect(after == .seconds(2))
+        #expect(lastChange == .seconds(2))
+    }
+
+    /// Replay of the failure this case exists for, 2026-09-10. A cold launch wrote
+    /// the store early, went quiet for far longer than `settle`, and the real sync
+    /// landed **after** the deadline. The old code returned `.refreshed(after: 4s)`
+    /// on the strength of that early write, and the check in the same process then
+    /// printed build 1311 as up to date while 1312 was on its way to disk.
+    ///
+    /// The shape is what matters: an early write, a long silence, and a deadline
+    /// that arrives first. Reporting a refresh here is reporting a version number
+    /// the user has not got yet.
+    ///
+    /// Mutation: return `.refreshed(after: lastChange)` from the post-loop branch —
+    /// this fails, because a store that never settled cannot be called refreshed no
+    /// matter how early the first write was.
+    @Test func anEarlyWriteFollowedBySilenceIsNotASync() async {
+        let spy = Spy()
+        // One write on the 8th poll, then nothing: with a deadline shorter than
+        // settle, the loop can never satisfy the settle rule.
+        let refresher = Self.refresher(stamp: Stamp(changesAt: [8]), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(5), settle: .seconds(6))
+        guard case .changedWithoutSettling(let lastChange) = outcome else {
+            Issue.record("expected an unsettled change, got \(outcome)")
+            return
+        }
+        // Read 8 lands on the 7th poll: `run` reads the stamp once *before* the
+        // loop, so loop iteration k is read k+1. 7 × 500ms.
+        #expect(lastChange == .milliseconds(3500))
     }
 
     /// A launch that changes nothing is NOT reported as a refresh. The store has no

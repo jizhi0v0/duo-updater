@@ -37,8 +37,16 @@ public struct TestFlightRefresh: Sendable {
     /// What one attempt did. Every case is a thing the caller may want to say out
     /// loud — nothing here is a silent no-op.
     public enum Outcome: Sendable, Equatable {
-        /// The store changed within the deadline.
+        /// The store changed and then held still for ``settleInterval`` — the
+        /// sync finished, and the caller may read the store.
         case refreshed(after: Duration)
+        /// The store changed but the deadline arrived before it ever went quiet,
+        /// so whether the sync finished is **unknown**. Deliberately not
+        /// ``refreshed``: a caller that reads the store on this signal can read it
+        /// mid-sync, which is exactly what happened on 2026-09-10 — the refresh
+        /// announced success at +10s, the data landed at +40s, and the check in the
+        /// same process printed the *previous* build as up to date.
+        case changedWithoutSettling(lastChange: Duration)
         /// Launched from cold, but the store never changed. Usually "already
         /// current"; it can also be a sync that did not happen, and this
         /// deliberately does not claim to know which — the store carries no "last
@@ -72,10 +80,22 @@ public struct TestFlightRefresh: Sendable {
     /// Bundle id of the app that owns the store.
     public static let bundleID = "com.apple.TestFlight"
 
-    /// How long to wait for the store to change. Generous against the measured
-    /// 8–11s, because those were three warm-ish samples on two Macs and the work is
-    /// a network round trip.
-    public static let defaultDeadline: Duration = .seconds(30)
+    /// How long to wait for the store to change.
+    ///
+    /// ⚠️ **This was 30s, and 30s is inside the measured spread.** Time from the
+    /// trigger to the data actually landing, measured 2026-09-10 across five valid
+    /// trials on two Macs (three cold launches, two activations): **2s, 4s, 6s,
+    /// 10s, and 40s**. The 40s trial is the one that broke: the loop ran its full
+    /// 30 seconds, never saw the store settle, and returned `.refreshed` anyway on
+    /// the strength of a write at +4s that turned out to be preliminary.
+    ///
+    /// 90s is not fitted to that 40 — it is roughly twice it, because five samples
+    /// establish that the work is a network round trip whose tail is long, not
+    /// where the tail ends. The cost of the larger number is bounded: the loop
+    /// returns as soon as the store settles, so a healthy refresh still comes back
+    /// in the 15–25s the same trials measured, and only a store that keeps moving
+    /// waits longer.
+    public static let defaultDeadline: Duration = .seconds(90)
 
     /// How often to look at the store while waiting.
     public static let pollInterval: Duration = .milliseconds(500)
@@ -186,8 +206,10 @@ public struct TestFlightRefresh: Sendable {
             }
         }
         // Ran out of time. It still changed, so say so rather than pretending
-        // nothing happened; the caller gets the last moment we saw it move.
-        if let lastChange { return .refreshed(after: lastChange) }
+        // nothing happened — but do NOT call it a refresh: the store never held
+        // still, so the sync may well be in flight, and the caller is about to
+        // read it.
+        if let lastChange { return .changedWithoutSettling(lastChange: lastChange) }
         return launched ? .launchedWithoutChange : .activatedWithoutChange
     }
 

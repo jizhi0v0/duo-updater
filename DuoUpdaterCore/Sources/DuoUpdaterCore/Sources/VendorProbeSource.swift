@@ -675,6 +675,49 @@ public struct VendorProbeSource: UpdateSource {
                   publishedFields.publishedAt == nil, publishedFields.vendorDay == nil {
             warnings.append(.publishedAtUnreadable(publishedAtValue))
         }
+        // A recipe whose build ids carry no order of their own reads that order
+        // from a second document. Fetched only after the version read succeeded, so
+        // a dead version endpoint still reports as itself. Failing here fails the
+        // probe: a remote without its lineage would be compared by
+        // `VersionComparator`, which on hashes is a coin flip — no answer is better
+        // than that one. See `BuildLineage`.
+        //
+        // A lineage failure carries the LINEAGE document as its sample, not the
+        // version body: that is the text a human (or `duo triage`) needs to see.
+        var lineage: BuildLineage?
+        if let spec = recipe.buildLineage {
+            let text: String
+            switch await fetchLineage(spec, recipe: recipe) {
+            case .failure(let failure):
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public): release-order document failed: \(failure.detail, privacy: .public)")
+                if case .buildLineageUnavailable(.httpStatus(let code)) = failure {
+                    return fail(failure, status: code)
+                }
+                return fail(failure)
+            case .success(let fetched):
+                text = fetched
+            }
+            // Sampled on the failure paths only: the document is a whole release
+            // history, and condensing it on every successful check would be work
+            // nobody reads.
+            guard let fetched = BuildLineage.extract(from: text, pattern: spec.entryPattern) else {
+                Log.source.error(
+                    "vendor probe \(recipe.bundleID, privacy: .public): \(text.utf8.count) bytes of release order, none matched /\(spec.entryPattern, privacy: .public)/")
+                return fail(
+                    .buildLineagePatternNoMatch(sampleBytes: text.utf8.count),
+                    sample: ProbeOutcome.sample(text))
+            }
+            guard fetched.position(of: version) != nil else {
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public): release order does not list \(version, privacy: .public) yet")
+                return fail(
+                    .buildLineageMissesVersion(version), status: body.status,
+                    sample: ProbeOutcome.sample(text))
+            }
+            lineage = fetched
+        }
+
         var remote: RemoteVersion
 
         // If this recipe knows how to install in place, resolve the installer URL
@@ -714,7 +757,8 @@ public struct VendorProbeSource: UpdateSource {
                     // (measured 2026-08-30) — but it holds for the reason stated
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version, feedURL: recipe.url))
+                        inBody: body.text, forVersion: version, feedURL: recipe.url),
+                    lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {
@@ -755,13 +799,15 @@ public struct VendorProbeSource: UpdateSource {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: nil, plan: nil,
                     resolvedDownload: body.resolvedDownload, display: display,
-                    publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay)
+                    publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
+                    lineage: lineage)
             }
         } else {
             remote = Self.makeRemoteVersion(
                 recipe: recipe, version: version, install: nil, plan: nil,
                 resolvedDownload: body.resolvedDownload, display: display,
-                publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay)
+                publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
+                lineage: lineage)
         }
 
         return ProbeOutcome(
@@ -1115,7 +1161,8 @@ public struct VendorProbeSource: UpdateSource {
         display: String? = nil,
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
-        deltas: [DeltaPatch] = []
+        deltas: [DeltaPatch] = [],
+        lineage: BuildLineage? = nil
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
         // the installed `CFBundleVersion`); `shortVersion` stays nil so a build
@@ -1158,7 +1205,10 @@ public struct VendorProbeSource: UpdateSource {
                 // Only on the installable branch: a patch is an alternative route
                 // to an artifact we are going to fetch, so it is meaningless on a
                 // detection-only result that has no artifact to begin with.
-                deltas: deltas
+                deltas: deltas,
+                // On BOTH branches: a lineage recipe's remote without its lineage
+                // would be ordered by `VersionComparator` — see `BuildLineage`.
+                buildLineage: lineage
             )
         }
 
@@ -1176,8 +1226,42 @@ public struct VendorProbeSource: UpdateSource {
             requiresManualInstaller: true,
             changelogURL: recipe.changelogURL,
             publishedAt: publishedAt,
-            vendorDay: vendorDay
+            vendorDay: vendorDay,
+            buildLineage: lineage
         )
+    }
+
+    /// Fetch a recipe's `buildLineage` document. Same request shape as a
+    /// `.responseBody` probe — the recipe's headers, the version-feed cache
+    /// policy, the one gateway retry — so the lineage is asked exactly the way the
+    /// version was. The cache policy matters more here than anywhere: the lineage
+    /// is a whole release history (Superconductor's is ~850 KB), and the vendor
+    /// answers a revalidation with 304 (measured 2026-09-10), so a copy still in
+    /// the memory cache costs a few hundred bytes. Whether it is still there at the
+    /// next check was not measured.
+    ///
+    /// Every failure is wrapped in `.buildLineageUnavailable`, so nothing
+    /// downstream can mistake it for the version endpoint's.
+    private func fetchLineage(
+        _ spec: VendorProbeRecipe.BuildLineageSpec, recipe: VendorProbeRecipe
+    ) async -> Result<String, ProbeFailure> {
+        var request = URLRequest(url: spec.url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        Self.apply(recipe.requestHeaders, to: &request)
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.versionFeedData(
+            for: request, label: "VendorProbe lineage \(recipe.bundleID)") }
+        catch { return .failure(.buildLineageUnavailable(Self.transportFailure(error))) }
+        guard let http = response as? HTTPURLResponse else {
+            return .failure(.buildLineageUnavailable(.nonHTTPResponse))
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            return .failure(.buildLineageUnavailable(.httpStatus(http.statusCode)))
+        }
+        return .success(String(decoding: data, as: UTF8.self))
     }
 
     /// Resolve an install spec into a concrete (url, checksum) pair. The body is

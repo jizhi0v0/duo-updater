@@ -272,6 +272,33 @@ public struct VendorProbeRecipe: Sendable {
     /// it — see `matchesInstalled(version:)`.
     public let installedVersionPattern: String?
 
+    /// Where to read the vendor's release ORDER, for a vendor whose build ids have
+    /// none of their own — commit hashes. nil (every recipe but one) changes
+    /// nothing. See `BuildLineage` for why `VersionComparator` cannot stand in.
+    ///
+    /// When set, the probe fetches the lineage after reading the version, and the
+    /// remote it produces always carries it — the engine then asks the lineage
+    /// instead of `VersionComparator` wherever it decides "is this newer". A
+    /// lineage that cannot be fetched, matches nothing, or does not list the
+    /// version just read FAILS the probe: a remote without one would silently fall
+    /// back to the coin flip this field exists to replace.
+    public let buildLineage: BuildLineageSpec?
+
+    /// A document listing every release newest first, and how to read one
+    /// release's build id out of it.
+    public struct BuildLineageSpec: Sendable {
+        public let url: URL
+        /// Capture group 1 is one release's build id, written to yield EXACTLY the
+        /// form the installed bundle reports: the lineage is compared by equality,
+        /// never by prefix.
+        public let entryPattern: String
+
+        public init(url: URL, entryPattern: String) {
+            self.url = url
+            self.entryPattern = entryPattern
+        }
+    }
+
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
     /// When `identity` is set this carries its placeholder token and is NOT a
@@ -701,7 +728,8 @@ public struct VendorProbeRecipe: Sendable {
         track: RolloutTrack? = nil,
         variant: String? = nil,
         hostRequirement: VendorHostRequirement? = nil,
-        installedVersionPattern: String? = nil
+        installedVersionPattern: String? = nil,
+        buildLineage: BuildLineageSpec? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -711,6 +739,7 @@ public struct VendorProbeRecipe: Sendable {
         self.variant = variant
         self.hostRequirement = hostRequirement
         self.installedVersionPattern = installedVersionPattern
+        self.buildLineage = buildLineage
         self.mode = mode
         self.versionPattern = versionPattern
         self.transientBodyPattern = transientBodyPattern
@@ -1066,6 +1095,20 @@ public enum VendorProbeRegistry {
     static let cometStableGateway = URL(
         string: "https://www.perplexity.ai/rest/browser/download"
             + "?channel=stable&platform=mac_arm64")!
+
+    /// Whether the recipe with this id orders its builds by a `BuildLineage` — the
+    /// one fact `duo verify` needs about a finding's version before comparing it
+    /// with an earlier sweep's, since on such a recipe the version is a hash
+    /// `VersionComparator` cannot order.
+    public static func ordersByLineage(recipeID: String) -> Bool {
+        recipes.contains { $0.recipeID == recipeID && $0.buildLineage != nil }
+    }
+
+    /// The same question asked by app rather than by recipe — for a check keyed on
+    /// the bundle (the changelog sweep) that has no probe recipe id to hand.
+    public static func ordersByLineage(bundleID: String) -> Bool {
+        recipes.contains { $0.bundleID == bundleID && $0.buildLineage != nil }
+    }
 
     public static let recipes: [VendorProbeRecipe] = [
         // WhatsApp — the downloads page's link 302s to a versioned dmg on fbcdn:

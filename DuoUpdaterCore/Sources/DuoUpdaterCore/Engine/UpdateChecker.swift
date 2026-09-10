@@ -470,6 +470,33 @@ public struct UpdateChecker: Sendable {
     /// against an already-fetched remote (no network) — e.g. to notice an app
     /// updated itself in the background.
     public static func evaluate(installed: InstalledApp, remote: RemoteVersion) -> UpdateStatus {
+        // Build ids with no order of their own (commit hashes) are ordered by the
+        // vendor's published lineage and by nothing else: every branch below ends
+        // in `VersionComparator`, which on two hashes is a coin flip (see
+        // `BuildLineage`).
+        //
+        // A pair the lineage cannot place is a check that FAILED, not an app nothing
+        // covers: "up to date" would be a guess, "update available" would offer a
+        // build whose direction nobody knows, and `.unknown` renders as "no source
+        // covers this app" (`RowActionState`) — false for an app whose source just
+        // answered. The live cause is a copy that updated itself to a build newer
+        // than the lineage this remote carries; the next check reads a lineage that
+        // lists it, which is what the failed check's Retry is for.
+        if let lineage = remote.buildLineage {
+            guard let pair = remote.lineageComparands(
+                installedMarketing: installed.shortVersion,
+                installedBuild: installed.buildVersion(in: remote.buildNamespace))
+            else { return .unknown }
+            switch lineage.isNewer(pair.remote, than: pair.installed) {
+            case .some(true): return .updateAvailable(latest: remote.displayVersion ?? pair.remote)
+            case .some(false): return .upToDate
+            case .none:
+                return .error("The vendor's release history does not place \(pair.installed) "
+                    + "against \(pair.remote), so whether this copy is current cannot be told "
+                    + "— check again.")
+            }
+        }
+
         // A remote build stated in the VENDOR's namespace can only be compared
         // against the vendor's own value. Falling back to the marketing branch
         // here would be the failure this namespace exists to prevent: for a

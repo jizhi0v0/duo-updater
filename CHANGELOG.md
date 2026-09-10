@@ -25,6 +25,12 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The refresh button now asks TestFlight for its latest builds.** TestFlight's own data only refreshes while your Mac is idle, so a beta could show no update for hours after a new build was out; refreshing now checks with TestFlight in the background, without bringing it to the front.
 
+**The TestFlight button now takes you to that beta's page in TestFlight.** It used to open TestFlight on its list, leaving you to find the app yourself.
+
+**A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes can't read TestFlight's data, and it used to throw away what the last refresh had found; the first time you open the menu after launch now reads it too.
+
+**A TestFlight row shows the build you have as well as the one on offer.** A beta that keeps its version number between builds showed only the new build's number.
+
 **A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
 
 **`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.

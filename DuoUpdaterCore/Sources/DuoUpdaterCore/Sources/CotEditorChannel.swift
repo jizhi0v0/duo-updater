@@ -51,9 +51,12 @@ enum CotEditorChannel {
     /// binding here and unlike CapCut, the one other sandboxed app in the table
     /// (whose flag is an INI outside its container).
     /// `~/Library/Preferences/com.coteditor.CotEditor.plist` does not exist; the
-    /// container copy does, and a shell WITHOUT Full Disk Access reads it — the
-    /// container is the app's own jail, not a wall against other processes of the
-    /// same user.
+    /// container copy does, and reading it takes Full Disk Access. This note used
+    /// to say a shell without it reads the file; measured 2026-09-10 on macOS 27, a
+    /// never-granted probe was refused another app's container plist (EPERM,
+    /// "AppDataDetailed denied by TCC") — CotEditor was not installed to test its
+    /// own, and the earlier reading was most likely taken from a terminal that
+    /// had the grant (unverified).
     static var preferencesDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(
@@ -104,7 +107,12 @@ enum CotEditorChannel {
     /// used to check this is not the API the code calls. Read the file, the way
     /// `SurgeChannel` reads its own plist.
     static func readChecksUpdatesForBeta() -> Bool {
-        decodeChecksUpdatesForBeta(at: preferencesFileURL)
+        // Not attempted without Full Disk Access (see `preferencesDirectoryURL`):
+        // false is what the refused read returned anyway, so `detect()` keeps
+        // speaking, as it does for an unticked box — and the menu can say why.
+        guard FullDiskAccessNeeds.shared.mayRead(.cotEditorChannel, for: [bundleID])
+        else { return false }
+        return decodeChecksUpdatesForBeta(at: preferencesFileURL)
     }
 
     /// Split out so the decoding is testable against a plist written to a temp

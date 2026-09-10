@@ -93,6 +93,31 @@ public struct TestFlightInventory: Sendable {
     /// see there for why a native Mac app must never be routed through it.
     private let iosLatestByBundleID: [String: App]
 
+    /// What the store knows about one app, in TestFlight's **own** id space —
+    /// nothing here is a `CFBundleVersion`.
+    ///
+    /// `maxBuildID` is a frontier, not a version: the store keeps one row per
+    /// platform for the *current* build and no history, so the only question it can
+    /// answer is "has this store seen anything at least this new".
+    public struct Frontier: Sendable, Equatable {
+        /// The App Store id, from `ZTFAPPMODEL.ZAPPID` — the same id TestFlight's
+        /// notifications carry in their default-action URL.
+        public let adamID: Int64
+        /// The largest `ZTFAPPBUNDLEMODEL.ZBUILDID` this store holds for the app,
+        /// across platforms.
+        public let maxBuildID: Int64
+
+        public init(adamID: Int64, maxBuildID: Int64) {
+            self.adamID = adamID
+            self.maxBuildID = maxBuildID
+        }
+    }
+
+    /// Per bundle id: which app the store thinks it is, and the newest build id it
+    /// has ever recorded for it. Empty when the frontier query did not prepare,
+    /// which costs this signal and nothing else.
+    private let frontierByBundleID: [String: Frontier]
+
     /// Whether we actually opened the TestFlight database. `false` means the file
     /// was missing or the read was blocked/denied — notably the "access data from
     /// other apps" TCC gate. The UI uses this to tell "we read it and there was
@@ -108,8 +133,9 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, iosRows, iosAvailableRows, opened) = Self.readRows(at: url)
+        let (rows, iosRows, iosAvailableRows, frontiers, opened) = Self.readRows(at: url)
         self.accessible = opened
+        self.frontierByBundleID = frontiers
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
@@ -142,9 +168,11 @@ public struct TestFlightInventory: Sendable {
         macRows: [(bundleID: String, shortVersion: String, build: String)],
         installedIOSRows: [(bundleID: String, shortVersion: String, build: String)] = [],
         availableIOSRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
+        frontiers: [String: Frontier] = [:],
         accessible: Bool = true
     ) {
         self.accessible = accessible
+        self.frontierByBundleID = frontiers
         self.iosBuildsByBundleID = Self.buildIndex(installedIOSRows)
         // The database always yields the installed rows as a subset of the
         // available ones, so a fixture that names only the installed rows gets the
@@ -228,6 +256,22 @@ public struct TestFlightInventory: Sendable {
         return iosLatestByBundleID[bundleID]
     }
 
+    /// What the store knows about this app in TestFlight's own id space, or nil
+    /// when the store has no app row for it (or the frontier query did not run).
+    ///
+    /// ⚠️ **This one is deliberately NOT split by platform, and that is not the
+    /// merge the warning above forbids.** That warning is about *offering* a build:
+    /// hand a native Mac app its iOS track and it gets an iPhone build as its next
+    /// Mac update. This offers nothing. It answers "how recently has this store
+    /// synced anything at all for this app", and the store syncs every platform in
+    /// one pass, so the newest row of any platform is the better answer to that
+    /// question — a mac-only frontier would call a store stale on the strength of a
+    /// track that simply has no new builds.
+    public func frontier(forBundleID bundleID: String?) -> Frontier? {
+        guard let bundleID else { return nil }
+        return frontierByBundleID[bundleID]
+    }
+
     /// bundleID → the newest row. **Every** bucket ranks through here — mac and
     /// iOS, real database and test seam — so they cannot drift apart in how
     /// "newest" is decided.
@@ -290,7 +334,9 @@ public struct TestFlightInventory: Sendable {
     typealias Row = (bundleID: String, shortVersion: String, build: String)
     /// What one read of the database yields: the two platform buckets, plus
     /// whether we got in at all.
-    typealias Reading = (rows: [Row], iosRows: [Row], iosAvailableRows: [Row], opened: Bool)
+    typealias Reading = (
+        rows: [Row], iosRows: [Row], iosAvailableRows: [Row],
+        frontiers: [String: Frontier], opened: Bool)
 
     /// How long to wait for the database to open before treating it as
     /// unreachable. Generous: a cold sandboxed sqlite open is milliseconds, so
@@ -325,7 +371,7 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], [:], false) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
@@ -335,7 +381,7 @@ public struct TestFlightInventory: Sendable {
         // tuple type and `Reading`, and the compiler rejects it.
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
-        } ?? (rows: [], iosRows: [], iosAvailableRows: [], opened: false)
+        } ?? (rows: [], iosRows: [], iosAvailableRows: [], frontiers: [:], opened: false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -346,7 +392,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], [], [], false)
+            return ([], [], [], [:], false)
         }
         defer { sqlite3_close(db) }
 
@@ -358,18 +404,25 @@ public struct TestFlightInventory: Sendable {
         // and nothing else — not the macOS rows this file has read since before it
         // existed. Naming a column in a SELECT is what makes its absence fatal, so
         // the fallback names one fewer.
-        if let reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
+        if var reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
+            reading.frontiers = readFrontiers(db)
             return reading
         }
         Log.scan.error("""
             TestFlight DB prepare failed with ZINSTALLSTATUSRAW — retrying without it; \
             wrapped iOS apps lose their install signal for this read
             """)
-        if let reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
+        if var reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
+            reading.frontiers = readFrontiers(db)
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed")
-        return ([], [], [], true)  // we opened it; the schema just didn't match
+        // Still ask for the frontier. Its two columns live in different tables from
+        // the ones above, so a schema that breaks the row queries does not imply this
+        // one cannot prepare — and the whole reason the frontier got its own query is
+        // that each signal fails on its own. Returning here without trying made the
+        // implication run backwards.
+        return ([], [], [], readFrontiers(db), true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -392,6 +445,46 @@ public struct TestFlightInventory: Sendable {
         SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW
         FROM ZTFAPPBUNDLEMODEL
         WHERE ZPLATFORMRAW = 3 AND ZBUNDLEID IS NOT NULL AND ZBUNDLEVERSION IS NOT NULL;
+        """
+
+    /// The store's build-id frontier per bundle, joined to the app row that carries
+    /// the App Store id.
+    ///
+    /// **Its own query, and its own failure.** This file's rule is that naming a
+    /// column in a SELECT makes its absence fatal, so `ZBUILDID` and `ZAPPID` are
+    /// not added to the row queries above: a schema without them must cost this
+    /// signal alone, not the macOS rows the inventory has read since before either
+    /// existed. An empty map here is a working inventory with one witness missing.
+    private static func readFrontiers(_ db: OpaquePointer?) -> [String: Frontier] {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, Self.frontierSQL, -1, &stmt, nil) == SQLITE_OK else {
+            sqlite3_finalize(stmt)
+            Log.scan.error("TestFlight DB frontier query did not prepare — announcement witness is off")
+            return [:]
+        }
+        defer { sqlite3_finalize(stmt) }
+        var out: [String: Frontier] = [:]
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let raw = sqlite3_column_text(stmt, 0) else { continue }
+            let bundleID = String(cString: raw)
+            let frontier = Frontier(
+                adamID: sqlite3_column_int64(stmt, 1), maxBuildID: sqlite3_column_int64(stmt, 2))
+            // One app row per bundle in practice; keep the larger frontier if the
+            // store ever carries two, since this is an "at least this new" bound.
+            if let existing = out[bundleID], existing.maxBuildID >= frontier.maxBuildID { continue }
+            out[bundleID] = frontier
+        }
+        return out
+    }
+
+    /// Both platforms deliberately: the frontier answers "has this store seen
+    /// anything at least this new for this app", and a Mac beta and its iOS twin
+    /// are announced through the same notification stream.
+    private static let frontierSQL = """
+        SELECT a.ZBUNDLEID, a.ZAPPID, MAX(b.ZBUILDID)
+        FROM ZTFAPPMODEL a JOIN ZTFAPPBUNDLEMODEL b ON b.ZAPP = a.Z_PK
+        WHERE a.ZBUNDLEID IS NOT NULL AND a.ZAPPID IS NOT NULL AND b.ZBUILDID IS NOT NULL
+        GROUP BY a.Z_PK;
         """
 
     /// Runs one of the two queries above. `nil` means it would not prepare, which
@@ -451,7 +544,8 @@ public struct TestFlightInventory: Sendable {
                 break
             }
         }
-        return (rows, iosRows, iosAvailableRows, true)
+        // Frontiers are filled in by `openAndRead`, from its own query.
+        return (rows, iosRows, iosAvailableRows, [:], true)
     }
 
     /// `ZPLATFORMRAW` values, both named because both are now matched positively.

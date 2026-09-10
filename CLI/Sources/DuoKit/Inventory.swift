@@ -43,6 +43,7 @@ public enum Inventory {
     public static func checker(
         _ settings: Settings,
         testflight: TestFlightInventory = TestFlightInventory(),
+        announcements: TestFlightAnnouncements = TestFlightAnnouncements(),
         toolbox: ToolboxInventory = ToolboxInventory()
     ) -> UpdateChecker {
         UpdateChecker(
@@ -52,6 +53,7 @@ public enum Inventory {
             maxConcurrency: settings.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
+            announcements: announcements,
             channelStore: ResolvedChannelStore.shared)
     }
 

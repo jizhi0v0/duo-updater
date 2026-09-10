@@ -515,9 +515,17 @@ public enum Install {
         // still happen per item, inside `recheckOne`; only the shared plumbing
         // around them is hoisted here (#404 review #8).
         let recheckTestflight = TestFlightInventory(macRows: [], accessible: false)
+        // The same sentinel for the second witness, and for a sharper reason than
+        // symmetry: `Inventory.checker`'s default argument would otherwise read the
+        // notification store here, and with a TestFlight inventory carrying no
+        // frontiers the answer can only ever be "not behind" — a database read whose
+        // result is unusable by construction, on the one path that exists to avoid
+        // paying for reads.
+        let recheckAnnouncements = TestFlightAnnouncements(announcements: [], accessible: false)
         let recheckToolbox = ToolboxInventory()
         let recheckChecker = Inventory.checker(
-            settings, testflight: recheckTestflight, toolbox: recheckToolbox)
+            settings, testflight: recheckTestflight,
+            announcements: recheckAnnouncements, toolbox: recheckToolbox)
         var failed = 0
         var installedCount = 0
         var skippedCount = 0

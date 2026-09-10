@@ -404,8 +404,10 @@ public enum AppRestarter {
     /// 26.6: an untouched instance read hidden, inactive and windowless from about
     /// 1s after launch to the end of an 8s wait (a refresh never ends one sooner
     /// than 6.5s), and a plain open of TestFlight while the user's own instance ran
-    /// went to theirs and left ours hidden. Not measured: an open landing in ours,
-    /// which is the case this guards.
+    /// went to theirs and left ours hidden. The guarded case, by hand the same day
+    /// on macOS 27 with no TestFlight of the user's own running: opening TestFlight
+    /// during a refresh logged "leaving our instance … running — it is in use" and
+    /// it stayed open, while an untouched refresh left no TestFlight process behind.
     public static func terminateOwnInstance(_ pid: pid_t) {
         guard pid > 0,
               let app = NSRunningApplication(processIdentifier: pid)

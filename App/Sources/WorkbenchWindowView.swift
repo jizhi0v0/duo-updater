@@ -233,6 +233,10 @@ struct WorkbenchWindowView: View {
             // (measured: AXFocusedUIElement back on the search text field).
             // Skipped mid-search, where the caret is where the user wants it.
             if searchText.isEmpty { appsListFocused = true }
+            // The lock and the TestFlight tip offer "Grant…" from a mirror of the
+            // permission that only the menu's open and the Welcome/Settings polling
+            // refresh. Coming back from System Settings is exactly this moment.
+            model.refreshPermissionStatus()
             Task { await model.refreshLocal() }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions

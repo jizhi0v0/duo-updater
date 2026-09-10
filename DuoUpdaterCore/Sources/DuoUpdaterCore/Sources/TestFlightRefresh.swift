@@ -58,7 +58,10 @@ import Foundation
 /// ⚠️ **This is an explicit, user-initiated action.** It starts an app the user did
 /// not start. Do not put it on a periodic check: the system deliberately declines
 /// to do this work while the device is in use, and doing it for the system on a
-/// timer would be overriding that decision on the user's behalf.
+/// timer would be overriding that decision on the user's behalf. Its callers are
+/// the two places a user asks for exactly this — `duo check --refresh-testflight`
+/// and the menu's refresh button (`RefreshIntent.userRequested`) — and not the
+/// menu opening, which is not asking.
 public struct TestFlightRefresh: Sendable {
 
     /// What one attempt did. Every case is a thing the caller may want to say out
@@ -222,5 +225,37 @@ public struct TestFlightRefresh: Sendable {
         let wal = URL(fileURLWithPath: TestFlightInventory.defaultDatabaseURL.path + "-wal")
         let attrs = try? FileManager.default.attributesOfItem(atPath: wal.path)
         return attrs?[.modificationDate] as? Date
+    }
+}
+
+extension TestFlightRefresh.Outcome {
+    /// Whether the store moved during the attempt, so anything read from it
+    /// before the attempt may now be stale.
+    ///
+    /// `changedWithoutSettling` counts. The sync may not have finished, but the
+    /// store is no longer the one a pre-sync read saw, and a second read is at
+    /// least as current as the first. What must not follow from it is a claim
+    /// that the sync finished — that is the caller's wording to get right, and
+    /// the reason the case exists.
+    public var storeChanged: Bool {
+        switch self {
+        case .refreshed, .changedWithoutSettling: true
+        case .noChange, .notInstalled, .launchFailed: false
+        }
+    }
+}
+
+extension TestFlightRefresh {
+    /// A round's rows with the ones re-checked after a sync put back in place.
+    ///
+    /// Matched by `id` (the install path) and kept in the round's own order. A
+    /// re-checked row with no counterpart is dropped rather than appended: the
+    /// re-check only ever answers for rows the round already holds, and adding
+    /// one here would put an app in the list that the scan did not find.
+    public static func merging(
+        _ checked: [UpdateResult], resynced: [UpdateResult]
+    ) -> [UpdateResult] {
+        let byID = Dictionary(resynced.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        return checked.map { byID[$0.id] ?? $0 }
     }
 }

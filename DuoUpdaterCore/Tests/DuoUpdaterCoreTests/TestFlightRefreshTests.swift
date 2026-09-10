@@ -256,3 +256,78 @@ struct TestFlightRefreshTests {
         #expect(body.contains("config.activates = false"))
     }
 }
+
+// MARK: - After the attempt: what the menu's refresh does with the outcome
+
+extension TestFlightRefreshTests {
+
+    /// Which outcomes mean a read taken before the attempt is now stale. The row
+    /// that matters is `changedWithoutSettling`: the store moved, so rows answered
+    /// from the pre-sync read are the out-of-date ones. Mutation: answer `false`
+    /// for it — then a sync that ran long leaves every TestFlight row on the build
+    /// the store held before the sync.
+    @Test(arguments: [
+        (TestFlightRefresh.Outcome.refreshed(after: .seconds(4)), true),
+        (.changedWithoutSettling(lastChange: .seconds(40)), true),
+        (.noChange, false),
+        (.notInstalled, false),
+        (.launchFailed, false),
+    ])
+    func onlyAMovedStoreCallsForASecondRead(outcome: TestFlightRefresh.Outcome, changed: Bool) {
+        #expect(outcome.storeChanged == changed)
+    }
+
+    /// A re-checked row replaces its counterpart in place; the rest of the round
+    /// is untouched and keeps its order. Mutations, each red here: append
+    /// `resynced` instead of replacing (the list grows and the stale row stays);
+    /// return `checked` unchanged (the synced verdict is lost); match on bundle id
+    /// instead of `id` (the second copy of the beta inherits a verdict about the
+    /// first).
+    @Test func aResyncedRowReplacesItsCounterpartInPlace() {
+        let other = Self.row("ZZFixture-Other", bundleID: "com.example.other", .upToDate)
+        let beta = Self.row("ZZFixture-Beta", bundleID: "com.example.beta", .upToDate)
+        let betaCopy = Self.row("ZZFixture-Beta Copy", bundleID: "com.example.beta", .upToDate)
+        let synced = Self.row("ZZFixture-Beta", bundleID: "com.example.beta",
+                              .updateAvailable(latest: "1.0 (70)"))
+
+        let merged = TestFlightRefresh.merging([other, beta, betaCopy], resynced: [synced])
+
+        #expect(merged.map(\.id) == [other.id, beta.id, betaCopy.id])
+        #expect(Self.isUpToDate(merged[0]))
+        if case .updateAvailable(let latest) = merged[1].status {
+            #expect(latest == "1.0 (70)")
+        } else {
+            Issue.record("the synced verdict was not applied: \(merged[1].status)")
+        }
+        #expect(Self.isUpToDate(merged[2]), "a second copy of the beta took the first copy's verdict")
+    }
+
+    /// A re-checked row the round does not hold is not added. Mutation: append
+    /// unmatched rows — then the re-check could put an app in the list that the
+    /// scan never found.
+    @Test func aResyncedRowWithNoCounterpartIsDropped() {
+        let beta = Self.row("ZZFixture-Beta", bundleID: "com.example.beta", .upToDate)
+        let stranger = Self.row("ZZFixture-Stranger", bundleID: "com.example.stranger", .upToDate)
+        #expect(TestFlightRefresh.merging([beta], resynced: [stranger]).map(\.id) == [beta.id])
+    }
+
+    /// Invented paths: `merging` keys on the path string and resolves nothing, so
+    /// the host's disk cannot change these answers — named `ZZFixture-*` anyway, so
+    /// they cannot be mistaken for a real app.
+    private static func row(_ name: String, bundleID: String, _ status: UpdateStatus) -> UpdateResult {
+        UpdateResult(
+            app: InstalledApp(
+                name: name, bundleID: bundleID,
+                shortVersion: "1.0", buildVersion: "64",
+                path: URL(fileURLWithPath: "/Applications/\(name).app"),
+                isMASApp: false, isToolboxManaged: false,
+                isTestFlightApp: true, sparkleFeedURL: nil,
+                releaseChannel: .stable),
+            remote: nil, status: status)
+    }
+
+    private static func isUpToDate(_ row: UpdateResult) -> Bool {
+        if case .upToDate = row.status { return true }
+        return false
+    }
+}

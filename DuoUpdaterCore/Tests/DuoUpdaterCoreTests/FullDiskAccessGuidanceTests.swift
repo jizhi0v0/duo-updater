@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import DuoUpdaterCore
 
 @Suite("FullDiskAccessGuidance")
@@ -105,5 +106,32 @@ struct FullDiskAccessNeedsTests {
         let needs = FullDiskAccessNeeds()
         needs.recordRefusal(.testFlight, for: [])
         #expect(needs.refused().isEmpty)
+    }
+
+    /// A grant checks again exactly the rows that carry the lock. Mutations: drop
+    /// the `mayAffect` term — a CotEditor beta and every TestFlight row are checked
+    /// again for nothing; drop the refusal term — every stable CotEditor is checked
+    /// again on any grant, whether a read was turned away or not.
+    @Test func aGrantRechecksExactlyTheLockedRows() {
+        func row(_ id: String, _ channel: ReleaseChannel, testFlight: Bool = false) -> UpdateResult {
+            UpdateResult(
+                app: InstalledApp(
+                    name: id, bundleID: id, shortVersion: "1.0", buildVersion: "1",
+                    path: URL(fileURLWithPath: "/Applications/ZZFixture-\(id).app"),
+                    isMASApp: false, isTestFlightApp: testFlight, sparkleFeedURL: nil,
+                    releaseChannel: channel),
+                remote: nil, status: .upToDate)
+        }
+        let stableEditor = row("zz.fixture.editor", .stable)
+        let betaEditor = row("zz.fixture.editor-beta", .beta)
+        let beta = row("zz.fixture.beta", .stable, testFlight: true)
+        let untouched = row("zz.fixture.other", .stable)
+        let refused: [FullDiskAccessNeed: Set<String>] = [
+            .cotEditorChannel: ["zz.fixture.editor", "zz.fixture.editor-beta"],
+            .testFlight: ["zz.fixture.beta"],
+        ]
+        let picked = FullDiskAccessNeeds.rowsToRecheckOnGrant(
+            refused, rows: [stableEditor, betaEditor, beta, untouched])
+        #expect(picked.map(\.id) == [stableEditor.id])
     }
 }

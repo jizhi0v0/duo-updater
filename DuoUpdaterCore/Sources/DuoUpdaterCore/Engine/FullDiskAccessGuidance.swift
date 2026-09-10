@@ -84,6 +84,27 @@ public final class FullDiskAccessNeeds: @unchecked Sendable {
     public func refused() -> [FullDiskAccessNeed: Set<String>] {
         lock.withLock { refusedApps }
     }
+
+    /// The rows to check again once Full Disk Access arrives while DuoUpdater runs:
+    /// those whose name line carries the lock — a read was turned away for the app,
+    /// and that read can change what the row says (`FullDiskAccessNeed.mayAffect`).
+    /// Their verdict was computed without the read (CotEditor's against stable
+    /// releases only), the lock is gone the moment the grant is seen, and nothing
+    /// else revisits them before the next round: the channel-switch detector counts
+    /// the first channel it can read as a first sighting, not a change. TestFlight
+    /// rows are never among them (`mayAffect` is false for that read); they are
+    /// answered from the store itself.
+    public static func rowsToRecheckOnGrant(
+        _ refused: [FullDiskAccessNeed: Set<String>], rows: [UpdateResult]
+    ) -> [UpdateResult] {
+        rows.filter { row in
+            let key = row.app.bundleID ?? row.app.id
+            return FullDiskAccessNeed.allCases.contains { need in
+                refused[need]?.contains(key) == true
+                    && need.mayAffect(releaseChannel: row.app.releaseChannel)
+            }
+        }
+    }
 }
 
 /// When the menu explains Full Disk Access — the one permission macOS never asks

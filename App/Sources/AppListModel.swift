@@ -1219,6 +1219,11 @@ final class AppListModel {
         // nothing can confirm.
         if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) != couldReadTestFlight {
             Task { await recheckTestFlightRows() }
+            // And, on a grant, the other rows a turned-away read left stale —
+            // CotEditor's channel — whose lock goes away with this very change.
+            if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) {
+                Task { await recheckRowsFullDiskAccessTurnedAway() }
+            }
         }
 
         // Mirror the helper's approval into observable state, and refresh the client's
@@ -5079,6 +5084,26 @@ final class AppListModel {
             refused[$0]?.contains(key) == true
                 && $0.mayAffect(releaseChannel: result.app.releaseChannel)
         }
+    }
+
+    /// After Full Disk Access arrives while DuoUpdater runs, check again the rows
+    /// whose lock just went away (`FullDiskAccessNeeds.rowsToRecheckOnGrant`): their
+    /// verdict was computed without the read. Waits for a round in flight, which may
+    /// still answer from before the grant; networked, like any per-row recheck, and
+    /// the rows show as checking meanwhile.
+    private func recheckRowsFullDiskAccessTurnedAway() async {
+        if let running = refreshTask { await running.value }
+        let targets = FullDiskAccessNeeds.rowsToRecheckOnGrant(
+            FullDiskAccessNeeds.shared.refused(), rows: results)
+            .filter { installing[$0.id] == nil && prefs.deservesCheck($0.app) }
+        guard !targets.isEmpty else { return }
+        for target in targets { installing[target.id] = .checking }
+        let updated = await recheckMany(targets)
+        for target in targets where installing[target.id] == .checking {
+            installing[target.id] = nil
+        }
+        for row in updated { replaceRow(row) }
+        Log.app.notice("permissions: Full Disk Access granted while running — re-checked \(updated.count, privacy: .public) row(s) a turned-away read had left stale")
     }
 
     /// Guide the user out of a blocked App Store install: rebuild the helper's

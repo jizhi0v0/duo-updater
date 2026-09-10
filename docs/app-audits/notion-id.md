@@ -64,6 +64,11 @@ arm64-mac.yml    version: 7.32.0   path: Notion-arm64-7.32.0.zip   releaseDate 2
 - 来源: What's New (Mac & Windows) 页，`ChangelogRecipe(notion.id)` 渲染原生条目
 - `VendorProbe.changelogURL` 指同页作 WebView 兜底
 - 注意: **不要**指向 `www.notion.com/releases` —— 那是产品公告 feed，「版本」是文章标题、不带 build 号，与安装版对不上
+- 页面会比构建慢：2026-09-11 实测页上最新是 v7.32.0（Released 2026-08-31；页面块最后编辑于
+  2026-09-01 01:22 UTC，即太平洋时间 08-31 当天），
+  而官网 307 已经是 `Notion-7.33.0-universal.dmg`。解码没错，是 Notion 还没写 7.33.0 的说明，
+  所以 recipe 带 `acknowledgedStaleEntry: "7.32.0"`（#493）。它只认这一个版本：页面一动
+  （出 7.33.0，或 pattern 滑到更旧的条目），`duo verify` 的落后检查就恢复。
 
 ## 一键安装
 - 状态: 支持

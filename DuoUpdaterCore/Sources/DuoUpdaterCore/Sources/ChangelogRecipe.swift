@@ -1252,6 +1252,16 @@ public enum ChangelogRecipeRegistry {
         // (ISO datetime), and a <div class="markdown-body …"> with the release
         // body. The version group strips the leading "v" by not capturing it.
         // Only <h2> values matching v+digits are captured so nav sections skip.
+        //
+        // Most releases are a bullet list, but some are written as prose with no
+        // <li> at all — v0.34.0 and v0.32.12 on the live page, 2026-09-11. An entry
+        // that yields no items is dropped, so the newest release vanished from the
+        // pane and `duo verify` read the changelog as a whole release behind
+        // (#507). Item patterns are tried in order and the first that yields
+        // anything wins, so the paragraph fallback only ever speaks for a release
+        // with no bullets. It skips the "Full Changelog: vA...vB" compare-link line
+        // (all ten releases on the page that day end with it), which would
+        // otherwise be a prose release's last item.
         ChangelogRecipe(
             bundleID: "com.electron.ollama",
             source: URL(string: "https://github.com/ollama/ollama/releases")!,
@@ -1260,7 +1270,10 @@ public enum ChangelogRecipeRegistry {
                 + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>.*?"#
                 + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+            itemPatterns: [
+                #"<li>(?<item>.*?)</li>"#,
+                #"<p>(?!<strong>Full Changelog</strong>)(?<item>.*?)</p>"#,
+            ]),
 
         // RustDesk — GitHub releases page, same shape as Ollama but the sr-only
         // <h2> carries a bare version ("1.4.7", no leading "v"), so the version
@@ -1567,6 +1580,15 @@ public enum ChangelogRecipeRegistry {
         // probe's `.redirectFilename` reports) and the release order runs
         // v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
         // the product-announcement post titles the old recipe surfaced.
+        //
+        // `acknowledgedStaleEntry` (#493): read live 2026-09-11, the page's newest
+        // header is still v7.32.0 ("Released" 2026-08-31; the page block was last
+        // edited 2026-09-01 01:22 UTC), while `www.notion.so/desktop/mac/download` already
+        // 307s to `Notion-7.33.0-universal.dmg`. The decoder reads the page
+        // correctly — Notion has not written the 7.33.0 notes — so the sweep's
+        // "a whole release behind" is the vendor's lag, not ours. Named rather than
+        // switched off: once the page moves, to 7.33.0 or anywhere else, the check
+        // runs again.
         ChangelogRecipe(
             bundleID: "notion.id",
             source: URL(string: "https://notion.notion.site/api/v3/loadPageChunk")!,
@@ -1576,7 +1598,8 @@ public enum ChangelogRecipeRegistry {
             requestBody: Data(
                 (#"{"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,"#
                     + #""cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}"#
-                ).utf8)),
+                ).utf8),
+            acknowledgedStaleEntry: "7.32.0"),
 
         // Waku — GitHub releases, not the appcast's own notes link.
         //

@@ -5,10 +5,11 @@ import Foundation
 /// The decision table of `TestFlightRefresh`, with every effect injected so no
 /// case launches anything or waits on a real clock.
 ///
-/// What the cases are *for* is the measurement behind each branch (#491): a
-/// background launch refreshes the store only while TestFlight is **not** running,
-/// and the wait has to end on the store actually changing rather than on a guess
-/// about how long a sync takes.
+/// What the cases are *for* is the measurement behind each branch: a refresh runs
+/// in an instance **we** start and end, because reaching the user's own instance
+/// would mean activating it and activation takes the foreground; and the wait has
+/// to end on the store actually changing rather than on a guess about how long a
+/// sync takes.
 struct TestFlightRefreshTests {
 
     /// Records what the effects were asked to do, so a case can assert on the
@@ -16,15 +17,15 @@ struct TestFlightRefreshTests {
     private final class Spy: @unchecked Sendable {
         private let lock = NSLock()
         private(set) var launches: [URL] = []
-        private(set) var activations = 0
+        private(set) var terminated: [pid_t] = []
         private(set) var sleeps = 0
         func launched(_ url: URL) {
             lock.lock(); defer { lock.unlock() }
             launches.append(url)
         }
-        func activated() {
+        func terminatedInstance(_ pid: pid_t) {
             lock.lock(); defer { lock.unlock() }
-            activations += 1
+            terminated.append(pid)
         }
         func slept() {
             lock.lock(); defer { lock.unlock() }
@@ -51,140 +52,26 @@ struct TestFlightRefreshTests {
         }
     }
 
+    /// A distinctive pid so a case can tell "the one we were handed" from "some
+    /// pid": the whole point of terminating by pid is that it is *ours* and not the
+    /// user's instance.
+    private static let spawnedPID: pid_t = 4242
+
     private static func refresher(
         installed: Bool = true,
-        running: Bool = false,
         launchSucceeds: Bool = true,
-        activation: SilentActivation.Outcome = .activated(heldFor: .milliseconds(120)),
         stamp: Stamp = Stamp(),
         spy: Spy
     ) -> TestFlightRefresh {
         TestFlightRefresh(
             locate: { installed ? bundle : nil },
-            isRunning: { running },
-            launch: { url in spy.launched(url); return launchSucceeds },
-            activate: { spy.activated(); return activation },
+            spawn: { url in
+                spy.launched(url)
+                return launchSucceeds ? spawnedPID : nil
+            },
+            terminate: { spy.terminatedInstance($0) },
             storeStamp: { stamp.read() },
             sleep: { _ in spy.slept() })
-    }
-
-    /// Measured four times: with TestFlight already running, a background launch
-    /// delivers the request and the store is still unchanged two minutes later. So
-    /// the running case takes the activation route instead — and it must still
-    /// launch nothing, or the caller is told a refresh happened having only started
-    /// a second process.
-    ///
-    /// Mutation: swap the two branches of `if isRunning()`, or drop the check —
-    /// `launches` becomes non-empty and this fails.
-    @Test func aRunningTestFlightIsActivatedAndNeverLaunched() async {
-        let spy = Spy()
-        let refresher = Self.refresher(running: true, stamp: Stamp(changesAt: [3]), spy: spy)
-        let outcome = await refresher.run(deadline: .seconds(30))
-        #expect(outcome == .refreshed(after: .seconds(1)))
-        #expect(spy.launches.isEmpty)
-        #expect(spy.activations == 1)
-    }
-
-    /// An activation that changed nothing is reported as its own case: "we nudged
-    /// the running app and its data did not move" is a different sentence from
-    /// "we started it from cold and its data did not move", and the CLI prints
-    /// both.
-    ///
-    /// Mutation: return `.launchedWithoutChange` for both routes — this fails.
-    @Test func anActivationThatChangesNothingIsNotCalledALaunch() async {
-        let spy = Spy()
-        let outcome = await Self.refresher(running: true, spy: spy).run(deadline: .seconds(2))
-        #expect(outcome == .activatedWithoutChange)
-        #expect(spy.launches.isEmpty)
-    }
-
-    /// A macOS without the SkyLight symbols cannot serve a running TestFlight, and
-    /// says so rather than launching a second copy behind the user's back.
-    ///
-    /// Mutation: fall through to `launch(bundle)` on `.unavailable` — `launches`
-    /// becomes non-empty and this fails.
-    @Test func aRunningTestFlightIsNotLaunchedWhenActivationIsUnavailable() async {
-        let spy = Spy()
-        let outcome = await Self.refresher(running: true, activation: .unavailable, spy: spy).run()
-        #expect(outcome == .activationUnavailable)
-        #expect(spy.launches.isEmpty)
-        #expect(spy.sleeps == 0)
-    }
-
-    /// A password field owning the keyboard is surfaced, not worked around.
-    ///
-    /// Mutation: map `.refusedSecureInput` onto `.activationUnavailable` — the
-    /// user is then told this Mac cannot do it at all, which is false and would
-    /// stop them retrying a second later. This fails.
-    @Test func aSecureInputRefusalReachesTheCaller() async {
-        let spy = Spy()
-        let outcome = await Self.refresher(running: true, activation: .refusedSecureInput, spy: spy).run()
-        #expect(outcome == .refusedSecureInput)
-        #expect(spy.launches.isEmpty)
-    }
-
-    /// The user is looking at TestFlight right now. Nothing is launched, nothing is
-    /// activated a second time, and the CLI says so rather than reporting a refresh
-    /// that did not happen — measured: zero network connections in this state.
-    ///
-    /// Mutation: map `.alreadyActive` onto `.activatedWithoutChange` — the user is
-    /// then told their data "did not change" when in fact nothing was ever asked.
-    /// This fails.
-    @Test func aFrontmostTestFlightIsReportedNotNudged() async {
-        let spy = Spy()
-        let outcome = await Self.refresher(running: true, activation: .alreadyActive, spy: spy).run()
-        #expect(outcome == .alreadyFrontmost)
-        #expect(spy.launches.isEmpty)
-        #expect(spy.sleeps == 0)
-    }
-
-    /// A focus that could not be put back is told to the user at once, instead of
-    /// after a 30-second wait for a version number. A window they did not raise is
-    /// the more urgent fact, and the refresh that did happen is on disk for the next
-    /// check regardless.
-    ///
-    /// Mutation: fall through to the wait (`launched = false`) — the outcome becomes
-    /// a refresh verdict, `sleeps` stops being 0, and this fails on both.
-    @Test func aFocusThatCouldNotBeRestoredIsReportedImmediately() async {
-        let spy = Spy()
-        let refresher = Self.refresher(
-            running: true, activation: .frontNotRestored(code: -600),
-            stamp: Stamp(changesAt: [3]), spy: spy)
-        let outcome = await refresher.run(deadline: .seconds(30))
-        #expect(outcome == .focusNotRestored(code: -600))
-        #expect(spy.sleeps == 0)
-    }
-
-    /// The production wiring must map "no pid" to nil, not forward -1.
-    /// `NSRunningApplication` documents that applications without a pid return -1 and
-    /// that the object outlives the process — and TestFlight is automatically
-    /// terminated constantly, so this is the common path, not a corner.
-    ///
-    /// Mutation: drop the `pid > 0` check — the `.notRunning` fallback becomes
-    /// unreachable and a quit-during-the-race is reported as `GetProcessForPID(-1)`
-    /// failing. Pinned in the source text because the closure is a live effect.
-    @Test func theProductionWiringTreatsMinusOneAsNoPid() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightRefresh.swift"),
-            encoding: .utf8)
-        #expect(source.contains("pid > 0 else { return nil }"))
-    }
-
-    /// TestFlight quitting between `isRunning()` and the activation is a race, not
-    /// a failure: the cold route serves it.
-    ///
-    /// Mutation: return `.activationFailed` on `.notRunning` — a refresh that
-    /// would have worked is reported as broken. This fails.
-    @Test func anAppThatQuitsDuringTheRaceFallsBackToTheColdLaunch() async {
-        let spy = Spy()
-        let refresher = Self.refresher(
-            running: true, activation: .notRunning, stamp: Stamp(changesAt: [3]), spy: spy)
-        let outcome = await refresher.run(deadline: .seconds(30))
-        #expect(outcome == .refreshed(after: .seconds(1)))
-        #expect(spy.launches == [Self.bundle])
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when
@@ -198,7 +85,7 @@ struct TestFlightRefreshTests {
     }
 
     /// Mutation: ignore `launch`'s return value (`_ = await launch(bundle)`) — the
-    /// wait then runs to the deadline and this returns `.launchedWithoutChange`,
+    /// wait then runs to the deadline and this returns `.noChange`,
     /// reporting a wait we never earned.
     @Test func aRefusedLaunchIsNotAWait() async {
         let spy = Spy()
@@ -238,7 +125,7 @@ struct TestFlightRefreshTests {
     /// still be in flight, and the caller reads the store on the next line.
     ///
     /// Mutation: drop the post-loop `if let lastChange { … }` — this becomes
-    /// `.launchedWithoutChange` and fails. Change it back to `.refreshed(after:)` —
+    /// `.noChange` and fails. Change it back to `.refreshed(after:)` —
     /// the `guard case` fails and names what came back.
     @Test func aStoreStillMovingAtTheDeadlineIsNotCalledARefresh() async {
         let spy = Spy()
@@ -285,39 +172,87 @@ struct TestFlightRefreshTests {
     /// are indistinguishable from here, and the honest answer names neither.
     ///
     /// Mutation: return `.refreshed` at the end of the loop — this fails.
-    @Test func aLaunchThatChangesNothingIsNotCalledARefresh() async {
+    @Test func anInstanceThatChangesNothingIsNotCalledARefresh() async {
         let spy = Spy()
         let refresher = Self.refresher(stamp: Stamp(), spy: spy)
         let outcome = await refresher.run(deadline: .seconds(2))
-        #expect(outcome == .launchedWithoutChange)
+        #expect(outcome == .noChange)
         // 2s deadline at 500ms per poll.
         #expect(spy.sleeps == 4)
     }
 
-    /// The launch must be background AND hidden. Both halves were measured, and
-    /// each covers a different way of getting in the user's way:
+    /// The instance we start is ours to end, and the pid we end is the pid we were
+    /// handed — never a bundle-wide quit, which would take the user's own instance
+    /// with it. That is not hypothetical: a harness that computed the pid wrongly
+    /// killed the wrong one on 2026-09-10.
     ///
-    ///   * `activates: false` — a foreground activation refreshes in 3s but takes
-    ///     the screen, which is what #491 refuses to do from a background check.
-    ///   * `hides: true` — without it the launch still puts a real window on screen
-    ///     behind the user's work (measured 2026-09-09 with
-    ///     `CGWindowListCopyWindowInfo`: layer 0, alpha 1, 1010×717, and visible in
-    ///     Mission Control). With it: zero on-screen windows, same sync.
+    /// Mutation: drop the `defer { terminate(pid) }` — `terminated` is empty and
+    /// this fails. Terminate some other pid — the equality fails and names it.
+    @Test func theInstanceWeStartedIsTheInstanceWeEnd() async {
+        let spy = Spy()
+        let refresher = Self.refresher(stamp: Stamp(changesAt: [2]), spy: spy)
+        _ = await refresher.run(deadline: .seconds(5), settle: .seconds(1))
+        #expect(spy.terminated == [Self.spawnedPID])
+    }
+
+    /// ...on the paths that do not end in a settled refresh either. A wait that
+    /// runs out of time still leaves a process behind if nothing ends it, and that
+    /// process is one the user never started.
     ///
-    /// Mutation: drop either argument — `AppRestarter.launchApp($0)` defaults to
-    /// `activates: true` and `hides: false`, the compiler stays happy, and this case
-    /// is the only thing that objects.
-    @Test func theProductionLaunchIsBackgroundAndHidden() async {
-        // The default closure is opaque, so this pins the intent where it is
-        // written rather than the closure itself: `activates` must be false.
-        let source = try? String(
+    /// Mutation: move the termination to just before the `.refreshed` return
+    /// instead of a `defer` — this fails while the settled case above still
+    /// passes, which is exactly the asymmetry a single happy-path case would miss.
+    @Test func anInstanceIsEndedEvenWhenTheStoreNeverSettles() async {
+        let spy = Spy()
+        // Changes on every poll, so the settle rule is never satisfied.
+        let refresher = Self.refresher(stamp: Stamp(changesAt: Set(1...20)), spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(2), settle: .seconds(3))
+        #expect(spy.terminated == [Self.spawnedPID])
+        guard case .changedWithoutSettling = outcome else {
+            Issue.record("expected an unsettled change, got \(outcome)")
+            return
+        }
+    }
+
+    /// A spawn that never produced a process must not be followed by a termination:
+    /// there is no pid, and inventing one is how a refresh that failed to start ends
+    /// up killing something else.
+    ///
+    /// Mutation: replace the `guard let pid = await spawn(bundle) else { … }` with
+    /// a fallback (`await spawn(bundle) ?? -1`) so the `defer` fires on the failure
+    /// path too — this fails, naming the pid that was ended for a process that was
+    /// never started.
+    @Test func aFailedSpawnEndsNothing() async {
+        let spy = Spy()
+        let refresher = Self.refresher(launchSucceeds: false, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(2))
+        #expect(outcome == .launchFailed)
+        #expect(spy.terminated.isEmpty)
+    }
+
+    /// The production wiring asks for a *separate* instance, hidden, and not
+    /// activated. Each of the three carries something: without a separate instance
+    /// a running TestFlight ignores the request entirely; without `hides` it puts a
+    /// real window on screen; without `activates: false` it takes the foreground.
+    ///
+    /// Read out of the source because the alternative is launching TestFlight in a
+    /// unit test.
+    ///
+    /// Mutation: flip any of the three in `AppRestarter.launchSeparateInstance` —
+    /// the matching expectation fails and names which.
+    @Test func theProductionLaunchIsASeparateHiddenInstance() throws {
+        let source = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()          // DuoUpdaterCoreTests
-                .deletingLastPathComponent()          // Tests
-                .deletingLastPathComponent()          // DuoUpdaterCore
-                .appendingPathComponent("Sources/DuoUpdaterCore/Sources/TestFlightRefresh.swift"),
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/DuoUpdaterCore/Install/AppRestarter.swift"),
             encoding: .utf8)
-        let text = try! #require(source)
-        #expect(text.contains("AppRestarter.launchApp($0, activates: false, hides: true)"))
+        let body = try #require(source.range(of: "launchSeparateInstance").map {
+            String(source[$0.lowerBound...].prefix(1800))
+        })
+        #expect(body.contains("config.createsNewApplicationInstance = true"))
+        #expect(body.contains("config.hides = true"))
+        #expect(body.contains("config.activates = false"))
     }
 }

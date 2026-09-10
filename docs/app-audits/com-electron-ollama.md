@@ -33,6 +33,9 @@
 - 来源: `ChangelogRecipe` + `ChangelogCatalog`
 - 跟随 channel: 否
 - Recipe 状态: 已有，GitHub releases page（`https://github.com/ollama/ollama/releases`）
+- 条目取 `<li>`；有的发布整篇是散文、一个 `<li>` 都没有（2026-09-11 实测 v0.34.0、v0.32.12），
+  这时走第二条 `<p>` pattern，跳过 "Full Changelog: vA...vB" 对比链接行（当天第一页 10 条发布都以它收尾）。
+  没有这条兜底时，没条目的发布会被丢掉，最新一条恰好是散文时整个面板就落后一个版本（#507）。
 
 ## 一键安装
 - 状态: 仅 notes

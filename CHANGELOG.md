@@ -33,6 +33,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A TestFlight beta no longer shows as up to date when TestFlight can't offer it to you.** Signed out of TestFlight, signed in with a different Apple Account, or no longer testing it, the row now says it can't tell instead of calling the build you have the latest, and refreshing no longer opens TestFlight just to ask you to sign in.
 
+**Without Full Disk Access, Duo Updater stops setting off macOS's warnings about reading other apps' data.** Reading TestFlight's list of builds needs Full Disk Access, and without it every attempt was refused with a system notice. Duo Updater now leaves that list alone and shows TestFlight rows with a question mark; the welcome window and Settings → Diagnostics show whether it's granted, with a button to grant it.
+
 **A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
 
 **`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.

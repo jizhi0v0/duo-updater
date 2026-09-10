@@ -8,8 +8,9 @@ import Foundation
 /// through `CFPreferences` and files under Application Support or `~/Movies` read
 /// fine. So these two are the whole list today.
 ///
-/// Adding a read that needs it means adding a case here and sending the read
-/// through ``FullDiskAccessNeeds/mayRead(_:for:fullDiskAccess:)``. The explanation
+/// Adding a read that needs it means adding a case here and recording what it turns
+/// away in ``FullDiskAccessNeeds`` — through `mayRead` when the apps are known before
+/// the read, as they are for most; see that type for the one that is not. The explanation
 /// the menu shows switches over this type, so a new case does not compile until it
 /// says what it is for; the Welcome card, the Diagnostics row, the README and the
 /// site's permissions page name these reads in prose and have to be edited by hand.
@@ -35,9 +36,17 @@ public enum FullDiskAccessNeed: String, CaseIterable, Sendable {
     }
 }
 
-/// The gate every read that only Full Disk Access can reach goes through, and the
-/// record of the apps it turned away this launch — which is what the menu's
-/// explanation names, so it never guesses from a list of apps that might need it.
+/// The record of the apps a read that only Full Disk Access can reach turned away
+/// this launch — which is what the menu's explanation names, so it never guesses
+/// from a list of apps that might need it.
+///
+/// Two ways in. A read made for known apps asks ``mayRead(_:for:fullDiskAccess:)``,
+/// which decides and records in one step (CotEditor's channel). TestFlight's store
+/// does not: a round decides whether to read it before its scan knows which apps are
+/// TestFlight betas (`RefreshIntent.readsTestFlight(fullDiskAccess:)`), and rescans
+/// decide the same way, so only the full round records them, through
+/// ``recordRefusal(_:for:)`` once its scan has. A beta installed between full rounds
+/// is named after the next one.
 ///
 /// Recording only: the explanation is shown when the menu opens
 /// (`FullDiskAccessGuidance`), never from here — most of these reads happen in a

@@ -33,11 +33,19 @@ public enum TCCPreflight {
     }
 
     /// Full Disk Access (`kTCCServiceSystemPolicyAllFiles`) — what lets a read of
-    /// another app's container through, TestFlight's store among them. Measured
+    /// another app's container through, TestFlight's store among them.
+    ///
+    /// Asked by opening files only it opens (`FullDiskAccessProbe`), which follow
+    /// the switch while DuoUpdater runs; preflight only when those opens cannot
+    /// say, since preflight keeps the answer it had at launch. Preflight measured
     /// 2026-09-10 on macOS 27: 1 for an app that was never given it (Full Disk
     /// Access has no prompt, so it never reads "not determined"), 0 once granted.
     public static func fullDiskAccessStatus() -> TCCAuthStatus {
-        status(for: "kTCCServiceSystemPolicyAllFiles")
+        switch FullDiskAccessProbe.verdict(FullDiskAccessProbe.openResults()) {
+        case .granted: .granted
+        case .denied: .denied
+        case .inconclusive: status(for: "kTCCServiceSystemPolicyAllFiles")
+        }
     }
 
     /// Whether DuoUpdater may read another app's container at all. Without Full

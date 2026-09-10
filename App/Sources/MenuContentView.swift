@@ -145,11 +145,12 @@ struct MenuContentView: View {
             if model.results.isEmpty {
                 Log.app.info("menu .task: results empty → full refresh()")
                 await model.refresh()
-            } else if !model.testFlightReadThisSession {
+            } else if model.owesTestFlightRead {
                 // The rule the workbench's open already follows. The scheduler's
                 // tick never reads TestFlight, so a list it filled after launch has
                 // no TestFlight verdicts in it until a refresh the user is present
-                // for — and this open is that refresh.
+                // for — and this open is that refresh. Not without Full Disk
+                // Access: that refresh could not read TestFlight either.
                 Log.app.info("menu .task: TestFlight not read this session → full refresh()")
                 await model.refresh()
             } else {

@@ -1859,6 +1859,10 @@ final class AppListModel {
     /// left as they were — so `refresh` checks this and runs one user-present
     /// follow-up (`RefreshIntent.owesFollowUp`).
     @ObservationIgnored private var refreshTaskIntent: RefreshIntent?
+    /// Whether the in-flight round could read TestFlight's store when it began —
+    /// nil until it has asked. `recheckTestFlightRows` waits only for a round that
+    /// began on the other side of a Full Disk Access change.
+    @ObservationIgnored private var refreshTaskMayReadTestFlight: Bool?
 
     /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
     /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
@@ -1926,6 +1930,7 @@ final class AppListModel {
             await self.performRefresh(intent: intent)
             self.refreshTask = nil
             self.refreshTaskIntent = nil
+            self.refreshTaskMayReadTestFlight = nil
         }
         refreshTask = task
         refreshTaskIntent = intent
@@ -2011,10 +2016,16 @@ final class AppListModel {
     ///
     /// Local only — TestFlight's store and Notification Center's, never the
     /// network — so meeting the scheduler's tick costs a few milliseconds of
-    /// reading twice, not a second check. A round already in flight is waited
-    /// for: it asked about the grant when it began, so it answers these rows from
-    /// the old state and would overwrite anything done first. A round that starts
-    /// afterwards reads the new state itself.
+    /// reading twice, not a second check.
+    ///
+    /// A round in flight is waited for only when it began on the other side of the
+    /// change: it answers these rows from the old state, and its write-back would
+    /// put that answer over anything done first. A round that began after the
+    /// change, or has not yet asked, reads the new state itself, and its write-back
+    /// keeps rows that moved under it (`CheckRoundWriteBack`) — so waiting on it
+    /// only held the answer back by a whole networked check. Measured 2026-09-11 on
+    /// the first grant of a launch, where opening the menu started such a round:
+    /// the rows changed 3.4s after the grant instead of at once.
     private func recheckTestFlightRows() async {
         guard !testFlightRecheckRunning else {
             testFlightRecheckOwed = true
@@ -2024,7 +2035,11 @@ final class AppListModel {
         defer { testFlightRecheckRunning = false }
         repeat {
             testFlightRecheckOwed = false
-            if let running = refreshTask { await running.value }
+            if let running = refreshTask,
+               let began = refreshTaskMayReadTestFlight,
+               began != mayReadTestFlightStore {
+                await running.value
+            }
             await recheckTestFlightRowsOnce()
         } while testFlightRecheckOwed
     }
@@ -2101,6 +2116,7 @@ final class AppListModel {
         // whole round agrees (`RefreshIntent.readsTestFlight(fullDiskAccess:)`).
         let fullDiskAccess = TCCPreflight.fullDiskAccessStatus()
         let mayReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess)
+        refreshTaskMayReadTestFlight = mayReadTestFlight
         let allowTestFlight = intent.readsTestFlight(fullDiskAccess: fullDiskAccess)
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public))")
         isRefreshing = true

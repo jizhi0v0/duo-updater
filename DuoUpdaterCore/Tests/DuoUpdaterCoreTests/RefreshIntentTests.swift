@@ -12,6 +12,35 @@ struct RefreshIntentTests {
         #expect(!RefreshIntent.scheduled.readsTestFlight)
     }
 
+    /// With Full Disk Access the read is silent, so every round takes it — the
+    /// launch's tick included. Mutation: answer `readsTestFlight` for `.granted`
+    /// — the tick skips it again, and a launch shows question marks on
+    /// TestFlight rows until the menu is opened.
+    @Test func withFullDiskAccessEveryRoundReadsTestFlight() {
+        for intent in [RefreshIntent.userRequested, .userPresent, .scheduled] {
+            #expect(intent.readsTestFlight(fullDiskAccess: .granted))
+        }
+    }
+
+    /// Mutation: answer `true` for `.denied` — every round then reads a store
+    /// it cannot open, and on macOS 27 each read posts a system notice.
+    @Test func withoutFullDiskAccessNoRoundReadsTestFlight() {
+        for intent in [RefreshIntent.userRequested, .userPresent, .scheduled] {
+            #expect(!intent.readsTestFlight(fullDiskAccess: .denied))
+            #expect(!intent.readsTestFlight(fullDiskAccess: .notDetermined))
+        }
+    }
+
+    /// A grant that cannot be asked about keeps the old rule. Mutation: answer
+    /// `true` for `.unknown` — the tick could then raise a prompt nobody asked
+    /// for; answer `false` — a user-present round stops reading TestFlight on
+    /// any system where the SPI is gone.
+    @Test func anUnknownGrantKeepsTheTickAwayFromTestFlight() {
+        #expect(RefreshIntent.userRequested.readsTestFlight(fullDiskAccess: .unknown))
+        #expect(RefreshIntent.userPresent.readsTestFlight(fullDiskAccess: .unknown))
+        #expect(!RefreshIntent.scheduled.readsTestFlight(fullDiskAccess: .unknown))
+    }
+
     /// A refresh the user is present for starts the notes over; the scheduled
     /// one keeps what is on screen. This is #228.
     @Test func onlyTheScheduledRefreshKeepsChangelogs() {

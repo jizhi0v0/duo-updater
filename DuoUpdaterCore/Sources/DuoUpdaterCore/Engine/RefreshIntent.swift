@@ -31,15 +31,30 @@ public enum RefreshIntent: Sendable, Equatable {
     /// The scheduler's silent tick, including the one a cold launch fires.
     case scheduled
 
-    /// Whether this refresh may read the TestFlight container — the one read
-    /// that triggers macOS's "access data from other apps" prompt. A silent
-    /// check must never surface that unprompted. This is what the intent allows;
-    /// without Full Disk Access nothing reads it at all
-    /// (`TCCPreflight.admitsOtherAppsData`).
+    /// Whether this refresh may read the TestFlight container when nothing is
+    /// known about Full Disk Access — the read that triggers macOS's "access data
+    /// from other apps" prompt, which a silent check must never surface
+    /// unprompted. What a round actually does is
+    /// ``readsTestFlight(fullDiskAccess:)``.
     public var readsTestFlight: Bool {
         switch self {
         case .userRequested, .userPresent: true
         case .scheduled: false
+        }
+    }
+
+    /// Whether this round reads TestFlight's store, given this Mac's Full Disk
+    /// Access. With it the read is silent — no prompt, no notice — so even the
+    /// scheduler's tick takes it, and a launch shows TestFlight rows answered
+    /// instead of a question mark until the menu is opened. Without it nothing
+    /// reads (`TCCPreflight.admitsOtherAppsData`). When the status cannot be read
+    /// at all, only a round the user is present for does, as before the grant
+    /// could be asked about: the tick must never be what raises a prompt.
+    public func readsTestFlight(fullDiskAccess: TCCAuthStatus) -> Bool {
+        switch fullDiskAccess {
+        case .granted: true
+        case .unknown: readsTestFlight
+        case .denied, .notDetermined: false
         }
     }
 
@@ -92,8 +107,10 @@ public enum RefreshIntent: Sendable, Equatable {
     /// Only one refresh runs at a time; a second caller awaits the first, and
     /// gets only what that pass delivered. So the question is whether the pass
     /// in flight does everything this one would have: a user-present caller
-    /// landing on a scheduled tick gets no TestFlight read and notes left
-    /// exactly as they were; a click on the button landing on a pass the menu's
+    /// landing on a scheduled tick gets notes left exactly as they were, and no
+    /// TestFlight read unless Full Disk Access gave the tick one (asked per
+    /// intent here, so that case still runs its own pass — owed for the notes
+    /// anyway); a click on the button landing on a pass the menu's
     /// opening started gets no TestFlight sync. Either one runs its own pass
     /// afterwards.
     ///

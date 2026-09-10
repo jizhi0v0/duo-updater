@@ -23,7 +23,9 @@ public enum RecipeSanity {
     public static func complaints(version: String, recipe: VendorProbeRecipe) -> [String] {
         var complaints: [String] = []
 
-        if !version.contains(where: \.isNumber) {
+        // Except where the version is a commit hash (`buildLineage`): `deadbeef` is
+        // a perfectly good build id with no digit in it.
+        if recipe.buildLineage == nil, !version.contains(where: \.isNumber) {
             complaints.append("version contains no digits: '\(version)'")
         }
         if let first = version.first, !first.isLetter, !first.isNumber {
@@ -98,9 +100,14 @@ public enum RecipeSanity {
         } else {
             return nil
         }
-        guard remoteValue != installedValue,
-              VersionComparator.isNewer(installedValue, than: remoteValue)
-        else { return nil }
+        // Hash-shaped builds have no order but the vendor's lineage (see
+        // `BuildLineage`). Comparing them here would report a healthy recipe as
+        // BEHIND on half of all release pairs, so a lineage decides — and one that
+        // cannot place the pair raises nothing.
+        let installedIsAhead = remote.buildLineage.map {
+            $0.isNewer(installedValue, than: remoteValue) == true
+        } ?? VersionComparator.isNewer(installedValue, than: remoteValue)
+        guard remoteValue != installedValue, installedIsAhead else { return nil }
         return "remote is BEHIND the installed copy (\(remoteValue) < \(installedValue)) — "
             + "the recipe may be reading a different version scheme than the app reports"
     }

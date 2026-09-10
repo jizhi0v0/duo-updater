@@ -289,6 +289,14 @@ public struct RemoteVersion: Sendable, Hashable {
     /// anyone can go and look.)
     public let deltas: [DeltaPatch]
 
+    /// The vendor's own order for builds whose ids carry none — set only by a
+    /// recipe that declares `VendorProbeRecipe.buildLineage`. When present it is
+    /// the whole answer to "is this newer": `UpdateChecker.evaluate` and the other
+    /// direction checks ask it instead of `VersionComparator`, and a pair it cannot
+    /// place is "cannot tell", never a coin flip. nil for every other source. See
+    /// `BuildLineage`.
+    public let buildLineage: BuildLineage?
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -316,7 +324,8 @@ public struct RemoteVersion: Sendable, Hashable {
         vendorDay: Date? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = [],
-        releaseChannel: ReleaseChannel? = nil
+        releaseChannel: ReleaseChannel? = nil,
+        buildLineage: BuildLineage? = nil
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -345,6 +354,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.releaseHistory = releaseHistory
         self.deltas = deltas
         self.releaseChannel = releaseChannel
+        self.buildLineage = buildLineage
     }
 
     /// Best version string to show the user.

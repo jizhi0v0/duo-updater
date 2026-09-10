@@ -445,6 +445,18 @@ public enum UpdatePolicy {
            installedBuild == remoteBuild {
             return nil
         }
+        // Hash-shaped builds are ordered by the vendor's lineage and by nothing
+        // else (see `BuildLineage`): "the installed copy is ahead" is claimed only
+        // where the lineage places it there. `VersionComparator` below would call
+        // the installed copy ahead on half of all pairs.
+        if let remote = result.remote, let lineage = remote.buildLineage {
+            guard let pair = remote.lineageComparands(
+                      installedMarketing: result.app.shortVersion,
+                      installedBuild: result.app.buildVersion(in: remote.buildNamespace)),
+                  lineage.isNewer(pair.installed, than: pair.remote) == true
+            else { return nil }
+            return remote.displayVersion ?? pair.remote
+        }
         guard let installed = result.app.shortVersion,
               let remoteShort = result.remote?.shortVersion,
               VersionComparator.isNewer(installed, than: remoteShort) else { return nil }

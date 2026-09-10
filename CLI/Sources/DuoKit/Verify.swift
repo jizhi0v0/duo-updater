@@ -849,7 +849,8 @@ public enum Verify {
             if let version, recipe.covers(appVersion: version),
                let complaint = changelogLagComplaint(
                    entry: top, detected: version,
-                   acknowledged: recipe.acknowledgedStaleEntry) {
+                   acknowledged: recipe.acknowledgedStaleEntry,
+                   ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
                 warnings.append(complaint)
             }
             return Finding(
@@ -957,8 +958,15 @@ public enum Verify {
     /// major.minor — see the call site for why the full-string comparison had to
     /// go.
     static func changelogLagComplaint(
-        entry: String, detected: String, acknowledged: String? = nil
+        entry: String, detected: String, acknowledged: String? = nil,
+        ordersByLineage: Bool = false
     ) -> String? {
+        // Commit-hash versions have no order a string comparison can see (see
+        // `BuildLineage`): "trails" between two hashes is a coin flip, and a
+        // changelog whose newest release had no notes to show legitimately tops
+        // out one build behind the version. Same reasoning as `Baseline`'s
+        // "went BACKWARDS", which is scoped out for these recipes too.
+        if ordersByLineage { return nil }
         // The vendor is the stale one and somebody has already read the live page
         // and said so — see `ChangelogRecipe.acknowledgedStaleEntry` for why this
         // is a version rather than an off switch. Scoped to the exact entry the

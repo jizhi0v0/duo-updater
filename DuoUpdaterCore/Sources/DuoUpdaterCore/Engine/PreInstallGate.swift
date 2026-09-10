@@ -133,12 +133,28 @@ public enum PreInstallGate {
     /// `nil` confirmed classifies as `.unreadable`; otherwise this delegates to
     /// `decision(for:offered:confirmed:)` with both sides' `versionSide`s (or an
     /// empty one when a result carries no remote), exactly as each host already
-    /// did at its own call site.
+    /// did at its own call site — except for a lineage-ordered remote, see below.
     public static func decision(
         offered: UpdateResult,
         confirmed: UpdateResult?
     ) -> PreInstallDecision {
         guard let confirmed else { return .unreadable }
+        // Hash-shaped builds (see `BuildLineage`): whether the re-check walked
+        // BACKWARDS is a question only the lineage can answer. Asked of
+        // `VersionComparator`, a copy that updated itself PAST the offer between
+        // the click and the re-check — the vendor's own updater runs hourly — reads
+        // as the source contradicting itself on half of all pairs. Only the
+        // `.upToDate` arm asks, exactly as in `decision(for:offered:confirmed:)`;
+        // the re-check's lineage is the fresher one and decides. A pair it cannot
+        // place falls to "already current", which is what a lineage-ordered
+        // `.upToDate` has already established about the disk.
+        if case .upToDate = confirmed.status,
+           let lineage = confirmed.remote?.buildLineage ?? offered.remote?.buildLineage,
+           let offeredBuild = offered.remote?.version ?? offered.remote?.shortVersion,
+           let confirmedBuild = confirmed.remote?.version ?? confirmed.remote?.shortVersion {
+            return lineage.isNewer(offeredBuild, than: confirmedBuild) == true
+                ? .answerRegressed : .alreadyCurrent
+        }
         return decision(
             for: confirmed.status,
             offered: offered.remote?.versionSide ?? VersionSide(),

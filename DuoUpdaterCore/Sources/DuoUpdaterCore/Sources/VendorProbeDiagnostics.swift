@@ -74,6 +74,28 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// always — see the note at the throw site in `VendorProbeSource`.
     case vendorErrorEnvelope(sampleBytes: Int)
 
+    /// The recipe's `buildLineage` document answered, but its entry pattern found
+    /// no build in it — the vendor changed that document's shape. A recipe problem,
+    /// like `versionPatternNoMatch`.
+    case buildLineagePatternNoMatch(sampleBytes: Int)
+
+    /// The lineage parsed but does not list the build the version endpoint just
+    /// named. They are two documents published separately — Superconductor's
+    /// `latest.json` and `changelog.json` carried Last-Modified stamps three
+    /// seconds apart on 2026-09-10 — so a check landing between the two sees this.
+    /// The window is the vendor's publish gap, not an edge cache's lifetime: both
+    /// documents were served uncached that day (`CF-Cache-Status: DYNAMIC`).
+    /// Infra, so `duo verify` reports it only once it persists. The probe fails
+    /// rather than answering: without the build's place in the lineage there is
+    /// nothing to compare it by.
+    case buildLineageMissesVersion(String)
+
+    /// The recipe's `buildLineage` document could not be fetched at all. Wraps what
+    /// went wrong so a report names WHICH of the recipe's two documents failed — a
+    /// bare `httpStatus(404)` reads as the version endpoint's. Classified exactly
+    /// as the wrapped failure is.
+    indirect case buildLineageUnavailable(ProbeFailure)
+
     /// What a sweep should *do* about this failure.
     public enum Classification: String, Sendable {
         /// A human needs to look at the recipe.
@@ -88,7 +110,9 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         switch self {
         case .notApplicable:
             return .notApplicable
-        case .transport, .nonHTTPResponse, .vendorErrorEnvelope:
+        case .buildLineageUnavailable(let inner):
+            return inner.classification
+        case .transport, .nonHTTPResponse, .vendorErrorEnvelope, .buildLineageMissesVersion:
             return .infra
         case .httpStatus(let code):
             // 5xx and 429 are the vendor having a bad day; 4xx means the URL we
@@ -96,7 +120,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return (code >= 500 || code == 429) ? .infra : .recipe
         case .redirectMissingLocation, .malformedResolvedURL,
              .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch,
-             .versionSegmentCountChanged, .channelDiscoveryBroken:
+             .versionSegmentCountChanged, .channelDiscoveryBroken, .buildLineagePatternNoMatch:
             return .recipe
         }
     }
@@ -115,6 +139,9 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .versionPatternNoMatch: return "versionPatternNoMatch"
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
         case .vendorErrorEnvelope: return "vendorErrorEnvelope"
+        case .buildLineagePatternNoMatch: return "buildLineagePatternNoMatch"
+        case .buildLineageMissesVersion: return "buildLineageMissesVersion"
+        case .buildLineageUnavailable(let inner): return "buildLineageUnavailable.\(inner.kind)"
         case .channelDiscoveryBroken: return "channelDiscoveryBroken"
         }
     }
@@ -135,6 +162,14 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return "no match in \(bytes)-byte body, but the same pattern with a "
                 + "variable segment count matches \(would) — the vendor changed "
                 + "how many numbers are in the version"
+        case .buildLineagePatternNoMatch(let bytes):
+            return "the release-order document answered (\(bytes) bytes) but its entry "
+                + "pattern matched no build — the vendor changed that document's shape"
+        case .buildLineageUnavailable(let inner):
+            return "the release-order document could not be read: \(inner.detail)"
+        case .buildLineageMissesVersion(let version):
+            return "the release-order document does not list \(version) yet — the vendor "
+                + "publishes it separately from the version manifest"
         case .vendorErrorEnvelope(let bytes):
             // Says whose fault it is, because this text is what the user reads in
             // the failed-check banner and what `duo verify` puts in a report.

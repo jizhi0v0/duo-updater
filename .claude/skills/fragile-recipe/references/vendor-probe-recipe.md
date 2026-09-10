@@ -27,7 +27,7 @@ stable endpoint you want.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `VendorProbeRecipe.init` currently takes **24** parameters. Read it before you
+> `VendorProbeRecipe.init` currently takes **25** parameters. Read it before you
 > conclude a situation is unsupported — a recipe that "can't express this" is far
 > more often a field nobody has read than a real limit.
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
@@ -64,6 +64,7 @@ The rest, by the problem they solve — go to the source for the exact semantics
 | WAF needs a Referer, or rejects the default UA | `requestHeaders` |
 | Endpoint sometimes returns a "nothing new" / closed-track body | `transientBodyPattern`, `trackClosedPattern` |
 | The body also states the version the caller already has | `installedVersionPattern` |
+| Versions are commit hashes (no order of their own); the vendor publishes its release history | `buildLineage` — see `BuildLineage` |
 
 - **`.redirectFilename`** — `url` is a stable link that 302s to the real package;
   HEAD it, follow redirects, parse the version out of the final filename. Preferred

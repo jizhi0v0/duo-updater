@@ -2130,12 +2130,18 @@ final class AppListModel {
         let announcements = await Self.firstResult(
             of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
             within: .seconds(2))
+        // Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read only
+        // by a round that may read TestFlight's store at all: signing out of
+        // TestFlight leaves that store looking signed in until TestFlight next runs,
+        // and this is what says otherwise. nil when it cannot be read.
+        let appStoreSignedIn: Bool? = allowTestFlight ? await AppStoreSignIn.current() : nil
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
+            appStoreSignedIn: appStoreSignedIn,
             channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
@@ -2194,6 +2200,7 @@ final class AppListModel {
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: synced,
                     announcements: syncedAnnouncements,
+                    appStoreSignedIn: appStoreSignedIn,
                     channelStore: ResolvedChannelStore.shared)
                 let rechecked = await resync.check(targets)
                 Log.app.notice("TestFlight sync: re-checked \(rechecked.count, privacy: .public) TestFlight rows against the synced store")

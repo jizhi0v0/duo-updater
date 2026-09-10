@@ -23,6 +23,11 @@ public struct UpdateChecker: Sendable {
     /// ``TestFlightAnnouncements``, whose absence proves nothing. nil turns the
     /// witness off and leaves every verdict exactly as it was.
     public let announcements: TestFlightAnnouncements?
+    /// Whether this Mac is signed in to the App Store, which is what TestFlight
+    /// signs in with (`AppStoreSignIn`); nil when unknown or not read this round.
+    /// Needed beside the store's own tester signal because signing out of
+    /// TestFlight does not rewrite the store until TestFlight next runs.
+    public let appStoreSignedIn: Bool?
 
     /// The same store the GitHub source writes its channel proofs to. Held here
     /// so a check that FAILED can still label the row with what an earlier one
@@ -36,6 +41,7 @@ public struct UpdateChecker: Sendable {
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
+        appStoreSignedIn: Bool? = nil,
         channelStore: ResolvedChannelStore? = nil
     ) {
         self.sources = sources
@@ -43,6 +49,7 @@ public struct UpdateChecker: Sendable {
         self.toolbox = toolbox
         self.testflight = testflight
         self.announcements = announcements
+        self.appStoreSignedIn = appStoreSignedIn
         self.channelStore = channelStore
     }
 
@@ -219,6 +226,19 @@ public struct UpdateChecker: Sendable {
         // track); read TestFlight's cached latest build instead. The action stays
         // "open TestFlight".
         if app.isTestFlightApp {
+            // Signed out of the App Store, which TestFlight signs in with. The store
+            // cannot say so yet — measured 2026-09-10, it keeps its signed-in shape,
+            // offer rows and `ZISTESTER = 1` included, until TestFlight next runs — so
+            // whatever it offers is not an offer to this Mac right now. nil (unknown,
+            // or not read this round) leaves the verdict to the store.
+            if appStoreSignedIn == false {
+                Log.check.info("""
+                    \(label, privacy: .public): this Mac is not signed in to the App \
+                    Store, which TestFlight signs in with — the store cannot bound it
+                    """)
+                return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+            }
+
             // The store knows which betas the signed-in account is testing, and this
             // is not one of them: signed out, a different Apple Account, or testing
             // stopped. What is left for it is not an offer — an installed build

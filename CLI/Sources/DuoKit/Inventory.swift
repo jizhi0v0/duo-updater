@@ -36,7 +36,7 @@ public enum Inventory {
     /// difference between `duo check` and the app is a bug rather than a
     /// configuration difference.
     ///
-    /// `testflight`/`toolbox` default to a fresh real read, same as always; the
+    /// `testflight`/`toolbox`/`appStoreSignedIn` default to a fresh real read; the
     /// pre-install re-check (`Install.apply`) passes in the TestFlight-free
     /// sentinel and the single `ToolboxInventory` it built once for the whole
     /// batch — see that function's doc comment (#404 review #8).
@@ -44,7 +44,8 @@ public enum Inventory {
         _ settings: Settings,
         testflight: TestFlightInventory = TestFlightInventory(),
         announcements: TestFlightAnnouncements = TestFlightAnnouncements(),
-        toolbox: ToolboxInventory = ToolboxInventory()
+        toolbox: ToolboxInventory = ToolboxInventory(),
+        appStoreSignedIn: Bool? = AppStoreSignIn.isSignedIn()
     ) -> UpdateChecker {
         UpdateChecker(
             sources: SourceStack.make(
@@ -54,6 +55,7 @@ public enum Inventory {
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
+            appStoreSignedIn: appStoreSignedIn,
             channelStore: ResolvedChannelStore.shared)
     }
 

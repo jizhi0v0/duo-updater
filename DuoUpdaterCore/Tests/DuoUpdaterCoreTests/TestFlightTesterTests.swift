@@ -134,3 +134,34 @@ struct TestFlightTesterTests {
     }
 }
 
+// MARK: - The App Store sign-in, as an input to the verdict
+
+extension TestFlightTesterTests {
+    /// Signed out of TestFlight, the store keeps its signed-in shape until
+    /// TestFlight next runs — measured 2026-09-10: offer rows present,
+    /// `ZISTESTER = 1` — so the App Store sign-in is what says otherwise. The fixture
+    /// is that stale shape. Mutation: delete the `appStoreSignedIn == false` check in
+    /// `UpdateChecker` — the stale store's update comes back and this fails.
+    @Test func aMacSignedOutOfTheAppStoreIsNotOfferedTheStoresUpdate() async throws {
+        let result = await UpdateChecker(
+            sources: [], testflight: try Self.inventory(Self.signedIn), appStoreSignedIn: false
+        ).check(Self.wrappedApp())
+        #expect(result.status == .testFlightManaged)
+        #expect(result.remote == nil)
+    }
+
+    /// Signed in, or unknown: the store decides. Mutation: write the check as
+    /// `!= true` — the unknown case loses its update and this fails.
+    @Test func aSignInThatIsTrueOrUnknownLeavesTheStoreToDecide() async throws {
+        for signedIn in [true, nil] as [Bool?] {
+            let result = await UpdateChecker(
+                sources: [], testflight: try Self.inventory(Self.signedIn), appStoreSignedIn: signedIn
+            ).check(Self.wrappedApp())
+            guard case .updateAvailable(let latest) = result.status else {
+                Issue.record("signed in = \(String(describing: signedIn)): expected the update, got \(result.status)")
+                continue
+            }
+            #expect(latest == "0.3.384")
+        }
+    }
+}

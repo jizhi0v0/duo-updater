@@ -86,6 +86,13 @@ public struct TestFlightRefresh: Sendable {
         /// one route: whether or not the user has TestFlight open, this starts its
         /// own instance.
         case noChange
+        /// TestFlight's store shows no account testing any beta here — signed out,
+        /// most likely — so nothing was started. There is nothing to fetch for such
+        /// an account, and starting TestFlight only asks the user to sign in:
+        /// reported 2026-09-10, a refresh while signed out made the hidden instance
+        /// bounce in the Dock for attention. The store only learns of a sign-out the
+        /// next time TestFlight runs, so the first refresh after one still starts it.
+        case accountTestsNothing
         /// No TestFlight on this Mac.
         case notInstalled
         /// LaunchServices refused or timed out.
@@ -146,19 +153,23 @@ public struct TestFlightRefresh: Sendable {
     /// own, since SQLite in WAL mode leaves it alone for long stretches.
     let storeStamp: @Sendable () -> Date?
     let sleep: @Sendable (Duration) async -> Void
+    /// Whether the store shows no account testing anything (`accountTestsNothing`).
+    let testsNothing: @Sendable () -> Bool
 
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
         spawn: @escaping @Sendable (URL) async -> pid_t? = { await AppRestarter.launchSeparateInstance($0) },
         terminate: @escaping @Sendable (pid_t) -> Void = { AppRestarter.terminateOwnInstance($0) },
         storeStamp: @escaping @Sendable () -> Date? = Self.storeStamp,
-        sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        testsNothing: @escaping @Sendable () -> Bool = Self.storeTestsNothing
     ) {
         self.locate = locate
         self.spawn = spawn
         self.terminate = terminate
         self.storeStamp = storeStamp
         self.sleep = sleep
+        self.testsNothing = testsNothing
     }
 
     /// Run one attempt. Never throws: every failure is an `Outcome` the caller can
@@ -169,6 +180,10 @@ public struct TestFlightRefresh: Sendable {
         settle: Duration = settleInterval
     ) async -> Outcome {
         guard let bundle = locate() else { return .notInstalled }
+
+        // Nothing to fetch for an account that tests nothing, and starting
+        // TestFlight then only asks the user to sign in (`accountTestsNothing`).
+        if testsNothing() { return .accountTestsNothing }
 
         // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.
@@ -220,6 +235,14 @@ public struct TestFlightRefresh: Sendable {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
     }
 
+    /// Whether the store says no account is testing anything here — what a
+    /// signed-out store looks like once TestFlight has run (only placeholders
+    /// left; see `TestFlightInventory.readTesters`). False whenever the store
+    /// cannot say, so an unreadable store never stops a refresh.
+    public static let storeTestsNothing: @Sendable () -> Bool = {
+        TestFlightInventory().isTestingNothing
+    }
+
     /// Modification date of the store's write-ahead log.
     public static let storeStamp: @Sendable () -> Date? = {
         let wal = URL(fileURLWithPath: TestFlightInventory.defaultDatabaseURL.path + "-wal")
@@ -240,7 +263,7 @@ extension TestFlightRefresh.Outcome {
     public var storeChanged: Bool {
         switch self {
         case .refreshed, .changedWithoutSettling: true
-        case .noChange, .notInstalled, .launchFailed: false
+        case .noChange, .accountTestsNothing, .notInstalled, .launchFailed: false
         }
     }
 }

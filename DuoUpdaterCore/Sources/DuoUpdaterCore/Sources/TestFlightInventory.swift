@@ -294,6 +294,10 @@ public struct TestFlightInventory: Sendable {
         return testerBundleIDs.contains(bundleID)
     }
 
+    /// True when the store says the signed-in account is testing nothing at all —
+    /// the shape of a signed-out store. False when it cannot say.
+    public var isTestingNothing: Bool { testerBundleIDs?.isEmpty == true }
+
     /// bundleID → the newest row. **Every** bucket ranks through here — mac and
     /// iOS, real database and test seam — so they cannot drift apart in how
     /// "newest" is decided.

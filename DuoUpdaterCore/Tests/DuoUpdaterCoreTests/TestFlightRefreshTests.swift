@@ -61,6 +61,7 @@ struct TestFlightRefreshTests {
         installed: Bool = true,
         launchSucceeds: Bool = true,
         stamp: Stamp = Stamp(),
+        testsNothing: Bool = false,
         spy: Spy
     ) -> TestFlightRefresh {
         TestFlightRefresh(
@@ -71,7 +72,8 @@ struct TestFlightRefreshTests {
             },
             terminate: { spy.terminatedInstance($0) },
             storeStamp: { stamp.read() },
-            sleep: { _ in spy.slept() })
+            sleep: { _ in spy.slept() },
+            testsNothing: { testsNothing })
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when
@@ -270,6 +272,7 @@ extension TestFlightRefreshTests {
         (TestFlightRefresh.Outcome.refreshed(after: .seconds(4)), true),
         (.changedWithoutSettling(lastChange: .seconds(40)), true),
         (.noChange, false),
+        (.accountTestsNothing, false),
         (.notInstalled, false),
         (.launchFailed, false),
     ])
@@ -331,3 +334,19 @@ extension TestFlightRefreshTests {
         return false
     }
 }
+
+// MARK: - A store with no account testing anything
+
+extension TestFlightRefreshTests {
+    /// Nothing to fetch, and the instance would only bounce in the Dock asking the
+    /// user to sign in. Mutation: delete the `testsNothing()` check in `run()` —
+    /// the spawn happens and this fails.
+    @Test func anAccountTestingNothingStartsNothing() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(testsNothing: true, spy: spy).run()
+        #expect(outcome == .accountTestsNothing)
+        #expect(spy.launches.isEmpty)
+        #expect(spy.terminated.isEmpty)
+    }
+}
+

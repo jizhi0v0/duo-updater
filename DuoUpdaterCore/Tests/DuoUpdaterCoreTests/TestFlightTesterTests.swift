@@ -123,4 +123,14 @@ struct TestFlightTesterTests {
             #expect(result.remote?.version == "1301")
         }
     }
+
+    /// What the refresh gate reads. Mutation: answer true for a store that cannot
+    /// say (`testerBundleIDs?.isEmpty != false`) — then a schema change stops every
+    /// refresh, and the no-signal case fails.
+    @Test func onlyAStoreThatSaysSoTestsNothing() throws {
+        #expect(try Self.inventory(Self.signedOut).isTestingNothing)
+        #expect(try !Self.inventory(Self.signedIn).isTestingNothing)
+        #expect(try !Self.inventory(Self.noTesterColumn).isTestingNothing)
+    }
 }
+

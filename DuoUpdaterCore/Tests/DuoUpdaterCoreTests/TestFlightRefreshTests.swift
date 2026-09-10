@@ -376,4 +376,17 @@ extension TestFlightRefreshTests {
         _ = await Self.refresher(appStoreSignedIn: nil, spy: spy).run()
         #expect(spy.launches.count == 1)
     }
+
+    /// Signed in, but the store still shows nobody testing — what it looks like
+    /// after signing back in outside TestFlight, since it only learns of an account
+    /// change when TestFlight next runs. The refresh must go through, or the store
+    /// never catches up and every beta keeps its question mark. Mutation: drop
+    /// `signedIn == nil` from the store check in `run()` — this returns
+    /// `.accountTestsNothing` without spawning and fails.
+    @Test func aKnownSignInOutranksAStoreShowingNobodyTesting() async {
+        let spy = Spy()
+        let outcome = await Self.refresher(testsNothing: true, appStoreSignedIn: true, spy: spy).run()
+        #expect(outcome != .accountTestsNothing)
+        #expect(spy.launches.count == 1)
+    }
 }

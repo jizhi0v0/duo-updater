@@ -74,6 +74,14 @@ private let notionPageChunkFixture = #"""
 {"recordMap": {"block": {"3bfefdee-ad05-8039-a5e6-d8cb747ee142": {"value": {"value": {"type": "header","properties": {"title": [["v7.31.0"]]}}}},"3bfefdee-ad05-8057-9623-dff8b34b7bf0": {"value": {"value": {"type": "text","properties": {"title": [[" 📅 Released "],["‣",[["d",{"type": "datetime","start_date": "2026-08-17","start_time": "16:26","time_zone": "America/Los_Angeles","date_format": "relative"}]]],["  (macOS & Windows)"]]}}}},"3bfefdee-ad05-8067-8fa6-d6b559cfff1f": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Allow additional SSO provider (Entra) login popups from in the app"]]}}}},"3b8efdee-ad05-807b-ba1a-fea9e1c1fac3": {"value": {"value": {"type": "header","properties": {"title": [["v7.29.0"]]}}}},"3b8efdee-ad05-8014-be1f-c9be494eeacd": {"value": {"value": {"type": "text","properties": {"title": [[" 📅 Released "],["‣",[["d",{"type": "date","start_date": "2026-08-03","date_format": "relative"}]]],["  (macOS & Windows)"]]}}}},"3b8efdee-ad05-80bd-99bf-d926b25f2d54": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Resolved an issue where the quick search hotkey wouldn't work properly for certain users"]]}}}},"3b8efdee-ad05-807a-98ec-fd8db89d1895": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Windows 10 users (20H2 and above) can now use the MSIX Installer"]]}}}},"3acefdee-ad05-80a8-8fa8-fde99932d47d": {"value": {"value": {"type": "header","properties": {"title": [["v7.28.0"]]}}}},"3acefdee-ad05-8056-811e-f20f1e5ea0e3": {"value": {"value": {"type": "text","properties": {"title": [[" 📅 Released "],["‣",[["d",{"date_format": "relative","type": "date","start_date": "2026-07-27"}]]],[" (macOS & Windows)"]]}}}},"3acefdee-ad05-80f7-9bfc-dcb3d570930b": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Tabs recover automatically if your system unloads them under memory pressure"]]}}}},"3acefdee-ad05-80a9-919b-f6f7591f741f": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Opening a Notion link in Desktop no longer closes the originating browser tab on macOS"]]}}}},"3acefdee-ad05-8075-80ef-d191c6bfc432": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["As always, security and performance improvements, and small bug fixes"]]}}}},"5936dabc-8dd6-4978-9578-6c91b9d6f12a": {"value": {"value": {"type": "page","content": ["3bfefdee-ad05-8039-a5e6-d8cb747ee142","3bfefdee-ad05-8057-9623-dff8b34b7bf0","3bfefdee-ad05-8067-8fa6-d6b559cfff1f","3b8efdee-ad05-807b-ba1a-fea9e1c1fac3","3b8efdee-ad05-8014-be1f-c9be494eeacd","3b8efdee-ad05-80bd-99bf-d926b25f2d54","3b8efdee-ad05-807a-98ec-fd8db89d1895","3acefdee-ad05-80a8-8fa8-fde99932d47d","3acefdee-ad05-8056-811e-f20f1e5ea0e3","3acefdee-ad05-80f7-9bfc-dcb3d570930b","3acefdee-ad05-80a9-919b-f6f7591f741f","3acefdee-ad05-8075-80ef-d191c6bfc432"]}}}}}}
 """#
 
+/// The same endpoint read live 2026-09-11, trimmed the same way to its newest
+/// release: 4 of the page's 101 returned blocks, titles verbatim. The page stops at
+/// v7.32.0 while Notion's download already serves 7.33.0 — the vendor lag the
+/// registry's `acknowledgedStaleEntry` names.
+private let notionStalePageFixture = #"""
+{"recordMap": {"block": {"3ceefdee-ad05-802f-b91f-dbaa333ae68b": {"value": {"value": {"type": "header","properties": {"title": [["v7.32.0"]]}}}},"3ceefdee-ad05-8076-8e04-dc0ab9143aeb": {"value": {"value": {"type": "text","properties": {"title": [[" 📅 Released "],["‣",[["d",{"date_format": "relative","type": "date","start_date": "2026-08-31"}]]],["   (macOS & Windows)"]]}}}},"3ceefdee-ad05-80c7-864c-d2fe60282df0": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Updated framework dependencies for improved stability and performance"]]}}}},"3ceefdee-ad05-8059-8b3a-e6dcc3077fec": {"value": {"value": {"type": "bulleted_list","properties": {"title": [["Allowed federated Identity Provider (IdP) authentication hops in authorization popups"]]}}}},"5936dabc-8dd6-4978-9578-6c91b9d6f12a": {"value": {"value": {"type": "page","content": ["3ceefdee-ad05-802f-b91f-dbaa333ae68b","3ceefdee-ad05-8076-8e04-dc0ab9143aeb","3ceefdee-ad05-80c7-864c-d2fe60282df0","3ceefdee-ad05-8059-8b3a-e6dcc3077fec"]}}}}}}
+"""#
+
 @Suite struct NotionPageChunkTests {
     @Test func registryPointsAtTheStructuredPostRecipe() throws {
         let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "notion.id"))
@@ -121,6 +129,19 @@ private let notionPageChunkFixture = #"""
         // silently drop a trailing bullet when a release has several.
         #expect(log.entries[2].items.last
             == "As always, security and performance improvements, and small bug fixes")
+    }
+
+    /// The acknowledgement has to name what the decoder reads off the page, not
+    /// what a person typed: `duo verify` compares it to the newest entry by exact
+    /// string, so "v7.32.0" or "7.32" would silence nothing and the sweep would
+    /// keep re-filing the same issue.
+    @Test func theAcknowledgedStaleEntryIsWhatThePageDecodesTo() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "notion.id"))
+        let log = try #require(StructuredChangelogDecoder.decode(
+            notionStalePageFixture, format: .notionPageChunk, channel: nil, maxEntries: 20))
+        #expect(log.entries.first?.version == "7.32.0")
+        #expect(log.entries.first?.date == "2026-08-31")
+        #expect(recipe.acknowledgedStaleEntry == log.entries.first?.version)
     }
 
     @Test func maxEntriesCapsWithoutTruncatingTheLastKeptEntrysItems() throws {

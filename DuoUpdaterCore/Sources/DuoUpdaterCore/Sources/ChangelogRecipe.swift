@@ -1580,6 +1580,15 @@ public enum ChangelogRecipeRegistry {
         // probe's `.redirectFilename` reports) and the release order runs
         // v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
         // the product-announcement post titles the old recipe surfaced.
+        //
+        // `acknowledgedStaleEntry` (#493): read live 2026-09-11, the page's newest
+        // header is still v7.32.0 ("Released" 2026-08-31; the page block was last
+        // edited 2026-09-01 01:22 UTC), while `www.notion.so/desktop/mac/download` already
+        // 307s to `Notion-7.33.0-universal.dmg`. The decoder reads the page
+        // correctly — Notion has not written the 7.33.0 notes — so the sweep's
+        // "a whole release behind" is the vendor's lag, not ours. Named rather than
+        // switched off: once the page moves, to 7.33.0 or anywhere else, the check
+        // runs again.
         ChangelogRecipe(
             bundleID: "notion.id",
             source: URL(string: "https://notion.notion.site/api/v3/loadPageChunk")!,
@@ -1589,7 +1598,8 @@ public enum ChangelogRecipeRegistry {
             requestBody: Data(
                 (#"{"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,"#
                     + #""cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}"#
-                ).utf8)),
+                ).utf8),
+            acknowledgedStaleEntry: "7.32.0"),
 
         // Waku — GitHub releases, not the appcast's own notes link.
         //

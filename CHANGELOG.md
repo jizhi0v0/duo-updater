@@ -23,7 +23,11 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Microsoft Edge Beta could offer you a stable Edge build.** While Microsoft's feed briefly carried no Mac release on the beta channel, the rule read past the end of that channel and took the next one's — so the row named a stable version, and updating would have put it over your beta.
 
-**`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now. The window is unchanged: a beta TestFlight manages has always carried its marker there rather than a plain tick.
+**The refresh button now asks TestFlight for its latest builds.** TestFlight's own data only refreshes while your Mac is idle, so a beta could show no update for hours after a new build was out; refreshing now checks with TestFlight in the background, without bringing it to the front.
+
+**A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
+
+**`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.
 
 **`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.
 

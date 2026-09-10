@@ -531,6 +531,74 @@ struct TestFlightUnboundedTip: View {
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)
             if fullDiskAccessMissing {
+                // Trailing, where macOS puts the action in a dialog or popover.
+                HStack {
+                    Spacer()
+                    Button("Grant…") {
+                        dismiss()
+                        grant()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 260, alignment: .leading)
+    }
+}
+
+/// The name-line mark for a row whose answer may be missing something only Full
+/// Disk Access could read (`AppListModel.fullDiskAccessNeedsAffecting`). Draws
+/// nothing when there is no such read. Tapping it explains which read and offers
+/// the grant; a tap rather than a Button for the same reason as
+/// `TestFlightUnboundedMark`.
+struct FullDiskAccessMark: View {
+    let needs: [FullDiskAccessNeed]
+    let grant: () -> Void
+    var size: CGFloat = 11
+
+    @State private var showTip = false
+
+    /// The width it claims on the name line, for rows that budget their width
+    /// before layout (the same job as `ChannelTag.measuredWidth`). Matches the
+    /// `.frame` in `body`.
+    static func width(size: CGFloat = 11) -> CGFloat { size + 2 }
+
+    var body: some View {
+        if !needs.isEmpty {
+            Image(systemName: "lock.circle")
+                .font(.system(size: size))
+                .foregroundStyle(.secondary)
+                .frame(width: Self.width(size: size))
+                .contentShape(Rectangle())
+                .onTapGesture { showTip = true }
+                .help("Checked without Full Disk Access — click for why")
+                .accessibilityLabel("Full Disk Access needed")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { showTip = true }
+                .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                    FullDiskAccessTip(needs: needs, grant: grant)
+                }
+        }
+    }
+}
+
+/// What that mark opens: one sentence per read turned away, and the grant.
+struct FullDiskAccessTip: View {
+    let needs: [FullDiskAccessNeed]
+    let grant: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(needs, id: \.self) { need in
+                Self.reason(need)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Spacer()
                 Button("Grant…") {
                     dismiss()
                     grant()
@@ -541,5 +609,17 @@ struct TestFlightUnboundedTip: View {
         }
         .padding(12)
         .frame(width: 260, alignment: .leading)
+    }
+
+    /// A switch, so a read added to `FullDiskAccessNeed` cannot reach this tip
+    /// without saying what the missing grant costs.
+    @ViewBuilder
+    static func reason(_ need: FullDiskAccessNeed) -> some View {
+        switch need {
+        case .testFlight:
+            Text("Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
+        case .cotEditorChannel:
+            Text("Without Full Disk Access, Duo Updater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.")
+        }
     }
 }

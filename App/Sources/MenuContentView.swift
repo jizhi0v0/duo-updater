@@ -837,6 +837,9 @@ private struct AppRow: View {
         if model.isRunning(result) { width += 6 + 6 }   // dot + HStack spacing
         let tag = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if tag > 0 { width += tag + 6 }
+        if !model.fullDiskAccessNeedsAffecting(result).isEmpty {
+            width += FullDiskAccessMark.width() + 6
+        }
         return width
     }
 
@@ -872,6 +875,9 @@ private struct AppRow: View {
                 RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
             }
             ChannelTag(channel: result.effectiveReleaseChannel)
+            FullDiskAccessMark(
+                needs: model.fullDiskAccessNeedsAffecting(result),
+                grant: { model.presentFullDiskAccessPermissionFlow() })
             // No optical nudge here: this mark is nearly cap-height, so it is judged
             // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
             if let runtime {

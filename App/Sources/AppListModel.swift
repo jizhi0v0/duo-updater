@@ -4961,6 +4961,22 @@ final class AppListModel {
         }
     }
 
+    /// The reads turned away for this row's app that could change what the row
+    /// says (`FullDiskAccessNeed.mayAffect`) — what its name line marks
+    /// (`FullDiskAccessMark`). Empty with the grant, and for any app no read was
+    /// turned away for. The channel is the copy's own (`app.releaseChannel`),
+    /// not the row's effective one: the question is whether the installed build
+    /// already says it is a prerelease.
+    func fullDiskAccessNeedsAffecting(_ result: UpdateResult) -> [FullDiskAccessNeed] {
+        guard fullDiskAccessMissing else { return [] }
+        let refused = FullDiskAccessNeeds.shared.refused()
+        let key = result.app.bundleID ?? result.app.id
+        return FullDiskAccessNeed.allCases.filter {
+            refused[$0]?.contains(key) == true
+                && $0.mayAffect(releaseChannel: result.app.releaseChannel)
+        }
+    }
+
     /// Guide the user out of a blocked App Store install: rebuild the helper's
     /// registration first (a record can read as approved yet no longer resolve — see
     /// `HelperShellRunner`), and only if that doesn't restore it, ask.

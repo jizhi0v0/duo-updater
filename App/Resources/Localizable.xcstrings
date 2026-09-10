@@ -6779,6 +6779,47 @@
         }
       }
     },
+    "Checked without Full Disk Access — click for why": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff geprüft – klicken für den Grund"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobado sin acceso total al disco: haz clic para saber por qué"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifié sans accès complet au disque — cliquez pour savoir pourquoi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスなしで確認しました。クリックすると理由を表示します"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверено без полного доступа к диску — нажмите, чтобы узнать почему"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未获完全磁盘访问权限时的检查结果——点按查看原因"
+          }
+        }
+      }
+    },
     "Checking": {
       "extractionState": "manual",
       "localizations": {
@@ -9964,6 +10005,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "授予完全磁盘访问权限后，Duo Updater 才能检查这些 App"
+          }
+        }
+      }
+    },
+    "Full Disk Access needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Festplattenvollzugriff erforderlich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se necesita acceso total al disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès complet au disque requis"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスが必要です"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужен полный доступ к диску"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要完全磁盘访问权限"
           }
         }
       }
@@ -22037,6 +22119,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有完全磁盘访问权限，Duo Updater 无法读取 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新。"
+          }
+        }
+      }
+    },
+    "Without Full Disk Access, Duo Updater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff kann Duo Updater nicht sehen, ob du in CotEditor Vorabversionen gewählt hast, daher werden nur stabile Versionen angeboten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin acceso total al disco, Duo Updater no puede ver si elegiste versiones preliminares en CotEditor, así que solo se ofrecen sus versiones estables."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans l’accès complet au disque, Duo Updater ne peut pas voir si vous avez choisi les préversions dans CotEditor : seules ses versions stables sont proposées."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスがないと、CotEditor でプレリリースを選んでいるかどうかを Duo Updater が確認できないため、安定版だけが提示されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без полного доступа к диску Duo Updater не видит, выбраны ли в CotEditor предварительные версии, поэтому предлагаются только стабильные."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有完全磁盘访问权限，Duo Updater 无法得知你是否在 CotEditor 中选择了预发布版本，因此只会提供正式版。"
           }
         }
       }

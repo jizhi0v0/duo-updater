@@ -239,7 +239,8 @@ have a TestFlight beta or CotEditor, opening the menu explains this once, and at
 most once more if another such app appears; the welcome window and Settings →
 Diagnostics show whether it is granted, and tapping the question mark on a
 TestFlight row says why it is there — offering to grant it when that is the
-reason.
+reason. A stable CotEditor carries a small lock beside its name that does the
+same.
 
 **App Management** — required to install anything. Replacing an app in
 `/Applications` that some other installer put there is gated on this, and macOS

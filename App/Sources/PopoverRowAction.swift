@@ -26,12 +26,16 @@ struct PopoverRowAction: View {
     var downloadReadout: DownloadReadout = .barAndPercent
     /// Whether a stage word fits beside the spinner, same reasoning.
     var showsStageLabel: (InstallStage) -> Bool = { _ in true }
+    /// Whether Full Disk Access is missing — decides what the question mark on a
+    /// TestFlight row explains, and whether it offers to grant it.
+    var fullDiskAccessMissing: Bool = false
 
     /// Owned here rather than by the row: the licence-boundary warning belongs to
     /// this control, and nothing outside it reads the flag.
     @State private var showMajorWarning = false
     @State private var showRegionHint = false
     @State private var showMacCompatHint = false
+    @State private var showTestFlightTip = false
 
     @ViewBuilder
     var body: some View {
@@ -687,6 +691,16 @@ struct PopoverRowAction: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
         .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
+        // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
+        // out of a borderless button.
+        .contentShape(Rectangle())
+        .onTapGesture { showTestFlightTip = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { showTestFlightTip = true }
+        .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
+            TestFlightUnboundedTip(
+                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
+        }
     }
 
     /// A source was tried and failed — most often a transient GitHub rate-limit.

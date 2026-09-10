@@ -223,6 +223,12 @@ final class AppListModel {
     /// Diagnostics row. Whether TestFlight's store is read is asked live instead
     /// (`mayReadTestFlightStore`): this copy only moves while a window watches it.
     private(set) var fullDiskAccessStatus = TCCPreflight.fullDiskAccessStatus()
+    /// Whether it is known to be missing — what the question mark on a TestFlight
+    /// row explains, and when it offers "Grant…". Not when the status cannot be
+    /// read: that is no evidence it is missing.
+    var fullDiskAccessMissing: Bool {
+        fullDiskAccessStatus == .denied || fullDiskAccessStatus == .notDetermined
+    }
     /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
     /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
     /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
@@ -2079,7 +2085,7 @@ final class AppListModel {
         }
         isScanning = true
         // The Toolbox inventory and the on-disk scan are local and fast. The
-        // TestFlight inventory is the one TCC-gated read — another app's sandbox
+        // TestFlight inventory is a TCC-gated read — another app's sandbox
         // container — that can sit on the "access data from other apps" prompt. So
         // we DON'T let it gate the visible list: scan and show apps immediately with
         // no TestFlight data, then fold its tags in once the read lands (or hand it
@@ -2110,6 +2116,12 @@ final class AppListModel {
         var found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
         }.value
+        // The store was turned away above, before the scan knew which apps it would
+        // have answered; now it does, so the menu can name them.
+        if !mayReadTestFlight {
+            FullDiskAccessNeeds.shared.recordRefusal(
+                .testFlight, for: found.filter(\.isTestFlightApp).map { $0.bundleID ?? $0.id })
+        }
         // Cold start (no rows yet): show plain `.unknown` rows while the check runs.
         // But when we already have results — e.g. the menu bar populated them and
         // the user just opened the workbench — DON'T blank them to `.unknown`, which
@@ -4890,6 +4902,63 @@ final class AppListModel {
             suggestedAppURLs: [Bundle.main.bundleURL],
             sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
         )
+    }
+
+    /// The one place DuoUpdater brings up Full Disk Access on its own — macOS has
+    /// no prompt for it. Called when the menu opens, after that open's check, so it
+    /// only appears while the user is looking. It names only apps a read actually
+    /// turned away (`FullDiskAccessNeeds`), and `FullDiskAccessGuidance` decides
+    /// whether to ask (missing, something was turned away, at most twice). A user
+    /// still in the Welcome window is left to its card; ignored apps, and apps no
+    /// longer on this Mac, are not reasons.
+    @ObservationIgnored private var fullDiskAccessExplainedThisSession = false
+    func offerFullDiskAccessIfNeeded() {
+        guard !fullDiskAccessExplainedThisSession,
+              UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") else { return }
+        let refused = FullDiskAccessNeeds.shared.refused()
+        guard !refused.isEmpty else { return }
+        let key: (InstalledApp) -> String = { $0.bundleID ?? $0.id }
+        let deserving = results.map(\.app).filter { prefs.deservesCheck($0) }
+        var lines: [String] = []
+        var ids: Set<String> = []
+        for need in FullDiskAccessNeed.allCases {
+            let apps = deserving.filter { refused[need]?.contains(key($0)) == true }
+            guard !apps.isEmpty else { continue }
+            ids.formUnion(apps.map(key))
+            lines.append("• " + Self.fullDiskAccessReason(need, apps: apps))
+        }
+        guard FullDiskAccessGuidance.shouldAsk(
+            fullDiskAccess: TCCPreflight.fullDiskAccessStatus(), needing: ids,
+            state: prefs.fullDiskAccessGuidance)
+        else { return }
+        fullDiskAccessExplainedThisSession = true
+        prefs.fullDiskAccessGuidance = FullDiskAccessGuidance.recordingAsk(
+            prefs.fullDiskAccessGuidance, needing: ids)
+        Log.app.notice("permissions: explaining Full Disk Access (\(self.prefs.fullDiskAccessGuidance.timesAsked, privacy: .public) of \(FullDiskAccessGuidance.maximumAsks, privacy: .public)) for \(ids.count, privacy: .public) app(s)")
+
+        let reasons = lines.joined(separator: "\n")
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Full Disk Access lets Duo Updater check these apps")
+        alert.informativeText = String(localized: "Some of your apps keep what Duo Updater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n\(reasons)\n\nYou can grant it later in Duo Updater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.")
+        alert.addButton(withTitle: String(localized: "Grant…"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            presentFullDiskAccessPermissionFlow()
+        }
+    }
+
+    /// One line per kind of read, for the explanation above. A switch, so a read
+    /// added to `FullDiskAccessNeed` cannot reach the dialog without saying what it
+    /// is for and what the user loses without it.
+    private static func fullDiskAccessReason(_ need: FullDiskAccessNeed, apps: [InstalledApp]) -> String {
+        switch need {
+        case .testFlight:
+            let names = ListFormatter.localizedString(byJoining: apps.map(\.name).sorted())
+            return String(localized: "TestFlight betas (\(names)): Duo Updater reads the builds TestFlight offers you. Without it, their rows show a question mark.")
+        case .cotEditorChannel:
+            return String(localized: "CotEditor: Duo Updater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.")
+        }
     }
 
     /// Guide the user out of a blocked App Store install: rebuild the helper's

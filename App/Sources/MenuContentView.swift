@@ -158,6 +158,8 @@ struct MenuContentView: View {
                 Log.app.info("menu .task: results present → refreshLocal()")
                 await model.refreshLocal()
             }
+            // After the check, so the rows it names are this open's rows.
+            model.offerFullDiskAccessIfNeeded()
         }
         // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
         // concurrently so it never delays the app check above.
@@ -1008,11 +1010,13 @@ private struct AppRow: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) }),
+                        openTestFlight: { model.openTestFlight(for: result) },
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
-                    showsStageLabel: showsStageLabel)
+                    showsStageLabel: showsStageLabel,
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

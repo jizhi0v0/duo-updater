@@ -85,6 +85,8 @@ final class Preferences {
         static let declinedElevationKeys = UpdateSettings.declinedElevationKeysKey
         static let skippedVersions = UpdateSettings.skippedVersionsKey
         static let lastCheckDate = "LastCheckDate"
+        static let fullDiskAccessAsks = "FullDiskAccessGuidanceAsks"
+        static let fullDiskAccessAskedApps = "FullDiskAccessGuidanceApps"
         static let lastSeenSelfVersion = "LastSeenSelfVersion"   // our own version whose notes the user has seen
         static let notifiedVersions = "NotifiedVersions"
         static let notifiedStagedVersions = "NotifiedStagedVersions"
@@ -297,6 +299,16 @@ final class Preferences {
         didSet { defaults.set(lastCheckDate, forKey: Key.lastCheckDate) }
     }
 
+    /// How often the Full Disk Access explanation has been shown, and which apps it
+    /// named the last time (`FullDiskAccessGuidance`). Kept across launches: the
+    /// point is that it appears at most twice, ever.
+    var fullDiskAccessGuidance: FullDiskAccessGuidance.State {
+        didSet {
+            defaults.set(fullDiskAccessGuidance.timesAsked, forKey: Key.fullDiskAccessAsks)
+            defaults.set(fullDiskAccessGuidance.appsWhenLastAsked.sorted(), forKey: Key.fullDiskAccessAskedApps)
+        }
+    }
+
     /// Per-app version we've already posted a "new update available" notification
     /// for (key → the offered version). Persisted so the banner fires regardless
     /// of *which* refresh path first surfaces the update — manual menu-open or
@@ -464,6 +476,9 @@ final class Preferences {
         self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
+        self.fullDiskAccessGuidance = FullDiskAccessGuidance.State(
+            timesAsked: defaults.integer(forKey: Key.fullDiskAccessAsks),
+            appsWhenLastAsked: Set(defaults.stringArray(forKey: Key.fullDiskAccessAskedApps) ?? []))
         self.lastSeenSelfVersion = defaults.string(forKey: Key.lastSeenSelfVersion)
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
         self.notifiedStagedVersions =

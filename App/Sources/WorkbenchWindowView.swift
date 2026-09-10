@@ -1038,8 +1038,10 @@ private struct DetailHeader: View {
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
-                        openTestFlight: { model.openTestFlight(for: result) }),
-                    helperEnabled: model.helperEnabled)
+                        openTestFlight: { model.openTestFlight(for: result) },
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
+                    helperEnabled: model.helperEnabled,
+                    fullDiskAccessMissing: model.fullDiskAccessMissing)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

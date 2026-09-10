@@ -92,6 +92,9 @@ public struct TestFlightRefresh: Sendable {
         /// reported 2026-09-10, a refresh while signed out made the hidden instance
         /// bounce in the Dock for attention. The store only learns of a sign-out the
         /// next time TestFlight runs, so the first refresh after one still starts it.
+        ///
+        /// Only when the App Store sign-in cannot be read: the store is just as late
+        /// to learn of a sign-in, so a known sign-in outranks it.
         case accountTestsNothing
         /// This Mac's Apple Account is not signed in to the App Store, which is what
         /// TestFlight signs in with, so nothing was started — it would only ask the
@@ -195,8 +198,16 @@ public struct TestFlightRefresh: Sendable {
         // known right after a sign-out (`notSignedIn`); the store only learns of one
         // the next time TestFlight runs (`accountTestsNothing`). A signal that cannot
         // answer lets the refresh through.
-        if await appStoreSignedIn() == false { return .notSignedIn }
-        if await testsNothing() { return .accountTestsNothing }
+        //
+        // The store is asked only when the sign-in cannot answer. It learns of a
+        // sign-in, too, only the next time TestFlight runs — so after signing back in
+        // outside TestFlight, or to another Apple Account, it still shows nobody
+        // testing, and trusting it over a known sign-in would keep TestFlight from
+        // ever running to catch it up. The cost: a Mac signed in but testing nothing
+        // starts, and ends, a hidden TestFlight on each refresh the user asks for.
+        let signedIn = await appStoreSignedIn()
+        if signedIn == false { return .notSignedIn }
+        if signedIn == nil, await testsNothing() { return .accountTestsNothing }
 
         // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.

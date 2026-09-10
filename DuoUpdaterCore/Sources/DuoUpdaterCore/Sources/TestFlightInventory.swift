@@ -554,3 +554,21 @@ public struct TestFlightInventory: Sendable {
     /// `ZINSTALLSTATUSRAW` for "this build is the one installed on this machine".
     private static let installedHere: Int64 = 1
 }
+
+extension TestFlightInventory.Frontier {
+    /// TestFlight's page for this app: `itms-beta://beta.itunes.apple.com/v1/app/<id>`.
+    ///
+    /// Measured 2026-09-10 against a running TestFlight (Darwin 27.0.0), with the
+    /// detail pane's title read through Accessibility as the witness: two ids in
+    /// turn each landed on their own app's page, and `open -g` did not bring the
+    /// window forward. A comment in this repository used to say this form "just
+    /// opens the app list" on macOS; here it did not. Not measured: a TestFlight
+    /// that is not already running.
+    ///
+    /// ⚠️ Never a `/join/<code>` URL. That form *joins a beta*, an account-level
+    /// side effect, and this is only reached from a button that says "open".
+    public var appPageURL: URL? {
+        guard adamID > 0 else { return nil }
+        return URL(string: "itms-beta://beta.itunes.apple.com/v1/app/\(adamID)")
+    }
+}

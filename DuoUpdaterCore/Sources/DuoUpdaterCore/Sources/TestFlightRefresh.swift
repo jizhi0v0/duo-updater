@@ -10,28 +10,55 @@ import Foundation
 /// 2026-09-09, every 30–60s for a whole day, while a build sat available for
 /// hours and the store never learned it (#478).
 ///
-/// TestFlight goes and asks the server on exactly two occasions, and this serves
-/// whichever one applies:
+/// TestFlight asks the server on exactly two occasions — a cold launch, and
+/// becoming active — and **this starts its own instance**, so it always gets the
+/// first one. A cold launch carries its own become-active, that activation belongs
+/// to our process, and our process is launched hidden and never activated. The
+/// user's instance, if they have one, is not touched at all.
 ///
-///   * **not running** — a hidden background launch. Measured 2026-09-09 across
-///     three trials on two Macs: store written in 11s, 9s, and 8s (3 rows → 111
-///     rows on the second Mac), foreground untouched throughout.
-///   * **already running** — a silent activation, see ``SilentActivation``. A
-///     background launch does *nothing* for a running TestFlight: the request is
-///     delivered, and two minutes later the store still has not learned the build
-///     that was already published. Measured four times.
+/// **Why not reach the instance the user already has.** Because reaching it means
+/// making it active, and on macOS making an app active means giving it the
+/// foreground: `activates` is documented as making the system "activate the app and
+/// bring it to the foreground", one sentence rather than two switches. A background
+/// launch request delivered to a running instance does nothing — measured four
+/// times, the store still had not learned an already-published build two minutes
+/// later. So the only way to reach it was a brief activation, and that was visible:
+/// measured 2026-09-10 with two independent samplers, the menu bar belonged to
+/// TestFlight for the hold plus ~10ms, and its window was raised to the top and
+/// **left** there. The private `kCPSNoWindows` flag did not prevent either on macOS
+/// 26. A second instance makes the whole question go away.
 ///
-/// The deep link is not needed (the second trial used no URL at all), so this does
-/// not use one: with no URL there is no `/join/<code>` shape nearby to reach for by
+/// **What that was measured to cost.** Four trials on two Macs, 2026-09-10: the
+/// front process never became TestFlight (13,000+ samples at 6ms, with the user's
+/// own app switches as a positive control), the store learned builds it did not
+/// have (1316→1317 and 1315→1317), and it came through every integrity check —
+/// `integrity_check`, foreign keys, duplicate rows, orphaned rows, row counts, and
+/// Core Data's `Z_PRIMARYKEY` ledger against the real `MAX(Z_PK)`, which is where
+/// two processes allocating primary keys concurrently would show.
+///
+/// ⚠️ **Not measured, and worth knowing:** whether the user's own instance shows a
+/// stale view of its own UI after we rewrite the store underneath it, and whether
+/// any of this disturbs an install already running inside it.
+///
+/// The deep link is not needed (a trial used no URL at all), so this does not use
+/// one: with no URL there is no `/join/<code>` shape nearby to reach for by
 /// mistake, and joining a beta is an account-level side effect.
 ///
-/// ⚠️ **This is an explicit, user-initiated action.** The launch path starts an app
-/// the user did not start, and that app lingers until macOS's automatic termination
-/// collects it — measured 6–10 minutes typically, once 47. The activation path
-/// takes the front process for ``SilentActivation/defaultHold``. Do not put either
-/// on a periodic check: the system deliberately declines to do this work while the
-/// device is in use, and doing it for the system on a timer would be overriding
-/// that decision on the user's behalf.
+/// ⚠️ **A refresh queues TestFlight's own automatic updates.** All three paths that
+/// reload the catalogue run the same handler, and that handler is where the
+/// auto-update jobs are enqueued; there is no "fetch without queueing" switch.
+/// Measured 2026-09-10: 42 activations enqueued 210 jobs, and a control that simply
+/// opened TestFlight by hand produced a byte-identical log signature — so this is
+/// not something duo does *to* the user, it is what opening TestFlight does.
+/// Queueing is not installing: a job needs the per-app Automatic Updates setting
+/// and is executed separately by `appstoreagent` on Apple's own schedule, and none
+/// of those 210 were claimed while this was measured. Say "may queue", never
+/// "will install".
+///
+/// ⚠️ **This is an explicit, user-initiated action.** It starts an app the user did
+/// not start. Do not put it on a periodic check: the system deliberately declines
+/// to do this work while the device is in use, and doing it for the system on a
+/// timer would be overriding that decision on the user's behalf.
 public struct TestFlightRefresh: Sendable {
 
     /// What one attempt did. Every case is a thing the caller may want to say out
@@ -47,30 +74,15 @@ public struct TestFlightRefresh: Sendable {
         /// announced success at +10s, the data landed at +40s, and the check in the
         /// same process printed the *previous* build as up to date.
         case changedWithoutSettling(lastChange: Duration)
-        /// Launched from cold, but the store never changed. Usually "already
+        /// The instance ran and the store never changed. Usually "already
         /// current"; it can also be a sync that did not happen, and this
         /// deliberately does not claim to know which — the store carries no "last
         /// synced" of its own.
-        case launchedWithoutChange
-        /// Activated a running instance, but the store never changed. Same
-        /// ambiguity as ``launchedWithoutChange``, different route.
-        case activatedWithoutChange
-        /// TestFlight is running, and this macOS does not expose the symbols that
-        /// would let us reach it without stealing the screen.
-        case activationUnavailable
-        /// TestFlight is running, but a password field owns the keyboard.
-        case refusedSecureInput
-        /// TestFlight is the app the user is looking at right now. Nothing to do:
-        /// an already-active app cannot be made to become active, and its own
-        /// window is a better view of this data than anything we could print.
-        case alreadyFrontmost
-        /// TestFlight is running and the activation itself was refused.
-        case activationFailed(code: Int32)
-        /// The activation landed but the user's focus could not be put back, twice.
-        /// Returned **instead of** waiting for the store: a window the user did not
-        /// raise is more urgent than a version number, and the refresh that did
-        /// happen will be on disk for the next check either way.
-        case focusNotRestored(code: Int32)
+        ///
+        /// There is one such case rather than one per route because there is now
+        /// one route: whether or not the user has TestFlight open, this starts its
+        /// own instance.
+        case noChange
         /// No TestFlight on this Mac.
         case notInstalled
         /// LaunchServices refused or timed out.
@@ -122,9 +134,10 @@ public struct TestFlightRefresh: Sendable {
     // Effects, injected so the decision table is testable without launching
     // anything or waiting on a real clock.
     let locate: @Sendable () -> URL?
-    let isRunning: @Sendable () -> Bool
-    let launch: @Sendable (URL) async -> Bool
-    let activate: @Sendable () async -> SilentActivation.Outcome
+    /// Start our own instance and hand back its pid, or nil if it could not start.
+    let spawn: @Sendable (URL) async -> pid_t?
+    /// End the instance we started. Takes the pid we were given, never a bundle id.
+    let terminate: @Sendable (pid_t) -> Void
     /// A value that changes when the store is written. Production passes the
     /// write-ahead log's modification date; the main file's is not enough on its
     /// own, since SQLite in WAL mode leaves it alone for long stretches.
@@ -133,16 +146,14 @@ public struct TestFlightRefresh: Sendable {
 
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
-        isRunning: @escaping @Sendable () -> Bool = Self.testFlightIsRunning,
-        launch: @escaping @Sendable (URL) async -> Bool = { await AppRestarter.launchApp($0, activates: false, hides: true) },
-        activate: @escaping @Sendable () async -> SilentActivation.Outcome = Self.activateTestFlight,
+        spawn: @escaping @Sendable (URL) async -> pid_t? = { await AppRestarter.launchSeparateInstance($0) },
+        terminate: @escaping @Sendable (pid_t) -> Void = { AppRestarter.terminateOwnInstance($0) },
         storeStamp: @escaping @Sendable () -> Date? = Self.storeStamp,
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.locate = locate
-        self.isRunning = isRunning
-        self.launch = launch
-        self.activate = activate
+        self.spawn = spawn
+        self.terminate = terminate
         self.storeStamp = storeStamp
         self.sleep = sleep
     }
@@ -156,34 +167,20 @@ public struct TestFlightRefresh: Sendable {
     ) async -> Outcome {
         guard let bundle = locate() else { return .notInstalled }
 
-        // Read the store BEFORE either route touches anything, so the wait below
+        // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.
         let before = storeStamp()
-        let launched: Bool
-        if isRunning() {
-            switch await activate() {
-            case .activated:
-                launched = false
-            case .frontNotRestored(let code):
-                return .focusNotRestored(code: code)
-            case .unavailable:
-                return .activationUnavailable
-            case .refusedSecureInput:
-                return .refusedSecureInput
-            case .alreadyActive:
-                return .alreadyFrontmost
-            case .failed(let code):
-                return .activationFailed(code: code)
-            case .notRunning:
-                // It quit between the check and the activation. Serve the cold
-                // route rather than reporting a race as a failure.
-                guard await launch(bundle) else { return .launchFailed }
-                launched = true
-            }
-        } else {
-            guard await launch(bundle) else { return .launchFailed }
-            launched = true
-        }
+
+        // One route, whether or not the user has TestFlight open: our own instance.
+        // There is no branch on `isRunning` any more, and that is the whole change —
+        // reaching an already-running instance meant making it active, and making an
+        // app active means giving it the foreground.
+        guard let pid = await spawn(bundle) else { return .launchFailed }
+        // Ours to end, on every path from here on — the wait has several. The two
+        // returns above this line have no process to end. Leaving one behind would
+        // be worse than the old cold-launch path, which at least had macOS
+        // collecting a single instance eventually.
+        defer { terminate(pid) }
 
         var waited: Duration = .zero
         var seen = before
@@ -210,7 +207,7 @@ public struct TestFlightRefresh: Sendable {
         // still, so the sync may well be in flight, and the caller is about to
         // read it.
         if let lastChange { return .changedWithoutSettling(lastChange: lastChange) }
-        return launched ? .launchedWithoutChange : .activatedWithoutChange
+        return .noChange
     }
 
     // MARK: - Live effects
@@ -218,48 +215,6 @@ public struct TestFlightRefresh: Sendable {
     /// Where TestFlight is, or nil when it is not installed.
     public static let locateTestFlight: @Sendable () -> URL? = {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
-    }
-
-    /// Whether a TestFlight **process** exists.
-    ///
-    /// `runningApplications(withBundleIdentifier:)` and not the `NSWorkspace`
-    /// snapshot: that one is a stale cache in a process with no run loop, which is
-    /// exactly what the CLI is. Measured 2026-09-09 that this query agrees with
-    /// `pgrep` in both directions — 1 entry carrying the real pid while TestFlight
-    /// ran, 0 the moment it quit — including after macOS's automatic termination,
-    /// where LaunchServices can still list the app as "open" with no process
-    /// behind it.
-    public static let testFlightIsRunning: @Sendable () -> Bool = {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
-    }
-
-    /// The activation route, bound to TestFlight.
-    ///
-    /// `isHidden` and `setHidden` are read and written through a fresh lookup each
-    /// time rather than captured: `NSRunningApplication` is a snapshot, and the
-    /// whole point of the hidden-state restore is that it reflects what is true
-    /// right before the front changes.
-    public static let activateTestFlight: @Sendable () async -> SilentActivation.Outcome = {
-        await SilentActivation(
-            runningPID: {
-                // -1 means "no pid", not "pid minus one": NSRunningApplication keeps
-                // returning a valid object after the app exits, and TestFlight is
-                // automatically terminated all the time. Forwarding it would make the
-                // quit-during-the-race branch unreachable and report an error where a
-                // cold launch is the right answer.
-                guard let pid = runningTestFlight()?.processIdentifier, pid > 0 else { return nil }
-                return pid
-            },
-            isActive: { runningTestFlight()?.isActive ?? false },
-            isHidden: { runningTestFlight()?.isHidden ?? false },
-            setHidden: { hidden in if hidden { _ = runningTestFlight()?.hide() } }
-        ).run()
-    }
-
-    /// A fresh lookup every time — `NSRunningApplication` is a snapshot, and a
-    /// captured one would answer about the moment the closure was built.
-    static func runningTestFlight() -> NSRunningApplication? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
     }
 
     /// Modification date of the store's write-ahead log.

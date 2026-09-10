@@ -322,6 +322,75 @@ public enum AppRestarter {
         }
     }
 
+    /// Start a **separate instance** of an app that we own, and hand back its pid.
+    ///
+    /// This exists for `TestFlightRefresh`, and it is what lets a refresh run with
+    /// no visible trace at all. TestFlight only asks the server on a cold launch or
+    /// on becoming active, and there is no way to make an *already running* app
+    /// become active without giving it the menu bar — `activates` is documented as
+    /// making the system "activate the app and bring it to the foreground", one
+    /// sentence rather than two switches, and macOS 26 does not honour the private
+    /// flag that used to suppress the window raise either. Measured 2026-09-10: a
+    /// brief activation occupies the menu bar for `hold` + ~10ms and raises the
+    /// app's window to the top **without putting it back**.
+    ///
+    /// A second instance sidesteps all of it. The cold launch carries its own
+    /// become-active, that activation belongs to *our* process, and our process is
+    /// hidden and never activated — so the user's instance and the user's
+    /// foreground are both untouched. Measured across four trials on two Macs: the
+    /// front process never became TestFlight (13,000+ samples at 6ms with a
+    /// positive control), the store learned builds it did not have, and the store
+    /// came through every check intact — `integrity_check`, foreign keys, duplicate
+    /// rows, orphaned rows, row counts, and Core Data's own `Z_PRIMARYKEY` ledger
+    /// against the real `MAX(Z_PK)`, which is where two processes allocating
+    /// primary keys concurrently would show up.
+    ///
+    /// ⚠️ **The pid is the point.** The caller is expected to terminate what this
+    /// starts. Ending the instance we started is the difference between this and
+    /// the old cold-launch path, which left TestFlight running until macOS
+    /// collected it — measured at 6–10 minutes, once 47.
+    ///
+    /// Returns nil when LaunchServices refuses or never comes back.
+    public static func launchSeparateInstance(
+        _ bundle: URL, timeout: Duration = launchTimeout
+    ) async -> pid_t? {
+        return await firstToFinish(timeout: timeout, fallback: nil) {
+            Log.install.error(
+                "app-restarter: separate-instance launch timed out: \(bundle.lastPathComponent, privacy: .public)")
+        } operation: {
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = false
+            config.hides = true
+            config.createsNewApplicationInstance = true
+            // Ours, not the user's: it must not appear in their recent items.
+            config.addsToRecentItems = false
+            do {
+                let app = try await NSWorkspace.shared.openApplication(
+                    at: bundle, configuration: config)
+                // -1 means "no pid", not "pid minus one".
+                let pid = app.processIdentifier
+                return pid > 0 ? pid : nil
+            } catch {
+                Log.install.error(
+                    "app-restarter: separate-instance launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+        }
+    }
+
+    /// End an instance **we** started, by pid.
+    ///
+    /// By pid and never by bundle id: the user very likely has their own instance
+    /// of the same app running, and a bundle-wide quit would take theirs with ours.
+    /// Measured the hard way on 2026-09-10, when a harness that computed the pid
+    /// wrongly killed the wrong one.
+    public static func terminateOwnInstance(_ pid: pid_t) {
+        guard pid > 0,
+              let app = NSRunningApplication(processIdentifier: pid)
+        else { return }
+        app.terminate()
+    }
+
     /// How long `launchApp` gives LaunchServices before it stops waiting.
     ///
     /// `openApplication` has no timeout of its own, and a launch that never comes

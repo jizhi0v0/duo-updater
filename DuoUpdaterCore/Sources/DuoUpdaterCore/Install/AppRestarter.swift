@@ -384,6 +384,17 @@ public enum AppRestarter {
     /// of the same app running, and a bundle-wide quit would take theirs with ours.
     /// Measured the hard way on 2026-09-10, when a harness that computed the pid
     /// wrongly killed the wrong one.
+    ///
+    /// `terminate()` rather than a signal, and it is enough: measured 2026-09-10
+    /// with no other instance running, TestFlight returned `true` and was gone
+    /// **within 0.5s**, leaving no process behind and the foreground untouched. So
+    /// a refresh on a Mac where the user never opened TestFlight leaves none open —
+    /// unlike the cold-launch path this replaces, which left one running until
+    /// macOS collected it.
+    ///
+    /// ⚠️ There is no forced fallback. An app that declines to quit stays up, which
+    /// is the right way round: this is someone else's app, and the alternative is
+    /// killing a process that may be mid-write.
     public static func terminateOwnInstance(_ pid: pid_t) {
         guard pid > 0,
               let app = NSRunningApplication(processIdentifier: pid)

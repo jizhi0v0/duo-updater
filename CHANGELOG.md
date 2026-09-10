@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The TestFlight button now takes you to that beta's page in TestFlight.** It used to open TestFlight on its list, leaving you to find the app yourself.
 
-**A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes can't read TestFlight's data, and it used to throw away what the last refresh had found; the first time you open the menu after launch now reads it too.
+**A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes used to throw away what the last refresh had found. With Full Disk Access it now reads TestFlight's data itself, so TestFlight rows are right from launch.
 
 **A TestFlight row shows the build you have as well as the one on offer.** A beta that keeps its version number between builds showed only the new build's number.
 

@@ -137,6 +137,21 @@ struct EdgeChannelBoundaryTests {
                 "a publishing Beta track must never read as dormant")
     }
 
+    /// Only Beta carries the dormancy declaration, and that is a decision rather
+    /// than an oversight: `VendorInstallTests` keys its exemption on the *presence*
+    /// of `trackClosedPattern`, not on whether it matches, so each declaration is a
+    /// standing exemption from "resolved no installer URL" for that channel. Beta is
+    /// the track measured dormant; Dev and Stable keep failing loudly.
+    ///
+    /// Mutation: declare `trackClosedPattern` on Dev or Stable — this fails, which is
+    /// the point: adding one has to be a decision someone makes on purpose, with the
+    /// evidence that the track really does go quiet.
+    @Test func onlyTheTrackMeasuredDormantIsExemptFromTheSweep() throws {
+        #expect(try Self.recipe("com.microsoft.edgemac.Beta").trackClosedPattern != nil)
+        #expect(try Self.recipe("com.microsoft.edgemac.Dev").trackClosedPattern == nil)
+        #expect(try Self.recipe("com.microsoft.edgemac").trackClosedPattern == nil)
+    }
+
     /// Fixture guard. If the vendor body ever gets re-captured with Beta publishing,
     /// three of the cases above silently start asserting nothing.
     @Test func theFixtureReallyHasAnEmptyBetaTrack() throws {

@@ -32,6 +32,35 @@ public enum TCCPreflight {
         status(for: "kTCCServiceSystemPolicyAppBundles")
     }
 
+    /// Full Disk Access (`kTCCServiceSystemPolicyAllFiles`) — what lets a read of
+    /// another app's container through, TestFlight's store among them. Measured
+    /// 2026-09-10 on macOS 27: 1 for an app that was never given it (Full Disk
+    /// Access has no prompt, so it never reads "not determined"), 0 once granted.
+    public static func fullDiskAccessStatus() -> TCCAuthStatus {
+        status(for: "kTCCServiceSystemPolicyAllFiles")
+    }
+
+    /// Whether DuoUpdater may read another app's container at all. Without Full
+    /// Disk Access that read cannot succeed and is not quiet about failing: on
+    /// macOS 27 each attempt is blocked with a "Data Access Blocked" notice
+    /// (measured 2026-09-10), and earlier systems raise the "access data from other
+    /// apps" prompt instead. So a read that cannot succeed is not attempted.
+    ///
+    /// Only Full Disk Access counts. The narrower "data from other apps" grant is
+    /// reported to be per container and to lapse with the session (third-party
+    /// reports, not measured here), so a preflight that names no container is not
+    /// evidence about TestFlight's.
+    ///
+    /// `.unknown` — the SPI is gone — reads as yes: that is what every build did
+    /// before this check existed, and the SPI vanishing must not quietly switch
+    /// TestFlight off for the users who did grant it.
+    public static func admitsOtherAppsData(fullDiskAccess: TCCAuthStatus) -> Bool {
+        switch fullDiskAccess {
+        case .granted, .unknown: true
+        case .denied, .notDetermined: false
+        }
+    }
+
     /// Whether the status above describes *this* binary, or one it inherited.
     ///
     /// macOS attributes a TCC decision to the **responsible** process, and a

@@ -33,7 +33,9 @@ public enum RefreshIntent: Sendable, Equatable {
 
     /// Whether this refresh may read the TestFlight container — the one read
     /// that triggers macOS's "access data from other apps" prompt. A silent
-    /// check must never surface that unprompted.
+    /// check must never surface that unprompted. This is what the intent allows;
+    /// without Full Disk Access nothing reads it at all
+    /// (`TCCPreflight.admitsOtherAppsData`).
     public var readsTestFlight: Bool {
         switch self {
         case .userRequested, .userPresent: true

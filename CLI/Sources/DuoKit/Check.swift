@@ -63,6 +63,16 @@ public enum Check {
             // "took" would be wrong by more than half.
             let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
             return String(format: "duo: TestFlight refreshed its data (new data landed after %.1fs)", seconds)
+        case .changedWithoutSettling(let lastChange):
+            // Says "may not have finished", never "refreshed". The row printed
+            // immediately below this line can be the pre-sync one, and a user who
+            // was told the refresh succeeded has no reason to look twice.
+            let seconds = Double(lastChange.components.seconds)
+                + Double(lastChange.components.attoseconds) / 1e18
+            return String(
+                format: "duo: TestFlight was still writing when we stopped waiting "
+                      + "(last seen moving after %.1fs); the versions below may predate the sync",
+                seconds)
         case .launchedWithoutChange:
             return "duo: launched TestFlight in the background; its data did not change"
         case .activatedWithoutChange:

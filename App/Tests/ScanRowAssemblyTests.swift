@@ -303,3 +303,21 @@ extension ScanRowAssemblyTests {
         #expect(plan.carried.isEmpty)
     }
 }
+
+// MARK: - roundPlan: the shape production actually puts on screen
+
+extension ScanRowAssemblyTests {
+    /// A cold launch's first round, and an app installed since the last one, both
+    /// put this round's own unchecked placeholder on screen before the check — so
+    /// "no row yet" (`aBetaWithNoRowYetIsStillChecked`) is a shape production never
+    /// has, and this is the one it does. Mutation: drop `row.status != .unknown`
+    /// from `roundPlan` — the placeholder is carried, the beta stays blank until a
+    /// round reads TestFlight, and this fails.
+    @Test func aPlaceholderRowIsNotAVerdict() {
+        let beta = planApp("Beta", testFlight: true)
+        let onScreen = [ScanRowAssembly.unchecked(beta, proofs: noProofs)]
+        let plan = ScanRowAssembly.roundPlan([beta], readsTestFlight: false, onScreen: onScreen)
+        #expect(plan.check.map(\.id) == [beta.id])
+        #expect(plan.carried.isEmpty)
+    }
+}

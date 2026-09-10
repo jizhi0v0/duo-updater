@@ -109,8 +109,13 @@ enum ScanRowAssembly {
     /// they keep the row already on screen, which `merged` carried forward with
     /// its status untouched.
     ///
-    /// A TestFlight app with no row on screen has nothing to keep, so it is
-    /// checked as before and says what an empty store lets it say.
+    /// A TestFlight app whose row holds no verdict has nothing to keep, so it is
+    /// checked as before and says what an empty store lets it say. That is not the
+    /// rare case it looks like: a cold launch's first round, and any app installed
+    /// since the last one, both put this round's own unchecked placeholder
+    /// (`unchecked`, `.unknown`) on screen before the check. Carrying that left a
+    /// beta blank — "no source covers it" — until a round that reads TestFlight;
+    /// observed 2026-09-10 on the first menu open after an install.
     static func roundPlan(
         _ checkable: [InstalledApp], readsTestFlight: Bool, onScreen: [UpdateResult]
     ) -> (check: [InstalledApp], carried: [UpdateResult]) {
@@ -119,7 +124,7 @@ enum ScanRowAssembly {
         var check: [InstalledApp] = []
         var carried: [UpdateResult] = []
         for app in checkable {
-            if app.isTestFlightApp, let row = rows[app.id] {
+            if app.isTestFlightApp, let row = rows[app.id], row.status != .unknown {
                 carried.append(row)
             } else {
                 check.append(app)

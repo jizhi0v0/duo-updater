@@ -31,7 +31,8 @@ public enum FeedDiscovery {
         /// `Info.plist` `SUFeedURL` — the app speaking for itself. Handled apart
         /// from the others: an app that names its own feed needs no proposal,
         /// because `AppScanner` already reads this key and `SparkleAppcastSource`
-        /// is already resolving it.
+        /// is already resolving it. It can still need a `ChannelBinding` — see
+        /// `Verdict.declaredNeedsBinding`.
         case infoPlist
         /// The app's own preferences domain. Sparkle's own docs recommend the
         /// Info.plist key "even if you change it later programmatically", so a
@@ -151,9 +152,39 @@ public enum FeedDiscovery {
     }
 
     public enum Verdict: Sendable, Equatable {
-        /// The bundle names its own feed. Nothing to propose — this app is
-        /// already resolved by `SparkleAppcastSource` today.
+        /// The bundle names its own feed, and that feed either has an untagged
+        /// item or this app already has a `ChannelBinding`. Nothing to propose —
+        /// this app is already resolved by `SparkleAppcastSource` today.
+        ///
+        /// ⚠️ The channel half is only checked when the feed answered. A feed
+        /// that did not also lands here: "no untagged item" is vacuously true of
+        /// zero items, and reading it as starvation would flag every declared app
+        /// on an offline run.
         case declared(URL)
+        /// The bundle names its own feed, but every item in it carries a
+        /// `<sparkle:channel>` and no `ChannelBinding` exists for the app. The
+        /// address resolves; the channel filter is what fails. With no binding,
+        /// `SparkleAppcastSource.allowedChannels` admits the untagged channel plus
+        /// the tag of whichever item matches the installed version — so once the
+        /// feed stops listing that version, it admits no item at all.
+        ///
+        /// Measured on CodeEdit, 2026-09-12: its feed carries ONE item per
+        /// release, always tagged `dev`. This fires even when the installed build
+        /// IS in the feed, because that is what a discovery run normally sees (you
+        /// probe the build you just downloaded) — and it is the one state in which
+        /// the app still resolves.
+        ///
+        /// A case of its own rather than an annotation on `.declared`, for the
+        /// reason `.superseded` is: every `case .declared:` already written —
+        /// `feed-discover --scan --gaps` skips it — would keep compiling and keep
+        /// hiding this. A new case stops each of those switches compiling until
+        /// someone decides.
+        ///
+        /// Asked through `ChannelBinding.hasResolver`, not by running a resolver:
+        /// the question is whether a person has already made the channel decision
+        /// for this app, and that must not depend on the Mac asking. It does NOT
+        /// check that the binding names the right tags.
+        case declaredNeedsBinding(URL)
         /// The bundle names an address AND `SparkleFeedCatalog` supersedes it —
         /// the vendor abandoned that feed, and production reads the live one.
         ///
@@ -287,6 +318,14 @@ public enum FeedDiscovery {
                 forBundleID: probe.bundleID, declaredFeed: declared) {
                 return .superseded(declared: declared, live: live)
             }
+            // Gate 3 for a declared feed — see `Verdict.declaredNeedsBinding`.
+            // Gates 1 and 2 do not apply: the app names this address itself, so
+            // "is this our feed?" is settled, and production already compares
+            // against it. The empty check is load-bearing — see `.declared`.
+            let bound = probe.bundleID.map { ChannelBinding.hasResolver(bundleID: $0) } ?? false
+            if !feedItems.isEmpty, !publishesDefaultChannel(feedItems), !bound {
+                return .declaredNeedsBinding(declared)
+            }
             return .declared(declared)
         }
         guard probe.shipsSparkle else { return .noKnownUpdater }
@@ -338,16 +377,25 @@ public enum FeedDiscovery {
 
         // Gate 3 — would a stable install match anything? See
         // `Blocker.everyItemChannelTagged`.
-        guard feedItems.contains(where: { ($0.channel?.nonEmpty) == nil }) else {
+        guard publishesDefaultChannel(feedItems) else {
             return .review(.everyItemChannelTagged, candidate.url)
         }
 
         return .adopt(candidate.url)
     }
 
-    /// Probe a bundle, fetch its single candidate feed if it has one, and return
-    /// the verdict. The fetch uses the same revalidating policy the production
-    /// source does, so a discovery run and a real check see the same bytes.
+    /// Whether any item sits on Sparkle's default channel. One predicate for both
+    /// gate-3 sites, and asked through `SparkleAppcastSource.normalizeChannel` —
+    /// the call `usableItems` filters with — so the gate and the source cannot
+    /// disagree about what "untagged" means.
+    static func publishesDefaultChannel(_ items: [SparkleAppcastItem]) -> Bool {
+        items.contains { SparkleAppcastSource.normalizeChannel($0.channel) == nil }
+    }
+
+    /// Probe a bundle, fetch the feed it declares — or else its single candidate
+    /// feed, if it has one — and return the verdict. The fetch uses the same
+    /// revalidating policy the production source does, so a discovery run and a
+    /// real check see the same bytes.
     public static func examine(
         bundleAt bundleURL: URL, session: URLSession = .updates
     ) async -> Finding {
@@ -356,12 +404,14 @@ public enum FeedDiscovery {
         switch probe.family {
         case .sparkle, nil:
             var items: [SparkleAppcastItem] = []
-            if probe.declaredFeed == nil, probe.candidates.count == 1,
-               !isTemplated(probe.candidates[0].raw) {
-                let feed = probe.candidates[0].url
-                if let data = await fetch(feed, session: session) {
-                    items = SparkleAppcastParser.parse(data, relativeTo: feed)
-                }
+            // A declared feed is fetched too: `decide` needs its items to tell
+            // `.declared` from `.declaredNeedsBinding`. It once was not, and the
+            // declared branch then only ever saw an empty feed. (A superseded
+            // address is fetched as well; `decide` returns before reading it.)
+            let single = probe.candidates.count == 1 && !isTemplated(probe.candidates[0].raw)
+            if let feed = probe.declaredFeed ?? (single ? probe.candidates[0].url : nil),
+               let data = await fetch(feed, session: session) {
+                items = SparkleAppcastParser.parse(data, relativeTo: feed)
             }
             verdict = decide(probe, feedItems: items)
         case .electron:

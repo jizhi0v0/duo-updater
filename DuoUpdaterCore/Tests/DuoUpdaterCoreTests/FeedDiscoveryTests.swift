@@ -190,6 +190,66 @@ private func item(
     #expect(verdict == .adopt(URL(string: "https://example.invalid/appcast.xml")!))
 }
 
+// MARK: - the channel gate, on a declared feed
+
+/// No `ChannelBinding` case can match this id. Asserted in each test rather than
+/// assumed: the day someone binds it, these stop measuring the "no binding" half.
+private let unboundID = "com.duoupdater.test.zzfixture.unbound"
+private let declaredFeed = "https://zzfixture.example.test/appcast.xml"
+
+@Test func aDeclaredFeedWithNoDefaultChannelAndNoBindingIsNotCoverage() {
+    // CodeEdit 0.3.6, 2026-09-12: bundle `0.3.6`/`47`; its declared feed's ONE
+    // item is `0.3.6`/`47` tagged `dev`. The installed build IS in the feed — the
+    // state a discovery run normally sees, and the only one in which the app
+    // still resolves. Mutation: delete the declared-feed gate in `decide` →
+    // `.declared`, red.
+    #expect(!ChannelBinding.hasResolver(bundleID: unboundID))
+    let verdict = FeedDiscovery.decide(
+        probe(id: unboundID, marketing: "0.3.6", build: "47",
+              candidate: nil, declared: declaredFeed),
+        feedItems: [item(short: "0.3.6", version: "47", channel: "dev")])
+    #expect(verdict == .declaredNeedsBinding(URL(string: declaredFeed)!))
+}
+
+@Test func aBoundAppsAllTaggedDeclaredFeedIsStillDeclared() throws {
+    // Synthetic feed shape; the id is real because the branch under test is
+    // "a binding exists". BetterDisplay is the route `NEEDS BINDING` points at —
+    // a resolver naming the tags outright — and once one exists, repeating the
+    // warning would make it permanent noise. Mutation: drop the `hasResolver`
+    // clause → `.declaredNeedsBinding`, red.
+    let id = BetterDisplayChannel.bundleID
+    try #require(ChannelBinding.hasResolver(bundleID: id))
+    let verdict = FeedDiscovery.decide(
+        probe(id: id, marketing: "1.0", build: "1", candidate: nil, declared: declaredFeed),
+        feedItems: [item(short: "1.0", version: "1", channel: "dev")])
+    #expect(verdict == .declared(URL(string: declaredFeed)!))
+}
+
+@Test func oneUntaggedItemKeepsADeclaredFeedDeclared() {
+    // Mutation: fire on "some item is tagged" instead of "no item is untagged"
+    // → `.declaredNeedsBinding`, red.
+    #expect(!ChannelBinding.hasResolver(bundleID: unboundID))
+    let verdict = FeedDiscovery.decide(
+        probe(id: unboundID, marketing: "2.2.3", build: "20963",
+              candidate: nil, declared: declaredFeed),
+        feedItems: [
+            item(short: "2.2.3", version: "20963"),
+            item(short: "2.3.0", version: "21000", channel: "beta"),
+        ])
+    #expect(verdict == .declared(URL(string: declaredFeed)!))
+}
+
+@Test func aDeclaredFeedThatDidNotAnswerIsNotReadAsAllTagged() {
+    // "No untagged item" is vacuously true of zero items. Mutation: drop the
+    // `!feedItems.isEmpty` guard → every offline run flags every declared app, red.
+    #expect(!ChannelBinding.hasResolver(bundleID: unboundID))
+    let verdict = FeedDiscovery.decide(
+        probe(id: unboundID, marketing: "0.3.6", build: "47",
+              candidate: nil, declared: declaredFeed),
+        feedItems: [])
+    #expect(verdict == .declared(URL(string: declaredFeed)!))
+}
+
 // MARK: - the address gates
 
 @Test func aTemplatedLiteralIsNeverAnAddress() throws {
@@ -485,4 +545,64 @@ private final class EdgeCopyProtocol: URLProtocol, @unchecked Sendable {
     // propose, never the one-off query it was fetched with.
     #expect(finding.verdict
         == .adopt(URL(string: "https://kimi-img.example.test/app/upgrade/latest-mac.yml")!))
+}
+
+/// CodeEdit's declared feed as it read on 2026-09-12, trimmed to the fields the
+/// gate reads: one item, tagged `dev`.
+private final class DevOnlyFeedProtocol: URLProtocol, @unchecked Sendable {
+    static let body = """
+        <?xml version="1.0" standalone="yes"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+          <channel>
+            <title>CodeEdit</title>
+            <item>
+              <title>0.3.6</title>
+              <sparkle:channel>dev</sparkle:channel>
+              <sparkle:version>47</sparkle:version>
+              <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
+              <enclosure url="https://zzfixture.example.test/CodeEdit.dmg" length="1" type="application/octet-stream"/>
+            </item>
+          </channel>
+        </rss>
+        """
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let url = request.url else { return }
+        let response = HTTPURLResponse(
+            url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+@Test func discoveryFetchesADeclaredFeedToAskTheChannelQuestion() async throws {
+    // The defect was not in `decide`: `examine` never fetched a declared feed, so
+    // the declared branch only ever saw zero items and the `decide` tests above
+    // could all pass while the tool still printed `declared` for CodeEdit.
+    // Mutation: put back the `declaredFeed == nil` condition on the fetch →
+    // `.declared`, red.
+    #expect(!ChannelBinding.hasResolver(bundleID: unboundID))
+    let fm = FileManager.default
+    let bundle = fm.temporaryDirectory
+        .appendingPathComponent("ZZFixture-DeclaredDevOnly-\(UUID().uuidString).app")
+    defer { try? fm.removeItem(at: bundle) }
+    let contents = bundle.appendingPathComponent("Contents")
+    try fm.createDirectory(at: contents, withIntermediateDirectories: true)
+    let plist: [String: Any] = [
+        "CFBundleIdentifier": unboundID,
+        "CFBundleShortVersionString": "0.3.6",
+        "CFBundleVersion": "47",
+        "SUFeedURL": declaredFeed,
+    ]
+    try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        .write(to: contents.appendingPathComponent("Info.plist"))
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [DevOnlyFeedProtocol.self]
+    let finding = await FeedDiscovery.examine(
+        bundleAt: bundle, session: URLSession(configuration: configuration))
+    #expect(finding.verdict == .declaredNeedsBinding(URL(string: declaredFeed)!))
 }

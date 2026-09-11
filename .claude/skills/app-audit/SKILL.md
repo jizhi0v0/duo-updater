@@ -167,7 +167,8 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 
 | Verdict | What it means | What to do |
 |---------|---------------|------------|
-| `declared` | Bundle names its own `SUFeedURL`; `SparkleAppcastSource` already resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
+| `declared` | Bundle names its own `SUFeedURL`, and the feed has a default (untagged) item or a `ChannelBinding` already exists for this id — **or the feed did not answer, and the channel was never checked** (see item 2 below); `SparkleAppcastSource` resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
+| `NEEDS BINDING` | Bundle names its own `SUFeedURL`, but **every** item in it carries `<sparkle:channel>` and no `ChannelBinding` exists. The address resolves; the channel filter then admits nothing for an install the feed no longer lists | **Do not stop.** No recipe either: write a `ChannelBinding` whose resolver names the tag(s) in `sparkleChannelNames` (the `BetterDisplayChannel` route) |
 | `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP**, unless you need a page/changelog link — the generic source carries neither |
 | `ADOPT` (sparkle) | Address found in code and proved against the bundle | Propose a `SparkleFeedCatalog` entry, not a recipe |
 | `review <blocker>` | The blocker names the reason | Continue the audit; the blocker tells you what to investigate |
@@ -188,7 +189,14 @@ one look identical from outside. Three of them, one avoidable read.
 2. **channel** — does the feed carry `<sparkle:channel>` tags, or does the vendor
    publish one feed per track? See Phase "channels" below. ⚠️ A feed where EVERY
    item is tagged has no default channel, and a stable install then matches zero
-   items (measured: OrbStack 7/7 tagged, ClaudeUsageMenuBar 20/20).
+   items (measured: OrbStack 7/7 tagged, ClaudeUsageMenuBar 20/20). With no
+   `ChannelBinding`, `feed-discover` reports that shape as `NEEDS BINDING`, not
+   `declared` — **but only when the feed answered**: an unreachable feed has no
+   items to check and still prints `declared`, so if the run was offline or the
+   host is flaky, `curl` the feed and look for an untagged `<item>` yourself.
+   Seeing your installed build in the feed does not clear it: CodeEdit
+   (2026-09-12) publishes one item per release, tagged `dev`, so the copy you
+   just downloaded matches and an install one version behind matches nothing.
 
 Everything else — version parsing, download URL, EdDSA verification, release
 history, OS floor — the generic source already does.
@@ -695,18 +703,25 @@ Every audit produces a document. This keeps documentation in sync with code.
 
 ### Relationship to existing tracking docs
 
-The repo has three **global-view** documents. Per-app audit docs are the
-**deep-dive per app**. They serve different purposes and must stay in sync:
+There are three **global-view** documents; per-app audit docs are the
+**deep-dive per app**. They serve different purposes and must stay in sync.
+
+⚠️ **Only one of the three is in the repository.** `.gitignore` excludes `/docs/*`
+(everything under `docs/` except `app-audits/` and the files it re-includes),
+because those notes record which apps are installed on one machine. So the two
+marked *local* below exist only on the machine that keeps them — a fresh clone,
+CI, or a subagent in another checkout will not find them. Update them if they
+are present where you are running; never `git add -f` them.
 
 | Document | Scope | Role |
 |----------|-------|------|
 | `docs/app-audits/<id>.md` | Single app, full depth | **Source of truth** for one app's integration |
-| `docs/app-onboarding-status.md` | All apps, one line each | Done / Skipped / TODO status board |
+| `docs/app-onboarding-status.md` (*local*) | All apps, one line each | Done / Skipped / TODO status board |
 | `CHANNEL_COVERAGE_TODO.md` | All apps, channel gaps | Which channels are missing and why |
-| `docs/top50-coverage-todo.md` | Top-50 apps, progress | Priority tracking |
+| `docs/top50-coverage-todo.md` (*local*) | Top-50 apps, progress | Priority tracking |
 
 **After completing an audit, also update the relevant global docs:**
-- If a new app is integrated → add it to `app-onboarding-status.md` § Done
+- If a new app is integrated → add it to `app-onboarding-status.md` § Done (if that local file exists)
 - If an app is investigated and skipped → add it to § Skipped (with reason)
 - If channel gaps are found → update `CHANNEL_COVERAGE_TODO.md`
 - If a previously-TODO app is now done → move it in the global doc

@@ -1330,24 +1330,14 @@ public actor EventStore {
     /// a request, which is most of the suite; that is why the guard lives here
     /// and not in ``DuoStateDirectory``, whose fallback several tests assert.
     public static func defaultFileURL() -> URL {
-        let base = isTestProcess && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil
+        let base = DuoStateDirectory.isTestProcess
+            && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil
             ? FileManager.default.temporaryDirectory
                 .appendingPathComponent("duo-events-tests", isDirectory: true)
             : DuoStateDirectory.base
         return base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("events.sqlite")
-    }
-
-    /// Whether this is a test host. Both runners are named because they differ:
-    /// SwiftPM runs the suite as `swiftpm-testing-helper` with no XCTest
-    /// environment at all (measured), while Xcode uses `xctest` and an
-    /// `.xctest` bundle.
-    static var isTestProcess: Bool {
-        let name = ProcessInfo.processInfo.processName
-        return name == "swiftpm-testing-helper" || name == "xctest"
-            || Bundle.main.bundleURL.pathExtension == "xctest"
-            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }
 

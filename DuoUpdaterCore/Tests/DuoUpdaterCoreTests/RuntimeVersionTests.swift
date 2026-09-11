@@ -432,6 +432,77 @@ private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
     #expect(b.version(.tauri) == nil, "the proven absence is remembered, not walked again")
 }
 
+// MARK: - Disk persistence for `.tauri` (`TauriProofStore`)
+//
+// These exercise `RuntimeVersion.read` end to end, through the production
+// `TauriProofStore.shared` it actually calls — not a store instance built for
+// the test, which is what `TauriProofStoreTests` covers instead. Each test
+// below uses a never-before-seen `VersionBundle`, so `RuntimeVersion.cache`
+// (the in-memory dictionary shared by every test in this process) cannot be
+// the thing answering; only the disk store or a fresh walk can be.
+
+@Test func aTauriAnswerComesFromDiskInsteadOfAFreshWalk() throws {
+    let b = try VersionBundle("DiskCached"); defer { b.cleanUp() }
+    try b.executable("DiskCached", containing: "registry/src/index/tauri-2.11.5/src/lib.rs")
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/DiskCached")
+    let identity = try #require(RuntimeVersion.executableIdentity(of: executable))
+
+    // Plant a disk answer that disagrees with what the binary actually
+    // contains. Returning it — rather than the real 2.11.5 — is the only way
+    // to tell "the disk store decided this" apart from "a fresh walk did",
+    // since a fresh walk would report the real version regardless.
+    TauriProofStore.shared.record("9.9.9", forBundleAt: b.bundle.path, identity: identity)
+    #expect(b.version(.tauri) == "9.9.9",
+            "a matching disk record must win over a fresh walk of the real binary")
+
+    // Change the executable's modification date: the identity the disk
+    // record was keyed on no longer matches, so the stale entry must not be
+    // read back, and the real, freshly-walked answer must win instead.
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date(timeIntervalSince1970: 1_700_000_555)],
+        ofItemAtPath: executable.path)
+    #expect(b.version(.tauri) == "2.11.5",
+            "a changed identity must not be answered from the now-stale disk record")
+}
+
+@Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and this turns on a read failing"))
+func anUnreadableBinaryLeavesNoDiskRecordBehind() throws {
+    let b = try VersionBundle("Locked"); defer { b.cleanUp() }
+    try b.executable("Locked", containing: "registry/src/index/tauri-2.11.5/src/lib.rs")
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/Locked")
+    let identity = try #require(RuntimeVersion.executableIdentity(of: executable),
+                                 "identity comes from stat, which chmod 000 does not block")
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: executable.path)
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: executable.path)
+    }
+
+    #expect(b.version(.tauri) == nil)
+    #expect(TauriProofStore.shared.lookup(forBundleAt: b.bundle.path, identity: identity) == nil,
+            "an unreadable binary proved nothing and must leave no disk record at all")
+}
+
+@Test func aNonTauriRuntimeIsNotPersistedToDisk() throws {
+    // Electron's re-signed shape is the closest thing to Tauri's cost here —
+    // it also walks a whole binary — and the one most likely to end up on
+    // disk by mistake if the `runtime == .tauri` guard were ever loosened.
+    let b = try VersionBundle("Kiro"); defer { b.cleanUp() }
+    try b.framework("Electron Framework.framework", plist: [
+        "CFBundleIdentifier": "dev.kiro.desktop.com.github.Electron.framework",
+        "CFBundleVersion": "1.0.411",
+    ])
+    let binary = b.bundle.appendingPathComponent(
+        "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework")
+    try Data("ua Chrome/136.0.0.0 Electron/39.6.0 Safari/537.36".utf8).write(to: binary)
+    #expect(b.version(.electron) == "39.6.0")
+
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/Kiro")
+    let identity = try #require(RuntimeVersion.executableIdentity(of: executable))
+    #expect(TauriProofStore.shared.lookup(forBundleAt: b.bundle.path, identity: identity) == nil,
+            "only .tauri is written to disk — Electron's nil is not a verdict, see RuntimeVersion.cache")
+}
+
 @Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and these turn on a read failing"))
 func aBinaryThatCannotBeReadThroughIsNotRememberedAsProofOfAbsence() throws {
     // The distinction `Probe` exists for. A nil from the Tauri reader is a verdict —

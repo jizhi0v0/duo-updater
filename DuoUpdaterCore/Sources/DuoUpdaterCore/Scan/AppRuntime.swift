@@ -337,6 +337,13 @@ public enum AppRuntimeDetector {
         // is also why a debug build takes 104s for that sweep and a release build
         // half a second.
         //
+        // "A second sweep" used to mean only a second sweep in the same
+        // process. Since `TauriProofStore`, the verdict this walk reaches is
+        // also written to disk, so the process reading it back does not have
+        // to be the one that paid for it: the menu-bar app's first scan after
+        // an update, and every `duo list` after that, share one walk instead
+        // of each starting cold.
+        //
         // The residual risk moved rather than vanished, and it moved to the safer
         // side: an app now reads as native when its binary keeps no `tauri-` crate
         // path — or when that binary could not be read at this moment, since the

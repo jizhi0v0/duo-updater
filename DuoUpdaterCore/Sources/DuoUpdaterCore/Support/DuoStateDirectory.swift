@@ -1,7 +1,8 @@
 import Foundation
 
 /// Where DuoUpdater keeps its own on-disk state — the traffic log, the release
-/// timeline, the changelog cache, formula release notes, and rollback backups.
+/// timeline, the changelog cache, formula release notes, the Tauri crate-proof
+/// cache, and rollback backups.
 ///
 /// This exists so a second DuoUpdater process can be pointed somewhere else.
 /// The nightly `duo verify` sweep runs on the same machine and as the same user
@@ -30,5 +31,27 @@ public enum DuoStateDirectory {
         }
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
+    }
+
+    /// Whether this process is a test host, for the stores that must never
+    /// write into the developer's own state even when `DUO_STATE_DIR` is unset.
+    ///
+    /// Moved here from `EventStore`, which used to be the only store that
+    /// needed this question. `TauriProofStore` needs the identical check now,
+    /// and leaving it where it was would have meant a second, private copy of
+    /// the same few lines — exactly the drift this repository's own rules warn
+    /// about. `EventStore.defaultFileURL()` still decides *whether* to redirect
+    /// itself (see the comment there for why that decision stays local rather
+    /// than moving into `base` above); only the "is this a test process"
+    /// question moved.
+    ///
+    /// Both runners are named because they differ: SwiftPM runs the suite as
+    /// `swiftpm-testing-helper` with no XCTest environment at all (measured),
+    /// while Xcode uses `xctest` and an `.xctest` bundle.
+    public static var isTestProcess: Bool {
+        let name = ProcessInfo.processInfo.processName
+        return name == "swiftpm-testing-helper" || name == "xctest"
+            || Bundle.main.bundleURL.pathExtension == "xctest"
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }

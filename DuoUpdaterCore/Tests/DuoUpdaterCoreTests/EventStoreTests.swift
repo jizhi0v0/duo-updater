@@ -757,7 +757,7 @@ struct EventStoreTests {
         unsetenv("DUO_STATE_DIR")
         defer { if let previous { setenv("DUO_STATE_DIR", previous, 1) } }
 
-        #expect(EventStore.isTestProcess, "this suite is running in one")
+        #expect(DuoStateDirectory.isTestProcess, "this suite is running in one")
         let path = EventStore.defaultFileURL().path
         #expect(!path.contains("Application Support"),
                 "the suite would write into the user's own store at \(path)")

@@ -45,6 +45,8 @@ struct DuoStateDirectoryTests {
             #expect(BackupStore.root.path == "/tmp/duo-state-test/DuoUpdater/Backups")
             #expect(GitHubConditionalCache.defaultFileURL().path
                 == "/tmp/duo-state-test/com.duoupdater.app/github-conditional-cache.json")
+            #expect(TauriProofStore.defaultFileURL().path
+                == "/tmp/duo-state-test/com.duoupdater.app/tauri-proofs.json")
             // Resolved in the initialiser, so it must be constructed inside the
             // override; reading it back is what needs the await.
             return ChangelogDiskCache()

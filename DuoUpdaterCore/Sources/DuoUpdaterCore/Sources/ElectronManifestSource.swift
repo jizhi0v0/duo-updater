@@ -70,7 +70,9 @@ public struct ElectronManifestSource: UpdateSource {
         // app would go quietly blind to new releases. That covers OUR cache; the
         // query above covers the CDN's. With a new query on every fetch there is
         // never anything here to revalidate, so each check is a full body — a few
-        // hundred bytes, the same cost the app's own updater pays.
+        // hundred bytes, the same cost the app's own updater pays. The session's
+        // memory cache still stores each one-off response under a key nothing asks
+        // for again; at that size against its 64 MB cap it is noise.
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
@@ -131,9 +133,10 @@ public struct ElectronManifestSource: UpdateSource {
         // Probing that sibling moved a `channel: latest` install across release
         // trains whenever the two happened to publish the same version (#204).
         //
-        // And the bare address, not `fetchURL`: artifacts resolve against the base
-        // without the token, as electron-updater's do, so a one-off query never
-        // rides into a download URL.
+        // And the bare address, not `fetchURL`: that is what electron-updater
+        // resolves artifacts against. A relative reference drops the base's query
+        // anyway (RFC 3986 §5.2.2), so this is the clear spelling of that, not the
+        // only thing keeping the token out of a download URL.
         let resolvedURL = manifestURL
 
         // MARKETING ONLY, and `version:` is the one string the manifest carries.

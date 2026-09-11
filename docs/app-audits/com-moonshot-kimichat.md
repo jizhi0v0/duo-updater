@@ -93,9 +93,14 @@ URL 仍对裸地址解析，token 不会进下载地址。`FeedDiscovery` 的 ma
 bundle 的判定从 `review electronVersionMismatch` 变成 `ADOPT
 https://kimi-img.moonshot.cn/app/upgrade/latest-mac.yml`。
 
+**只修了"bundle 自带 `app-update.yml`"这一条路。** `VendorProbeRegistry` 里另有 13 条 recipe
+直接读 `*-mac.yml`（Signal、Typeless、Canva 等），仍然是裸地址。复审时逐条对比过裸地址和带
+`noCache` 的回答，2026-09-11 版本全部一致（转引自复审 agent 的扫描，未复测）——今天没有分歧，
+但 Kimi 这种形状对它们只差一个 CDN 配置，而且没有东西会发现。
+
 ### 不是版本源的两样东西
 
-- **官网下载端点** `appsupport.moonshot.cn/api/app/pkg/latest/macos/download`：302 到
+- **官网下载端点** `appsupport.moonshot.cn/api/app/pkg/latest/macos/download`：GET 时 302 到
   `kimi-img.moonshot.cn/app/download/mac/kimi_3.2.7.dmg`，响应不带 `Age`（动态）。
   Homebrew 的 livecheck 读它。我们不用：它给的是安装器 DMG（见上），而 manifest 已经给出
   版本和带 sha512 的 zip。

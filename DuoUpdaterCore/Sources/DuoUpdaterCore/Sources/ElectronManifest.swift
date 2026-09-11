@@ -53,8 +53,8 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     /// `noCache` query on the end. Fetch with this; resolve artifacts against
     /// `manifestURL`.
     ///
-    /// The query is what gets a request past a CDN's edge copy, and no request
-    /// header substitutes for it. electron-updater's `GenericProvider` builds the
+    /// The query is what gets a request past a CDN's edge copy; none of the three
+    /// request headers tried below substituted for it. electron-updater's `GenericProvider` builds the
     /// manifest address with `newUrlFromBase(…, isAddNoCacheQuery)`, which appends
     /// `noCache=<Date.now() in base 32>`, and `isAddNoCacheQuery` is true unless the
     /// app sends an `Authorization` / `PRIVATE-TOKEN` header (electron-builder
@@ -72,8 +72,11 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     /// nothing to offer for as long as the edge copy lived.
     ///
     /// An address that already carries a query is returned untouched rather than
-    /// having that query overwritten; electron-updater likewise adds no `noCache`
-    /// when the configured address states a query of its own.
+    /// having that query overwritten. That is NOT parity with electron-updater for
+    /// such a config: it requests `<url>/latest-mac.yml?<the config's query>`, while
+    /// `manifestURL`'s string concatenation puts the channel file inside the query
+    /// (`…/feed?token=abc/latest-mac.yml`). A gap in `manifestURL` that predates
+    /// this function and is left as it was.
     func manifestRequestURL(noCache token: String = Self.noCacheToken()) -> URL? {
         guard let manifest = manifestURL else { return nil }
         guard manifest.query == nil,

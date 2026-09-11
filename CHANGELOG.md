@@ -23,7 +23,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.
 
-**Kimi is now supported: update checks and release notes.**
+**Kimi's release notes now show up in Duo Updater.**
 
 Under the hood: the Homebrew list in the menu fills in faster, and `duo` commands start faster.
 

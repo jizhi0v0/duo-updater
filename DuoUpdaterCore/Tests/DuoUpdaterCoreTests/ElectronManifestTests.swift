@@ -125,7 +125,9 @@ import Foundation
     // What artifacts resolve against stays bare.
     #expect(cfg.manifestURL == URL(string: "https://example.invalid/app/upgrade/latest-mac.yml"))
 
-    // A query already in the address is left alone, not overwritten.
+    // A query already in the address is left alone, not overwritten. (Not parity
+    // with electron-updater for this config — `manifestURL` concatenates the
+    // channel file into the query; see `manifestRequestURL`.)
     let stated = ElectronUpdateConfig(
         provider: "generic", url: "https://example.invalid/feed?token=abc",
         owner: nil, repo: nil, channel: "latest")
@@ -316,7 +318,7 @@ struct ElectronManifestSourceTests {
             .latestVersion(for: electronApp(bundleID: bundleID, domain: domain)))
         #expect(remote.shortVersion == "3.2.7")
         #expect(remote.expectedSHA512 == "FRESHSHA==")
-        // The artifact resolves against the bare address: no token in the download.
+        // No token in the download URL.
         #expect(remote.downloadURL == URL(string: "\(domain)/Kimi-3.2.7-arm64-mac.zip"))
         #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
         #expect(FixtureProtocol.requestedQueries.count == 1)

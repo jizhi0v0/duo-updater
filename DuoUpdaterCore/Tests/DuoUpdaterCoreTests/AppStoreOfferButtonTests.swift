@@ -187,6 +187,64 @@ struct AppStoreOfferButtonTests {
         #expect(AppStoreAXInstaller.rowIndex(matching: ["Nothing Here"], in: rows) == nil)
     }
 
+    /// The other half of that rescue: a title that is the *prefix* of its own
+    /// decorated row, where the rest of the row is a tagline rather than a longer
+    /// name. Same cn listing as the test above; this is the case loose must keep.
+    @Test func ourTitleWithATaglineAfterItStillMatches() {
+        let rows = [["QQ音乐 - #听我想听#", "Today"]]
+        let hit = AppStoreAXInstaller.rowIndex(matching: ["QQ音乐"], in: rows)
+        #expect(hit?.index == 0)
+        #expect(hit?.exact == false)
+    }
+
+    /// #331: with our own row absent — not surfaced yet, or already installing —
+    /// the loose pass had nothing checking that the row it landed on was *ours*.
+    /// "QQ" is a plain substring of "QQ音乐 - #听我想听#" (595615424), a different
+    /// cn-only listing from QQ (451108668), so we pressed QQ Music's Update button
+    /// and then watched QQ's bundle for six minutes.
+    @Test func aLooseMatchNeverSelectsALongerNameThatStartsWithOurs() {
+        let rows = [["QQ音乐 - #听我想听#", "Today"]]
+        #expect(AppStoreAXInstaller.rowIndex(matching: ["QQ"], in: rows) == nil)
+        // Two of them is no better, and neither is the bare concatenation.
+        let two = [["QQ音乐 - #听我想听#", "Today"], ["QQ浏览器", "Today"]]
+        #expect(AppStoreAXInstaller.rowIndex(matching: ["QQ"], in: two) == nil)
+        // The decorated CJK name is the control: a *whole* run bounded by a
+        // separator still matches, which is what keeps this from dropping loose.
+        #expect(AppStoreAXInstaller.rowIndex(matching: ["钉钉"], in: [["钉钉 - AI时代的工作方式", "Today"]])?.index == 0)
+    }
+
+    /// A loose match that lands on two rows cannot say which is ours, so it must
+    /// refuse rather than take the first — the ambiguous half of #331. This is the
+    /// both-rows-present case; the single-row residual is documented on
+    /// `carriesName`.
+    @Test func anAmbiguousLooseMatchIsRefusedRatherThanGuessed() {
+        let rows = [["WeChat — 微信", "Today"], ["WeChat Work — 企业微信", "Today"]]
+        #expect(AppStoreAXInstaller.rowIndex(matching: ["WeChat"], in: rows) == nil)
+    }
+
+    /// A needle whose own edge is punctuation gets no boundary on that side, so a
+    /// store title ending in "#" can still match where the tagline continues
+    /// straight into a letter. Removing that conditional turns this red — the
+    /// earlier fixture (a space after the "#") could not tell.
+    @Test func aPunctuationEdgedTitleCanStillMatchLoose() {
+        #expect(AppStoreAXInstaller.carriesName(
+            "QQ音乐 - #听我想听#", in: "QQ音乐 - #听我想听#精选"))
+    }
+
+    /// The needle is a literal, not a pattern: parentheses (and any other regex
+    /// metacharacter) must be escaped on the way into the matcher, or "App Beta"
+    /// would match the group "(Beta)" while the literal row would not.
+    @Test func aNeedleWithRegexMetacharactersIsMatchedLiterally() {
+        #expect(AppStoreAXInstaller.carriesName("App (Beta)", in: "App (Beta) — Fixture"))
+        #expect(!AppStoreAXInstaller.carriesName("App (Beta)", in: "App Beta — Fixture"))
+    }
+
+    /// The old loose pass compared canonically; the regex path must not silently
+    /// stop matching a row whose text is decomposed where the needle is not.
+    @Test func aDecomposedRowStillMatchesAComposedName() {
+        #expect(AppStoreAXInstaller.carriesName("Café", in: "Cafe\u{301} — Fixture"))
+    }
+
     /// No store title (the lookup didn't supply one) leaves the bundle name as the
     /// only thing to match on — the behaviour every App Store update had before.
     /// A blank one counts as none: matching on "" makes `heroOwns` false for every

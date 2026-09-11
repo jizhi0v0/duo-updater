@@ -1487,11 +1487,17 @@ public actor AppStoreAXInstaller {
     /// between them is here, where it can be asserted.
     ///
     /// Every exact match is tried before any loose one, across all needles. That order
-    /// is the safety property: a contains-match on this list can land on a different
+    /// is the safety property: a loose match on this list can land on a different
     /// app (the cn storefront carries both "QQ" and "QQ音乐 - #听我想听#", both cn-only,
     /// so both reach this path and can share a list), and a row that is really ours
     /// must never lose to someone else's substring just because ours was the second
-    /// needle. Loose stays as the last resort for labels that carry decoration.
+    /// needle.
+    ///
+    /// The loose pass is narrower than its name suggests: the name has to be a
+    /// whole run rather than a letter-adjacent prefix of a longer one, and it has
+    /// to select exactly one row — an ambiguous needle is skipped, not guessed
+    /// at, and the next needle is tried. See `carriesName` for what that closes,
+    /// and for the longer separated name it cannot.
     static func rowIndex(matching needles: [String], in rows: [[String]])
     -> (index: Int, needle: String, exact: Bool)? {
         for needle in needles {
@@ -1500,13 +1506,52 @@ public actor AppStoreAXInstaller {
             }
         }
         for needle in needles {
-            if let i = rows.firstIndex(where: { row in
-                row.contains { $0.localizedCaseInsensitiveContains(needle) }
-            }) {
-                return (i, needle, false)
+            let matches = rows.indices.filter { i in
+                rows[i].contains { Self.carriesName(needle, in: $0) }
             }
+            if matches.count == 1 { return (matches[0], needle, false) }
         }
         return nil
+    }
+
+    /// Whether `text` carries `needle` as a whole run — not continued by a letter
+    /// or digit on either side — rather than as the prefix of a concatenated
+    /// longer name.
+    ///
+    /// `localizedCaseInsensitiveContains` accepted any substring, and on this list
+    /// that is another app: updating QQ while its own row is absent — not surfaced
+    /// yet, or already installing — selected "QQ音乐 - #听我想听#" (595615424), a
+    /// different cn-only listing, and we pressed *its* Update button (#331).
+    ///
+    /// The boundary is measured, not assumed. Han characters are letters to this
+    /// class, so the transition inside "QQ音乐" is not a boundary, while the spaces
+    /// around "WeChat" in "WeChat — 微信" and around "钉钉" in
+    /// "钉钉 - AI时代的工作方式" are. A needle whose own edge is punctuation gets no
+    /// constraint on that side, so a store title ending in "#" still matches.
+    ///
+    /// ⚠️ This is not identity, and it does not close every way to press another
+    /// app's row: a longer name joined by a **separator** — "WeChat Work" against
+    /// "WeChat" — still matches, because nothing in the text distinguishes it from
+    /// a decorated title, and the row's AX data carries no adamID (measured; see
+    /// #331). `rowIndex`'s uniqueness rule closes the case where both rows are
+    /// present. The residual miss is our-row-absent with a single space-joined
+    /// longer name on the list; closing that needs an identity signal this list
+    /// does not expose.
+    static func carriesName(_ needle: String, in text: String) -> Bool {
+        guard !needle.isEmpty else { return false }
+        let wordChar = "[\\p{L}\\p{N}_]"
+        // Precomposed on both sides: the old `localizedCaseInsensitiveContains`
+        // compared canonically, and the needle can be decomposed where the row is
+        // not (a bundle's InfoPlist.strings need not be normalized). Measured:
+        // without this, "Café" stops matching a row written "Cafe\u{301} — …".
+        let name = needle.precomposedStringWithCanonicalMapping
+        let left = name.first.map { $0.isLetter || $0.isNumber } == true ? "(?<!\(wordChar))" : ""
+        let right = name.last.map { $0.isLetter || $0.isNumber } == true ? "(?!\(wordChar))" : ""
+        guard let re = try? NSRegularExpression(
+            pattern: left + NSRegularExpression.escapedPattern(for: name) + right,
+            options: [.caseInsensitive]) else { return false }
+        let subject = text.precomposedStringWithCanonicalMapping
+        return re.firstMatch(in: subject, range: NSRange(subject.startIndex..., in: subject)) != nil
     }
 
     /// How one of App Store's `AppStore.shelfItem.*` cells relates to the app we're

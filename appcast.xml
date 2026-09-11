@@ -17,6 +17,63 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.90</title>
+            <pubDate>Fri, 11 Sep 2026 10:36:02 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.90</link>
+            <sparkle:version>99</sparkle:version>
+            <sparkle:shortVersionString>0.3.90</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Microsoft Edge Beta could offer you a stable Edge build.** While Microsoft's feed briefly carried no Mac release on the beta channel, the rule read past the end of that channel and took the next one's — so the row named a stable version, and updating would have put it over your beta.
+
+**The refresh button now asks TestFlight for its latest builds.** TestFlight's own data only refreshes while your Mac is idle, so a beta could show no update for hours after a new build was out; refreshing now checks with TestFlight in the background, without bringing it to the front.
+
+**TestFlight betas of iPhone and iPad apps now show their updates.** A beta built for iPhone or iPad and running on your Mac was always shown as managed by TestFlight, never with the newer build TestFlight was offering.
+
+**The TestFlight button now takes you to that beta's page in TestFlight.** It used to open TestFlight on its list, leaving you to find the app yourself.
+
+**A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes used to throw away what the last refresh had found. With Full Disk Access it now reads TestFlight's data itself, so TestFlight rows are right from launch.
+
+**A TestFlight row shows the build you have as well as the one on offer.** A beta that keeps its version number between builds showed only the new build's number.
+
+**A TestFlight beta no longer shows as up to date when TestFlight can't offer it to you.** Signed out of TestFlight, signed in with a different Apple Account, or no longer testing it, the row now says it can't tell instead of calling the build you have the latest, and refreshing no longer opens TestFlight just to ask you to sign in.
+
+**Without Full Disk Access, Duo Updater stops setting off macOS's warnings about reading other apps' data.** Reading TestFlight's list of builds needs Full Disk Access, and without it every attempt was refused with a system notice. Duo Updater now leaves that list alone and shows TestFlight rows with a question mark; the welcome window and Settings → Diagnostics show whether it's granted, with a button to grant it.
+
+**If a TestFlight beta or CotEditor on your Mac needs Full Disk Access, Duo Updater now tells you.** Opening the menu explains what it's for, what you miss without it, and where to grant it later — once, and once more only if another such app turns up. The question mark on a TestFlight row now says why it's there, with a button to grant access when that's the reason. A stable CotEditor, whose prerelease setting can't be read without it, gets a small lock beside its name that does the same.
+
+**A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
+
+**A TestFlight row catches up when TestFlight updates the beta by itself.** It kept offering the update TestFlight had just installed, or kept calling the beta up to date after TestFlight had moved it past what it last reported, until the next full check.
+
+**Relaunch goes away once an updated app has quit.** An app that left a helper running after it quit kept asking to be relaunched long after its update had taken effect.
+
+**An unanswered macOS privacy prompt no longer stalls Duo Updater.** While a prompt asking whether Duo Updater may read another app's data sat unanswered, checking for updates could stop there until you answered it; now it carries on without that app's setting.
+
+**`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.
+
+**`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.
+
+**`duo` also stops calling a TestFlight refresh finished while it is still running.** The versions printed immediately afterwards could be the ones from before it.
+
+**super.engineering is now supported: update checks, release notes and one-click install.** A new nightly shows up in the list with what changed in it, and Update installs it for you.
+
+**Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.
+
+**Ollama's newest release notes show up again.** A release written as paragraphs rather than a bullet list was left out, so the window started one release behind.
+
+**Under the hood.** When a TestFlight beta reuses a build number under a new version, the newer version is now the one offered.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater-0.3.90-macos.zip" length="12944909" type="application/octet-stream" sparkle:edSignature="lJC76ywqyThLw07k+FJuqGiG+3pNnS2y0Hc+12pZ2P+vypG7C1Cj6vMw+Zx3ff7xOQS++H80qSckT0FPUo3ECg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-98.delta" sparkle:deltaFrom="98" length="2179918" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rkO5QDCOjV+UBgqCm8KjptRk+MeA2jwovPVuDrjAKQjaY+aqo4pSqz1/rTcAC/MZ/BDM4/rSu0Bn3WWjWxzxBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-97.delta" sparkle:deltaFrom="97" length="2178822" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xXqDWtzzePVFHluUbIG4rEdNSZiNlr/Jg8HhbIOIjfuXTFt4gNwt0QrfVLfu5aWRqDNZ2JXMSVIdD3enBm6DBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-96.delta" sparkle:deltaFrom="96" length="1174142" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="yTC/UQJ+pyyVaFd6Hv+mw0dRk+cjHt+5OX4hYh52lF9YEhI/syotTBxl5vl9/7cZLXCxa4oUR253MXwKj8JsAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-95.delta" sparkle:deltaFrom="95" length="1220154" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="dMwbLE1luXwXQ+UtGz1Mv3CD5hw26Jx7OkfJmfubjdFjW847dDxePENnlqkPbg5l72E82FYHzbMHWAdOv7KnCg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-94.delta" sparkle:deltaFrom="94" length="1215706" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tlQ7k6z1rjkc0AAT3ndCgrFkDaOsVEQx5VzWGsBqPdB4+lbMPad6a68K5BirhatVDrQBttVHhoNas8IQyyt2CA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.89</title>
             <pubDate>Tue, 08 Sep 2026 22:45:56 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.89</link>
@@ -24,14 +81,6 @@
             <sparkle:shortVersionString>0.3.89</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Telegram Desktop gets update checks again.** Telegram changed the name of the file it publishes, and the row could no longer read a version out of it — so it showed a check failure instead of the update waiting behind it.
-
-**A TestFlight build of an iPhone or iPad app is recognized as one.** Duo Updater read it as an App Store purchase instead, so the row named the wrong keeper while the store was asked about a listing that does not exist — on every check, for as long as the app stayed installed.
-
-**A TestFlight beta is marked with TestFlight's own icon.** Rows the App Store looks after already carried the store's icon; the ones TestFlight looks after spelled the name out instead, so the same kind of row was marked two different ways.
-
-**The Network window's header stays put when you switch tabs.** Its two tabs sat their headlines at slightly different heights, so moving between them made the window look like it twitched.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater-0.3.89-macos.zip" length="12775790" type="application/octet-stream" sparkle:edSignature="5K6m7uOpYiO70Svt5UTJsiy8HHQLmZqqTZDzdBiT5BdQf06CgWYLAjahjAX75qRTDm0D8OovMHbg2wDWyV8OCg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-97.delta" sparkle:deltaFrom="97" length="506078" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="uBl6lBzrvhuoneo6V9rYWfdNxpwwHKSHg5/SyvXnEpo8hDIjEDNnl6fzoAcHvTHvmvgdNYZQdK6I5ETLGOyZAA=="/>
@@ -90,23 +139,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.86/DuoUpdater95-92.delta" sparkle:deltaFrom="92" length="2032022" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Ea0rk3suOUeWXysNTS+4GheY0g8ap053uxNDdMrgh6sUzTizceJXjaavc69Bf84Ktc0XcbJVZ0zjMb/FPzjqAQ=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.86/DuoUpdater95-91.delta" sparkle:deltaFrom="91" length="2289766" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="sWnekW89XgQTWxnus7oefeV13F5WiLBRWHb8H99X7JrOgtDwwcXLobUedAbiPcbnhBDXiYLKLmNBXPGk0KKmCA=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.86/DuoUpdater95-90.delta" sparkle:deltaFrom="90" length="2296118" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="SnJy5+g4tmyBkozmiwqJVzmydAoDofDO+3ugvHLCX+W4fI5MUDnS3SOeTvFVqCi2K+5Ygp5nmbVPnrkHIJ1dCg=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.85</title>
-            <pubDate>Sun, 06 Sep 2026 00:51:20 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.85</link>
-            <sparkle:version>94</sparkle:version>
-            <sparkle:shortVersionString>0.3.85</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater-0.3.85-macos.zip" length="12738749" type="application/octet-stream" sparkle:edSignature="WsIZdGxYopKhNA5JdAJRZAfEIuTW328+ArH7eMk8ggnqSd4fS8QR0WEpeLrg8NUupjSlKSfNoBY1IRgCaGu7Ag=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-93.delta" sparkle:deltaFrom="93" length="1970486" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="TbH2+bN/Tm3whrwino3Plj7gBFu8hi2n448DMDoXfrKGTzRg9EUWPTtMQirqOb194KmkTO5ykFax6kIGoJnGCg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-92.delta" sparkle:deltaFrom="92" length="2021674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="73nrLPKg3EHoCWWdh7qOYL8Ohe+ArZyP6OQFT1XNj7CJfIhK63ggEXiloB2H2P61qGo/ZCxEhiSICVpAfI09AQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-91.delta" sparkle:deltaFrom="91" length="2288082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Jj+qQfPBKaS4PsDEVLC+SJ3PKrhp2UrXONZ/5qxdpjjE+IQzijq4idKAZXnJWETN8nkpX5vmhgnzIqF6cwapDg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-90.delta" sparkle:deltaFrom="90" length="2293886" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="yxH1BR6/gfylu6WXnsJx+D4+hrMefyCTz5VpXg7nXXHKIUw97uhqm9FGLG7X7gApntN2PE7jrOlR4e0xRv7CDg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.85/DuoUpdater94-89.delta" sparkle:deltaFrom="89" length="2348558" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zqcrJTcCcpd0AHfocqqhc7XjNg3E9oEcbrlQWSTQ3f51PXtpXxKx/hv2RNs41WJ2dSb1Rim2Hy+vjSql9obYBw=="/>
             </sparkle:deltas>
         </item>
     </channel>

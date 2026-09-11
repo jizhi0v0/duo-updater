@@ -2140,16 +2140,6 @@ final class AppListModel {
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
-        // The refresh button, and only the button, also asks TestFlight to sync —
-        // in a hidden instance of our own; see `TestFlightRefresh`. Started first
-        // and awaited only after the network check, because its wait is long and
-        // unrelated to everything else here: a store that never moves holds it for
-        // the whole `TestFlightRefresh.defaultDeadline`. Awaited up front, that is
-        // how long the button would spin before the scan even began.
-        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>? =
-            intent.refreshesTestFlight && mayReadTestFlight
-            ? Task.detached(priority: .utility) { await TestFlightRefresh().run() }
-            : nil
         // Once per session, before the scan: recover any app left at
         // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
         // power loss / force-quit on the non-admin install path). Restoring it here
@@ -2214,6 +2204,30 @@ final class AppListModel {
         let tfLoader: Task<TestFlightInventory, Never>? =
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
+
+        // The refresh button, and only the button, also asks TestFlight to sync —
+        // in a hidden instance of our own; see `TestFlightRefresh`. Started here,
+        // before the scan, and awaited only after the network check, because its
+        // wait is long and unrelated to everything else here: a store that never
+        // moves holds it for the whole `TestFlightRefresh.defaultDeadline`. Awaited
+        // up front, that is how long the button would spin before the scan began.
+        //
+        // But it does not start TestFlight until the read above has returned.
+        // Starting TestFlight rebuilds that store, and for a few seconds it names no
+        // beta as being tested — measured 2026-09-11 by sampling the tester query
+        // through a refresh: all of them, then none from about +1.2s, then all again
+        // by about +6.9s. This round's read used to race that window, and when it
+        // lost, every beta read "not testing" and showed "can't tell" until the
+        // re-check after the sync, some fourteen seconds later. Bounded like the
+        // round's own wait on that read, so a read that never returns cannot hold
+        // the sync, and with it the round, hostage.
+        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>? =
+            intent.refreshesTestFlight && mayReadTestFlight
+            ? Task.detached(priority: .utility) { [tfLoader] in
+                if let tfLoader { _ = await Self.firstResult(of: tfLoader, within: .seconds(2)) }
+                return await TestFlightRefresh().run()
+            }
+            : nil
 
         // First scan with no TestFlight data → the list appears instantly, with no
         // wait on the prompt.

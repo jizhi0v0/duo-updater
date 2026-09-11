@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.91
+
+**„Erneut prüfen“ liefert bei einer TestFlight-Beta jetzt das echte Ergebnis.** Bisher wurde die Zeile dadurch bis zum nächsten Aktualisieren zu einem Fragezeichen.
+
+**TestFlight-Betas behalten ihr Ergebnis, während die Schaltfläche zum Aktualisieren bei TestFlight nachfragt.** Bisher konnten sie für ein paar Sekunden alle zu Fragezeichen werden.
+
 ## 0.3.90
 
 **super.engineering wird jetzt unterstützt: Update-Prüfungen, Versionshinweise und Ein-Klick-Installation.** Ein neuer Nightly-Build erscheint samt dem, was sich darin geändert hat, und „Aktualisieren“ installiert ihn für dich.

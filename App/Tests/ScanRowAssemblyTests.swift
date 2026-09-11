@@ -356,3 +356,171 @@ extension ScanRowAssemblyTests {
         #expect(plan.carried.isEmpty)
     }
 }
+
+// MARK: - recheck: what a per-row recheck answers a TestFlight row from
+
+@MainActor
+extension ScanRowAssemblyTests {
+    /// A store that opened, offering 1.2 (345) for the beta — `tfOffer`'s build.
+    private var openStore: TestFlightInventory {
+        TestFlightInventory(macRows: [(bundleID: "com.example.beta", shortVersion: "1.2", build: "345")])
+    }
+
+    /// Records what `recheck` asked for, and answers each app from the store it
+    /// was handed: a build there is an offer, none is "no cached build". That is
+    /// the one respect in which `UpdateChecker`'s TestFlight branch matters here.
+    private final class Probe {
+        var grantAsked = 0
+        var reads = 0
+        var checked: [String] = []
+        var checkedApps: [InstalledApp] = []
+        func grant(_ granted: Bool) -> Bool {
+            grantAsked += 1
+            return granted
+        }
+        func check(_ apps: [InstalledApp], _ store: TestFlightInventory) -> [UpdateResult] {
+            checked += apps.map(\.id)
+            checkedApps += apps
+            return apps.map { app in
+                guard let build = store.latest(forBundleID: app.bundleID)?.latestBuild else {
+                    return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+                }
+                return UpdateResult(app: app, remote: nil, status: .updateAvailable(latest: build))
+            }
+        }
+    }
+
+    private var offered: UpdateResult {
+        UpdateResult(app: tfBeta(build: "344"), remote: tfOffer, status: .updateAvailable(latest: "1.2"))
+    }
+
+    /// A wrapped iPhone/iPad beta that only the store recognizes (#456): there is
+    /// no receipt to read, so the scan taken without the store does not call it
+    /// one, while its row — from the last round that read the store — does.
+    /// Mutation: skip the retag (`? scanned : scanned`) — `check` is handed a copy
+    /// that is not a TestFlight app, which a real checker answers from the App
+    /// Store instead.
+    @Test func aWrappedBetaIsRetaggedFromTheStoreItRead() async {
+        let probe = Probe()
+        func wrapped(testFlight: Bool) -> InstalledApp {
+            InstalledApp(
+                name: "Wrapped", bundleID: "com.example.wrapped",
+                shortVersion: "2.0", buildVersion: "7",
+                path: URL(fileURLWithPath: "/Applications/ZZFixture-Wrapped.app"),
+                isMASApp: !testFlight, isiOSAppOnMac: true, isTestFlightApp: testFlight,
+                sparkleFeedURL: nil)
+        }
+        let store = TestFlightInventory(
+            macRows: [], installedIOSRows: [(bundleID: "com.example.wrapped", shortVersion: "2.0", build: "7")])
+        _ = await ScanRowAssembly.recheck(
+            [UpdateResult(app: wrapped(testFlight: true), remote: nil, status: .upToDate)],
+            scanned: [wrapped(testFlight: false)], mayRead: probe.grant(true),
+            read: { store }, proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.checkedApps.map(\.isTestFlightApp) == [true])
+    }
+
+    /// Check Again on a beta answers it from the store it read. Mutations: skip
+    /// the read — what the recheck did until 2026-09-11 — or hand `check` the
+    /// empty store; either way the beta is "no cached build".
+    @Test func checkAgainAnswersABetaFromTheStore() async {
+        let probe = Probe()
+        let (rows, kept) = await ScanRowAssembly.recheck(
+            [offered], scanned: [tfBeta(build: "344")], mayRead: probe.grant(true),
+            read: { probe.reads += 1; return self.openStore },
+            proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.reads == 1)
+        #expect(rows.map(\.status) == [.updateAvailable(latest: "345")])
+        #expect(kept.isEmpty)
+    }
+
+    /// Granted, but the store did not open — no answer in time, or one that never
+    /// got in: the beta is kept, not answered from nothing. Mutations: keep only
+    /// when the read returned nothing (`opened == nil`); check every scanned app
+    /// instead of `plan.check`; drop `+ plan.carried` — each fails a line below.
+    @Test func aRecheckWhoseReadFailedKeepsTheBeta() async {
+        for failed in [nil, TestFlightInventory(macRows: [], accessible: false)] {
+            let probe = Probe()
+            let (rows, kept) = await ScanRowAssembly.recheck(
+                [offered], scanned: [tfBeta(build: "344")], mayRead: probe.grant(true),
+                read: { failed }, proofs: noProofs, check: { probe.check($0, $1) })
+            #expect(probe.checked.isEmpty)
+            #expect(rows.map(\.status) == [.updateAvailable(latest: "1.2")])
+            #expect(kept.map(\.id) == [offered.id])
+        }
+    }
+
+    /// TestFlight installed the offered build since the last check, and the read
+    /// failed: the kept row settles against the copy on disk instead of still
+    /// offering it. Mutation: `onScreen: rows` — the row as it was, not re-derived
+    /// — and it offers 1.2 (345) beside a copy that is 1.2 (345).
+    @Test func aKeptBetaSettlesAgainstTheCopyOnDisk() async {
+        let probe = Probe()
+        let (rows, _) = await ScanRowAssembly.recheck(
+            [offered], scanned: [tfBeta(build: "345")], mayRead: probe.grant(true),
+            read: { nil }, proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(rows.map(\.status) == [.upToDate])
+    }
+
+    /// An install's recheck never has a beta, and neither probes the grant nor
+    /// reads the store. Mutations: ask `mayRead` before the TestFlight-row test;
+    /// drop that test — each fails a line below.
+    @Test func aRecheckWithoutABetaAsksNothing() async {
+        let probe = Probe()
+        let plain = planApp("Plain", testFlight: false)
+        _ = await ScanRowAssembly.recheck(
+            [UpdateResult(app: plain, remote: nil, status: .upToDate)], scanned: [plain],
+            mayRead: probe.grant(true),
+            read: { probe.reads += 1; return self.openStore },
+            proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.grantAsked == 0)
+        #expect(probe.reads == 0)
+        #expect(probe.checked == [plain.id])
+    }
+
+    /// Without the grant the store is not read and the beta not kept: it is
+    /// checked, and says it cannot tell, as in a round without the grant.
+    /// Mutations: drop `mayRead` — the read runs where it cannot succeed
+    /// (`TCCPreflight.admitsOtherAppsData`); keep the beta anyway — a kept verdict
+    /// nothing will ever refresh.
+    @Test func withoutTheGrantABetaIsCheckedNotKept() async {
+        let probe = Probe()
+        let (rows, kept) = await ScanRowAssembly.recheck(
+            [offered], scanned: [tfBeta(build: "344")], mayRead: probe.grant(false),
+            read: { probe.reads += 1; return self.openStore },
+            proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.reads == 0)
+        #expect(rows.map(\.status) == [.testFlightManaged])
+        #expect(kept.isEmpty)
+    }
+
+    /// The row was not a beta at the last check; the copy on disk now is one,
+    /// because TestFlight replaced it. The store is still read. Mutation: decide
+    /// on the rows' old tags alone — the new beta is answered from an empty store,
+    /// the bug this path fixes, reached by another door.
+    @Test func aCopyThatBecameABetaReadsTheStore() async {
+        let probe = Probe()
+        let before = planApp("Beta", testFlight: false)
+        let (rows, _) = await ScanRowAssembly.recheck(
+            [UpdateResult(app: before, remote: nil, status: .upToDate)],
+            scanned: [tfBeta(build: "344")], mayRead: probe.grant(true),
+            read: { probe.reads += 1; return self.openStore },
+            proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.reads == 1)
+        #expect(rows.map(\.status) == [.updateAvailable(latest: "345")])
+    }
+
+    /// The same new beta when the read fails: its row carries another source's
+    /// verdict, which a kept row would pass off as the beta's. It is checked
+    /// instead, and says it cannot tell. Mutation: drop the `wereTestFlight`
+    /// filter — the row is kept, still "up to date" on the old source's word.
+    @Test func aCopyThatBecameABetaIsNotKeptOnAFailedRead() async {
+        let probe = Probe()
+        let before = planApp("Beta", testFlight: false)
+        let (rows, kept) = await ScanRowAssembly.recheck(
+            [UpdateResult(app: before, remote: nil, status: .upToDate)],
+            scanned: [tfBeta(build: "344")], mayRead: probe.grant(true),
+            read: { nil }, proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(kept.isEmpty)
+        #expect(rows.map(\.status) == [.testFlightManaged])
+    }
+}

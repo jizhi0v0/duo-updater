@@ -152,15 +152,26 @@ public enum FeedDiscovery {
     }
 
     public enum Verdict: Sendable, Equatable {
-        /// The bundle names its own feed, and that feed either has an untagged
-        /// item or this app already has a `ChannelBinding`. Nothing to propose —
-        /// this app is already resolved by `SparkleAppcastSource` today.
-        ///
-        /// ⚠️ The channel half is only checked when the feed answered. A feed
-        /// that did not also lands here: "no untagged item" is vacuously true of
-        /// zero items, and reading it as starvation would flag every declared app
-        /// on an offline run.
+        /// The bundle names its own feed, the feed answered, and either this app
+        /// already has a `ChannelBinding` or the feed has at least one untagged
+        /// item. Nothing to propose — this app is already resolved by
+        /// `SparkleAppcastSource` today.
         case declared(URL)
+        /// The bundle names its own feed, but the feed yielded no appcast item —
+        /// the fetch failed, answered non-2xx, or parsed to nothing — so nothing
+        /// about it was checked. Kept apart from `.declared` because the two used
+        /// to print identically, and an offline run then read as "covered" for an
+        /// app whose feed nobody had read. It may be transient or a dead feed
+        /// (which production cannot resolve either); this verdict cannot tell
+        /// them apart.
+        ///
+        /// Reported even when a `ChannelBinding` exists. A tag-only binding
+        /// (CodeEdit's names `dev` and nothing else) still has production read
+        /// exactly this address, so a binding cannot vouch for a feed nobody
+        /// read. The cost is a false alarm for a feed-swap binding (Fork), whose
+        /// production feed is another address — and `hasResolver` cannot tell the
+        /// two kinds apart without running the resolver.
+        case declaredUnreadable(URL)
         /// The bundle names its own feed, but every item in it carries a
         /// `<sparkle:channel>` and no `ChannelBinding` exists for the app. The
         /// address resolves; the channel filter is what fails. With no binding,
@@ -321,9 +332,18 @@ public enum FeedDiscovery {
             // Gate 3 for a declared feed — see `Verdict.declaredNeedsBinding`.
             // Gates 1 and 2 do not apply: the app names this address itself, so
             // "is this our feed?" is settled, and production already compares
-            // against it. The empty check is load-bearing — see `.declared`.
-            let bound = probe.bundleID.map { ChannelBinding.hasResolver(bundleID: $0) } ?? false
-            if !feedItems.isEmpty, !publishesDefaultChannel(feedItems), !bound {
+            // against it.
+            //
+            // Empty first, before the binding and before the channel test. A
+            // binding cannot vouch for a feed nobody read (see
+            // `Verdict.declaredUnreadable`), and "no untagged item" is vacuously
+            // true of zero items.
+            guard !feedItems.isEmpty else { return .declaredUnreadable(declared) }
+            // A binding answers the channel question outright.
+            if let id = probe.bundleID, ChannelBinding.hasResolver(bundleID: id) {
+                return .declared(declared)
+            }
+            guard publishesDefaultChannel(feedItems) else {
                 return .declaredNeedsBinding(declared)
             }
             return .declared(declared)
@@ -405,9 +425,10 @@ public enum FeedDiscovery {
         case .sparkle, nil:
             var items: [SparkleAppcastItem] = []
             // A declared feed is fetched too: `decide` needs its items to tell
-            // `.declared` from `.declaredNeedsBinding`. It once was not, and the
-            // declared branch then only ever saw an empty feed. (A superseded
-            // address is fetched as well; `decide` returns before reading it.)
+            // `.declared` from `.declaredNeedsBinding` and `.declaredUnreadable`.
+            // It once was not, and the declared branch then only ever saw an
+            // empty feed. (A superseded address is fetched as well; `decide`
+            // returns before reading it.)
             let single = probe.candidates.count == 1 && !isTemplated(probe.candidates[0].raw)
             if let feed = probe.declaredFeed ?? (single ? probe.candidates[0].url : nil),
                let data = await fetch(feed, session: session) {

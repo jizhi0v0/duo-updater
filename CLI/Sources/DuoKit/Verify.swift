@@ -678,9 +678,11 @@ public enum Verify {
     /// it is a warning rather than `.broken`: an issue needs the disagreement to
     /// survive into the next sweep, and Kimi's lasted days.
     ///
-    /// Costs one extra request per such recipe. A second fetch that fails says
-    /// nothing: the sweep has already judged the recipe's real request, and this
-    /// only compares two answers.
+    /// Costs one extra request per such recipe, which the finding's `attempts` does
+    /// NOT count — the finding is classified before this runs, and it sits outside
+    /// the recipe's `GatewayRetry` tally, the same gap `rolloutTrackComplaint` has.
+    /// A second fetch that fails says nothing: the sweep has already judged the
+    /// recipe's real request, and this only compares two answers.
     ///
     /// ⚠️ The query rides the FIRST hop only. Granola's `api.granola.ai` answers
     /// with a redirect to a CloudFront URL that carries no query (request ledger,

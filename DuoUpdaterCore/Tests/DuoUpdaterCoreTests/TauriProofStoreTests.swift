@@ -70,6 +70,45 @@ struct TauriProofStoreTests {
             .lookup(forBundleAt: "/Applications/Anything.app", identity: "id") == .some("1.0.0"))
     }
 
+    /// A record stamped by a different `TauriProofStore.proverGeneration` must
+    /// not be trusted — the same rule `Changelog.parserGeneration` already
+    /// enforces, and for the identical reason: it might have been produced by
+    /// a `probe`/`firstVersion` rule this build no longer agrees with.
+    @Test func aRecordWrittenUnderAnOldGenerationIsIgnored() throws {
+        let file = scratchFile(); defer { try? FileManager.default.removeItem(at: file) }
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let staleGeneration = TauriProofStore.proverGeneration - 1
+        let json = """
+        {"generation": \(staleGeneration), "entries": \
+        {"/Applications/Old.app": {"identity": "id-1", "version": "9.9.9"}}}
+        """
+        try Data(json.utf8).write(to: file)
+
+        let store = TauriProofStore(fileURL: file)
+        #expect(store.lookup(forBundleAt: "/Applications/Old.app", identity: "id-1") == nil,
+                "a record stamped with a different proverGeneration must not be trusted")
+    }
+
+    /// A file predating the generation field entirely — the flat
+    /// `[path: Entry]` shape this store originally shipped with, before this
+    /// review round added the stamp — must be treated exactly the same as a
+    /// generation mismatch: fails to decode against `FileContents` and reads
+    /// as empty, not as a trusted pre-generation store.
+    @Test func aFileFromBeforeTheGenerationFieldExistedIsIgnored() throws {
+        let file = scratchFile(); defer { try? FileManager.default.removeItem(at: file) }
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let json = """
+        {"/Applications/Old.app": {"identity": "id-1", "version": "9.9.9"}}
+        """
+        try Data(json.utf8).write(to: file)
+
+        let store = TauriProofStore(fileURL: file)
+        #expect(store.lookup(forBundleAt: "/Applications/Old.app", identity: "id-1") == nil,
+                "a pre-generation file must not be trusted")
+    }
+
     @Test func aSecondWriterMergesRatherThanOverwritingTheFirstsEntry() {
         // Models two processes recording two different bundles against the
         // same file without either instance having read the other's write

@@ -48,7 +48,7 @@ public enum DuoStateDirectory {
     /// Both runners are named because they differ: SwiftPM runs the suite as
     /// `swiftpm-testing-helper` with no XCTest environment at all (measured),
     /// while Xcode uses `xctest` and an `.xctest` bundle.
-    public static var isTestProcess: Bool {
+    static var isTestProcess: Bool {
         let name = ProcessInfo.processInfo.processName
         return name == "swiftpm-testing-helper" || name == "xctest"
             || Bundle.main.bundleURL.pathExtension == "xctest"

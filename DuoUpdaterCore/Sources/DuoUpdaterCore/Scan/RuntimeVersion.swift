@@ -401,6 +401,9 @@ public enum RuntimeVersion {
     ///   of the same `cargo build` and carry the same crate paths, so the answer
     ///   agrees — it is the bytes read, not the verdict, that are larger than they
     ///   need to be. One of the six candidates here (CC Switch) is fat.
+    ///
+    /// A verdict this reaches is persisted past this process — see
+    /// `TauriProofStore.proverGeneration` for what that requires of edits here.
     public static func carriesTauriCrate(bundleAt bundleURL: URL) -> Bool {
         read(.tauri, bundleAt: bundleURL, scanningBinaries: true) != nil
     }
@@ -464,6 +467,9 @@ public enum RuntimeVersion {
     /// A closure that hands back one chunk at a time is enough to say all of it, and
     /// it is the shape this file's neighbours already use (`LibraryReader`,
     /// `TauriProof`).
+    ///
+    /// A change to the boundary/window/carry logic below needs a bump of
+    /// `TauriProofStore.proverGeneration` — see its doc comment.
     static func probe(
         reading next: () throws -> Data?,
         for prefix: String,
@@ -613,6 +619,9 @@ public enum RuntimeVersion {
     ///
     /// Only the *search* moved. Both window-edge rules and the identifier guard are
     /// unchanged, and so is the order they run in.
+    ///
+    /// A rule change here — the digit run, the identifier guard, the component
+    /// count — needs a bump of `TauriProofStore.proverGeneration`.
     private static func firstVersion(
         in bytes: Data,
         after needle: Data,

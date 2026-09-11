@@ -8,10 +8,12 @@ import Foundation
 /// date. That is enough for the menu-bar app, which walks a candidate's binary
 /// at most once per launch. It is not enough for `duo`: every invocation is a
 /// fresh process, so without this store `duo list` re-walks every Tauri
-/// candidate's executable on every call — measured at 400–730 ms across the
-/// bundles this machine's filter admits, out of a total `duo list` runtime of
-/// 0.7–1.0 s. This file exists to make the second and later calls skip that
-/// walk entirely.
+/// candidate's executable on every call. Measured 2026-09-11 during review, on
+/// a 14-core M3 Max under load: a cold Tauri sweep across this machine's
+/// candidates took 400–730 ms of a 0.7–1.0 s `duo list` — a range, not a
+/// promise about any other machine's population of Tauri apps, only about how
+/// much of one `duo list` a repeated whole-binary walk can consume. This file
+/// exists to make the second and later calls skip that walk entirely.
 ///
 /// Only `.tauri` is stored here, and that is a decision made in
 /// `RuntimeVersion.read`, not in this file — see the comment on its `cache` for
@@ -36,6 +38,48 @@ final class TauriProofStore: @unchecked Sendable {
     struct Entry: Codable, Equatable {
         var identity: String
         var version: String?
+    }
+
+    /// The proof logic's generation, in the sense `Changelog.parserGeneration`
+    /// already establishes for this package: every entry on disk is stamped
+    /// with the generation that produced it, and a stored entry whose stamp
+    /// does not match the running build's — including a file predating this
+    /// field entirely, which fails to decode against `FileContents` below and
+    /// is treated exactly the same as a mismatch — is not read back. Read the
+    /// doc comment there first; the reasoning is identical, only the shape of
+    /// "wrong" differs.
+    ///
+    /// Before this field, an app relaunch or a `duo` invocation cleared
+    /// `RuntimeVersion.cache` for free, simply by ending the process that held
+    /// it — so a fix to the byte-search rules below took effect the moment the
+    /// new build ran. Once a verdict can outlive the build that computed it,
+    /// that stops being true: a bug in `probe`/`firstVersion` (three of which
+    /// review has already found in this exact file — see the doc comment on
+    /// `RuntimeVersion.probe(reading:for:components:)`) would otherwise be
+    /// baked into `~/Library/Application Support/com.duoupdater.app/`
+    /// forever, or until the vendor app it misjudged happens to update.
+    ///
+    /// **Bump this whenever a change could alter what a PREVIOUSLY-proved
+    /// bundle's verdict would come out as** — not merely a change that widens
+    /// what a *newly-encountered* binary can match:
+    /// - the needle prefix or component count `RuntimeVersion.read` passes to
+    ///   `probe` for `.tauri`;
+    /// - `firstVersion`'s rules: the digit run, the identifier guard, how a
+    ///   component count is enforced, `isFinal`;
+    /// - `probe`'s window/carry/boundary logic — `scanOverlap`, `scanChunkSize`,
+    ///   or the loop that stitches chunks together.
+    ///
+    /// One line per bump — what changed and why:
+    /// - 1: baseline, introduced with the field itself.
+    static let proverGeneration = 1
+
+    /// The on-disk shape: a generation stamp alongside the entries it stamps,
+    /// so a mismatch — including the shape below, which has none at all — is a
+    /// decode failure and therefore an empty store rather than a partially
+    /// trusted one.
+    private struct FileContents: Codable {
+        var generation: Int
+        var entries: [String: Entry]
     }
 
     /// The instance `RuntimeVersion` calls through. Production code should
@@ -89,29 +133,50 @@ final class TauriProofStore: @unchecked Sendable {
         defer { lock.unlock() }
         var entries = Self.load(from: fileURL)
         entries[path] = Entry(identity: identity, version: version)
-        guard let data = try? JSONEncoder().encode(entries) else { return }
+        let contents = FileContents(generation: Self.proverGeneration, entries: entries)
+        guard let data = try? JSONEncoder().encode(contents) else { return }
         let url = fileURL
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
     }
 
-    /// A file that does not exist, cannot be parsed, or decodes to something
-    /// that is no longer this shape reads as empty rather than throwing —
-    /// costs one re-proof per entry that was lost and nothing else, the same
-    /// failure mode every other JSON-backed store in this package chooses.
+    /// A file that does not exist, cannot be parsed, was stamped by a
+    /// different `proverGeneration`, or predates the stamp entirely (which
+    /// fails to decode against `FileContents` and lands in the same `try?`)
+    /// reads as empty rather than throwing or trusting a verdict this build
+    /// might disagree with — costs one re-proof per entry that was lost and
+    /// nothing else, the same failure mode every other JSON-backed store in
+    /// this package chooses.
     private static func load(from url: URL) -> [String: Entry] {
         guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([String: Entry].self, from: data)
+              let decoded = try? JSONDecoder().decode(FileContents.self, from: data),
+              decoded.generation == proverGeneration
         else { return [:] }
-        return decoded
+        return decoded.entries
     }
+
+    /// Where a test process's `.shared` writes, when `DUO_STATE_DIR` is unset.
+    ///
+    /// Unlike `EventStore`'s equivalent (`duo-events-tests`, a fixed name every
+    /// test process shares), this carries a UUID computed once, at first
+    /// access, and held for the rest of the process — because unlike
+    /// `EventStore`, which prunes itself by age and byte budget, this store
+    /// only ever grows: every `record` call adds an entry and nothing ever
+    /// removes one. Measured 2026-09-11: after a handful of `swift test` runs
+    /// sharing a fixed test path, that file held 40 entries across 5.9 KB, none
+    /// of them cleaned up, still there for the next run to read stale answers
+    /// from — and two worktrees testing at once would share it besides. A UUID
+    /// per process means every run starts from an empty store and leaves
+    /// nothing behind for the next one, which is what a test wants: bounded
+    /// scratch space, not accumulating history.
+    private static let testProcessScratchName = "duo-tauri-proofs-tests-\(UUID().uuidString)"
 
     static func defaultFileURL() -> URL {   // internal: asserted by DuoStateDirectoryTests
         let base = DuoStateDirectory.isTestProcess
             && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil
             ? FileManager.default.temporaryDirectory
-                .appendingPathComponent("duo-tauri-proofs-tests", isDirectory: true)
+                .appendingPathComponent(testProcessScratchName, isDirectory: true)
             : DuoStateDirectory.base
         return base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)

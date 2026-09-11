@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.92
+
+Under the hood: the Homebrew list in the menu fills in faster.
+
 ## 0.3.91
 
 **Check Again on a TestFlight beta now gives its real answer.** It used to turn the row into a question mark until the next refresh.

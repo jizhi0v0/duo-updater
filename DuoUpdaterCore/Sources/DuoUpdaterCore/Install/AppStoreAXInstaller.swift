@@ -1471,10 +1471,12 @@ public actor AppStoreAXInstaller {
         // Exactness outranks which name it was, because a loose match on this list can
         // land on another app: the cn storefront carries both "QQ" (451108668) and
         // "QQ音乐 - #听我想听#" (595615424), both cn-only, so both reach this path and
-        // can share a list. Updating QQ while its own row is absent — not surfaced yet,
-        // or already installing — a contains-match on "QQ" selects QQ Music's row, and
-        // we press *its* button. Trying every exact first is what keeps a present row
-        // from losing to someone else's substring.
+        // can share a list. Trying every exact first is what keeps a present row from
+        // losing to someone else's substring. The absent-row half — updating QQ while
+        // its own row is not surfaced yet, or already installing — is `rowIndex`'s
+        // loose rule: a plain contains-match there selected QQ Music's row and pressed
+        // *its* button (#331); see `carriesName` for what it refuses now and what it
+        // still cannot.
         guard let hit = Self.rowIndex(matching: names.needles, in: rows.map(\.1)) else {
             return Binding(button: nil, note: "rows=\(rows.count) matched=none")
         }

@@ -67,6 +67,11 @@ func describe(_ f: FeedDiscovery.Finding) -> String {
         lines.append("      Info.plist names it, but every item carries <sparkle:channel> and no")
         lines.append("      ChannelBinding exists — once the feed stops listing the installed build,")
         lines.append("      nothing is admitted. Needs a ChannelBinding naming the tag(s).")
+    case .declaredUnreadable(let url):
+        lines.append("   UNREADABLE \(url.absoluteString)")
+        lines.append("      Info.plist names it, but it answered with no appcast item (fetch failed,")
+        lines.append("      non-2xx, or nothing parsed) — the channel check did not run. Re-run, or")
+        lines.append("      read the feed by hand.")
     case .superseded(let declared, let live):
         lines.append("   SUPERSEDED \(declared.absoluteString)")
         lines.append("      the address the Info.plist names — SparkleFeedCatalog replaces it with")
@@ -160,6 +165,9 @@ if argv[1] == "--scan" {
             // Not skipped under `--gaps` either: the address is covered, the
             // channel is not.
             counts["declaredNeedsBinding", default: 0] += 1
+        case .declaredUnreadable:
+            // Not skipped under `--gaps`: nothing about this app was checked.
+            counts["declaredUnreadable", default: 0] += 1
         case .adopt:
             counts["adopt", default: 0] += 1
         case .review(let b, _):

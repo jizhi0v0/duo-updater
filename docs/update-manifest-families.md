@@ -46,6 +46,12 @@ electron 反过来：渠道带外、写在包里、零推断；代价是每轨�
 `SparkleAppcastSource` 覆盖了**；剩下要人判的占多数；能自动采纳的极少数，而且**跑出来的
 那几个早就有覆盖**。
 
+（「自带 `SUFeedURL` 就算覆盖」有一个例外：feed 里**每一条**都带 `<sparkle:channel>`、又没有
+`ChannelBinding` 的，地址能解析；feed 还列着本机那个 build 时一切正常，一旦不再列出，渠道过滤
+就一条也放不进。`feed-discover`
+现在把这种判成 `NEEDS BINDING` 而不是 `declared`。实例是 CodeEdit，2026-09-12：每个版本只发
+一条、恒带 `dev`。）
+
 **净新增 = 0。** 原因是一条通则：
 
 > 会把地址藏在代码里的 app，恰恰同时在干别的非标准事——模板拼地址、灰度分桶、按架构分 feed、按 macOS 大版本分目录。老实的 app 直接把地址写进 `SUFeedURL` / `app-update.yml`，而那些本来就不需要发现。

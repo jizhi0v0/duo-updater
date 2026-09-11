@@ -130,6 +130,20 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   `.artifact(/nightly/Superconductor-nightly-<sha8>-arm64.dmg)`。版本是 commit hash，排序靠
   `BuildLineage`（`changelog.json`）。stable 重开时的待办见审计文档。
 
+### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
+
+- **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`
+  （`releases/latest/download/appcast.xml`），通用 `SparkleAppcastSource` 覆盖。每个 release 的
+  appcast **只有一条 item**，且都打 `<sparkle:channel>dev</sparkle:channel>`（厂商 CI 写死
+  `SPARKLE_CHANNEL: dev`；app 的 `allowedChannels` 无条件返回 `["dev"]`；GitHub release 均非
+  prerelease）——`dev` 是唯一那条轨的标签，不是预发布轨。没有 binding 时，落后一版的副本不在
+  feed 里，推断回退到默认 channel，匹配零条 → unknown。`CodeEditChannel` 是常量 binding：
+  `.stable` + `sparkleChannelNames: ["dev"]`，不进 `boundBundleIDs`（没有偏好可监听）。
+  **重开条件**：厂商源码里被注释掉的 `if includePrereleaseVersions { return ["dev"] } return []`
+  一旦启用，stable 会变成无标签、`dev` 变成 opt-in，届时 binding 必须改读
+  `includePrereleaseVersions`，否则会把 `dev` 推给 stable 用户。见
+  [审计](docs/app-audits/app-codeedit-CodeEdit.md)。
+
 ### 版本后缀分流 续 — Yaak（2026-09-06 接）
 
 共享 `app.yaak.desktop`，两轨都是 GitHub。beta 包的 `CFBundleShortVersionString` 原样

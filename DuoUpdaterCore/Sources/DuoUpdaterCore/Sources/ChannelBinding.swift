@@ -152,8 +152,9 @@ public enum ChannelBinding {
     /// "did the user just flip a channel toggle in the vendor app itself" recheck
     /// to only these apps, instead of polling every installed app's prefs.
     ///
-    /// Deliberately excludes Ghostty: its binding is a fixed stable-only feed
-    /// override with no user-settable preference, so there is nothing to watch.
+    /// Deliberately excludes Ghostty and CodeEdit: each binding is a constant (a
+    /// fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
+    /// user-settable preference behind it, so there is nothing to watch.
     public static let boundBundleIDs: Set<String> = [
         DuoPasteChannel.bundleID.lowercased(),
         ForkChannel.bundleID.lowercased(),
@@ -378,6 +379,7 @@ public enum ChannelBinding {
             return WindscribeChannel.resolveCurrent
         case SuperconductorChannel.bundleID.lowercased():
             return SuperconductorChannel.resolveCurrent
+        case CodeEditChannel.bundleID.lowercased(): return CodeEditChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -436,10 +438,12 @@ public enum ChannelBinding {
          BetterDisplayChannel.resolve(preEnabled: false, internalEnabled: true)),
         (BetterDisplayChannel.bundleID,
          BetterDisplayChannel.resolve(preEnabled: true, internalEnabled: true)),
-        // The remaining two have no user-settable channel choice to drive.
-        // Ghostty is a fixed stable-only feed override, so `resolveCurrent()` is
-        // already a constant.
+        // The remaining three have no user-settable channel choice to drive.
+        // Ghostty is a fixed stable-only feed override and CodeEdit a fixed feed
+        // tag (see `CodeEditChannel`), so `resolveCurrent()` is already a
+        // constant for both.
         (GhosttyChannel.bundleID, GhosttyChannel.resolveCurrent()),
+        (CodeEditChannel.bundleID, CodeEditChannel.resolveCurrent()),
     ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
         .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
     // CotEditor answers for ONE of its two preference values — an unticked box

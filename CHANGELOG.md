@@ -25,6 +25,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Kimi's release notes now show up in Duo Updater.**
 
+**CodeEdit updates now show up.** A newer CodeEdit used to leave its row as a question mark instead of offering the update.
+
 Under the hood: the Homebrew list in the menu fills in faster, and `duo` commands start faster.
 
 ## 0.3.91

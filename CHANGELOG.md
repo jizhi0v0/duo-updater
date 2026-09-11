@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.91
+
+**Check Again on a TestFlight beta now gives its real answer.** It used to turn the row into a question mark until the next refresh.
+
+**TestFlight betas keep their answers while the refresh button checks with TestFlight.** For a few seconds they could all turn into question marks.
+
 ## 0.3.90
 
 **super.engineering is now supported: update checks, release notes and one-click install.** A new nightly shows up with what changed in it, and Update installs it for you.

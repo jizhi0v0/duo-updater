@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.91
+
+**« Vérifier à nouveau » sur une bêta TestFlight donne désormais la vraie réponse.** Avant, la rangée devenait un point d'interrogation jusqu'à la prochaine actualisation.
+
+**Les bêtas TestFlight gardent leur réponse pendant que le bouton d'actualisation interroge TestFlight.** Avant, elles pouvaient toutes devenir des points d'interrogation pendant quelques secondes.
+
 ## 0.3.90
 
 **super.engineering est désormais pris en charge : vérification des mises à jour, notes de version et installation en un clic.** Un nouveau nightly apparaît avec ce qui y a changé, et « Mettre à jour » l'installe pour toi.

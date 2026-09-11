@@ -2,6 +2,12 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.91
+
+**«Comprobar de nuevo» en una beta de TestFlight ya da la respuesta real.** Antes convertía la fila en un signo de interrogación hasta la siguiente actualización.
+
+**Las betas de TestFlight conservan su respuesta mientras el botón para actualizar la lista consulta a TestFlight.** Antes, durante unos segundos, podían convertirse todas en signos de interrogación.
+
 ## 0.3.90
 
 **super.engineering ya está cubierto: comprobación de actualizaciones, notas de versión e instalación con un clic.** Una nueva compilación nightly aparece en la lista con lo que cambió en ella, y «Actualizar» la instala por ti.

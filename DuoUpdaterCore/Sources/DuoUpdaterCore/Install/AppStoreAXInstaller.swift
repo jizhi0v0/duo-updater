@@ -170,6 +170,12 @@ public actor AppStoreAXInstaller {
         case cancelled
         case needsManualConfirmation
         case timedOut
+        /// The bundle was already at the target when the press was due — the
+        /// store's own background updater landed this update during the
+        /// navigation wait (#328). Not a failure: the caller reclassifies it
+        /// against the disk (see `AppListModel.performInstall`), so this text is
+        /// only a fallback for a caller that does not.
+        case alreadyCurrent
         /// We gave up waiting because the app never quit — payload is its name.
         /// Distinct from `timedOut` because the two ask the user for opposite things:
         /// a timeout says "something went wrong, try again", while this one says the
@@ -199,6 +205,8 @@ public actor AppStoreAXInstaller {
                 return "This app needs confirmation in the App Store (e.g. a subscription or purchase). Open the App Store and update it there."
             case .timedOut:
                 return "Timed out waiting for the App Store."
+            case .alreadyCurrent:
+                return "This app is already up to date."
             case .appStillOpen(let appName):
                 return "Quit \(appName) to finish this update. The App Store won’t replace an app while it is open, and it is still open."
             }
@@ -238,6 +246,14 @@ public actor AppStoreAXInstaller {
     ///     Store (verified on macOS 26), so the whole update runs fully in the
     ///     background. Throws `.notInUpdatesList` when the app isn't in the list yet
     ///     (the store surfaces such updates on its own schedule).
+    ///   - targetVersion: the version the caller believes is being installed, when it
+    ///     has one. On the Updates list it is re-checked against the bundle at press
+    ///     time: the store's own background updater can land the update during the
+    ///     navigation wait, which moves the row to "Updated Recently" and its button
+    ///     to **Open** — a button this lookup would otherwise match by name and press,
+    ///     launching the app (#328). Pass nil on the product page: a settled button
+    ///     there no-ops, and a caller whose `mas outdated` veto sent it to the page
+    ///     must not be second-guessed here.
     public func update(
         trackID: Int,
         appPath: URL,
@@ -245,6 +261,7 @@ public actor AppStoreAXInstaller {
         appName: String,
         storeName: String?,
         currentShortVersion: String?,
+        targetVersion: VersionSide?,
         viaUpdatesList: Bool = false,
         onStage: @Sendable @escaping (InstallStage) -> Void,
         requestQuit: @Sendable @escaping (String) -> Void,
@@ -331,6 +348,22 @@ public actor AppStoreAXInstaller {
         ) else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
+        }
+        // #328, at the last moment before the press: the caller's pre-flight ran
+        // before this navigation, and on the Updates-list route that window is
+        // where the store's own background updater can still land the update. The
+        // row then moves to "Updated Recently" and its button flips to **Open**,
+        // which this lookup matches and would press by name — launching the app.
+        // Re-read the bundle here; if it already reached the target there is
+        // nothing to install, and throwing lets the caller classify it exactly
+        // like an install that raced to the same state (see its catch).
+        let diskNow = Self.installedVersions(at: appPath, fallbackShort: currentShortVersion)
+        if Self.updatesListPressIsSettled(
+            viaUpdatesList: viaUpdatesList, target: targetVersion,
+            onDisk: VersionSide(marketing: diskNow.short, build: diskNow.build)
+        ) {
+            Log.install.notice("appstore-ax: \(appName, privacy: .public) already at target before press (on-disk \(diskNow.short ?? "?", privacy: .public)/\(diskNow.build ?? "?", privacy: .public)) — the store landed it during navigation; refusing the settled row")
+            throw AXError.alreadyCurrent
         }
         // Sample the screen for a sheet HERE, on this side of the press. Any sheet up
         // now is left over from an earlier install and must be ignored (see
@@ -1545,6 +1578,27 @@ public actor AppStoreAXInstaller {
     /// at once (observed: 8 offer buttons in one poll).
     static func shouldPress(heroOwnsPage: Bool, ownButtonCount: Int) -> Bool {
         heroOwnsPage && ownButtonCount == 1
+    }
+
+    /// Whether a press about to be made on the Updates list must be refused
+    /// because the bundle on disk already reached the target (#328).
+    ///
+    /// Updates-list only, and that is the point: the product page's settled
+    /// button no-ops, and a caller that was sent there *because* `mas outdated`
+    /// vetoed the skip must not be second-guessed at press time. On the list, by
+    /// contrast, a settled row's button reads **Open** and pressing it launches
+    /// the app.
+    ///
+    /// Pure so the route carve-out can be asserted without a live App Store: the
+    /// condition is exactly the part that would silently stop applying if a
+    /// future caller forgot `viaUpdatesList` or dropped the target.
+    static func updatesListPressIsSettled(
+        viaUpdatesList: Bool,
+        target: VersionSide?,
+        onDisk: VersionSide
+    ) -> Bool {
+        guard viaUpdatesList else { return false }
+        return AppStoreInstallPreflight.bundleAlreadyAt(target: target, onDisk: onDisk)
     }
 
     /// Whether the page's own hero lockup names `appName` — i.e. App Store really has

@@ -3425,6 +3425,40 @@ final class AppListModel {
                     installing[id] = nil
                     return false
                 }
+                // Pre-flight before we drive the store: the row may have gone current
+                // since the install-time re-check ran — the App Store's own background
+                // updater can land the update while this row waits its turn at the
+                // single-slot store gate. It gates BOTH routes below. On the
+                // region-locked one it is not just an optimization: that route matches
+                // the app's row in the Updates list by name and presses its button, and
+                // a row whose update has already landed has moved to "Updated Recently"
+                // with a button that reads **Open** — pressing it launches the app
+                // (#328), and there is no version change for `driveToCompletion` to
+                // see, so it spends its ~24s idle budget and reports a failure.
+                //
+                // Fail-safe by construction: the on-disk check gates the skip, so a
+                // flaky or silently-empty `mas outdated` (it has been unreliable across
+                // macOS releases) can NEVER suppress a genuinely-behind update. `mas`
+                // may only VETO the skip by listing the app as outdated (`!= true`);
+                // "not outdated" and "couldn't check" (nil) both defer to the on-disk
+                // verdict. And because that on-disk gate is evaluated first, `mas
+                // outdated` runs only in the already-current case — never slowing a real
+                // update, and never firing for a user without mas (nil → skip on disk).
+                // Pairs: `displayVersion` against a marketing-only disk read
+                // is equal every time for a vendor that freezes its marketing
+                // string, so "already current" was decided by two strings that
+                // could not differ. The `mas outdated` veto below is what kept
+                // this one honest; the pair is what makes it true on its own.
+                let onDiskNow = Self.readVersionSide(result.app.path)
+                if AppStoreInstallPreflight.bundleAlreadyAt(
+                       target: result.remote?.versionSide, onDisk: onDiskNow),
+                   await masInstaller.outdatedContains(adamID: adamID) != true {
+                    Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDiskNow.text(withBuild: true), privacy: .public) ≥ target \(result.remote?.versionSide.text(withBuild: true) ?? "?", privacy: .public), not listed outdated by mas (or it could not check)) — skipping install before download")
+                    await refreshRow(result)
+                    reopenAfterQuit[id] = nil
+                    installing[id] = nil
+                    return false
+                }
                 if result.remote?.appStore?.isRegionMismatch == true {
                     // Region-locked app (listed in a storefront other than the signed-in
                     // account's). mas can't fetch it (wrong storefront) and its product
@@ -3448,6 +3482,10 @@ final class AppListModel {
                         appName: result.app.name,
                         storeName: result.remote?.appStore?.storeName,
                         currentShortVersion: result.app.shortVersion,
+                        // Re-checked at press time: the store's background updater
+                        // can land the update while we navigate to the list, which
+                        // flips the row's button to Open (#328).
+                        targetVersion: result.remote?.versionSide,
                         viaUpdatesList: true
                     ) { stage in
                         Task { @MainActor in self.setStage(id, stage) }
@@ -3459,39 +3497,6 @@ final class AppListModel {
                         Task { @MainActor in self?.withdrawQuit(id: id) }
                     }
                 } else {
-                    // Pre-flight before we drive the store: the row may have gone current
-                    // since the install-time re-check ran — the App Store's own background
-                    // updater can land the update while this row waits its turn at the
-                    // single-slot store gate. If the bundle on disk is already at the target
-                    // AND `mas` (the authority on what a force-reinstall could actually
-                    // fetch) doesn't list it as outdated, there's nothing to install: skip
-                    // the doomed `mas install --force` / AX redrive before downloading
-                    // anything, and settle the row to up-to-date.
-                    //
-                    // Fail-safe by construction: the on-disk check gates the skip, so a
-                    // flaky or silently-empty `mas outdated` (it has been unreliable across
-                    // macOS releases) can NEVER suppress a genuinely-behind update. `mas`
-                    // may only VETO the skip by listing the app as outdated (`!= true`);
-                    // "not outdated" and "couldn't check" (nil) both defer to the on-disk
-                    // verdict. And because that on-disk gate is evaluated first, `mas
-                    // outdated` runs only in the already-current case — never slowing a real
-                    // update, and never firing for a user without mas (nil → skip on disk).
-                    // Pairs: `displayVersion` against a marketing-only disk read
-                    // is equal every time for a vendor that freezes its marketing
-                    // string, so "already current" was decided by two strings that
-                    // could not differ. The `mas outdated` veto below is what kept
-                    // this one honest; the pair is what makes it true on its own.
-                    if let target = result.remote?.versionSide, !target.isEmpty,
-                       case let onDisk = Self.readVersionSide(result.app.path),
-                       !onDisk.isEmpty,
-                       !VersionComparator.isNewer(target, than: onDisk),
-                       await masInstaller.outdatedContains(adamID: adamID) != true {
-                        Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDisk.text(withBuild: true), privacy: .public) ≥ target \(target.text(withBuild: true), privacy: .public), not outdated per mas) — skipping install before download")
-                        await refreshRow(result)
-                        reopenAfterQuit[id] = nil
-                        installing[id] = nil
-                        return false
-                    }
                     switch prefs.appStoreUpdateStrategy {
                     case .full:
                         try await masInstaller.install(adamID: adamID) { stage in
@@ -3504,7 +3509,12 @@ final class AppListModel {
                             bundleID: result.app.bundleID,
                             appName: result.app.name,
                             storeName: result.remote?.appStore?.storeName,
-                            currentShortVersion: result.app.shortVersion
+                            currentShortVersion: result.app.shortVersion,
+                            // nil on purpose: a settled product-page button no-ops,
+                            // and the pre-flight above (with its `mas outdated` veto)
+                            // already decided this drive. Re-checking the target here
+                            // would override that veto.
+                            targetVersion: nil
                         ) { stage in
                             Task { @MainActor in self.setStage(id, stage) }
                         } requestQuit: { [weak self] appName in

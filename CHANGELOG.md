@@ -39,6 +39,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A TestFlight beta Duo Updater can't vouch for no longer looks up to date.** When TestFlight hasn't reported a beta's latest build, its row now shows a question mark instead of the same icon a current beta gets.
 
+**A TestFlight row catches up when TestFlight updates the beta by itself.** It kept offering the update TestFlight had just installed, or kept calling the beta up to date after TestFlight had moved it past what it last reported, until the next full check.
+
 **`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.
 
 **`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.

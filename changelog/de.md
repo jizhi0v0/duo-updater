@@ -2,6 +2,26 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.90
+
+**super.engineering wird jetzt unterstützt: Update-Prüfungen, Versionshinweise und Ein-Klick-Installation.** Ein neuer Nightly-Build erscheint samt dem, was sich darin geändert hat, und „Aktualisieren“ installiert ihn für dich.
+
+**Microsoft Edge Beta konnte dir einen stabilen Edge-Build anbieten.** Als Microsofts Beta-Feed kurzzeitig leer war, nannte die Zeile eine stabile Version, und ein Update hätte diese über deine Beta installiert.
+
+**TestFlight-Betas zeigen jetzt die Updates, die TestFlight für sie bereithält — auch Betas von iPhone- und iPad-Apps.** Die Schaltfläche zum Aktualisieren fragt im Hintergrund bei TestFlight nach, ein Update verschwindet nicht mehr wenige Minuten, nachdem du es gefunden hast, und die TestFlight-Schaltfläche öffnet die Seite dieser Beta.
+
+**Wenn Duo Updater nicht feststellen kann, ob eine TestFlight-Beta aktuell ist, sagt es das.** Die Zeile zeigt ein Fragezeichen, statt die Beta aktuell zu nennen — zum Beispiel, wenn du bei TestFlight abgemeldet bist oder diese Beta nicht mehr testest.
+
+**Festplattenvollzugriff wird jetzt erklärt, und ohne ihn nervt dich nichts.** Ohne ihn löst Duo Updater die Warnungen von macOS zum Lesen der Daten anderer Apps nicht mehr aus; braucht ihn eine TestFlight-Beta oder CotEditor, erfährst du einmalig, warum er nötig ist und wo du ihn erteilen kannst.
+
+**„Neu starten“ verschwindet, sobald eine aktualisierte App beendet wurde.** Eine App, die einen Hilfsprozess weiterlaufen ließ, bat noch lange um einen Neustart, nachdem ihr Update wirksam geworden war.
+
+**Eine unbeantwortete Datenschutzabfrage von macOS hält Update-Prüfungen nicht mehr auf.** Die Prüfung läuft ohne die Einstellung der betreffenden App weiter.
+
+**Die Versionshinweise von Rockxy und Ollama sind wieder vollständig.** Bei Rockxy reichen sie über die jüngsten Veröffentlichungen zurück, statt nur die neueste zu zeigen, und bei Ollama wird die neueste Veröffentlichung nicht mehr ausgelassen.
+
+**`duo`, der optionale Begleiter für die Kommandozeile, kommt besser mit TestFlight zurecht.** `--refresh-testflight` funktioniert, ob TestFlight geöffnet ist oder nicht, ohne deinen Bildschirm in Beschlag zu nehmen, und `duo check` nennt eine Beta nicht mehr aktuell, wenn TestFlight einen neueren Build angekündigt hat.
+
 ## 0.3.89
 
 **Telegram Desktop wird wieder auf Updates geprüft.** Telegram hat die Datei, die es veröffentlicht, umbenannt, und die Zeile konnte daraus keine Version mehr lesen — sie zeigte deshalb einen Prüffehler statt des Updates, das dahinter wartete.

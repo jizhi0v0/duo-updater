@@ -746,6 +746,33 @@ struct EventStoreTests {
                 "the batch was dropped rather than deferred")
     }
 
+    /// Runs `body` with `DUO_STATE_DIR` unset, restoring exactly what was
+    /// there before — including restoring to "unset" when nothing was there.
+    ///
+    /// Mirrors `DuoStateDirectoryTests.withStateDir`, whose `defer` already
+    /// gets that case right; this file's own inline version did not, until
+    /// this fix. `previous == nil` (the common case — nothing else in this
+    /// suite normally sets `DUO_STATE_DIR`) used to leave the variable set to
+    /// whatever the test body last set it to for the rest of the *process*,
+    /// not just the rest of this test — a real consequence, not a
+    /// hypothetical one: `TauriProofStore.shared` resolves its file location
+    /// exactly once, at first touch, so any test that happened to touch it
+    /// after this leak silently read and wrote
+    /// `/tmp/duo-state-test/com.duoupdater.app/tauri-proofs.json` — a file
+    /// every worktree's test run shares — instead of its own per-process
+    /// scratch file. See `theStateDirIsRestoredToUnsetNotLeftDangling` below
+    /// for the test that pins the restore itself, which `testProcessesGetTheirOwnStore`
+    /// cannot: a `defer` firing correctly is invisible from inside the
+    /// function it belongs to.
+    private func withDUOStateDirUnset<T>(_ body: () -> T) -> T {
+        let previous = ProcessInfo.processInfo.environment["DUO_STATE_DIR"]
+        unsetenv("DUO_STATE_DIR")
+        defer {
+            if let previous { setenv("DUO_STATE_DIR", previous, 1) } else { unsetenv("DUO_STATE_DIR") }
+        }
+        return body()
+    }
+
     /// The test suite must not write into the developer's own store.
     ///
     /// It did: after one `make test` the real database held 1643 `cli` events,
@@ -753,19 +780,34 @@ struct EventStoreTests {
     /// contacted — and those rows are in the never-pruned totals for good.
     @Test("A test process never writes to the real event store")
     func testProcessesGetTheirOwnStore() {
+        withDUOStateDirUnset {
+            #expect(DuoStateDirectory.isTestProcess, "this suite is running in one")
+            let path = EventStore.defaultFileURL().path
+            #expect(!path.contains("Application Support"),
+                    "the suite would write into the user's own store at \(path)")
+            // An explicit override still wins — the escape hatch every other store
+            // honours must not be shadowed by the test-process guard.
+            setenv("DUO_STATE_DIR", "/tmp/duo-state-test", 1)
+            #expect(EventStore.defaultFileURL().path
+                    == "/tmp/duo-state-test/com.duoupdater.app/events.sqlite")
+        }
+    }
+
+    /// Pins the restore half of `withDUOStateDirUnset`, which the test above
+    /// cannot pin on its own — see that helper's doc comment for the real
+    /// incident this reproduces. Deliberately unsets `DUO_STATE_DIR` itself
+    /// first, so `previous` inside the helper is `nil`: that is the exact
+    /// branch the bug lived in.
+    @Test func theStateDirIsRestoredToUnsetNotLeftDangling() {
         let previous = ProcessInfo.processInfo.environment["DUO_STATE_DIR"]
         unsetenv("DUO_STATE_DIR")
         defer { if let previous { setenv("DUO_STATE_DIR", previous, 1) } }
 
-        #expect(DuoStateDirectory.isTestProcess, "this suite is running in one")
-        let path = EventStore.defaultFileURL().path
-        #expect(!path.contains("Application Support"),
-                "the suite would write into the user's own store at \(path)")
-        // An explicit override still wins — the escape hatch every other store
-        // honours must not be shadowed by the test-process guard.
-        setenv("DUO_STATE_DIR", "/tmp/duo-state-test", 1)
-        #expect(EventStore.defaultFileURL().path
-                == "/tmp/duo-state-test/com.duoupdater.app/events.sqlite")
+        withDUOStateDirUnset {
+            setenv("DUO_STATE_DIR", "/tmp/duo-state-test-restore-check", 1)
+        }
+        #expect(ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil,
+                "DUO_STATE_DIR must be restored to unset, not left at whatever the body last set it to")
     }
 
     /// The retention ceiling and the reported size must mean the on-disk

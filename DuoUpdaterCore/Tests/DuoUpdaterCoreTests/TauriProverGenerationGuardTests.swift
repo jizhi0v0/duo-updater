@@ -74,6 +74,25 @@ import Foundation
                 "if this is an intentional change, bump TauriProofStore.proverGeneration")
     }
 
+    /// The three fixtures above drive `probe` directly with this file's own
+    /// `"tauri-"`/`3` literals, which do not move if the PRODUCTION call
+    /// site's arguments change — `RuntimeVersion.read`'s `.tauri` case passes
+    /// its own copies of that needle and component count to `probe`, and
+    /// nothing here reads them back. This test goes through
+    /// `RuntimeVersion.read(.tauri, ...)` itself, on a real (if minimal)
+    /// bundle, so a change to either literal at the production call site —
+    /// not just a change to `probe`/`firstVersion` themselves — moves this
+    /// test too.
+    @Test func aPlainCratePathIsFoundThroughTheProductionCallSite() throws {
+        let bundle = try MinimalBundle(
+            named: "GenerationGuardFixture",
+            executableContaining: "registry/src/index/tauri-2.11.5/src/lib.rs")
+        defer { bundle.cleanUp() }
+        let version = RuntimeVersion.read(.tauri, bundleAt: bundle.url, scanningBinaries: true)
+        #expect(version == "2.11.5",
+                "if this is an intentional change, bump TauriProofStore.proverGeneration")
+    }
+
     private func chunks(_ strings: [String]) -> RuntimeVersion.Probe {
         chunks(bytes: strings.map { Data($0.utf8) })
     }
@@ -86,5 +105,33 @@ import Foundation
                 return remaining.removeFirst()
             },
             for: "tauri-", components: 3)
+    }
+}
+
+/// A bundle just complete enough for `RuntimeVersion.read`'s `.tauri` case: an
+/// `Info.plist` naming its executable, and the executable itself holding the
+/// payload. Not `VersionBundle` from `RuntimeVersionTests.swift` — that type
+/// is private to that file — but the same essential shape, pared down to
+/// what this file needs. `RuntimeVersion.read(.tauri, ...)` is called
+/// directly (not through `AppRuntimeDetector`), so none of the
+/// `LSRequiresCarbon`/`CSResourcesFileMapped`/WebKit plist-fingerprint
+/// filtering that gates real scans applies here — same as `VersionBundle`.
+private struct MinimalBundle {
+    let url: URL
+
+    init(named name: String, executableContaining text: String) throws {
+        url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("generation-guard-\(UUID().uuidString)")
+            .appendingPathComponent("\(name).app")
+        let macOS = url.appendingPathComponent("Contents/MacOS")
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: macOS.appendingPathComponent(name))
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleExecutable": name], format: .xml, options: 0)
+        try plist.write(to: url.appendingPathComponent("Contents/Info.plist"))
+    }
+
+    func cleanUp() {
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
     }
 }

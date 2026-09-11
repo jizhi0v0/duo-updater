@@ -85,27 +85,45 @@ final class TauriProofStore: @unchecked Sendable {
     /// The instance `RuntimeVersion` calls through. Production code should
     /// only ever touch this one; the `init(fileURL:)` override below exists for
     /// tests that model two processes sharing one file.
+    ///
+    /// `resolvedFileURL` is fixed at construction — see `init`'s doc comment
+    /// for why that matters specifically for a singleton, and
+    /// `TauriProofStoreTests.sharedsResolvedPathIsFixedRegardlessOfLaterDUOStateDirChanges`
+    /// for the test that pins it.
     static let shared = TauriProofStore()
 
-    /// Set only by tests. `nil` means "resolve `defaultFileURL()` fresh on
-    /// every access", which is deliberate and not an oversight: a `fileURL`
-    /// captured once at init, the way the other on-disk stores do it, would be
-    /// fine for them because they are constructed fresh per test or per
-    /// short-lived caller. `shared` is not — it is first touched at an
-    /// effectively random point across an entire `swift test` run, which is
-    /// exactly the shape `DuoStateDirectoryTests` exists to worry about
-    /// (`setenv` toggling `DUO_STATE_DIR` mid-suite). Resolving fresh on every
-    /// call shrinks that race window from "the rest of the process" to "one
-    /// lookup or record call", the same guarantee `DuoStateDirectory.base`
-    /// already gives every other reader of `DUO_STATE_DIR`.
-    private let fileURLOverride: URL?
     private let lock = NSLock()
 
-    init(fileURL: URL? = nil) {
-        self.fileURLOverride = fileURL
-    }
+    /// Where this instance reads and writes, decided once, here, rather than
+    /// re-read on every `lookup`/`record` call.
+    ///
+    /// That distinction only matters for `shared`, which is a process-wide
+    /// singleton touched at an effectively random point across an entire
+    /// `swift test` run — by tests that legitimately `setenv("DUO_STATE_DIR",
+    /// ...)` for the duration of their own scope and restore it afterward. If
+    /// this store re-resolved `DUO_STATE_DIR` on every access, two calls one
+    /// test makes — `record` then `lookup`, say — could land on two different
+    /// files if another suite's `setenv` fell in between. That is not
+    /// hypothetical: `EventStoreTests` carried a `defer` that failed to
+    /// restore `DUO_STATE_DIR` to "unset" when it had been unset before
+    /// (fixed alongside this store), which meant every `TauriProofStore`
+    /// access for the rest of the process silently read and wrote
+    /// `/tmp/duo-state-test/com.duoupdater.app/tauri-proofs.json` — a file
+    /// every worktree's test run shares — instead of its own scratch file.
+    /// Resolving once, at construction, means `shared`'s target is decided
+    /// before any of that can reach it, and cannot be moved afterward by
+    /// anything another suite does to the environment.
+    ///
+    /// Every other on-disk store in this package also resolves once, at
+    /// construction — the difference is only that they are built fresh per
+    /// test or per short-lived caller, so "once" and "fresh enough" have
+    /// always been the same thing for them. `shared` is the one long-lived
+    /// exception, which is what made it worth writing down here.
+    let resolvedFileURL: URL   // internal: asserted by TauriProofStoreTests
 
-    private var fileURL: URL { fileURLOverride ?? Self.defaultFileURL() }
+    init(fileURL: URL? = nil) {
+        self.resolvedFileURL = fileURL ?? Self.defaultFileURL()
+    }
 
     /// `nil` means "no record for this path at all". `.some(nil)` means "there
     /// is a record, and it says no crate was found" — the two must stay
@@ -116,7 +134,8 @@ final class TauriProofStore: @unchecked Sendable {
     func lookup(forBundleAt path: String, identity: String) -> String?? {
         lock.lock()
         defer { lock.unlock() }
-        guard let entry = Self.load(from: fileURL)[path], entry.identity == identity else { return nil }
+        guard let entry = Self.load(from: resolvedFileURL)[path], entry.identity == identity
+        else { return nil }
         return entry.version
     }
 
@@ -131,14 +150,13 @@ final class TauriProofStore: @unchecked Sendable {
     func record(_ version: String?, forBundleAt path: String, identity: String) {
         lock.lock()
         defer { lock.unlock() }
-        var entries = Self.load(from: fileURL)
+        var entries = Self.load(from: resolvedFileURL)
         entries[path] = Entry(identity: identity, version: version)
         let contents = FileContents(generation: Self.proverGeneration, entries: entries)
         guard let data = try? JSONEncoder().encode(contents) else { return }
-        let url = fileURL
         try? FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+            at: resolvedFileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: resolvedFileURL, options: .atomic)
     }
 
     /// A file that does not exist, cannot be parsed, was stamped by a
@@ -159,17 +177,20 @@ final class TauriProofStore: @unchecked Sendable {
     /// Where a test process's `.shared` writes, when `DUO_STATE_DIR` is unset.
     ///
     /// Unlike `EventStore`'s equivalent (`duo-events-tests`, a fixed name every
-    /// test process shares), this carries a UUID computed once, at first
-    /// access, and held for the rest of the process — because unlike
-    /// `EventStore`, which prunes itself by age and byte budget, this store
-    /// only ever grows: every `record` call adds an entry and nothing ever
-    /// removes one. Measured 2026-09-11: after a handful of `swift test` runs
-    /// sharing a fixed test path, that file held 40 entries across 5.9 KB, none
-    /// of them cleaned up, still there for the next run to read stale answers
-    /// from — and two worktrees testing at once would share it besides. A UUID
-    /// per process means every run starts from an empty store and leaves
-    /// nothing behind for the next one, which is what a test wants: bounded
-    /// scratch space, not accumulating history.
+    /// test process shares), this carries a UUID computed once — because
+    /// unlike `EventStore`, which prunes itself by age and byte budget, this
+    /// store only ever grows: every `record` call adds an entry and nothing
+    /// ever removes one. Measured 2026-09-11: after a handful of `swift test`
+    /// runs sharing a fixed test path, that file held 40 entries across
+    /// 5.9 KB.
+    ///
+    /// This does NOT mean nothing is left on disk — an earlier version of
+    /// this comment overclaimed that. Each run's small file stays in
+    /// `TMPDIR` until the operating system's own periodic cleanup removes it,
+    /// same as any other scratch file this package writes there; nothing here
+    /// deletes it. What the UUID actually buys is narrower: no run ever reads
+    /// a PREVIOUS run's entries, and two worktrees testing at once never
+    /// share one.
     private static let testProcessScratchName = "duo-tauri-proofs-tests-\(UUID().uuidString)"
 
     static func defaultFileURL() -> URL {   // internal: asserted by DuoStateDirectoryTests

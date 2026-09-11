@@ -125,4 +125,29 @@ struct TauriProofStoreTests {
                 "the second writer's record must not have clobbered the first's")
         #expect(reader.lookup(forBundleAt: "/Applications/B.app", identity: "id-b") == .some("3.0.0"))
     }
+
+    /// `.shared` resolves `resolvedFileURL` once, at construction — see the
+    /// doc comment there for the real incident (an `EventStoreTests` `defer`
+    /// bug) that motivated it. This is what proves the fix: touch `.shared`
+    /// once to force resolution (idempotent — later calls just read the same
+    /// stored value), then change `DUO_STATE_DIR` and confirm the resolved
+    /// path did not move.
+    ///
+    /// Deliberately does not assert anything about what `resolvedBefore` IS —
+    /// only that a later `setenv` cannot change it. `.shared` may already
+    /// have been touched by another test in this process by the time this
+    /// one runs, which is fine and expected; it is exactly the "touched at an
+    /// effectively random point" shape the doc comment describes.
+    @Test func sharedsResolvedPathIsFixedRegardlessOfLaterDUOStateDirChanges() {
+        let resolvedBefore = TauriProofStore.shared.resolvedFileURL
+
+        let previous = ProcessInfo.processInfo.environment["DUO_STATE_DIR"]
+        setenv("DUO_STATE_DIR", "/tmp/duo-tauri-should-never-be-read-\(UUID().uuidString)", 1)
+        defer {
+            if let previous { setenv("DUO_STATE_DIR", previous, 1) } else { unsetenv("DUO_STATE_DIR") }
+        }
+
+        #expect(TauriProofStore.shared.resolvedFileURL == resolvedBefore,
+                ".shared must not re-resolve its file location after a later DUO_STATE_DIR change")
+    }
 }

@@ -369,7 +369,13 @@ public enum FeedDiscovery {
                 verdict = .review(.electronProviderNeedsConstruction, nil)
                 break
             }
-            let body = await fetch(manifest, session: session).flatMap {
+            // Fetched the way the app's own updater fetches it, `noCache` query
+            // and all — see `ElectronUpdateConfig.manifestRequestURL`. A bare
+            // fetch read Kimi's CDN edge copy and reported
+            // `electronVersionMismatch` against a manifest the app was reading
+            // fine. The verdict still names the bare address.
+            let fetchURL = probe.electron?.manifestRequestURL() ?? manifest
+            let body = await fetch(fetchURL, session: session).flatMap {
                 String(data: $0, encoding: .utf8)
             }
             // The config's `channel` already names the exact macOS manifest the

@@ -2893,3 +2893,86 @@ private let eudicAppcastFixture = #"""
     ])
     #expect(!log.entries.contains { $0.items.contains { $0.contains("在线学习记录同步") } })
 }
+
+// Kimi's release-notes page, cut from the real one (2026-09-11): 3.2.1 is the
+// release with a list nested inside a list item, 3.1.9 carries an entity, and 3.1.6
+// is the last release — followed, as on the page, by the feedback widget and the
+// table of contents, whose `<li>`s the last entry must not absorb.
+private let kimiReleaseNotesFixture = #"""
+<h2 id="321-2026-08-21" class="mt-8 scroll-mt-10 leading-[32px] text-[20px] font-semibold tracking-[-0.03em] text-(--Labels-Primary)">3.2.1 (2026-08-21)</h2>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>New</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Added a global Launcher: summon a floating capsule input box on the desktop anytime, anywhere with a global hotkey<!-- -->
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">When summoned, it automatically brings in the files currently selected in Finder / File Explorer, and supports pasting images, adding attachments, and dragging in screenshots</li>
+<li class="text-[18px] leading-[28px]">Type “/” to open the plugin and skill menu (pinyin search supported) and choose a workspace</li>
+<li class="text-[18px] leading-[28px]">Hold the hotkey to dictate; after submitting, it collapses into a mini capsule, and you can jump back to the main app with one click to view the answer</li>
+</ul>
+</li>
+<li class="text-[18px] leading-[28px]">Added message queueing: while the Agent is responding, you can keep sending messages; new messages are queued automatically, with support for drag-to-reorder, edit, delete, and detail preview</li>
+<li class="text-[18px] leading-[28px]">Voice dictation in the Work input box: click the microphone or hold the hotkey to start dictating, with mixed Chinese-English recognition</li>
+</ul>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>Changed</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Message notification logic updated: you can switch message notification rules in Settings</li>
+</ul>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>Fixed</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Optimized standby power consumption, reducing background resource usage while the app is idle</li>
+<li class="text-[18px] leading-[28px]">Fixed an issue where the Dock icon disappeared on macOS</li>
+<li class="text-[18px] leading-[28px]">Fixed several bugs and improved some interactions and stability</li>
+</ul>
+<h2 id="319-2026-08-15" class="mt-8 scroll-mt-10 leading-[32px] text-[20px] font-semibold tracking-[-0.03em] text-(--Labels-Primary)">3.1.9 (2026-08-15)</h2>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>New</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Personal plugin marketplace is live: the plugin marketplace now has a &quot;Personal Plugins&quot; section where you can browse and install plugins from individual developers</li>
+</ul>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>Fixed</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Fixed an issue where streaming Markdown content occasionally failed to refresh</li>
+<li class="text-[18px] leading-[28px]">Fixed several bugs and improved some interactions and stability</li>
+</ul>
+<h2 id="316-2026-07-29" class="mt-8 scroll-mt-10 leading-[32px] text-[20px] font-semibold tracking-[-0.03em] text-(--Labels-Primary)">3.1.6 (2026-07-29)</h2>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>New</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">PPT slide editor is live: open and edit slides right in the workspace — changes take effect immediately</li>
+<li class="text-[18px] leading-[28px]">Screenshot annotation is now supported for files in the preview area and in the browser; finished annotations can be sent directly to the Agent for revision</li>
+<li class="text-[18px] leading-[28px]">Storage drive migration is now supported on Windows: Work data can be moved to another drive</li>
+<li class="text-[18px] leading-[28px]">The Windows installer now supports choosing a custom install location</li>
+</ul>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>Changed</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Improved some token efficiency issues</li>
+</ul>
+<p class="mt-4 text-[18px] leading-[26px] text-(--Labels-Primary)"><strong>Fixed</strong></p>
+<ul class="pl-4 text-(--Labels-Primary) [&amp;&gt;li]:mt-2 [&amp;&gt;li]:relative [&amp;&gt;li]:pl-4 [&amp;&gt;li]:before:absolute [&amp;&gt;li]:before:left-0 [&amp;&gt;li]:before:top-[11px] [&amp;&gt;li]:before:h-[6px] [&amp;&gt;li]:before:w-[6px] [&amp;&gt;li]:before:rounded-full [&amp;&gt;li]:before:bg-current">
+<li class="text-[18px] leading-[28px]">Fixed several bugs and improved some interactions</li>
+</ul></div><section class="my-12" aria-label="Document feedback"><div class="flex h-8 items-center justify-between gap-4"><p class="min-w-0 text-[16px] font-medium leading-6 text-(--Labels-Primary)">Was this article helpful?</p></section>
+<nav aria-label="Table of contents"><ul class=""><li class="select-none"><button type="button" class="relative py-2 pr-6 w-full text-sm font-normal text-left transition-colors cursor-pointer hover:text-(--Labels-Primary) focus:outline-none text-(--Labels-Secondary)" style="padding-left:24px"><span class="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-[calc(100%)] bg-(--Fills-F2)"></span><span class="block truncate" title="3.2.7 (2026-09-11)">3.2.7 (2026-09-11)</span></button></li><li class="select-none"><button type="button" class="relative py-2 pr-6 w-full text-sm font-normal text-left transition-colors cursor-pointer hover:text-(--Labels-Primary) focus:outline-none text-(--Labels-Secondary)" style="padding-left:24px"><span class="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-[calc(100%)] bg-(--Fills-F2)"></span><span class="block truncate" title="3.2.6 (2026-09-07)">3.2.6 (2026-09-07)</span></button></li></ul></nav>
+"""#
+
+@Test func kimiReadsEachReleaseAndKeepsNestedLinesApart() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.moonshot.kimichat"))
+    let log = try #require(ChangelogExtractor.extract(from: kimiReleaseNotesFixture, using: recipe))
+
+    #expect(log.entries.map(\.version) == ["3.2.1", "3.1.9", "3.1.6"])
+    #expect(log.entries.map(\.date) == ["2026-08-21", "2026-08-15", "2026-07-29"])
+
+    // The nested list: the parent line and each child are lines of their own. A
+    // lazy `<li>(.*?)</li>` glues the parent onto its first child (9 lines, not 10).
+    #expect(log.entries[0].items.count == 10)
+    #expect(log.entries[0].items[0]
+        == "Added a global Launcher: summon a floating capsule input box on the desktop anytime, anywhere with a global hotkey")
+    #expect(log.entries[0].items[1].hasPrefix("When summoned, it automatically brings in the files"))
+    #expect(log.entries[0].items[4].hasPrefix("Added message queueing:"))
+
+    #expect(log.entries[1].items.first
+        == "Personal plugin marketplace is live: the plugin marketplace now has a \"Personal Plugins\" section where you can browse and install plugins from individual developers")
+
+    // The last release stops at the article's `</div>`. Without that stop it runs
+    // on into the table of contents and gains "3.2.7 (2026-09-11)" and
+    // "3.2.6 (2026-09-07)" as change lines.
+    #expect(log.entries[2].items.count == 6)
+    #expect(log.entries[2].items.last == "Fixed several bugs and improved some interactions")
+    #expect(!log.entries.contains { $0.items.contains { $0.contains("(2026-") || $0.contains("helpful") } })
+}

@@ -49,6 +49,50 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
         return URL(string: "\(base)/\(channel)-mac.yml")
     }
 
+    /// `manifestURL` as electron-updater actually requests it: with a throwaway
+    /// `noCache` query on the end. Fetch with this; resolve artifacts against
+    /// `manifestURL`.
+    ///
+    /// The query is what gets a request past a CDN's edge copy; none of the three
+    /// request headers tried below substituted for it. electron-updater's `GenericProvider` builds the
+    /// manifest address with `newUrlFromBase(…, isAddNoCacheQuery)`, which appends
+    /// `noCache=<Date.now() in base 32>`, and `isAddNoCacheQuery` is true unless the
+    /// app sends an `Authorization` / `PRIVATE-TOKEN` header (electron-builder
+    /// `AppUpdater.ts`, issue #3021). So every check an electron-builder app makes
+    /// on its own reaches the origin, and the vendor never has to keep its edge
+    /// copies fresh.
+    ///
+    /// Measured 2026-09-11 on Kimi's `kimi-img.moonshot.cn/app/upgrade/latest-mac.yml`:
+    /// the bare address answered `3.2.5` from an edge copy four and a half days old
+    /// (`Age: 384307`), and `Cache-Control: no-cache`, `max-age=0` and
+    /// `Pragma: no-cache` on the request all got that same copy; with the query it
+    /// answered `3.2.7` from origin (`Age: 0`), the version Kimi's own updater
+    /// reported as latest. Reading the bare address, this source called a 3.2.7
+    /// install up to date against `3.2.5`, and would leave a 3.2.5 install with
+    /// nothing to offer for as long as the edge copy lived.
+    ///
+    /// An address that already carries a query is returned untouched rather than
+    /// having that query overwritten. That is NOT parity with electron-updater for
+    /// such a config: it requests `<url>/latest-mac.yml?<the config's query>`, while
+    /// `manifestURL`'s string concatenation puts the channel file inside the query
+    /// (`…/feed?token=abc/latest-mac.yml`). A gap in `manifestURL` that predates
+    /// this function and is left as it was.
+    func manifestRequestURL(noCache token: String = Self.noCacheToken()) -> URL? {
+        guard let manifest = manifestURL else { return nil }
+        guard manifest.query == nil,
+              var components = URLComponents(url: manifest, resolvingAgainstBaseURL: false)
+        else { return manifest }
+        components.queryItems = [URLQueryItem(name: "noCache", value: token)]
+        return components.url ?? manifest
+    }
+
+    /// electron-updater's token, `Date.now().toString(32)`: epoch milliseconds in
+    /// base 32. Only its uniqueness matters to a CDN; the spelling is kept so the
+    /// request looks like the app's own.
+    static func noCacheToken(now: Date = Date()) -> String {
+        String(Int64((now.timeIntervalSince1970 * 1000).rounded(.down)), radix: 32)
+    }
+
     /// Read the config a packaged Electron app carries, if it carries one.
     public static func read(fromBundleAt bundleURL: URL) -> ElectronUpdateConfig? {
         guard let text = try? String(

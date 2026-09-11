@@ -100,9 +100,24 @@ public enum RuntimeVersion {
         // binary does not, so this is reachable — and it costs a missing version
         // label, not a wrong runtime.
         let executable = executableURL(bundleAt: bundleURL)
-        let key = executable.flatMap { executableIdentity(of: $0) }
-            .map { "\(bundleURL.path)|\(runtime.rawValue)|\($0)" }
+        let identity = executable.flatMap { executableIdentity(of: $0) }
+        let key = identity.map { "\(bundleURL.path)|\(runtime.rawValue)|\($0)" }
         if let key, let remembered = cached(key) { return remembered }
+
+        // `.tauri`'s verdict also outlives *this* process — see
+        // `TauriProofStore`. The lookup sits here, above the `scanningBinaries`
+        // guard the switch below applies, for the same reason the in-memory
+        // lookup above does: a caller that forbade scanning still gets an
+        // answer someone else — an earlier call in this process, or a
+        // previous process entirely — already paid for. Only `.tauri` reaches
+        // here because that is the only runtime `record` is ever called for;
+        // see the doc comment on `cache` for why Electron and Chromium's `nil`
+        // must not survive past the process that reached it.
+        if runtime == .tauri, let identity,
+           let diskAnswer = TauriProofStore.shared.lookup(forBundleAt: bundleURL.path, identity: identity) {
+            if let key { remember(diskAnswer, for: key) }
+            return diskAnswer
+        }
 
         let version: String?
         switch runtime {
@@ -116,9 +131,11 @@ public enum RuntimeVersion {
             guard scanningBinaries, let executable else { return nil }
             // The one place the difference between "proved absent" and "could not
             // read" matters, because a nil here is a *verdict* — `carriesTauriCrate`
-            // turns it into "this app is not Tauri" and the cache would keep that
-            // for the life of the process. A half-read binary must therefore leave
-            // no trace: no answer, nothing remembered, asked again next time.
+            // turns it into "this app is not Tauri", and that verdict is
+            // remembered twice over: in `cache`, for the life of this process, and
+            // in `TauriProofStore` on disk, for every process after it. A
+            // half-read binary must therefore leave no trace in either: no
+            // answer, nothing remembered, asked again next time.
             switch probe(executable, for: "tauri-", components: 3) {
             case .found(let found): version = found
             case .absent:           version = nil
@@ -145,6 +162,13 @@ public enum RuntimeVersion {
         // `appVersion` used to be the one thing that could vary between two callers
         // of the same bundle.
         if let key, version != nil || scanningBinaries { remember(version, for: key) }
+        // Reached only when `scanningBinaries` was true — the guard at the top
+        // of `case .tauri` above already returned for a caller that forbade
+        // it — so this never persists the "answer about the caller" nil the
+        // paragraph above describes, for the same reason `remember` does not.
+        if runtime == .tauri, let identity {
+            TauriProofStore.shared.record(version, forBundleAt: bundleURL.path, identity: identity)
+        }
         return version
     }
 
@@ -165,7 +189,12 @@ public enum RuntimeVersion {
     /// rather than on the bytes read; and a filesystem with coarse timestamps could
     /// in principle hold two same-sized binaries under one key. Neither shape
     /// appears in `/Applications`.
-    private static func executableIdentity(of executable: URL) -> String? {
+    ///
+    /// Internal rather than `private`, for the same reason as `scanOverlap` and
+    /// `scanChunkSize`: the disk-cache tests need to seed `TauriProofStore` under
+    /// the exact identity `read` will look up, and hand-computing that string a
+    /// second time in test code would drift the moment this format changes.
+    static func executableIdentity(of executable: URL) -> String? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: executable.path),
               let size = attributes[.size] as? NSNumber,
               let modified = attributes[.modificationDate] as? Date
@@ -186,6 +215,12 @@ public enum RuntimeVersion {
     /// `Synchronization.Mutex` would be the modern way to hold this and needs
     /// macOS 15; the package targets 14. A lock around a dictionary is what the
     /// rest of this package does.
+    ///
+    /// This is the in-process half only. `.tauri`'s verdicts — found or proved
+    /// absent, never `.unreadable` — are mirrored to `TauriProofStore` on disk,
+    /// so the walk that fills this dictionary the first time something asks
+    /// does not have to run again for the next process to ask: `duo list`
+    /// used to re-pay it, once per candidate bundle, on every invocation.
     private nonisolated(unsafe) static var cache: [String: String?] = [:]
     private static let cacheLock = NSLock()
 
@@ -344,7 +379,11 @@ public enum RuntimeVersion {
     /// is not, and if it is, the version is right beside it — so the detector
     /// asking "is this Tauri" during a scan and the detail view asking "which
     /// Tauri" later share one cache entry, and the walk happens once per binary
-    /// rather than once per asker.
+    /// rather than once per asker. Since `TauriProofStore`, "once per binary"
+    /// no longer means once per binary *per process*: the menu-bar app pays for
+    /// a bundle's walk at most once between updates, and `duo` — a fresh
+    /// process on every invocation — reads that answer back rather than
+    /// re-paying it on every `duo list`.
     ///
     /// `tauri-runtime-wry-2.11.4` deliberately does not match: the character after
     /// the prefix has to be a digit, so only the framework crate itself is read.
@@ -362,6 +401,9 @@ public enum RuntimeVersion {
     ///   of the same `cargo build` and carry the same crate paths, so the answer
     ///   agrees — it is the bytes read, not the verdict, that are larger than they
     ///   need to be. One of the six candidates here (CC Switch) is fat.
+    ///
+    /// A verdict this reaches is persisted past this process — see
+    /// `TauriProofStore.proverGeneration` for what that requires of edits here.
     public static func carriesTauriCrate(bundleAt bundleURL: URL) -> Bool {
         read(.tauri, bundleAt: bundleURL, scanningBinaries: true) != nil
     }
@@ -425,6 +467,9 @@ public enum RuntimeVersion {
     /// A closure that hands back one chunk at a time is enough to say all of it, and
     /// it is the shape this file's neighbours already use (`LibraryReader`,
     /// `TauriProof`).
+    ///
+    /// A change to the boundary/window/carry logic below needs a bump of
+    /// `TauriProofStore.proverGeneration` — see its doc comment.
     static func probe(
         reading next: () throws -> Data?,
         for prefix: String,
@@ -574,6 +619,9 @@ public enum RuntimeVersion {
     ///
     /// Only the *search* moved. Both window-edge rules and the identifier guard are
     /// unchanged, and so is the order they run in.
+    ///
+    /// A rule change here — the digit run, the identifier guard, the component
+    /// count — needs a bump of `TauriProofStore.proverGeneration`.
     private static func firstVersion(
         in bytes: Data,
         after needle: Data,

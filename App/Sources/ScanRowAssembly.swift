@@ -87,10 +87,22 @@ enum ScanRowAssembly {
                 return carrying(remote, UpdateChecker.evaluateToolbox(
                     cached: was.status, installed: app, remote: remote))
             }
-            // TestFlight owns its betas' status (its own cache, not a version
-            // compare) — keep it; don't re-evaluate.
-            guard remote.sourceName != "TestFlight" else {
-                return carrying(remote, was.status)
+            // A TestFlight row settles the way a check would answer it
+            // (`UpdateChecker.testFlightVerdict`), against the build the store named
+            // as the latest. TestFlight installs its betas itself, between our
+            // checks, and the kept verdict used to stand until the next full round:
+            // an update offered that was already installed, or "up to date" beside
+            // a copy TestFlight had moved past what its store knew (#478). A row
+            // the check refused to bound has no remote and kept its status above.
+            // The tester, sign-in and announcement signals are not read here; they
+            // can only take a verdict away, and the next round reads them.
+            if remote.sourceName == "TestFlight" {
+                guard let build = remote.version else { return carrying(remote, was.status) }
+                let verdict = UpdateChecker.testFlightVerdict(
+                    installed: app, latestShortVersion: remote.shortVersion, latestBuild: build)
+                return verdict == .testFlightManaged
+                    ? carrying(nil, .testFlightManaged)
+                    : carrying(remote, verdict)
             }
             return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
         }

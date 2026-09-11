@@ -197,31 +197,64 @@ struct ScanRowAssemblyTests {
         #expect(rows[0].effectiveReleaseChannel == .beta)
     }
 
-    /// TestFlight owns its betas' status — it comes from TestFlight's own cache,
-    /// not from a version compare — and the row's label carries the build,
-    /// because TF betas keep one marketing string across builds
-    /// (`UpdateChecker` builds "1.2 (345)" for exactly that reason). Re-deriving
-    /// it here would rewrite that label to a bare "1.2" on every FS-watcher
-    /// rescan.
-    ///
-    /// Mutations: delete the `guard remote.sourceName != "TestFlight"`; or
-    /// rebuild its return with `UpdateResult(app:remote:status:)`.
-    @Test func aTestFlightRowKeepsItsOwnStatusAndItsChannel() {
-        let app = InstalledApp(
+    // MARK: merge — TestFlight rows settle on a rescan
+
+    /// Invented path, like `planApp` below.
+    private func tfBeta(build: String) -> InstalledApp {
+        InstalledApp(
             name: "Beta", bundleID: "com.example.beta",
-            shortVersion: "1.2", buildVersion: "344",
-            path: URL(fileURLWithPath: Self.betaPath),
+            shortVersion: "1.2", buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-Beta.app"),
             isMASApp: false, isToolboxManaged: false, isTestFlightApp: true,
             sparkleFeedURL: nil)
-        let cached = remote("1.2", channel: nil, source: "TestFlight", build: "345")
+    }
+    /// What the last check read from TestFlight's store: 1.2 (345) on offer.
+    private var tfOffer: RemoteVersion {
+        remote("1.2", channel: nil, source: "TestFlight", build: "345")
+    }
+
+    /// Nothing moved on disk: the offer stands, and so does the row's channel.
+    /// Mutation: rebuild the TestFlight branch's return with
+    /// `UpdateResult(app:remote:status:)` — the channel goes.
+    @Test func anUnmovedTestFlightRowKeepsItsOfferAndItsChannel() {
+        let app = tfBeta(build: "344")
         let prior = [UpdateResult(
-            app: app, remote: cached, status: .updateAvailable(latest: "1.2 (345)"),
+            app: app, remote: tfOffer, status: .updateAvailable(latest: "1.2"),
             provenChannel: .beta)]
 
         let rows = ScanRowAssembly.merged([app], prior: prior, proofs: noProofs)
 
-        #expect(rows[0].status == .updateAvailable(latest: "1.2 (345)"))
+        #expect(rows[0].status == .updateAvailable(latest: "1.2"))
         #expect(rows[0].effectiveReleaseChannel == .beta)
+    }
+
+    /// TestFlight installed the build it was offering, between our checks — it
+    /// does that on its own. The row must stop offering it. Mutation: carry
+    /// `was.status` as before — the row keeps offering 1.2 beside a copy that
+    /// already is 1.2 (345).
+    @Test func aTestFlightRowSettlesOnceTheOfferIsInstalled() {
+        let prior = [UpdateResult(
+            app: tfBeta(build: "344"), remote: tfOffer, status: .updateAvailable(latest: "1.2"))]
+
+        let rows = ScanRowAssembly.merged([tfBeta(build: "345")], prior: prior, proofs: noProofs)
+
+        #expect(rows[0].status == .upToDate)
+    }
+
+    /// TestFlight installed a build newer than the one its store named — the
+    /// #478 shape. The store cannot bound this copy, so neither the carried
+    /// "update available" nor the "up to date" a plain version compare gives a
+    /// copy ahead of its source may stand. Mutations: carry `was.status`; answer
+    /// through `UpdateChecker.evaluate`; keep the remote on the unbounded verdict
+    /// — each fails a line below.
+    @Test func aTestFlightRowAheadOfTheStoreIsNotCalledCurrent() {
+        let prior = [UpdateResult(
+            app: tfBeta(build: "344"), remote: tfOffer, status: .updateAvailable(latest: "1.2"))]
+
+        let rows = ScanRowAssembly.merged([tfBeta(build: "346")], prior: prior, proofs: noProofs)
+
+        #expect(rows[0].status == .testFlightManaged)
+        #expect(rows[0].remote == nil)
     }
 
     /// The ordinary path — a GitHub row whose verdict is re-derived against the

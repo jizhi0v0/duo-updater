@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.92
 
-Under the hood: the Homebrew list in the menu fills in faster.
+Under the hood: the Homebrew list in the menu fills in faster, and `duo` commands start faster.
 
 ## 0.3.91
 

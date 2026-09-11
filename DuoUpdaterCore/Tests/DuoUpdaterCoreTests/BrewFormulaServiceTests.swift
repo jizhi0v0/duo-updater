@@ -35,16 +35,27 @@ import Foundation
     /// overlap of the two `brew` calls, not cooperative scheduling.
     ///
     /// Per CLAUDE.md "并行套件里墙钟上界不成立": this asserts overlap happened
-    /// (`observedMaxInFlight`), not how fast it happened. The `timeout` only
-    /// bounds how long a broken (serialized) run waits before giving up — it is
-    /// not a performance assertion.
+    /// (`observedMaxInFlight`), not how fast it happened. `timeout` only bounds
+    /// how long a broken (serialized) run waits before giving up — it is not a
+    /// performance assertion, so it is set generously (60s), not tightly.
+    ///
+    /// On the healthy path the second caller arrives almost immediately (both
+    /// `async let` child tasks start right away, and `arrive()` returns the
+    /// moment the second one calls in), so this test does not normally pay
+    /// anywhere near the full timeout. But a passing run CAN legitimately take
+    /// seconds to get there: the second child task still needs a cooperative-pool
+    /// thread before it can even reach its own call into the gate, and this repo
+    /// has measured 0.5-6.4s of pool-admission / Dispatch wait on a 3-core CI
+    /// runner when ~2550 tests are running concurrently in one process (see
+    /// CLAUDE.md "并行套件里墙钟上界不成立"). A short timeout would read that
+    /// scheduling delay as "never overlapped" and fail a correct implementation.
     final class TwoWayGate: @unchecked Sendable {
         private let condition = NSCondition()
         private var arrivedCount = 0
         private var inFlight = 0
         private var maxInFlight = 0
 
-        func arrive(timeout: TimeInterval = 5) {
+        func arrive(timeout: TimeInterval = 60) {
             condition.lock()
             inFlight += 1
             maxInFlight = max(maxInFlight, inFlight)
@@ -192,7 +203,21 @@ import Foundation
     /// result out. `zzfixture-cli` has no staged `.app`/`.pkg` anywhere real (it
     /// doesn't exist), so it passes the filter; the parser/filter behavior itself
     /// is covered in depth by `BrewOutdatedCaskTests`.
+    ///
+    /// The fake `Executor` above only replaces the `brew` subprocess half of
+    /// `outdatedCasks()` — the filter half, `installsAnApp(caskToken:)`, reads the
+    /// REAL Caskroom via `BrewLocalInventory.defaultCaskroomPaths` directly off
+    /// disk, with no executor seam. So an invented-sounding fixture name is not
+    /// enough by itself (CLAUDE.md "测试不能问宿主": a name that merely LOOKS
+    /// fictitious but happens to collide with something real on some machine is
+    /// exactly the "implicitly asking the host" shape). Assert up front, as a gate
+    /// that fails loudly rather than a comment that can rot, that this name is not
+    /// staged in any real Caskroom this test would actually read.
     @Test func outdatedCasksParsesAndFiltersASuccessfulResponse() async throws {
+        for root in BrewLocalInventory.defaultCaskroomPaths {
+            #expect(!FileManager.default.fileExists(atPath: root + "/zzfixture-cli"))
+        }
+
         let payload = Data("""
         {"formulae":[],"casks":[
           {"name":"zzfixture-cli","installed_versions":["0.1.0"],

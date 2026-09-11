@@ -159,12 +159,12 @@ public actor BrewFormulaService {
         // whole Process spawn/read/wait ran synchronously on this actor — so the
         // second `async let` could not even begin until the first one returned.
         // This comment used to claim the two reads ran concurrently; they did not.
-        // Measured on this machine under load (one sample, not a proof — just the
-        // shape of the effect): calling `outdated()` then `outdatedCasks()` in
-        // sequence on this actor and calling them as an `async let` pair on the
-        // un-hopped actor both landed around the same latency, while running the
-        // identical two `brew` commands on separate Dispatch threads was
-        // meaningfully faster.
+        // Measured 2026-09-11, during review of this fix, against the real
+        // (pre-fix) BrewFormulaService on a 14-core M3 Max under heavy load
+        // (1-minute load average 10-20): two reads on the un-hopped actor took
+        // 1357-1439 ms whether called in sequence or as an `async let` pair — i.e.
+        // the pair bought nothing — while the identical two `brew` commands run on
+        // two separate Dispatch threads took 760-783 ms.
         async let leafNames = runReading(["leaves"])
         async let versionList = runReading(["list", "--formula", "--versions"])
 
@@ -267,7 +267,16 @@ public actor BrewFormulaService {
         process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()  // swallow stderr noise
+        // nullDevice, not Pipe(): an undrained stderr pipe deadlocks once its
+        // 64KB buffer fills — brew blocks writing (a long run of deprecation
+        // warnings or a Ruby backtrace is enough), we block forever in the
+        // `readDataToEndOfFile()` below waiting on stdout, which brew never
+        // reaches. Same failure shape as `AppListModel.runningBuildVersions`'s
+        // `lsappinfo` call, which documents it at the call site. `offCooperativePool`
+        // is not cancellable, so this would leak a Dispatch thread and a wedged
+        // `brew` process — and since this is what the Brew tree loads on, the
+        // menu's Brew list would simply never finish loading.
+        process.standardError = FileHandle.nullDevice
         try process.run()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()

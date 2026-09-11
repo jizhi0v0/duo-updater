@@ -62,6 +62,11 @@ func describe(_ f: FeedDiscovery.Finding) -> String {
     case .declared(let url):
         lines.append("   declared  \(url.absoluteString)")
         lines.append("      (Info.plist names it; SparkleAppcastSource already resolves this app)")
+    case .declaredNeedsBinding(let url):
+        lines.append("   NEEDS BINDING \(url.absoluteString)")
+        lines.append("      Info.plist names it, but every item carries <sparkle:channel> and no")
+        lines.append("      ChannelBinding exists — once the feed stops listing the installed build,")
+        lines.append("      nothing is admitted. Needs a ChannelBinding naming the tag(s).")
     case .superseded(let declared, let live):
         lines.append("   SUPERSEDED \(declared.absoluteString)")
         lines.append("      the address the Info.plist names — SparkleFeedCatalog replaces it with")
@@ -151,6 +156,10 @@ if argv[1] == "--scan" {
             // kind of declared feed that is a coverage question rather than an
             // answer to one.
             counts["superseded", default: 0] += 1
+        case .declaredNeedsBinding:
+            // Not skipped under `--gaps` either: the address is covered, the
+            // channel is not.
+            counts["declaredNeedsBinding", default: 0] += 1
         case .adopt:
             counts["adopt", default: 0] += 1
         case .review(let b, _):

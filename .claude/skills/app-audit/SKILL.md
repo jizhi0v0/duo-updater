@@ -566,8 +566,10 @@ An audit that does not know a field exists will report the situation it covers a
 
 Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
 binary patches), `VendorAppcastDeltas` (pulls them out of an appcast),
-`RecipeSanity` (flags a version that appears verbatim in the request URL, and a
-feed that reads behind the installed copy).
+`RecipeSanity` (flags a version that appears verbatim in the request URL, a
+feed that reads behind the installed copy, and — via `duo verify` — a `*-mac.yml`
+recipe whose bare address answers a different version than the same address with
+electron-updater's `noCache` query, i.e. a CDN edge copy shadowing the origin).
 
 ### Phase 4: One-click install feasibility
 

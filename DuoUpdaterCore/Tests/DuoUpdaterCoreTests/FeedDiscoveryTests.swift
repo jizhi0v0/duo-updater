@@ -437,3 +437,52 @@ private func electronProbe(marketing: String) -> FeedDiscovery.BundleProbe {
             provider: "generic", url: "https://example.invalid",
             owner: nil, repo: nil, channel: "latest"))
 }
+
+/// A CDN that holds a stale edge copy of every address and only goes to origin for
+/// a request that carries a query — Kimi's manifest host, 2026-09-11. Stateless,
+/// so it is safe under the parallel runner.
+private final class EdgeCopyProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let url = request.url else { return }
+        let body = url.query == nil ? "version: 3.2.5\n" : "version: 3.2.7\n"
+        let response = HTTPURLResponse(
+            url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+@Test func discoveryReadsTheManifestPastACDNsEdgeCopy() async throws {
+    // A bare fetch reads the 3.2.5 edge copy and reports `electronVersionMismatch`
+    // against a 3.2.7 bundle whose own updater reads the manifest fine.
+    let fm = FileManager.default
+    let bundle = fm.temporaryDirectory
+        .appendingPathComponent("ZZFixture-EdgeCopy-\(UUID().uuidString).app")
+    defer { try? fm.removeItem(at: bundle) }
+    let resources = bundle.appendingPathComponent("Contents/Resources")
+    try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+    let plist: [String: Any] = [
+        "CFBundleIdentifier": "com.duoupdater.test.zzfixture.edgecopy",
+        "CFBundleShortVersionString": "3.2.7",
+        "CFBundleVersion": "3.2.7",
+    ]
+    try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+    try "provider: generic\nurl: https://kimi-img.example.test/app/upgrade/\n"
+        .write(to: resources.appendingPathComponent("app-update.yml"),
+               atomically: true, encoding: .utf8)
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [EdgeCopyProtocol.self]
+    let finding = await FeedDiscovery.examine(
+        bundleAt: bundle, session: URLSession(configuration: configuration))
+
+    // Adopted, and against the bare address: the verdict names what a person would
+    // propose, never the one-off query it was fetched with.
+    #expect(finding.verdict
+        == .adopt(URL(string: "https://kimi-img.example.test/app/upgrade/latest-mac.yml")!))
+}

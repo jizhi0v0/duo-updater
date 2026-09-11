@@ -116,6 +116,31 @@ import Foundation
     #expect(manifest("beta") == URL(string: "https://example.invalid/releases/beta-mac.yml"))
 }
 
+@Test func theManifestIsRequestedTheWayElectronUpdaterRequestsIt() {
+    let cfg = ElectronUpdateConfig(
+        provider: "generic", url: "https://example.invalid/app/upgrade/",
+        owner: nil, repo: nil, channel: "latest")
+    #expect(cfg.manifestRequestURL(noCache: "k3v9")
+        == URL(string: "https://example.invalid/app/upgrade/latest-mac.yml?noCache=k3v9"))
+    // What artifacts resolve against stays bare.
+    #expect(cfg.manifestURL == URL(string: "https://example.invalid/app/upgrade/latest-mac.yml"))
+
+    // A query already in the address is left alone, not overwritten.
+    let stated = ElectronUpdateConfig(
+        provider: "generic", url: "https://example.invalid/feed?token=abc",
+        owner: nil, repo: nil, channel: "latest")
+    #expect(stated.manifestRequestURL(noCache: "k3v9") == stated.manifestURL)
+
+    // No address, no request — `github`/`s3` are still never constructed.
+    let github = ElectronUpdateConfig(
+        provider: "github", url: nil, owner: "o", repo: "r", channel: "latest")
+    #expect(github.manifestRequestURL(noCache: "k3v9") == nil)
+
+    // electron-updater's spelling: epoch milliseconds in base 32.
+    #expect(ElectronUpdateConfig.noCacheToken(now: Date(timeIntervalSince1970: 1_757_570_000.5))
+        == String(1_757_570_000_500, radix: 32))
+}
+
 @Test func theInstallerKindComesFromTheChosenArtifact() {
     #expect(ElectronManifestSource.kind(of: "Notion-arm64-7.31.3.zip") == .zip)
     #expect(ElectronManifestSource.kind(of: "Canva-1.124.1-universal.dmg") == .dmg)
@@ -158,15 +183,28 @@ struct ElectronManifestSourceTests {
         }
 
         nonisolated(unsafe) static var routes: [String: Response] = [:]
+        /// Served INSTEAD of `routes` to a request that carries no query: the stale
+        /// copy a CDN edge holds for the bare address, which only a query gets past.
+        nonisolated(unsafe) static var edgeCopies: [String: Response] = [:]
+        /// Recorded and routed WITHOUT the query — the source puts a fresh
+        /// `noCache` token on every manifest fetch, and a random token cannot be a
+        /// route key. `requestedQueries` keeps what was stripped, index for index.
         nonisolated(unsafe) static var requestedURLs: [String] = []
+        nonisolated(unsafe) static var requestedQueries: [String?] = []
 
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
             guard let url = request.url else { return }
-            Self.requestedURLs.append(url.absoluteString)
-            guard let route = Self.routes[url.absoluteString] else {
+            var bare = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let query = bare?.query
+            bare?.query = nil
+            let key = bare?.url?.absoluteString ?? url.absoluteString
+            Self.requestedURLs.append(key)
+            Self.requestedQueries.append(query)
+            let served = query == nil ? (Self.edgeCopies[key] ?? Self.routes[key]) : Self.routes[key]
+            guard let route = served else {
                 let response = HTTPURLResponse(
                     url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: nil)!
                 client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -243,6 +281,46 @@ struct ElectronManifestSourceTests {
 
         let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
         #expect(entry?.isHealthy == true)
+    }
+
+    @Test func theManifestIsReadPastACDNsEdgeCopy() async throws {
+        // Kimi's shape, 2026-09-11 (real bodies, trimmed): the bare address is an
+        // edge copy days behind the origin, and only a request carrying a query
+        // reaches the origin. electron-updater always sends `noCache`, so the app
+        // itself saw 3.2.7 while a bare fetch saw 3.2.5.
+        let domain = "https://kimi-img.example.test/app/upgrade"
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.requestedQueries = []
+        FixtureProtocol.edgeCopies = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 3.2.5
+                files:
+                  - url: Kimi-3.2.5-arm64-mac.zip
+                    sha512: STALESHA==
+                    size: 419681752
+                """, transportFailure: false),
+        ]
+        defer { FixtureProtocol.edgeCopies = [:] }
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 3.2.7
+                files:
+                  - url: Kimi-3.2.7-arm64-mac.zip
+                    sha512: FRESHSHA==
+                    size: 430688879
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.cdnEdgeCopy"
+
+        let remote = try #require(await ElectronManifestSource(session: fixtureSession())
+            .latestVersion(for: electronApp(bundleID: bundleID, domain: domain)))
+        #expect(remote.shortVersion == "3.2.7")
+        #expect(remote.expectedSHA512 == "FRESHSHA==")
+        // The artifact resolves against the bare address: no token in the download.
+        #expect(remote.downloadURL == URL(string: "\(domain)/Kimi-3.2.7-arm64-mac.zip"))
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
+        #expect(FixtureProtocol.requestedQueries.count == 1)
+        #expect(FixtureProtocol.requestedQueries.first??.hasPrefix("noCache=") == true)
     }
 
     // MARK: - #291: end-to-end coverage for real vendor shapes, without the

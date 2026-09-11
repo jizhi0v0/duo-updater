@@ -204,4 +204,41 @@ public enum RecipeSanity {
     /// Codeberg and GitHub both mint these for every release, whether or not the
     /// project ships a binary.
     private static let sourceArchivePaths = ["/archive/", "/tarball", "/zipball"]
+
+    // MARK: - CDN edge copies
+
+    /// Whether `duo verify` should ask this recipe's endpoint a second time with
+    /// electron-updater's `noCache` query: it reads an electron-builder manifest
+    /// (`*-mac.yml`) with a plain GET and states no query of its own — the one
+    /// shape where the query asks the same question of the origin instead of a
+    /// CDN's edge copy.
+    ///
+    /// Why this exists: Kimi's `latest-mac.yml`, 2026-09-11. Its CDN served the
+    /// bare address from an edge copy four and a half days old, ignoring the
+    /// origin's `Cache-Control: no-cache`, while the same address with the query
+    /// reached the origin. The app's own updater always sends the query, so the
+    /// vendor never sees the stale copy; a recipe reading the bare address reads
+    /// an old version, and every check passes — the version resolves, the URL
+    /// resolves, nothing errors. `ElectronManifestSource` now sends the query
+    /// itself. Recipes are left fetching the bare address (most of their CDNs
+    /// do not cache it, and some leave the query out of the cache key so it would
+    /// not help), and this is what would notice when that stops being true.
+    public static func readsElectronManifest(_ recipe: VendorProbeRecipe) -> Bool {
+        guard case .responseBody = recipe.mode, recipe.requestBody == nil,
+              recipe.url.query == nil
+        else { return false }
+        return recipe.url.path.hasSuffix("-mac.yml")
+    }
+
+    /// The warning when a recipe's bare address and the same address with a
+    /// `noCache` query answer different versions, nil when they agree. Compared
+    /// as strings on purpose: both answers came out of the same recipe's own
+    /// pattern, and a difference in EITHER direction means the two addresses are
+    /// not serving the same document.
+    public static func edgeCopyComplaint(bare: String, origin: String) -> String? {
+        guard bare != origin else { return nil }
+        return "the bare address answers \(bare), but the same address with a noCache query"
+            + " answers \(origin) — a CDN edge copy is shadowing the origin (the app's own"
+            + " electron-updater always sends that query)"
+    }
 }

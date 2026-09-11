@@ -334,8 +334,11 @@ public actor AppStoreAXInstaller {
         // shows, gate it behind the user's Relaunch tap, pressing Continue ourselves
         // only then (see driveToCompletion).
         // We already know (from detection) an update is due, so press regardless of the
-        // localized title — pressing an up-to-date button no-ops. Re-find the button right
-        // before pressing: the ref from the wait can go stale if the page re-rendered.
+        // localized title. On the product page pressing an up-to-date button no-ops; on
+        // the Updates list it does NOT — a settled row's button reads **Open** and
+        // pressing it launches the app, which is what the #328 check below refuses.
+        // Re-find the button right before pressing: the ref from the wait can go stale
+        // if the page re-rendered.
         //
         // #471: this used to be a one-shot `guard` with no retry budget at all, while the
         // wait above got ~12s — so a page that happened to churn in the ~0ms gap between

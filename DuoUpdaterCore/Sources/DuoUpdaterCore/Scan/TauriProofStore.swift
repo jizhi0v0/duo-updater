@@ -110,9 +110,19 @@ final class TauriProofStore: @unchecked Sendable {
     /// access for the rest of the process silently read and wrote
     /// `/tmp/duo-state-test/com.duoupdater.app/tauri-proofs.json` — a file
     /// every worktree's test run shares — instead of its own scratch file.
-    /// Resolving once, at construction, means `shared`'s target is decided
-    /// before any of that can reach it, and cannot be moved afterward by
-    /// anything another suite does to the environment.
+    /// Resolving once, at construction, means nothing another suite does to
+    /// the environment can move `shared`'s target afterward.
+    ///
+    /// Once is not enough on its own, though, because *construction* is the
+    /// moment in question: `shared` is a lazily initialised `static let`, so
+    /// it is built at its first touch, and that touch can itself fall inside
+    /// another test's `setenv` window. Resolved through `defaultFileURL()`
+    /// there, the whole process would stay pinned to that test's directory —
+    /// the same leak, arriving by chance instead of every time. So in a test
+    /// process the default store does not consult `DUO_STATE_DIR` at all and
+    /// always takes the per-process scratch file. `defaultFileURL()` still
+    /// honours the override, which is what `DuoStateDirectoryTests` asserts
+    /// and what a real process (`duo verify` sets it at launch) resolves.
     ///
     /// Every other on-disk store in this package also resolves once, at
     /// construction — the difference is only that they are built fresh per
@@ -122,7 +132,8 @@ final class TauriProofStore: @unchecked Sendable {
     let resolvedFileURL: URL   // internal: asserted by TauriProofStoreTests
 
     init(fileURL: URL? = nil) {
-        self.resolvedFileURL = fileURL ?? Self.defaultFileURL()
+        self.resolvedFileURL = fileURL
+            ?? (DuoStateDirectory.isTestProcess ? Self.testProcessScratchFileURL : Self.defaultFileURL())
     }
 
     /// `nil` means "no record for this path at all". `.some(nil)` means "there
@@ -174,7 +185,9 @@ final class TauriProofStore: @unchecked Sendable {
         return decoded.entries
     }
 
-    /// Where a test process's `.shared` writes, when `DUO_STATE_DIR` is unset.
+    /// Where a test process's default store writes — always, whatever
+    /// `DUO_STATE_DIR` says (see `resolvedFileURL`) — and where
+    /// `defaultFileURL()` points in a test process while the override is unset.
     ///
     /// Unlike `EventStore`'s equivalent (`duo-events-tests`, a fixed name every
     /// test process shares), this carries a UUID computed once — because
@@ -191,15 +204,17 @@ final class TauriProofStore: @unchecked Sendable {
     /// deletes it. What the UUID actually buys is narrower: no run ever reads
     /// a PREVIOUS run's entries, and two worktrees testing at once never
     /// share one.
-    private static let testProcessScratchName = "duo-tauri-proofs-tests-\(UUID().uuidString)"
+    static let testProcessScratchFileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("duo-tauri-proofs-tests-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("com.duoupdater.app", isDirectory: true)
+        .appendingPathComponent("tauri-proofs.json")
 
     static func defaultFileURL() -> URL {   // internal: asserted by DuoStateDirectoryTests
-        let base = DuoStateDirectory.isTestProcess
-            && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil
-            ? FileManager.default.temporaryDirectory
-                .appendingPathComponent(testProcessScratchName, isDirectory: true)
-            : DuoStateDirectory.base
-        return base
+        if DuoStateDirectory.isTestProcess
+            && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil {
+            return testProcessScratchFileURL
+        }
+        return DuoStateDirectory.base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("tauri-proofs.json")
     }

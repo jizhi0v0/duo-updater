@@ -150,4 +150,29 @@ struct TauriProofStoreTests {
         #expect(TauriProofStore.shared.resolvedFileURL == resolvedBefore,
                 ".shared must not re-resolve its file location after a later DUO_STATE_DIR change")
     }
+
+    /// The other half of the same fix: resolving once does not help if the
+    /// one resolution happens inside another test's `setenv` window, and
+    /// `.shared` is built at whatever moment first touches it. So in a test
+    /// process the default store must not consult `DUO_STATE_DIR` at all.
+    ///
+    /// Builds a default store *while* the override is set — the exact moment
+    /// `.shared`'s first touch could land in — and requires the per-process
+    /// scratch file anyway. Resolving through `defaultFileURL()` instead lands
+    /// it under the override and fails this test deterministically, which the
+    /// test above cannot do: whether `.shared` happened to be touched inside a
+    /// window is up to the scheduler.
+    @Test func aDefaultStoreBuiltInATestProcessIgnoresDUOStateDir() {
+        let override = "/tmp/duo-tauri-should-never-be-read-\(UUID().uuidString)"
+        let previous = ProcessInfo.processInfo.environment["DUO_STATE_DIR"]
+        setenv("DUO_STATE_DIR", override, 1)
+        defer {
+            if let previous { setenv("DUO_STATE_DIR", previous, 1) } else { unsetenv("DUO_STATE_DIR") }
+        }
+
+        let store = TauriProofStore()
+        #expect(store.resolvedFileURL == TauriProofStore.testProcessScratchFileURL)
+        #expect(!store.resolvedFileURL.path.hasPrefix(override))
+        #expect(TauriProofStore.shared.resolvedFileURL == TauriProofStore.testProcessScratchFileURL)
+    }
 }

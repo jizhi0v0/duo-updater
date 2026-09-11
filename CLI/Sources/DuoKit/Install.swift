@@ -450,7 +450,7 @@ public enum Install {
     /// source re-query, which is the entire point of the re-check and must not be
     /// hoisted alongside the shared plumbing.
     ///
-    /// TestFlight-free for the same reason `recheckMany` is: this must never block
+    /// TestFlight-free: this must never block
     /// on TestFlight's local database, which lives behind the Sequoia app-data TCC
     /// gate — with nobody at a prompt mid-install that would hang the batch. The
     /// next full `duo check`/`duo install` re-applies TestFlight tagging from

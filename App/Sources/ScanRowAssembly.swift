@@ -150,4 +150,63 @@ enum ScanRowAssembly {
         }
         return (check, carried)
     }
+
+    /// A per-row recheck, from the rows it was handed and a fresh scan of their
+    /// bundles: the rows to put back, and which of them are TestFlight rows kept as
+    /// they were rather than checked.
+    ///
+    /// A TestFlight row is answered from TestFlight's store and nothing else
+    /// (`UpdateChecker`'s TestFlight branch), so checking one without reading the
+    /// store answers it from an empty one: "no cached build", on a row that had a
+    /// verdict. The recheck used to skip the read for every row, so Check Again on
+    /// a beta took its verdict away — measured 2026-09-11, `retry done: Amp →
+    /// testFlightManaged` 59 ms after the click, while the round 28s later read
+    /// its build from the same store, unchanged in between.
+    ///
+    /// So this does what a round does, in the round's order. The scan is taken
+    /// without the store. The store is read if any row is a TestFlight row — by its
+    /// old tag or by the scan's, since a copy can become one between checks — and
+    /// the grant allows it; `mayRead` is asked only then, because it probes the
+    /// disk and an install's recheck never has such a row. The scan is retagged
+    /// from what was read (`AppScanner.applyingTestFlightInventory`), since a
+    /// wrapped iPhone/iPad beta can be recognized from the store alone (#456), and
+    /// `check` is handed that store.
+    ///
+    /// When the read is allowed but does not come back open, the TestFlight rows
+    /// are kept rather than answered from the empty store — the answer this exists
+    /// to stop — as in a round that skips the store (`roundPlan`), and kept the way
+    /// that round keeps them: re-derived against the scan (`merged`), so a build
+    /// TestFlight has installed since is not still offered. Without the grant
+    /// nothing is kept, since nothing will ever read the store to refresh a kept
+    /// verdict; those rows are checked and say they cannot tell, as in a round
+    /// without it.
+    ///
+    /// On the main actor so `read` and `check` run where their caller formed them:
+    /// the app's are main-actor closures, and handing them to a nonisolated async
+    /// function does not compile under Swift 6. The slow work still happens off the
+    /// main thread, inside them.
+    @MainActor static func recheck(
+        _ rows: [UpdateResult], scanned: [InstalledApp],
+        mayRead: @autoclosure () -> Bool,
+        read: () async -> TestFlightInventory?,
+        proofs: some ChannelProofSource,
+        check: ([InstalledApp], TestFlightInventory) async -> [UpdateResult]
+    ) async -> (rows: [UpdateResult], kept: [UpdateResult]) {
+        let unread = TestFlightInventory(macRows: [], accessible: false)
+        let hasTestFlightRow = rows.contains(where: \.app.isTestFlightApp)
+            || scanned.contains(where: \.isTestFlightApp)
+        let reads = hasTestFlightRow && mayRead()
+        let opened = reads ? await read() : nil
+        let store = opened.flatMap { $0.accessible ? $0 : nil } ?? unread
+        let apps = store.accessible
+            ? AppScanner.applyingTestFlightInventory(store, to: scanned) : scanned
+        // Only a row that was a TestFlight row has a TestFlight verdict to keep. One
+        // whose copy became a beta since carries another source's verdict, which
+        // must not stand for a beta, so it is checked and says it cannot tell.
+        let wereTestFlight = Set(rows.filter(\.app.isTestFlightApp).map(\.id))
+        let plan = roundPlan(
+            apps, keepsTestFlightRows: reads && !store.accessible,
+            onScreen: merged(apps, prior: rows, proofs: proofs).filter { wereTestFlight.contains($0.id) })
+        return (await check(plan.check, store) + plan.carried, plan.carried)
+    }
 }

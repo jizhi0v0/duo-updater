@@ -2352,8 +2352,9 @@ final class AppListModel {
         // one — and only them, since nothing else reads that store. Tagging is
         // re-applied first because a wrapped iPhone/iPad app is recognized from the
         // store itself (#456), so a beta the sync just told us about is not yet a
-        // TestFlight row in `checkable`. Not `recheckMany`: that path is
-        // TestFlight-free on purpose, and would strip exactly those tags. The
+        // TestFlight row in `checkable`. Not `recheckMany`: it decides whether to
+        // read the store from the rows' tags and a scan taken without it, and
+        // exactly those betas carry neither yet. The
         // re-read is bounded like the first one, for the same reason — a read that
         // has not returned is a prompt that is still up.
         if let testFlightSync {
@@ -6419,20 +6420,20 @@ final class AppListModel {
     private func recheckMany(_ targets: [UpdateResult]) async -> [UpdateResult] {
         let ids = Set(targets.map(\.id))
         guard !ids.isEmpty else { return [] }
-        // Off-main and TestFlight-free: the post-install recheck must never block the
-        // UI on the TestFlight container's TCC gate. The next full refresh re-applies
-        // TestFlight tagging, so a single-app recheck just scans without it.
-        let testflight = TestFlightInventory(macRows: [], accessible: false)
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
         let githubToken = await githubTokenForRecheck()
         let bundles = targets.map(\.app.path)
-        let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: testflight).scan(bundlesAt: bundles)
+        // Scanned without TestFlight's store, which `ScanRowAssembly.recheck` reads
+        // afterwards and only for a TestFlight row — so a post-install recheck
+        // still never waits on that container's gate.
+        let scanned = await Task.detached(priority: .userInitiated) {
+            AppScanner(toolbox: toolbox, testflight: TestFlightInventory(macRows: [], accessible: false))
+                .scan(bundlesAt: bundles)
         }.value
         // Identity is the resolved path, which is what a row already carries, so
         // this normally admits everything. Kept as the guard it always was: a bundle
         // that now resolves elsewhere reads as gone, not as a row under another id.
-        let fresh = apps.filter { ids.contains($0.id) }
+        let fresh = scanned.filter { ids.contains($0.id) }
         guard !fresh.isEmpty else { return [] }
         // A recheck is the user insisting, so it must not be answered out of the
         // App Store page cache — for an iOS-on-Mac listing that page is the only
@@ -6444,19 +6445,48 @@ final class AppListModel {
         // must not force a live re-scrape of every OTHER App Store app too —
         // see `AppStorePageCache.invalidateAll`'s doc comment for the incident
         // this replaced. The checker drops the memo for exactly the array it
-        // is about to check — `fresh`, passed once — so the invalidated set and
-        // the checked set can no longer drift apart.
-        // No `announcements:` here on purpose, for the same reason `testflight` is
-        // the empty sentinel three lines up: this path is deliberately TestFlight-free
-        // so a post-install recheck never waits on that container's gate. The next
-        // full refresh re-applies both.
-        let checker = UpdateChecker(
-            sources: makeSources(token: githubToken),
-            maxConcurrency: prefs.maxConcurrency,
-            toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight,
-            channelStore: ResolvedChannelStore.shared)
-        return await checker.check(fresh, freshening: true)
+        // is about to check — the apps `ScanRowAssembly.recheck` hands `check`,
+        // passed once — so the invalidated set and the checked set can no longer
+        // drift apart.
+        let sources = makeSources(token: githubToken)
+        let maxConcurrency = prefs.maxConcurrency
+        let (rows, kept) = await ScanRowAssembly.recheck(
+            targets, scanned: fresh,
+            mayRead: mayReadTestFlightStore,
+            read: {
+                await Self.firstResult(
+                    of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                    within: .seconds(2))
+            },
+            proofs: ResolvedChannelStore.Snapshot(),
+            check: { apps, testflight in
+                // What qualifies that store's answer, read as
+                // `recheckTestFlightRowsOnce` reads it, so a recheck cannot call a
+                // beta current that a round would call unbounded. Neither is read
+                // unless the store was.
+                let announcements: TestFlightAnnouncements? = testflight.accessible
+                    ? await Self.firstResult(
+                        of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                        within: .seconds(2))
+                    : nil
+                let signedIn: Bool? = testflight.accessible ? await AppStoreSignIn.current() : nil
+                let checker = UpdateChecker(
+                    sources: sources,
+                    maxConcurrency: maxConcurrency,
+                    toolbox: ToolboxSource(inventory: toolbox),
+                    testflight: testflight,
+                    announcements: announcements,
+                    appStoreSignedIn: signedIn,
+                    channelStore: ResolvedChannelStore.shared)
+                return await checker.check(apps, freshening: true)
+            })
+        // Said out loud, because nothing else will: the caller logs a kept row's
+        // status next as if it were an answer, and on screen a kept row looks
+        // exactly like a checked one.
+        if !kept.isEmpty {
+            Log.app.notice("recheck: TestFlight's store did not open — kept \(kept.count, privacy: .public) TestFlight row(s) as they were: \(kept.map(\.app.name).joined(separator: ", "), privacy: .public)")
+        }
+        return rows
     }
 
     // MARK: - Failed checks

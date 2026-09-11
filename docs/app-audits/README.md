@@ -148,6 +148,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
 - [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C, detection still unknown
+- [x] [**Kimi**](com-moonshot-kimichat.md) · `com.moonshot.kimichat` — C · 检测走 ElectronManifestSource（bundle 自带 `app-update.yml`）· manifest 要带 `noCache` 查询串才过得了 CDN 边缘副本 · 官网 DMG 是安装器 · 2026-09-11
 - [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
 - [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew
 - [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew

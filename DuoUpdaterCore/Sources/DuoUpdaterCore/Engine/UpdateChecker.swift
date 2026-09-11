@@ -305,12 +305,13 @@ public struct UpdateChecker: Sendable {
                 // build-only `isNewer("500", "1")` read that as "the database
                 // cannot bound this app" and the row swallowed the update
                 // (`status = testFlightManaged`, remote nil).
-                let installedSide = VersionSide(
-                    marketing: app.shortVersion, build: app.buildVersion)
-                let latestSide = VersionSide(
-                    marketing: latest.latestShortVersion.isEmpty ? nil : latest.latestShortVersion,
-                    build: latest.latestBuild)
-                if VersionComparator.isNewer(installedSide, than: latestSide) {
+                // The comparison itself is `testFlightVerdict`, which a rescan runs
+                // too (`ScanRowAssembly.merged`), so the two cannot answer one copy
+                // differently.
+                let verdict = Self.testFlightVerdict(
+                    installed: app, latestShortVersion: latest.latestShortVersion,
+                    latestBuild: latest.latestBuild)
+                if verdict == .testFlightManaged {
                     Log.check.info("""
                         \(label, privacy: .public): TestFlight database holds \
                         \(latest.latestBuild, privacy: .public) but \
@@ -322,7 +323,7 @@ public struct UpdateChecker: Sendable {
                     // the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
-                let hasUpdate = VersionComparator.isNewer(latestSide, than: installedSide)
+                let hasUpdate = verdict != .upToDate
                 // Second witness, and it can only ever take the up-to-date verdict
                 // away. TestFlight announced a build whose id outruns everything this
                 // store holds, so — exactly as above — whatever else is true, the
@@ -343,27 +344,17 @@ public struct UpdateChecker: Sendable {
                     // we have just called unusable must not be the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
                 }
-                // The marketing version alone, even when it did not move. A beta
-                // that keeps its version across builds is the common case, and the
-                // row shows both builds through `UpdateResult.buildBump` — which
-                // only recognizes a build bump when `latest` IS the marketing
-                // version. Baking the build in here, as this used to, made the row
-                // show the new build and hide the installed one. A blank marketing
-                // version falls back to the build, so the row never names nothing.
-                let display = latest.latestShortVersion.isEmpty
-                    ? latest.latestBuild
-                    : latest.latestShortVersion
+                // The label is `testFlightVerdict`'s: the marketing version alone,
+                // even when it did not move — see there for why baking the build in
+                // hid the installed one.
                 let remote = RemoteVersion(
                     shortVersion: latest.latestShortVersion,
                     version: latest.latestBuild,
                     downloadURL: nil,
                     sourceName: "TestFlight",
                     requiresManualInstaller: true)
-                let status: UpdateStatus = hasUpdate
-                    ? .updateAvailable(latest: display)
-                    : .upToDate
                 Log.check.info("\(label, privacy: .public): TestFlight → \(latest.latestBuild, privacy: .public) (hasUpdate=\(hasUpdate, privacy: .public))")
-                return UpdateResult(app: app, remote: remote, status: status)
+                return UpdateResult(app: app, remote: remote, status: verdict)
             }
             Log.check.debug("\(label, privacy: .public): TestFlight-managed, no cached build")
             return UpdateResult(app: app, remote: nil, status: .testFlightManaged)

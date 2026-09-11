@@ -25,6 +25,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The refresh button now asks TestFlight for its latest builds.** TestFlight's own data only refreshes while your Mac is idle, so a beta could show no update for hours after a new build was out; refreshing now checks with TestFlight in the background, without bringing it to the front.
 
+**TestFlight betas of iPhone and iPad apps now show their updates.** A beta built for iPhone or iPad and running on your Mac was always shown as managed by TestFlight, never with the newer build TestFlight was offering.
+
 **The TestFlight button now takes you to that beta's page in TestFlight.** It used to open TestFlight on its list, leaving you to find the app yourself.
 
 **A TestFlight update no longer disappears a few minutes after you find it.** The background check between refreshes used to throw away what the last refresh had found. With Full Disk Access it now reads TestFlight's data itself, so TestFlight rows are right from launch.
@@ -41,6 +43,10 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A TestFlight row catches up when TestFlight updates the beta by itself.** It kept offering the update TestFlight had just installed, or kept calling the beta up to date after TestFlight had moved it past what it last reported, until the next full check.
 
+**Relaunch goes away once an updated app has quit.** An app that left a helper running after it quit kept asking to be relaunched long after its update had taken effect.
+
+**An unanswered macOS privacy prompt no longer stalls Duo Updater.** While a prompt asking whether Duo Updater may read another app's data sat unanswered, checking for updates could stop there until you answered it; now it carries on without that app's setting.
+
 **`duo` stops calling a TestFlight beta up to date when TestFlight has already announced a newer build.** The copy of TestFlight's data your Mac keeps only refreshes while the Mac is idle, so on a machine in use it can sit hours behind — and `duo check` was reading it and answering "up-to-date". Those rows read "testflight" now.
 
 **`duo`, the optional command-line companion, refreshes TestFlight without taking your screen.** `--refresh-testflight` did nothing at all when TestFlight was already open. It now runs a hidden copy of TestFlight and closes it again, whether or not you have one open — and a TestFlight you do have open is left alone.
@@ -52,6 +58,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 **Rockxy's release notes now go back through its recent releases.** The feed Rockxy publishes is rewritten in place and only ever holds the newest one, so the window had a single entry to show no matter how many builds you had skipped.
 
 **Ollama's newest release notes show up again.** A release written as paragraphs rather than a bullet list was left out, so the window started one release behind.
+
+**Under the hood.** When a TestFlight beta reuses a build number under a new version, the newer version is now the one offered.
 
 ## 0.3.89
 

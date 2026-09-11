@@ -4,9 +4,12 @@ extension UpdateChecker {
     /// A TestFlight row's verdict from the build TestFlight's store names as the
     /// latest, against the copy on disk. One function for the check (`check`'s
     /// TestFlight branch, after the gates that can refuse any verdict) and for a
-    /// rescan (`ScanRowAssembly.merged`), so the two cannot answer one copy
-    /// differently. The rescan used to keep whatever the last check said, and
-    /// TestFlight installs its betas itself between checks (#478).
+    /// rescan (`ScanRowAssembly.merged`), so the two compare the same way. Only
+    /// the check runs those gates: a rescan answers from the build the last check
+    /// read, and until the next round it can call a copy current that the check's
+    /// announcement witness would have refused. The rescan used to keep whatever
+    /// the last check said, and TestFlight installs its betas itself between
+    /// checks (#478).
     ///
     /// - `.testFlightManaged` when the installed build is newer than the store's
     ///   latest: whatever else is true, that latest is not an upper bound for this

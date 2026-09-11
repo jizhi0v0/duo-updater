@@ -306,8 +306,8 @@ public struct UpdateChecker: Sendable {
                 // cannot bound this app" and the row swallowed the update
                 // (`status = testFlightManaged`, remote nil).
                 // The comparison itself is `testFlightVerdict`, which a rescan runs
-                // too (`ScanRowAssembly.merged`), so the two cannot answer one copy
-                // differently.
+                // too (`ScanRowAssembly.merged`), so the two compare the same way.
+                // The gates above and the witness below are the check's alone.
                 let verdict = Self.testFlightVerdict(
                     installed: app, latestShortVersion: latest.latestShortVersion,
                     latestBuild: latest.latestBuild)

@@ -118,8 +118,9 @@ enum ScanRowAssembly {
     /// a refresh the user asked for found the TestFlight updates, and the
     /// scheduler's next tick, with nothing else in between, published the same
     /// list minus exactly those rows. So in such a round they are not checked;
-    /// they keep the row already on screen, which `merged` carried forward with
-    /// its status untouched (`keepsTestFlightRows`, from
+    /// they keep the row already on screen: the last check's verdict, which
+    /// `merged` re-derived against the build that check read if the copy on disk
+    /// has moved since (`keepsTestFlightRows`, from
     /// `RefreshIntent.keepsTestFlightVerdicts(fullDiskAccess:)`).
     ///
     /// Not a round without the grant: nothing can read the store then, so a kept

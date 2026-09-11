@@ -78,18 +78,26 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     /// (`…/feed?token=abc/latest-mac.yml`). A gap in `manifestURL` that predates
     /// this function and is left as it was.
     func manifestRequestURL(noCache token: String = Self.noCacheToken()) -> URL? {
-        guard let manifest = manifestURL else { return nil }
-        guard manifest.query == nil,
-              var components = URLComponents(url: manifest, resolvingAgainstBaseURL: false)
-        else { return manifest }
+        manifestURL.map { Self.noCacheURL(for: $0, token: token) }
+    }
+
+    /// `url` with electron-updater's `noCache` query added, or `url` itself when it
+    /// already carries a query. The one spelling of that request: this source
+    /// fetches with it, and `duo verify` uses it to ask a `*-mac.yml` recipe's
+    /// endpoint whether the bare address is being answered from a stale edge copy
+    /// (`RecipeSanity.readsElectronManifest`).
+    public static func noCacheURL(for url: URL, token: String = noCacheToken()) -> URL {
+        guard url.query == nil,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { return url }
         components.queryItems = [URLQueryItem(name: "noCache", value: token)]
-        return components.url ?? manifest
+        return components.url ?? url
     }
 
     /// electron-updater's token, `Date.now().toString(32)`: epoch milliseconds in
     /// base 32. Only its uniqueness matters to a CDN; the spelling is kept so the
     /// request looks like the app's own.
-    static func noCacheToken(now: Date = Date()) -> String {
+    public static func noCacheToken(now: Date = Date()) -> String {
         String(Int64((now.timeIntervalSince1970 * 1000).rounded(.down)), radix: 32)
     }
 

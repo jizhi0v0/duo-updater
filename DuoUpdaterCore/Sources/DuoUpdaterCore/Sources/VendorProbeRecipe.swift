@@ -1008,6 +1008,7 @@ public struct VendorProbeRecipe: Sendable {
     private func copy(url: URL? = nil, entryStartPattern: String?? = nil) -> Self {
         Self(
             bundleID: bundleID, url: url ?? self.url, mode: mode, versionPattern: versionPattern,
+            transientBodyPattern: transientBodyPattern, trackClosedPattern: trackClosedPattern,
             downloadURL: downloadURL, changelogURL: changelogURL, selectHighest: selectHighest,
             versionIsBuild: versionIsBuild, buildNamespace: buildNamespace,
             displayVersionPattern: displayVersionPattern,
@@ -1016,7 +1017,7 @@ public struct VendorProbeRecipe: Sendable {
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
             track: track, variant: variant, hostRequirement: hostRequirement,
-            installedVersionPattern: installedVersionPattern)
+            installedVersionPattern: installedVersionPattern, buildLineage: buildLineage)
     }
 
     /// Whether this recipe's build can run on the described machine. A recipe with

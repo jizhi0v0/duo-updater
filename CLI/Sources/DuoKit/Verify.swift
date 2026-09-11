@@ -399,6 +399,10 @@ public enum Verify {
             if let note = await rolloutTrackComplaint(recipe, source: source) {
                 finding = finding.observing(note)
             }
+            if outcome.succeeded, let version = finding.version,
+               let complaint = await edgeCopyComplaint(recipe, bareVersion: version, source: source) {
+                finding = finding.adding(warning: complaint)
+            }
             // "This one only detects, and its own answer names an installer." The
             // sweep could not previously ask that, which is how three recipes kept
             // a blocker that had stopped being true — see
@@ -662,6 +666,42 @@ public enum Verify {
             + "rolloutTrackDefaulted: no value at \(track.selector.displayPath), so this"
             + " machine is asking as `\(track.selector.fallback ?? "?")` while the vendor is"
             + " serving two tracks (\(ours) vs \(contrast) for \(track.contrastTrackName))"
+    }
+
+    /// Kimi's failure, asked of every recipe that reads an electron manifest: does
+    /// the bare address answer the same version as the origin? See
+    /// `RecipeSanity.readsElectronManifest` for why it is asked and of whom.
+    ///
+    /// A WARNING, not a note, unlike `rolloutTrackComplaint`: this one does accuse
+    /// the recipe — it is reading an older version than the vendor publishes. A
+    /// CDN still propagating a release can disagree for minutes, and that is why
+    /// it is a warning rather than `.broken`: an issue needs the disagreement to
+    /// survive into the next sweep, and Kimi's lasted days.
+    ///
+    /// Costs one extra request per such recipe, which the finding's `attempts` does
+    /// NOT count — the finding is classified before this runs, and it sits outside
+    /// the recipe's `GatewayRetry` tally, the same gap `rolloutTrackComplaint` has.
+    /// A second fetch that fails says nothing: the sweep has already judged the
+    /// recipe's real request, and this only compares two answers.
+    ///
+    /// ⚠️ The query rides the FIRST hop only. Granola's `api.granola.ai` answers
+    /// with a redirect to a CloudFront URL that carries no query (request ledger,
+    /// 2026-09-12: the queried request's next hop went out bare, and URLCache
+    /// revalidated it as the same document), so for that recipe the two answers
+    /// are the same fetch by construction and this can never disagree. That is
+    /// still the right comparison — electron-updater's own request loses the
+    /// query at the same redirect, so the app reads what the recipe reads — but
+    /// "no complaint" there means "same as the app", not "same as the origin".
+    static func edgeCopyComplaint(
+        _ recipe: VendorProbeRecipe, bareVersion: String, source: VendorProbeSource
+    ) async -> String? {
+        guard RecipeSanity.readsElectronManifest(recipe) else { return nil }
+        let origin = await source.probeDiagnostic(
+            recipe.with(url: ElectronUpdateConfig.noCacheURL(for: recipe.url)))
+        guard let remote = origin.remote,
+              let version = remote.shortVersion ?? remote.version
+        else { return nil }
+        return RecipeSanity.edgeCopyComplaint(bare: bareVersion, origin: version)
     }
 
     // MARK: - GitHub rules

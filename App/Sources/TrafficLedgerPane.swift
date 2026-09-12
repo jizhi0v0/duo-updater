@@ -251,8 +251,11 @@ struct TrafficLedgerPane: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 let present = sorted(model.trafficPresent)
+                // Hoisted: it scans the whole ledger for a maximum, and read from
+                // inside the `ForEach` it did that once per ROW.
+                let scale = maxBytes
                 ForEach(Array(present.enumerated()), id: \.element.id) { index, stat in
-                    TrafficRow(stat: stat, maxBytes: maxBytes,
+                    TrafficRow(stat: stat, maxBytes: scale,
                                isExpanded: expanded.contains(stat.id),
                                isRemoved: false,
                                toggle: { toggle(stat.id) })
@@ -264,7 +267,7 @@ struct TrafficLedgerPane: View {
                     // The group header carries only a background tint, so the rule
                     // that separates it from the list has to be drawn here.
                     Divider()
-                    removedGroup
+                    removedGroup(scale: scale)
                 }
             }
         }
@@ -303,7 +306,7 @@ struct TrafficLedgerPane: View {
     /// because next to the app's current entry they read as a duplicate rather
     /// than as history.
     @ViewBuilder
-    private var removedGroup: some View {
+    private func removedGroup(scale: Int64) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.15)) { showRemoved.toggle() }
         } label: {
@@ -331,7 +334,7 @@ struct TrafficLedgerPane: View {
         if showRemoved {
             ForEach(sorted(model.trafficRemoved)) { stat in
                 Divider()
-                TrafficRow(stat: stat, maxBytes: maxBytes,
+                TrafficRow(stat: stat, maxBytes: scale,
                            isExpanded: expanded.contains(stat.id),
                            isRemoved: true,
                            toggle: { toggle(stat.id) })
@@ -561,8 +564,9 @@ private struct TrafficRow: View {
 /// source onto a second line instead of clipping it away — the split has to stay
 /// fully visible to be checkable against the total.
 ///
-/// Shared with the workbench's Network Activity panel, whose purpose legend has
-/// the same requirement for the same reason; hence not `private`.
+/// Shared with the Requests tab's legends and the query field's token row
+/// (`RequestLogPane`, `QueryTokenField`), which have the same requirement for the
+/// same reason; hence not `private`.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 

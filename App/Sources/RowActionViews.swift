@@ -147,6 +147,7 @@ struct WorkbenchRowAction: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                 Text("Relaunching…").font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
         case .pendingBatchRestart:
@@ -338,6 +339,13 @@ struct WorkbenchRowAction: View {
             // License-boundary warning lives in the popover; don't one-click it here.
             Label("Major update", systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange)
+                // Same overflow protection its `.macIncompatible` /
+                // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
+                // the catalog's longest translation of it is es "Actualización
+                // importante" (24 characters, drawn at `.callout`). UNMEASURED
+                // against a real row: this is the protection every sibling label
+                // has, not a fix for a width somebody measured overflowing.
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Major version upgrade — review and install it from the menu-bar popover")
 
         case .autoInstall:
@@ -462,6 +470,7 @@ struct WorkbenchRowAction: View {
             } else {
                 ProgressView().controlSize(.small)
                 Text(installStageLabel(stage)).font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
     }
@@ -471,9 +480,14 @@ struct WorkbenchRowAction: View {
 /// The readouts a downloading row can wear, WIDEST FIRST — `AppRow` walks
 /// `allCases` in order and takes the first one the app's name leaves room for, so
 /// the declaration order is the algorithm. Reorder these and every downloading row
-/// silently degrades to the narrowest option: no compile error, no test (there is
-/// no test target over `App/Sources`), and no gallery tile, since the gallery draws
-/// only the default.
+/// silently degrades to the narrowest option, with no compile error — and the
+/// algorithm itself is in `AppRow`, which `DuoUpdaterAppTests` does not compile
+/// (that target builds only the files `App/project.yml` names). What holds the
+/// order is the gallery: tiles 35 and 36 draw `.ringAndPercent` and `.ringOnly`
+/// (via `RowStateGalleryCases.popoverDownloadReadoutOverrides`), and
+/// `RowStateGalleryCases.downloadReadoutOrderIsIntact()` fails the build outright
+/// if this declaration order changes — because an image diff is a symptom, not an
+/// assertion.
 ///
 /// The widths are what the group actually lays out to: the indicator, the 4pt
 /// HStack spacing, and the percentage's fixed 32pt slot.

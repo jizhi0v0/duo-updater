@@ -68,10 +68,21 @@ struct MenuContentView: View {
 
     /// Match the query against an app's name and bundle id (so "com.google" finds
     /// Chrome), case- and diacritic-insensitively.
+    ///
+    /// `localizedStandardContains`, not `localizedCaseInsensitiveContains`: only
+    /// the first of the two folds diacritics, and the sentence above claims the
+    /// folding — measured 2026-09-13 on this machine,
+    /// `"Café".localizedCaseInsensitiveContains("cafe")` is **false** and
+    /// `"Café".localizedStandardContains("cafe")` is true. That is the one
+    /// user-facing difference: typing "cafe" now finds an app spelled "Café".
+    /// Same folding (case + diacritics) `SettingsSection.matches` searches its
+    /// pages with — NOT the same predicate: that one is
+    /// `range(of:options: [.caseInsensitive, .diacriticInsensitive])` with no
+    /// locale, while this one passes `Locale.current`.
     private func matches(_ result: UpdateResult, _ query: String) -> Bool {
-        if result.app.name.localizedCaseInsensitiveContains(query) { return true }
+        if result.app.name.localizedStandardContains(query) { return true }
         if let bundleID = result.app.bundleID,
-           bundleID.localizedCaseInsensitiveContains(query) { return true }
+           bundleID.localizedStandardContains(query) { return true }
         return false
     }
 
@@ -1027,7 +1038,7 @@ private struct AppRow: View {
                         }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
-                    downloadReadout: downloadReadout,
+                    downloadReadout: { downloadReadout },
                     showsStageLabel: showsStageLabel,
                     testFlightUnboundedReason: model.testFlightUnboundedReason)
                     .frame(minWidth: trailingSlot, alignment: .trailing)

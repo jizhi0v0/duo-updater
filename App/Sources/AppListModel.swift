@@ -40,6 +40,7 @@ final class AppListModel {
         // cycle, the same window every other derived fact in this model lives in.
         didSet {
             elevationPathsCache = nil
+            runtimeKeysCache = nil
             pruneSettledInstallErrors()
             pruneRetractedNotes()
         }
@@ -1204,7 +1205,11 @@ final class AppListModel {
     /// Refresh the mirrored permission states once, and auto-dismiss a drag-panel whose
     /// grant just landed. Cheap: `AXIsProcessTrusted()`, a `TCCAccessPreflight` call, and
     /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
-    /// refused.
+    /// refused. It also reads `SMAppService.status`, which the "Cheap" above used to
+    /// leave out — ONCE, via `helperClient.refreshStatus()`. It was twice until
+    /// 2026-09-13: `helperClient.isEnabled` is deliberately a live query, so asking
+    /// it right after `refreshStatus()` re-asked the same question, and the Welcome
+    /// and Settings panes poll this every 1.5 s.
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -1253,7 +1258,8 @@ final class AppListModel {
         // approved in Login Items (no second click). The menu's `.task` calls this on
         // appear, so App Store rows reflect the helper without opening Settings.
         helperClient.refreshStatus()
-        helperEnabled = helperClient.isEnabled
+        // The mirror it just wrote, not another live query — see the doc above.
+        helperEnabled = helperClient.status == .enabled
 
         logPermissionsOnce()
     }
@@ -1389,7 +1395,9 @@ final class AppListModel {
     ) async -> String? {
         // Logged so a resolve is visible in `log stream`: without an explicit or env
         // token each one is a `gh auth token` subprocess, and this line is how to
-        // count them per action (one per full check; none per Update click).
+        // count them per action. One per full check; none per Update click, and
+        // none per menu-bar open — everything else goes through
+        // `githubTokenForRecheck`, which only reaches here on a miss.
         Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
         let loader = Task.detached(priority: .utility) {
             GitHubToken.resolve(explicit: explicit)
@@ -2196,11 +2204,13 @@ final class AppListModel {
         testFlightSyncLedger.begin(at: .now)
         Task { @MainActor [weak self] in
             // Bounded, and the bound is not `run`'s own: `run` is bounded internally
-            // by `defaultDeadline`, but the launch it awaits first is not, so a
-            // LaunchServices that never answers would leave the gate above closed for
-            // the rest of the session and silently retire automatic syncs altogether.
-            // Comfortably past the deadline, so this only ever catches a stuck launch
-            // and never a slow store.
+            // by `defaultDeadline`, and the launch it awaits first is bounded too
+            // (`AppRestarter.launchTimeout`, 60 s) — but those are two bounds in
+            // series, not one, and neither covers everything `run` does between
+            // them. A gate left closed by an attempt that never returns would
+            // silently retire automatic syncs for the rest of the session, so the
+            // whole thing gets one outer bound. Comfortably past the deadline, so
+            // this only ever catches a stuck attempt and never a slow store.
             let outcome = await Self.firstResult(
                 of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
             guard let self else { return }
@@ -2411,10 +2421,12 @@ final class AppListModel {
                 testFlightSyncTask = started
                 testFlightSync = started
                 // Bounded for the reason `startAutomaticTestFlightSync` is: `run`
-                // bounds its polling but not the launch it awaits first, and a gate
-                // left closed by a stuck launch would silently switch automatic syncs
-                // off for the whole session. The round below still awaits `started`
-                // itself — this only frees the gate.
+                // bounds its polling and `AppRestarter.launchTimeout` bounds the
+                // launch it awaits first, but those are bounds in series rather than
+                // one bound over the attempt, and a gate left closed by an attempt
+                // that never returns would silently switch automatic syncs off for
+                // the whole session. The round below still awaits `started` itself —
+                // this only frees the gate.
                 Task { @MainActor [weak self] in
                     _ = await Self.firstResult(
                         of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
@@ -2698,8 +2710,35 @@ final class AppListModel {
             runningAppPaths: runningAppPaths,
             stagedSelfUpdates: pendingSelfUpdate,
             elevationRequiredPaths: elevationRequiredPaths,
-            runningBundleIDs: runningBundleIDs)
+            runningBundleIDs: runningBundleIDs,
+            runtimeKeys: runtimeKeys)
     }
+
+    /// The comparable path for every install in the list, resolved once per scan.
+    ///
+    /// Same shape and the same reason as `elevationRequiredPaths` above, for the
+    /// other filesystem call on this path: `UpdatePolicy.runtimeBundlePath` opens
+    /// with `resolvingSymlinksInPath()`, a `realpath`. `isRunning` asks for it on
+    /// every row — twice per popover row, since `nameLineWidth` measures the name
+    /// with the running dot and then `nameLine` draws it — and the workbench
+    /// sidebar once more, all on the main actor, all re-run on every download
+    /// tick. The answer cannot change without the list changing, so it is resolved
+    /// with the list and looked up after that.
+    private var runtimeKeys: [URL: String] {
+        if let cache = runtimeKeysCache { return cache }
+        var value: [URL: String] = [:]
+        value.reserveCapacity(results.count)
+        for result in results {
+            value[result.app.path] = UpdatePolicy.runtimeBundlePath(result.app.path)
+        }
+        runtimeKeysCache = value
+        return value
+    }
+
+    /// Memo for `runtimeKeys`, invalidated by `results.didSet` — see
+    /// `elevationPathsCache` for why that is sufficient and why it must be
+    /// `@ObservationIgnored`.
+    @ObservationIgnored private var runtimeKeysCache: [URL: String]?
 
     /// The install paths that need an administrator prompt to replace.
     ///
@@ -2959,19 +2998,28 @@ final class AppListModel {
     /// screenful of outdated formulae can't burn the 60/hr unauthenticated budget —
     /// the disk cache still makes every re-select and relaunch instant.
     private func prewarmFormulaReleases() {
-        let explicitToken = explicitGitHubToken()
-        let tokenTask = Task {
-            await Self.resolveGitHubToken(explicit: explicitToken)
+        // Cheap synchronous skip for what we already hold at this exact version.
+        // NOT the authoritative guard — that is the `claim` below, and it has to
+        // stay there so we never hold a slot we might not fill. This only keeps
+        // a refresh from spawning a task and a disk read per formula for work
+        // that is already done: `refreshBrewFormulae` runs on every menu-bar
+        // open, not just after an upgrade.
+        let pending = brewFormulae.filter { formula in
+            formula.hasUpdate && formulaReleases.state(
+                name: formula.name,
+                version: formula.availableVersion ?? formula.installedVersion) == nil
         }
-        for formula in brewFormulae where formula.hasUpdate {
+        // Decided BEFORE the token, which is the point: resolving one is a
+        // `gh auth token` subprocess in the zero-config case, and this runs on
+        // every menu-bar open for every brew user. Nothing to warm must cost
+        // nothing — it used to cost a subprocess with zero outdated formulae.
+        guard !pending.isEmpty else { return }
+        // One task for the whole pass, through the recheck cache: the resolution is
+        // shared by every formula below (a per-formula resolve would be N
+        // subprocesses), and a later pass reuses what this one recorded.
+        let tokenTask = Task { [weak self] in await self?.githubTokenForRecheck() ?? nil }
+        for formula in pending {
             let version = formula.availableVersion ?? formula.installedVersion
-            // Cheap synchronous skip for what we already hold at this exact version.
-            // NOT the authoritative guard — that is the `claim` below, and it has to
-            // stay there so we never hold a slot we might not fill. This only keeps
-            // a refresh from spawning a task and a disk read per formula for work
-            // that is already done: `refreshBrewFormulae` runs on every menu-bar
-            // open, not just after an upgrade.
-            guard formulaReleases.state(name: formula.name, version: version) == nil else { continue }
             Task { [weak self] in
                 guard let self else { return }
                 // Decide whether we will load BEFORE claiming, never the other way
@@ -3114,9 +3162,10 @@ final class AppListModel {
     /// for a version it is no longer displaying.
     func ensureFormulaReleaseLoading(name: String, version: String) {
         guard formulaReleases.claim(name: name, version: version) else { return }
-        let explicitToken = explicitGitHubToken()
         Task {
-            let token = await Self.resolveGitHubToken(explicit: explicitToken)
+            // Through the cache, like the prewarm pass: selecting formula after
+            // formula used to resolve a token — a subprocess — every single time.
+            let token = await githubTokenForRecheck()
             let release = await formulaReleaseService.release(for: name, version: version, token: token)
             formulaReleases.finish(name: name, version: version, release: release)
         }
@@ -3150,17 +3199,31 @@ final class AppListModel {
     /// Flash an "Updated ✓" confirmation on a just-completed row, then let it go.
     /// The row keeps showing in `visible` while its id is here; after a short beat we
     /// drop it, at which point the (now up-to-date) app filters out of the list
-    /// normally. Idempotent re-entry just restarts the window.
+    /// normally. Idempotent re-entry restarts the window.
+    ///
+    /// Restarting it is what the cancellation below buys. Without it a second call
+    /// left the FIRST call's timer running, so the window ended at the earlier
+    /// deadline — a row updated twice inside two seconds (an App Store hand-off
+    /// landing on top of our own install) could flash its confirmation for a few
+    /// milliseconds and vanish, and the row-order freeze lifted early with it.
     private func markJustUpdated(_ id: String) {
         justUpdated.insert(id)
-        Task { @MainActor [weak self] in
+        justUpdatedTimers[id]?.cancel()
+        justUpdatedTimers[id] = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
-            self?.justUpdated.remove(id)
+            // A replacement window is already running; it owns the clearing.
+            guard !Task.isCancelled, let self else { return }
+            self.justUpdatedTimers[id] = nil
+            self.justUpdated.remove(id)
             // Usually the last thing to clear after an install, so this is where the
             // frozen order normally lifts.
-            self?.releaseRowOrder()
+            self.releaseRowOrder()
         }
     }
+
+    /// The in-flight "Updated ✓" window per row id, so re-entry can restart it.
+    /// Entries remove themselves when the window ends.
+    @ObservationIgnored private var justUpdatedTimers: [String: Task<Void, Never>] = [:]
 
     /// Install an update, routing to the right installer for its source. `notify`
     /// is false for the batch path so "Update All" posts one summary banner
@@ -6183,14 +6246,17 @@ final class AppListModel {
         // latest, i.e. this very version), so it must not outlive the skip.
         //
         // Cleared, NOT withdrawn — unlike ignoring. The skip is recorded against the
-        // offered `displayVersion`, while the gate that has to hold afterwards
-        // (`VisibilityRules.isVersionSkipped`, through `nudgeableStaged`) is asked
-        // about `staged.version`, and it compares strings exactly where
-        // `actionableStaged` compares versions. Where those two strings differ — a
-        // build suffix, "1.2" against "1.2.0" — forgetting the ledger entry would
-        // let the very next staging pass post a banner for the version the user just
-        // skipped. The entry is the belt behind those braces. The cost is that
-        // un-skipping doesn't bring the banner back; the row and the badge do.
+        // offered `remote.versionSide` (as `VisibilityRules.skipKey`, a
+        // marketing+build pair — NOT the display string), while the gate that has to
+        // hold afterwards (`VisibilityRules.isVersionSkipped`, through
+        // `nudgeableStaged`) is asked about `staged.versionSide`. Two different
+        // values, and `isVersionSkipped` compares their keys exactly where
+        // `actionableStaged` compares versions. Where those keys differ — a build
+        // the offer carried and the staged copy does not, "1.2" against "1.2.0" —
+        // forgetting the ledger entry would let the very next staging pass post a
+        // banner for the version the user just skipped. The entry is the belt behind
+        // those braces. The cost is that un-skipping doesn't bring the banner back;
+        // the row and the badge do.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
         Log.app.info("skip \(VisibilityRules.skipKey(version), privacy: .public): \(result.app.name, privacy: .public)")
     }

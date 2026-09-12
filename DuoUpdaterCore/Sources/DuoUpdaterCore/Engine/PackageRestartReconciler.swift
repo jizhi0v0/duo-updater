@@ -45,12 +45,17 @@ public enum PackageRestartReconciler {
     ///   - onDisk: the apps THIS scan found, by row id. An id missing here is a
     ///     blind pass, not a deletion.
     ///   - launchDates: launch dates of running copies, by resolved bundle path.
+    ///     An autoclosure, and deliberately: nothing staged is the overwhelmingly
+    ///     common case and it returns below without reading this, while producing
+    ///     the value means walking every running process on the machine and
+    ///     `realpath`-ing its bundle on the main actor. Same lesson as
+    ///     `RowActionFacts.route`. Evaluated exactly once, past the guard.
     ///   - previouslyPending: the badge state going in.
     ///   - previouslyNotified: the notify-once guard going in.
     public static func reconcile(
         staged: [String: StagedPackageFacts],
         onDisk: [String: InstalledApp],
-        launchDates: [String: [Date]],
+        launchDates: @autoclosure () -> [String: [Date]],
         previouslyPending: Set<String>,
         previouslyNotified: Set<String>
     ) -> PackageRestartReconciliation {
@@ -60,6 +65,7 @@ public enum PackageRestartReconciler {
             return PackageRestartReconciliation(
                 pending: [], settled: [], toNotify: [], notified: [])
         }
+        let launchDates = launchDates()
 
         var pending: Set<String> = []
         var settled: [String] = []

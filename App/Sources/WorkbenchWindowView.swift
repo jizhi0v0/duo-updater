@@ -5,12 +5,12 @@ import DuoUpdaterCore
 
 /// The unified workbench window — one roomy home for everything the menu-bar
 /// popover can't hold. App-centric: the left column lists every scanned app; the
-/// right pane shows the selected app through one of two lenses, toggled in the
-/// toolbar:
-///   • Release Notes — its changelog (recipe → structured → inline HTML → web page).
-///   • Traffic       — the exact bytes we've downloaded for it, event by event.
-/// A toolbar gear opens Settings as a sheet, so all three former windows
-/// (Changelog, Traffic, Settings) now live in this single window.
+/// right pane shows the selected app's changelog (recipe → structured → inline
+/// HTML → web page).
+///
+/// There is no lens switcher any more: download traffic has its own window
+/// (`NetworkWindowView`), so the detail pane is always Release Notes. The toolbar
+/// gear opens Settings in its own window too (`openWindow`), not as a sheet.
 struct WorkbenchWindowView: View {
     static let windowID = "workbench"
 
@@ -79,10 +79,8 @@ struct WorkbenchWindowView: View {
     /// match the model's own backstop cadence rather than out-polling it 12×.
     private let refreshTimer = Timer.publish(every: 180, on: .main, in: .common).autoconnect()
 
-    /// The sidebar app list. One stable order regardless of the active lens —
-    /// pending updates float to the top, everything else alphabetical — so
-    /// flipping between Release Notes and Traffic never reshuffles the list under
-    /// the user. The lens only changes each row's trailing detail, not its place.
+    /// The sidebar app list. One stable order — pending updates float to the top,
+    /// everything else alphabetical.
     ///
     /// Brew-managed casks are excluded here: they live under the Brew tree instead
     /// (the "cask 只在此面板" rule), so they never appear in both places.
@@ -122,15 +120,6 @@ struct WorkbenchWindowView: View {
             .sorted { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }
     }
 
-    /// Whether to show the Rollback section at all — hidden when nothing is restorable.
-    private var hasRollback: Bool { !rollbackableApps.isEmpty }
-
-    /// Content-fitting height for the (bottom-pinned) Rollback list, capped so a long
-    /// list scrolls internally instead of crowding out the Apps tree above it.
-    private var rollbackListHeight: CGFloat {
-        min(CGFloat(rollbackableApps.count) * 34 + 12, 240)
-    }
-
     /// `apps` narrowed by the search field. A blank query passes everything through;
     /// otherwise we match the query against the app name and bundle id (so
     /// "com.google" finds Chrome too), ignoring case and diacritics.
@@ -138,11 +127,38 @@ struct WorkbenchWindowView: View {
         let query = searchText.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return apps }
         return apps.filter { result in
-            if result.app.name.localizedCaseInsensitiveContains(query) { return true }
+            if result.app.name.localizedStandardContains(query) { return true }
             if let bundleID = result.app.bundleID,
-               bundleID.localizedCaseInsensitiveContains(query) { return true }
+               bundleID.localizedStandardContains(query) { return true }
             return false
         }
+    }
+
+    /// The three derived lists the sidebar draws, built ONCE per body pass and
+    /// handed down.
+    ///
+    /// They used to be computed properties read from the view builders that need
+    /// them — `filteredApps` from three (`appsHeader`, the list, its empty
+    /// overlay), `rollbackableApps` from four, `brewCasks` from three — so one
+    /// pass re-ran every `filter` and every `sort(localizedCaseInsensitiveCompare)`
+    /// three or four times over. And the pass is not rare: the body reads
+    /// `model.installing`, so every download tick re-runs all of it.
+    struct SidebarLists {
+        let filteredApps: [UpdateResult]
+        let brewCasks: [UpdateResult]
+        let rollbackable: [UpdateResult]
+
+        /// Whether to show the Rollback section at all — hidden when nothing is
+        /// restorable.
+        var hasRollback: Bool { !rollbackable.isEmpty }
+        /// Content-fitting height for the (bottom-pinned) Rollback list, capped so a
+        /// long list scrolls internally instead of crowding out the Apps tree above it.
+        var rollbackListHeight: CGFloat { min(CGFloat(rollbackable.count) * 34 + 12, 240) }
+    }
+
+    private var sidebarLists: SidebarLists {
+        SidebarLists(filteredApps: filteredApps, brewCasks: brewCasks,
+                     rollbackable: rollbackableApps)
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
@@ -161,8 +177,9 @@ struct WorkbenchWindowView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
+        let lists = sidebarLists
+        return NavigationSplitView {
+            sidebar(lists)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 280, max: 340)
         } detail: {
             if let selected {
@@ -366,17 +383,17 @@ struct WorkbenchWindowView: View {
 
     /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
     /// see only the Apps tree (no empty Brew header).
-    private var hasBrew: Bool {
-        !brewCasks.isEmpty || !model.brewFormulae.isEmpty
+    private func hasBrew(_ lists: SidebarLists) -> Bool {
+        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty
     }
 
     /// Total brew items, for the Brew header's count pill and its list height.
-    private var brewItemCount: Int {
-        brewCasks.count + model.brewFormulae.count
+    private func brewItemCount(_ lists: SidebarLists) -> Int {
+        lists.brewCasks.count + model.brewFormulae.count
     }
 
     @ViewBuilder
-    private var sidebar: some View {
+    private func sidebar(_ lists: SidebarLists) -> some View {
         VStack(spacing: 0) {
             AppSearchField(text: $searchText)
                 .padding(.horizontal, 12)
@@ -385,44 +402,44 @@ struct WorkbenchWindowView: View {
             // Fill the middle and top-align: without this, when both trees are
             // collapsed (no list filling the space) the outer VStack would center the
             // headers vertically, floating them in the middle with empty space above.
-            splitRegion
+            splitRegion(lists)
                 .frame(maxHeight: .infinity, alignment: .top)
 
             // Rollback pinned to the bottom, below the Apps/Brew split (so it never
             // disturbs that draggable divider). Only shown when something is
             // restorable; the always-visible header is the discovery surface for
             // apps that have already updated and dropped out of the lists above.
-            if hasRollback {
+            if lists.hasRollback {
                 Divider()
-                rollbackHeader
-                if rollbackExpanded { rollbackListView }
+                rollbackHeader(lists)
+                if rollbackExpanded { rollbackListView(lists) }
             }
         }
     }
 
-    private var appsHeader: some View {
+    private func appsHeader(_ lists: SidebarLists) -> some View {
         sectionHeader(String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
-                      count: filteredApps.count, expanded: $appsExpanded)
+                      count: lists.filteredApps.count, expanded: $appsExpanded)
     }
 
-    private var brewHeader: some View {
+    private func brewHeader(_ lists: SidebarLists) -> some View {
         sectionHeader(String(localized: "Brew"), systemImage: "mug.fill",
-                      count: brewItemCount, expanded: $brewExpanded) {
+                      count: brewItemCount(lists), expanded: $brewExpanded) {
             brewBulkUpgrade
         }
     }
 
-    private var rollbackHeader: some View {
+    private func rollbackHeader(_ lists: SidebarLists) -> some View {
         sectionHeader(String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
-                      count: rollbackableApps.count, expanded: $rollbackExpanded)
+                      count: lists.rollbackable.count, expanded: $rollbackExpanded)
     }
 
     /// The Rollback list: every app with a backup we can restore, each with an inline
     /// "Roll back to vX" action. Reuses `$selection`, so clicking a row also opens that
     /// app's changelog in the detail pane — useful context before undoing an update.
-    private var rollbackListView: some View {
+    private func rollbackListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
-            ForEach(rollbackableApps) { result in
+            ForEach(lists.rollbackable) { result in
                 WorkbenchRollbackRow(
                     result: result,
                     target: model.backupVersion(result.id) ?? "previous",
@@ -431,7 +448,7 @@ struct WorkbenchWindowView: View {
             }
         }
         .listStyle(.sidebar)
-        .frame(height: rollbackListHeight)
+        .frame(height: lists.rollbackListHeight)
     }
 
     /// Bulk "Upgrade All" for the Brew tree — runs `brew upgrade --formula` (all
@@ -469,17 +486,17 @@ struct WorkbenchWindowView: View {
     /// NSSplitView's heavy splitter bar rendering as a black line against a 34pt
     /// collapsed pane.
     @ViewBuilder
-    private var splitRegion: some View {
-        if hasBrew && appsExpanded && brewExpanded {
+    private func splitRegion(_ lists: SidebarLists) -> some View {
+        if hasBrew(lists) && appsExpanded && brewExpanded {
             VSplitView {
                 // VSplitView gives each pane's sidebar list a ~10pt top inset that the
                 // collapsed (plain-VStack) layout doesn't, so the list sat 10pt lower
                 // under its header only while the split was engaged (measured: the rows
                 // shifted down exactly 20px @2x). Pull each list back up by that inset so
                 // both layouts hug the header identically.
-                VStack(spacing: 0) { appsHeader; appsListView.padding(.top, Self.splitPaneListInset) }
+                VStack(spacing: 0) { appsHeader(lists); appsListView(lists).padding(.top, Self.splitPaneListInset) }
                     .frame(minHeight: 120)
-                VStack(spacing: 0) { brewHeader; brewListView.padding(.top, Self.splitPaneListInset) }
+                VStack(spacing: 0) { brewHeader(lists); brewListView(lists).padding(.top, Self.splitPaneListInset) }
                     .frame(minHeight: 100)
             }
             // Persist the divider position across launches. VSplitView exposes no
@@ -488,12 +505,12 @@ struct WorkbenchWindowView: View {
             .background(SplitViewAutosave(name: "duo.workbench.sidebarSplit"))
         } else {
             VStack(spacing: 0) {
-                appsHeader
-                if appsExpanded { appsListView.frame(maxHeight: .infinity) }
-                if hasBrew {
+                appsHeader(lists)
+                if appsExpanded { appsListView(lists).frame(maxHeight: .infinity) }
+                if hasBrew(lists) {
                     Divider()
-                    brewHeader
-                    if brewExpanded { brewListView.frame(maxHeight: .infinity) }
+                    brewHeader(lists)
+                    if brewExpanded { brewListView(lists).frame(maxHeight: .infinity) }
                 }
             }
         }
@@ -501,9 +518,9 @@ struct WorkbenchWindowView: View {
 
     /// The Apps tree's scrolling list (extracted so the split layout above stays
     /// readable).
-    private var appsListView: some View {
+    private func appsListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
-            ForEach(filteredApps) { result in
+            ForEach(lists.filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
                     checkAgain: { Task { await model.retry(result) } },
@@ -526,7 +543,7 @@ struct WorkbenchWindowView: View {
         .listStyle(.sidebar)
         .focused($appsListFocused)
         .overlay {
-            if filteredApps.isEmpty {
+            if lists.filteredApps.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             }
         }
@@ -534,9 +551,9 @@ struct WorkbenchWindowView: View {
 
     /// The Brew tree's scrolling list: brew-managed casks (reusing the app row + its
     /// existing install path) above outdated CLI formulae (their own inline action).
-    private var brewListView: some View {
+    private func brewListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
-            ForEach(brewCasks) { result in
+            ForEach(lists.brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
                     checkAgain: { Task { await model.retry(result) } },
@@ -611,8 +628,6 @@ private struct SplitViewAutosave: NSViewRepresentable {
         return nil
     }
 }
-
-// MARK: - Mode switcher
 
 // MARK: - Sidebar row
 
@@ -794,6 +809,11 @@ private struct WorkbenchSidebarRow: View {
                     // White over the blue highlight when selected; blue tint otherwise.
                     .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                     .lineLimit(1)
+                    // Its `.stagedRelaunch` / `.restart` siblings scale; this one is
+                    // the longest of the four (two versions, both possibly with a
+                    // build in parentheses) and had only the line limit, so it
+                    // truncated where they shrank.
+                    .minimumScaleFactor(0.75)
             } else {
                 Text("v\(result.installedDisplay ?? "?")")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -1156,9 +1176,11 @@ private struct DetailHeader: View {
                 let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             } else {
                 Text("v\(result.installedDisplay ?? "?") · up to date")
                     .font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
         }
     }
@@ -1597,8 +1619,6 @@ private struct ChangelogVersionList: View {
         return entry.version.isEmpty ? "—" : entry.version
     }
 }
-
-// MARK: - Traffic pane
 
 // MARK: - One changelog entry
 

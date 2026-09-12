@@ -6,8 +6,9 @@ import DuoUpdaterCore
 /// is drawn shows up as an image diff instead of being noticed in use — or not.
 ///
 /// This exists because the two windows' row rendering has no other executable
-/// check. `App/project.yml` has no test target, so nothing runs `App/Sources`; the
-/// Core tests cover which state a row IS (`RowActionStateTests`) but not what that
+/// check. `DuoUpdaterAppTests` compiles only the files it names in
+/// `App/project.yml`, and the row views are not among them; the Core tests cover
+/// which state a row IS (`RowActionStateTests`) but not what that
 /// state looks like, and the failure mode that motivated all of this was a state
 /// rendering as *nothing at all* — invisible to any assertion about the state
 /// itself.

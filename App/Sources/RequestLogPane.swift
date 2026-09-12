@@ -12,8 +12,9 @@ import DuoUpdaterCore
 ///
 /// Nothing is decided in this file. Every figure comes off ``RequestLogSummary``,
 /// every filter is a ``RequestQuery``, and even the field's colouring comes from
-/// ``RequestQuery/highlights(_:)`` — all in Core, because `App/project.yml` has
-/// no test target, so a rule written into a `body` is a rule nothing executes.
+/// ``RequestQuery/highlights(_:)`` — all in Core, because `DuoUpdaterAppTests`
+/// compiles only the files `App/project.yml` names and this one is not among
+/// them, so a rule written into a `body` is a rule nothing executes.
 ///
 /// The filter chips are not a second filtering path: each one is literally a
 /// token appended to the field, so a question asked by clicking and the same
@@ -200,14 +201,18 @@ struct RequestLogPane: View {
         // process's own commits, so ``EventStore/changeToken()`` folds our own
         // write count in. Two seconds is a pragma read and an integer compare,
         // not a query.
-        .task {
+        //
+        // Keyed on the active state so the guard below reads it LIVE: a `.task`
+        // with no id runs once and captures the view as it was then, so a window
+        // that went behind another kept polling on the state it had on appear.
+        .task(id: activeState) {
+            // Behind another window, or on the Downloads tab (which destroys
+            // this pane), nobody is watching the log — so nothing polls it.
+            // The catch-up happens when the window comes forward again.
+            guard activeState != .inactive else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { return }
-                // Behind another window, or on the Downloads tab (which destroys
-                // this pane), nobody is watching the log — so nothing polls it.
-                // The catch-up happens when the window comes forward again.
-                guard activeState != .inactive else { continue }
                 let token = await onChangeToken()
                 guard token != lastToken else { continue }
                 lastToken = token

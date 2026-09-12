@@ -57,6 +57,41 @@ struct PackageRestartReconcilerTests {
             previouslyPending: pending, previouslyNotified: notified)
     }
 
+    // MARK: laziness
+
+    /// `launchDates` is not produced for the pass that cannot read it.
+    ///
+    /// Producing it means walking every running process on the machine and
+    /// `realpath`-ing its bundle, on the main actor; and "nothing staged" is
+    /// almost every pass, since `reconcilePackageRestarts` runs on every rescan.
+    /// Same shape as `routeIsDeferred` in `RowActionStateTests`, and the same
+    /// positive pole: deferral alone would stay green if the parameter stopped
+    /// being read at all, so the loaded pass asserts it IS evaluated — exactly
+    /// once, since the loop reads it per id.
+    ///
+    /// Mutation: drop `@autoclosure` from `reconcile` and the first count is 1.
+    @Test("launch dates are not gathered for a pass with nothing staged")
+    func launchDatesAreDeferred() {
+        final class Counter: @unchecked Sendable { var n = 0 }
+        let calls = Counter()
+
+        _ = PackageRestartReconciler.reconcile(
+            staged: [:],
+            onDisk: [Self.path: app("2.0")],
+            launchDates: { calls.n += 1; return [Self.path: Self.staleLaunch] }(),
+            previouslyPending: [Self.path], previouslyNotified: [])
+        #expect(calls.n == 0)
+
+        let out = PackageRestartReconciler.reconcile(
+            staged: [Self.path: staged("2.0"), Self.otherPath: staged("2.0")],
+            onDisk: [Self.path: app("2.0"),
+                     Self.otherPath: app("2.0", path: Self.otherPath)],
+            launchDates: { calls.n += 1; return [Self.path: Self.staleLaunch] }(),
+            previouslyPending: [], previouslyNotified: [])
+        #expect(calls.n == 1, "two staged ids must share one gathering, not one each")
+        #expect(out.pending == [Self.path])
+    }
+
     // MARK: the three states
 
     /// Landed, and a copy that predates the hand-off is still running: light the

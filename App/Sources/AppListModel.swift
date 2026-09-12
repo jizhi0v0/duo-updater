@@ -2257,6 +2257,13 @@ final class AppListModel {
     /// is an input method macOS can no longer load. Sweeping only `/Applications`
     /// would have left exactly that state unrecoverable, because a rotation's
     /// leftovers sit INSIDE the bundle rather than beside it.
+    ///
+    /// "Once" means once it has actually run. The flag is set before the task so a
+    /// second refresh cannot start a second sweep beside the first, and cleared
+    /// again if any root was skipped because another process held the install
+    /// lock — a deferred sweep has recovered nothing, and latching on it would
+    /// leave a genuine leftover from an earlier crash sitting there until the next
+    /// launch.
     private func recoverInterruptedSwapsOnce() {
         guard !didRecoverSwaps else { return }
         didRecoverSwaps = true
@@ -2266,8 +2273,14 @@ final class AppListModel {
             URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
             home.appendingPathComponent("Library/Input Methods", isDirectory: true),
         ]
-        Task.detached(priority: .utility) {
-            for root in roots { InPlaceSwap.recoverInterruptedSwaps(in: root) }
+        Task.detached(priority: .utility) { [weak self] in
+            var swept = true
+            for root in roots {
+                // Every root is attempted; one deferral must not skip the rest.
+                if await InPlaceSwap.recoverInterruptedSwaps(in: root) == false { swept = false }
+            }
+            guard !swept else { return }
+            await MainActor.run { self?.didRecoverSwaps = false }
         }
     }
 

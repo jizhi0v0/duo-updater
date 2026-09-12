@@ -557,6 +557,152 @@ struct BackupStoreTests {
         }
     }
 
+    // MARK: - Files the CodeDirectory seals directly
+
+    /// `CodeResources` lists *resources*, so the bundle's own main executable is
+    /// not in it — measured 2026-09-13 on Safari, Keka and DuoUpdater: absent
+    /// from `files` and `files2` in all three, yet appending one byte to it makes
+    /// `codesign --verify` fail. Reading the omission as "unsealed" would have
+    /// `ditto` skip it and the manifest certify a bundle with no executable.
+    @Test func theMainExecutableCountsAsSealedThoughCodeResourcesOmitsIt() throws {
+        try withScratchRoot { root in
+            let app = root.appendingPathComponent("ZZFixture-Sealed.app")
+            #expect(!FileManager.default.fileExists(atPath: app.path))
+            try makeApp(named: "ZZFixture-Sealed.app", in: root, marker: "old")
+            // A helper binary *is* a resource and does appear in the seal; the
+            // main executable never does. Both live under `Contents/MacOS/`, so
+            // the classification cannot go by directory.
+            let macOS = app.appendingPathComponent("Contents/MacOS")
+            try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+            let exe = macOS.appendingPathComponent("App")
+            try Data("MZ".utf8).write(to: exe)
+            try Data("helper".utf8).write(to: macOS.appendingPathComponent("Helper"))
+            try sealFixture(app, sealing: ["marker.txt", "MacOS/Helper"])
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000], ofItemAtPath: exe.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o644], ofItemAtPath: exe.path)
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed == ["Contents/MacOS/App"])
+            #expect(classified.unsealed.isEmpty)
+
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            #expect(throws: BackupStore.BackupError.self) {
+                try BackupStore.save(
+                    appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+            }
+        }
+    }
+
+    /// Same omission, same measurement: `Contents/Info.plist` and the contents of
+    /// `Contents/_CodeSignature/` are hashed into the CodeDirectory's special
+    /// slots rather than listed as resources. Mutating either made
+    /// `codesign --verify` report "invalid Info.plist" / "invalid resource
+    /// directory".
+    @Test func theInfoPlistAndSignatureDirectoryCountAsSealed() throws {
+        try withScratchRoot { root in
+            let app = root.appendingPathComponent("ZZFixture-Slots.app")
+            #expect(!FileManager.default.fileExists(atPath: app.path))
+            try makeApp(named: "ZZFixture-Slots.app", in: root, marker: "old")
+            try sealFixture(app, sealing: ["marker.txt"])
+            let plist = app.appendingPathComponent("Contents/Info.plist")
+            let cd = app.appendingPathComponent("Contents/_CodeSignature/CodeDirectory")
+            try Data("cd".utf8).write(to: cd)
+            for file in [plist, cd] {
+                try FileManager.default.setAttributes(
+                    [.posixPermissions: 0o000], ofItemAtPath: file.path)
+            }
+            defer {
+                for file in [plist, cd] {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o644], ofItemAtPath: file.path)
+                }
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed == [
+                "Contents/Info.plist", "Contents/_CodeSignature/CodeDirectory",
+            ])
+            #expect(classified.unsealed.isEmpty)
+        }
+    }
+
+    /// A wrapped iPhone/iPad app has no `Contents/` at all: its interior is
+    /// `Wrapper/<Inner>.app/` and the executable sits at that interior's root, not
+    /// under `MacOS/`. So the rule cannot hard-code a macOS layout — it has to
+    /// follow the same `BundleLayout.interiorPrefix` the seal keys are relative to.
+    @Test func theMainExecutableOfAWrappedBundleCountsAsSealed() throws {
+        try withScratchRoot { root in
+            let fm = FileManager.default
+            let app = root.appendingPathComponent("ZZFixture-Wrapped.app")
+            #expect(!fm.fileExists(atPath: app.path))
+            let innerName = "Wrapper/ZZFixture-Inner.app"
+            let inner = app.appendingPathComponent(innerName)
+            try fm.createDirectory(at: inner, withIntermediateDirectories: true)
+            // The discriminator `interiorPrefix` reads, and it reads the link's own
+            // text — so the destination has to be relative, as the real ones are.
+            try fm.createSymbolicLink(
+                atPath: app.appendingPathComponent("WrappedBundle").path,
+                withDestinationPath: innerName)
+            let plist = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0"><dict>
+              <key>CFBundleExecutable</key><string>ZZWrapped</string>
+              <key>CFBundleIdentifier</key><string>com.example.wrapped</string>
+            </dict></plist>
+            """
+            try Data(plist.utf8).write(to: inner.appendingPathComponent("Info.plist"))
+            let assets = inner.appendingPathComponent("Assets.car")
+            try Data("assets".utf8).write(to: assets)
+            let sigDir = inner.appendingPathComponent("_CodeSignature")
+            try fm.createDirectory(at: sigDir, withIntermediateDirectories: true)
+            // A real resource is listed; the executable, as always, is not.
+            let seal = try PropertyListSerialization.data(
+                fromPropertyList: ["files2": ["Assets.car": ["hash2": Data()]]],
+                format: .xml, options: 0)
+            try seal.write(to: sigDir.appendingPathComponent("CodeResources"))
+            let exe = inner.appendingPathComponent("ZZWrapped")
+            try Data("MZ".utf8).write(to: exe)
+            try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: exe.path)
+            defer {
+                try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: exe.path)
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed == ["\(innerName)/ZZWrapped"])
+            #expect(classified.unsealed.isEmpty)
+        }
+    }
+
+    /// The counter-example that keeps the rule above from being widened to "every
+    /// top-level file": `Contents/PkgInfo` is in neither `files2` nor a special
+    /// slot. Measured 2026-09-13 on Keka and DuoUpdater — mutating *and* deleting
+    /// it left `codesign --verify` passing — so it stays skippable.
+    @Test func pkgInfoIsNotSealedSoAnUnreadableOneStillAllowsTheBackup() throws {
+        try withScratchRoot { root in
+            let app = root.appendingPathComponent("ZZFixture-PkgInfo.app")
+            #expect(!FileManager.default.fileExists(atPath: app.path))
+            try makeApp(named: "ZZFixture-PkgInfo.app", in: root, marker: "old")
+            try sealFixture(app, sealing: ["marker.txt", "Info.plist"])
+            let pkgInfo = app.appendingPathComponent("Contents/PkgInfo")
+            try Data("APPL????".utf8).write(to: pkgInfo)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000], ofItemAtPath: pkgInfo.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o644], ofItemAtPath: pkgInfo.path)
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed.isEmpty)
+            #expect(classified.unsealed == ["Contents/PkgInfo"])
+        }
+    }
+
     /// The copy must be rejected when it lost something we meant to keep — a
     /// single exit status cannot distinguish "skipped the droppings" from "ran
     /// out of disk".

@@ -60,7 +60,49 @@ public enum InPlaceSwap {
     /// `-staged` (and present-app `.duoupdater-old`) leftovers. Best-effort; safe to
     /// run on every launch. Only the non-admin / read-only-parent install path can
     /// leave these behind (the common admin path is a truly atomic `replaceItemAt`).
-    public static func recoverInterruptedSwaps(in directory: URL) {
+    ///
+    /// Takes the machine-wide install lock first, like every other path that
+    /// replaces a bundle. Without it this sweep is not recovery but interference:
+    /// `<App>.app.duoupdater-new` is exactly what a live install has parked beside
+    /// its target, so the menu-bar app's first refresh could delete the staging
+    /// directory `duo` is still `ditto`-ing into. The claim is non-blocking, as
+    /// `InstallLock` always is — a launch-time sweep has nothing to wait for, and
+    /// whatever it skips it will find again next launch.
+    ///
+    /// It is `ProcessInstallLock`, so an install running in *this* process joins
+    /// the claim rather than refusing it. That is the documented refcount and it
+    /// is what lets the app apply two updates at once; it does mean this sweep is
+    /// serialised only against other processes.
+    ///
+    /// Returns whether the directory was actually swept. False means only that
+    /// the lock was busy, and the caller must not treat that as "done": a
+    /// caller latching a once-per-session flag on a deferred sweep would leave a
+    /// genuine leftover from an earlier crash unrecovered until the next launch,
+    /// which is the opposite of what this exists for.
+    @discardableResult
+    public static func recoverInterruptedSwaps(
+        in directory: URL, lock: ProcessInstallLock = .shared
+    ) async -> Bool {
+        do {
+            try await lock.claim()
+        } catch {
+            Log.install.notice(
+                "another installer holds the install lock, sweep deferred: \(error, privacy: .public)")
+            return false
+        }
+        sweepInterruptedSwaps(in: directory)
+        // Unconditional rather than deferred, and it stays correct only because
+        // the sweep below neither throws nor suspends: there is no early return
+        // and no cancellation point between the claim and here. (`defer` cannot
+        // hold an `await` anyway.) Anything added to that function that can bail
+        // out early has to release the claim on its way.
+        await lock.release()
+        return true
+    }
+
+    /// The sweep itself, once the lock is held. Deliberately non-throwing and
+    /// non-`async` — see the release note in the caller.
+    private static func sweepInterruptedSwaps(in directory: URL) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil, options: []) else { return }

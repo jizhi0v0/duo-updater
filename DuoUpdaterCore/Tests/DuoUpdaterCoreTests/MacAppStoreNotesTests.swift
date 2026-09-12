@@ -61,10 +61,10 @@ import Foundation
         """)
     let missing = page("{}")
 
-    #expect(src.extractMacCompatible(from: noMacAtAll) == false)
-    #expect(src.extractMacCompatible(from: nativeMacBuild) == true)
-    #expect(src.extractMacCompatible(from: wrappedOnMac) == true)
-    #expect(src.extractMacCompatible(from: missing) == nil)  // unknown ⇒ assume compatible
+    #expect(src.extractMacCompatibility(from: noMacAtAll).macSupported == false)
+    #expect(src.extractMacCompatibility(from: nativeMacBuild).macSupported == true)
+    #expect(src.extractMacCompatibility(from: wrappedOnMac).macSupported == true)
+    #expect(src.extractMacCompatibility(from: missing).macSupported == nil)  // unknown ⇒ assume compatible
 }
 
 /// A `false` verdict takes both signals. With `appPlatforms` gone — Apple
@@ -78,7 +78,7 @@ import Foundation
     {"data":[{"data":{"lockup":{"isIOSBinaryMacOSCompatible":false}}}]}
     </script></html>
     """
-    #expect(src.extractMacCompatible(from: flagOnly) == nil)
+    #expect(src.extractMacCompatibility(from: flagOnly).macSupported == nil)
     #expect(src.extractMacCompatibility(from: flagOnly).readBothSignals == false)
 }
 
@@ -102,7 +102,7 @@ import Foundation
 
     #expect(src.extractMacCompatibility(from: both).readBothSignals)
     // Still a verdict, but no longer a shape the sweep should call healthy.
-    #expect(src.extractMacCompatible(from: platformsOnly) == true)
+    #expect(src.extractMacCompatibility(from: platformsOnly).macSupported == true)
     #expect(src.extractMacCompatibility(from: platformsOnly).readBothSignals == false)
 }
 
@@ -125,7 +125,7 @@ import Foundation
     }}]}
     </script></html>
     """
-    #expect(src.extractMacCompatible(from: html) == false)
+    #expect(src.extractMacCompatibility(from: html).macSupported == false)
 }
 
 /// The product-page scrape for an iOS-on-Mac app reads the latest Mac build's

@@ -181,8 +181,9 @@ public struct TestFlightInventory: Sendable {
     /// ⚠️ `installedMacRows` is the mac mirror of `installedIOSRows`, and omitting
     /// it means "this fixture does not say which mac builds TestFlight installed",
     /// NOT "it installed none" — ``isManaged(bundleID:installedBuild:)`` then falls
-    /// back to `macRows`, which is what it did before the status column was read here. A case about a copy
-    /// TestFlight did NOT install has to pass it (`[]`, or the other builds).
+    /// back to `macRows` — what it did before the status column was read here. A
+    /// case about a copy TestFlight did NOT install has to pass it (`[]`, or the
+    /// other builds).
     ///
     /// `availableIOSRows` is the other iOS bucket and carries the opposite
     /// precondition: it is NOT filtered by install status, because

@@ -611,10 +611,6 @@ public struct MacAppStoreSource: UpdateSource {
         return MacCompatibilityReading()
     }
 
-    /// The verdict alone, for the one production caller. Internal for offline tests.
-    func extractMacCompatible(from html: String) -> Bool? {
-        extractMacCompatibility(from: html).macSupported
-    }
 
     // MARK: -
 

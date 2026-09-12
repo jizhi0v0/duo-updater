@@ -376,7 +376,9 @@ public enum ChangelogService {
         // changelog prewarm fan-out up behind it. `AppListModel.resolveGitHubToken`
         // learned this already — "don't let a wedged `gh auth token` hold the
         // whole refresh hostage forever" — and the lesson belongs here too.
-        let loader = Task.detached(priority: .utility) { GitHubToken.resolve(explicit: explicit) }
+        let loader = Task.detached(priority: .utility) {
+            await offCooperativePool(qos: .utility) { GitHubToken.resolve(explicit: explicit) }
+        }
         guard let resolved = await firstResult(of: loader, within: .seconds(2)) else {
             // Timed out: deliberately *not* cached. Caching would extend one
             // wedged `gh` into ten minutes of unauthenticated fetches; falling

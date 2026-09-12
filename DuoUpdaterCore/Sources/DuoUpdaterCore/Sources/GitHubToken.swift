@@ -25,8 +25,15 @@ public enum GitHubToken {
         return ghCLIToken()
     }
 
-    /// Ask the `gh` CLI for its stored token. Cheap subprocess; callers should
-    /// resolve once per check run rather than per request.
+    /// Ask the `gh` CLI for its stored token.
+    ///
+    /// Cheap only when it answers: `gh` can sit on a keychain prompt nobody is
+    /// looking at, and `run` waits for it with no deadline of its own. So this is
+    /// **blocking** work — every async caller must reach it through
+    /// `offCooperativePool` (both do, each with its own timeout race), never
+    /// directly and not via `Task.detached`, which still runs on the cooperative
+    /// pool. Callers should also resolve once per check run rather than per
+    /// request.
     private static func ghCLIToken() -> String? {
         guard let gh = ghExecutablePath() else { return nil }
         guard let out = run(gh, ["auth", "token"]) else { return nil }
@@ -136,7 +143,10 @@ public enum GitHubToken {
         process.arguments = args
         let out = Pipe()
         process.standardOutput = out
-        process.standardError = Pipe()
+        // nullDevice, not an undrained `Pipe()`: nothing reads stderr here, and a
+        // pipe nobody drains deadlocks the pair below once the child fills its
+        // ~64KB buffer. Same reasoning as `BrewFormulaService.realExecutor`.
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -151,7 +161,8 @@ public enum GitHubToken {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
         let err = Pipe()
-        process.standardOutput = Pipe()
+        // nullDevice for the half we do not read, for the reason `run` above gives.
+        process.standardOutput = FileHandle.nullDevice
         process.standardError = err
         do { try process.run() } catch { return ("", false) }
         let data = err.fileHandleForReading.readDataToEndOfFile()

@@ -1390,19 +1390,31 @@ public struct VendorProbeSource: UpdateSource {
         catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        proc.arguments = ["-p", tmp.path, entry]
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = FileHandle.nullDevice
-        do { try proc.run() }
-        catch { return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)")) }
-        let plistData = out.fileHandleForReading.readDataToEndOfFile()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
+        // Off the cooperative pool: `readDataToEndOfFile()` + `waitUntilExit()` park
+        // the calling thread, and this runs on every check and every `duo verify`.
+        // See `offCooperativePool`.
+        let extracted: (status: Int32, data: Data)
+        do {
+            let archive = tmp
+            extracted = try await offCooperativePool { () -> (status: Int32, data: Data) in
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+                proc.arguments = ["-p", archive.path, entry]
+                let out = Pipe()
+                proc.standardOutput = out
+                proc.standardError = FileHandle.nullDevice
+                try proc.run()
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                proc.waitUntilExit()
+                return (proc.terminationStatus, data)
+            }
+        } catch {
+            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
+        }
+        let plistData = extracted.data
+        guard extracted.status == 0 else {
             return .failure(.archiveExtractionFailed(
-                "unzip exited \(proc.terminationStatus) extracting '\(entry)'"))
+                "unzip exited \(extracted.status) extracting '\(entry)'"))
         }
         guard !plistData.isEmpty else {
             return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))

@@ -200,14 +200,18 @@ struct RequestLogPane: View {
         // process's own commits, so ``EventStore/changeToken()`` folds our own
         // write count in. Two seconds is a pragma read and an integer compare,
         // not a query.
-        .task {
+        //
+        // Keyed on the active state so the guard below reads it LIVE: a `.task`
+        // with no id runs once and captures the view as it was then, so a window
+        // that went behind another kept polling on the state it had on appear.
+        .task(id: activeState) {
+            // Behind another window, or on the Downloads tab (which destroys
+            // this pane), nobody is watching the log — so nothing polls it.
+            // The catch-up happens when the window comes forward again.
+            guard activeState != .inactive else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { return }
-                // Behind another window, or on the Downloads tab (which destroys
-                // this pane), nobody is watching the log — so nothing polls it.
-                // The catch-up happens when the window comes forward again.
-                guard activeState != .inactive else { continue }
                 let token = await onChangeToken()
                 guard token != lastToken else { continue }
                 lastToken = token

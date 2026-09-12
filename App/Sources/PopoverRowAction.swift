@@ -23,7 +23,16 @@ struct PopoverRowAction: View {
     var helperEnabled: Bool = true
     /// How much of the download readout fits. Measured by the ROW, which knows the
     /// name's width, and handed down — this view draws what it is told to.
-    var downloadReadout: DownloadReadout = .barAndPercent
+    ///
+    /// A closure, like `showsStageLabel` beside it, because measuring it is not
+    /// free: it walks `DownloadReadout.allCases` and each candidate lays out the
+    /// name, the channel tag and both version strings with AppKit — up to a dozen
+    /// text measurements. Only `.installing(.downloading)` reads it, and a row is
+    /// downloading for a few seconds of its life, while EVERY row's body re-runs
+    /// on every progress tick (they all read `model.installing`). Passing the
+    /// value made every row in the list pay, on every tick, for the one row that
+    /// was downloading. Same lesson as `RowActionFacts.route`.
+    var downloadReadout: () -> DownloadReadout = { .barAndPercent }
     /// Whether a stage word fits beside the spinner, same reasoning.
     var showsStageLabel: (InstallStage) -> Bool = { _ in true }
     /// Why a TestFlight row cannot bound its beta — decides which mark it carries
@@ -182,7 +191,7 @@ struct PopoverRowAction: View {
     /// losing the number leaves the row saying only "something is happening".
     @ViewBuilder
     private func downloadProgress(_ f: Double) -> some View {
-        switch downloadReadout {
+        switch downloadReadout() {
         case .barAndPercent:
             HStack(spacing: 4) {
                 ProgressView(value: f).frame(width: 50).controlSize(.small)

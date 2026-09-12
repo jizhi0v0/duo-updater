@@ -37,19 +37,43 @@ public struct InstallEnvironment: Sendable {
     /// a running wrapped app and every path-keyed "is it running?" answers no.
     /// The identifier is unaffected (`com.lumiunited.pre.homekit` either way).
     public var runningBundleIDs: Set<String>
+    /// `InstalledApp.path` → what `UpdatePolicy.runtimeBundlePath` returns for
+    /// it, precomputed by the host for the installs it is about to ask about. A
+    /// pure memo: an entry MUST be what that function would have answered, and a
+    /// missing one simply costs the call.
+    ///
+    /// It exists because `runtimeBundlePath` starts with
+    /// `resolvingSymlinksInPath()` — a `realpath`, a filesystem walk — and the two
+    /// row-level questions that use it (`isRunning`, `requiresElevatedInstall`) are
+    /// asked once or twice PER ROW PER REDRAW, while the answer can only change
+    /// when the scan does. The running side has had `RunningBundlePathCache` for
+    /// this since the same measurement; this is the row side of it.
+    ///
+    /// Keyed by the URL rather than by its `path`: a lookup here happens per row
+    /// per redraw, and `URL.path` bridges to `NSURL` — the exact cost the
+    /// `elevationRequiredPaths` memo was rewritten to stop paying.
+    public var runtimeKeys: [URL: String]
 
     public init(
         isHelperEnabled: Bool,
         runningAppPaths: Set<String>,
         stagedSelfUpdates: [String: StagedSelfUpdate],
         elevationRequiredPaths: Set<String> = [],
-        runningBundleIDs: Set<String> = []
+        runningBundleIDs: Set<String> = [],
+        runtimeKeys: [URL: String] = [:]
     ) {
         self.isHelperEnabled = isHelperEnabled
         self.runningAppPaths = runningAppPaths
         self.stagedSelfUpdates = stagedSelfUpdates
         self.elevationRequiredPaths = elevationRequiredPaths
         self.runningBundleIDs = runningBundleIDs
+        self.runtimeKeys = runtimeKeys
+    }
+
+    /// The comparable path for one install — from `runtimeKeys` when the host
+    /// precomputed it, otherwise resolved here.
+    func runtimeKey(for url: URL) -> String {
+        runtimeKeys[url] ?? UpdatePolicy.runtimeBundlePath(url)
     }
 }
 
@@ -206,7 +230,7 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         environment: InstallEnvironment
     ) -> Bool {
-        environment.elevationRequiredPaths.contains(runtimeBundlePath(result.app.path))
+        environment.elevationRequiredPaths.contains(environment.runtimeKey(for: result.app.path))
     }
 
     /// The declined leg of the tri-state: this install needs an administrator
@@ -417,7 +441,7 @@ public enum UpdatePolicy {
         if result.app.isiOSAppOnMac, let bundleID = result.app.bundleID {
             return environment.runningBundleIDs.contains(bundleID)
         }
-        return environment.runningAppPaths.contains(runtimeBundlePath(result.app.path))
+        return environment.runningAppPaths.contains(environment.runtimeKey(for: result.app.path))
     }
 
     /// The vendor's advertised version when it is strictly *older* than what is

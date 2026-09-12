@@ -105,7 +105,7 @@ enum RowStateGalleryCases {
             return AnyView(
                 PopoverRowAction(
                     state: state, result: result,
-                    downloadReadout: popoverDownloadReadoutOverrides[name] ?? .barAndPercent,
+                    downloadReadout: { popoverDownloadReadoutOverrides[name] ?? .barAndPercent },
                     showsStageLabel: popoverShowsStageLabelOverrides[name] ?? { _ in true },
                     testFlightUnboundedReason: testFlightUnboundedReasonOverrides[name] ?? .storeSilent)
                 .frame(width: tileWidth, height: tileHeight, alignment: .trailing))

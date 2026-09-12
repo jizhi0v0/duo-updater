@@ -14,9 +14,11 @@ import SQLite3
 /// here.** Measured 2026-09-10 against the live stores: of 5 announcements, **3
 /// named a build the store did not hold** — and in all three the store was *ahead*
 /// (announced 234414114 vs held 234615396; 234696688 vs 234839053; 234026569 vs
-/// 234783351). The store keeps one row per platform for the *current* build and no
-/// history, so every announcement older than the current build fails a membership
-/// test. That rule would have fired on 3 of 5 live rows, all wrong. Comparing
+/// 234783351). The store holds no history of its own, so an announcement older than
+/// what it currently carries fails a membership test. (It is not one row per
+/// platform either — measured 2026-09-12, opening an app's version list in
+/// TestFlight left 20 rows for that one app at once, and a cold launch collapsed it
+/// back to two. See the next warning: depth is a property of the route.) That rule would have fired on 3 of 5 live rows, all wrong. Comparing
 /// against the store's maximum fires on **none** of them, which is the right answer
 /// for a machine whose store is current.
 ///
@@ -79,16 +81,29 @@ import SQLite3
 /// and **not one is reused across two different apps**, which is what a global
 /// sequence looks like and what a per-app counter does not.
 ///
-/// ⚠️ **One-directional, and the sample says so more loudly than it first did.**
-/// The absence of an announcement proves nothing. On **both** Macs measured
-/// 2026-09-10 every TestFlight notification was a *post-install* "is Now Up to
-/// Date" — 5 of 5 on this one — and the builds actually waiting to be installed
-/// were never announced at all. Four builds were published to a real app that day;
-/// each produced an "is now available to test" **email** and **none** produced a
-/// notification on either Mac. So on this vendor path the "a build is waiting"
-/// announcement does not appear to exist, and what this witness actually catches is
-/// a *post-install* notice mirrored from another device arriving before the local
-/// store has caught up. Use it to refuse a claim, never to make one.
+/// ⚠️ **One-directional: the absence of an announcement proves nothing.** That still
+/// holds. The *reason* recorded here on 2026-09-10 — "on this vendor path the 'a
+/// build is waiting' announcement does not appear to exist" — is wrong, and a
+/// controlled run says so.
+///
+/// Measured 2026-09-13, four consecutive builds of one app pushed 10-25 minutes
+/// apart, two Macs signed into the same Apple Account, both with that app installed
+/// and Automatic Updates switched off, so the only difference was the OS:
+///
+///   - **macOS 26.6 (25G72)** — all four arrived as *pre-install* "Ready to Test",
+///     3-5 minutes after upload, each carrying the new `ZBUILDID`. That is exactly
+///     the input this witness was written to consume.
+///   - **macOS 27.0 (26A428)** — none of the four arrived. Not a delivery failure:
+///     the same Mac took a "Ready to Test" for a *different* app it does NOT have
+///     installed that evening, `apsd` logged unrelated pushes throughout each
+///     window, and its own TestFlight listed the new build as installable once cold
+///     launched. `appstoreagent` was never spawned for any of the four.
+///
+/// So the witness works where the notification arrives, and on macOS 27 it has no
+/// input for an app that is already installed. **Nothing here is version-gated on
+/// purpose**: with no announcement it simply never fires, and if the notification
+/// comes back it works again with no code change. Re-measure before trusting either
+/// version of this note — one of them is already wrong.
 ///
 /// ⚠️ **It is a rolling window, not a log.** Records are pruned: the mini held 13
 /// spanning three days while the same database kept 652 records for other apps

@@ -830,6 +830,22 @@ final class AppListModel {
     /// the periodic backstop below are network-free — they just trigger
     /// `refreshLocal` (disk rescan + restart/staging recompute).
     @ObservationIgnored private var appDirWatcher: AppDirectoryWatcher?
+    /// The watcher on TestFlight's own store, and the store state it has already
+    /// reacted to. The bookkeeping is the watcher's own on purpose: it answers "have
+    /// I already re-read this store", which nothing else in here needs, and keeping it
+    /// local means no other read path has to remember to update it.
+    @ObservationIgnored private var testFlightStoreWatcher: AppDirectoryWatcher?
+    @ObservationIgnored private var lastStoreStampWatched: Date?
+    @ObservationIgnored private var testFlightStoreSettling = false
+
+    /// The local-signal poll: how often, and the task running it.
+    ///
+    /// Both reads are local sqlite — TestFlight's store and Notification Center's —
+    /// measured together at about 15 ms, so this costs roughly 22 seconds of CPU a day
+    /// and no network at all. The hourly sync it feeds already spends ~40 s of CPU and
+    /// ~17 MB, so the poll is cheaper than the thing it makes punctual.
+    @ObservationIgnored private let testFlightPollInterval: Duration = .seconds(60)
+    @ObservationIgnored private var testFlightPollTimer: Task<Void, Never>?
     /// Watches the preference files behind `ChannelBinding` so flipping a channel
     /// toggle inside the vendor app itself (Surge's "Include beta builds",
     /// Tailscale's Unstable switch) re-checks that row promptly. Separate from
@@ -1326,6 +1342,20 @@ final class AppListModel {
     /// The setting is asked FIRST, and not only for tidiness: off means the read was
     /// never attempted, so a Mac that also lacks the grant must not be told the
     /// permission is what is missing (`TestFlightUnboundedReason`).
+    /// The same question for a trigger the user did not aim at DuoUpdater — a timer, or
+    /// TestFlight being opened for its own reasons.
+    ///
+    /// `mayReadTestFlightStore` admits the `.unknown` Full Disk Access case, and that is
+    /// right for a refresh someone asked for. It is wrong here: reading the container
+    /// with nothing known about the grant is what raises macOS's "access data from other
+    /// apps" prompt, and `RefreshIntent` already states the rule — "a silent check must
+    /// never surface [it] unprompted". Deferring to `.scheduled` rather than restating
+    /// the test keeps one rule instead of two that can drift.
+    private var unattendedMayReadTestFlightStore: Bool {
+        prefs.testFlightDetection.readsStoreUnattended(
+            fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
+    }
+
     private var mayReadTestFlightStore: Bool {
         prefs.testFlightDetection.readsStore
             && TCCPreflight.admitsOtherAppsData(fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
@@ -1365,6 +1395,13 @@ final class AppListModel {
         // Chrome's Keystone staging a new build, a Sparkle app swapping itself —
         // flips the Restart badge without waiting for a menu open or networked check.
         armLocalRescan()
+        // Watch TestFlight's own store, so opening TestFlight by hand updates the
+        // beta rows. On a Mac that no longer gets "Ready to Test" pushes that is the
+        // only fast signal there is — see `TestFlightStoreWatch`.
+        armTestFlightStoreWatch()
+        // Ask the local signals — the announcements especially — on their own cadence
+        // instead of only after a networked check.
+        armTestFlightLocalPoll()
         // Track which apps are running so each row can show a live "running" dot,
         // kept current by KVO on `NSWorkspace.runningApplications`.
         armRunningAppsMonitor()
@@ -2093,7 +2130,17 @@ final class AppListModel {
 
     private func recheckTestFlightRowsOnce() async {
         let apps = results.map(\.app).filter { prefs.deservesCheck($0) }
-        guard !apps.isEmpty else { return }
+        // Taken BEFORE the read, and before the empty-list return below. Before the
+        // read because if the store moves while we are reading it we want the older
+        // date recorded, so the file watcher reacts once more rather than swallowing
+        // that change. Before the return because a Mac with every app ignored would
+        // otherwise never record anything, and each later event would re-run the whole
+        // 15-second settle loop to reach the same early return.
+        let stampBeingRead = TestFlightRefresh.storeStamp()
+        guard !apps.isEmpty else {
+            lastStoreStampWatched = stampBeingRead
+            return
+        }
         let mayRead = mayReadTestFlightStore
         let unread = TestFlightInventory(macRows: [], accessible: false)
         let inventory = mayRead
@@ -2101,6 +2148,17 @@ final class AppListModel {
                 of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
                 within: .seconds(2)) ?? unread
             : unread
+        // The single writer of the watcher's bookkeeping. Every path that reads the
+        // store lands here — our own sync's follow-up, a permission flip, the setting
+        // changing, the watcher itself — so "have we already read this store state" has
+        // one answer rather than one per caller.
+        //
+        // Doing it here rather than in the watcher closes a race the `ourSyncInFlight`
+        // guard cannot: our own sync cold-launches TestFlight too, so the watcher's
+        // 8s debounce expires around the same moment the sync task clears, and which
+        // of the two wins is timing. With this, the sync's own re-check records the
+        // state and the watcher then has nothing newer to react to.
+        if inventory.accessible { lastStoreStampWatched = stampBeingRead }
         // Granted, but the store did not open in time or at all: leave the rows as
         // they are. Answering them from `unread` would replace verdicts that were
         // right a moment ago with "can't tell", and nothing here would read again;
@@ -6281,6 +6339,124 @@ final class AppListModel {
         await refresh(intent: .scheduled)
     }
 
+    /// Arm the watcher on TestFlight's own store. Called once at launch, network-free,
+    /// and it never starts anything — the cost of launching TestFlight is one the user
+    /// already paid by opening it.
+    ///
+    /// `TestFlightStoreWatch` has what this can and cannot see, with the measurements.
+    /// The short version: a cold launch of TestFlight is reported within the stream's
+    /// latency, and nothing else about that store is reported at all.
+    private func armTestFlightStoreWatch() {
+        let dir = TestFlightInventory.defaultDatabaseURL.deletingLastPathComponent().path
+        guard FileManager.default.fileExists(atPath: dir) else {
+            // No TestFlight container: nothing to watch, and FSEvents on a path that
+            // does not exist reports nothing even after it appears.
+            Log.app.info("TestFlight store watch: no container at \(dir, privacy: .public) — not watching")
+            return
+        }
+        // 8 seconds, and the number is load-bearing. Measured 2026-09-12 over two cold
+        // launches: the events stop about a second in while the rewrite runs for
+        // several more (6.6s, 144 KB, five stat changes, zero further events), and
+        // #518 records ~6.9s in which the store answers for nobody. A debounce short
+        // enough to fire inside that window would read exactly the state this watcher
+        // exists to avoid publishing. `settleStoreStamp` below is the second guard.
+        let watcher = AppDirectoryWatcher(paths: [dir], debounce: 8) { [weak self] in
+            Task { @MainActor in await self?.testFlightStoreChanged() }
+        }
+        testFlightStoreWatcher = watcher
+        watcher.start()
+        Log.app.info("TestFlight store watch: watching \(dir, privacy: .public)")
+    }
+
+    /// Someone other than us wrote TestFlight's store — almost always the user opening
+    /// TestFlight. Re-read the beta rows from it, once it has stopped moving.
+    private func testFlightStoreChanged() async {
+        // Same reason as the poll: the user opened TestFlight, not DuoUpdater, so this
+        // must not be what asks for Full Disk Access.
+        guard unattendedMayReadTestFlightStore else { return }
+        // One settle loop at a time. It awaits for up to 15s before anything records
+        // the state it settled on, so without this a burst — launch, quit, relaunch —
+        // puts two loops in flight that both pass `reacts` against the same stale
+        // bookkeeping and both announce themselves in the log.
+        guard !testFlightStoreSettling else { return }
+        testFlightStoreSettling = true
+        defer { testFlightStoreSettling = false }
+        let stamp = await settleStoreStamp()
+        guard TestFlightStoreWatch.reacts(
+            stamp: stamp, lastRead: lastStoreStampWatched,
+            ourSyncInFlight: testFlightSyncTask != nil)
+        else { return }
+        Log.app.notice("TestFlight store changed outside a sync — answering the beta rows again")
+        await recheckTestFlightRows()
+    }
+
+    /// Wait for the store's write-ahead log date to stop moving, then return it.
+    ///
+    /// The debounce alone cannot decide this: FSEvents reports the *start* of the
+    /// rewrite and then goes quiet while it continues (see `armTestFlightStoreWatch`),
+    /// so a watcher that trusted its own silence would read a half-written store. Two
+    /// equal readings a second apart, or 15 seconds, whichever comes first — the cap
+    /// exists because a store nobody stops writing must not park this task forever.
+    private func settleStoreStamp() async -> Date? {
+        var previous = TestFlightRefresh.storeStamp()
+        for _ in 0..<15 {
+            try? await Task.sleep(for: .seconds(1))
+            let now = TestFlightRefresh.storeStamp()
+            if now == previous { return now }
+            previous = now
+        }
+        return previous
+    }
+
+    /// Arm the poll that asks TestFlight's own two local stores whether a sync has
+    /// become earnable, without waiting for the next networked round.
+    ///
+    /// The round already asks this, but only after a check — so on `Once a day` an
+    /// announcement can sit unread for most of a day, and even at five minutes it waits
+    /// for a check it has nothing to do with. `TestFlightSyncPolicy.pollReason` has why
+    /// this deliberately answers only the evidence half and leaves the floor alone.
+    private func armTestFlightLocalPoll() {
+        testFlightPollTimer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: self?.testFlightPollInterval ?? .seconds(60))
+                guard !Task.isCancelled, let self else { return }
+                await self.pollTestFlightLocalSignals()
+            }
+        }
+    }
+
+    /// One pass of that poll. Reads only; it can start a sync but never a check.
+    private func pollTestFlightLocalSignals() async {
+        // The same three gates the round applies before it asks, for the same reasons:
+        // starting a hidden TestFlight is the one thing behind its own setting (#547),
+        // nothing reads that store without the grant, and one sync at a time for the
+        // whole app.
+        guard prefs.testFlightDetection.syncsUnasked, unattendedMayReadTestFlightStore,
+              testFlightSyncTask == nil
+        else { return }
+        let apps = results.map(\.app).filter { prefs.deservesCheck($0) }
+        guard apps.contains(where: \.isTestFlightApp) else { return }
+        let unread = TestFlightInventory(macRows: [], accessible: false)
+        let inventory = await Self.firstResult(
+            of: Task.detached(priority: .utility) { TestFlightInventory() },
+            within: .seconds(2)) ?? unread
+        // Deliberately NOT recorded in `lastStoreStampWatched`: this read answers
+        // "is a sync earnable", it does not answer the rows. Recording it would tell
+        // the file watcher a store state had been consumed that no row has seen.
+        guard inventory.accessible else { return }
+        let announcements = await Self.firstResult(
+            of: Task.detached(priority: .utility) { TestFlightAnnouncements() },
+            within: .seconds(2))
+        let evidence = TestFlightSyncPolicy.evidence(
+            in: apps, inventory: inventory, announcements: announcements)
+        guard let reason = TestFlightSyncPolicy.pollReason(
+            evidence: evidence, storeStamp: TestFlightRefresh.storeStamp(),
+            ledger: testFlightSyncLedger, now: .now)
+        else { return }
+        Log.app.notice("TestFlight sync: due (local poll) — \(Self.describe(reason), privacy: .public)")
+        startAutomaticTestFlightSync(for: evidence)
+    }
+
     /// Arm the filesystem watcher and the slow periodic backstop that keep the
     /// Restart badge current when an app updates itself in the background (e.g.
     /// Chrome's Keystone). Called once at launch. Both paths are network-free.
@@ -6344,6 +6520,11 @@ final class AppListModel {
             // Same treatment for the channel-preference stream: a toggle flipped
             // just before the machine slept lands with no live event.
             self?.channelPrefsWatcher?.rearm()
+            // And TestFlight's store: opening TestFlight just before the lid closes is
+            // exactly the write this stream is here for, and exactly the one sleep
+            // eats. `rearm` rescans immediately, so a launch that happened while
+            // asleep lands on wake instead of waiting for the hourly floor.
+            self?.testFlightStoreWatcher?.rearm()
         }
         runningAppObservers.append(wakeObserver)
 

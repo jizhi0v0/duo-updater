@@ -109,9 +109,15 @@ public struct TestFlightInventory: Sendable {
     /// What the store knows about one app, in TestFlight's **own** id space —
     /// nothing here is a `CFBundleVersion`.
     ///
-    /// `maxBuildID` is a frontier, not a version: the store keeps one row per
-    /// platform for the *current* build and no history, so the only question it can
-    /// answer is "has this store seen anything at least this new".
+    /// `maxBuildID` is a frontier, not a version: the only question it can answer is
+    /// "has this store seen anything at least this new".
+    ///
+    /// ⚠️ It is **not** one row per platform, which this comment used to claim.
+    /// Measured 2026-09-12: opening an app's version list in TestFlight left 20 rows
+    /// for that single app (builds 64…83, all platform 1) standing at once, and a
+    /// cold launch collapsed them back to two. Taking the maximum is what makes this
+    /// robust to both shapes — see `TestFlightAnnouncements` for the two rewrite
+    /// routes.
     public struct Frontier: Sendable, Equatable {
         /// The App Store id, from `ZTFAPPMODEL.ZAPPID` — the same id TestFlight's
         /// notifications carry in their default-action URL.

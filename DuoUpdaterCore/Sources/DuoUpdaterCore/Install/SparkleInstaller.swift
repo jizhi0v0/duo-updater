@@ -210,13 +210,22 @@ public actor SparkleInstaller {
         onStage(.extracting)
         let newApp: URL
         if let patch = download.appliedPatch {
-            newApp = try DeltaApplier.reconstruct(
-                installedApp: result.app.path,
-                patch: patch,
-                patchFile: download.archiveURL,
-                workDir: download.workDir,
-                edPublicKey: publicKey,
-                onStage: onStage)
+            // Off the cooperative pool for the same reason as the extract below:
+            // `reconstruct` ends in `BinaryDelta`, whose `waitUntilExit()` parks the
+            // calling thread for the whole reconstruction. See `offCooperativePool`.
+            let installed = result.app.path
+            let patchFile = download.archiveURL
+            let work = download.workDir
+            let key = publicKey
+            newApp = try await offCooperativePool {
+                try DeltaApplier.reconstruct(
+                    installedApp: installed,
+                    patch: patch,
+                    patchFile: patchFile,
+                    workDir: work,
+                    edPublicKey: key,
+                    onStage: onStage)
+            }
         } else {
             // Off the cooperative pool for the same reason as the gates below:
             // `extractApp` shells out and blocks on `errDone.wait()` and
@@ -259,7 +268,7 @@ public actor SparkleInstaller {
         // caller surfaces a "Restart" prompt). We never force a quit — that would
         // skip the app's own save-on-quit flow.
         onStage(.installing)
-        try installApp(newApp, over: result.app.path)
+        try await installApp(newApp, over: result.app.path)
 
         onStage(.done)
     }
@@ -269,7 +278,13 @@ public actor SparkleInstaller {
     /// Replace the bundle at `target` with `newApp`. Validation, quarantine
     /// removal, atomic same-volume swap, and the privileged fallback all live in
     /// `InPlaceSwap`, shared with `VendorInstaller`.
-    private func installApp(_ newApp: URL, over target: URL) throws {
-        try InPlaceSwap.replace(newApp: newApp, over: target)
+    private func installApp(_ newApp: URL, over target: URL) async throws {
+        // Off the cooperative pool, like the extract and the gates above: the swap
+        // shells out, and its privileged route parks the calling thread inside
+        // `osascript` for as long as the user takes to answer the administrator
+        // panel. See `offCooperativePool`.
+        try await offCooperativePool {
+            try InPlaceSwap.replace(newApp: newApp, over: target)
+        }
     }
 }

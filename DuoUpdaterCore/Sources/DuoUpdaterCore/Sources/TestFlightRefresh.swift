@@ -300,7 +300,7 @@ public struct TestFlightRefresh: Sendable {
     /// Off the cooperative pool: the read is a bounded but blocking open, and it is
     /// called from `run()`, which is async (see `offCooperativePool`).
     public static let storeTestsNothing: @Sendable () async -> Bool = {
-        (try? await offCooperativePool { TestFlightInventory().isTestingNothing }) ?? false
+        await offCooperativePool { TestFlightInventory().isTestingNothing }
     }
 
     /// Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read off the

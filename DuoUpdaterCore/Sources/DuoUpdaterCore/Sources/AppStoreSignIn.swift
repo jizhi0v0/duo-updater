@@ -53,7 +53,7 @@ public enum AppStoreSignIn {
     /// `isSignedIn()` off the cooperative pool, for async callers: the read is a
     /// bounded but blocking open (see `offCooperativePool`).
     public static func current() async -> Bool? {
-        (try? await offCooperativePool { isSignedIn() }) ?? nil
+        await offCooperativePool { isSignedIn() }
     }
 
     /// Active App Store accounts' `activeMediaTypes`, and no other column.

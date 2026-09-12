@@ -40,13 +40,38 @@ import Foundation
 /// work runs to completion even after `Task.cancel()`. That is exactly what the
 /// synchronous call did before, so nothing regresses — but do not read this as
 /// having made these gates interruptible, because it has not.
-func offCooperativePool<T: Sendable>(
+///
+/// ## Public, and two of it
+///
+/// Public because the blocking calls are not all in this package: the menu-bar
+/// app (`lsappinfo`, the helper's `osascript`) and `duo` (its whole synchronous
+/// subcommands) reach the same pool through the same async entry points.
+///
+/// The second, non-throwing overload exists so a caller whose own signature
+/// cannot throw does not have to write `(try? await …) ?? fallback` around work
+/// that never throws — a fallback no input can reach, which reads as a handled
+/// failure and is not one. Overload resolution picks the throwing one whenever
+/// the closure body actually throws.
+public func offCooperativePool<T: Sendable>(
     qos: DispatchQoS.QoSClass = .userInitiated,
     _ work: @escaping @Sendable () throws -> T
 ) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
         DispatchQueue.global(qos: qos).async {
             continuation.resume(with: Result { try work() })
+        }
+    }
+}
+
+/// `offCooperativePool` for work that cannot throw. Same hop, same guarantees;
+/// see the doc comment above.
+public func offCooperativePool<T: Sendable>(
+    qos: DispatchQoS.QoSClass = .userInitiated,
+    _ work: @escaping @Sendable () -> T
+) async -> T {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: qos).async {
+            continuation.resume(returning: work())
         }
     }
 }

@@ -801,9 +801,16 @@ public enum InPlaceSwap {
         // `/Applications` on the development machine, 22 of them store-installed)
         // a batch can reach it twice at once — two system panels stacked over each
         // other, neither saying which app it belongs to. Blocking here rather than
-        // making `replace` async is deliberate: the callers are synchronous, and
-        // the thread this parks was going to sit in `waitUntilExit` waiting on the
-        // same human anyway, so this moves the wait rather than adding one.
+        // making `replace` async is deliberate: the thread this parks was going to
+        // sit in `waitUntilExit` waiting on the same human anyway, so this moves
+        // the wait rather than adding one.
+        //
+        // ⚠️ It parks whatever thread `replace` was called on, for as long as the
+        // user takes to answer — so every async caller must reach `replace`
+        // through `offCooperativePool`, never directly. Both installers and the
+        // rollback path do. An earlier version of this comment said "the callers
+        // are synchronous"; they are `async` and always were, which is exactly the
+        // shape #351 measured killing the runtime.
         elevationPanel.lock()
         defer { elevationPanel.unlock() }
 

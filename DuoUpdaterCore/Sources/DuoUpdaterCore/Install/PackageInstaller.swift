@@ -175,16 +175,27 @@ public actor PackageInstaller {
         let sourceFingerprint = try verifyDownload(file)
         // A signed DMG is about to be parsed into a different inner file, so prove
         // the pathname still holds the exact enclosure whose EdDSA check passed.
-        // A direct pkg carries this proof into `handOver` instead, avoiding an
-        // extra full read of a potentially hundreds-of-megabytes package.
-        if file.pathExtension.lowercased() == "dmg", let sourceFingerprint,
-           try Self.contentFingerprint(of: file) != sourceFingerprint {
-            throw PackageError.downloadFailed(
-                "The download changed after source verification. Nothing was opened.")
+        // A direct pkg is not re-read here; it carries this proof into `handOver`
+        // as `approvedFingerprint`, which is then what the seals there are pinned
+        // against. It is NOT an extra full read saved — `handOver` hashes the file
+        // whole twice either way, deliberately (see its two-seal comment) — only
+        // one the DMG route pays on a different file.
+        if file.pathExtension.lowercased() == "dmg", let sourceFingerprint {
+            // Hashing hundreds of megabytes is blocking work, and this is reached
+            // from an async install. See `offCooperativePool`.
+            let seen = try await offCooperativePool { try Self.contentFingerprint(of: file) }
+            guard seen == sourceFingerprint else {
+                throw PackageError.downloadFailed(
+                    "The download changed after source verification. Nothing was opened.")
+            }
         }
 
         onStage(.installing)
-        let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
+        // Off the cooperative pool: the DMG route mounts with `hdiutil` and copies
+        // with `ditto`, both through a blocking `waitUntilExit()`.
+        let toOpen = try await offCooperativePool { [self] in
+            try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
+        }
         let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
             ? sourceFingerprint : nil
         try await handOver(
@@ -245,8 +256,16 @@ public actor PackageInstaller {
     ) async throws {
         // Preliminary gate: an ordinary bad package must not retire the valid
         // Installer window it was meant to replace.
-        try applyPackageGate(toOpen, installedApp: installedApp)
-        let preliminarySeal = try Self.contentSeal(of: toOpen)
+        //
+        // Gate and seal go off the cooperative pool together, in ONE hop: the gate
+        // runs `pkgutil`/`xar`/`lsbom` and `SecStaticCode…` (the #351 call), the
+        // seal hashes the whole package — 375 MB for ToDesk — and the order between
+        // them is load-bearing, so it is not split across two hops. See
+        // `offCooperativePool`.
+        let preliminarySeal = try await offCooperativePool { [self] () -> ContentSeal in
+            try applyPackageGate(toOpen, installedApp: installedApp)
+            return try Self.contentSeal(of: toOpen)
+        }
         let pinnedFingerprint = approvedFingerprint ?? preliminarySeal.fingerprint
         if approvedFingerprint != nil,
            preliminarySeal.fingerprint != pinnedFingerprint {
@@ -257,8 +276,10 @@ public actor PackageInstaller {
         // Final gate: `beforeOpen` is async, so the user-owned temp path may have
         // changed while it ran. Re-establish every signature/identity invariant
         // immediately before handing the path to Installer.
-        try applyPackageGate(toOpen, installedApp: installedApp)
-        let finalSeal = try Self.contentSeal(of: toOpen)
+        let finalSeal = try await offCooperativePool { [self] () -> ContentSeal in
+            try applyPackageGate(toOpen, installedApp: installedApp)
+            return try Self.contentSeal(of: toOpen)
+        }
         guard finalSeal.fingerprint == pinnedFingerprint else {
             throw PackageError.downloadFailed(
                 "The installer changed after verification. Nothing was opened.")
@@ -434,7 +455,13 @@ public actor PackageInstaller {
         }
     }
 
-    private func applyPackageGate(_ package: URL, installedApp: URL) throws {
+    /// `nonisolated`, like the blocking helpers it reaches (`verifyOpenable`,
+    /// `packageSignature`, `runCapturingOutput`, `run`, `resolveInstaller`): all of
+    /// them read only `let` state, and they have to be callable from inside an
+    /// `offCooperativePool` hop, which by construction is not on this actor. The
+    /// actor was never the thing ordering these anyway — `handOver` already
+    /// suspends between its two gates, and `downloadAndOpen` awaits its download.
+    private nonisolated func applyPackageGate(_ package: URL, installedApp: URL) throws {
         if let packageGate {
             try packageGate(package, installedApp)
         } else {
@@ -445,7 +472,7 @@ public actor PackageInstaller {
     /// The fail-closed gate: only a signed `.pkg`/`.mpkg` whose Team ID matches the
     /// installed app may be handed to the system installer. Shared by the first
     /// open and every re-open.
-    private func verifyOpenable(_ toOpen: URL, installedApp: URL) throws {
+    private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL) throws {
         // A `.pkg`/`.mpkg` runs install scripts (often with admin rights) the moment
         // the user confirms. The download's filename/extension is server-controlled
         // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
@@ -728,7 +755,7 @@ public actor PackageInstaller {
     /// For a `.dmg` we mount it, copy the contained `.pkg` out (so the installer
     /// keeps working after we unmount), and return that; otherwise we open the
     /// file itself (a bare `.pkg`, or the `.dmg`/folder as a fallback).
-    private func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) throws -> URL {
+    private nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) throws -> URL {
         guard file.pathExtension.lowercased() == "dmg" else { return file }
 
         let mountPoint = workDir.appendingPathComponent("mnt")
@@ -822,7 +849,7 @@ public actor PackageInstaller {
 
     /// `pkgutil --check-signature` validates the package chain and prints the
     /// Developer ID Installer certificate, whose parenthesized OU is the Team ID.
-    private func packageSignature(_ pkg: URL) -> (isValid: Bool, teamIdentifier: String?) {
+    private nonisolated func packageSignature(_ pkg: URL) -> (isValid: Bool, teamIdentifier: String?) {
         let result = runCapturingOutput("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
         guard result.code == 0 else { return (false, nil) }
         return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
@@ -892,7 +919,7 @@ public actor PackageInstaller {
     }
 
     @discardableResult
-    private func run(_ launchPath: String, _ args: [String]) -> Int32 {
+    private nonisolated func run(_ launchPath: String, _ args: [String]) -> Int32 {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
@@ -907,7 +934,7 @@ public actor PackageInstaller {
     }
 
     @discardableResult
-    private func runCapturingOutput(_ launchPath: String, _ args: [String]) -> (code: Int32, output: String) {
+    private nonisolated func runCapturingOutput(_ launchPath: String, _ args: [String]) -> (code: Int32, output: String) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args

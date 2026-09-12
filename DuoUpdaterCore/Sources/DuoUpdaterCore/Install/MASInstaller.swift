@@ -345,6 +345,11 @@ public actor MASInstaller {
     /// (absent binary, non-zero exit, timeout). `mas outdated` reaches the store for
     /// every installed MAS app, so we cap the wait: a stalled network must not hang
     /// the install pipeline.
+    ///
+    /// offpool-lint:allow — the wait here is the `terminationHandler` continuation,
+    /// not a parked thread; by the time the drain below runs the child has exited
+    /// and Foundation has closed the parent's copy of the write end, so it reads
+    /// buffered bytes and hits EOF without blocking.
     private func runOutdated() async -> Set<Int>? {
         guard let mas = Self.executablePath else { return nil }
         let process = Process()

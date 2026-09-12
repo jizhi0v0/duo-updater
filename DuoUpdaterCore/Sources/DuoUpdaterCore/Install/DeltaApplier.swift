@@ -100,16 +100,34 @@ public enum DeltaApplier {
         process.executableURL = tool
         process.arguments = ["apply", installedApp.path, destination.path, patch.path]
         let errPipe = Pipe()
-        let outPipe = Pipe()
         process.standardError = errPipe
-        process.standardOutput = outPipe
+        // nullDevice, not a `Pipe()` we read second: only stderr is used here, and
+        // draining stdout *after* stderr deadlocks the moment the tool fills
+        // stdout's ~64KB buffer while we are still waiting on stderr's EOF — it
+        // blocks in `write()`, we block in `readDataToEndOfFile()`, neither moves.
+        // Same reasoning as `BrewFormulaService.realExecutor`.
+        process.standardOutput = FileHandle.nullDevice
 
         try process.run()
+        // Watchdog: `BinaryDelta` reads the whole installed bundle and writes a new
+        // one, so a wedged run has no self-imposed bound and the caller is holding
+        // an apply permit throughout. SIGTERM at the cap, SIGKILL shortly after if
+        // it is ignored (a stuck process holds stderr's write end open, so the
+        // drain below would never return) — same pattern as
+        // `ArchiveExtractor.run`. Ten minutes is deliberately far above the work:
+        // the largest patch measured here reconstructs ChatGPT's 1.4 GB bundle in
+        // 7.5s, so nothing short of a hang can reach it.
+        let pid = process.processIdentifier
+        let term = DispatchWorkItem { process.terminate() }
+        let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 600, execute: term)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 605, execute: kill)
         // Drained before `waitUntilExit` so a verbose failure can't fill the pipe
         // buffer and deadlock the tool against a reader that never runs.
         let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        _ = outPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        term.cancel()
+        kill.cancel()
 
         guard process.terminationStatus == 0 else {
             let message = String(decoding: errData, as: UTF8.self)
@@ -150,7 +168,7 @@ public enum DeltaApplier {
         patchFile: URL,
         workDir: URL,
         edPublicKey: String?,
-        onStage: (InstallStage) -> Void
+        onStage: @escaping @Sendable (InstallStage) -> Void
     ) throws -> URL {
         guard let onDisk = InstalledBuild.read(at: installedApp) else {
             throw DeltaError.baselineUnreadable

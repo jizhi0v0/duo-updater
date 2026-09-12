@@ -529,11 +529,16 @@ public actor AppStoreAXInstaller {
             .runningApplications(withBundleIdentifier: "com.apple.AppStore").first {
             return (app, false)
         }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = ["-g", "-b", "com.apple.AppStore"]  // -g background, -b by bundle id
-        try p.run()
-        p.waitUntilExit()
+        // Off the cooperative pool: `open` is quick but `waitUntilExit()` parks
+        // whatever thread it is called on, and this one belongs to a pool that
+        // does not overcommit. See `offCooperativePool`.
+        try await offCooperativePool {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            p.arguments = ["-g", "-b", "com.apple.AppStore"]  // -g background, -b by bundle id
+            try p.run()
+            p.waitUntilExit()
+        }
         return (try await waitForAppStore(), true)
     }
 

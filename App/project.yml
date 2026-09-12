@@ -59,6 +59,7 @@ targets:
     sources:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
+      - path: Sources/RequestCoverageHonesty.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

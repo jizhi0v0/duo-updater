@@ -63,4 +63,4 @@ what to do when the number has already drifted once.
 
 - [`app-store-page-cache.md`](app-store-page-cache.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/AppStorePageCache.swift`
 - [`pre-install-gate.md`](pre-install-gate.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/PreInstallGate.swift`
-- [`app-list-model.md`](app-list-model.md) — `App/Sources/AppListModel.swift`'s install path (`install` / `runInstall` / `GateHandle` / `performInstall`)
+- [`app-list-model.md`](app-list-model.md) — `App/Sources/AppListModel.swift`, migrated in slices: §1 the install path (`install` / `runInstall` / `GateHandle` / `performInstall`), §2 running-app detection (`armRunningAppsMonitor` / `refreshRunningApps` / `retry`)

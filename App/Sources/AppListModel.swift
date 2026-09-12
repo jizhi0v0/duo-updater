@@ -6233,21 +6233,9 @@ final class AppListModel {
     /// AppKit's own header prescribes: "Instead of polling, use key-value observing
     /// to be notified of changes to this array property" (`NSRunningApplication.h`).
     /// The launch/terminate notifications are kept as a second, independent
-    /// delivery path — they cost one no-op recompute each when both fire.
-    ///
-    /// **Why not the notifications alone** (issue #247). They are posted per app by
-    /// LaunchServices and are, measured on this machine, simply missing for some
-    /// apps in both directions, while the array — which cannot fail to lose an
-    /// entry when a process exits — always moved. One process, all four observers
-    /// plus a 200 ms poll as ground truth, 2026-09-02:
-    ///
-    ///     Alcove, 4 quits + 4 relaunches   notifications 0/8   KVO 8/8
-    ///     UURemote quit (+UURemoteServer)  no didTerminate     KVO caught both
-    ///     AppCleaner (control)             both fire           KVO 512 ms earlier
-    ///
-    /// KVO also beat the 200 ms poll by 26–180 ms on every transition, so the
-    /// ~2 s reconcile timer the issue proposed is not needed: there is nothing for
-    /// it to catch that this misses sooner.
+    /// delivery path — they cost one no-op recompute each when both fire. See
+    /// `docs/engine-notes/app-list-model.md` §2 for why (issue #247's measurement
+    /// of where the notifications alone fell short).
     ///
     /// **What it does not change.** The property "will only change when the main
     /// run loop is run in a common mode" (same header) — exactly the condition the
@@ -6258,11 +6246,9 @@ final class AppListModel {
     /// snapshot (~140 entries, ~130 with a bundle URL and ~105 of those distinct),
     /// a bundle-id set, and a `realpath` for each bundle path *not seen in the
     /// previous snapshot* — for most events, none; for a launch, the app and
-    /// whatever XPC services came up with it. `RunningBundlePathCache` is what
-    /// keeps it to that: this used to resolve every running bundle's symlinks on
-    /// every event, measured at 1.16 ms against 0.10 ms now (release build, live
-    /// snapshot), per launch/quit anywhere on the machine, all day, under a
-    /// comment that called it an in-memory walk.
+    /// whatever XPC services came up with it. See `RunningBundlePathCache`'s own
+    /// doc comment for what keeping that resolution buys and what it used to cost
+    /// without it.
     private func armRunningAppsMonitor() {
         // Seed before observing rather than passing `.initial`: the seed must set
         // the baseline the first real change is diffed against, without running the
@@ -6861,14 +6847,14 @@ final class AppListModel {
     /// app without paying for a whole sweep.
     ///
     /// It re-derives the running set first, so it also corrects a row whose
-    /// *running* state has gone stale. `NSWorkspace`'s launch/terminate
-    /// notifications are the only thing maintaining that set, and some apps never
-    /// post one of them — measured: Alcove posts no `didLaunch`, UURemote no
-    /// `didTerminate` (issue #247) — which leaves the dot lit for an app that has
-    /// quit, or dark for one that is open. That recompute is whole-set and, since
-    /// the resolutions are memoized, 0.095 ms; it happens before the network check
-    /// rather than after, so the dot is right the moment the row starts checking
-    /// instead of when the source answers.
+    /// *running* state has gone stale. `armRunningAppsMonitor` keeps that set
+    /// live off KVO on `runningApplications`, measured to catch what the
+    /// launch/terminate notifications miss (issue #247) — but this call is a
+    /// floor under that live path, not a substitute for it, the same reasoning
+    /// `performRefresh` and `performLocalRescan` take it for. That recompute is
+    /// whole-set and, since the resolutions are memoized, 0.095 ms; it happens
+    /// before the network check rather than after, so the dot is right the
+    /// moment the row starts checking instead of when the source answers.
     ///
     /// Reuses the install-stage spinner to show "Checking" on just that row, and
     /// bails if the row is already busy (installing or mid-recheck).

@@ -1,13 +1,19 @@
-# AppListModel install path: design history
+# AppListModel: design history
 
-Companion to the install path in `App/Sources/AppListModel.swift`
-(`install` → `runInstall` → `GateHandle` → `performInstall`). The source file
-keeps the current contract; this file keeps *why it looks that way* where that
-reasoning is a rejected prior design rather than something still true today.
-Written for issue #409, which asked this file to be done in slices rather than
-all at once — this is the first slice, the install path.
+Companion to `App/Sources/AppListModel.swift`. The source file keeps the
+current contract; this file keeps *why it looks that way* where that
+reasoning is a rejected prior design, an incident timeline, or a measurement
+rather than something still true today. Written for issue #409, which asked
+this file to be migrated in slices rather than all at once — each `§` below
+is one slice's content, introduced by a short paragraph naming which part of
+`AppListModel.swift` that slice covers. This is not one-file-per-subsystem
+the way `docs/engine-notes/README.md`'s
+naming rule reads at a glance; it is one file per *source* file, exactly as
+the README states, and `AppListModel.swift` is the one source file large
+enough that its own migration spans several unrelated subsystems.
 
-This slice is deliberately short. Most of the install path's comments describe
+**§1** (below) is the first slice, the install path. This slice is
+deliberately short. Most of the install path's comments describe
 a **current** contract or a non-obvious constraint (why `offered` and not the
 re-check's own result decides `.answerRegressed`, why `refreshRunningApps()`
 takes a fresh snapshot before deferring to a self-updater, why `GateHandle`
@@ -58,9 +64,73 @@ double-signaling the semaphore on the paths that do.
 
 ---
 
+**§2** (below) is the second slice: running-app detection
+(`armRunningAppsMonitor` / `refreshRunningApps` / `handleRunningAppsChange`,
+and `retry()` as one of the callers that leans on it), the path issue #247
+rewrote. The current contract — KVO is the source of truth, the
+notifications are kept as a redundant second path, a snapshot needs a live
+run loop to stay current — stays next to the code; what follows is the
+measurement issue #247 was filed and closed on, which nothing else in the
+source points at.
+
+## §2 Why running-app detection trusts KVO over the launch/terminate notifications (issue #247)
+
+Before commit `03dd3d46` ("App: drive the running set from KVO, not the
+launch/terminate notifications", 2026-09-02), `runningAppPaths` was kept
+live off `NSWorkspace.didLaunchApplicationNotification` /
+`didTerminateApplicationNotification` alone. Those notifications are posted
+per app by LaunchServices and, per that commit's own measurement, were
+simply missing for some apps in both directions — while
+`runningApplications` (the array KVO observes) cannot fail to lose an entry
+when a process exits, so it always moved. One process observing both
+notifications and KVO, against a 200 ms poll as ground truth, 2026-09-02:
+
+    Alcove, 4 quits + 4 relaunches    notifications 0/8    KVO 8/8
+    UURemote quit (+ UURemoteServer)  no didTerminate      KVO caught both
+    AppCleaner (control)              both fired           KVO 512 ms earlier
+
+KVO also beat the 200 ms poll by 26–180 ms on every transition it caught,
+which is why the ~2 s reconcile timer issue #247 originally proposed as a
+backstop was dropped rather than added: there was nothing left for a
+periodic reconcile to catch that KVO didn't already report sooner.
+
+⚠️ One-time measurement on one machine, not a tracked benchmark — see this
+directory's README on the difference. It has not been re-run for this pass:
+whether the specific notification gaps above (Alcove's, UURemote's) are a
+stable LaunchServices property, or an artifact of that machine/OS build on
+2026-09-02, is unverified either way. What *was* re-checked for this pass
+(2026-09-12): `armRunningAppsMonitor` still observes
+`NSWorkspace.runningApplications` via KVO as its primary path, with the two
+notifications kept as a secondary one, matching the source comment — the
+architecture this measurement justified has not drifted.
+
+**A false claim this pass found, not just an old one it moved.** `retry()`'s
+own doc comment read: "`NSWorkspace`'s launch/terminate notifications are
+the only thing maintaining that set." That was true of the code when it was
+written — commit `3841dfb8`, the same day, 13 minutes *before* `03dd3d46`
+landed — but was never updated once KVO shipped, and has said the opposite
+of the running mechanism ever since: KVO has been the source of truth since
+2026-09-02, and `retry()`'s explicit re-derivation is a defensive floor
+under that live path (the same role `performRefresh` and
+`performLocalRescan`'s own comments describe it playing at their call
+sites), not the only thing keeping the set current. Fixed in the same edit
+that added this section's pointer, on the reasoning that a comment
+contradicting the section it now points at is worse than the long version
+it replaced.
+
+---
+
 Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has no dedicated test for
 the host-gate release point itself (it's exercised indirectly by
 `AppListModel`'s own concurrency, which the app-layer test target does not
 construct — see `CLAUDE.md`'s "App 层的测试 target" section for why). The
 per-host/App-Store gate split itself is `hostInstallGate(for:)` and
-`Self.appStoreInstallGate` in `AppListModel.swift`, upstream of this section.
+`Self.appStoreInstallGate` in `AppListModel.swift`, upstream of §1.
+
+Same absence for §2: nothing constructs `AppListModel` to exercise
+`armRunningAppsMonitor`'s KVO wiring itself. What IS tested, in
+`DuoUpdaterCore/Tests/DuoUpdaterCoreTests/RunningBundlePathCacheTests.swift`,
+is the cache `refreshRunningApps` calls into — eviction on a process quit,
+re-resolution on reappearance, the staging-name normalisation `retry()`'s
+correctness depends on — everything downstream of "here is this event's
+snapshot of running bundle URLs", not the KVO delivery itself.

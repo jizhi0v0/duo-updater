@@ -203,7 +203,7 @@ public struct MacAppStoreSource: UpdateSource {
     /// newer of the two. A page-scrape failure just leaves us on the lookup value.
     private func nativeMacVersion(from result: LookupResult, region: String) async throws -> RemoteVersion? {
         let lookupVersion = result.version
-        var pageInfo: MacVersionInfo?
+        var facts: MacPageFacts?
         if let trackId = result.trackId {
             // The lookup's own `trackViewUrl` for a `mac-software` listing already
             // lands on this same page with zero redirects (measured: 8/8, version
@@ -216,9 +216,10 @@ public struct MacAppStoreSource: UpdateSource {
             // the iOS listing, not the Mac one, so it keeps building its own URL.
             let fallbackURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
             if let scrapeURL = validatedProductPageURL(result.trackViewUrl, trackId: trackId, region: region) ?? fallbackURL {
-                pageInfo = try? await cachedMacVersion(trackId: trackId, region: region, url: scrapeURL)
+                facts = try? await cachedMacVersionPageFacts(trackId: trackId, region: region, url: scrapeURL)
             }
         }
+        let pageInfo = facts?.version
 
         // The page wins only when it's strictly newer (or the lookup gave nothing).
         let usePage: Bool
@@ -246,8 +247,65 @@ public struct MacAppStoreSource: UpdateSource {
             return nil  // neither source produced a version
         }
 
+        // This copy IS the Mac build (`kind == "mac-software"`), so the
+        // question for `AppStoreGate` is whether the LISTING still publishes
+        // one (`publishesMacBuild`) — not `macSupported`, which answers "does
+        // a wrapped iOS binary run on a Mac" (branch 2's question, asked of a
+        // listing that has no Mac build of its own). Both readings come off
+        // the SAME scrape that already fetched the version above — no extra
+        // request — which is what makes `latestMacCompatible`/
+        // `latestMinimumMacOS` reachable here at all; before `MacPageFacts`
+        // this branch never scraped compatibility, so `AppStoreGate
+        // .macIncompatible` was unreachable for any native-Mac listing
+        // (issue #545's second consequence). nil (page unreadable) fails
+        // open on both.
+        //
+        // ⚠️ Taken from the page scrape regardless of `usePage` — i.e. even
+        // when the LOOKUP API's version wins below, not the page's own. This
+        // is deliberate, not a version/compat mismatch: unlike
+        // `mostRecentVersion` (a per-shelf-item value the page and the lookup
+        // API can disagree on by a build, per the comment above), the
+        // Compatibility annotation and `appPlatforms` are not scoped to a
+        // specific version number in Apple's own data model — they describe
+        // whatever the listing currently states, independent of which source
+        // "won" the version race this check. The scrape is the only place
+        // either is ever read, so gating it on `usePage` would silently drop
+        // back to nil (no signal at all, this branch's state before this PR)
+        // on every check where the lookup API's cache happens to be ahead —
+        // exactly the gap #545/#546 exist to close, not a staleness bound
+        // worth adding.
+        //
+        // This does NOT make the residual staleness free, and the two
+        // directions cost differently. If the SCRAPED page itself lags the
+        // true current listing by a build (the same caching lag the version
+        // comment above documents, just applied to the floor instead), the
+        // floor read here lags by that same build:
+        //   - under-block: a build RAISED the floor and the page hasn't
+        //     caught up, so this reports the old, lower (or absent) floor —
+        //     `.needsNewerMacOS` doesn't fire when it should. Silent, but no
+        //     worse than this branch's behavior before #546: an update is
+        //     offered and fails at the store's last step, exactly as it
+        //     always has for this class of app.
+        //   - over-block: a build LOWERED the floor and the page hasn't
+        //     caught up, so this reports the old, higher floor —
+        //     `.needsNewerMacOS` fires when it shouldn't, refusing an update
+        //     that would actually install fine. Per `canRun`'s own doc
+        //     comment, a false refusal is the more expensive of the two
+        //     failure shapes (an app that can never update, vs. a miss that
+        //     lands back on pre-existing behavior).
+        // Accepted rather than worked around because macOS floors are, in
+        // practice, monotonically non-decreasing — a vendor raises the
+        // minimum OS a build requires, it does not lower it again — so the
+        // over-block direction is not expected to occur at all; this is
+        // unverified against a large population, unlike the co-location
+        // measurement on `extractMacCompatibility`'s early return, which was
+        // actually sampled live.
+        let macCompatible = facts?.compatibility.publishesMacBuild
+        let minimumMacOS = facts?.compatibility.minimumMacOS
+
         let availability = result.trackId.map {
             AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
+                                 latestMacCompatible: macCompatible, latestMinimumMacOS: minimumMacOS,
                                  storeName: result.trackName)
         }
         let cleanNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,10 +339,26 @@ public struct MacAppStoreSource: UpdateSource {
         // page. Always build the Mac product-page URL ourselves.
         let pageURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
         guard let pageURL,
-              let info = try await cachedMacVersion(trackId: trackId, region: region, url: pageURL) else {
+              let facts = try await cachedMacVersionPageFacts(trackId: trackId, region: region, url: pageURL),
+              let info = facts.version else {
+            // Deliberately no fallback to the lookup's iOS-track version here —
+            // see the doc comment on issue #545's "fix that would make this
+            // worse": Nowdex's `?platform=mac` page (measured 2026-09-12) has
+            // no version shelf at all, and falling back would pin an iOS-track
+            // version number to a Mac row that can never reach it.
             return nil
         }
+        // This copy IS the Mac build — same reasoning as `nativeMacVersion`'s
+        // parallel comment: `publishesMacBuild` asks whether the LISTING still
+        // ships one, off the same scrape that already answered the version
+        // above, at no extra request. Before `MacPageFacts` this branch never
+        // read compatibility at all, so a listing installed as a native Mac
+        // copy could lose Mac support with no warning (issue #545's second
+        // consequence).
+        let macCompatible = facts.compatibility.publishesMacBuild
+        let minimumMacOS = facts.compatibility.minimumMacOS
         let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion,
+                                                latestMacCompatible: macCompatible, latestMinimumMacOS: minimumMacOS,
                                                 storeName: lookupResult.trackName)
         // The Mac-specific product page, both as the inline web fallback and the
         // "Open page" link. The lookup API's `releaseNotes` here describes the iOS
@@ -307,11 +381,30 @@ public struct MacAppStoreSource: UpdateSource {
 
     /// The newest Mac build's version string plus its "What's New" notes, both
     /// read from the product page's `mostRecentVersion` shelf in a single scrape.
-    struct MacVersionInfo: Equatable {
+    struct MacVersionInfo: Equatable, Sendable {
         let version: String
         /// The latest version's release-notes text, verbatim (newline-delimited,
         /// no markup — rendered as plain text). Nil when the shelf carries none.
         let notes: String?
+    }
+
+    /// Everything one product-page scrape settles, bundled into a single value
+    /// rather than two independent optionals.
+    ///
+    /// This exists because a page can answer one half and not the other:
+    /// Nowdex's `?platform=mac` page (measured 2026-09-12) has NO
+    /// `mostRecentVersion` shelf at all — there is no version string anywhere
+    /// on the page — yet it still carries the Mac-compatibility signals and the
+    /// OS floor (`appPlatforms`, the Compatibility annotation). `version` and
+    /// `compatibility` are extracted by two independent parsers
+    /// (`extractMacVersionInfo` / `extractMacCompatibility`) run over the SAME
+    /// html, not a merged parser — keeping each extractor's behaviour identical
+    /// to what it was before this type existed is what keeps its own tests (and
+    /// `duo verify`'s per-signal shape checks) reading as a diff against the
+    /// pre-existing parser rather than a rewrite of it.
+    struct MacPageFacts: Equatable, Sendable {
+        var version: MacVersionInfo?
+        var compatibility: MacCompatibilityReading
     }
 
     /// Validate a network-sourced product-page URL (`LookupResult.trackViewUrl`)
@@ -375,52 +468,40 @@ public struct MacAppStoreSource: UpdateSource {
         return url
     }
 
-    /// `scrapeMacVersion`, memoized through `pageCache` (see it for the caching
+    /// `fetchMacVersion`, memoized through `pageCache` (see it for the caching
     /// contract). A genuine transport exception still propagates unchanged (as it
     /// did before this cache existed). A non-2xx response or an undecodable body
     /// is `.unavailable` — we don't actually know anything, so nothing is cached
     /// and nil comes back exactly as it did before. A 2xx response that fails to
-    /// PARSE a version is `.success(nil)` — we asked and got a real (if useless)
-    /// answer, so THAT nil is what gets cached: the page won't suddenly start
-    /// parsing before the TTL expires, so there's no reason to pay for it again
-    /// on every check in that window.
-    private func cachedMacVersion(trackId: Int, region: String, url: URL) async throws -> MacVersionInfo? {
-        if let cached = await pageCache.cachedVersion(trackId: trackId, region: region) {
+    /// PARSE a version is still `.success(facts)` with `facts.version == nil` —
+    /// we asked and got a real (if partly useless) answer, so THAT is what gets
+    /// cached: the page won't suddenly start parsing before the TTL expires, so
+    /// there's no reason to pay for it again on every check in that window.
+    private func cachedMacVersionPageFacts(trackId: Int, region: String, url: URL) async throws -> MacPageFacts? {
+        if let cached = await pageCache.cachedVersionFacts(trackId: trackId, region: region) {
             return cached
         }
         switch try await fetchMacVersion(url: url) {
-        case .success(let info):
-            await pageCache.storeVersion(info, trackId: trackId, region: region)
-            return info
+        case .success(let facts):
+            await pageCache.storeVersionFacts(facts, trackId: trackId, region: region)
+            return facts
         case .unavailable:
             return nil
         }
     }
 
-    /// Fetches the App Store Mac page and extracts the current Mac version (and
-    /// its "What's New" notes) from the embedded amp-api JSON. Both live in the
-    /// same shelf item at:
-    ///   data[0].data.shelfMapping.mostRecentVersion.items[0]
-    /// with `primarySubtitle` = "Version X.Y.Z" and `text` = the release notes.
-    private func fetchMacVersion(url: URL) async throws -> PageFetchOutcome<MacVersionInfo?> {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-        request.cachePolicy = URLRequest.versionFeedCachePolicy
-        // Apple's servers gate the full JSON blobs behind a browser UA.
-        request.setValue(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-            forHTTPHeaderField: "User-Agent"
-        )
-
-        let (data, response) = try await session.versionFeedData(
-            for: request, label: "App Store page \(url.absoluteString)")
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            return .unavailable
-        }
-        guard let html = String(data: data, encoding: .utf8) else {
-            return .unavailable
-        }
-        return .success(extractMacVersionInfo(from: html))
+    /// Fetches the App Store Mac page and extracts BOTH the current Mac version
+    /// (+ its "What's New" notes) and the Mac-compatibility signals from the
+    /// same embedded amp-api JSON, in one pass over the html — see
+    /// `MacPageFacts`'s doc comment for why a page that answers one half and
+    /// not the other needs a single bundled result rather than two independent
+    /// optionals. The version lives at
+    /// `data[0].data.shelfMapping.mostRecentVersion.items[0]`, with
+    /// `primarySubtitle` = "Version X.Y.Z" and `text` = the release notes; the
+    /// compatibility signals are `extractMacCompatibility`'s own (see its doc
+    /// comment).
+    private func fetchMacVersion(url: URL) async throws -> PageFetchOutcome<MacPageFacts> {
+        try await fetchPageFacts(url: url, label: "App Store page \(url.absoluteString)")
     }
 
     /// Parses `<script type="application/json">` blobs in the HTML, looking for
@@ -501,11 +582,35 @@ public struct MacAppStoreSource: UpdateSource {
     ///   - flag `false`, no `"mac"` platform, Mac NOT listed: Instagram,
     ///     Discord, Facebook, Scriptable, ChatGPT, Telegram, Fantastical,
     ///     Microsoft Edge.
-    struct MacCompatibilityReading {
+    struct MacCompatibilityReading: Equatable, Sendable {
         /// `data[0].data.lockup.isIOSBinaryMacOSCompatible`.
         var iosBinaryRunsOnMac: Bool?
         /// `data[0].data.appPlatforms`.
         var appPlatforms: [String]?
+        /// The macOS floor the listing states for its Mac build, reduced to the
+        /// bare numeric run ("15.6"), or nil when the page states none.
+        ///
+        /// Read from `data[0].data.shelfMapping.information.items[*].items[*]`,
+        /// the one item whose `heading` is the literal string `"Mac"` — never
+        /// the first digit run anywhere in the shelf, which can be a street
+        /// address or phone number in an EU merchant-disclosure section
+        /// (measured 2026-09-12, Kindle's `de` page: an `'Adresse'` item reading
+        /// `'1209 Orange St Wilmington Delaware 19801...'` and a
+        /// `'Telefonnummer'` item reading `'+1 5712344460'` sit in the same
+        /// `information` shelf as the Compatibility annotation).
+        ///
+        /// `heading` is the literal ASCII string `"Mac"` on every storefront
+        /// measured 2026-09-12 (us/cn/jp/de/fr/ru) — only `text` is localized,
+        /// e.g. cn `"设备需装有 macOS 15.6 或更高版本。"`, de
+        /// `"Erfordert macOS\u{00A0}13.0 oder neuer."`. Non-English storefronts
+        /// put a U+00A0 (no-break space) between "macOS" and the number, which
+        /// is why this reuses `versionNumber(in:)` (a plain digit-run scan)
+        /// rather than anchoring on the literal substring `"macOS "`. Xcode's
+        /// text carries a trailing chip clause ("...and a Mac with Apple M1
+        /// chip or later.") — `versionNumber(in:)`'s "first dotted-numeric run"
+        /// still picks out the OS number correctly because the chip name has
+        /// none of its own.
+        var minimumMacOS: String?
 
         /// Both shapes were found. Only `verifyMacCompatPageShape` cares: the
         /// verdict below stays useful when either one alone survives, so a
@@ -529,50 +634,77 @@ public struct MacAppStoreSource: UpdateSource {
             if appPlatforms.contains("mac") { return true }
             return iosBinaryRunsOnMac == false ? false : nil
         }
+
+        /// Whether the listing still PUBLISHES a Mac build — the question a
+        /// copy that IS the Mac build has to ask (`resolve()`'s branches 1 and
+        /// 3: `nativeMacVersion`, `iosOnMacVersion`), as opposed to
+        /// `macSupported`'s "does the wrapped iOS binary run on a Mac at all"
+        /// (branch 2, a listing with no Mac build of its own). nil (unreadable)
+        /// means "assume it does" — a scrape failure must never hide a real
+        /// update.
+        var publishesMacBuild: Bool? { appPlatforms.map { $0.contains("mac") } }
     }
 
-    /// Reads the two signals above off the product page's inline amp-api JSON
-    /// and reduces them to one verdict. nil when the page can't be read, or
-    /// when what it carries doesn't settle the question — callers treat nil as
-    /// "assume compatible" so a scrape failure never hides a real update.
-    /// Memoized through `pageCache`, same contract as `cachedMacVersion` above:
-    /// a non-2xx/undecodable response is `.unavailable` (not cached, nil
+    /// Reads the compatibility signals (and, in the same pass, the version
+    /// shelf — see `MacPageFacts`) off the product page's inline amp-api JSON.
+    /// nil when the page can't be read; `compatibility`'s own fields are nil
+    /// when what it carries doesn't settle the question — callers treat those
+    /// as "assume compatible" so a scrape failure never hides a real update.
+    /// Memoized through `pageCache`, same contract as `cachedMacVersionPageFacts`
+    /// above: a non-2xx/undecodable response is `.unavailable` (not cached, nil
     /// returned exactly as before this cache existed); a 2xx response with
-    /// nothing readable is `.success(nil)` (cached).
-    private func cachedMacCompatibility(trackId: Int, region: String) async throws -> Bool? {
-        if let cached = await pageCache.cachedCompatibility(trackId: trackId, region: region) {
+    /// nothing readable still caches a `MacPageFacts` whose fields are nil.
+    private func cachedMacCompatibilityPageFacts(trackId: Int, region: String) async throws -> MacPageFacts? {
+        if let cached = await pageCache.cachedCompatibilityFacts(trackId: trackId, region: region) {
             return cached
         }
         guard let url = URL(string: "https://apps.apple.com/\(region)/app/id\(trackId)") else {
             return nil  // malformed URL never happens for a real trackId/region; nothing to cache
         }
         switch try await fetchMacCompatibility(url: url) {
-        case .success(let reading):
-            let compat = reading.macSupported
-            await pageCache.storeCompatibility(compat, trackId: trackId, region: region)
-            return compat
+        case .success(let facts):
+            await pageCache.storeCompatibilityFacts(facts, trackId: trackId, region: region)
+            return facts
         case .unavailable:
             return nil
         }
     }
 
-    private func fetchMacCompatibility(url: URL) async throws -> PageFetchOutcome<MacCompatibilityReading> {
+    /// Fetches the App Store's plain (non `?platform=mac`) product page and
+    /// extracts BOTH the Mac-compatibility signals and — in the same pass over
+    /// the html — the version shelf, via the same two independent extractors
+    /// `fetchMacVersion` uses. See `MacPageFacts`'s doc comment for why the two
+    /// are bundled into one cached result rather than fetched separately.
+    private func fetchMacCompatibility(url: URL) async throws -> PageFetchOutcome<MacPageFacts> {
+        try await fetchPageFacts(url: url, label: "App Store compat \(url.absoluteString)")
+    }
+
+    /// The GET + parse both `fetchMacVersion` and `fetchMacCompatibility` do —
+    /// identical apart from the URL and the request label — factored out so a
+    /// future change to the request itself (the UA string, the timeout, the
+    /// non-2xx/undecodable handling) can't be applied to only one of the two
+    /// pages by accident. Still runs both extractors regardless of which page
+    /// was fetched, per `MacPageFacts`'s doc comment: a page answering only
+    /// half is the shape this exists to carry, not to special-case away here.
+    private func fetchPageFacts(url: URL, label: String) async throws -> PageFetchOutcome<MacPageFacts> {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
+        // Apple's servers gate the full JSON blobs behind a browser UA.
         request.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
             forHTTPHeaderField: "User-Agent"
         )
-        let (data, response) = try await session.versionFeedData(
-            for: request, label: "App Store compat \(url.absoluteString)")
+        let (data, response) = try await session.versionFeedData(for: request, label: label)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             return .unavailable
         }
         guard let html = String(data: data, encoding: .utf8) else {
             return .unavailable
         }
-        return .success(extractMacCompatibility(from: html))
+        return .success(MacPageFacts(
+            version: extractMacVersionInfo(from: html),
+            compatibility: extractMacCompatibility(from: html)))
     }
 
     /// Finds `data[0].data.lockup.isIOSBinaryMacOSCompatible` and
@@ -601,14 +733,70 @@ public struct MacAppStoreSource: UpdateSource {
                let inner   = dataArr.first?["data"] as? [String: Any] {
                 let reading = MacCompatibilityReading(
                     iosBinaryRunsOnMac: (inner["lockup"] as? [String: Any])?["isIOSBinaryMacOSCompatible"] as? Bool,
-                    appPlatforms: inner["appPlatforms"] as? [String])
-                // Keep scanning when this blob carried neither — an earlier blob
-                // on the page can be some other payload entirely.
-                if reading.iosBinaryRunsOnMac != nil || reading.appPlatforms != nil { return reading }
+                    appPlatforms: inner["appPlatforms"] as? [String],
+                    minimumMacOS: Self.minimumMacOS(from: inner))
+                // Keep scanning when this blob carried none of the three — an
+                // earlier blob on the page can be some other payload entirely.
+                //
+                // ⚠️ Widening this from two signals to three (adding
+                // `minimumMacOS`) reopens a question worth answering rather
+                // than assuming: could a page ever split the floor into a
+                // DIFFERENT qualifying blob than `appPlatforms`/`lockup`, so
+                // this returns early on a blob that only answers the floor
+                // (or only the other two), missing whichever signal landed
+                // in a later blob? Measured 2026-09-12, live, 20 pages (5
+                // apps — Bear, Things 3, WhatsApp, Discord, Nowdex — × plain
+                // and `?platform=mac` × `us`/`de` storefronts): every page
+                // has exactly ONE `data[0].data`-shaped blob that carries any
+                // of the three signals, and on 18/20 it carries all three
+                // together (the 2 Discord pages carry `lockup`+`appPlatforms`
+                // but legitimately no "Mac" heading — see `minimumMacOS`'s
+                // own doc comment). Zero pages had a blob answering the floor
+                // alone. So today this condition never actually WIDENS what
+                // gets accepted early — it is a no-op relative to the
+                // pre-#546 two-signal check on every page sampled. Kept as an
+                // OR (not narrowed to require all three) because there is no
+                // structural guarantee this holds for every listing, only a
+                // sample; an OR fails toward "found something", a stricter
+                // AND would fail toward "found nothing" the day one signal is
+                // legitimately absent (exactly Discord's shape). If a future
+                // sample ever finds a page that splits these across blobs,
+                // that is the measurement that would justify changing this
+                // condition — not a hypothesis on its own.
+                if reading.iosBinaryRunsOnMac != nil || reading.appPlatforms != nil
+                    || reading.minimumMacOS != nil { return reading }
             }
             searchRange = bodyEnd.upperBound..<html.endIndex
         }
         return MacCompatibilityReading()
+    }
+
+    /// Finds the "Requires macOS X.Y or later." annotation in
+    /// `data[0].data.shelfMapping.information.items[*].items[*]` and reduces it
+    /// to the bare numeric run — the item whose `heading` is the literal string
+    /// `"Mac"`, never the first item in the shelf or the first digit run
+    /// anywhere in it. See `MacCompatibilityReading.minimumMacOS`'s doc comment
+    /// for the EU-merchant-disclosure trap that anchoring on `heading` avoids.
+    private static func minimumMacOS(from inner: [String: Any]) -> String? {
+        guard let shelves = inner["shelfMapping"] as? [String: Any],
+              let information = shelves["information"] as? [String: Any],
+              let sections = information["items"] as? [[String: Any]] else { return nil }
+        for section in sections {
+            guard let items = section["items"] as? [[String: Any]] else { continue }
+            for item in items {
+                guard (item["heading"] as? String) == "Mac", let text = item["text"] as? String
+                else { continue }
+                // Keep scanning rather than committing to nil here: this
+                // item's heading matched, but if its own text doesn't yield a
+                // number (an unseen phrasing, say), a LATER "Mac" item
+                // elsewhere in the shelf might still have one. Unmeasured
+                // whether Apple ever emits more than one — this costs nothing
+                // when there's only the usual single match, and fails open
+                // (nil) only after every candidate has been tried.
+                if let version = versionNumber(in: text) { return version }
+            }
+        }
+        return nil
     }
 
 
@@ -621,12 +809,20 @@ public struct MacAppStoreSource: UpdateSource {
     private func remoteVersion(from result: LookupResult, region: String, checkMacCompat: Bool) async throws -> RemoteVersion? {
         guard let version = result.version else { return nil }
         var macCompatible: Bool?
+        var minimumMacOS: String?
         if checkMacCompat, let trackId = result.trackId {
-            macCompatible = try await cachedMacCompatibility(trackId: trackId, region: region)
+            // This IS a wrapped iOS binary (the guard on `checkMacCompat` at
+            // both call sites), so `macSupported` — "does the wrapped binary
+            // run on a Mac at all" — is still the right question, unlike
+            // branches 1/3 above which ask `publishesMacBuild` instead.
+            let facts = try await cachedMacCompatibilityPageFacts(trackId: trackId, region: region)
+            macCompatible = facts?.compatibility.macSupported
+            minimumMacOS = facts?.compatibility.minimumMacOS
         }
         let availability = result.trackId.map {
             AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
-                                 latestMacCompatible: macCompatible, storeName: result.trackName)
+                                 latestMacCompatible: macCompatible, latestMinimumMacOS: minimumMacOS,
+                                 storeName: result.trackName)
         }
         // `releaseNotes` is the "What's New" text for the latest version. Safe to
         // trust here: we only reach this for native Mac listings or wrapped iOS
@@ -988,7 +1184,14 @@ extension MacAppStoreSource {
         guard let url = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
         else { return .unreachable(httpStatus: nil) }
         switch try await fetchMacVersion(url: url) {
-        case .success(let info): return .reachable(found: info != nil)
+        // `found` stays keyed on the version shelf alone, not on `minimumMacOS`
+        // too. Measured live 2026-09-12 against this function's three registry
+        // cases (`.nativeMac` Bear/Things 3, `.iosOnMac` WhatsApp): all three
+        // carry a parseable `heading == "Mac"` floor on the `?platform=mac`
+        // page (12.4, 13.3, 12.1) — 3/3. See `verifyMacCompatPageShape` below
+        // for the case that measured differently and is why `found` there
+        // stays untouched too.
+        case .success(let facts): return .reachable(found: facts.version != nil)
         case .unavailable: return .unreachable(httpStatus: nil)
         }
     }
@@ -1005,7 +1208,21 @@ extension MacAppStoreSource {
         guard let url = URL(string: "https://apps.apple.com/\(region)/app/id\(trackId)")
         else { return .unreachable(httpStatus: nil) }
         switch try await fetchMacCompatibility(url: url) {
-        case .success(let reading): return .reachable(found: reading.readBothSignals)
+        // `found` is still `readBothSignals` alone — `minimumMacOS` is
+        // deliberately NOT folded in. Measured live 2026-09-12 against this
+        // route's one registry case, Discord (`.wrappedIOS`): its plain
+        // product page carries no `heading == "Mac"` annotation at all,
+        // because Discord's App Store listing genuinely publishes no Mac
+        // build (`appPlatforms == ["phone", "pad"]`) — there is no
+        // Compatibility line for Mac to have a floor in the first place. A
+        // `nil` floor there is the CORRECT reading, not a shape drift, so
+        // adding it to `found` would report this case `.broken` every night
+        // for a reason that has nothing to do with the parser. Left to
+        // `MacAppStoreNotesTests`/`UpdateRouteResolutionTests` instead — see
+        // `MacAppStoreProbeRegistry`'s cases for why this sweep has no case
+        // that both publishes a Mac build AND takes this route (today's
+        // registry has no such app named).
+        case .success(let facts): return .reachable(found: facts.compatibility.readBothSignals)
         case .unavailable: return .unreachable(httpStatus: nil)
         }
     }

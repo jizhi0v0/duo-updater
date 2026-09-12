@@ -35,6 +35,7 @@ struct PopoverRowAction: View {
     @State private var showMajorWarning = false
     @State private var showRegionHint = false
     @State private var showMacCompatHint = false
+    @State private var showNeedsNewerMacOSHint = false
     @State private var showTestFlightTip = false
 
     @ViewBuilder
@@ -505,14 +506,26 @@ struct PopoverRowAction: View {
     /// popover explaining the region lock (the store would just say "App Not
     /// Available").
     ///
-    /// Which of the three branches applies comes from `gate` — the route's own
+    /// Which of the branches applies comes from `gate` — the route's own
     /// answer — not from re-reading `info.isLatestMacIncompatible` /
     /// `isRegionMismatch` here (issue #260). `info` is still read below, but only
     /// for its CONTENT: the deep link, the region names in the two sub-popovers.
     /// Never again to choose between them.
+    ///
+    /// An exhaustive `switch` on purpose, matching `RowActionViews`' own
+    /// `switch gate` — this used to be an `if`/`else if` chain on `gate ==
+    /// .value`, which is NOT exhaustiveness-checked: a fifth `AppStoreGate`
+    /// case could be added and this function would silently fall through to
+    /// the `.none` branch's redirect button, compiling and running with no
+    /// error, for a gate nobody wrote a picture for. `RowActionViews.swift`'s
+    /// `switch gate` already had the compiler's protection; this one didn't
+    /// (found reviewing #552) — same reasoning `RowActions.live(...)`'s own
+    /// doc comment gives for why a missing wire-up must be a compile error,
+    /// not a quietly-wrong default.
     @ViewBuilder
     private func appStoreTrailing(_ info: AppStoreAvailability, managedHere: Bool, gate: AppStoreGate) -> some View {
-        if gate == .macIncompatible {
+        switch gate {
+        case .macIncompatible:
             // A newer build exists but Apple has marked it as no longer running on
             // Macs — installing it here is impossible, so flag it rather than
             // offering a "Get" the store would reject.
@@ -525,7 +538,24 @@ struct PopoverRowAction: View {
             .popover(isPresented: $showMacCompatHint, arrowEdge: .bottom) {
                 macCompatHintPopover(info)
             }
-        } else if gate == .region {
+        case .needsNewerMacOS(let minimum):
+            // A newer build exists, but it states a macOS floor this Mac
+            // doesn't meet — mas/the AX route would just fail at the last
+            // step, so flag it rather than offering an "Update" that can't
+            // succeed. Distinct badge from `.macIncompatible` above: that one
+            // means "no Mac runs this any more", this one means "an OS
+            // upgrade would fix it" (see `AppStoreGate.resolve`'s doc comment
+            // for the precedence between the two).
+            Button { showNeedsNewerMacOSHint = true } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help("Requires macOS \(minimum) or later — click for details")
+            .popover(isPresented: $showNeedsNewerMacOSHint, arrowEdge: .bottom) {
+                needsNewerMacOSHintPopover(info, minimum: minimum)
+            }
+        case .region:
             Button { showRegionHint = true } label: {
                 Image(systemName: "globe.badge.chevron.backward")
                     .foregroundStyle(.orange)
@@ -535,31 +565,33 @@ struct PopoverRowAction: View {
             .popover(isPresented: $showRegionHint, arrowEdge: .bottom) {
                 regionHintPopover(info)
             }
-        } else if managedHere {
-            // Wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-            // for it, so a one-click here would always fail. Send the user to its
-            // product page, where an available update shows an "Update" button.
-            //
-            // Conditioned on the route rather than inferred from it: this branch is
-            // reached whenever `canAutoInstall` is false, which has causes other than
-            // the strategy — a declined elevation most of all, and every wrapped app
-            // qualifies for one (they sit in a root-owned `/Applications`). Without
-            // the check, the button and its "can’t be updated from here" help text
-            // would say that on a route where they can.
-            Button("App Store") { openInAppStore(info) }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-        } else {
-            // A redirect, not a one-click — the App Store route needs the privileged
-            // helper approved (`UpdatePolicy.canAutoInstall`, case "App Store"). But
-            // the row IS an installed app with a pending update, which the store
-            // itself calls **Update**; "Get" reads as "not installed yet", and no row
-            // that reaches here ever is. The help text carries the real reason.
-            Button("Update") { openInAppStore(info) }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .help(appStoreRedirectHelp)
+        case .none:
+            if managedHere {
+                // Wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
+                // for it, so a one-click here would always fail. Send the user to its
+                // product page, where an available update shows an "Update" button.
+                //
+                // Conditioned on the route rather than inferred from it: this branch is
+                // reached whenever `canAutoInstall` is false, which has causes other than
+                // the strategy — a declined elevation most of all, and every wrapped app
+                // qualifies for one (they sit in a root-owned `/Applications`). Without
+                // the check, the button and its "can’t be updated from here" help text
+                // would say that on a route where they can.
+                Button("App Store") { openInAppStore(info) }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
+            } else {
+                // A redirect, not a one-click — the App Store route needs the privileged
+                // helper approved (`UpdatePolicy.canAutoInstall`, case "App Store"). But
+                // the row IS an installed app with a pending update, which the store
+                // itself calls **Update**; "Get" reads as "not installed yet", and no row
+                // that reaches here ever is. The help text carries the real reason.
+                Button("Update") { openInAppStore(info) }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help(appStoreRedirectHelp)
+            }
         }
     }
 
@@ -621,6 +653,23 @@ struct PopoverRowAction: View {
             Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
                 .font(.callout)
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open App Store anyway") { openInAppStore(info) }
+                .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func needsNewerMacOSHintPopover(_ info: AppStoreAvailability, minimum: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Needs a newer macOS", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("\(result.app.name)'s latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") requires macOS \(minimum) or later. This Mac can't install it until it's upgraded.")
+                .font(.callout)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Open App Store anyway") { openInAppStore(info) }

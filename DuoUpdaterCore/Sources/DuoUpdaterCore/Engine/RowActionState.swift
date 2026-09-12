@@ -191,18 +191,56 @@ public enum AppStoreGate: Sendable, Equatable {
     case region
     /// The latest build no longer runs on this Mac (`AppStoreAvailability.isLatestMacIncompatible`).
     case macIncompatible
+    /// The latest build states a macOS floor this Mac does not meet
+    /// (`AppStoreAvailability.latestMinimumMacOS`). Distinct from
+    /// `.macIncompatible`: that gate is Apple's own "no longer runs on any
+    /// Mac" verdict; this one is "runs on a Mac, just not one this old" — a
+    /// question neither App Store install route (`mas`, nor the AX route
+    /// driving the store's own product page) ever asked before (issue #546).
+    /// Carries the numeric floor ("15.6") for the explanation panel to quote.
+    case needsNewerMacOS(minimum: String)
 }
 
 extension AppStoreGate {
     /// Same precedence the popover's explanation used when both were somehow
-    /// true for one listing: a build that no longer runs on this Mac at all is
-    /// worth flagging over a region lock. `nil` (no App Store listing at all)
-    /// resolves to `.none` — the caller only reaches this when there IS a
-    /// listing (`RouteInputs.hasAppStoreAvailability`), so that branch is
-    /// defensive rather than reachable.
-    public static func resolve(_ info: AppStoreAvailability?) -> AppStoreGate {
+    /// true for one listing, extended by one rung for `.needsNewerMacOS`:
+    ///
+    /// `.macIncompatible` outranks `.needsNewerMacOS` because it is the MORE
+    /// general verdict — Apple stating the build no longer runs on a Mac AT
+    /// ALL subsumes "doesn't run on THIS (old) Mac"; naming the more specific,
+    /// less true reason first would be misleading. `.needsNewerMacOS` outranks
+    /// `.region` because it is actionable in a way a region lock on an
+    /// already-installed app usually isn't (there's a real ceiling — an OS
+    /// upgrade — vs. waiting on a storefront to list it).
+    ///
+    /// `nil` (no App Store listing at all) resolves to `.none` — the caller
+    /// only reaches this when there IS a listing
+    /// (`RouteInputs.hasAppStoreAvailability`), so that branch is defensive
+    /// rather than reachable.
+    ///
+    /// `osVersion` is a parameter rather than read from `ProcessInfo` inside
+    /// this function — this repo's rule that a test must never ask the host
+    /// what OS it's running (see CLAUDE.md) — so a test can pin an arbitrary
+    /// "this Mac" without depending on where it happens to run.
+    ///
+    /// The comparison itself is `SignatureVerifier.canRun(minimumSystemVersion:on:)`
+    /// — the SAME comparison gate 6 makes against a downloaded bundle's
+    /// `LSMinimumSystemVersion` — never a second implementation. See
+    /// `HostOS`'s doc comment: a detection-time gate and an install-time gate
+    /// disagreeing by so much as a patch component produces the worst outcome
+    /// available, an update offered forever that fails at the last step every
+    /// time. It is handed the bare numeric string ("15.6"), not the whole
+    /// sentence — `canRun` fails OPEN on a value whose first token isn't
+    /// numeric, and "Requires macOS 15.6 or later." starts with "Requires".
+    public static func resolve(
+        _ info: AppStoreAvailability?, osVersion: String = HostOS.numericVersion()
+    ) -> AppStoreGate {
         guard let info else { return .none }
         if info.isLatestMacIncompatible { return .macIncompatible }
+        if let minimum = info.latestMinimumMacOS,
+           !SignatureVerifier.canRun(minimumSystemVersion: minimum, on: osVersion) {
+            return .needsNewerMacOS(minimum: minimum)
+        }
         if info.isRegionMismatch { return .region }
         return .none
     }

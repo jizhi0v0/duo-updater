@@ -24651,6 +24651,170 @@
           }
         }
       }
+    },
+    "Needs a newer macOS": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueres macOS nötig"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requiere un macOS más reciente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite un macOS plus récent"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "より新しいmacOSが必要です"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужна новая версия macOS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要更新的 macOS"
+          }
+        }
+      }
+    },
+    "Requires macOS %@ or later — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfordert macOS %@ oder neuer — klicken für Details"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requiere macOS %@ o posterior; haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite macOS %@ ou ultérieur — cliquez pour en savoir plus"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS %@ 以降が必要です — 詳細はクリック"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуется macOS %@ или новее — нажмите для подробностей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 macOS %@ 或更高版本 — 点击查看详情"
+          }
+        }
+      }
+    },
+    "%@'s latest version%@ requires macOS %@ or later. This Mac can't install it until it's upgraded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neueste Version von %@%@ erfordert macOS %@ oder neuer. Dieser Mac kann sie erst nach einem Upgrade installieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La última versión de %@%@ requiere macOS %@ o posterior. Este Mac no podrá instalarla hasta que se actualice."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dernière version de %@%@ nécessite macOS %@ ou ultérieur. Ce Mac ne pourra pas l'installer tant qu'il n'aura pas été mis à niveau."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の最新バージョン%@ には macOS %@ 以降が必要です。この Mac はアップグレードするまでインストールできません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя версия %@%@ требует macOS %@ или новее. Этот Mac не сможет установить её, пока не будет обновлён."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的最新版本%@ 需要 macOS %@ 或更高版本。此 Mac 要升级后才能安装。"
+          }
+        }
+      }
+    },
+    "You can keep using the installed version (%@) until then.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis dahin kannst du weiterhin die installierte Version (%@) verwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta entonces, puedes seguir usando la versión instalada (%@)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D'ici là, vous pouvez continuer à utiliser la version installée (%@)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "それまでは、インストール済みのバージョン（%@）を引き続き使用できます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До этого момента можно продолжать использовать установленную версию (%@)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此之前，你可以继续使用已安装的版本（%@）。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

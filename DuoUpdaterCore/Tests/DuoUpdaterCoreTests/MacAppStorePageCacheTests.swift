@@ -58,9 +58,10 @@ struct MacAppStorePageCacheTests {
     /// Two `latestVersion` calls within the TTL window scrape the product page
     /// only once, and a third call past the TTL scrapes it again.
     ///
-    /// Pins `cachedMacVersion` actually consulting `pageCache.cachedVersion`
-    /// before calling `fetchMacVersion`, and `AppStorePageCache`'s TTL check.
-    /// Mutation run: making `cachedMacVersion` call `fetchMacVersion`
+    /// Pins `cachedMacVersionPageFacts` actually consulting
+    /// `pageCache.cachedVersionFacts` before calling `fetchMacVersion`, and
+    /// `AppStorePageCache`'s TTL check.
+    /// Mutation run: making `cachedMacVersionPageFacts` call `fetchMacVersion`
     /// unconditionally (deleting the cache-hit early return) turns the first
     /// assertion red (2 fetches, not 1). Making the TTL check always report
     /// "fresh" turns the second assertion red (still 1 fetch after advancing
@@ -97,13 +98,14 @@ struct MacAppStorePageCacheTests {
     /// A 2xx page that fails to parse a version IS cached (one fetch across two
     /// calls); a transport failure is NOT cached (fetched again every call).
     ///
-    /// Pins the `PageFetchOutcome` split in `fetchMacVersion`/`cachedMacVersion`.
-    /// Mutation run: wrapping `cachedMacVersion`'s switch in a `do`/`catch` that
-    /// swallows the transport exception and caches nil too turns the second
-    /// assertion red (1 fetch instead of 2 for the transport-failure case).
-    /// Dropping the `storeVersion` call in the `.success` branch (never caching
-    /// a parse result) turns the first assertion red (2 fetches instead of 1
-    /// for the parse-failure case).
+    /// Pins the `PageFetchOutcome` split in
+    /// `fetchMacVersion`/`cachedMacVersionPageFacts`.
+    /// Mutation run: wrapping `cachedMacVersionPageFacts`'s switch in a
+    /// `do`/`catch` that swallows the transport exception and caches nil too
+    /// turns the second assertion red (1 fetch instead of 2 for the
+    /// transport-failure case). Dropping the `storeVersionFacts` call in the
+    /// `.success` branch (never caching a parse result) turns the first
+    /// assertion red (2 fetches instead of 1 for the parse-failure case).
     @Test func parseFailureIsCachedButTransportFailureIsNot() async throws {
         ScriptedHTTP.reset()
         let unparsableTrackId = 4101
@@ -387,6 +389,151 @@ struct MacAppStorePageCacheTests {
         _ = try await source.latestVersion(for: app)
         #expect(ScriptedHTTP.count(matching: { $0.absoluteString == pageURL }) == 2,
                 "after invalidateAll the page must be fetched again")
+    }
+
+    // MARK: - #546 / #545's second half: compat + floor reachable off every branch
+    //
+    // Before `MacPageFacts`, only `remoteVersion(checkMacCompat:)` (branch 2,
+    // wrapped iOS apps) ever scraped Mac-compatibility at all — `nativeMacVersion`
+    // (branch 1) and `iosOnMacVersion` (branch 3) fetched the SAME page for the
+    // version shelf and threw the rest of it away, so `AppStoreGate.macIncompatible`
+    // (and the new `.needsNewerMacOS`) were unreachable for a native-Mac or
+    // iOS-on-Mac listing. These three tests pin that all three branches now
+    // populate `AppStoreAvailability.latestMacCompatible` /
+    // `latestMinimumMacOS` off the SAME scrape that already fetched the version —
+    // no second request.
+
+    /// A page carrying both the version shelf and the compatibility signals in
+    /// one script blob — the real shape (Nowdex, Bear, etc.) — reaches BOTH into
+    /// `RemoteVersion.appStore` off branch 1 (`nativeMacVersion`, `kind ==
+    /// "mac-software"`).
+    ///
+    /// Mutation run: reverting `nativeMacVersion` to build `AppStoreAvailability`
+    /// without `latestMacCompatible`/`latestMinimumMacOS` (as it did before this
+    /// PR) turns this red — both assertions fail against `nil`.
+    @Test func nativeMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 6001
+        let pageURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+        let combinedHTML = """
+        <html><script type="application/json" id="shoebox">
+        {"data":[{"data":{"appPlatforms":["mac","phone","pad"],"shelfMapping":{
+          "mostRecentVersion":{"items":[{"primarySubtitle":"Version 2.0.0","text":"What's new"}]},
+          "information":{"items":[{"items":[{"heading":"Mac","text":"Requires macOS 15.6 or later."}]}]}
+        }}}]}
+        </script></html>
+        """
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url"))
+            }
+            if url.absoluteString == pageURL { return (200, Data(combinedHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        let remote = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.floor.native"))
+
+        #expect(remote?.shortVersion == "2.0.0")
+        #expect(remote?.appStore?.latestMacCompatible == true)
+        #expect(remote?.appStore?.latestMinimumMacOS == "15.6")
+    }
+
+    /// Same combined-scrape reasoning for branch 3 (`iosOnMacVersion`, `kind ==
+    /// "software"`, not wrapped) — the route Nowdex, WhatsApp, TestFlight etc.
+    /// take.
+    ///
+    /// Mutation run: reverting `iosOnMacVersion` to build `AppStoreAvailability`
+    /// without the two new fields turns this red the same way.
+    @Test func iosOnMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 6002
+        let pageURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+        let combinedHTML = """
+        <html><script type="application/json" id="shoebox">
+        {"data":[{"data":{"appPlatforms":["mac","phone","pad"],"shelfMapping":{
+          "mostRecentVersion":{"items":[{"primarySubtitle":"Version 3.1.0","text":"Notes"}]},
+          "information":{"items":[{"items":[{"heading":"Mac","text":"Requires macOS 14.0 or later."}]}]}
+        }}}]}
+        </script></html>
+        """
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(
+                    version: "9.9.9-ios", trackId: trackId, trackViewUrl: "not-a-product-url", kind: "software"))
+            }
+            if url.absoluteString == pageURL { return (200, Data(combinedHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        let app = InstalledApp(
+            name: "Demo", bundleID: "com.example.floor.iosonmac",
+            shortVersion: "1.0.0", buildVersion: "100",
+            path: URL(fileURLWithPath: "/Applications/Demo.app"),
+            isMASApp: true, isiOSAppOnMac: false,
+            sparkleFeedURL: nil)
+        let remote = try await source.latestVersion(for: app)
+
+        #expect(remote?.shortVersion == "3.1.0")
+        #expect(remote?.appStore?.latestMacCompatible == true)
+        #expect(remote?.appStore?.latestMinimumMacOS == "14.0")
+    }
+
+    /// Branch 2 (`remoteVersion(checkMacCompat:)`, a wrapped iPhone/iPad app)
+    /// must keep asking `macSupported` — NOT `publishesMacBuild` — off the same
+    /// scrape. Modeled on the real "wrappedOnMac" shape
+    /// (`extractsMacCompatibilityVerdict`'s Overcast case): no Mac platform in
+    /// `appPlatforms`, but the wrapped iOS binary itself runs on Apple Silicon
+    /// (`isIOSBinaryMacOSCompatible == true`). `publishesMacBuild` would read
+    /// `false` here (no "mac" in `appPlatforms`) while `macSupported` correctly
+    /// reads `true` — so this discriminates the two questions, not just whether
+    /// SOME value made it through.
+    ///
+    /// Mutation run: changing `remoteVersion` to read `facts.compatibility
+    /// .publishesMacBuild` instead of `.macSupported` turns this red — the
+    /// first assertion flips to `false`.
+    @Test func remoteVersionKeepsAskingMacSupportedNotPublishesMacBuild() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 6003
+        let plainURL = "https://apps.apple.com/us/app/id\(trackId)"
+        let wrappedOnMacHTML = """
+        <html><script type="application/json" id="shoebox">
+        {"data":[{"data":{"appPlatforms":["watch","phone","pad"],
+          "lockup":{"isIOSBinaryMacOSCompatible":true},
+          "shelfMapping":{"information":{"items":[
+            {"items":[{"heading":"Mac","text":"Requires macOS 13.0 or later."}]}
+          ]}}
+        }}]}
+        </script></html>
+        """
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(
+                    version: "5.0.0", trackId: trackId, trackViewUrl: "not-a-product-url", kind: "software"))
+            }
+            if url.absoluteString == plainURL { return (200, Data(wrappedOnMacHTML.utf8)) }
+            return (404, Data())
+        }
+
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
+        let app = InstalledApp(
+            name: "Demo", bundleID: "com.example.floor.wrapped",
+            shortVersion: "1.0.0", buildVersion: "100",
+            path: URL(fileURLWithPath: "/Applications/Demo.app"),
+            isMASApp: true, isiOSAppOnMac: true,
+            sparkleFeedURL: nil)
+        let remote = try await source.latestVersion(for: app)
+
+        #expect(remote?.appStore?.latestMacCompatible == true,
+                "macSupported must read true from the wrapper flag even though appPlatforms names no Mac")
+        #expect(remote?.appStore?.latestMinimumMacOS == "13.0")
     }
 
     // MARK: - Targeted invalidation (recheckMany no longer wipes every app)

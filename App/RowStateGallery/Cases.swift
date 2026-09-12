@@ -48,6 +48,9 @@ enum RowStateGalleryCases {
     static let storeMacIncompatible = result(appStore: AppStoreAvailability(
         trackID: 497799835, availableRegion: "us", homeRegion: "us",
         latestMacCompatible: false, storeName: nil))
+    static let storeNeedsNewerMacOS = result(appStore: AppStoreAvailability(
+        trackID: 497799835, availableRegion: "us", homeRegion: "us",
+        latestMinimumMacOS: "99.0", storeName: nil))
 
     /// The two windows, each drawing the same states. `AnyView` because they are
     /// different types; the gallery only needs "draw this state". Takes the case
@@ -72,22 +75,32 @@ enum RowStateGalleryCases {
         case "38-major-upgrade-explanation":
             return AnyView(
                 PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
-        case "39-region-hint-explanation", "40-mac-compat-hint-explanation":
-            // Both read the row's own App Store info — same source the real badge
-            // uses to pick which popover to open (`appStoreTrailing`).
+        case "39-region-hint-explanation", "40-mac-compat-hint-explanation", "44-needs-newer-macos-hint-explanation":
+            // All three read the row's own App Store info — same source the real
+            // badge uses to pick which popover to open (`appStoreTrailing`).
             guard let info = result.remote?.appStore else {
-                // Cannot happen for the two fixtures these names are paired with in
-                // `all` (both carry `appStore`) — a mismatch here would be a bug in
-                // this file, not a state the gallery should render as if it were
-                // fine, hence `unrendered` rather than a placeholder.
+                // Cannot happen for the three fixtures these names are paired with
+                // in `all` (all three carry `appStore`) — a mismatch here would be
+                // a bug in this file, not a state the gallery should render as if
+                // it were fine, hence `unrendered` rather than a placeholder.
                 return AnyView(EmptyView())
             }
             let popover = PopoverRowAction(state: state, result: result)
-            return AnyView(
-                (name == "39-region-hint-explanation"
-                    ? AnyView(popover.regionHintPopover(info))
-                    : AnyView(popover.macCompatHintPopover(info)))
-                .fixedSize())
+            switch name {
+            case "39-region-hint-explanation":
+                return AnyView(popover.regionHintPopover(info).fixedSize())
+            case "40-mac-compat-hint-explanation":
+                return AnyView(popover.macCompatHintPopover(info).fixedSize())
+            default:
+                // `.needsNewerMacOS`'s minimum is carried on the STATE (the
+                // route's own gate), not re-derived from `info` here — same
+                // reason `appStoreTrailing` reads it off `gate` rather than
+                // off `result.remote?.appStore` (issue #260's lesson).
+                guard case .updateAvailable(.appStore(_, .needsNewerMacOS(let minimum))) = state else {
+                    return AnyView(EmptyView())
+                }
+                return AnyView(popover.needsNewerMacOSHintPopover(info, minimum: minimum).fixedSize())
+            }
         default:
             return AnyView(
                 PopoverRowAction(
@@ -223,6 +236,17 @@ enum RowStateGalleryCases {
         // three alike.
         ("41-testflight-no-full-disk-access", .managedElsewhere(.testFlight), app),
         ("42-testflight-checking-off", .managedElsewhere(.testFlight), app),
+        // Issue #546: neither App Store install route had an OS-floor judge —
+        // an update whose latest build states a macOS floor this Mac doesn't
+        // meet was offered anyway and failed at the App Store's last step.
+        // Same state/row pairing pattern as 18/21/22 and their explanation
+        // panels (38/39/40): the badge here, its panel at 44.
+        ("43-update-app-store-needs-newer-macos",
+         .updateAvailable(.appStore(managedHere: false, gate: .needsNewerMacOS(minimum: "99.0"))),
+         storeNeedsNewerMacOS),
+        ("44-needs-newer-macos-hint-explanation",
+         .updateAvailable(.appStore(managedHere: false, gate: .needsNewerMacOS(minimum: "99.0"))),
+         storeNeedsNewerMacOS),
     ]
 
     /// Which reason each TestFlight-unbounded case is drawn with, on BOTH surfaces
@@ -255,6 +279,7 @@ enum RowStateGalleryCases {
         "38-major-upgrade-explanation",
         "39-region-hint-explanation",
         "40-mac-compat-hint-explanation",
+        "44-needs-newer-macos-hint-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -271,6 +296,7 @@ enum RowStateGalleryCases {
         "workbench/38-major-upgrade-explanation",
         "workbench/39-region-hint-explanation",
         "workbench/40-mac-compat-hint-explanation",
+        "workbench/44-needs-newer-macos-hint-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed
@@ -317,6 +343,22 @@ enum RowStateGalleryCases {
         // Popover only: both are an amber triangle opening an explanation popover,
         // and a tile cannot show which explanation appears.
         ["popover/18-update-major-upgrade", "popover/22-update-app-store-mac-incompatible"],
+        // Same reason again: `.needsNewerMacOS`'s badge is the identical amber
+        // triangle with no on-screen text, so it collides with the major-upgrade
+        // badge too — a tile cannot show which explanation appears here either.
+        ["popover/18-update-major-upgrade", "popover/43-update-app-store-needs-newer-macos"],
+        // Popover only, and unlike the pair above THIS one IS claimed as
+        // tooltip-differentiated (see `tooltipDifferentiatedPairs` in
+        // main.swift): `.macIncompatible` and `.needsNewerMacOS` are the two
+        // closest cousins in this family — both an "App Store gate on this
+        // listing" badge, sharing the identical orange
+        // exclamationmark.triangle.fill with no on-screen text — so unlike
+        // the major-upgrade collision above (an unrelated feature that just
+        // happens to share the glyph), the tooltip is the one thing that
+        // tells these two apart before a click. The WORKBENCH draws a
+        // distinct `Label` per gate (different words), so this pair does not
+        // hold there.
+        ["popover/22-update-app-store-mac-incompatible", "popover/43-update-app-store-needs-newer-macos"],
         // Deliberate on both surfaces: a store-managed app that is CURRENT keeps
         // the same marker as one the store manages generally, so a managed row
         // never reads like something we could update ourselves. `RowAction.state`
@@ -360,6 +402,7 @@ enum RowStateGalleryCases {
         "popover/18-update-major-upgrade",
         "popover/21-update-app-store-region-locked",
         "popover/22-update-app-store-mac-incompatible",
+        "popover/43-update-app-store-needs-newer-macos",
 
         // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
         // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the

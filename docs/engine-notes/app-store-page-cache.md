@@ -137,12 +137,12 @@ it actually re-checked, instead of the full-wipe `invalidateAll()`.
 
 "Forces a live scrape" only holds absent an overlapping sweep. A scheduled
 check that already missed the cache for app X, and is still awaiting X's
-page fetch when an `invalidate(bundleIDs:)` for X runs, will `storeVersion` a
-fresh entry once its fetch lands — and a recheck's own fan-out reading the
+page fetch when an `invalidate(bundleIDs:)` for X runs, will `storeVersionFacts`
+a fresh entry once its fetch lands — and a recheck's own fan-out reading the
 cache afterward can pick up that fresh entry instead of forcing its own
 fetch. The window is one page fetch wide. This isn't new: `invalidateAll`
 had the identical race before it was narrowed to `invalidate(bundleIDs:)`.
-Closing it needs a per-key generation counter checked inside `storeVersion`,
+Closing it needs a per-key generation counter checked inside `storeVersionFacts`,
 which nobody has written — this is written down so the next reader doesn't
 take the "forces a live scrape" wording in the source comment at face value.
 

@@ -373,12 +373,29 @@ struct WorkbenchRowAction: View {
                 // names the gate and stays out of the way. Same title the popover
                 // uses for its explanation, so the two cannot describe the same
                 // row differently.
+                //
+                // `.lineLimit(1).minimumScaleFactor(0.7)` added alongside
+                // `.needsNewerMacOS` below (#546 review): this case's own
+                // German translation ("Auf diesem Mac nicht unterstützt", 32
+                // characters) had no overflow protection at all before —
+                // CLAUDE.md's own recorded lesson about copying a popover
+                // label into the workbench without it.
                 Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .help("The latest version no longer supports this Mac — click for details")
+            case .needsNewerMacOS(let minimum):
+                // Same title/help the popover's badge uses, so the two windows
+                // never describe the same row differently — see the doc
+                // comment on the `.macIncompatible` case above.
+                Label("Needs a newer macOS", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .help("Requires macOS \(minimum) or later — click for details")
             case .region:
                 Label("Region-locked", systemImage: "globe.badge.chevron.backward")
                     .font(.callout).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .help("Not available in your App Store region — click for details")
             case .none:
                 // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store

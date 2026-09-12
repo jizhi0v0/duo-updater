@@ -11,6 +11,25 @@ import Foundation
 ///      many developers who already have GitHub CLI authenticated.
 public enum GitHubToken {
     public static func resolve(explicit: String? = nil) -> String? {
+        preresolved(explicit: explicit) ?? ghCLIToken()
+    }
+
+    /// Steps 1 and 2 alone — the ones that are two memory reads and cannot block.
+    /// nil means "nothing here", i.e. only `gh` is left to ask.
+    ///
+    /// Split out because the deadline an async caller puts around `resolve` is
+    /// there for step 3 and only step 3, and spending it on the other two is not
+    /// free: the hop those callers make has to be ADMITTED to a Dispatch queue
+    /// first, and admission is not instant on a loaded machine. Measured on CI
+    /// (3-core runner, the full suite in parallel): a settings token that needs
+    /// no subprocess at all lost a 2-second race to queue admission and came back
+    /// nil, so the pane went anonymous with a valid token sitting in settings.
+    /// Same shape as the timing note in CLAUDE.md — on that runner, pool
+    /// admission is measured in seconds.
+    ///
+    /// So callers answer from here when they can, and spend the deadline only on
+    /// the call that can actually hang.
+    public static func preresolved(explicit: String? = nil) -> String? {
         if let explicit = explicit?.trimmingCharacters(in: .whitespacesAndNewlines),
            !explicit.isEmpty {
             return explicit
@@ -22,7 +41,7 @@ public enum GitHubToken {
                 return value
             }
         }
-        return ghCLIToken()
+        return nil
     }
 
     /// Ask the `gh` CLI for its stored token.

@@ -365,26 +365,44 @@ public enum ChangelogService {
         cachedToken = ResolvedToken(explicit: explicit, token: token, at: now)
     }
 
-    static func gitHubToken(now: Date = Date()) async -> String? {
+    /// - Parameter timeout: how long the `gh auth token` subprocess gets. A test
+    ///   seam as well as a knob: setting it to nothing is how
+    ///   `anExplicitTokenDoesNotRaceTheDeadline` proves the settings token is
+    ///   answered without entering the race at all.
+    static func gitHubToken(
+        now: Date = Date(), timeout: Duration = .seconds(2)
+    ) async -> String? {
         let (explicit, hit) = rememberedToken(now: now)
         if let hit { return hit }
 
-        // Resolved *outside* the lock and off the cooperative pool, with a
-        // deadline. `GitHubToken.resolve` runs `gh auth token` to completion with
-        // no timeout of its own, so a wedged credential helper (a keychain prompt
-        // nobody answers) would otherwise pin the lock forever and pile the whole
-        // changelog prewarm fan-out up behind it. `AppListModel.resolveGitHubToken`
-        // learned this already — "don't let a wedged `gh auth token` hold the
-        // whole refresh hostage forever" — and the lesson belongs here too.
-        let loader = Task.detached(priority: .utility) {
-            await offCooperativePool(qos: .utility) { GitHubToken.resolve(explicit: explicit) }
-        }
-        guard let resolved = await firstResult(of: loader, within: .seconds(2)) else {
-            // Timed out: deliberately *not* cached. Caching would extend one
-            // wedged `gh` into ten minutes of unauthenticated fetches; falling
-            // through unauthenticated for this one request is enough.
-            Log.source.error("changelog GitHub token resolve timed out — continuing anonymous")
-            return nil
+        let resolved: String?
+        if let cheap = GitHubToken.preresolved(explicit: explicit) {
+            // A settings value or an env var: two memory reads, no subprocess, so
+            // no hop and no deadline. Racing it was a real regression — on a
+            // loaded 3-core runner the hop's queue admission lost to the 2s
+            // timeout and a valid settings token resolved to nil. See
+            // `GitHubToken.preresolved`.
+            resolved = cheap
+        } else {
+            // Only `gh auth token` is left, and it runs to completion with no
+            // timeout of its own — so this half is resolved *outside* the lock,
+            // off the cooperative pool, and with a deadline. A wedged credential
+            // helper (a keychain prompt nobody answers) would otherwise pin the
+            // lock forever and pile the whole changelog prewarm fan-out up behind
+            // it. `AppListModel.resolveGitHubToken` learned this already — "don't
+            // let a wedged `gh auth token` hold the whole refresh hostage
+            // forever" — and the lesson belongs here too.
+            let loader = Task.detached(priority: .utility) {
+                await offCooperativePool(qos: .utility) { GitHubToken.resolve(explicit: explicit) }
+            }
+            guard let answered = await firstResult(of: loader, within: timeout) else {
+                // Timed out: deliberately *not* cached. Caching would extend one
+                // wedged `gh` into ten minutes of unauthenticated fetches; falling
+                // through unauthenticated for this one request is enough.
+                Log.source.error("changelog GitHub token resolve timed out — continuing anonymous")
+                return nil
+            }
+            resolved = answered
         }
 
         rememberToken(resolved, explicit: explicit, at: now)

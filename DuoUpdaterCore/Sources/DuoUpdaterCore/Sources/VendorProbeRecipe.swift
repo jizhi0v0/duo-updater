@@ -232,10 +232,9 @@ public struct VendorProbeRecipe: Sendable {
     /// apply the recipe unless the installed app is on the SAME channel, so a
     /// stable endpoint can never be served to a Beta/Canary install that shares
     /// the bundle id. Most recipes here target Stable, so this defaults to
-    /// `.stable`; set it explicitly when adding a channel-specific endpoint.
-    /// Counted 2026-09-13: 43 of 159 recipes name something else, across 11
-    /// non-stable channels (alpha, beta, canary, dev, esr, guineaPig, nightly,
-    /// preview, ptb, rc, unstable).
+    /// `.stable` — but a substantial minority do not, across most of
+    /// `ReleaseChannel`'s cases (beta, canary, nightly, preview, dev, esr, rc and
+    /// more), so set it explicitly when adding a channel-specific endpoint.
     public let channel: ReleaseChannel
 
     /// Distinguishes several recipes that share a bundle id AND a channel — the
@@ -635,11 +634,12 @@ public struct VendorProbeRecipe: Sendable {
     ///
     /// Also re-anchors `^`, `$`, `\A`, `\z` and lookbehind to entry boundaries
     /// rather than the whole body's — a pattern relying on "start/end of the
-    /// document" now means "start/end of one entry" instead. Counted 2026-09-13:
-    /// 7 recipes pin `versionPattern` at both ends with `^…$` and 17 use `^` or
-    /// `$` at all; none of them has adopted `entryStartPattern`, and this is why
-    /// one shouldn't without re-deriving those patterns against a single sliced
-    /// entry first.
+    /// document" now means "start/end of one entry" instead. A minority of recipes
+    /// anchor `versionPattern` that way, and none of them has adopted
+    /// `entryStartPattern` — don't, without re-deriving the pattern against a
+    /// single sliced entry first. That is a build failure rather than a convention:
+    /// `EntryStartPatternRegistryClaims.noAnchoredVersionPatternHasAdoptedEntryStartPattern`
+    /// walks the registry for the combination and names any recipe that has it.
     ///
     /// One more shape worth naming rather than discovering later: selection now
     /// searches the feed's entire history, not just its recent head, so a
@@ -937,12 +937,14 @@ public struct VendorProbeRecipe: Sendable {
     /// (computed by the caller with the SAME flag) uses highest-match — two
     /// different readings of "highest" disagreeing on which entry even won.
     ///
-    /// Three registry recipes combine the two (counted 2026-09-13): WeChat's
-    /// Sparkle appcast, and Windscribe's beta and guinea-pig ChangeLogs feeds.
-    /// They are also the recipes that depend on the straddle guard below being
-    /// SKIPPED under `selectHighest` — several `versionPattern` matches inside one
-    /// `<item>`/one `"id"` block are the expected shape for them, not evidence the
-    /// slice spans two releases.
+    /// Registry recipes DO combine the two — WeChat's Sparkle appcast and
+    /// Windscribe's prerelease ChangeLogs feeds — and they are the recipes that
+    /// depend on the straddle guard below being SKIPPED under `selectHighest`:
+    /// several `versionPattern` matches inside one `<item>` / one `"id"` block are
+    /// the expected shape for them, not evidence the slice spans two releases.
+    /// Those two apps are named because a test pins them
+    /// (`EntryStartPatternRegistryClaims.onlyTheDocumentedRecipesCombineSelectHighestWithEntryStartPattern`),
+    /// so a third one cannot appear without this paragraph being revisited.
     public static func highestVersionEntry(
         in text: String, entryStartPattern: String, versionPattern: String,
         selectHighest: Bool = false
@@ -1057,8 +1059,8 @@ public struct VendorProbeRecipe: Sendable {
 /// three standard sources have all missed.
 ///
 /// An app stays OUT of this table until a vendor's stable, versioned link is
-/// confirmed via the probe harness (the table started empty and grew only that
-/// way — 159 recipes as of 2026-09-13). Shipping an unverified recipe risks a
+/// confirmed via the probe harness — the table started empty and has only ever
+/// grown that way. Shipping an unverified recipe risks a
 /// false "update available", which this source must never produce; leaving an app
 /// out simply means it stays "unknown", which is the correct, honest default.
 ///

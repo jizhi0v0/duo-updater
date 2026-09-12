@@ -481,9 +481,8 @@ public struct VendorProbeSource: UpdateSource {
     /// sweep sees it the first time a vendor reformats their feed rather than
     /// whenever two release trains next happen to overlap. False for a recipe
     /// that sets no `entryStartPattern` at all — that is not a fallback, it is
-    /// the normal path for all but 7 of the registry's 159 recipes (counted
-    /// 2026-09-13: WeChat, Android Studio Canary/Beta, Little Snitch stable and
-    /// nightly, Windscribe beta and guinea-pig).
+    /// the normal path for the large majority of the registry — only a handful of
+    /// recipes set one at all.
     private struct Scope {
         let text: String
         let fellBack: Bool

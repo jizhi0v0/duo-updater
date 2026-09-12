@@ -3680,13 +3680,13 @@ public enum ChangelogRecipeRegistry {
     ///      rather than none);
     ///   4. failing all of those, the group's first recipe in declaration order.
     /// Step 4 is not a rounding error: a bundle id whose recipes are ALL on
-    /// non-stable channels has nothing for steps 2 and 3 to find, and five groups
-    /// are shaped that way today (2026-09-13: `bot.cline.app.beta`,
-    /// `dev.zed.zed-preview`, `dev.warp.warp-preview`, `org.mozilla.thunderbirdbeta`,
-    /// `com.longbridge.app.desktop.preview` — each a single recipe, so step 4
-    /// returns the only candidate). Reasoning as though the ladder stopped at
-    /// step 3 gives the wrong answer for exactly those groups: it says "nil",
-    /// and the caller gets notes.
+    /// non-stable channels (a preview-only app, like Zed Preview or Warp Preview)
+    /// has nothing for steps 2 and 3 to find, so without it an off-channel lookup
+    /// returns nil and an app that HAS notes shows none. Reasoning as though the
+    /// ladder stopped at step 3 gives the wrong answer for exactly those groups —
+    /// two comments in this file did, which is why the property is now pinned by
+    /// `ChangelogURLPolicyTests.aGroupWithNoStableRecipeStillResolves` (derived
+    /// from the registry, so a new preview-only app is covered the day it lands).
     /// Passing `channel: nil` skips step 1 and lands on step 2/3/4 — the behavior
     /// the old single-arg lookup had. Step 0 is inert for every group whose
     /// recipes declare no window, which is all of them but Raycast's.

@@ -19,7 +19,14 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$REPO/App"
-DD="${DERIVED_DATA:-/tmp/duo-cli-dd}"
+# Per checkout, and the dead ones reclaimed — see scripts/derived_data_path.py,
+# which install.sh, app-tests.sh and row-state-gallery.sh already go through.
+# This used to be a fixed /tmp/duo-cli-dd shared by every worktree open at once,
+# which is a couple of dozen here: two concurrent builds collide on one
+# derived-data directory's SQLite lock, and the failure reads as a broken build
+# rather than as contention. Two runs in the SAME checkout still share it — the
+# one collision left, and not worth a lock. `DERIVED_DATA` overrides.
+DD="${DERIVED_DATA:-$(python3 "$REPO/scripts/derived_data_path.py" cli "$REPO")}"
 PRODUCT="$DD/Build/Products/Release/duo-cli"
 LIBEXEC="$HOME/.local/libexec"
 BIN="$HOME/.local/bin"

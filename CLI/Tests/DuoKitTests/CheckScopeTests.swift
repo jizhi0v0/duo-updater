@@ -72,3 +72,41 @@ import DuoUpdaterCore
         #expect(scope.map(\.name) == ["Ignored"])
     }
 }
+
+/// `--only` is documented as matching a bundle id *or* a recipe id, and it is the
+/// flag that keeps a spot-check from costing 150 requests. It matched the bundle
+/// id alone, which is indistinguishable from working for four of the five
+/// registries — their recipe ids contain the bundle id — and completely broken
+/// for the GitHub rules, whose recipe id is keyed on the repository slug.
+@Suite struct VerifyOnlyFilterTests {
+
+    private func options(_ only: [String]) -> VerifyOptions {
+        var o = VerifyOptions()
+        o.only = only
+        return o
+    }
+
+    /// Mutation: drop the `recipeID` half of `Verify.filtered`'s match.
+    @Test func aGitHubRuleCanBeNamedByItsRecipeID() throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first)
+        #expect(!rule.recipeID.contains(rule.bundleID),
+                "fixture guard: a slug-keyed recipe id is the whole point here")
+        let selected = Verify.filtered(
+            GitHubReleaseRegistry.rules, options([rule.recipeID]))
+        #expect(selected.map(\.recipeID) == [rule.recipeID])
+    }
+
+    /// …and the bundle id keeps working, because that is what everything types.
+    @Test func aBundleIDStillSelects() throws {
+        let recipe = try #require(VendorProbeRegistry.recipes.first)
+        let selected = Verify.filtered(
+            VendorProbeRegistry.recipes, options([recipe.bundleID]))
+        #expect(selected.allSatisfy { $0.bundleID == recipe.bundleID })
+        #expect(!selected.isEmpty)
+    }
+
+    @Test func anEmptyFilterSelectsEverything() {
+        let selected = Verify.filtered(VendorProbeRegistry.recipes, options([]))
+        #expect(selected.count == VendorProbeRegistry.recipes.count)
+    }
+}

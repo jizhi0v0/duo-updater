@@ -32,6 +32,24 @@ struct GatewayRetryReportingTests {
         #expect(base.adding(warning: "w").attempts == 3)
     }
 
+    /// …and the same for the changelog entry count, which is the field that was
+    /// actually dropped. `adding(warning:)` forwards it and carries a comment
+    /// saying why; `observing` did not, so a machine note — the one-click
+    /// candidate note the vendor sweep attaches — silently deleted "entries
+    /// parsed" from `report.json` for that finding, and it is the number the
+    /// collapse check exists to show.
+    ///
+    /// Mutation: drop `entryCount:` from `observing`'s initializer call. It
+    /// compiles, because every argument there has a default.
+    @Test func annotatingAFindingKeepsItsEntryCount() {
+        let counted = Finding(
+            recipeID: "changelog:com.example.app:-", registry: .changelog,
+            bundleID: "com.example.app", channel: "-", status: .ok,
+            endpointHost: "example.com", entryCount: 17)
+        #expect(counted.observing("\(Finding.machineNotePrefix)note").entryCount == 17)
+        #expect(counted.adding(warning: "w").entryCount == 17)
+    }
+
     /// `report.json` files written before this field existed are still read by
     /// `Reconcile` and `Triage`. Decoding must not start failing on them, and a
     /// missing key must not be reported as a confident zero.

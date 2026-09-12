@@ -99,6 +99,63 @@ private let installed = [
     }
 }
 
+/// The scan's timeout is the only thing standing between `duo list/check/install/
+/// restart/backups/doctor/ignore` and a permission wall nobody can answer: the
+/// `open()` behind macOS's app-data gate never returns on a headless runner.
+///
+/// ⚠️ Written as a real wedge — a scan that never returns — because the shape of
+/// the bug was that the timeout PRINTED on time and the command hung anyway.
+/// `withTaskGroup` does not return until every child finishes and `cancelAll()`
+/// cannot touch a thread parked in a syscall, so racing the scan against a sleep
+/// inside a group measures nothing. A fixture whose scan eventually returns would
+/// pass against either implementation.
+@Suite struct InventoryScanTimeoutTests {
+
+    /// Mutation: put the body back in a `withTaskGroup` racing a sleep. This test
+    /// then sits on the blocked scan until the suite's own timeout kills it.
+    @Test func aScanThatNeverReturnsIsAbandonedAtTheTimeout() async {
+        // Released in the `defer` so the thread cannot outlive the test.
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+
+        let started = Date()
+        let scanned = await Inventory.scan(timeout: .milliseconds(200)) {
+            release.wait()
+            return []
+        }
+        let elapsed = Date().timeIntervalSince(started)
+
+        #expect(scanned.isEmpty)
+        // Generous: the assertion is "it came back", not a wall-clock bound —
+        // a 3-core runner is not a stopwatch. The unfixed code never returns at
+        // all, so any finite time distinguishes it.
+        #expect(elapsed < 20, "returned after \(elapsed)s — the timeout did not abandon the scan")
+    }
+
+    /// …and the ordinary case still hands back what the scan found, rather than
+    /// the empty list the timeout produces.
+    @Test func aScanThatFinishesIsReturned() async {
+        let scanned = await Inventory.scan(timeout: BoundedScan.timeout) { installed }
+        #expect(scanned.map(\.name) == installed.map(\.name))
+    }
+
+    /// The sweep's copy of this primitive read only `components.seconds`, which
+    /// floors any sub-second bound to "do not wait at all". Both callers pass
+    /// whole seconds, so nothing in production would ever have shown it — but the
+    /// two copies meant the same argument did different things depending on which
+    /// one you reached, and now there is only one.
+    ///
+    /// Asserted as arithmetic rather than as elapsed time on purpose: a wall-clock
+    /// bound in a parallel suite on a 3-core runner is not a measurement.
+    ///
+    /// Mutation: drop the attoseconds term.
+    @Test func aSubSecondBoundIsNotFlooredToZero() {
+        #expect(BoundedScan.seconds(.milliseconds(200)) == 0.2)
+        #expect(BoundedScan.seconds(.seconds(20)) == 20)
+        #expect(BoundedScan.seconds(BoundedScan.timeout) == 20)
+    }
+}
+
 @Suite struct CheckRowTests {
 
     private func row(hasUpdate: Bool, hidden: Bool) -> Check.Row {

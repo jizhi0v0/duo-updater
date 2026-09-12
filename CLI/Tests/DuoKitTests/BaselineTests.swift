@@ -217,6 +217,26 @@ import DuoUpdaterCore
         #expect(complaints.first?.contains("4.7.9") == true)
     }
 
+    /// The same half `aCollapseAccumulatesAStreakAndKeepsTheGoodCount` pins for
+    /// the entry count: a regression is a `.warn` in the report, so it has to be a
+    /// `.warn` in the file too. Counted on the finding as it arrives (`.ok`) the
+    /// streak was RESET by the very sweep that complained, and the regressed
+    /// version became the yardstick — so the second sweep saw no regression at
+    /// all and the complaint could never reach `Reconcile`.
+    @Test func aVersionRegressionAccumulatesAStreakAndKeepsTheGoodVersion() {
+        var baseline = Baseline()
+        let id = "vendor:com.example.app:stable"
+        _ = baseline.reconcile(finding(status: .ok, version: "4.7.9"))
+
+        #expect(baseline.reconcile(finding(status: .ok, version: "4.7")).count == 1)
+        #expect(baseline.streak(id) == 1)
+        #expect(baseline.entries[id]?.lastGoodVersion == "4.7.9")
+
+        #expect(baseline.reconcile(finding(status: .ok, version: "4.7")).count == 1)
+        #expect(baseline.streak(id) == 2)
+        #expect(baseline.isReportable(id))
+    }
+
     @Test func movingForwardOrStandingStillIsNotFlagged() {
         var baseline = Baseline()
         _ = baseline.reconcile(finding(status: .ok, version: "4.7.9"))

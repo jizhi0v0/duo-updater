@@ -72,10 +72,47 @@ DISPLAY_VERSION_AS_MARKETING = re.compile(
 # directly above it. A marker beats
 # an allowlist of line numbers: it travels with the code when the line moves, and
 # it makes the reason visible where the next reader is already looking.
+# It also expires — see `dead_allow_markers`, which fails the build on a marker
+# that no longer has a pick under it.
 ALLOW = "version-lint:allow-marketing-first"
 # Enough lines to cover the reason written above the site — the marker is only
 # useful if it can sit at the top of the paragraph that explains it.
 ALLOW_LOOKBACK = 6
+
+
+def allow_markers(lines):
+    """1-based line numbers carrying the opt-out marker."""
+    return [n for n, line in enumerate(lines, 1) if ALLOW in line]
+
+
+def markers_covering(lines, n):
+    """The markers that exempt a marketing-first pick on 1-based line `n`.
+
+    One definition, used both to decide whether a hit is allowed and to decide
+    whether a marker is still exempting anything. Two spellings of this window
+    would drift, and the direction they drift in is "the marker stops being
+    reported as dead while still silencing the rule".
+    """
+    return [m for m in allow_markers(lines) if n - ALLOW_LOOKBACK <= m <= n]
+
+
+def dead_allow_markers(lines):
+    """Markers with no marketing-first pick in range.
+
+    An exemption that no longer matches anything is a standing pass for whatever
+    is written there next: the line moves, the pick it was written about goes
+    away, and the marker stays behind silencing the next one nobody read. This
+    is the same rule `check_prose_claims.py` applies to its own marker, and the
+    reason `make gallery` fails on a stale `mayLookAlike` — CLAUDE.md records
+    (#271) what happened to the one gate that skipped it.
+    """
+    alive = set()
+    for n, line in enumerate(lines, 1):
+        if MARKETING_FIRST.search(line):
+            alive.update(markers_covering(lines, n))
+    return [m for m in allow_markers(lines) if m not in alive]
+
+
 # What makes a marketing-first pick dangerous is a comparison in the same
 # STATEMENT — which in Swift is routinely two or three lines away, because
 # `if let a = ..., \n   cond` is the idiom these sites are written in. Looking at
@@ -190,6 +227,7 @@ def main() -> int:
     package_restart_hits = []
     prune_staged_hits = []
     banned_landed_hits: list[str] = []
+    dead_allow_hits: list[str] = []
     ledger_seen = 0
     marketing_seen = 0
     package_restart_seen = 0
@@ -200,6 +238,8 @@ def main() -> int:
         rel = path.relative_to(ROOT)
         lines = path.read_text(encoding="utf-8").splitlines()
         source = "\n".join(lines)
+        for marker in dead_allow_markers(lines):
+            dead_allow_hits.append(f"{rel}:{marker}")
         for match in DISPLAY_VERSION_AS_MARKETING.finditer(source):
             line = source.count("\n", 0, match.start()) + 1
             display_marketing_hits.append(
@@ -217,9 +257,7 @@ def main() -> int:
                     ledger_hits.append(f"{rel}:{n}: {line.strip()}")
             if MARKETING_FIRST.search(line):
                 marketing_seen += 1
-                allowed = ALLOW in line or any(
-                    ALLOW in lines[i]
-                    for i in range(max(0, n - 1 - ALLOW_LOOKBACK), n - 1))
+                allowed = bool(markers_covering(lines, n))
                 if compares_near(lines, n - 1) and not allowed:
                     compare_hits.append(f"{rel}:{n}: {line.strip()}")
             if SHORT_READ.search(line) and compares_near(lines, n - 1):
@@ -323,9 +361,16 @@ def main() -> int:
               "so a scanner-substituted build is not compared with a staged package's.")
         for hit in prune_staged_hits:
             print(f"    {hit}")
+    if dead_allow_hits:
+        print(f"\u2717 {len(dead_allow_hits)} `{ALLOW}` marker(s) no longer "
+              "exempt anything.")
+        print("  The pick they were written about is gone, so the marker is now a "
+              "standing pass for whatever is written there next — delete it.")
+        for hit in dead_allow_hits:
+            print(f"    {hit}")
     if (display_hits or ledger_hits or compare_hits or display_marketing_hits
             or read_hits or package_restart_hits or prune_staged_hits
-            or banned_landed_hits):
+            or banned_landed_hits or dead_allow_hits):
         return 1
 
     print(f"✓ version comparisons discriminate — {len(files)} files, "

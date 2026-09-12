@@ -6,8 +6,9 @@ import DuoUpdaterCore
 ///
 /// One file doing three jobs, deliberately:
 ///
-///  1. **Monotonicity baseline** — the last version each recipe successfully
-///     read. A recipe that goes *backwards* has almost certainly started
+///  1. **Monotonicity baseline** — the last version each recipe read that this
+///     file believes (a read that went backwards is complained about and not
+///     recorded). A recipe that goes *backwards* has almost certainly started
 ///     matching something else on the page; nothing else detects that.
 ///  2. **Flap suppressor** — `consecutiveActionable`, so a single bad sweep
 ///     never files anything. Vendors have five-minute outages; issues are
@@ -25,8 +26,10 @@ public struct Baseline: Codable, Sendable {
     public struct Entry: Codable, Sendable {
         public var lastGoodVersion: String?
         public var lastGoodAt: Date?
-        /// Entries the last sweep that got an answer extracted from this
-        /// recipe's page. Changelog recipes only — nil everywhere else, and nil
+        /// Entries the last sweep that got a BELIEVABLE answer extracted from
+        /// this recipe's page — a count that collapsed to one is complained
+        /// about and not recorded, so this stays the yardstick the next sweep
+        /// measures against. Changelog recipes only — nil everywhere else, and nil
         /// on a row written before this field existed, which is why the
         /// collapse check needs a previous value and cannot fire on the first
         /// sweep after an upgrade.
@@ -52,6 +55,17 @@ public struct Baseline: Codable, Sendable {
         /// A *change* in this is new information and worth speaking up about
         /// immediately, where a repeat is not.
         public var lastSignature: String?
+        /// What was wrong the sweep BEFORE that, and the only field
+        /// `Reconcile` can compare against.
+        ///
+        /// `duo verify` writes the baseline and `duo reconcile` reads it back, in
+        /// that order, so by the time reconciliation runs `lastSignature` is
+        /// already this sweep's own signature — comparing it against the finding
+        /// asks whether a value equals itself. "The failure changed shape" was
+        /// therefore unreachable: a recipe that went from `versionPatternNoMatch`
+        /// to `httpStatus404` between sweeps was reported, if at all, as "still
+        /// failing the same way".
+        public var previousSignature: String?
         /// Set by the reconcile step, read by it on the next run.
         public var issueNumber: Int?
         public var closedAt: Date?
@@ -152,6 +166,7 @@ public struct Baseline: Codable, Sendable {
             consecutiveInfra = try c.decodeIfPresent(Int.self, forKey: .consecutiveInfra) ?? 0
             infraSince = try c.decodeIfPresent(Date.self, forKey: .infraSince)
             lastSignature = try c.decodeIfPresent(String.self, forKey: .lastSignature)
+            previousSignature = try c.decodeIfPresent(String.self, forKey: .previousSignature)
             issueNumber = try c.decodeIfPresent(Int.self, forKey: .issueNumber)
             closedAt = try c.decodeIfPresent(Date.self, forKey: .closedAt)
             sweepsSinceComment =
@@ -280,9 +295,16 @@ public struct Baseline: Codable, Sendable {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "
                     + "matching a different element")
+                // The regressed value deliberately does NOT become the new
+                // baseline. Recording it would make the next sweep compare 4.7
+                // against 4.7, find nothing wrong, and go silent on a recipe that
+                // is still reading the wrong element — one sweep's exit code, then
+                // nothing. Holding the last version we trust is also what lets the
+                // streak below reach `actionableThreshold`.
+            } else {
+                entry.lastGoodVersion = version
+                entry.lastGoodAt = Date()
             }
-            entry.lastGoodVersion = version
-            entry.lastGoodAt = Date()
         }
 
         // The changelog sweep's own blind spot, and the reason `version` alone
@@ -310,13 +332,29 @@ public struct Baseline: Codable, Sendable {
                     + "(\(previous) → 1) — an entry pattern whose terminator stopped "
                     + "matching leaves the first entry carrying the whole page, with its "
                     + "version still parsing correctly off the heading")
+                // Same reason as the version above: recording the 1 would leave
+                // the next sweep comparing 1 against 1, which is the shape this
+                // check reads as healthy. The collapse would then be reported by
+                // exactly one sweep and never again — and one sweep is below
+                // `actionableThreshold`, so it would reach nobody.
+            } else {
+                entry.lastGoodEntryCount = count
             }
-            entry.lastGoodEntryCount = count
         }
 
         // The installer URL's transient run is tracked on every status, because the
         // finding it rides on stays `.ok` — there is no other place it would age.
-        if finding.warnings.contains(ProbeWarning.installURLTransient(status: nil).kind) {
+        //
+        // `hasPrefix`, not `contains(_:)` on the element, for the same reason
+        // `Verify.classify` and `Finding.signature` use it: a warning is published
+        // as `kind: detail`, so the Telegram 502 this field's doc is written about
+        // arrives as `installURLTransient: HTTP 502` and never equalled the bare
+        // kind. An exact match read every one of those as a sweep that RESOLVED
+        // the URL, reset the run on each sweep, and made
+        // `isInstallTransientReportable` unreachable for any transient that
+        // carried a status — which is to say almost all of them.
+        let transientKind = ProbeWarning.installURLTransient(status: nil).kind
+        if finding.warnings.contains(where: { $0.hasPrefix(transientKind) }) {
             entry.consecutiveInstallTransient += 1
             if entry.installTransientSince == nil { entry.installTransientSince = Date() }
         } else if finding.status != .skipped {
@@ -334,16 +372,29 @@ public struct Baseline: Codable, Sendable {
             entry.infraSince = nil
         }
 
-        switch finding.status {
+        // From here on, the finding as the REPORT will carry it. `Verify` folds
+        // every complaint back in with `adding(warning:)`, which promotes `ok` to
+        // `warn` — so switching on the status as it arrived recorded a sweep the
+        // report calls degraded as a clean one: the streak was reset by the very
+        // complaint that should have raised it, and no baseline complaint could
+        // ever clear `actionableThreshold` or reach `Reconcile`. The signature has
+        // to come from the promoted finding too, or the row says "unknown" while
+        // `report.json` says what is actually wrong, and `Reconcile` reads the two
+        // as a failure that changes shape every sweep.
+        let promoted = complaints.reduce(finding) { $0.adding(warning: $1) }
+
+        switch promoted.status {
         case .ok:
             entry.consecutiveActionable = 0
             entry.lastSignature = nil
+            entry.previousSignature = nil
             entry.sweepsSinceComment = 0
             entry.lastCommentedAt = nil
 
         case .broken, .warn:
             entry.consecutiveActionable += 1
-            entry.lastSignature = finding.signature
+            entry.previousSignature = entry.lastSignature
+            entry.lastSignature = promoted.signature
             entry.sweepsSinceComment += 1
 
         case .infra:

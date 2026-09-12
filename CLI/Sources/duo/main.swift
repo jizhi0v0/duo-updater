@@ -161,7 +161,8 @@ events options:
   installed separately from the app and is often the older of the two.
 
 verify options:
-  --only <text>       Restrict to recipes whose bundle id contains <text>.
+  --only <text>       Restrict to recipes whose bundle id or recipe id contains
+                      <text> (so `--only beta` selects every beta channel).
                       Comma-separated for several. Without it all six
                       registries are swept (~150 requests, about 3 minutes).
   --vendor            Sweep only the vendor probe recipes.
@@ -230,7 +231,10 @@ reconcile options:
 exit codes:
   0  no recipe-level problems
   1  at least one recipe is degraded, broken for 2+ consecutive sweeps, or
-     pointed at an endpoint that has been unreachable for 5+ consecutive sweeps
+     pointed at an endpoint that has been unreachable on 3+ consecutive sweeps
+     spanning at least 5 days (see Baseline.isInfraReportable — the wall-clock
+     half is the one that matters; the sweep count only keeps a runner that was
+     off for a week from retiring a host on two observations)
   2  usage error
 """
 

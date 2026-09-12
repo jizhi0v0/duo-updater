@@ -10,7 +10,8 @@ install:
 cli:
 	@scripts/build-cli.sh
 
-# Core package build + tests (some tests hit the network).
+# Compile the Core package. Nothing is executed — `make test` is the one that
+# runs anything, and it runs more than this package.
 build:
 	cd DuoUpdaterCore && swift build
 

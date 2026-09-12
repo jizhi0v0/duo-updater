@@ -4,13 +4,6 @@ import DuoUpdaterCore
 /// Scanning and checking, shared by `duo list` and `duo check`.
 public enum Inventory {
 
-    /// `AppScanner` reads TestFlight's SQLite database, which lives behind the
-    /// Sequoia app-data TCC gate. With nobody at the keyboard to answer the
-    /// prompt the `open()` never returns — the first CI sweep hung until the job
-    /// timed out. A scan that takes this long is a permission wall, not a slow
-    /// disk, so it is abandoned rather than waited on.
-    static let scanTimeout = Duration.seconds(20)
-
     /// TestFlight's store, or the sentinel that stands for "not read", according to
     /// the user's setting. One function so the scan and the checker cannot disagree
     /// about it within a single run — a scan that read it would tag wrapped
@@ -24,30 +17,34 @@ public enum Inventory {
 
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await withTaskGroup(of: [InstalledApp]?.self) { group in
+        return await scan(timeout: BoundedScan.timeout) {
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
-            // `scanTimeout` exists to race — so it has to be INSIDE this task. It
-            // used to be, invisibly: `AppScanner`'s `testflight:` default was
-            // evaluated here, at the call site. Naming it explicitly on the line
-            // above `withTaskGroup` reads identically and quietly moved the one
-            // blocking call out from under the only thing bounding it.
-            group.addTask { AppScanner(
-                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan() }
-            group.addTask {
-                try? await Task.sleep(for: scanTimeout)
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            if first == nil {
-                FileHandle.standardError.write(Data("""
-                    duo: the app scan did not finish within 20s. This is almost always \
-                    the TestFlight database waiting on an "access data from other apps" \
-                    prompt — grant it once in System Settings ▸ Privacy & Security.\n
-                    """.utf8))
-            }
-            return first ?? []
+            // the timeout exists to race — so it has to be INSIDE this closure.
+            // It used to be, invisibly: `AppScanner`'s `testflight:` default was
+            // evaluated at the call site. Naming it explicitly one line further
+            // out reads identically and quietly moves the one blocking call out
+            // from under the only thing bounding it.
+            AppScanner(
+                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan()
         }
+    }
+
+    /// The bounded scan, with the scanner passed in so a test can wedge it.
+    /// `BoundedScan` holds the thread-and-timeout half and the reasons for it;
+    /// what belongs here is only what `duo` should say when the scan is given up
+    /// on, which is not what the sweep says about the same event.
+    static func scan(
+        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
+    ) async -> [InstalledApp] {
+        guard let scanned = await BoundedScan.result(within: timeout, body) else {
+            FileHandle.standardError.write(Data("""
+                duo: the app scan did not finish within \(timeout). This is almost always \
+                the TestFlight database waiting on an "access data from other apps" \
+                prompt — grant it once in System Settings ▸ Privacy & Security.\n
+                """.utf8))
+            return []
+        }
+        return scanned
     }
 
     /// Build the checker the same way the menu-bar app does, so a version

@@ -173,6 +173,51 @@ import DuoUpdaterCore
         #expect(second.reconcile(changelog(entries: 1)).count == 1)
     }
 
+    /// A complaint only reaches a human through `Reconcile`, and `Reconcile` only
+    /// ever sees the baseline — so a complaint that does not move the baseline is
+    /// visible in exactly one sweep's exit code and nowhere else.
+    ///
+    /// Both halves are load-bearing and both were wrong:
+    ///
+    ///  * the streak was counted on the finding as it arrived (`.ok`), so a
+    ///    collapse RESET `consecutiveActionable` instead of raising it and could
+    ///    never clear `actionableThreshold`;
+    ///  * `lastGoodEntryCount` was overwritten with the collapsed value, so the
+    ///    second sweep had 1 to compare against, produced no complaint at all,
+    ///    and the page stayed collapsed in silence forever after.
+    ///
+    /// Mutation: either half — switch on `finding.status` instead of the promoted
+    /// one, or move the `entry.lastGoodEntryCount = count` assignment back out of
+    /// the `else`.
+    @Test func aCollapseAccumulatesAStreakAndKeepsTheGoodCount() {
+        var baseline = Baseline()
+        let id = "changelog:com.example.app:-"
+        _ = baseline.reconcile(changelog(entries: 20))
+
+        #expect(baseline.reconcile(changelog(entries: 1)).count == 1)
+        #expect(baseline.streak(id) == 1)
+        #expect(baseline.entries[id]?.lastGoodEntryCount == 20,
+                "the collapsed count must not become the yardstick the next sweep uses")
+
+        #expect(baseline.reconcile(changelog(entries: 1)).count == 1,
+                "still collapsed against the last good count")
+        #expect(baseline.streak(id) == 2)
+        #expect(baseline.isReportable(id),
+                "two consecutive collapses is what `actionableThreshold` is for")
+        #expect(baseline.entries[id]?.lastGoodEntryCount == 20)
+    }
+
+    /// …and the page healing clears it, the same way any other recovery does.
+    @Test func aPageThatRecoversClearsTheCollapseStreak() {
+        var baseline = Baseline()
+        let id = "changelog:com.example.app:-"
+        _ = baseline.reconcile(changelog(entries: 20))
+        _ = baseline.reconcile(changelog(entries: 1))
+        _ = baseline.reconcile(changelog(entries: 20))
+        #expect(baseline.streak(id) == 0)
+        #expect(baseline.entries[id]?.lastGoodEntryCount == 20)
+    }
+
     /// The count has to survive the rebuild `adding(warning:)` performs, or it
     /// is dropped from `report.json` for exactly the findings that carry a
     /// complaint — the ones most worth reading, and the ones whose issue body

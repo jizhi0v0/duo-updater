@@ -390,16 +390,38 @@ import Testing
         // second process would — deterministically, with no helper to spawn.
         let holder = try InstallLock.acquire(at: lockURL)
 
-        await InPlaceSwap.recoverInterruptedSwaps(
+        let deferred = await InPlaceSwap.recoverInterruptedSwaps(
             in: dir, lock: ProcessInstallLock(url: lockURL))
+        #expect(deferred == false)
         #expect(fm.fileExists(atPath: leftover.path),
                 "the sweep must leave another installer's staging directory alone")
 
         holder.release()
-        await InPlaceSwap.recoverInterruptedSwaps(
+        let swept = await InPlaceSwap.recoverInterruptedSwaps(
             in: dir, lock: ProcessInstallLock(url: lockURL))
+        #expect(swept)
         #expect(!fm.fileExists(atPath: leftover.path),
                 "with the lock free the sweep still has to do its job")
+    }
+
+    /// The return value is what stops `AppListModel.recoverInterruptedSwapsOnce`
+    /// from latching its once-per-session flag on a sweep that never happened. A
+    /// deferral there is not "done": a real orphan from an earlier crash would sit
+    /// unrecovered until the next launch. Asserted on an EMPTY directory so the
+    /// answer can only be "did I hold the lock", never "did I find anything".
+    @Test func theReturnValueReportsWhetherTheSweepActuallyRan() async throws {
+        let fm = FileManager.default
+        let dir = try scratch()
+        defer { try? fm.removeItem(at: dir) }
+        let lockURL = dir.appendingPathComponent("install.lock")
+
+        let holder = try InstallLock.acquire(at: lockURL)
+        #expect(await InPlaceSwap.recoverInterruptedSwaps(
+            in: dir, lock: ProcessInstallLock(url: lockURL)) == false)
+
+        holder.release()
+        #expect(await InPlaceSwap.recoverInterruptedSwaps(
+            in: dir, lock: ProcessInstallLock(url: lockURL)))
     }
 
     private func scratch() throws -> URL {

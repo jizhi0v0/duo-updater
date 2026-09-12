@@ -630,6 +630,54 @@ struct BackupStoreTests {
         }
     }
 
+    /// A wrapped iPhone/iPad app has no `Contents/` at all: its interior is
+    /// `Wrapper/<Inner>.app/` and the executable sits at that interior's root, not
+    /// under `MacOS/`. So the rule cannot hard-code a macOS layout — it has to
+    /// follow the same `BundleLayout.interiorPrefix` the seal keys are relative to.
+    @Test func theMainExecutableOfAWrappedBundleCountsAsSealed() throws {
+        try withScratchRoot { root in
+            let fm = FileManager.default
+            let app = root.appendingPathComponent("ZZFixture-Wrapped.app")
+            #expect(!fm.fileExists(atPath: app.path))
+            let innerName = "Wrapper/ZZFixture-Inner.app"
+            let inner = app.appendingPathComponent(innerName)
+            try fm.createDirectory(at: inner, withIntermediateDirectories: true)
+            // The discriminator `interiorPrefix` reads, and it reads the link's own
+            // text — so the destination has to be relative, as the real ones are.
+            try fm.createSymbolicLink(
+                atPath: app.appendingPathComponent("WrappedBundle").path,
+                withDestinationPath: innerName)
+            let plist = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0"><dict>
+              <key>CFBundleExecutable</key><string>ZZWrapped</string>
+              <key>CFBundleIdentifier</key><string>com.example.wrapped</string>
+            </dict></plist>
+            """
+            try Data(plist.utf8).write(to: inner.appendingPathComponent("Info.plist"))
+            let assets = inner.appendingPathComponent("Assets.car")
+            try Data("assets".utf8).write(to: assets)
+            let sigDir = inner.appendingPathComponent("_CodeSignature")
+            try fm.createDirectory(at: sigDir, withIntermediateDirectories: true)
+            // A real resource is listed; the executable, as always, is not.
+            let seal = try PropertyListSerialization.data(
+                fromPropertyList: ["files2": ["Assets.car": ["hash2": Data()]]],
+                format: .xml, options: 0)
+            try seal.write(to: sigDir.appendingPathComponent("CodeResources"))
+            let exe = inner.appendingPathComponent("ZZWrapped")
+            try Data("MZ".utf8).write(to: exe)
+            try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: exe.path)
+            defer {
+                try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: exe.path)
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed == ["\(innerName)/ZZWrapped"])
+            #expect(classified.unsealed.isEmpty)
+        }
+    }
+
     /// The counter-example that keeps the rule above from being widened to "every
     /// top-level file": `Contents/PkgInfo` is in neither `files2` nor a special
     /// slot. Measured 2026-09-13 on Keka and DuoUpdater — mutating *and* deleting

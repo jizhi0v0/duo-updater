@@ -73,21 +73,35 @@ public enum InPlaceSwap {
     /// the claim rather than refusing it. That is the documented refcount and it
     /// is what lets the app apply two updates at once; it does mean this sweep is
     /// serialised only against other processes.
+    ///
+    /// Returns whether the directory was actually swept. False means only that
+    /// the lock was busy, and the caller must not treat that as "done": a
+    /// caller latching a once-per-session flag on a deferred sweep would leave a
+    /// genuine leftover from an earlier crash unrecovered until the next launch,
+    /// which is the opposite of what this exists for.
+    @discardableResult
     public static func recoverInterruptedSwaps(
         in directory: URL, lock: ProcessInstallLock = .shared
-    ) async {
+    ) async -> Bool {
         do {
             try await lock.claim()
         } catch {
             Log.install.notice(
                 "another installer holds the install lock, sweep deferred: \(error, privacy: .public)")
-            return
+            return false
         }
         sweepInterruptedSwaps(in: directory)
+        // Unconditional rather than deferred, and it stays correct only because
+        // the sweep below neither throws nor suspends: there is no early return
+        // and no cancellation point between the claim and here. (`defer` cannot
+        // hold an `await` anyway.) Anything added to that function that can bail
+        // out early has to release the claim on its way.
         await lock.release()
+        return true
     }
 
-    /// The sweep itself, once the lock is held.
+    /// The sweep itself, once the lock is held. Deliberately non-throwing and
+    /// non-`async` — see the release note in the caller.
     private static func sweepInterruptedSwaps(in directory: URL) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(

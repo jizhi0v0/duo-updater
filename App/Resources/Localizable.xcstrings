@@ -23162,47 +23162,6 @@
         }
       }
     },
-    "no requests recorded yet": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Noch keine Anfragen aufgezeichnet"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "aún no se han registrado solicitudes"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "aucune requête enregistrée pour l'instant"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "まだリクエストは記録されていません"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "запросы пока не записаны"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未记录任何请求"
-          }
-        }
-      }
-    },
     "not recorded": {
       "extractionState": "manual",
       "localizations": {
@@ -23240,6 +23199,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "未记录"
+          }
+        }
+      }
+    },
+    "nothing yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "noch nichts"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nada aún"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rien encore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだありません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "пока нет"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无"
           }
         }
       }
@@ -23445,47 +23445,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "记录追溯到%@"
-          }
-        }
-      }
-    },
-    "records only go back to %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aufzeichnungen reichen nur bis %@ zurück"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "los registros solo llegan hasta %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "limite : %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ からしか記録されていません"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "самые старые записи — лишь %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅追溯到%@"
           }
         }
       }

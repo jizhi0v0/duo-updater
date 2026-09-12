@@ -127,8 +127,14 @@ struct RequestLogPane: View {
     private var range: Range { filter.range }
     private var selection: UUID? { filter.selection }
 
-    /// A range's label, with a parenthetical when the store cannot actually
-    /// back it — "Last 7 days (records only go back to 19 hours ago)".
+    /// A range's label, with a short parenthetical when the store cannot
+    /// actually back it — "Last 7 days (19 hours ago)".
+    ///
+    /// `hasLoaded` matters here specifically (and not just at ``emptyState``):
+    /// `retainedFloor` reads `nil` both before the first load and for a truly
+    /// empty store, and this is the one call site that would otherwise
+    /// re-commit #460's own mistake — declaring the store empty while
+    /// `reloadRequestLog`'s `Task` is still awaiting its flush and queries.
     ///
     /// Plain interpolation, not `String(localized:)`: `range.label` and `note`
     /// are both already fully localized strings, so after specifier removal
@@ -138,8 +144,9 @@ struct RequestLogPane: View {
     /// implied a translatability step that was not actually happening — the
     /// lookup would always miss and fall back to the same interpolated value.
     private func rangeMenuLabel(_ range: Range) -> String {
-        guard let note = RequestCoverageHonesty.annotation(since: range.since, floor: retainedFloor)
-        else { return range.label }
+        guard let note = RequestCoverageHonesty.annotation(
+            since: range.since, floor: retainedFloor, hasLoaded: hasLoaded
+        ) else { return range.label }
         return "\(range.label) (\(note))"
     }
 

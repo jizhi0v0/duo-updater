@@ -67,8 +67,13 @@ struct RequestCoverageHonestyTests {
         let since = Self.daysAgo(7)           // "Last 7 days"
         let floor = Self.hoursAgo(19)         // store only goes back 19 hours
         let note = RequestCoverageHonesty.annotation(since: since, floor: floor, now: Self.now, locale: Self.usLocale)
-        #expect(note != nil)
-        #expect(note?.contains("19") == true)
+        // Exact match, not a substring check: the annotation is deliberately
+        // short — just the bare relative phrase, no wrapping sentence — so
+        // with the locale and clock both pinned there is exactly one correct
+        // string (round 2 of #537's review: a `Picker`'s selected row becomes
+        // its closed control's own label, and "records only go back to 19
+        // hours ago" measured 306pt against 68.5pt for the plain label).
+        #expect(note == "19 hours ago")
     }
 
     /// A "Last 30 days" cutoff against the same 19-hour floor must also be
@@ -97,16 +102,21 @@ struct RequestCoverageHonestyTests {
         #expect(RequestCoverageHonesty.annotation(since: nil, floor: floor, now: Self.now) == nil)
     }
 
-    // MARK: annotation — empty store
+    // MARK: annotation — empty store (loaded)
 
-    /// An empty store (`floor == nil`) must NOT read as "everything is
-    /// covered". It is the opposite: nothing has been kept, so no promise is
-    /// backed by data, and every range with a cutoff must be annotated.
+    /// An empty store (`floor == nil`) that HAS finished loading (`hasLoaded`
+    /// defaults to `true` here) must NOT read as "everything is covered". It
+    /// is the opposite: nothing has been kept, so no promise is backed by
+    /// data, and every range with a cutoff must be annotated.
     ///
     /// Mutation: `guard let floor else { return nil }` instead of returning
-    /// the "nothing recorded" message — this case is the only one that tells
+    /// the "nothing yet" message — this case is the only one that tells
     /// "no annotation" and "empty-store annotation" apart, since both are
     /// non-crashing and the wrong one is silent.
+    ///
+    /// Contrast with ``theFirstLoadWindowIsNeverAnnotated()`` below: the same
+    /// `floor: nil` input must answer differently depending on `hasLoaded` —
+    /// that is exactly the distinction round 2 of #537's review asked for.
     @Test func anEmptyStoreIsNotTreatedAsFullyCovered() {
         let since = Self.daysAgo(7)
         #expect(RequestCoverageHonesty.annotation(since: since, floor: nil, now: Self.now) != nil)
@@ -116,6 +126,38 @@ struct RequestCoverageHonestyTests {
     /// "no promise" rule and the "empty store" rule must compose, not race.
     @Test func allTimeIsNeverAnnotatedEvenWhenEmpty() {
         #expect(RequestCoverageHonesty.annotation(since: nil, floor: nil, now: Self.now) == nil)
+    }
+
+    // MARK: annotation — the pre-load window
+
+    /// `retainedFloor` reads `nil` in the pre-load window too, not only for a
+    /// truly empty store — `NetworkWindowView` renders the pane immediately
+    /// and only then runs `reloadRequestLog`, which awaits a flush and three
+    /// queries against the whole store before `retainedFloor` is ever set.
+    /// A store holding 40,000 events must not be announced as "nothing yet"
+    /// for however long that `Task` takes — which is exactly what happened
+    /// before `hasLoaded` was threaded into `annotation` (round 2 of #537's
+    /// review: "the fix re-commits the issue's own sin during the pre-load
+    /// window").
+    ///
+    /// Mutation: drop the `guard hasLoaded else { return nil }` line (or
+    /// default-ignore the parameter) — this case is the only one that tells
+    /// "not loaded yet, say nothing" apart from "loaded and empty, say so":
+    /// both take `floor: nil`, and the wrong answer is silent, not a crash.
+    @Test func theFirstLoadWindowIsNeverAnnotated() {
+        let since = Self.daysAgo(7)           // "Last 7 days"
+        #expect(RequestCoverageHonesty.annotation(
+            since: since, floor: nil, hasLoaded: false, now: Self.now
+        ) == nil)
+    }
+
+    /// `.all` gets no annotation in the pre-load window either — the same
+    /// "no promise, nothing to say" composition as
+    /// ``allTimeIsNeverAnnotatedEvenWhenEmpty()``, one guard further out.
+    @Test func allTimeIsNeverAnnotatedBeforeLoading() {
+        #expect(RequestCoverageHonesty.annotation(
+            since: nil, floor: nil, hasLoaded: false, now: Self.now
+        ) == nil)
     }
 
     // MARK: relativeDescription

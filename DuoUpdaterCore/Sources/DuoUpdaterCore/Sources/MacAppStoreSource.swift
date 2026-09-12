@@ -274,6 +274,32 @@ public struct MacAppStoreSource: UpdateSource {
         // on every check where the lookup API's cache happens to be ahead —
         // exactly the gap #545/#546 exist to close, not a staleness bound
         // worth adding.
+        //
+        // This does NOT make the residual staleness free, and the two
+        // directions cost differently. If the SCRAPED page itself lags the
+        // true current listing by a build (the same caching lag the version
+        // comment above documents, just applied to the floor instead), the
+        // floor read here lags by that same build:
+        //   - under-block: a build RAISED the floor and the page hasn't
+        //     caught up, so this reports the old, lower (or absent) floor —
+        //     `.needsNewerMacOS` doesn't fire when it should. Silent, but no
+        //     worse than this branch's behavior before #546: an update is
+        //     offered and fails at the store's last step, exactly as it
+        //     always has for this class of app.
+        //   - over-block: a build LOWERED the floor and the page hasn't
+        //     caught up, so this reports the old, higher floor —
+        //     `.needsNewerMacOS` fires when it shouldn't, refusing an update
+        //     that would actually install fine. Per `canRun`'s own doc
+        //     comment, a false refusal is the more expensive of the two
+        //     failure shapes (an app that can never update, vs. a miss that
+        //     lands back on pre-existing behavior).
+        // Accepted rather than worked around because macOS floors are, in
+        // practice, monotonically non-decreasing — a vendor raises the
+        // minimum OS a build requires, it does not lower it again — so the
+        // over-block direction is not expected to occur at all; this is
+        // unverified against a large population, unlike the co-location
+        // measurement on `extractMacCompatibility`'s early return, which was
+        // actually sampled live.
         let macCompatible = facts?.compatibility.publishesMacBuild
         let minimumMacOS = facts?.compatibility.minimumMacOS
 
@@ -711,6 +737,32 @@ public struct MacAppStoreSource: UpdateSource {
                     minimumMacOS: Self.minimumMacOS(from: inner))
                 // Keep scanning when this blob carried none of the three — an
                 // earlier blob on the page can be some other payload entirely.
+                //
+                // ⚠️ Widening this from two signals to three (adding
+                // `minimumMacOS`) reopens a question worth answering rather
+                // than assuming: could a page ever split the floor into a
+                // DIFFERENT qualifying blob than `appPlatforms`/`lockup`, so
+                // this returns early on a blob that only answers the floor
+                // (or only the other two), missing whichever signal landed
+                // in a later blob? Measured 2026-09-12, live, 20 pages (5
+                // apps — Bear, Things 3, WhatsApp, Discord, Nowdex — × plain
+                // and `?platform=mac` × `us`/`de` storefronts): every page
+                // has exactly ONE `data[0].data`-shaped blob that carries any
+                // of the three signals, and on 18/20 it carries all three
+                // together (the 2 Discord pages carry `lockup`+`appPlatforms`
+                // but legitimately no "Mac" heading — see `minimumMacOS`'s
+                // own doc comment). Zero pages had a blob answering the floor
+                // alone. So today this condition never actually WIDENS what
+                // gets accepted early — it is a no-op relative to the
+                // pre-#546 two-signal check on every page sampled. Kept as an
+                // OR (not narrowed to require all three) because there is no
+                // structural guarantee this holds for every listing, only a
+                // sample; an OR fails toward "found something", a stricter
+                // AND would fail toward "found nothing" the day one signal is
+                // legitimately absent (exactly Discord's shape). If a future
+                // sample ever finds a page that splits these across blobs,
+                // that is the measurement that would justify changing this
+                // condition — not a hypothesis on its own.
                 if reading.iosBinaryRunsOnMac != nil || reading.appPlatforms != nil
                     || reading.minimumMacOS != nil { return reading }
             }

@@ -29,6 +29,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **You choose how much Duo Updater does about TestFlight betas, in Settings → General.** *When I refresh* reads what TestFlight already knows and asks it for a fresh answer when you press Refresh; *Keep it fresh* also lets Duo Updater ask on its own, so a beta TestFlight installed in the background no longer sits as a question mark until you refresh, and a build waiting for you no longer goes unnoticed behind an "up to date"; *Off* reads nothing and says so on those rows instead of guessing. Macs that already had Full Disk Access start at *When I refresh*, everyone else at *Off*.
 
+**Cline now gets updates, on both its release and beta builds, and shows its release notes.** Until now it sat with a question mark instead of a version — it ships no update feed of the kind Duo Updater could read, and there is no Homebrew package for it. Duo Updater now asks the same address Cline's own updater asks, so the update offered is the one Cline would have installed itself, and the beta build stays on the beta track.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

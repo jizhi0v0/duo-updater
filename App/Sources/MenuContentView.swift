@@ -1017,7 +1017,12 @@ private struct AppRow: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                        openTestFlightSetting: {
+                            model.requestedSettingsSection = .general
+                            openWindow(id: SettingsView.windowID)
+                            model.surfaceWindow(sceneID: SettingsView.windowID)
+                        }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,

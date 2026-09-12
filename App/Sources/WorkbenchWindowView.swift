@@ -1010,6 +1010,9 @@ private struct FormulaDetailPane: View {
 private struct DetailHeader: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    /// For the TestFlight tip's deep link into Settings — the same three lines the
+    /// window's own gear button and the popover's rate-limit banner use.
+    @Environment(\.openWindow) private var openWindow
 
     /// The vendor page to link out to.
     private var changelogURL: URL? {
@@ -1057,7 +1060,12 @@ private struct DetailHeader: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                        openTestFlightSetting: {
+                            model.requestedSettingsSection = .general
+                            openWindow(id: SettingsView.windowID)
+                            model.surfaceWindow(sceneID: SettingsView.windowID)
+                        }),
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason)
                 if let url = changelogURL {

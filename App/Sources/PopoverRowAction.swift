@@ -687,6 +687,7 @@ struct PopoverRowAction: View {
                 Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
             }
         }
+        .dimmedWhenOff(testFlightUnboundedReason)
         .overlay(alignment: .bottomTrailing) {
             TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
         }
@@ -701,7 +702,8 @@ struct PopoverRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess)
+                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess,
+                openSetting: actions.openTestFlightSetting)
         }
     }
 

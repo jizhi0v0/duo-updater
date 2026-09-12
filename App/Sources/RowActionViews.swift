@@ -78,6 +78,12 @@ struct RowActions {
     var openToolbox: () -> Void = {}
     var openTestFlight: () -> Void = {}
     var grantFullDiskAccess: () -> Void = {}
+    /// Deep-link to Settings → General, where TestFlight detection is. Only the
+    /// "checking is off" tip offers it, and it is an action rather than a sentence
+    /// pointing at a menu for the same reason `grantFullDiskAccess` is: the row is
+    /// where the user is, and the way out of the state should be one click from
+    /// there.
+    var openTestFlightSetting: () -> Void = {}
 
     /// The full set, with no defaults — for a real window, where a missing action
     /// is a dead control rather than a deliberate omission.
@@ -91,13 +97,15 @@ struct RowActions {
         openSelfUpdater: @escaping () -> Void,
         openToolbox: @escaping () -> Void,
         openTestFlight: @escaping () -> Void,
-        grantFullDiskAccess: @escaping () -> Void
+        grantFullDiskAccess: @escaping () -> Void,
+        openTestFlightSetting: @escaping () -> Void
     ) -> RowActions {
         RowActions(
             install: install, openStagedPackage: openStagedPackage, retry: retry,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
-            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess)
+            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
+            openTestFlightSetting: openTestFlightSetting)
     }
 }
 
@@ -273,6 +281,7 @@ struct WorkbenchRowAction: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
+        .dimmedWhenOff(testFlightUnboundedReason)
         .overlay(alignment: .bottomTrailing) {
             TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
         }
@@ -287,7 +296,8 @@ struct WorkbenchRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess)
+                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess,
+                openSetting: actions.openTestFlightSetting)
         }
     }
 
@@ -504,7 +514,16 @@ struct ProgressRing: View {
 /// read and had no answer, or the permission to read it is missing. With detection
 /// off nothing was asked at all, and a question mark there reads as a failure the
 /// user should go and fix, which is how someone ends up granting Full Disk Access
-/// for a read that will still not happen (#547). That state gets a minus.
+/// for a read that will still not happen (#547). That state gets a slash.
+///
+/// ⚠️ **The badge alone does not carry this.** It was a `minus.circle.fill` first,
+/// and the person who asked for the setting misread the shipped build as a
+/// question mark — at 9pt a dash inside a filled circle has very nearly the
+/// silhouette of a "?", and telling the two states apart is the entire job. So the
+/// glyph is a slash, which differs in direction rather than in fine detail, and
+/// `dimmedWhenOff` mutes the icon under it: at this size the reliable signal is the
+/// 16pt icon changing, not the 9pt badge. Neither half is decoration — a change
+/// that drops one of them puts the state back where it was misread.
 ///
 /// Not inside a button on purpose: `ImageRenderer` draws an SF Symbol in a
 /// borderless button as a placeholder, and the gallery would then have to
@@ -513,10 +532,28 @@ struct TestFlightUnboundedMark: View {
     var reason: TestFlightUnboundedReason = .storeSilent
 
     var body: some View {
-        Image(systemName: reason == .checkingOff ? "minus.circle.fill" : "questionmark.circle.fill")
+        Image(systemName: reason == .checkingOff ? "slash.circle.fill" : "questionmark.circle.fill")
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.secondary)
             .background(Circle().fill(.background).padding(1))
+    }
+}
+
+extension View {
+    /// Mute a TestFlight row's icon when nothing is checking it — the other half of
+    /// `TestFlightUnboundedMark`, applied to the mark's host rather than living
+    /// inside it because it is the ICON that has to change, not the badge.
+    ///
+    /// Grayscale and half opacity: the same "this is switched off" idiom macOS uses
+    /// for a disabled control, and a change big enough to read from across the row.
+    /// Deliberately not applied to the other two reasons — those rows ARE being
+    /// checked, and dimming them would say the opposite of what is true.
+    @ViewBuilder func dimmedWhenOff(_ reason: TestFlightUnboundedReason) -> some View {
+        if reason == .checkingOff {
+            self.grayscale(1).opacity(0.5)
+        } else {
+            self
+        }
     }
 }
 
@@ -548,13 +585,15 @@ extension TestFlightUnboundedReason {
 /// A literal `Text` per case rather than a value built from parts, which could
 /// resolve to `String` and skip localization.
 ///
-/// The "off" case offers no button. Grant… would be the wrong one (the read is not
-/// waiting on a permission), and a Settings shortcut would be a tenth `RowActions`
-/// closure for a state whose whole point is that nothing is happening — the
-/// sentence names where the setting is instead.
+/// Two of the three reasons carry a way out, and it is a different way out each
+/// time: a missing permission is granted, a switched-off setting is switched on.
+/// Offering Grant… for the second would send the user to a permission that changes
+/// nothing while the setting is off. `storeSilent` gets no button because there is
+/// nothing to open — Refresh, which the sentence names, is already on screen.
 struct TestFlightUnboundedTip: View {
     let reason: TestFlightUnboundedReason
     let grant: () -> Void
+    var openSetting: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     private var fullDiskAccessMissing: Bool { reason == .noFullDiskAccess }
@@ -573,13 +612,23 @@ struct TestFlightUnboundedTip: View {
             }
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)
+            // Trailing, where macOS puts the action in a dialog or popover.
             if fullDiskAccessMissing {
-                // Trailing, where macOS puts the action in a dialog or popover.
                 HStack {
                     Spacer()
                     Button("Grant…") {
                         dismiss()
                         grant()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            } else if reason == .checkingOff {
+                HStack {
+                    Spacer()
+                    Button("Settings…") {
+                        dismiss()
+                        openSetting()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

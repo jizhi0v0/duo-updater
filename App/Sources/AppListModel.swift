@@ -489,7 +489,8 @@ final class AppListModel {
         Task {
             let page = await Self.firstResult(
                 of: Task.detached(priority: .userInitiated) {
-                    TestFlightInventory().frontier(forBundleID: bundleID)?.appPageURL
+                    await TestFlightInventory.loadOffPool()
+                        .frontier(forBundleID: bundleID)?.appPageURL
                 },
                 within: .seconds(2))
             if let url = page ?? nil {
@@ -1399,7 +1400,13 @@ final class AppListModel {
         // none per menu-bar open — everything else goes through
         // `githubTokenForRecheck`, which only reaches here on a miss.
         Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
-        // The resolve shells out to `gh auth token` and blocks in
+        // A settings value or an env var answers here, with no subprocess, no hop
+        // and no deadline. Racing those was a regression: the hop has to be
+        // ADMITTED to a Dispatch queue, and on a loaded machine admission alone
+        // can outlast the two seconds — which turns a token the user pasted into
+        // "continuing without a token". See `GitHubToken.preresolved`.
+        if let cheap = GitHubToken.preresolved(explicit: explicit) { return cheap }
+        // Only `gh auth token` is left. It shells out and blocks in
         // `waitUntilExit()`, so it goes to Dispatch rather than to the cooperative
         // pool a detached task shares (see `offCooperativePool`). The task wrapper
         // stays: it is what `firstResult` races the deadline against, and all it
@@ -2036,7 +2043,7 @@ final class AppListModel {
     private static func beginTestFlightLoad(
         timeout: Duration = .seconds(2)
     ) async -> (inventory: TestFlightInventory, pendingLoader: Task<TestFlightInventory, Never>?) {
-        let loader = Task.detached(priority: .utility) { TestFlightInventory() }
+        let loader = Task.detached(priority: .utility) { await TestFlightInventory.loadOffPool(qos: .utility) }
         if let loaded = await firstResult(of: loader, within: timeout) {
             return (loaded, nil)
         }
@@ -2113,7 +2120,7 @@ final class AppListModel {
         let unread = TestFlightInventory(macRows: [], accessible: false)
         let inventory = mayRead
             ? await Self.firstResult(
-                of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
                 within: .seconds(2)) ?? unread
             : unread
         // Granted, but the store did not open in time or at all: leave the rows as
@@ -2132,7 +2139,7 @@ final class AppListModel {
         guard !targets.isEmpty else { return }
         let announcements: TestFlightAnnouncements? = mayRead
             ? await Self.firstResult(
-                of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                of: Task.detached(priority: .userInitiated) { await TestFlightAnnouncements.loadOffPool() },
                 within: .seconds(2))
             : nil
         let signedIn: Bool? = mayRead ? await AppStoreSignIn.current() : nil
@@ -2388,7 +2395,7 @@ final class AppListModel {
         // them again, and they say they cannot tell (`ScanRowAssembly.roundPlan`,
         // below).
         let tfLoader: Task<TestFlightInventory, Never>? =
-            allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
+            allowTestFlight ? Task.detached(priority: .utility) { await TestFlightInventory.loadOffPool(qos: .utility) } : nil
         if allowTestFlight { testFlightReadThisSession = true }
 
         // The refresh button is the one intent that asks TestFlight to sync
@@ -2534,7 +2541,7 @@ final class AppListModel {
         // what that store says, and it sits in another app's container too.
         let announcements: TestFlightAnnouncements? = mayReadTestFlight
             ? await Self.firstResult(
-                of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                of: Task.detached(priority: .userInitiated) { await TestFlightAnnouncements.loadOffPool() },
                 within: .seconds(2))
             : nil
         // Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read only
@@ -2629,13 +2636,13 @@ final class AppListModel {
             Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")
             if outcome.storeChanged,
                let synced = await Self.firstResult(
-                   of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                   of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
                    within: .seconds(2)),
                synced.accessible {
                 let targets = AppScanner.applyingTestFlightInventory(synced, to: checkable)
                     .filter(\.isTestFlightApp)
                 let syncedAnnouncements = await Self.firstResult(
-                    of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                    of: Task.detached(priority: .userInitiated) { await TestFlightAnnouncements.loadOffPool() },
                     within: .seconds(2))
                 let resync = UpdateChecker(
                     sources: makeSources(token: token),
@@ -2902,13 +2909,17 @@ final class AppListModel {
         // The scanner's default reads TestFlight's store — not when that read
         // cannot succeed (`mayReadTestFlightStore`).
         let readsTestFlight = mayReadTestFlightStore
-        let found = await Task.detached(priority: .userInitiated) {
+        // The whole closure off the cooperative pool, not just the TestFlight
+        // read: `AppScanner.scan()` is synchronous to the bottom and bounded the
+        // same way (see `BoundedBlockingWork`), so a detached task here parks a
+        // cooperative thread for as long as the app-data gate goes unanswered.
+        let found = await offCooperativePool(qos: .userInitiated) {
             AppScanner(
                 extraLocations: extraScan,
                 testflight: readsTestFlight
                     ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
             ).scan()
-        }.value
+        }
         results = sorted(mergeScanned(found))
         await computeRestartInfo()
         await computeSelfUpdateStaging()
@@ -6500,13 +6511,14 @@ final class AppListModel {
         let extraScan = prefs.customScanLocations
         // Same gate as `refreshLocal`: the scanner's default reads TestFlight's store.
         let readsTestFlight = mayReadTestFlightStore
-        let found = await Task.detached(priority: .utility) {
+        // Off the cooperative pool for the reason `refreshLocal` gives.
+        let found = await offCooperativePool(qos: .utility) {
             AppScanner(
                 extraLocations: extraScan,
                 testflight: readsTestFlight
                     ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
             ).scan()
-        }.value
+        }
         let mergedByID = Dictionary(
             mergeScanned(found).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var next = results
@@ -6791,7 +6803,7 @@ final class AppListModel {
             mayRead: mayReadTestFlightStore,
             read: {
                 await Self.firstResult(
-                    of: Task.detached(priority: .userInitiated) { TestFlightInventory() },
+                    of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
                     within: .seconds(2))
             },
             proofs: ResolvedChannelStore.Snapshot(),
@@ -6802,7 +6814,7 @@ final class AppListModel {
                 // unless the store was.
                 let announcements: TestFlightAnnouncements? = testflight.accessible
                     ? await Self.firstResult(
-                        of: Task.detached(priority: .userInitiated) { TestFlightAnnouncements() },
+                        of: Task.detached(priority: .userInitiated) { await TestFlightAnnouncements.loadOffPool() },
                         within: .seconds(2))
                     : nil
                 let signedIn: Bool? = testflight.accessible ? await AppStoreSignIn.current() : nil

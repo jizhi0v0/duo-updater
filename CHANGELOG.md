@@ -23,6 +23,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The Requests window now shows how far back its log actually reaches, and marks date ranges it can't fully cover.** Before, picking "Last 30 days" on a log that only went back a few hours looked exactly like picking "Last 24 hours," with nothing on screen explaining why.
 
+**TestFlight betas no longer wait for you to press Refresh.** When TestFlight installed a beta in the background, its row showed a question mark until the next manual refresh — and a build TestFlight had not installed yet could go unnoticed while the row said the beta was up to date. Duo Updater now checks with TestFlight on its own when a row needs it.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

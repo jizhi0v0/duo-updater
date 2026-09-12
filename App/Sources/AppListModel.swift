@@ -2115,6 +2115,88 @@ final class AppListModel {
         Log.app.notice("permissions: Full Disk Access \(mayRead ? "granted" : "missing", privacy: .public) while running — re-checked \(rechecked.count, privacy: .public) TestFlight rows")
     }
 
+    /// What earlier rounds in this process already spent a TestFlight sync on
+    /// (#539). Per-process by design — see `TestFlightSyncPolicy.Ledger`, which
+    /// explains why the durable half of the question is TestFlight's own write-ahead
+    /// log date rather than anything we persist.
+    @ObservationIgnored private var testFlightSyncLedger = TestFlightSyncPolicy.Ledger()
+
+    /// The sync running right now, automatic or the button's — **one for the app**,
+    /// not one per round.
+    ///
+    /// An automatic sync outlives the round that started it, so without a gate that
+    /// both paths share, a round beginning moments later would read a store nothing
+    /// has written yet and start a second hidden TestFlight against the same
+    /// evidence, and a click would start a third beside them. `Ledger.begin` covers
+    /// the floor's arithmetic; this covers the overlap. The button *joins* whatever
+    /// is here; an automatic round steps aside for it.
+    @ObservationIgnored private var testFlightSyncTask: Task<TestFlightRefresh.Outcome, Never>?
+
+    /// Start a sync the user did not ask for, **without holding the round**.
+    ///
+    /// The button's sync is awaited because the user is watching for that answer, and
+    /// it is started before the scan so it overlaps one. An automatic one is neither:
+    /// it is decided from the check's own output, so awaiting it would add its whole
+    /// wait — up to `TestFlightRefresh.defaultDeadline` — to the moment every app's
+    /// verdict is published, TestFlight rows and everything else alike. Instead the
+    /// round publishes on time and the beta rows correct themselves afterwards
+    /// through `recheckTestFlightRows`, the same path a Full Disk Access grant
+    /// mid-session already uses.
+    private func startAutomaticTestFlightSync(for evidence: [TestFlightSyncPolicy.Evidence]) {
+        let started = Task.detached(priority: .utility) { await TestFlightRefresh().run() }
+        testFlightSyncTask = started
+        testFlightSyncLedger.begin(at: .now)
+        Task { @MainActor [weak self] in
+            // Bounded, and the bound is not `run`'s own: `run` is bounded internally
+            // by `defaultDeadline`, but the launch it awaits first is not, so a
+            // LaunchServices that never answers would leave the gate above closed for
+            // the rest of the session and silently retire automatic syncs altogether.
+            // Comfortably past the deadline, so this only ever catches a stuck launch
+            // and never a slow store.
+            let outcome = await Self.firstResult(
+                of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
+            guard let self else { return }
+            if self.testFlightSyncTask == started { self.testFlightSyncTask = nil }
+            guard let outcome else {
+                Log.app.error("TestFlight sync: the attempt never returned — automatic syncs stay armed")
+                return
+            }
+            self.testFlightSyncLedger.finish(evidence, ran: outcome.testFlightRan, at: .now)
+            Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public) (automatic)")
+            guard outcome.storeChanged else { return }
+            // Let any round in flight publish FIRST. Launching TestFlight rebuilds
+            // its store, and for a few seconds the tester query answers nothing
+            // (#518: 89 → 0 → 89 over about 6.9s). A round that read the store inside
+            // that window is carrying "not testing this beta" for every row and has no
+            // post-sync re-check of its own, since the gate above kept it from
+            // starting one. Repairing before it publishes loses the repair:
+            // `CheckRoundWriteBack.publishing(changedSince:)` protects rows that
+            // differ from the round's baseline, and a repair that restores a row to
+            // exactly its baseline value is not a difference.
+            //
+            // Awaited here rather than inside `recheckTestFlightRows`, which is shared
+            // with the Full Disk Access path and is reached from callers that must not
+            // wait on a round. This task is never the round itself — the round starts
+            // it and moves on — so there is nothing to deadlock against.
+            if let round = self.refreshTask { await round.value }
+            await self.recheckTestFlightRows()
+        }
+    }
+
+    /// One log line for why a round is about to start a hidden TestFlight. Names the
+    /// apps for `staleStore`, because "the store is behind" without saying behind
+    /// what is the kind of line that reads as noise the next time someone is
+    /// debugging this.
+    private static func describe(_ reason: TestFlightSyncPolicy.Reason) -> String {
+        switch reason {
+        case .staleStore(let evidence):
+            let named = evidence.map { "\($0.bundleID) @\($0.installedBuild)" }.joined(separator: ", ")
+            return "the store cannot bound \(evidence.count) row(s): \(named)"
+        case .floor:
+            return "nothing has written the store in \(Int(TestFlightSyncPolicy.floorInterval / 3600))h"
+        }
+    }
+
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
@@ -2220,8 +2302,10 @@ final class AppListModel {
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
 
-        // The refresh button, and only the button, also asks TestFlight to sync —
-        // in a hidden instance of our own; see `TestFlightRefresh`. Started here,
+        // The refresh button is the one intent that asks TestFlight to sync
+        // unconditionally — in a hidden instance of our own; see `TestFlightRefresh`.
+        // A round of any intent can still earn one further down, from what the check
+        // saw (`TestFlightSyncPolicy`). Started here,
         // before the scan, and awaited only after the network check, because its
         // wait is long and unrelated to everything else here: a store that never
         // moves holds it for the whole `TestFlightRefresh.defaultDeadline`. Awaited
@@ -2236,13 +2320,42 @@ final class AppListModel {
         // re-check after the sync, some fourteen seconds later. Bounded like the
         // round's own wait on that read, so a read that never returns cannot hold
         // the sync, and with it the round, hostage.
-        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>? =
-            intent.refreshesTestFlight && mayReadTestFlight
-            ? Task.detached(priority: .utility) { [tfLoader] in
-                if let tfLoader { _ = await Self.firstResult(of: tfLoader, within: .seconds(2)) }
-                return await TestFlightRefresh().run()
+        //
+        // One sync at a time for the whole app, not one per round. An automatic sync
+        // outlives the round that started it (it is deliberately not awaited), so a
+        // click landing seconds later would otherwise start a SECOND hidden
+        // TestFlight beside it — two instances launched with
+        // `createsNewApplicationInstance`, writing one Core Data store, each one's
+        // settle detection watching the other's writes. The button joins the running
+        // attempt instead: it is the same operation against the same store, so
+        // waiting on it gives the user the same answer sooner than a fresh launch
+        // would.
+        let testFlightSync: Task<TestFlightRefresh.Outcome, Never>?
+        if intent.refreshesTestFlight, mayReadTestFlight {
+            if let inFlight = testFlightSyncTask {
+                Log.app.notice("TestFlight sync: joining the attempt already running")
+                testFlightSync = inFlight
+            } else {
+                let started = Task.detached(priority: .utility) { [tfLoader] in
+                    if let tfLoader { _ = await Self.firstResult(of: tfLoader, within: .seconds(2)) }
+                    return await TestFlightRefresh().run()
+                }
+                testFlightSyncTask = started
+                testFlightSync = started
+                // Bounded for the reason `startAutomaticTestFlightSync` is: `run`
+                // bounds its polling but not the launch it awaits first, and a gate
+                // left closed by a stuck launch would silently switch automatic syncs
+                // off for the whole session. The round below still awaits `started`
+                // itself — this only frees the gate.
+                Task { @MainActor [weak self] in
+                    _ = await Self.firstResult(
+                        of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
+                    if self?.testFlightSyncTask == started { self?.testFlightSyncTask = nil }
+                }
             }
-            : nil
+        } else {
+            testFlightSync = nil
+        }
 
         // First scan with no TestFlight data → the list appears instantly, with no
         // wait on the prompt.
@@ -2386,6 +2499,28 @@ final class AppListModel {
         // exactly those betas carry neither yet. The
         // re-read is bounded like the first one, for the same reason — a read that
         // has not returned is a prompt that is still up.
+        // A round that was not given a sync up front can still earn one from what the
+        // check just saw — the store is provably behind for some row, or nothing has
+        // written it in `TestFlightSyncPolicy.floorInterval` (#539). It cannot be
+        // started early, because its evidence IS the check's output; and it is
+        // deliberately not awaited here, so it cannot delay this round's rows.
+        if testFlightSync == nil, allowTestFlight, testflight.accessible, testFlightSyncTask == nil {
+            let evidence = TestFlightSyncPolicy.evidence(
+                in: checkable, inventory: testflight, announcements: announcements)
+            if let reason = TestFlightSyncPolicy.reason(
+                evidence: evidence,
+                storeStamp: TestFlightRefresh.storeStamp(),
+                ledger: testFlightSyncLedger,
+                now: .now
+            ) {
+                // "due", not "starting one": `run` returns before spawning anything
+                // when there is no account to fetch for or no TestFlight to launch,
+                // and a line claiming a hidden TestFlight was started is exactly the
+                // diagnostic someone would read to decide whether that happens.
+                Log.app.notice("TestFlight sync: due — \(Self.describe(reason), privacy: .public)")
+                startAutomaticTestFlightSync(for: evidence)
+            }
+        }
         if let testFlightSync {
             let outcome = await testFlightSync.value
             Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")

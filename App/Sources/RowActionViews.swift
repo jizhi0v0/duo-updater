@@ -147,6 +147,7 @@ struct WorkbenchRowAction: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                 Text("Relaunching…").font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
         case .pendingBatchRestart:
@@ -338,6 +339,13 @@ struct WorkbenchRowAction: View {
             // License-boundary warning lives in the popover; don't one-click it here.
             Label("Major update", systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange)
+                // Same overflow protection its `.macIncompatible` /
+                // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
+                // the catalog's longest translation of it is es "Actualización
+                // importante" (24 characters, drawn at `.callout`). UNMEASURED
+                // against a real row: this is the protection every sibling label
+                // has, not a fix for a width somebody measured overflowing.
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Major version upgrade — review and install it from the menu-bar popover")
 
         case .autoInstall:
@@ -462,6 +470,7 @@ struct WorkbenchRowAction: View {
             } else {
                 ProgressView().controlSize(.small)
                 Text(installStageLabel(stage)).font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
     }

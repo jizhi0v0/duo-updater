@@ -1176,9 +1176,11 @@ private struct DetailHeader: View {
                 let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             } else {
                 Text("v\(result.installedDisplay ?? "?") · up to date")
                     .font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
         }
     }

@@ -239,15 +239,32 @@ private let declaredFeed = "https://zzfixture.example.test/appcast.xml"
     #expect(verdict == .declared(URL(string: declaredFeed)!))
 }
 
-@Test func aDeclaredFeedThatDidNotAnswerIsNotReadAsAllTagged() {
-    // "No untagged item" is vacuously true of zero items. Mutation: drop the
-    // `!feedItems.isEmpty` guard → every offline run flags every declared app, red.
+@Test func aDeclaredFeedThatDidNotAnswerSaysSoRatherThanClaimingCoverage() {
+    // Zero items means the channel check did not run, so neither `.declared`
+    // (checked, fine) nor `.declaredNeedsBinding` (checked, starved) is true.
+    // Mutation: drop the empty guard → "no untagged item" is vacuously true of
+    // zero items → `.declaredNeedsBinding`, red. Mutation: return `.declared`
+    // from it (the behaviour before this case existed) → red.
     #expect(!ChannelBinding.hasResolver(bundleID: unboundID))
     let verdict = FeedDiscovery.decide(
         probe(id: unboundID, marketing: "0.3.6", build: "47",
               candidate: nil, declared: declaredFeed),
         feedItems: [])
-    #expect(verdict == .declared(URL(string: declaredFeed)!))
+    #expect(verdict == .declaredUnreadable(URL(string: declaredFeed)!))
+}
+
+@Test func aBindingDoesNotVouchForADeclaredFeedNobodyRead() throws {
+    // A tag-only binding — CodeEdit's names `dev` and nothing else — still has
+    // production read exactly the declared address, so an unread feed is
+    // unread whether or not a binding exists. Mutation: ask the binding before
+    // the empty guard → `.declared` ("already resolves this app") for a feed
+    // nobody read, red.
+    let id = BetterDisplayChannel.bundleID
+    try #require(ChannelBinding.hasResolver(bundleID: id))
+    let verdict = FeedDiscovery.decide(
+        probe(id: id, marketing: "1.0", build: "1", candidate: nil, declared: declaredFeed),
+        feedItems: [])
+    #expect(verdict == .declaredUnreadable(URL(string: declaredFeed)!))
 }
 
 // MARK: - the address gates

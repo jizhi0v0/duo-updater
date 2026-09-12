@@ -167,8 +167,9 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 
 | Verdict | What it means | What to do |
 |---------|---------------|------------|
-| `declared` | Bundle names its own `SUFeedURL`, and the feed has a default (untagged) item or a `ChannelBinding` already exists for this id — **or the feed did not answer, and the channel was never checked** (see item 2 below); `SparkleAppcastSource` resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
+| `declared` | Bundle names its own `SUFeedURL`, the feed answered, and either a `ChannelBinding` already exists for this id or the feed has a default (untagged) item; `SparkleAppcastSource` resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
 | `NEEDS BINDING` | Bundle names its own `SUFeedURL`, but **every** item in it carries `<sparkle:channel>` and no `ChannelBinding` exists. The address resolves; the channel filter then admits nothing for an install the feed no longer lists | **Do not stop.** No recipe either: write a `ChannelBinding` whose resolver names the tag(s) in `sparkleChannelNames` (the `BetterDisplayChannel` route) |
+| `UNREADABLE` | Bundle names its own `SUFeedURL`, but the feed answered with no appcast item (fetch failed, non-2xx, or nothing parsed) — nothing about it was checked. Reported even when a `ChannelBinding` exists: a tag-only binding (CodeEdit's) still reads exactly this address | **Do not stop.** Re-run; if it persists, `curl` the feed. A dead declared feed means `SparkleAppcastSource` resolves nothing for this app — unless its binding swaps in a different feed (Fork), in which case check that one instead |
 | `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP**, unless you need a page/changelog link — the generic source carries neither |
 | `ADOPT` (sparkle) | Address found in code and proved against the bundle | Propose a `SparkleFeedCatalog` entry, not a recipe |
 | `review <blocker>` | The blocker names the reason | Continue the audit; the blocker tells you what to investigate |
@@ -190,10 +191,9 @@ one look identical from outside. Three of them, one avoidable read.
    publish one feed per track? See Phase "channels" below. ⚠️ A feed where EVERY
    item is tagged has no default channel, and a stable install then matches zero
    items (measured: OrbStack 7/7 tagged, ClaudeUsageMenuBar 20/20). With no
-   `ChannelBinding`, `feed-discover` reports that shape as `NEEDS BINDING`, not
-   `declared` — **but only when the feed answered**: an unreachable feed has no
-   items to check and still prints `declared`, so if the run was offline or the
-   host is flaky, `curl` the feed and look for an untagged `<item>` yourself.
+   `ChannelBinding`, `feed-discover` reports that shape as `NEEDS BINDING`. A feed
+   it could not read is `UNREADABLE` whether or not a binding exists. Neither
+   prints as `declared`.
    Seeing your installed build in the feed does not clear it: CodeEdit
    (2026-09-12) publishes one item per release, tagged `dev`, so the copy you
    just downloaded matches and an install one version behind matches nothing.

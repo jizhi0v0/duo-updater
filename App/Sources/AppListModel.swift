@@ -1796,7 +1796,7 @@ final class AppListModel {
         changelogRevalidated = changelogRevalidated.filter { $0.bundleID != bundleID }
         // Clear the network cache for every channel variant (Stable & ESR share this
         // bundle id but have different sources; Warp's three channels share one
-        // endpoint but get distinct channel-fragmented cache slots), since we don't
+        // endpoint but get distinct recipe-fragmented cache slots), since we don't
         // know here which channel's notes were cached.
         let recipes = ChangelogRecipeRegistry.recipes(forBundleID: bundleID)
         if !recipes.isEmpty {

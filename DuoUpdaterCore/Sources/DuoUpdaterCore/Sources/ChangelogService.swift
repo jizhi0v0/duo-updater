@@ -38,9 +38,10 @@ public enum ChangelogService {
         // URL so different versions never serve each other's notes.
         let resolved = recipe.resolvedSource(forVersion: version)
         // Delegate to the cache's fetch-through helper, which handles hit, miss,
-        // and concurrent-miss coalescing in one place. Structured recipes that pack
-        // every channel into one endpoint (Warp) get a per-channel cache key so the
-        // channels don't serve each other's notes from this shared slot.
+        // and concurrent-miss coalescing in one place. The key carries the recipe's
+        // identity as well as the page, so recipes that share one endpoint (Warp's
+        // three channels; Antigravity's two products) never serve each other's
+        // notes out of a shared slot.
         let cacheURL = cacheKeyURL(for: recipe, resolved: resolved)
         let diskCacheKey = diskKey(for: recipe, version: version)
         return await ChangelogCache.shared.load(for: cacheURL) {
@@ -211,8 +212,8 @@ public enum ChangelogService {
     }
 
     /// Drop every in-memory ``ChangelogCache`` slot this recipe could occupy: the
-    /// plain resolved page URL plus, for structured per-channel recipes (Warp), the
-    /// channel-fragmented key (`…#stable`). Called after an app updates on disk so the
+    /// plain resolved page URL plus the recipe-fragmented key
+    /// (`…#changelog%3Acom%2E…`). Called after an app updates on disk so the
     /// next open re-fetches fresh notes instead of serving the prior version's from
     /// the still-warm in-memory cache.
     public static func invalidateMemoryCache(for recipe: ChangelogRecipe) async {
@@ -233,14 +234,29 @@ public enum ChangelogService {
         return await ChangelogDiskCache.shared.get(for: key)
     }
 
-    /// The in-memory cache slot for a recipe. Normally just the resolved page URL,
-    /// but structured recipes whose channels share one endpoint (Warp's
-    /// `channel_versions.json`) append the channel as a fragment so each channel
-    /// owns a distinct slot — the fragment never reaches the network (we always
-    /// fetch the un-fragmented `resolved`).
+    /// The in-memory cache slot for a recipe: the resolved page URL with the
+    /// recipe's own identity appended as a fragment, so no two recipes can land in
+    /// the same slot. The fragment never reaches the network — `load` always
+    /// fetches the un-fragmented `resolved`.
+    ///
+    /// The identity is folded in for EVERY recipe, not just the structured
+    /// per-channel ones this started out covering (Warp's `channel_versions.json`).
+    /// One page can carry several products as easily as several channels:
+    /// Antigravity's hub and IDE are two regex recipes with no channel reading two
+    /// panels of one `antigravity.google/changelog`, and on the bare page URL they
+    /// shared a slot — whichever detail window opened first served its releases to
+    /// the other app for a TTL window, and the loser, short-circuited before the
+    /// fetch closure, wrote no disk cache entry and recorded no `RecipeHealth`
+    /// outcome either.
+    ///
+    /// `recipeID` (not the bundle id) because two recipes for one bundle id and
+    /// channel that differ only in their version window are also distinct readers
+    /// of distinct pages — it is the same identity the health store and `duo
+    /// verify`'s baseline key on. Percent-encoded so the fragment can't fail to
+    /// parse: a nil `URL(string:)` here would silently reinstate the collision.
     static func cacheKeyURL(for recipe: ChangelogRecipe, resolved: URL) -> URL {
-        guard recipe.structuredFormat != nil else { return resolved }
-        let token = recipe.channel?.rawValue ?? "default"
+        let token = recipe.recipeID
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? recipe.recipeID
         return URL(string: resolved.absoluteString + "#" + token) ?? resolved
     }
 

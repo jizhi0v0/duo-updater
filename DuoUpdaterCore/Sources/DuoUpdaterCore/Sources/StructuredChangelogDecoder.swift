@@ -680,6 +680,18 @@ public enum StructuredChangelogDecoder {
               let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
         else { return nil }
 
+        // Compiled once for the whole feed, not once per release: a GitHub page is
+        // 40 releases and the pattern is the same for every one of them. An
+        // unusable pattern returns nil here for the same reason it used to skip
+        // every release and fall out of the loop with no entries.
+        let tagRegex: NSRegularExpression?
+        if let tagPattern {
+            guard let compiled = try? NSRegularExpression(pattern: tagPattern) else { return nil }
+            tagRegex = compiled
+        } else {
+            tagRegex = nil
+        }
+
         let wantsPrerelease = channel != nil && channel != .stable
         // A stable channel never sees previews. A non-stable one sees previews,
         // plus — where the vendor's previews graduate into the same numbering
@@ -696,8 +708,8 @@ public enum StructuredChangelogDecoder {
             // one, every row is this app's and the tag IS the version — the shape
             // every recipe before Cline relies on. See `ChangelogRecipe.tagPattern`.
             let version: String
-            if let tagPattern {
-                guard let captured = taggedVersion(release.tagName, pattern: tagPattern)
+            if let tagRegex {
+                guard let captured = taggedVersion(release.tagName, regex: tagRegex)
                 else { continue }
                 version = captured
             } else {
@@ -716,17 +728,16 @@ public enum StructuredChangelogDecoder {
         return Changelog(entries: entries, itemSyntax: .markdown)
     }
 
-    /// This app's version as `pattern` reads it out of `tag`, or nil when the tag
+    /// This app's version as `regex` reads it out of `tag`, or nil when the tag
     /// belongs to another product in the same repo.
     ///
     /// Capture group 1 is the version when the pattern has one; a group-less
     /// pattern is a pure filter and the tag is read the unfiltered way. Anchoring
     /// is the caller's job — `NSRegularExpression` matches anywhere, so an
     /// unanchored `desktop-v(...)` would also accept `preview-desktop-v1.2.3`.
-    private static func taggedVersion(_ tag: String, pattern: String) -> String? {
-        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+    private static func taggedVersion(_ tag: String, regex: NSRegularExpression) -> String? {
         let range = NSRange(tag.startIndex..., in: tag)
-        guard let m = re.firstMatch(in: tag, range: range) else { return nil }
+        guard let m = regex.firstMatch(in: tag, range: range) else { return nil }
         guard m.numberOfRanges > 1, let g = Range(m.range(at: 1), in: tag)
         else { return stripLeadingV(tag) }
         return String(tag[g])
@@ -972,7 +983,12 @@ public enum StructuredChangelogDecoder {
                     blocks.append(.note(t))
                     items.append(t)
                 }
-                for line in (feature.content ?? "").split(separator: "\n") {
+                // `whereSeparator`, not `separator: "\n"` — see `postmanItems` and
+                // `bulletItems`: Swift treats "\r\n" as one Character that does not
+                // equal "\n", so a CRLF body comes back as a single giant line and
+                // every note after the first silently disappears.
+                for line in (feature.content ?? "")
+                    .split(omittingEmptySubsequences: true, whereSeparator: { $0.isNewline }) {
                     let s = line.trimmingCharacters(in: .whitespaces)
                     if s.isEmpty { continue }
                     if let url = imageURL(inMarkdownLine: s) {

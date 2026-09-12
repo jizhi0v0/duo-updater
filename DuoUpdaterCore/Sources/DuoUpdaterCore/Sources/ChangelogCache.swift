@@ -8,9 +8,12 @@ import Foundation
 /// Entries expire after ``ttl`` seconds so the window always reflects recent
 /// releases rather than a session-long snapshot.
 ///
-/// Keyed on the recipe's canonical `source` URL so each recipe owns exactly one
-/// cache slot, regardless of the per-run resolved detail URL (index redirects
-/// don't inflate the key space). The cache stores parsed ``Changelog`` values —
+/// Keyed on the recipe's canonical `source` URL plus the recipe's own identity as
+/// a fragment (``ChangelogService/cacheKeyURL(for:resolved:)``), so each recipe
+/// owns exactly one cache slot and no two recipes share one — several recipes can
+/// read one page (Warp's three channels, Antigravity's two products). The per-run
+/// resolved detail URL stays out of it, so index redirects don't inflate the key
+/// space. The cache stores parsed ``Changelog`` values —
 /// not raw HTML — so it carries no ambiguity about what `nil` means.
 ///
 /// Concurrent callers requesting the same URL while a fetch is in-flight are

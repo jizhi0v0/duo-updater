@@ -65,8 +65,16 @@ import Foundation
     /// `headingPattern` set. Pinned by the new heading-specific tests in
     /// `GitHubMarkdownParserTests.swift` and
     /// `MacPerformanceMonitorChangelogRecipeTests.swift` instead.
+    ///
+    /// 4 (single-pass HTML entity decoding; Typeless's CRLF split) moves neither
+    /// fixture either — and here that is the point rather than a coincidence: both
+    /// fixtures are checked below and stayed byte-identical, which is what says the
+    /// rewrite changed only the cases it was meant to. What it does change lives in
+    /// `ChangelogEntityDecodingTests` (a double-escaped entity, which used to
+    /// decode differently from launch to launch) and
+    /// `typelessDecodeSplitsCRLFBodiesIntoSeparateNotes`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 3)
+        #expect(Changelog.parserGeneration == 4)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

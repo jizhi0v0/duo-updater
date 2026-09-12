@@ -207,6 +207,28 @@ import DuoUpdaterCore
         let body = #"{"version":"1.2.3"}"#
         #expect(ResponseSample.condense(body, limit: 4096, pattern: nil) == body)
     }
+
+    /// `limit` is `maxSampleBytes` and the note says "bytes elided", but the head
+    /// and tail were taken with `String.prefix`/`suffix`, which count Characters.
+    /// On a CJK page that is 3 bytes each: a 1 200-byte cap kept ~3 600 bytes, and
+    /// the elided count it reported was the one it would have dropped had the cap
+    /// been honoured. Both halves of the promise are checked here — what is kept,
+    /// and what the sample claims about what is gone.
+    @Test func theSampleIsCappedInBytesAndReportsTheBytesItActuallyDropped() throws {
+        let body = String(repeating: "中", count: 5_000)  // 5 000 Characters, 15 000 bytes
+        let limit = 1_200
+        let sample = ResponseSample.condense(body, limit: limit, pattern: nil)
+
+        let note = try #require(
+            sample.range(of: #"\n…\[\d+ bytes elided\]…\n"#, options: .regularExpression))
+        let reported = try #require(Int(sample[note].filter(\.isNumber)))
+        let kept = sample.replacingCharacters(in: note, with: "")
+
+        #expect(kept.utf8.count <= limit)
+        #expect(reported == body.utf8.count - kept.utf8.count)
+        // A multi-byte character is never split down the middle.
+        #expect(kept.allSatisfy { $0 == "中" })
+    }
 }
 
 /// A suggestion in an issue is read weeks later, when the only thing that says

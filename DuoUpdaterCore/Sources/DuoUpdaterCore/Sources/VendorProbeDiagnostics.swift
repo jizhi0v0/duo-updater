@@ -197,7 +197,7 @@ public enum ProbeWarning: Sendable, Equatable {
     /// this one says the vendor was having a bad minute. `td.telegram.org`
     /// intermittently 502s the HEAD that resolves Telegram's download, which made
     /// a healthy recipe file issues against itself. The same 5xx/429-is-not-our-
-    /// fault rule already governs version probes (see `ProbeFailure.category`).
+    /// fault rule already governs version probes (see `ProbeFailure.classification`).
     case installURLTransient(status: Int?)
     /// The installer URL resolved to a well-formed URL that the vendor no longer
     /// serves — a 4xx that survived a `Range: bytes=0-0` GET retry.
@@ -414,7 +414,6 @@ public enum ResponseSample {
     public static func condense(_ text: String, limit: Int, pattern: String? = nil) -> String {
         let trimmed = stripBoilerplate(text)
         guard trimmed.utf8.count > limit else { return trimmed }
-        let elided = trimmed.utf8.count - limit
 
         if let pattern, let window = windowAroundAnchor(in: trimmed, pattern: pattern, limit: limit) {
             return window
@@ -422,11 +421,46 @@ public enum ResponseSample {
         // No pattern, or none of its literal anchors survive in the body. The
         // second case is itself worth stating — it means the markup the recipe
         // was written against is gone entirely, not merely rearranged.
+        //
+        // Head and tail are measured in BYTES, because `limit` is `maxSampleBytes`
+        // and the note says "bytes". `prefix`/`suffix` count Characters, so on a
+        // CJK page — three bytes each — a 4 KB cap kept 12 KB and the count the
+        // note reported was the one it would have dropped had the cap held.
+        let head = prefixBytes(of: trimmed, limit * 3 / 4)
+        let tail = suffixBytes(of: trimmed, limit / 4)
+        let elided = trimmed.utf8.count - head.utf8.count - tail.utf8.count
         let note = pattern == nil
             ? "\n…[\(elided) bytes elided]…\n"
             : "\n…[\(elided) bytes elided; none of the pattern's literal anchors "
                 + "appear anywhere in the body]…\n"
-        return String(trimmed.prefix(limit * 3 / 4)) + note + String(trimmed.suffix(limit / 4))
+        return head + note + tail
+    }
+
+    /// The longest leading run of `text` that fits in `bytes` UTF-8 bytes, cut on a
+    /// Character boundary (never mid-character, and never mid-grapheme).
+    static func prefixBytes(of text: String, _ bytes: Int) -> String {
+        var out = ""
+        var used = 0
+        for character in text {
+            let width = String(character).utf8.count
+            if used + width > bytes { break }
+            out.append(character)
+            used += width
+        }
+        return out
+    }
+
+    /// The trailing counterpart of `prefixBytes`.
+    static func suffixBytes(of text: String, _ bytes: Int) -> String {
+        var tail: [Character] = []
+        var used = 0
+        for character in text.reversed() {
+            let width = String(character).utf8.count
+            if used + width > bytes { break }
+            tail.append(character)
+            used += width
+        }
+        return String(tail.reversed())
     }
 
     /// Centre the sample on the most distinctive literal the pattern expects to

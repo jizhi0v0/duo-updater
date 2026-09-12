@@ -424,19 +424,54 @@ public struct GitHubReleasesSource: UpdateSource {
     public let name = "GitHub"
 
     /// A GitHub fetch that failed in a way worth retrying (vs. simply not
-    /// applying). 403/429 are almost always the unauthenticated 60/hour limit.
+    /// applying).
     enum GitHubError: LocalizedError {
         case badStatus(Int)
+        /// The budget-exhausted subset of 403/429 — see `statusError(_:rateLimitRemaining:)`
+        /// for which 403s qualify. Split out because the OTHER 403s (a repo gone
+        /// private, deleted, or renamed away; a token whose scopes don't cover it)
+        /// are not waiting-out-the-hour problems: reported as the rate limit they
+        /// drove a banner telling the user to add a token, which is advice that
+        /// cannot work, on a row that will still be broken in an hour.
+        case rateLimited(Int)
+
+        /// The status either case carries, so a caller that only needs the code
+        /// doesn't have to know which one it got.
+        var statusCode: Int {
+            switch self {
+            case .badStatus(let code), .rateLimited(let code): return code
+            }
+        }
+
         var errorDescription: String? {
             switch self {
-            case .badStatus(403), .badStatus(429):
+            case .rateLimited:
                 // The phrase "rate limit" is the contract `UpdateStatus.isRateLimitError`
-                // matches on to drive the rate-limit UI nudges — keep it in the string.
+                // matches on to drive the rate-limit UI nudges — keep it in the string,
+                // and keep it OUT of the other case's.
                 return "GitHub rate limit reached — retry shortly"
+            case .badStatus(403):
+                return "GitHub returned 403 (forbidden) — repo private, removed, or token lacks scope"
             case .badStatus(let code):
                 return "GitHub returned HTTP \(code)"
             }
         }
+    }
+
+    /// Which error a non-2xx status becomes.
+    ///
+    /// 429 is always the limit. A 403 is the limit only when the response says the
+    /// budget is gone: `X-RateLimit-Remaining: 0`, or no such header at all —
+    /// GitHub omits it on rejections that never reached the API, and "no evidence"
+    /// must not silently become "not rate limited", which is the one case where the
+    /// nudge is the whole explanation. A 403 arriving with budget left is an access
+    /// problem and says so.
+    static func statusError(_ code: Int, rateLimitRemaining: String?) -> GitHubError {
+        guard code == 403 else { return code == 429 ? .rateLimited(code) : .badStatus(code) }
+        guard let remaining = rateLimitRemaining, let left = Int(remaining) else {
+            return .rateLimited(code)
+        }
+        return left <= 0 ? .rateLimited(code) : .badStatus(code)
     }
 
     /// Keyed by bundle id → the rules for that id, one per release channel.
@@ -767,12 +802,20 @@ public struct GitHubReleasesSource: UpdateSource {
     /// the hour's budget ran out. Let those reach `resolveDiagnostic`'s existing
     /// mapping, which already sorts a status code into infra vs recipe. What this
     /// returns is only the failures that ARE about this mechanism.
+    ///
+    /// `list` is the page this probe fetched, handed back so `resolveDiagnostic`
+    /// can give it to `resolve` instead of asking GitHub for the identical URL a
+    /// second time. Returned rather than cached because the page is only reusable
+    /// for a rule that reads the list endpoint at all (`usePrereleases`), and that
+    /// condition belongs to the caller.
     func channelDiscoveryProbe(
         _ rule: GitHubReleaseRule
-    ) async throws -> (failure: ProbeFailure?, provenVersion: String?, tags: [String]) {
-        guard let prefix = rule.installedTagPrefix else { return (nil, nil, []) }
+    ) async throws -> (
+        failure: ProbeFailure?, provenVersion: String?, tags: [String], list: [Release]
+    ) {
+        guard let prefix = rule.installedTagPrefix else { return (nil, nil, [], []) }
         guard let list = try await fetchReleases(rule, list: true) else {
-            return (.channelDiscoveryBroken("could not fetch the releases list"), nil, [])
+            return (.channelDiscoveryBroken("could not fetch the releases list"), nil, [], [])
         }
         let tags = list.map(\.tag)
         guard let newest = list.first(where: { release in
@@ -785,7 +828,7 @@ public struct GitHubReleasesSource: UpdateSource {
         else {
             return (.channelDiscoveryBroken(
                 "no release tag matched the version pattern, so no exact tag can be built"),
-                nil, tags)
+                nil, tags, list)
         }
 
         let tag = prefix + version
@@ -795,20 +838,20 @@ public struct GitHubReleasesSource: UpdateSource {
             // an install on this version".
             return (.channelDiscoveryBroken(
                 "exact-tag lookup for \(tag) returned nothing — an install on this version could not be classified"),
-                nil, tags)
+                nil, tags, list)
         }
         guard exact.hasExplicitReleaseState else {
             return (.channelDiscoveryBroken(
                 "\(tag) no longer carries both `prerelease` and `draft`; channel identification reads those fields"),
-                nil, tags)
+                nil, tags, list)
         }
         guard VendorProbeRecipe.extractVersion(
             from: exact.tag, pattern: rule.versionPattern) == version
         else {
             return (.channelDiscoveryBroken(
-                "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags)
+                "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags, list)
         }
-        return (nil, version, tags)
+        return (nil, version, tags, list)
     }
 
     /// Host parameters are injectable for the architecture-only diagnostic
@@ -843,16 +886,26 @@ public struct GitHubReleasesSource: UpdateSource {
             // and let the anchor for the line-anchored resolve below come out of
             // the same lookup rather than from a hand-maintained constant.
             var anchor = installedVersion
+            var discovered: [Release]?
             if rule.installedTagPrefix != nil {
                 let discovery = try await channelDiscoveryProbe(rule)
                 if let failure = discovery.failure {
                     return outcome(remote: nil, failure: failure, tags: discovery.tags)
                 }
                 anchor = anchor ?? discovery.provenVersion
+                // The probe just fetched the rule's full list page, and for a rule
+                // that takes its releases from the list endpoint that is the very
+                // page `resolve` is about to ask for — same URL, same page size.
+                // Hand it over instead of buying it twice: a conditional GET can't
+                // save the second one, because the list's `ETag` moves whenever an
+                // asset's download counter does. A rule WITHOUT `usePrereleases`
+                // reads `/releases/latest` instead — a different endpoint with a
+                // different answer — so it must still fetch its own.
+                if rule.usePrereleases { discovered = discovery.list }
             }
             let resolved = try await resolve(
                 rule, anchoredTo: anchor, preferring: hostArch,
-                allowingIntelTranslation: canRunIntel)
+                allowingIntelTranslation: canRunIntel, reusingListPage: discovered)
             if let remote = resolved.remote {
                 return outcome(remote: remote, failure: nil, tags: resolved.tags)
             }
@@ -869,8 +922,12 @@ public struct GitHubReleasesSource: UpdateSource {
                 failure: .versionPatternNoMatch(
                     sampleBytes: resolved.tags.joined(separator: "\n").utf8.count),
                 tags: resolved.tags)
-        } catch GitHubError.badStatus(let code) {
-            return outcome(remote: nil, failure: .httpStatus(code), status: code)
+        } catch let status as GitHubError {
+            // Both cases, not just `badStatus`: a rate limit is infrastructure, and
+            // the sweep sorts infra from broken recipes by the status code alone.
+            return outcome(
+                remote: nil, failure: .httpStatus(status.statusCode),
+                status: status.statusCode)
         } catch {
             return outcome(remote: nil, failure: Self.transportFailure(error))
         }
@@ -1046,7 +1103,8 @@ public struct GitHubReleasesSource: UpdateSource {
         list: Bool, tag: String?
     ) throws -> [Release]? {
         guard (200..<300).contains(http.statusCode) else {
-            let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
+            let budget = http.value(forHTTPHeaderField: "X-RateLimit-Remaining")
+            let remaining = budget ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
             // Record the failure too, and record it BEFORE throwing. A 403 is the
             // loudest form of the very problem this audit exists to explain — the
@@ -1065,7 +1123,7 @@ public struct GitHubReleasesSource: UpdateSource {
             // answer on the stable rule — it is the discovery that declines, not
             // the source.
             if tag != nil, http.statusCode == 404 { return nil }
-            throw GitHubError.badStatus(http.statusCode)
+            throw Self.statusError(http.statusCode, rateLimitRemaining: budget)
         }
         let decoded = Self.releases(from: data, list: list)
         // Verification-only bookkeeping: notice a slug that GitHub had to redirect,
@@ -1129,12 +1187,24 @@ public struct GitHubReleasesSource: UpdateSource {
     ///   silent fall back to `.newest` for a rule that asked for an anchor: a
     ///   diagnostic that quietly measured a different algorithm than the one
     ///   users run is the failure mode `resolveDiagnostic` exists to prevent.
+    /// - reusingListPage: a page of this rule's list endpoint the caller already
+    ///   holds (`resolveDiagnostic`, after channel discovery fetched it). Only
+    ///   valid for a rule whose full-page fetch IS the list endpoint; the caller
+    ///   decides that. Given one, the one-row probe is skipped as well — the whole
+    ///   page is already in hand, and the probe exists only to avoid paying for it.
     private func resolve(
         _ rule: GitHubReleaseRule,
         anchoredTo installedVersion: String? = nil,
         preferring hostArch: HostArch = .current,
-        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds,
+        reusingListPage prefetched: [Release]? = nil
     ) async throws -> Resolution {
+        if let prefetched {
+            return try await settle(
+                rule, releases: prefetched, anchoredTo: installedVersion,
+                preferring: hostArch, allowingIntelTranslation: canRunIntel,
+                recordingMisses: true)
+        }
         // One row first, when the rule allows it — see `newestProbeSize(for:)`.
         // A probe that cannot answer is not a recipe miss (the release it wants
         // may simply sit below the newest row), so nothing is recorded against
@@ -1300,7 +1370,14 @@ public struct GitHubReleasesSource: UpdateSource {
                 }
                 let installable = asset?.url != nil && rule.installerKind != nil
 
-                await RecipeHealth.shared.recordSuccess(id: rule.slug, source: name)
+                // `recipeID`, not `slug`: two rules can share one repo (Zed and Zed
+                // Preview, UTM Stable and Beta, GitHub Desktop's two channels), and
+                // under a shared key whichever ran LAST decided the verdict for
+                // both. A Preview rule whose tag pattern had stopped matching was
+                // reported healthy on the strength of its stable sibling's success
+                // while every Preview row went quietly `.unknown` — and the
+                // diagnostics panel is the only surface that says a recipe broke.
+                await RecipeHealth.shared.recordSuccess(id: rule.recipeID, source: name)
                 return Resolution(remote: RemoteVersion(
                     shortVersion: version,
                     version: nil,
@@ -1344,7 +1421,7 @@ public struct GitHubReleasesSource: UpdateSource {
             let tags = skippedForMissingAsset.joined(separator: ", ")
             Log.source.error("GitHub \(rule.slug, privacy: .public): no release carries an asset matching /\(rule.installAssetPattern ?? "", privacy: .public)/ (walked \(tags, privacy: .public))")
             await RecipeHealth.shared.recordMiss(
-                id: rule.slug, source: name,
+                id: rule.recipeID, source: name,
                 detail: "\(skippedForMissingAsset.count) release(s) matched the version pattern but "
                     + "none carried an asset matching the install pattern (\(tags)) — the vendor may "
                     + "have renamed the macOS artifact")
@@ -1355,7 +1432,7 @@ public struct GitHubReleasesSource: UpdateSource {
         // Fetched fine but nothing matched the version pattern — the breakage
         // shape a tag-format change produces. Surface it in diagnostics.
         await RecipeHealth.shared.recordMiss(
-            id: rule.slug, source: name,
+            id: rule.recipeID, source: name,
             detail: "\(releases.count) releases fetched, none matched the version pattern")
         return Resolution(
             remote: nil, tags: releases.map(\.tag), archIncompatible: false)

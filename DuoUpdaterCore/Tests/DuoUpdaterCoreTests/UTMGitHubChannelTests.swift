@@ -254,6 +254,26 @@ struct UTMGitHubChannelTests {
         #expect(probe.provenVersion == "5.0.5")
     }
 
+    /// The diagnostic runs two mechanisms — channel discovery, then the resolve —
+    /// and for a rule that takes its releases from the list endpoint both want the
+    /// SAME page. Fetching it twice doubled this rule's share of the sweep's
+    /// GitHub budget for nothing: a conditional GET cannot save it either, because
+    /// the list's `ETag` moves whenever an asset's download counter does.
+    @Test func theDiagnosticFetchesTheReleasesListOnce() async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.utmapp.UTM" && $0.installedTagPrefix != nil
+        })
+        let source = self.source()
+
+        let outcome = await source.resolveDiagnostic(rule)
+
+        // Unchanged answer: the pass-through must be invisible in the result.
+        #expect(outcome.failure == nil)
+        #expect(outcome.remote?.displayVersion == "5.0.5")
+        let lists = FixtureProtocol.paths().filter { $0 == "/repos/utmapp/UTM/releases" }
+        #expect(lists.count == 1, "the releases list was fetched \(lists.count) times")
+    }
+
     /// The probe must not relabel infrastructure as a broken recipe: a 403 is the
     /// shared GitHub rate limit, which the sweep retries and never files. Letting
     /// it out as `channelDiscoveryBroken` (classification `.recipe`) would open an
@@ -269,8 +289,16 @@ struct UTMGitHubChannelTests {
         do {
             _ = try await source.channelDiscoveryProbe(rule)
             Issue.record("a 403 must reach the caller as an error, not a probe verdict")
-        } catch GitHubReleasesSource.GitHubError.badStatus(let code) {
-            #expect(code == 403)
+        } catch let status as GitHubReleasesSource.GitHubError {
+            // The fixture sends no `X-RateLimit-Remaining`, which is how a
+            // rejection that never reached the API looks — `statusError` reads
+            // that as the budget being gone. See `GitHubForbiddenTests` for the
+            // 403 that is NOT the limit.
+            #expect(status.statusCode == 403)
+            guard case .rateLimited = status else {
+                Issue.record("a headerless 403 must stay classified as the rate limit")
+                return
+            }
         }
     }
 

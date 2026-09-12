@@ -179,6 +179,23 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// feature illustration between the change lines).
     public let imagePattern: String?
 
+    /// Optional regex run over each entry's `body` to pull out category headings
+    /// (`### Added`, `### Fixed`, …) so the renderer can show them as their own
+    /// styled line instead of silently dropping them the way a plain `itemPattern`
+    /// boundary does. Every match becomes one `.heading` block (capture group 1,
+    /// or the named `heading` group), cleaned the same way an item is — including
+    /// `markdownSource` unwrapping. nil = no headings (the common case).
+    ///
+    /// Opt-in and unconditional, unlike `GitHubMarkdownParser`'s "≥2 siblings, no
+    /// digit" heuristic (see `Changelog.parserGeneration`'s generation-3 entry):
+    /// that heuristic exists because ONE parser has to guess at structure across
+    /// dozens of GitHub-hosted vendors with no per-app tuning. A recipe that sets
+    /// this is already curated for one vendor's page — Mac Performance Monitor's
+    /// real Keep a Changelog file, where `### Added`/`### Fixed`/… are always
+    /// genuine categories — so every match renders, the same way `imagePattern`
+    /// renders every matched image without a similar guess.
+    public let headingPattern: String?
+
     /// Lowest app version this recipe's page covers, inclusive. nil → no floor.
     ///
     /// This and `belowAppVersion` are the changelog analogue of a
@@ -502,6 +519,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
         imagePattern: String? = nil,
+        headingPattern: String? = nil,
         minimumAppVersion: String? = nil,
         belowAppVersion: String? = nil,
         structuredFormat: StructuredFormat? = nil,
@@ -529,6 +547,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
+        self.headingPattern = headingPattern
         self.minimumAppVersion = minimumAppVersion
         self.belowAppVersion = belowAppVersion
         self.httpMethod = httpMethod
@@ -645,6 +664,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
+        headingPattern = try c.decodeIfPresent(String.self, forKey: .headingPattern)
         minimumAppVersion = try c.decodeIfPresent(String.self, forKey: .minimumAppVersion)
         belowAppVersion = try c.decodeIfPresent(String.self, forKey: .belowAppVersion)
         httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
@@ -2953,13 +2973,25 @@ public enum ChangelogRecipeRegistry {
         // same 17 entries parse with the same item counts, and no item carries a
         // link definition any more. Unindented, so it cannot fire on a wrapped
         // continuation line, which this vendor indents by two spaces.
+        //
+        // `headingPattern` (#554, part of #399) turns the `### Added` / `###
+        // Fixed` group headings back into real `.heading` blocks instead of
+        // letting them keep serving only as the `itemPattern` boundary above —
+        // this is a genuine Keep a Changelog file, so every `###` heading it has
+        // IS a real category, unconditionally (no "≥2 siblings" guess needed the
+        // way `GitHubMarkdownParser` needs one across dozens of unrelated GitHub
+        // vendors — see `Changelog.parserGeneration`'s generation-3 entry).
+        // Bounded the same way the item pattern is, so a heading also stops at
+        // the next entry or the trailing link-reference block rather than
+        // swallowing the rest of the file.
         ChangelogRecipe(
             bundleID: "uk.co.bzwrd.macperfmonitor",
             source: URL(string: "https://raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md")!,
             entryPattern:
                 #"(?:^|\n)##\s+\[(?<version>[0-9][^\]]*)\]\s*-\s*(?<date>[^\n]+)\n(?<body>.*?)(?=\n##\s|\z)"#,
             itemPatterns: [#"\n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\n\[|\z)"#],
-            markdownSource: true),
+            markdownSource: true,
+            headingPattern: #"\n###\s+(?<heading>[^\n]+)"#),
 
         // TypeWhisper — no notes in the appcast either. The official changelog
         // page is the vendor's own, and it interleaves **macOS and Windows**

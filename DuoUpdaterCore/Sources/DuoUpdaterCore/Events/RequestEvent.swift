@@ -12,7 +12,7 @@ import Foundation
 /// Every field here is copied straight off the platform's own measurement. None
 /// of it is summarised, bucketed or rounded at write time — that is the whole
 /// point of keeping events (see ``DuoEvent``). The derived rollups live in
-/// ``RequestLedger`` and can be rebuilt from these.
+/// ``RequestTotal`` (``EventStore/totals()``) and can be rebuilt from these.
 public struct RequestEvent: Codable, Sendable, Hashable {
 
     // MARK: What was asked, and why

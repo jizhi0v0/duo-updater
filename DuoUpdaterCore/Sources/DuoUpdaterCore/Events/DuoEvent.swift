@@ -111,7 +111,10 @@ extension DuoEvent {
     /// is its microsecond truncation**, so a value built from a finer source is
     /// equal to itself only after a round trip.
     ///
-    /// The human-readable timestamp is the envelope's `at`, which stays ISO-8601.
+    /// The envelope's `at` is the same quantity, not a friendlier one: the `at`
+    /// column is `INTEGER` microseconds too. ISO-8601 appears only where a human
+    /// reads the bytes directly — the JSON export, and `meta` markers such as
+    /// `from_cache.backfilled`.
     static let microsecond = 1_000_000.0
 
     static func encoder() -> JSONEncoder {

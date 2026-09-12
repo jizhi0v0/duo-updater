@@ -133,6 +133,73 @@ struct EventStoreSchemaDriftTests {
         }
     }
 
+    /// A table shaped like a machine that predates **both** denormalised
+    /// columns: no `app_id`, no `from_cache`, no `from_cache.backfilled` marker.
+    /// This is the shape `addColumnIfMissing` ×2 plus `backfillFromCache` were
+    /// written for, and the only shape that exercises all three at once.
+    ///
+    /// Seeded with one `request` row whose payload says it came from the local
+    /// cache, so the backfill has something to copy: a test that only checks the
+    /// marker cannot tell "the backfill ran" from "the backfill was skipped and
+    /// the marker written anyway".
+    private static func makePreColumnSchema(at url: URL) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(url.path, &db,
+                              SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK,
+              let db else { throw URLError(.cannotCreateFile) }
+        defer { sqlite3_close_v2(db) }
+        let sql = """
+            PRAGMA auto_vacuum=INCREMENTAL;
+            PRAGMA journal_mode=WAL;
+            CREATE TABLE events (
+              id        TEXT PRIMARY KEY,
+              at        INTEGER NOT NULL,
+              client    TEXT    NOT NULL,
+              kind      TEXT    NOT NULL,
+              purpose   TEXT,
+              host      TEXT,
+              status    INTEGER,
+              bytes_in  INTEGER,
+              bytes_out INTEGER,
+              payload   TEXT    NOT NULL
+            );
+            CREATE INDEX events_at ON events(at);
+            CREATE TABLE totals (
+              client TEXT NOT NULL, purpose TEXT NOT NULL, host TEXT NOT NULL,
+              requests INTEGER NOT NULL DEFAULT 0, cached INTEGER NOT NULL DEFAULT 0,
+              not_modified INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0,
+              bytes_sent INTEGER NOT NULL DEFAULT 0, bytes_received INTEGER NOT NULL DEFAULT 0,
+              first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL,
+              PRIMARY KEY (client, purpose, host));
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO events (id, at, client, kind, purpose, host, payload)
+            VALUES ('cached-row', 1, 'cli', 'request', 'versionCheck',
+                    'zzfixture.example', '{"fetchType":"localCache"}');
+            """
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+            throw URLError(.cannotCreateFile)
+        }
+    }
+
+    /// `from_cache` for one event id, read on an independent connection.
+    /// `.some(nil)` is "the row is there and the column is NULL", which is what a
+    /// skipped backfill leaves behind; `nil` is "no such row".
+    private static func fromCache(id: String, at url: URL) throws -> Int?? {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK,
+              let db else { throw URLError(.cannotOpenFile) }
+        defer { sqlite3_close_v2(db) }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            db, "SELECT from_cache FROM events WHERE id = ?;", -1, &statement, nil
+        ) == SQLITE_OK, let statement else { throw URLError(.cannotOpenFile) }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, id, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        if sqlite3_column_type(statement, 0) == SQLITE_NULL { return .some(nil) }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
     // MARK: - Tests
 
     /// A fresh install's `events` table must be exactly the twelve columns and
@@ -224,5 +291,79 @@ struct EventStoreSchemaDriftTests {
             """) {
             #expect(upgradedColumns == freshColumns)
         }
+    }
+
+    /// The migration steps have to survive a database that does not exist yet.
+    ///
+    /// `createSchema` runs the repairs **before** the `CREATE TABLE IF NOT EXISTS`
+    /// batch, and that order is load-bearing on an upgraded database (see the
+    /// comment on `createSchema`). On a brand-new one it used to mean the repairs
+    /// ran against a database with no `events` and no `meta` table at all: four
+    /// `no such table` errors in the log, two notices claiming a column had been
+    /// added that had not, and — the part with a lasting consequence —
+    /// `backfillFromCache`'s `UPDATE` failing, so the `from_cache.backfilled`
+    /// marker was never written. The next launch therefore re-ran a full-table
+    /// `UPDATE events` that a fresh store can never need, and `backfillFromCache`'s
+    /// own doc comment ("Once, guarded by a marker") was false on exactly the
+    /// machines where the marker was cheapest to write.
+    ///
+    /// The marker is the assertion because it is the only durable trace: there is
+    /// no log seam in this package to assert the absent errors directly, and the
+    /// marker is what the errors cost.
+    @Test("A fresh install records the backfill marker on its first open")
+    func freshInstallRecordsBackfillMarkerOnFirstOpen() async throws {
+        let url = Self.tempURL()
+        defer { Self.remove(url) }
+        let store = Self.store(fileURL: url)
+        _ = await store.schemaProblems() // forces open() -> createSchema()
+
+        #expect(await store.metaMarker("from_cache.backfilled") != nil)
+        // Both columns still have to be there — the repairs being skipped on a
+        // fresh database is only correct because the `CREATE TABLE` declares them.
+        let columns = try Self.columnNames(table: "events", at: url)
+        #expect(columns.contains("app_id"))
+        #expect(columns.contains("from_cache"))
+    }
+
+    /// The other half of the same fix: skipping the repairs on a fresh database
+    /// must not skip them on a database that actually needs them.
+    ///
+    /// Starts from a store that predates both columns and holds one cache-hit row,
+    /// then asserts all three effects the migration owes it — `app_id` added,
+    /// `from_cache` added, and the row's flag copied out of the payload rather
+    /// than left NULL to be misread as "not from cache" by
+    /// `RequestQuery.notCached`.
+    @Test("A pre-column store gets both columns and a real backfill")
+    func preColumnStoreIsMigratedAndBackfilled() async throws {
+        let url = Self.tempURL()
+        defer { Self.remove(url) }
+        try Self.makePreColumnSchema(at: url)
+
+        let store = Self.store(fileURL: url)
+        _ = await store.schemaProblems()
+
+        let columns = try Self.columnNames(table: "events", at: url)
+        #expect(columns.contains("app_id"))
+        #expect(columns.contains("from_cache"))
+        #expect(await store.metaMarker("from_cache.backfilled") != nil)
+        // `.some(1)`, not `.some(nil)`: the backfill copied `$.fetchType`.
+        #expect(try Self.fromCache(id: "cached-row", at: url) == .some(1))
+    }
+
+    /// `addColumnIfMissing` reports whether the column is now there, and it has to
+    /// tell the truth: it used to log "added the … column" unconditionally, right
+    /// after an `ALTER TABLE` that could have failed, which is how a fresh
+    /// database produced two notices for columns nothing had added.
+    ///
+    /// Asked of a table that does not exist because that is the cheapest way to
+    /// make the `ALTER` fail on purpose.
+    @Test("addColumnIfMissing reports failure when the table is not there")
+    func addColumnIfMissingReportsFailureOnMissingTable() async throws {
+        let url = Self.tempURL()
+        defer { Self.remove(url) }
+        let store = Self.store(fileURL: url)
+        #expect(await store.addColumnForTesting(table: "zzfixture_absent", column: "c") == false)
+        #expect(await store.addColumnForTesting(table: "events", column: "app_id") == false,
+                "app_id is already declared, so there is nothing to add")
     }
 }

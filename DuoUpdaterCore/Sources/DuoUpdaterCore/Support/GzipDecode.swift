@@ -15,6 +15,21 @@ import Compression
 /// nil, never a throw.
 enum GzipDecode {
 
+    /// Ceiling on the scratch buffer `inflate` allocates, whatever a caller or a
+    /// gzip trailer asks for. See `inflate` for why capping it is free.
+    static let maxChunkBytes = 64 * 1024 * 1024
+
+    /// The scratch-buffer size `inflate` will actually allocate for a hint.
+    ///
+    /// Split out as a pure function so the ceiling can be asserted without
+    /// allocating what it refuses to allocate: the end-to-end test below it can
+    /// only show that a hostile ISIZE still decodes correctly, which a missing
+    /// ceiling also does — on a machine where a 4 GiB reservation happens to
+    /// succeed.
+    static func chunkSize(hint: Int) -> Int {
+        min(max(hint, 64 * 1024), maxChunkBytes)
+    }
+
     /// Decompress a complete gzip member. Returns nil on any malformation.
     static func decompress(_ data: Data) -> Data? {
         let bytes = [UInt8](data)
@@ -52,7 +67,9 @@ enum GzipDecode {
 
         // ISIZE (last 4 bytes, little-endian) is the uncompressed size mod 2^32 —
         // a good initial buffer hint. Clamp to a sane floor so a zero/tiny ISIZE
-        // doesn't starve the loop.
+        // doesn't starve the loop, and to a ceiling in `inflate` because nothing
+        // here has verified the trailer: it is the tail of a vendor response, and
+        // `0xFFFFFFFF` is a four-byte request for a 4 GiB allocation.
         let isize = Int(bytes[bytes.count - 4])
             | (Int(bytes[bytes.count - 3]) << 8)
             | (Int(bytes[bytes.count - 2]) << 16)
@@ -96,8 +113,14 @@ enum GzipDecode {
 
     /// Stream raw DEFLATE bytes through `compression_stream` until done.
     private static func inflate(_ deflate: [UInt8], hint: Int) -> Data? {
+        // Both pointers are placeholders that `compression_stream_init` requires
+        // to be non-null and never reads: the real `src_ptr`/`dst_ptr` are set
+        // inside the loop below, before the first `_process`. `dst_ptr` used to
+        // be an `allocate(capacity: 0)` that nothing ever deallocated — a leak on
+        // every call, however small. A dangling non-null address costs nothing
+        // and cannot be forgotten, which is what `src_ptr` was already doing.
         var stream = compression_stream(
-            dst_ptr: UnsafeMutablePointer<UInt8>.allocate(capacity: 0),
+            dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!,
             dst_size: 0,
             src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!,
             src_size: 0,
@@ -107,7 +130,14 @@ enum GzipDecode {
         else { return nil }
         defer { compression_stream_destroy(&stream) }
 
-        let chunk = max(hint, 64 * 1024)
+        // The hint is a *hint*: this is a reusable scratch buffer the loop drains
+        // and refills until the stream ends, so a hint smaller than the output
+        // costs iterations, never correctness. That makes the ceiling free — and
+        // necessary, because `decompress` derives its hint from gzip's ISIZE
+        // trailer, four bytes of attacker-supplied data that can ask for 4 GiB.
+        // A vendor changelog is not 64 MiB; a page that claims to be gets decoded
+        // 64 MiB at a time instead of reserving the claim up front.
+        let chunk = chunkSize(hint: hint)
         let dstBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: chunk)
         defer { dstBuffer.deallocate() }
 

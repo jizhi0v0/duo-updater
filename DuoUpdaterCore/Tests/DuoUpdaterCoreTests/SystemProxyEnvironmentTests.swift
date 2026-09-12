@@ -74,6 +74,33 @@ import Foundation
         #expect(env["PATH"] == "/usr/bin")
     }
 
+    /// The one shape where "an explicit export wins" costs something, pinned so
+    /// the cost is visible rather than discovered.
+    ///
+    /// `applied` compares names case-insensitively, and `man curl` (ENVIRONMENT)
+    /// says `http_proxy` "is an exception as it is only available in lower case"
+    /// while every other proxy variable is read in either case. So an inherited
+    /// `HTTPS_PROXY` genuinely is the user's choice and rightly blocks ours — but
+    /// an inherited `HTTP_PROXY` is read by nobody, and blocking `http_proxy`
+    /// leaves curl with no HTTP proxy at all.
+    ///
+    /// Asserted, not fixed: see `applied`'s doc comment for why filling the
+    /// lowercase key from the system pane is the worse trade. If that decision is
+    /// ever revisited, this is the test that changes.
+    @Test func upperCaseHTTPProxyBlocksTheLowerCaseKey() {
+        let env = SystemProxyEnvironment.applied(
+            to: ["HTTP_PROXY": "http://shell.example:8080"], settings: httpSettings)
+        #expect(env["HTTP_PROXY"] == "http://shell.example:8080")
+        #expect(env["http_proxy"] == nil)
+        // The same fold on a variable curl *does* read in either case is simply
+        // correct, which is why the rule is not wrong in general.
+        let https = SystemProxyEnvironment.applied(
+            to: ["HTTPS_PROXY": "http://shell.example:8080"], settings: httpSettings)
+        #expect(https["https_proxy"] == nil)
+        // And an untaken name is still filled in both cases.
+        #expect(env["https_proxy"] == "http://127.0.0.1:6152")
+    }
+
     @Test func leavesEnvironmentUntouchedWhenSettingsAreUnreadable() {
         let env = SystemProxyEnvironment.applied(to: ["PATH": "/usr/bin"], settings: nil)
         #expect(env == ["PATH": "/usr/bin"])

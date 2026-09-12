@@ -43,13 +43,13 @@ public extension URLSession {
     ///   particular. Raising the limit avoids connection queuing on hosts that
     ///   *don't* support HTTP/2 multiplexing.
     ///
-    /// - **Private, memory-only URL cache** (16 MB). Update sources rely on
+    /// - **Private, memory-only URL cache** (64 MB). Update sources rely on
     ///   standard HTTP caching (`ETag`/`If-None-Match`, `Cache-Control:
     ///   max-age`) — Sparkle appcast feeds and GitHub's `/releases/latest`
     ///   endpoint all send reuse-friendly headers. Caveat: cache *freshness* is
     ///   never trusted for a version feed — every source sets
     ///   ``URLRequest/versionFeedCachePolicy`` (see it for why). `ChangelogService`
-    ///   also uses this session, and 16 MB keeps several pages resident without
+    ///   also uses this session, and 64 MB keeps several pages resident without
     ///   evicting update-check responses. A private cache prevents eviction by
     ///   unrelated `.shared` activity.
     ///

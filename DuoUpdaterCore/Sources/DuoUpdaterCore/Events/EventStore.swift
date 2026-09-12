@@ -534,10 +534,10 @@ public actor EventStore {
     /// here would let a machine with a long install history exhaust the floor and
     /// stop the size pass giving up request events it should.
     private func eventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind <> 'install';"),
-              sqlite3_step(statement) == SQLITE_ROW
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind <> 'install';")
         else { return 0 }
         defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }
         return Int(sqlite3_column_int64(statement, 0))
     }
 
@@ -994,10 +994,10 @@ public actor EventStore {
     }
 
     private func installEventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind = 'install';"),
-              sqlite3_step(statement) == SQLITE_ROW
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind = 'install';")
         else { return 0 }
         defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }
         return Int(sqlite3_column_int64(statement, 0))
     }
 
@@ -1148,14 +1148,38 @@ public actor EventStore {
         // new index, and whoever updates the test's expected set should update this
         // paragraph in the same commit, not leave it asserting an absence that just
         // became false.
-        addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
-        // Denormalised because the summary asks about it on every row, on every
-        // refresh, and asking the payload meant a JSON parse per row that no
-        // index can serve: 0.29 s over 40,760 rows, repeated every two seconds
-        // for as long as the window is open, on the same actor that has to
-        // service event writes.
-        addColumnIfMissing(db, table: "events", column: "from_cache", type: "INTEGER")
-        backfillFromCache(db)
+        //
+        // The repairs are for a table that already exists, so they are skipped
+        // when it does not. A brand-new database used to run them anyway, against
+        // a file with no `events` and no `meta` in it: four `no such table`
+        // errors in the log, two notices claiming a column had been added that
+        // had not, and `backfillFromCache`'s `UPDATE` failing — which left the
+        // `from_cache.backfilled` marker unwritten, so the *second* launch of a
+        // fresh install ran a full-table `UPDATE events` that a store with
+        // nothing in it can never need. Guarding here rather than reordering:
+        // the ordering above is the thing that has to stay true, and moving the
+        // batch in front of the repairs would put the #462 bug back.
+        //
+        // Of those, only the marker had a consequence that outlived the launch,
+        // and it is fixed by moving `backfillFromCache` below the batch rather
+        // than by this guard — measured 2026-09-13: with that move in place,
+        // replacing this condition with `true` leaves all five
+        // `EventStoreSchemaDriftTests` green. **So this condition is log hygiene
+        // and intent, not a pinned guard**, and it is recorded that way rather
+        // than left to look like something a test is watching. What the tests do
+        // pin is either side of it: `freshInstallRecordsBackfillMarkerOnFirstOpen`
+        // (the marker is written on the first open) and
+        // `preColumnStoreIsMigratedAndBackfilled` (the repairs still run, and the
+        // backfill still copies, on a database that predates both columns).
+        if tableExists(db, "events") {
+            addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
+            // Denormalised because the summary asks about it on every row, on every
+            // refresh, and asking the payload meant a JSON parse per row that no
+            // index can serve: 0.29 s over 40,760 rows, repeated every two seconds
+            // for as long as the window is open, on the same actor that has to
+            // service event writes.
+            addColumnIfMissing(db, table: "events", column: "from_cache", type: "INTEGER")
+        }
         exec(db, """
             CREATE TABLE IF NOT EXISTS events (
               id        TEXT PRIMARY KEY,
@@ -1192,6 +1216,12 @@ public actor EventStore {
 
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """)
+        // After the batch, not before it: the backfill reads `meta` and writes
+        // `events.from_cache`, and on a fresh database neither exists until the
+        // batch has run. It is not part of the batch, so this does not reopen the
+        // ordering hazard documented above — an upgraded database reaches it with
+        // the columns already added by the repairs.
+        backfillFromCache(db)
         if let statement = prepare(db, "INSERT OR IGNORE INTO meta VALUES ('schema', ?);") {
             bind(statement, 1, String(DuoEvent.schemaVersion))
             step(db, statement)
@@ -1224,7 +1254,13 @@ public actor EventStore {
     /// directly, so a row left NULL would silently count as "not from cache"
     /// and the figures would disagree with the log they sit above. The value
     /// was always there — `fetchType` is a payload field from the first
-    /// version — so this is a copy, not a guess. Once, guarded by a marker.
+    /// version — so this is a copy, not a guess.
+    ///
+    /// Once, guarded by a marker — including on a fresh install, where the
+    /// `UPDATE` matches nothing and the marker is the only thing worth writing.
+    /// Called from `createSchema` **after** its `CREATE TABLE` batch, because
+    /// both the table it updates and the `meta` table holding the marker have to
+    /// exist first.
     private func backfillFromCache(_ db: OpaquePointer) {
         // `metaValue`, not `metaMarker`: this runs inside schema setup, and
         // `metaMarker` opens the database, which re-enters schema setup and
@@ -1239,18 +1275,43 @@ public actor EventStore {
         setMeta(db, "from_cache.backfilled", ISO8601DateFormatter.duoEvent.string(from: now()))
     }
 
+    /// Whether `table` is already in this database. `PRAGMA table_info` on a
+    /// table that is not there is not an error — it returns no rows — so this
+    /// asks `sqlite_master`, where absence and emptiness are the same answer.
+    private func tableExists(_ db: OpaquePointer, _ table: String) -> Bool {
+        guard let statement = prepare(
+            db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;")
+        else { return false }
+        defer { sqlite3_finalize(statement) }
+        bind(statement, 1, table)
+        return sqlite3_step(statement) == SQLITE_ROW
+    }
+
+    /// - Returns: whether this call added the column. False both when it was
+    ///   already there and when the `ALTER` failed — the notice below is the only
+    ///   thing that distinguishes them, and it must not claim the second.
+    @discardableResult
     private func addColumnIfMissing(
         _ db: OpaquePointer, table: String, column: String, type: String
-    ) {
-        guard let statement = prepare(db, "PRAGMA table_info(\(table));") else { return }
+    ) -> Bool {
+        guard let statement = prepare(db, "PRAGMA table_info(\(table));") else { return false }
         var present = false
         while sqlite3_step(statement) == SQLITE_ROW {
             if text(statement, 1) == column { present = true; break }
         }
         sqlite3_finalize(statement)
-        guard !present else { return }
-        exec(db, "ALTER TABLE \(table) ADD COLUMN \(column) \(type);")
+        guard !present else { return false }
+        guard exec(db, "ALTER TABLE \(table) ADD COLUMN \(column) \(type);") else { return false }
         Log.app.notice("events: added the \(column, privacy: .public) column")
+        return true
+    }
+
+    /// Test seam for `addColumnIfMissing`'s return value. Internal because the
+    /// honesty of that value has no other observable: the only other thing the
+    /// failing branch produces is a log line, and this package has no log seam.
+    func addColumnForTesting(table: String, column: String) -> Bool {
+        guard let db = open() else { return false }
+        return addColumnIfMissing(db, table: table, column: column, type: "TEXT")
     }
 
     @discardableResult
@@ -1295,19 +1356,22 @@ public actor EventStore {
 
     private func changes(_ db: OpaquePointer) -> Int { Int(sqlite3_changes(db)) }
 
+    // `defer` before the `step`, not after it, in these four readers and in
+    // `coverage()`. Folding the `step` into the same `guard` as the `prepare`
+    // reads well but leaks the statement on every path where the `prepare`
+    // succeeded and the `step` did not — `SQLITE_BUSY` most of all, which is
+    // exactly the case a store shared by the menu-bar app and `duo` hits.
     private func intPragma(_ db: OpaquePointer, _ name: String) -> Int? {
-        guard let statement = prepare(db, "PRAGMA \(name);"),
-              sqlite3_step(statement) == SQLITE_ROW
-        else { return nil }
+        guard let statement = prepare(db, "PRAGMA \(name);") else { return nil }
         defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
         return Int(sqlite3_column_int64(statement, 0))
     }
 
     private func text(pragma name: String, _ db: OpaquePointer) -> String? {
-        guard let statement = prepare(db, "PRAGMA \(name);"),
-              sqlite3_step(statement) == SQLITE_ROW
-        else { return nil }
+        guard let statement = prepare(db, "PRAGMA \(name);") else { return nil }
         defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
         return text(statement, 0)
     }
 

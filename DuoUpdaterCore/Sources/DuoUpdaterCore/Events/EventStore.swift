@@ -1140,6 +1140,14 @@ public actor EventStore {
         // than repaired. If you are looking for it because a comment or an old
         // report mentioned it: it does not exist, on any machine, and grepping
         // the repo for `events_app_at` today turns up only this comment.
+        //
+        // This claim has an expiry date, not just a grep: `EventStoreSchemaDriftTests
+        // .freshInstallSchemaMatchesDeclaration` asserts the exact index set below
+        // against `createSchema`'s declaration. The day someone adds `(app_id, at)`
+        // back — #459 Stage 3 is expected to want it — that test goes red naming the
+        // new index, and whoever updates the test's expected set should update this
+        // paragraph in the same commit, not leave it asserting an absence that just
+        // became false.
         addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
         // Denormalised because the summary asks about it on every row, on every
         // refresh, and asking the payload meant a JSON parse per row that no

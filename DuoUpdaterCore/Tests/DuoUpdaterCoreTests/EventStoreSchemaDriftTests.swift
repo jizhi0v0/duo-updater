@@ -10,7 +10,11 @@ import SQLite3
 /// filter, and an `events_app_at` index that only ever existed in a comment —
 /// but the defect underneath all three is structural, not any one column or
 /// index. These tests pin the structural property.
-@Suite(.serialized)
+///
+/// Not `.serialized`: every test builds its own `UUID`-named temp database and
+/// touches nothing shared, so there is no ordering or isolation hazard here to
+/// document.
+@Suite
 struct EventStoreSchemaDriftTests {
 
     private static func store(fileURL: URL) -> EventStore {
@@ -163,16 +167,34 @@ struct EventStoreSchemaDriftTests {
     /// store's real migration path (`open()` → `addColumnIfMissing` ×2 →
     /// `CREATE TABLE IF NOT EXISTS`) over a database shaped like a real
     /// upgraded machine, and compare the result to what a fresh install gets
-    /// from the identical code path.
+    /// from the identical code path — columns *and* indexes.
     ///
-    /// **Expected to fail today.** `task_id` survives the migration — nothing
-    /// in `createSchema` drops a column it does not declare — so the upgraded
-    /// shape carries an extra column the fresh shape never has. That failure
-    /// *is* the evidence for issue #462 item 1: an upgraded machine and a
-    /// fresh install do not have the same `events` table shape. Turning this
-    /// green means deciding what to do about `task_id` (see the issue and the
-    /// PR description for the two options and their costs) — a decision this
-    /// PR deliberately does not make.
+    /// The index half is the one that matters for the historical failure this
+    /// area is actually about (see the rewritten `events_app_at` comment in
+    /// `createSchema`): a `CREATE INDEX` that fails on an upgraded database
+    /// takes every statement after it in the same `sqlite3_exec` batch down
+    /// with it. This fixture deliberately leaves `from_cache` un-added so the
+    /// migration path has a real `addColumnIfMissing` call to run — if that
+    /// call, or any statement before the index-creation batch, is ever moved
+    /// to *after* the batch (or made to fail on an upgraded shape), the batch
+    /// is abandoned and `events_kind_at`/`events_host_at` are silently never
+    /// created on upgraded machines. This assertion is outside the
+    /// `withKnownIssue` below because it passes today — both sides end up with
+    /// the same three indexes — and its job is to keep it that way, not to
+    /// record a known divergence.
+    ///
+    /// Mutation-verified 2026-09-12: moving the `app_id` `addColumnIfMissing`
+    /// call to after the `exec` batch turns this half red, naming the missing
+    /// indexes. Reverted immediately after.
+    ///
+    /// **The column half is expected to fail today.** `task_id` survives the
+    /// migration — nothing in `createSchema` drops a column it does not
+    /// declare — so the upgraded shape carries an extra column the fresh shape
+    /// never has. That failure *is* the evidence for issue #462 item 1: an
+    /// upgraded machine and a fresh install do not have the same `events`
+    /// table shape. Turning this green means deciding what to do about
+    /// `task_id` (see the issue and the PR description for the two options and
+    /// their costs) — a decision this PR deliberately does not make.
     @Test("An upgraded machine's schema matches a fresh install's after migration")
     func upgradedMachineSchemaMatchesFreshInstallAfterMigration() async throws {
         let (oldURL, freshURL) = (Self.tempURL(), Self.tempURL())
@@ -183,6 +205,11 @@ struct EventStoreSchemaDriftTests {
         _ = await upgraded.schemaProblems()
         let fresh = Self.store(fileURL: freshURL)
         _ = await fresh.schemaProblems()
+
+        let upgradedIndexes = try Self.indexNames(table: "events", at: oldURL)
+        let freshIndexes = try Self.indexNames(table: "events", at: freshURL)
+        #expect(upgradedIndexes == freshIndexes)
+        #expect(upgradedIndexes == ["events_at", "events_kind_at", "events_host_at"])
 
         let upgradedColumns = try Self.columnNames(table: "events", at: oldURL)
         let freshColumns = try Self.columnNames(table: "events", at: freshURL)

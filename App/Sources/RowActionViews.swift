@@ -110,10 +110,10 @@ struct WorkbenchRowAction: View {
     /// is given (which is what lets `RowStateGallery` render every case with no
     /// model at all).
     var helperEnabled: Bool = true
-    /// Whether Full Disk Access is missing — decides what the question mark on a
-    /// TestFlight row explains, and whether it offers to grant it. An input for
-    /// the same reason as `helperEnabled`.
-    var fullDiskAccessMissing: Bool = false
+    /// Why a TestFlight row cannot bound its beta — decides which mark it carries
+    /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
+    /// same reason as `helperEnabled`.
+    var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
 
     @State private var showTestFlightTip = false
 
@@ -273,10 +273,12 @@ struct WorkbenchRowAction: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
-        .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
+        .overlay(alignment: .bottomTrailing) {
+            TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
+        .help(testFlightUnboundedReason.rowHelp)
         // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
         // out of a borderless button.
         .contentShape(Rectangle())
@@ -285,7 +287,7 @@ struct WorkbenchRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
+                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess)
         }
     }
 
@@ -493,38 +495,79 @@ struct ProgressRing: View {
     }
 }
 
-/// The question mark on a TestFlight row whose store could not bound it. One
-/// view for both surfaces, so the popover and the workbench cannot drift into
-/// two different marks for one state.
+/// The mark on a TestFlight row whose store could not bound it. One view for both
+/// surfaces, so the popover and the workbench cannot drift into two different
+/// marks for one state.
+///
+/// Two symbols, because the row has two things to say and they are not the same
+/// thing. A question mark means *asked, and could not be told* — the store was
+/// read and had no answer, or the permission to read it is missing. With detection
+/// off nothing was asked at all, and a question mark there reads as a failure the
+/// user should go and fix, which is how someone ends up granting Full Disk Access
+/// for a read that will still not happen (#547). That state gets a minus.
 ///
 /// Not inside a button on purpose: `ImageRenderer` draws an SF Symbol in a
 /// borderless button as a placeholder, and the gallery would then have to
 /// list this state as unfaithful.
 struct TestFlightUnboundedMark: View {
+    var reason: TestFlightUnboundedReason = .storeSilent
+
     var body: some View {
-        Image(systemName: "questionmark.circle.fill")
+        Image(systemName: reason == .checkingOff ? "minus.circle.fill" : "questionmark.circle.fill")
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.secondary)
             .background(Circle().fill(.background).padding(1))
     }
 }
 
-/// What tapping that question mark opens, in both windows: why the row cannot say
-/// whether the beta is current, and — when the reason is a missing Full Disk
-/// Access — the way to grant it. Shared so the two windows cannot explain one
-/// state two ways. Two literal `Text`s rather than a ternary, which could resolve
-/// to `String` and skip localization.
+extension TestFlightUnboundedReason {
+    /// The row's own tooltip — the whole sentence, since a pointer never gets the
+    /// tip that a tap opens. Three whole sentences rather than one assembled from
+    /// parts, so each is a key the catalog carries and can be translated as a
+    /// sentence.
+    ///
+    /// A `String(localized:)` rather than a `Text`: the gallery's tooltip check
+    /// reflects the view tree for the string a `.help` carries, and this is the one
+    /// `.help` in the app whose text is computed rather than written at the call
+    /// site (`main.swift`'s `collectHelpTexts`).
+    var rowHelp: String {
+        switch self {
+        case .checkingOff:
+            return String(localized: "TestFlight checking is off, so Duo Updater can’t say whether this beta is current")
+        case .noFullDiskAccess:
+            return String(localized: "Duo Updater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current")
+        case .storeSilent:
+            return String(localized: "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current")
+        }
+    }
+}
+
+/// What tapping that mark opens, in both windows: why the row cannot say whether
+/// the beta is current, and — when the reason is a missing Full Disk Access — the
+/// way to grant it. Shared so the two windows cannot explain one state two ways.
+/// A literal `Text` per case rather than a value built from parts, which could
+/// resolve to `String` and skip localization.
+///
+/// The "off" case offers no button. Grant… would be the wrong one (the read is not
+/// waiting on a permission), and a Settings shortcut would be a tenth `RowActions`
+/// closure for a state whose whole point is that nothing is happening — the
+/// sentence names where the setting is instead.
 struct TestFlightUnboundedTip: View {
-    let fullDiskAccessMissing: Bool
+    let reason: TestFlightUnboundedReason
     let grant: () -> Void
     @Environment(\.dismiss) private var dismiss
+
+    private var fullDiskAccessMissing: Bool { reason == .noFullDiskAccess }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Group {
-                if fullDiskAccessMissing {
+                switch reason {
+                case .checkingOff:
+                    Text("Duo Updater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.")
+                case .noFullDiskAccess:
                     Text("Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
-                } else {
+                case .storeSilent:
                     Text("TestFlight hasn’t told Duo Updater this beta’s latest build yet. Refreshing asks TestFlight to check.")
                 }
             }

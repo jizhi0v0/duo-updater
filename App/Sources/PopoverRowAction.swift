@@ -26,9 +26,9 @@ struct PopoverRowAction: View {
     var downloadReadout: DownloadReadout = .barAndPercent
     /// Whether a stage word fits beside the spinner, same reasoning.
     var showsStageLabel: (InstallStage) -> Bool = { _ in true }
-    /// Whether Full Disk Access is missing — decides what the question mark on a
-    /// TestFlight row explains, and whether it offers to grant it.
-    var fullDiskAccessMissing: Bool = false
+    /// Why a TestFlight row cannot bound its beta — decides which mark it carries
+    /// and what that mark explains (`TestFlightUnboundedReason`).
+    var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
 
     /// Owned here rather than by the row: the licence-boundary warning belongs to
     /// this control, and nothing outside it reads the flag.
@@ -687,10 +687,12 @@ struct PopoverRowAction: View {
                 Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
             }
         }
-        .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
+        .overlay(alignment: .bottomTrailing) {
+            TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
+        .help(testFlightUnboundedReason.rowHelp)
         // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
         // out of a borderless button.
         .contentShape(Rectangle())
@@ -699,7 +701,7 @@ struct PopoverRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
+                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess)
         }
     }
 

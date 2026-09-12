@@ -1022,7 +1022,7 @@ private struct AppRow: View {
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
                     showsStageLabel: showsStageLabel,
-                    fullDiskAccessMissing: model.fullDiskAccessMissing)
+                    testFlightUnboundedReason: model.testFlightUnboundedReason)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

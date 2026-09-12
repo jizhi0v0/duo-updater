@@ -1059,7 +1059,7 @@ private struct DetailHeader: View {
                         openTestFlight: { model.openTestFlight(for: result) },
                         grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
                     helperEnabled: model.helperEnabled,
-                    fullDiskAccessMissing: model.fullDiskAccessMissing)
+                    testFlightUnboundedReason: model.testFlightUnboundedReason)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

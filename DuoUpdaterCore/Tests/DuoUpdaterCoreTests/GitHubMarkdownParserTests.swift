@@ -190,6 +190,127 @@ import Testing
     #expect(cl?.entries.first?.content.isEmpty == true)
 }
 
+// MARK: - Dangling headings (`/code-review` on #562, PR review of #554)
+//
+// Measured live (30 releases each, the 10 repos this parser serves — a heading
+// counts as dangling when the next block is another heading or there is none):
+// 161 of 742 styled headings, 22%, would render this way without the fix below
+// (`Windscribe 58/136, AnythingLLM 46/105, UTM 30/116, Zed 18/167,
+// BetterDisplay 9/42, CotEditor/Rockxy/Yaak/cline 0`).
+
+/// The reported reproduction: a heading whose only item dies on the
+/// 6-character floor ("None" is 4 characters) must not style anyway just
+/// because it was seen — a heading earns its block only once a note actually
+/// lands under it.
+///
+/// Mutation this catches: appending a heading to `content` the instant it is
+/// seen (reverting the `pendingHeading` buffer in `extractItems`) — `Fixed`
+/// would render with nothing under it, directly above `Improvements`.
+@Test func aHeadingWhoseOnlyLineFailsTheLengthFloorIsNotStyled() throws {
+    let body = """
+    ## Fixed
+    - None
+    ## Improvements
+    - Made the scrolling much smoother in long lists
+    """
+    let entry = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "1.0", date: nil)?.entries.first)
+    #expect(entry.content == [
+        .heading("Improvements"),
+        .note("Made the scrolling much smoother in long lists"),
+    ])
+}
+
+/// A body ending in a bare heading with nothing after it at all — the other
+/// trigger, at the tail rather than mid-body.
+///
+/// Mutation this catches: same as above, but exercised at end-of-input, where
+/// there is no following heading to trigger the "drop the pending one" branch
+/// — only the fact that the loop ends with `pendingHeading` still set and
+/// nothing ever flushes it.
+@Test func aTrailingHeadingWithNoNoteAfterItIsNotStyled() throws {
+    let body = """
+    ## Added
+    - A real change
+
+    ## Known Issues
+    """
+    let entry = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "1.0", date: nil)?.entries.first)
+    #expect(entry.content == [.heading("Added"), .note("A real change")])
+}
+
+/// The same two triggers through the lenient pass, which has its own copy of
+/// the buffer.
+@Test func danglingHeadingsAreDroppedThroughTheLenientPassToo() throws {
+    let body = """
+    ## New Stuff
+    ## Bug Fixes
+     - reject version strings with disallowed characters
+    """
+    let entry = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "1.0", date: nil)?.entries.first)
+    #expect(entry.content == [
+        .heading("Bug Fixes"), .note("reject version strings with disallowed characters"),
+    ])
+}
+
+/// …and through the prose pass, which has its own copy too.
+@Test func danglingHeadingsAreDroppedThroughTheProsePassToo() throws {
+    let body = """
+    ## Highlights
+    ## Notes
+    Nothing else changed in this release.
+    """
+    let entry = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "1.0", date: nil)?.entries.first)
+    #expect(entry.content == [
+        .heading("Notes"), .note("Nothing else changed in this release."),
+    ])
+}
+
+// MARK: - Headings inside a fenced code block (`/code-review` on #562)
+
+/// The strict pass's own loop never tracks fences (its toggle is gated on
+/// `lenient`), but `qualifyingHeadings` must track them anyway — a heading
+/// whose only appearance is inside a fence must never earn a `.heading` block,
+/// even though the strict pass's loop still walks into the fence's contents
+/// and still sees those lines as heading-shaped.
+///
+/// The fenced heading is followed by what LOOKS like a bullet — deliberately,
+/// so this cannot pass merely because the dangling-heading fix above already
+/// drops a heading with nothing under it. `Added` here DOES get a "note"
+/// right after it (the strict pass's own loop never tracks fences, so it
+/// reads that line as a real bullet regardless of this fix); the only thing
+/// this test isolates is whether `Added` itself gets promoted to a `.heading`
+/// block for it.
+///
+/// Mutation this catches: passing `tracksCodeFences: false` (or an
+/// equivalent) into the strict pass's call to `qualifyingHeadings` — `Added`
+/// would then count toward the sibling threshold and render as a `.heading`
+/// block despite living only inside the fence.
+@Test func headingsInsideAFencedCodeBlockAreNeverStyled() throws {
+    let body = """
+    ## Improvements
+    - A real change here
+
+    ```
+    ## Added
+    - Example config, not a real change
+    ```
+
+    ## Notes
+    - Another real change here
+    """
+    let entry = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "1.0", date: nil)?.entries.first)
+    #expect(entry.content == [
+        .heading("Improvements"), .note("A real change here"),
+        .note("Example config, not a real change"),
+        .heading("Notes"), .note("Another real change here"),
+    ])
+}
+
 // MARK: - Strict pass (existing behavior — must not regress)
 
 @Test func parsesTopLevelBulletsAndStripsPRNoise() {

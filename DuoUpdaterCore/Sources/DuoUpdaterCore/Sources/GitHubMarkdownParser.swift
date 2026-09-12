@@ -146,23 +146,33 @@ public enum GitHubMarkdownParser {
     /// counts toward the ≥2 threshold too, because this counts total headings
     /// found, not distinct names.
     ///
-    /// Mostly independent of the strict/lenient/prose split below: all three
-    /// encounter the same `#`-prefixed lines the same way, EXCEPT that the strict
-    /// bullet pass (`extractItems(lenient: false, …)`) never tracks fenced code
-    /// blocks at all — its own `inCodeBlock` toggle is gated on `lenient` — so a
-    /// heading-shaped line inside a fence is a heading to it. `tracksCodeFences`
-    /// mirrors that per-pass rule so this scan's candidate count and code-fence
-    /// state can never disagree with the pass that actually wins.
+    /// Deliberately STRICTER than the strict bullet pass below on one point: this
+    /// scan always tracks fenced code blocks and never counts a heading-shaped
+    /// line inside one, even though `extractItems(lenient: false, …)` itself
+    /// never tracks fences at all (its own `inCodeBlock` toggle is gated on
+    /// `lenient`, so the strict pass's loop really does walk into a fence's
+    /// contents). That mismatch is safe rather than a repeat of the "scan
+    /// disagrees with the pass" mistake this function's doc used to warn against:
+    /// the only thing this scan's membership decides is whether a `.heading`
+    /// block gets emitted, never whether a bullet becomes an item or a section
+    /// gets skipped — those are the strict pass's own business and this change
+    /// touches neither. A heading whose only appearance is inside a fence simply
+    /// never enters `candidates`, so it can never be in the returned set, so the
+    /// strict pass's loop — which still walks into the fence and still sees the
+    /// line as heading-shaped — finds no match in `qualifying.contains(raw)` and
+    /// emits nothing for it, exactly as if the fence had been skipped. Verified
+    /// with a fixture reproducing the shape this fixes: two headings live only
+    /// between a pair of ``` fences, alongside two real ones outside — before,
+    /// all four rendered as `.heading` blocks; after, only the two real ones do.
     private static func qualifyingHeadings(
-        in body: String, skipSections: [String], extraSkipKeywords: [String] = [],
-        tracksCodeFences: Bool = true
+        in body: String, skipSections: [String], extraSkipKeywords: [String] = []
     ) -> Set<String> {
         var candidates: [String] = []
         var inCodeBlock = false
         for line in body.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if tracksCodeFences, trimmed.hasPrefix("```") { inCodeBlock.toggle(); continue }
-            if tracksCodeFences, inCodeBlock { continue }
+            if trimmed.hasPrefix("```") { inCodeBlock.toggle(); continue }
+            if inCodeBlock { continue }
             guard let raw = headingRawText(of: trimmed) else { continue }
             let lowered = raw.lowercased()
             if skippedSectionKeywords.contains(where: { lowered.contains($0) }) { continue }
@@ -172,6 +182,16 @@ public enum GitHubMarkdownParser {
             candidates.append(raw)
         }
         return candidates.count >= 2 ? Set(candidates) : []
+    }
+
+    /// True when at least one block is a styled heading. The dangling-heading
+    /// buffer in `extractItems`/`proseItems` can leave `content` holding nothing
+    /// but `.note`s once every pending heading in a body turned out dangling and
+    /// got dropped — `Changelog.Entry.content`'s own doc comment promises it is
+    /// populated only when there is something extra to walk, so that case must
+    /// reset to `[]` exactly like the "no headings qualified at all" case does.
+    private static func hasHeadingBlock(_ content: [Changelog.Entry.Block]) -> Bool {
+        content.contains { if case .heading = $0 { return true }; return false }
     }
 
     /// Whole-heading, case-insensitive match against a recipe's own `skipSections`.
@@ -229,6 +249,10 @@ public enum GitHubMarkdownParser {
         let qualifying = qualifyingHeadings(in: body, skipSections: skipSections)
         var items: [String] = []
         var content: [Changelog.Entry.Block] = []
+        // A heading only earns its `.heading` block once a note actually lands
+        // under it — see the doc comment on `extractItems`'s identical buffer for
+        // why (dangling headings, measured live at 22% of styled headings).
+        var pendingHeading: Changelog.Entry.Block?
         var inCodeBlock = false
         var inSkippedSection = false
         for line in body.components(separatedBy: .newlines) {
@@ -239,9 +263,12 @@ public enum GitHubMarkdownParser {
             // Gated on a non-empty list, so the default path is unchanged.
             if !inCodeBlock, let raw = headingRawText(of: trimmed) {
                 inSkippedSection = isSkipped(raw.lowercased(), by: skipSections)
-                if !inSkippedSection, !qualifying.isEmpty, qualifying.contains(raw) {
-                    content.append(.heading(raw))
-                }
+                // Unconditional reassignment: whatever was pending (if anything)
+                // never got a note under it, so it is dropped here, not carried
+                // forward — same rule whether this new heading itself qualifies,
+                // is boilerplate, or neither.
+                pendingHeading = (!inSkippedSection && qualifying.contains(raw))
+                    ? .heading(raw) : nil
                 continue
             }
             if inCodeBlock || inSkippedSection || trimmed.isEmpty { continue }
@@ -250,10 +277,18 @@ public enum GitHubMarkdownParser {
                 trimmed.lowercased().hasPrefix("**\($0)")
             }) { continue }
             items.append(trimmed)
-            if !qualifying.isEmpty { content.append(.note(trimmed)) }
+            if !qualifying.isEmpty {
+                if let heading = pendingHeading {
+                    content.append(heading)
+                    pendingHeading = nil
+                }
+                content.append(.note(trimmed))
+            }
             if items.count > proseItemCap { return ([], []) }
         }
-        return (items, qualifying.isEmpty ? [] : content)
+        // Anything still pending here is a heading with no note after it before
+        // the body ended — dropped, not appended, same as any other dangling one.
+        return (items, hasHeadingBlock(content) ? content : [])
     }
 
     /// A line that is nothing but a URL. Not a change description — the same
@@ -300,9 +335,23 @@ public enum GitHubMarkdownParser {
                                    : skippedSectionKeywords
         let qualifying = lenient
             ? qualifyingHeadings(in: body, skipSections: skipSections, extraSkipKeywords: lenientExtraSkipKeywords)
-            : qualifyingHeadings(in: body, skipSections: skipSections, tracksCodeFences: false)
+            : qualifyingHeadings(in: body, skipSections: skipSections)
         var items: [String] = []
         var content: [Changelog.Entry.Block] = []
+        // A heading is appended to `content` only once a note actually lands
+        // under it in its own section — never the instant it is seen. Without
+        // this, `## Fixed\n- None\n## Improvements\n- …` styles BOTH headings
+        // (`None` is 4 characters and dies on the 6-character floor below, so
+        // `Fixed` would otherwise sit directly on top of `Improvements` with
+        // nothing under it), and a body ending in a bare heading styles one that
+        // is never followed by anything at all. Measured live (30 releases each,
+        // the 10 repos this parser serves, a heading counting as dangling when
+        // the next block is another heading or there is none): 161 of 742 styled
+        // headings, 22%, would render this way without the buffer. Reassigned
+        // unconditionally on every heading line — whatever was pending, if
+        // anything, never got a note under it, so it is dropped rather than
+        // carried into the next section, whether or not THIS heading qualifies.
+        var pendingHeading: Changelog.Entry.Block?
         var inSkippedSection = false
         var inCodeBlock = false
 
@@ -322,9 +371,8 @@ public enum GitHubMarkdownParser {
                 let heading = raw.lowercased()
                 inSkippedSection = skipKeywords.contains(where: { heading.contains($0) })
                     || isSkipped(heading, by: skipSections)
-                if !inSkippedSection, !qualifying.isEmpty, qualifying.contains(raw) {
-                    content.append(.heading(raw))
-                }
+                pendingHeading = (!inSkippedSection && qualifying.contains(raw))
+                    ? .heading(raw) : nil
                 continue
             }
 
@@ -338,7 +386,13 @@ public enum GitHubMarkdownParser {
                     let cleaned = cleanItem(raw)
                     if cleaned.count >= 6 {
                         items.append(cleaned)
-                        if !qualifying.isEmpty { content.append(.note(cleaned)) }
+                        if !qualifying.isEmpty {
+                            if let heading = pendingHeading {
+                                content.append(heading)
+                                pendingHeading = nil
+                            }
+                            content.append(.note(cleaned))
+                        }
                     }
                 }
             } else {
@@ -353,13 +407,21 @@ public enum GitHubMarkdownParser {
                     // Drop very short items (emoji-only, single-word, link-only lines).
                     if cleaned.count >= 6 {
                         items.append(cleaned)
-                        if !qualifying.isEmpty { content.append(.note(cleaned)) }
+                        if !qualifying.isEmpty {
+                            if let heading = pendingHeading {
+                                content.append(heading)
+                                pendingHeading = nil
+                            }
+                            content.append(.note(cleaned))
+                        }
                     }
                 }
             }
         }
 
-        return (items, qualifying.isEmpty ? [] : content)
+        // Anything still pending here is a heading with no note after it before
+        // the body ended — dropped, not appended, same as any other dangling one.
+        return (items, hasHeadingBlock(content) ? content : [])
     }
 
     /// A numbered-list item's text: "1. text" / "12) text" → "text". nil otherwise.

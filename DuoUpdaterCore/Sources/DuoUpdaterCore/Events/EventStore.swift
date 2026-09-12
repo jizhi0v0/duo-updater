@@ -1127,8 +1127,27 @@ public actor EventStore {
         // after it. `sqlite3_exec` abandons the rest of a batch at the first
         // error, so with the repair afterwards, an older database failed on the
         // first statement mentioning the new column and skipped everything after
-        // it. Measured: `events_app_at` was missing from the real store, and so
-        // was every statement that followed it.
+        // it. Measured: back when the batch below still had a
+        // `CREATE INDEX events_app_at ON events(app_id, at)`, `app_id` did not
+        // exist yet on an upgraded database, so that statement failed and
+        // `events_app_at` was missing from the real store — along with every
+        // statement that followed it in the batch.
+        //
+        // `events_app_at` itself is gone now, not just fixed: once the ordering
+        // bug above was found, nothing in the codebase actually queried it — the
+        // `app:` filter is a leading-wildcard `LIKE '%x%'`, which cannot use an
+        // index regardless of ordering — so the dead index was deleted rather
+        // than repaired. If you are looking for it because a comment or an old
+        // report mentioned it: it does not exist, on any machine, and grepping
+        // the repo for `events_app_at` today turns up only this comment.
+        //
+        // This claim has an expiry date, not just a grep: `EventStoreSchemaDriftTests
+        // .freshInstallSchemaMatchesDeclaration` asserts the exact index set below
+        // against `createSchema`'s declaration. The day someone adds `(app_id, at)`
+        // back — #459 Stage 3 is expected to want it — that test goes red naming the
+        // new index, and whoever updates the test's expected set should update this
+        // paragraph in the same commit, not leave it asserting an absence that just
+        // became false.
         addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
         // Denormalised because the summary asks about it on every row, on every
         // refresh, and asking the payload meant a JSON parse per row that no

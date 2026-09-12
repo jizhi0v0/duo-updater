@@ -79,10 +79,24 @@ if argv[1] == "--scan" {
     let remote = try? await VendorProbeSource().latestVersion(for: app)
     if let remote {
         let latest = remote.displayVersion ?? "<nil>"
-        let inst = remote.shortVersion != nil ? app.shortVersion : app.buildVersion
-        let newer = (remote.shortVersion ?? remote.version).map {
-            VersionComparator.isNewer($0, than: inst ?? "") } ?? false
-        print("    VendorProbe → \(latest) · \(newer ? "UPDATE \(inst ?? "?") → \(latest)" : "up to date (not newer)")")
+        // The production gate, for the reason path mode's comment spells out: a
+        // re-implemented comparison disagrees with the engine for every
+        // `versionIsBuild` recipe, because those carry both a build to compare and
+        // a marketing string to display. This one picked whichever side the remote
+        // happened to fill in, which is the marketing-first shape that answers
+        // "1.0 is not newer than 1.0" for an app that freezes its marketing string
+        // — the harness certifying exactly what it was built to catch.
+        let verdict: String
+        switch UpdateChecker.evaluate(installed: app, remote: remote) {
+        case .updateAvailable(let to):
+            let from = app.buildVersion(in: remote.buildNamespace) ?? app.shortVersion
+            verdict = "UPDATE \(from ?? "?") → \(to)"
+        case .upToDate:
+            verdict = "up to date (not newer)"
+        case let other:
+            verdict = "\(other)"
+        }
+        print("    VendorProbe → \(latest) · \(verdict)")
     } else {
         print("    VendorProbe → no version (channel \(app.releaseChannel.rawValue) recipe miss)")
     }

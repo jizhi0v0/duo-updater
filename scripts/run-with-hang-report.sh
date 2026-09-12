@@ -25,6 +25,18 @@ set -uo pipefail
 budget="${1:?usage: run-with-hang-report.sh <seconds> <command> [args...]}"
 shift
 
+# Every pid in the tree rooted at $1, deepest first, so a kill loop takes the
+# leaves before their parent. Recursive because `pgrep -P` only reports direct
+# children, and the chain that holds the SwiftPM lock is three deep
+# (sh → swift-test → swiftpm-testing-helper).
+descendants_of() {
+    local pid="$1" kid
+    for kid in $(pgrep -P "$pid" 2>/dev/null); do
+        descendants_of "$kid"
+    done
+    printf '%s\n' "$pid"
+}
+
 "$@" &
 child=$!
 
@@ -89,11 +101,24 @@ while kill -0 "$child" 2>/dev/null; do
         done
         rm -f "$report"
         echo "=== killing the tree =========================================" >&2
-        # The whole tree. Killing only the top leaves orphans holding the SwiftPM
-        # lock, which turns the next run into a different and more confusing hang.
-        pkill -P "$child" 2>/dev/null
-        kill -9 "$child" 2>/dev/null
-        pkill -9 -f "$sample_targets" 2>/dev/null
+        # The whole tree, by parentage. Killing only the top leaves orphans
+        # holding the SwiftPM lock, which turns the next run into a different and
+        # more confusing hang.
+        #
+        # ⚠️ NOT `pkill -9 -f "$sample_targets"`, which is what this did before:
+        # that pattern is MACHINE-WIDE. This repo routinely has a couple of dozen
+        # worktrees open, so one run overshooting its budget killed every other
+        # checkout's `swift test` and `xcodebuild` too — and those die looking
+        # like their own failure, with nothing in their output naming this.
+        #
+        # Collected before anything is killed, and leaves first: once the parent
+        # is gone its children are reparented and `pgrep -P` can no longer find
+        # them.
+        victims="$(descendants_of "$child")"
+        echo "    killing: $(echo "$victims" | tr '\n' ' ')" >&2
+        for pid in $victims; do
+            kill -9 "$pid" 2>/dev/null
+        done
         wait "$child" 2>/dev/null
         exit 124
     fi

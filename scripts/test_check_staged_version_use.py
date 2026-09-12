@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Regression tests for `check_staged_version_use.py`'s `DISPLAY_VERSION_AS_MARKETING` rule.
+"""Regression tests for `check_staged_version_use.py`'s `DISPLAY_VERSION_AS_MARKETING`
+rule and for the expiry on its opt-out marker.
 
 #286: the rule PR #250 added used `[\\w.]*` between `marketing:` and
 `displayVersion`, which excludes `?` — so it missed the standard way this
@@ -84,6 +85,40 @@ class MutationGuard(unittest.TestCase):
         self.assertNotEqual(
             csvu.DISPLAY_VERSION_AS_MARKETING.pattern, self.PRE_286_PATTERN.pattern)
 
+class DeadAllowMarkers(unittest.TestCase):
+    """The opt-out marker had no expiry. A marker whose marketing-first pick has
+    been rewritten or moved away stays in the file silencing rule 3 for whatever
+    is written there next — the standing-pass failure `check_prose_claims.py`
+    fails on for its own marker, and the one `make gallery`'s `mayBeBlank` was
+    allowed to skip (#271)."""
+
+    PICK = "guard let v = app.shortVersion ?? app.buildVersion else { return }"
+
+    def lines(self, text):
+        return text.splitlines()
+
+    def test_a_marker_with_no_pick_below_it_is_dead(self):
+        lines = self.lines(f"// {csvu.ALLOW} — reason\nlet x = 1\n")
+        self.assertEqual(csvu.dead_allow_markers(lines), [1])
+
+    def test_a_marker_on_the_same_line_as_a_pick_is_alive(self):
+        lines = self.lines(f"{self.PICK}  // {csvu.ALLOW} — reason\n")
+        self.assertEqual(csvu.dead_allow_markers(lines), [])
+
+    def test_a_marker_within_the_lookback_is_alive(self):
+        body = f"// {csvu.ALLOW} — reason\n" + "// filler\n" * (csvu.ALLOW_LOOKBACK - 1)
+        lines = self.lines(body + self.PICK + "\n")
+        self.assertEqual(csvu.dead_allow_markers(lines), [])
+
+    def test_a_marker_beyond_the_lookback_is_dead(self):
+        """The same file one line further apart. This is what pins the two halves
+        to ONE window: a marker that no longer exempts the pick must be reported,
+        or the check would have to be read as "some marker somewhere below"."""
+        body = f"// {csvu.ALLOW} — reason\n" + "// filler\n" * csvu.ALLOW_LOOKBACK
+        lines = self.lines(body + self.PICK + "\n")
+        self.assertEqual(csvu.dead_allow_markers(lines), [1])
+        # …and the pick it no longer covers is not exempt either.
+        self.assertEqual(csvu.markers_covering(lines, len(lines)), [])
 
 if __name__ == "__main__":
     unittest.main()

@@ -566,7 +566,6 @@ final class Preferences {
     /// This build's marketing version — the namespace `SettingsSpotlight` states
     /// its versions in. Marketing-only is correct here and only here: this is our
     /// own app, and every release bumps this string.
-    // version-lint:allow-marketing-first — our own release version, never a vendor's
     static var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     }

@@ -46,6 +46,12 @@ struct RequestLogPane: View {
     let summary: RequestLogSummary
     let events: [DuoEvent]
     let retainedEvents: Int
+    /// The retention floor — `AppListModel.retainedEventFloor` —
+    /// unfiltered by whatever the pane is currently asking. Carried alongside
+    /// `retainedEvents` for the same reason that count is: it is a fact about
+    /// the store on disk, not about the query, so it stays visible whether or
+    /// not a filter or a range is selected (#460).
+    let retainedFloor: Date?
     let storeBytes: Int64
     /// Re-runs the query. Async so the caller can flush the store first.
     var onQuery: (RequestQuery) async -> Void = { _ in }
@@ -120,6 +126,14 @@ struct RequestLogPane: View {
     }
     private var range: Range { filter.range }
     private var selection: UUID? { filter.selection }
+
+    /// A range's label, with a parenthetical when the store cannot actually
+    /// back it — "Last 7 days (records only go back to 19 hours ago)".
+    private func rangeMenuLabel(_ range: Range) -> String {
+        guard let note = RequestCoverageHonesty.annotation(since: range.since, floor: retainedFloor)
+        else { return range.label }
+        return String(localized: "\(range.label) (\(note))")
+    }
 
     private var query: RequestQuery {
         var query = RequestQuery.window(text)
@@ -250,15 +264,29 @@ struct RequestLogPane: View {
     /// Says which question the number above answers. It has to name the filter:
     /// the same headline means two different things filtered and unfiltered, and
     /// nothing else on screen distinguishes them.
+    ///
+    /// The trailing span always comes from ``retainedFloor`` — the store's
+    /// retention floor — never from `summary.oldest`. `summary.oldest` is the
+    /// oldest row matching the *current query*, so it moves when the user
+    /// types or picks a range; reading it here would make the caption describe
+    /// the filter rather than the store, and it would vanish the moment a
+    /// range was selected — the exact bug (#460) this file exists to fix.
+    /// `isFiltered` still governs the count wording ("matching N requests" is
+    /// correct once a range narrows the count), but the retention floor
+    /// survives into both branches.
     @ViewBuilder
     private var caption: some View {
         let requests = String(localized: "\(summary.requests) requests")
         let hosts = String(localized: "\(summary.hostCount) hosts")
         Group {
             if isFiltered {
-                Text("matching \(requests) · \(hosts)")
-            } else if let since = summary.oldest {
-                Text("\(requests) · \(hosts) · since \(Self.monthYear.string(from: since))")
+                if let retainedFloor {
+                    Text("matching \(requests) · \(hosts) · \(RequestCoverageHonesty.floorDescription(retainedFloor))")
+                } else {
+                    Text("matching \(requests) · \(hosts)")
+                }
+            } else if let retainedFloor {
+                Text("\(requests) · \(hosts) · \(RequestCoverageHonesty.floorDescription(retainedFloor))")
             } else {
                 Text("\(requests) · \(hosts)")
             }
@@ -402,7 +430,15 @@ struct RequestLogPane: View {
                 placeholder: "host:  app:  purpose:  status:  size>10MB")
 
             Picker("Range", selection: $filter.range) {
-                ForEach(Range.allCases) { Text($0.label).tag($0) }
+                // The annotation lives here rather than on `Range` itself:
+                // `Range.label` is a static computed property with no access
+                // to `retainedFloor`, and the row that can least afford to be
+                // wrong is the one for a range the store cannot actually back
+                // — see `RequestCoverageHonesty`. Never disabled: a greyed-out
+                // row reads as broken, not as "true but unsupported".
+                ForEach(Range.allCases) { range in
+                    Text(rangeMenuLabel(range)).tag(range)
+                }
             }
             .labelsHidden()
             .fixedSize()
@@ -772,9 +808,19 @@ struct RequestLogPane: View {
                 .help("Paused while a row is selected, so the list does not move under you")
             }
             Spacer()
-            Text("\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk")
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+            // Always shown, filtered or not — the store's footprint is a fact
+            // about the file on disk, not about the query above it. Before
+            // #460 this line had a count and a size but no span, so the range
+            // menu's promise had nothing on screen to check it against.
+            if let retainedFloor {
+                Text("\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk · \(RequestCoverageHonesty.floorDescription(retainedFloor))")
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            } else {
+                Text("\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk")
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
             Button("Export JSON") { onExport(query) }
                 .buttonStyle(.link)
             Button(role: .destructive) {
@@ -895,12 +941,6 @@ struct RequestLogPane: View {
     private static func millis(_ seconds: TimeInterval) -> Int {
         Int((seconds * 1000).rounded())
     }
-
-    private static let monthYear: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
-        return formatter
-    }()
 
     private static let stamp: DateFormatter = {
         let formatter = DateFormatter()

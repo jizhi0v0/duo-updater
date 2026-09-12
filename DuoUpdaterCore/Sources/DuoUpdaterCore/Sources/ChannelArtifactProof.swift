@@ -92,6 +92,18 @@ public enum ChannelProofRegistry {
     public static let proofs: [ChannelProofKey: ChannelArtifactProof] = [
         // MARK: Editors / IDEs
         ChannelProofKey("com.microsoft.VSCodeInsiders", .preview): .artifact(#"/download/insider/"#),
+        // Cline Beta ships its own product name into the artifact — `Cline-Beta_…`
+        // where stable is `Cline_…` — so the URL alone carries the channel and the
+        // ordinary `.artifact` form applies; no `.endpointKeyed` reasoning needed
+        // even though the two tracks DO also read separate endpoints. Both halves
+        // are anchored because each fails differently: `Cline-Beta_` is the product
+        // (a stable tarball can never match it) and `-beta\.[0-9]+` is the tag's
+        // own prerelease counter. Verified against the live manifest 2026-09-12 —
+        // the resolved URL was
+        // `…/desktop-v0.0.23-beta.1/Cline-Beta_0.0.23-beta.1_universal.app.tar.gz`,
+        // and the stable manifest's URL matches neither half.
+        ChannelProofKey("bot.cline.app.beta", .beta):
+            .artifact(#"/Cline-Beta_[0-9][^/]*-beta\.[0-9]+_universal\.app\.tar\.gz$"#),
         // EAP dmgs are named `idea-<build>-aarch64.dmg` — the same shape stable
         // uses, so the filename proves nothing. The endpoint does: `type=eap` vs
         // stable's `type=release`, and the install pattern reads the dmg out of

@@ -705,6 +705,58 @@ public enum ChangelogRecipeRegistry {
             channel: .beta,
             structuredFormat: .gitHubReleases),
 
+        // Cline — the release bodies are the changelog (plain `- ` bullet lists, no
+        // `##` headings, which `GitHubMarkdownParser`'s bullet pass handles before
+        // it ever reaches the prose fallback). Version detection does NOT come from
+        // here: it reads Cline's own Tauri manifest, for the reasons in
+        // `VendorProbeRegistry`. This endpoint is fetched only when the workbench
+        // opens a Cline row — `ChangelogService` is on-demand and never runs during
+        // a check round — so the monorepo's page size is not on the scan path.
+        //
+        // `tagPattern` IS THE WHOLE POINT HERE, and both halves of it earn their
+        // keep. `cline/cline` publishes four products from one Releases list, so
+        // measured on the real `per_page=40` page (2026-09-12): the stable rail
+        // keeps 13 entries and WITHOUT the pattern would additionally have rendered
+        // **20 foreign ones** — `v4.1.17` (the VS Code extension), `cli-v3.0.61`,
+        // `sdk/sdk/v0.0.82` and so on. More noise than signal, and none of it
+        // malformed enough to look wrong. The capture group is the second half:
+        // `stripLeadingV` only removes a leading `v`, so every entry would have been
+        // titled `desktop-v0.0.26` and none would have matched the version the row
+        // shows.
+        //
+        // The rolling feed tags the updater points at (`desktop-latest`,
+        // `desktop-beta`) are releases in this list too; the `$`-anchored pattern
+        // drops both, which is what keeps a permanently-present tag from rendering
+        // as an entry whose version never changes.
+        //
+        // `per_page=40` / `maxEntries: 20` is the registry's house shape (Yaak,
+        // CotEditor, Zed). Both rails fit inside it today: 13 stable and 6 beta.
+        //
+        // `includesPromotedStable` is absent (false) on the beta recipe, taking
+        // Yaak's side of that split rather than CotEditor's, and here the reason is
+        // stronger than either: Cline's tracks are two DIFFERENT BUNDLE IDS
+        // (`bot.cline.app` vs `bot.cline.app.beta`). A stable release is not a
+        // build this row can ever be offered — it is a different app on disk — so
+        // a promoted-stable entry would describe something the beta rail cannot
+        // install.
+        ChangelogRecipe(
+            bundleID: "bot.cline.app",
+            source: URL(string: "https://api.github.com/repos/cline/cline/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases,
+            tagPattern: #"^desktop-v([0-9]+(?:\.[0-9]+){1,3})$"#),
+
+        ChangelogRecipe(
+            bundleID: "bot.cline.app.beta",
+            source: URL(string: "https://api.github.com/repos/cline/cline/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            structuredFormat: .gitHubReleases,
+            tagPattern: #"^desktop-v([0-9]+(?:\.[0-9]+){1,3}-beta\.[0-9]+)$"#),
+
         // CotEditor — the GitHub source already renders the release it is
         // OFFERING (the bodies are structured Markdown: `## Improvements`,
         // `## Known Issues`, measured through the source on both rails), so what

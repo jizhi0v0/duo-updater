@@ -878,6 +878,14 @@ final class AppListModel {
     /// Everything the store is holding, filter or no filter — the footprint line,
     /// which is about the file on disk and not about the question being asked.
     private(set) var retainedEventCount = 0
+    /// The retention floor — the oldest event of kind `"request"` the store
+    /// still holds, unfiltered by whatever query the pane is showing. `nil`
+    /// means the store holds no request events at all.
+    ///
+    /// Set from the same `coverage(kind:)` call as ``retainedEventCount`` so
+    /// the two can never disagree about which sweep of the store they
+    /// describe (#460).
+    private(set) var retainedEventFloor: Date?
     /// Whether the log has been read at least once.
     ///
     /// Not the same as "the log is empty", and the window has to tell them
@@ -1436,7 +1444,14 @@ final class AppListModel {
         // `kind: "request"` matters: install events live in the same table and
         // are never pruned, so an unfiltered count would report the retained
         // request window as the whole install history.
-        retainedEventCount = await eventStore.coverage(kind: "request").count
+        //
+        // One call for both fields, not two: `retainedEventFloor` is the
+        // retention floor the status bar and range menu warn against, and a
+        // second, separately-timed call could describe a different sweep of
+        // the store than `retainedEventCount` did (#460).
+        let coverage = await eventStore.coverage(kind: "request")
+        retainedEventCount = coverage.count
+        retainedEventFloor = coverage.oldest
         eventStoreBytes = await eventStore.databaseBytes()
         requestLogLoaded = true
     }
@@ -6231,11 +6246,12 @@ final class AppListModel {
         // flush is one rename, not a multi-second bundle swap, and the whole point
         // of this stream is to put the row into its checking state before the user
         // can act on a verdict their flip has just invalidated — every millisecond
-        // of debounce is time that row spends live and wrong. It used to be 1s,
-        // which was the bulk of the measured 2.4s a flip took to settle. Cutting it
-        // is only safe now that `recheckChannelSwitches` supersedes its own passes:
-        // a burst that fires several times just cancels itself down to the last
-        // one, where before each extra event was work we could not take back.
+        // of debounce is time that row spends live and wrong. Cutting it from the
+        // original 1s is only safe now that `recheckChannelSwitches` supersedes its
+        // own passes (see `docs/engine-notes/app-list-model.md` §3 for the settle
+        // time that debounce used to be most of): a burst that fires several times
+        // just cancels itself down to the last one, where before each extra event
+        // was work we could not take back.
         let prefPaths = ChannelBinding.preferenceWatchPaths
         if !prefPaths.isEmpty {
             let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 0.25) { [weak self] in
@@ -6353,21 +6369,9 @@ final class AppListModel {
     /// AppKit's own header prescribes: "Instead of polling, use key-value observing
     /// to be notified of changes to this array property" (`NSRunningApplication.h`).
     /// The launch/terminate notifications are kept as a second, independent
-    /// delivery path — they cost one no-op recompute each when both fire.
-    ///
-    /// **Why not the notifications alone** (issue #247). They are posted per app by
-    /// LaunchServices and are, measured on this machine, simply missing for some
-    /// apps in both directions, while the array — which cannot fail to lose an
-    /// entry when a process exits — always moved. One process, all four observers
-    /// plus a 200 ms poll as ground truth, 2026-09-02:
-    ///
-    ///     Alcove, 4 quits + 4 relaunches   notifications 0/8   KVO 8/8
-    ///     UURemote quit (+UURemoteServer)  no didTerminate     KVO caught both
-    ///     AppCleaner (control)             both fire           KVO 512 ms earlier
-    ///
-    /// KVO also beat the 200 ms poll by 26–180 ms on every transition, so the
-    /// ~2 s reconcile timer the issue proposed is not needed: there is nothing for
-    /// it to catch that this misses sooner.
+    /// delivery path — they cost one no-op recompute each when both fire. See
+    /// `docs/engine-notes/app-list-model.md` §2 for why (issue #247's measurement
+    /// of where the notifications alone fell short).
     ///
     /// **What it does not change.** The property "will only change when the main
     /// run loop is run in a common mode" (same header) — exactly the condition the
@@ -6378,11 +6382,9 @@ final class AppListModel {
     /// snapshot (~140 entries, ~130 with a bundle URL and ~105 of those distinct),
     /// a bundle-id set, and a `realpath` for each bundle path *not seen in the
     /// previous snapshot* — for most events, none; for a launch, the app and
-    /// whatever XPC services came up with it. `RunningBundlePathCache` is what
-    /// keeps it to that: this used to resolve every running bundle's symlinks on
-    /// every event, measured at 1.16 ms against 0.10 ms now (release build, live
-    /// snapshot), per launch/quit anywhere on the machine, all day, under a
-    /// comment that called it an in-memory walk.
+    /// whatever XPC services came up with it. See `RunningBundlePathCache`'s own
+    /// doc comment for what keeping that resolution buys and what it used to cost
+    /// without it.
     private func armRunningAppsMonitor() {
         // Seed before observing rather than passing `.initial`: the seed must set
         // the baseline the first real change is diffed against, without running the
@@ -6852,28 +6854,21 @@ final class AppListModel {
     /// flow). Coalesced against overlapping calls.
     private func recheckChannelSwitches(trigger: String) async {
         guard !results.isEmpty else { return }
-        // Latest wins. A pass already on the network was started from a choice the
-        // user has since left, so its verdict is not merely late — it is wrong, and
+        // Latest wins: a pass already on the network was started from a choice the
+        // user has since left, so its verdict is not merely late but wrong, and
         // letting it finish would write the superseded track into the row. Cancel it
-        // and start over rather than queueing behind it. Dropping the new trigger
-        // instead (what the old `channelSwitchRecheckRunning` guard did) was worse
-        // still: the flip was forgotten entirely, and because the fingerprints had
-        // already been booked, nothing compared them again — a row kept offering a
-        // prerelease to someone who had just opted out, for up to the watcher's
-        // 900s re-arm. See issue #74.
+        // and start over rather than queueing behind it or dropping the new trigger —
+        // see `docs/engine-notes/app-list-model.md` §3 for what the dropped-trigger
+        // design did instead, and why (issue #74).
         let previous = channelRecheckTask
         previous?.cancel()
         let task = Task { @MainActor [weak self] in
-            // Cancelling only raises a flag. The superseded pass keeps running until
-            // its `recheck` returns — `recheckMany` scans on a DETACHED task, which
-            // cancellation cannot reach at all — and for that whole time it still
-            // holds `installing[id] = .checking` on the rows it claimed. Starting the
-            // new pass on top of that made it skip those very rows, because its claim
-            // filter is `installing[id] == nil`: it rechecked nothing, the dying pass
-            // rechecked nothing either, and the flip was acted on by neither. That is
-            // issue #74 moved rather than fixed — two flips half a second apart, or
-            // one flip plus any unrelated write to the machine-wide
-            // `~/Library/Preferences` during the pass, were enough to hit it.
+            // `Task.cancel()` only raises a flag: the superseded pass keeps running
+            // (and holding `installing[id] = .checking` on its claimed rows) until its
+            // `recheck` returns, so starting a new claim pass on top of it just skips
+            // those same rows. See `docs/engine-notes/app-list-model.md` §3 for the
+            // race that let a flip go un-rechecked by either pass, and how narrow it
+            // turned out to be (issue #74).
             //
             // So wait the old pass out. It happens HERE, inside the new task, so that
             // `channelRecheckTask` below is still assigned synchronously: a third
@@ -6918,8 +6913,9 @@ final class AppListModel {
         // Mark every target busy BEFORE the first network call, not one at a time as
         // we reach it. The row's action button is replaced by the checking state, so
         // this is what stops a click landing on a verdict the flip has already
-        // invalidated — the window between the toggle and the new answer is ~2.4s,
-        // and only the marked part of it is safe.
+        // invalidated — the window between the toggle and the new answer used to
+        // measure ~2.4s (`docs/engine-notes/app-list-model.md` §3; not re-measured
+        // since the debounce above was cut), and only the marked part of it is safe.
         var claimed: [UpdateResult] = []
         for result in targets where installing[result.id] == nil {
             installing[result.id] = .checking
@@ -6981,14 +6977,14 @@ final class AppListModel {
     /// app without paying for a whole sweep.
     ///
     /// It re-derives the running set first, so it also corrects a row whose
-    /// *running* state has gone stale. `NSWorkspace`'s launch/terminate
-    /// notifications are the only thing maintaining that set, and some apps never
-    /// post one of them — measured: Alcove posts no `didLaunch`, UURemote no
-    /// `didTerminate` (issue #247) — which leaves the dot lit for an app that has
-    /// quit, or dark for one that is open. That recompute is whole-set and, since
-    /// the resolutions are memoized, 0.095 ms; it happens before the network check
-    /// rather than after, so the dot is right the moment the row starts checking
-    /// instead of when the source answers.
+    /// *running* state has gone stale. `armRunningAppsMonitor` keeps that set
+    /// live off KVO on `runningApplications`, measured to catch what the
+    /// launch/terminate notifications miss (issue #247) — but this call is a
+    /// floor under that live path, not a substitute for it, the same reasoning
+    /// `performRefresh` and `performLocalRescan` take it for. That recompute is
+    /// whole-set and, since the resolutions are memoized, 0.095 ms; it happens
+    /// before the network check rather than after, so the dot is right the
+    /// moment the row starts checking instead of when the source answers.
     ///
     /// Reuses the install-stage spinner to show "Checking" on just that row, and
     /// bails if the row is already busy (installing or mid-recheck).

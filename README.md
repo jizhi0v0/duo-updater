@@ -94,6 +94,11 @@ It **respects each app's own update channel**:
   Team ID and destination checks do not inspect payload Mach-O executables, so
   an Intel-only package can pass those checks. DuoUpdater does not verify or
   automatically roll back architecture changes after the system installer runs.
+  `duo verify --pkgarch` sweeps every pkg spec's declared `hostArchitectures` for
+  drift, but that is not the same thing as an install-time gate: measured across
+  the registry, the declaration has never once said "Intel-only", and the
+  packages that actually vary by architecture are exactly the ones that declare
+  nothing — so a gate built on this field would not catch the case it exists for.
 - **Never force-quits** a running app. When an update needs the app restarted to
   take effect, the quit is a plain `terminate()` — the app runs its own save
   prompts and can refuse. One that refuses is left running and keeps a

@@ -178,11 +178,20 @@ public enum Reconcile {
 
         // Open issue, still broken. Speak up only if something changed, or if
         // enough sweeps have passed that a nudge is warranted.
-        if entry.lastSignature != finding.signature {
+        //
+        // Against `previousSignature`, never `lastSignature`: `duo verify` writes
+        // the baseline and this step reads it back, so `lastSignature` is already
+        // THIS finding's signature and the comparison asks whether a value equals
+        // itself — it was dead in both directions. A nil previous (a row written
+        // before the field existed, or one whose streak started on an infra sweep)
+        // is "nothing to compare", not "changed": announcing a shape change
+        // against `unknown` would fire once on every open issue the day this
+        // shipped, which is the noise this whole file is built to avoid.
+        if let previous = entry.previousSignature, previous != finding.signature {
             return .comment(
                 issue: issue,
                 body: "The failure changed shape on \(Self.day(now)) — was "
-                    + "`\(entry.lastSignature ?? "unknown")`, now "
+                    + "`\(previous)`, now "
                     + "`\(finding.signature)`.\n\n\(body(for: finding, entry: entry, suggestion: suggestion))")
         }
         // A suggestion the issue doesn't have yet is genuinely new information,
@@ -296,14 +305,17 @@ public enum Reconcile {
         // here is the whole diagnosis: the page collapsed into one entry and the
         // heading it kept still parses.
         //
-        // Just the count, never "(was N)". `entry` came from the file `duo
-        // verify` wrote minutes ago, and that write already folded THIS sweep's
-        // count into it — so `lastGoodEntryCount` equals what is printed here,
-        // always, and a "was" that can never differ reads as "nothing changed"
-        // on exactly the issue that exists because something did. The transition
-        // is in the warning below, where it comes from the sweep that saw both
-        // numbers. (`| last good |` above has the same property, for the same
-        // reason.)
+        // Just the count, never "(was N)". The transition belongs in the warning
+        // below, which comes from the sweep that saw both numbers and says which
+        // way it moved; a second, separately-derived "was" beside it could only
+        // agree with it or contradict it.
+        //
+        // (`entry` is the row `duo verify` wrote minutes ago. Its
+        // `lastGoodEntryCount` is the last count the sweep TRUSTED, which on a
+        // collapse is deliberately not this sweep's — see `Baseline.reconcile`,
+        // where recording the collapsed value would leave the next sweep with
+        // nothing to notice. `| last good |` above is the same field for
+        // versions.)
         if let entries = finding.entryCount {
             out += "| entries parsed | \(entries) |\n"
         }

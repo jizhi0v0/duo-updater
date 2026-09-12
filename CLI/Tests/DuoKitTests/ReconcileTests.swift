@@ -21,6 +21,7 @@ import Foundation
 
     private func entry(
         issue: Int? = nil, streak: Int = 0, signature: String? = nil,
+        previousSignature: String? = nil,
         closedAt: Date? = nil, sweepsSinceComment: Int = 0, commentedDaysAgo: Double? = nil,
         lastGood: String? = nil,
         infra: Int = 0, infraDays: Double? = nil
@@ -29,6 +30,7 @@ import Foundation
         e.issueNumber = issue
         e.consecutiveActionable = streak
         e.lastSignature = signature
+        e.previousSignature = previousSignature
         e.closedAt = closedAt
         e.sweepsSinceComment = sweepsSinceComment
         e.lastCommentedAt = commentedDaysAgo.map { Date(timeIntervalSinceNow: -$0 * 86_400) }
@@ -233,10 +235,17 @@ import Foundation
     /// A failure that changes shape is new information and shouldn't wait for the
     /// nudge cycle — "the regex stopped matching" becoming "the endpoint 404s"
     /// changes what the fix is.
+    ///
+    /// ⚠️ The entry is the one `duo verify` leaves behind, which is why
+    /// `lastSignature` is THIS sweep's signature and the comparison is against
+    /// `previousSignature`. Written the other way round (`lastSignature:
+    /// "versionPatternNoMatch"`) this test passed against a branch that can never
+    /// be reached in production — see the end-to-end case below.
     @Test func aFailureChangingShapeIsReportedImmediately() {
         let action = Reconcile.decide(
             finding(status: .broken, failureKind: "httpStatus404"),
-            entry: entry(issue: 7, streak: 3, signature: "versionPatternNoMatch",
+            entry: entry(issue: 7, streak: 3, signature: "httpStatus404",
+                         previousSignature: "versionPatternNoMatch",
                          sweepsSinceComment: 1),
             reportable: true)
         guard case .comment(_, let body) = action else {
@@ -246,6 +255,49 @@ import Foundation
         #expect(body.contains("changed shape"))
         #expect(body.contains("versionPatternNoMatch"))
         #expect(body.contains("httpStatus404"))
+    }
+
+    /// The same rule through the real pipeline: `duo verify` folds each sweep into
+    /// the baseline and writes it, then `duo reconcile` reads that file back. The
+    /// hand-built case above cannot see that ordering, and the ordering is what
+    /// broke the rule — verify had already written this sweep's signature into
+    /// `lastSignature`, so the comparison `Reconcile` made was between a value and
+    /// itself and "changed shape" was unreachable for every recipe.
+    ///
+    /// Mutation: compare `entry.lastSignature` instead. The third sweep then
+    /// reports a 404 following a pattern failure as "still failing the same way".
+    @Test func aShapeChangeSurvivesTheVerifyThenReconcileRoundTrip() throws {
+        var baseline = Baseline()
+        let id = "vendor:com.example.app:stable"
+        // Two sweeps of one failure, which is what opens the issue.
+        for _ in 1...2 {
+            _ = baseline.reconcile(finding(status: .broken, failureKind: "versionPatternNoMatch"))
+        }
+        baseline.entries[id]?.issueNumber = 7
+        baseline.entries[id]?.lastCommentedAt = Date()
+
+        // The sweep where it changes shape.
+        let changed = finding(status: .broken, failureKind: "httpStatus404")
+        _ = baseline.reconcile(changed)
+
+        let action = Reconcile.decide(
+            changed, entry: try #require(baseline.entries[id]),
+            reportable: baseline.isReportable(id))
+        guard case .comment(_, let body) = action else {
+            Issue.record("expected an immediate comment, got \(action)")
+            return
+        }
+        #expect(body.contains("changed shape"))
+        #expect(body.contains("versionPatternNoMatch"))
+        #expect(body.contains("httpStatus404"))
+
+        // …and a sweep that repeats the new shape is not news again. The weekly
+        // rate limit is what must hold it, not a second "changed shape".
+        _ = baseline.reconcile(changed)
+        let repeated = Reconcile.decide(
+            changed, entry: try #require(baseline.entries[id]),
+            reportable: baseline.isReportable(id))
+        #expect(!repeated.isWrite, "got \(repeated)")
     }
 
     // MARK: - healing

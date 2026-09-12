@@ -35,6 +35,7 @@ struct PopoverRowAction: View {
     @State private var showMajorWarning = false
     @State private var showRegionHint = false
     @State private var showMacCompatHint = false
+    @State private var showNeedsNewerMacOSHint = false
     @State private var showTestFlightTip = false
 
     @ViewBuilder
@@ -525,6 +526,23 @@ struct PopoverRowAction: View {
             .popover(isPresented: $showMacCompatHint, arrowEdge: .bottom) {
                 macCompatHintPopover(info)
             }
+        } else if case .needsNewerMacOS(let minimum) = gate {
+            // A newer build exists, but it states a macOS floor this Mac
+            // doesn't meet — mas/the AX route would just fail at the last
+            // step, so flag it rather than offering an "Update" that can't
+            // succeed. Distinct badge from `.macIncompatible` above: that one
+            // means "no Mac runs this any more", this one means "an OS
+            // upgrade would fix it" (see `AppStoreGate.resolve`'s doc comment
+            // for the precedence between the two).
+            Button { showNeedsNewerMacOSHint = true } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help("Requires macOS \(minimum) or later — click for details")
+            .popover(isPresented: $showNeedsNewerMacOSHint, arrowEdge: .bottom) {
+                needsNewerMacOSHintPopover(info, minimum: minimum)
+            }
         } else if gate == .region {
             Button { showRegionHint = true } label: {
                 Image(systemName: "globe.badge.chevron.backward")
@@ -621,6 +639,23 @@ struct PopoverRowAction: View {
             Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
                 .font(.callout)
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open App Store anyway") { openInAppStore(info) }
+                .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func needsNewerMacOSHintPopover(_ info: AppStoreAvailability, minimum: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Needs a newer macOS", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("\(result.app.name)'s latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") requires macOS \(minimum) or later. This Mac can't install it until it's upgraded.")
+                .font(.callout)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Open App Store anyway") { openInAppStore(info) }

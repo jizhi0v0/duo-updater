@@ -211,16 +211,25 @@ public enum ChangelogService {
         }
     }
 
-    /// Drop every in-memory ``ChangelogCache`` slot this recipe could occupy: the
-    /// plain resolved page URL plus the recipe-fragmented key
-    /// (`…#changelog%3Acom%2E…`). Called after an app updates on disk so the
-    /// next open re-fetches fresh notes instead of serving the prior version's from
-    /// the still-warm in-memory cache.
-    public static func invalidateMemoryCache(for recipe: ChangelogRecipe) async {
-        let resolved = recipe.source
-        await ChangelogCache.shared.invalidate(resolved)
-        let keyURL = cacheKeyURL(for: recipe, resolved: resolved)
-        if keyURL != resolved { await ChangelogCache.shared.invalidate(keyURL) }
+    /// Drop every in-memory ``ChangelogCache`` slot this recipe could occupy, by
+    /// the recipe's own identity rather than by any one URL. Called after an app
+    /// updates on disk so the next open re-fetches fresh notes instead of serving
+    /// the prior version's from the still-warm in-memory cache.
+    ///
+    /// By identity because a URL is not enough to name them. `load` keys on
+    /// `resolvedSource(forVersion:)`, and a templated recipe (Thunderbird, WeChat,
+    /// Opera, Inkscape, …) resolves to a DIFFERENT page per version — so it holds
+    /// one slot per version the user has opened, and this used to compute its key
+    /// from the un-templated `recipe.source`, a URL `load` never stored anything
+    /// under. The invalidation missed every time, for exactly the recipes where it
+    /// matters most: the ones whose page changes when the app does.
+    ///
+    /// `cache` is a parameter only so a test can watch the fetch closure run again;
+    /// production always passes the shared instance.
+    public static func invalidateMemoryCache(
+        for recipe: ChangelogRecipe, in cache: ChangelogCache = .shared
+    ) async {
+        await cache.invalidate(fragment: cacheKeyFragment(for: recipe))
     }
 
     /// The cross-launch disk-cached notes for this recipe+version, with no network
@@ -255,9 +264,15 @@ public enum ChangelogService {
     /// verify`'s baseline key on. Percent-encoded so the fragment can't fail to
     /// parse: a nil `URL(string:)` here would silently reinstate the collision.
     static func cacheKeyURL(for recipe: ChangelogRecipe, resolved: URL) -> URL {
-        let token = recipe.recipeID
+        URL(string: resolved.absoluteString + "#" + cacheKeyFragment(for: recipe)) ?? resolved
+    }
+
+    /// The recipe-identity half of the key, on its own — what
+    /// `invalidateMemoryCache` matches on to find every version-resolved slot this
+    /// recipe owns.
+    static func cacheKeyFragment(for recipe: ChangelogRecipe) -> String {
+        recipe.recipeID
             .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? recipe.recipeID
-        return URL(string: resolved.absoluteString + "#" + token) ?? resolved
     }
 
     /// The disk-cache key for a recipe+version, or nil when no version is known

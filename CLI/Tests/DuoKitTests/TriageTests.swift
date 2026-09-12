@@ -229,6 +229,30 @@ import DuoUpdaterCore
         // A multi-byte character is never split down the middle.
         #expect(kept.allSatisfy { $0 == "中" })
     }
+
+    /// The same cap, on the branch that usually runs. `condense` only reaches the
+    /// head/tail path when the pattern's anchors are all gone; when one is still
+    /// there — the normal case — the window comes from `windowAroundAnchor`, which
+    /// was counting Characters too.
+    @Test func theAnchoredWindowIsCappedInBytesToo() {
+        let limit = 1_200
+        let body = String(repeating: "中", count: 3_000)
+            + #"<li id="codex-1">版本 4.2.0</li>"#
+            + String(repeating: "文", count: 3_000)
+        let sample = ResponseSample.condense(
+            body, limit: limit, pattern: #"<li id="codex-[^"]*">"#)
+
+        #expect(sample.contains("centred on the pattern's anchor"))
+        #expect(sample.contains(#"<li id="codex-1">版本 4.2.0</li>"#))
+        // The framing lines are the tool talking; the window it wrapped is what the
+        // cap is about.
+        let window = sample
+            .replacingOccurrences(
+                of: #"^…\[sample centred on the pattern's anchor '[^']*'\]…\n"#,
+                with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\n…[truncated]…", with: "")
+        #expect(window.utf8.count <= limit)
+    }
 }
 
 /// A suggestion in an issue is read weeks later, when the only thing that says

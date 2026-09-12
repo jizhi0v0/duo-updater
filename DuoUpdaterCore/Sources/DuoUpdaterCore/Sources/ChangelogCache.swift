@@ -110,6 +110,21 @@ public actor ChangelogCache {
         store[url] = nil
     }
 
+    /// Drop every slot whose key carries this fragment — i.e. every slot belonging
+    /// to one recipe, whatever page it resolved to.
+    ///
+    /// One recipe is not one URL: a templated recipe (`sourceTemplate`) fetches a
+    /// different page per version, so it can own several slots at once, and the
+    /// caller after an on-disk update knows the recipe but not which versions the
+    /// user has opened. Matching on the fragment is what makes "drop this recipe's
+    /// notes" unable to miss. Compared percent-encoded, because that is how
+    /// ``ChangelogService/cacheKeyURL(for:resolved:)`` writes it.
+    public func invalidate(fragment: String) {
+        let keys = Set(store.keys).union(inflight.keys)
+            .filter { $0.fragment(percentEncoded: true) == fragment }
+        for key in keys { invalidate(key) }
+    }
+
     // MARK: - Low-level access (also used by tests)
 
     /// Return the cached ``Changelog`` for `url` if still fresh; nil otherwise.

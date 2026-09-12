@@ -471,14 +471,16 @@ public enum ResponseSample {
         guard !anchors.isEmpty else { return nil }
         for anchor in anchors {
             guard let range = text.range(of: anchor) else { continue }
+            // Bytes, not Characters — same reason as `condense`, and this is the
+            // branch that usually runs (the anchor is normally still there). The
+            // anchor itself is inside the budget rather than added on top of it, so
+            // the window can't exceed `limit` however wide the anchor is.
             let before = limit / 3
-            let after = limit - before
-            let start = text.index(range.lowerBound, offsetBy: -before, limitedBy: text.startIndex)
-                ?? text.startIndex
-            let end = text.index(range.upperBound, offsetBy: after, limitedBy: text.endIndex)
-                ?? text.endIndex
+            let after = max(0, limit - before - String(text[range]).utf8.count)
+            let head = suffixBytes(of: String(text[..<range.lowerBound]), before)
+            let tail = prefixBytes(of: String(text[range.upperBound...]), after)
             return "…[sample centred on the pattern's anchor '\(anchor)']…\n"
-                + String(text[start..<end]) + "\n…[truncated]…"
+                + head + String(text[range]) + tail + "\n…[truncated]…"
         }
         return nil
     }

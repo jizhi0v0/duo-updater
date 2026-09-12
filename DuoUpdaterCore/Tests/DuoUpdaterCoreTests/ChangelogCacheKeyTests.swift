@@ -17,6 +17,12 @@ import Foundation
 /// the property is "every recipe owns its own slot", and the next one-page-many-
 /// products recipe must fail here instead of being discovered by a user reading
 /// the wrong app's notes.
+/// Counts how many times a cache-miss fetch closure actually ran.
+private actor FetchCounter {
+    private(set) var count = 0
+    func bump() { count += 1 }
+}
+
 @Suite struct ChangelogCacheKeyTests {
 
     @Test func noTwoRegisteredRecipesShareAnInMemoryCacheSlot() {
@@ -73,6 +79,47 @@ import Foundation
             channel: .beta, structuredFormat: .warpChannelVersions)
         #expect(ChangelogService.cacheKeyURL(for: stable, resolved: page)
             != ChangelogService.cacheKeyURL(for: beta, resolved: page))
+    }
+
+    /// `invalidateMemoryCache` has to drop the slots `load` actually filled, and
+    /// `load` keys on `resolvedSource(forVersion:)` — so for a templated recipe
+    /// (one page per version) the slots are under URLs the un-templated
+    /// `recipe.source` never names, and one recipe can hold several at once. This
+    /// walks every templated recipe in the registry, warms two versions' slots, and
+    /// requires the next load of each to fetch again.
+    @Test func invalidationDropsEveryVersionResolvedSlotATemplatedRecipeOwns() async {
+        let templated = ChangelogRecipeRegistry.recipes.filter { $0.sourceTemplate != nil }
+        #expect(!templated.isEmpty, "no templated recipes left — this test would be vacuous")
+
+        for recipe in templated {
+            let cache = ChangelogCache()
+            let counter = FetchCounter()
+            let versions = ["1.2.3", "4.5.6"]
+
+            func warm(_ version: String) async {
+                let key = ChangelogService.cacheKeyURL(
+                    for: recipe, resolved: recipe.resolvedSource(forVersion: version))
+                _ = await cache.load(for: key) {
+                    await counter.bump()
+                    return Changelog(entries: [
+                        .init(title: "t", version: version, date: nil, items: ["i"])
+                    ])
+                }
+            }
+
+            for version in versions { await warm(version) }
+            #expect(await counter.count == versions.count)
+            // Warm slots: a repeat load must not fetch.
+            for version in versions { await warm(version) }
+            #expect(await counter.count == versions.count)
+
+            await ChangelogService.invalidateMemoryCache(for: recipe, in: cache)
+
+            for version in versions { await warm(version) }
+            #expect(
+                await counter.count == versions.count * 2,
+                "\(recipe.recipeID) kept a slot through invalidateMemoryCache")
+        }
     }
 
     /// Two recipes for one bundle id and channel that differ only in their version

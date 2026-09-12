@@ -2267,7 +2267,7 @@ final class AppListModel {
             home.appendingPathComponent("Library/Input Methods", isDirectory: true),
         ]
         Task.detached(priority: .utility) {
-            for root in roots { InPlaceSwap.recoverInterruptedSwaps(in: root) }
+            for root in roots { await InPlaceSwap.recoverInterruptedSwaps(in: root) }
         }
     }
 

@@ -60,7 +60,35 @@ public enum InPlaceSwap {
     /// `-staged` (and present-app `.duoupdater-old`) leftovers. Best-effort; safe to
     /// run on every launch. Only the non-admin / read-only-parent install path can
     /// leave these behind (the common admin path is a truly atomic `replaceItemAt`).
-    public static func recoverInterruptedSwaps(in directory: URL) {
+    ///
+    /// Takes the machine-wide install lock first, like every other path that
+    /// replaces a bundle. Without it this sweep is not recovery but interference:
+    /// `<App>.app.duoupdater-new` is exactly what a live install has parked beside
+    /// its target, so the menu-bar app's first refresh could delete the staging
+    /// directory `duo` is still `ditto`-ing into. The claim is non-blocking, as
+    /// `InstallLock` always is — a launch-time sweep has nothing to wait for, and
+    /// whatever it skips it will find again next launch.
+    ///
+    /// It is `ProcessInstallLock`, so an install running in *this* process joins
+    /// the claim rather than refusing it. That is the documented refcount and it
+    /// is what lets the app apply two updates at once; it does mean this sweep is
+    /// serialised only against other processes.
+    public static func recoverInterruptedSwaps(
+        in directory: URL, lock: ProcessInstallLock = .shared
+    ) async {
+        do {
+            try await lock.claim()
+        } catch {
+            Log.install.notice(
+                "another installer holds the install lock, sweep deferred: \(error, privacy: .public)")
+            return
+        }
+        sweepInterruptedSwaps(in: directory)
+        await lock.release()
+    }
+
+    /// The sweep itself, once the lock is held.
+    private static func sweepInterruptedSwaps(in directory: URL) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil, options: []) else { return }

@@ -268,7 +268,7 @@ import Testing
     /// The state a rotation killed between its two renames leaves behind: no
     /// `Contents` at all, which is an input method the system can no longer load.
     /// The launch sweep has to put it back.
-    @Test func anInterruptedRotationIsRecoveredBySweep() throws {
+    @Test func anInterruptedRotationIsRecoveredBySweep() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
@@ -283,7 +283,7 @@ import Testing
             to: target.appendingPathComponent(InPlaceSwap.rotationBackupName))
         #expect(!fm.fileExists(atPath: target.appendingPathComponent("Contents").path))
 
-        InPlaceSwap.recoverInterruptedSwaps(in: root.dir)
+        await InPlaceSwap.recoverInterruptedSwaps(in: root.dir, lock: scratchLock(in: root.top))
 
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
         #expect(!fm.fileExists(
@@ -299,7 +299,7 @@ import Testing
     /// present in the bundle root", and removing it restores it. (`.DS_Store` is
     /// exempt by the signing rules; ours is not.) A leftover nothing clears is an
     /// input method that fails Gatekeeper.
-    @Test func aStaleRotationLeftoverIsCleared() throws {
+    @Test func aStaleRotationLeftoverIsCleared() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
@@ -309,7 +309,7 @@ import Testing
                 at: target.appendingPathComponent(name), withIntermediateDirectories: true)
         }
 
-        InPlaceSwap.recoverInterruptedSwaps(in: root.dir)
+        await InPlaceSwap.recoverInterruptedSwaps(in: root.dir, lock: scratchLock(in: root.top))
 
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
         for name in [InPlaceSwap.rotationStagedName, InPlaceSwap.rotationBackupName] {
@@ -328,6 +328,14 @@ import Testing
         let dir = top.appendingPathComponent("Library/Input Methods", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return (top, dir)
+    }
+
+    /// The sweep's install lock, on a per-test path. Never the default one: that
+    /// is `~/…/install.lock`, shared with whatever `duo` or the menu-bar app on
+    /// this machine is doing, so a test taking it would both interfere with a real
+    /// install and go red because of one.
+    private func scratchLock(in dir: URL) -> ProcessInstallLock {
+        ProcessInstallLock(url: dir.appendingPathComponent("install.lock"))
     }
 
     /// Structurally valid but unsigned, so the recovery sweep's signature check
@@ -356,5 +364,48 @@ import Testing
         """
         try Data(info.utf8).write(to: url.appendingPathComponent("Contents/Info.plist"))
         return url
+    }
+}
+
+/// The launch sweep writes where every other install path writes: it deletes
+/// `.duoupdater-new`/`.duoupdater-staged-*` and promotes `.duoupdater-old` back
+/// over the live bundle. Those are the writes `InstallLock` exists to serialise.
+@Suite struct InterruptedSwapSweepLockTests {
+
+    /// `duo` mid-`ditto` owns the `.duoupdater-new` this sweep would delete, and
+    /// the whole point of the lock is that the menu-bar app's first refresh must
+    /// not pull it out from under it. The second half is the vacuity guard: with
+    /// the lock free, the same call does delete it.
+    @Test func theSweepDefersWhileAnotherProcessHoldsTheInstallLock() async throws {
+        let fm = FileManager.default
+        let dir = try scratch()
+        defer { try? fm.removeItem(at: dir) }
+        let leftover = dir.appendingPathComponent("ZZFixture-Sweep.app.duoupdater-new")
+        #expect(!fm.fileExists(atPath: leftover.path))
+        try fm.createDirectory(at: leftover, withIntermediateDirectories: true)
+
+        let lockURL = dir.appendingPathComponent("install.lock")
+        // `flock` is scoped to the open file description, not the process, so a
+        // second `acquire` on the same path refuses the claim exactly the way a
+        // second process would — deterministically, with no helper to spawn.
+        let holder = try InstallLock.acquire(at: lockURL)
+
+        await InPlaceSwap.recoverInterruptedSwaps(
+            in: dir, lock: ProcessInstallLock(url: lockURL))
+        #expect(fm.fileExists(atPath: leftover.path),
+                "the sweep must leave another installer's staging directory alone")
+
+        holder.release()
+        await InPlaceSwap.recoverInterruptedSwaps(
+            in: dir, lock: ProcessInstallLock(url: lockURL))
+        #expect(!fm.fileExists(atPath: leftover.path),
+                "with the lock free the sweep still has to do its job")
+    }
+
+    private func scratch() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoSweepLockTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 }

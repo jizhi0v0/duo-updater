@@ -106,6 +106,130 @@ import Foundation
     #expect(src.extractMacCompatibility(from: platformsOnly).readBothSignals == false)
 }
 
+/// The macOS floor (issue #546): `data[0].data.shelfMapping.information.items
+/// [*].items[*]`, the item whose `heading` is the literal string "Mac",
+/// reduced to the bare numeric run by the same `versionNumber(in:)` the
+/// version shelf already uses. Real shape from Nowdex's page, measured
+/// 2026-09-12.
+@Test func extractsMinimumMacOSFromCompatibilityAnnotation() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"appPlatforms":["mac","phone","pad"],"shelfMapping":{"information":{"items":[
+      {"items":[{"$kind":"AnnotationItem","text":"Requires macOS 15.6 or later.","heading":"Mac"}]}
+    ]}}}}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).minimumMacOS == "15.6")
+}
+
+/// The `heading` a floor is read off is the literal ASCII string "Mac" on
+/// every storefront (measured 2026-09-12 us/cn/jp/de/fr/ru) — only `text` is
+/// localized, and non-English storefronts put a U+00A0 (no-break space)
+/// between "macOS" and the number. Anchoring on the literal substring
+/// "macOS " would fail on every one of these; `versionNumber(in:)`'s plain
+/// digit-run scan does not.
+@Test func extractsLocalizedMinimumMacOSAcrossNoBreakSpace() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"shelfMapping":{"information":{"items":[
+      {"items":[{"heading":"Mac","text":"Erfordert macOS\\u00a013.0 oder neuer."}]}
+    ]}}}}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).minimumMacOS == "13.0")
+}
+
+/// Xcode's floor text carries a trailing chip clause: "Requires macOS 26.2 or
+/// later and a Mac with Apple M1 chip or later." The chip name has no digits
+/// of its own, so `versionNumber(in:)`'s "first dotted-numeric run" still
+/// picks out the OS number rather than something from the clause after it.
+@Test func extractsMinimumMacOSBeforeATrailingChipClause() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"shelfMapping":{"information":{"items":[
+      {"items":[{"heading":"Mac",
+                 "text":"Requires macOS 26.2 or later and a Mac with Apple M1 chip or later."}]}
+    ]}}}}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).minimumMacOS == "26.2")
+}
+
+/// The EU-merchant-disclosure trap the extraction has to avoid: an `items[*]
+/// .items[*]` shelf can carry OTHER headings with digits of their own (a
+/// street address, a phone number) alongside — or instead of — the Mac
+/// annotation. Anchoring on `heading == "Mac"` specifically, rather than
+/// scanning the shelf for the first digit run, is what keeps a street number
+/// or phone number from being read as a macOS version. Shape modeled on
+/// Kindle's `de` page, measured 2026-09-12: an 'Adresse' item reading
+/// '1209 Orange St Wilmington Delaware 19801...' and a 'Telefonnummer' item
+/// reading '+1 5712344460' sit in the SAME `information` shelf as the
+/// Compatibility annotation.
+@Test func minimumMacOSIgnoresOtherHeadingsInTheSameShelf() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"shelfMapping":{"information":{"items":[
+      {"items":[
+        {"heading":"Adresse","text":"1209 Orange St Wilmington Delaware 19801"},
+        {"heading":"Telefonnummer","text":"+1 5712344460"},
+        {"heading":"Mac","text":"Requires macOS 15.6 or later."}
+      ]}
+    ]}}}}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).minimumMacOS == "15.6")
+}
+
+/// A listing with no Mac heading at all in its `information` shelf — the
+/// honest shape for an app that publishes no Mac build (Discord, measured
+/// 2026-09-12: `appPlatforms == ["phone", "pad"]`, no Mac compatibility line
+/// on the page at all) — reads as nil, not as a false floor.
+@Test func minimumMacOSIsNilWhenTheShelfHasNoMacHeading() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"appPlatforms":["phone","pad"],"shelfMapping":{"information":{"items":[
+      {"items":[{"heading":"iPhone","text":"Requires iOS 16.0 or later."}]}
+    ]}}}}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).minimumMacOS == nil)
+}
+
+/// `publishesMacBuild` (issue #545's second consequence, fixed alongside
+/// #546): the question a copy that IS the Mac build asks — does the LISTING
+/// still ship one — as opposed to `macSupported`'s "does a wrapped iOS binary
+/// run on a Mac at all". They read `appPlatforms` the same way but exist
+/// because a caller must not accidentally use one where the other is meant:
+/// `nativeMacVersion`/`iosOnMacVersion` use `publishesMacBuild`,
+/// `remoteVersion(checkMacCompat:)` keeps using `macSupported`.
+@Test func publishesMacBuildReadsAppPlatformsIndependentlyOfTheWrapperFlag() {
+    let src = MacAppStoreSource()
+    func page(_ inner: String) -> String {
+        "<html><script type=\"application/json\">{\"data\":[{\"data\":\(inner)}]}</script></html>"
+    }
+    // A native Mac build: `appPlatforms` names "mac" — true regardless of the
+    // wrapper flag, unlike `macSupported`'s reasoning which the flag alone
+    // could not settle for this same shape.
+    let nativeMacBuild = page(
+        """
+        {"appPlatforms":["mac","phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":false}}
+        """)
+    #expect(src.extractMacCompatibility(from: nativeMacBuild).publishesMacBuild == true)
+
+    let noMacBuild = page("""
+        {"appPlatforms":["phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":false}}
+        """)
+    #expect(src.extractMacCompatibility(from: noMacBuild).publishesMacBuild == false)
+
+    // appPlatforms unreadable: nil, fails open, same as macSupported's nil case.
+    #expect(src.extractMacCompatibility(from: page("{}")).publishesMacBuild == nil)
+}
+
 /// A product page carries more than one lockup: `moreByDeveloper` items have the
 /// same flag, for other apps entirely. Measured on nowdex's page 2026-09-12 —
 /// four occurrences, three of them the developer's three other apps, all `true`

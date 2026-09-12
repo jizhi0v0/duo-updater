@@ -161,7 +161,7 @@ struct UpdateRouteResolutionTests {
     /// `.appStore` assertion above passes `appStoreGate: .none` by default and
     /// would not notice.
     @Test("appStore carries the gate through", arguments: [
-        AppStoreGate.none, .region, .macIncompatible,
+        AppStoreGate.none, .region, .macIncompatible, .needsNewerMacOS(minimum: "15.6"),
     ])
     func appStoreCarriesGate(_ gate: AppStoreGate) {
         #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true, appStoreGate: gate))
@@ -210,5 +210,88 @@ struct AppStoreGateResolutionTests {
         let info = AppStoreAvailability(
             trackID: 1, availableRegion: "cn", homeRegion: "us", latestMacCompatible: false, storeName: nil)
         #expect(AppStoreGate.resolve(info) == .macIncompatible)
+    }
+
+    // MARK: - #546: needsNewerMacOS
+
+    /// A stated floor above this "Mac"'s OS resolves to `.needsNewerMacOS`,
+    /// carrying the floor for the explanation panel to quote. `osVersion` is
+    /// passed explicitly rather than read from `ProcessInfo` — this repo's
+    /// rule that a test must never ask the host what it's running (see
+    /// CLAUDE.md) — so this pins the verdict independent of whatever OS this
+    /// happens to run on.
+    @Test("a floor above this Mac's OS resolves to needsNewerMacOS")
+    func floorAboveHostResolvesToNeedsNewerMacOS() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us",
+            latestMinimumMacOS: "26.0", storeName: nil)
+        #expect(AppStoreGate.resolve(info, osVersion: "15.6.0") == .needsNewerMacOS(minimum: "26.0"))
+    }
+
+    /// A floor this Mac already meets resolves to `.none` — the gate must not
+    /// fire just because the field is populated, only when the comparison
+    /// actually fails. Also pins that the comparison is inclusive (`canRun`'s
+    /// `!= .orderedAscending`): a host exactly AT the floor is not blocked.
+    @Test("a floor this Mac already meets does not gate")
+    func floorAtOrBelowHostDoesNotGate() {
+        let exact = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us",
+            latestMinimumMacOS: "15.6", storeName: nil)
+        #expect(AppStoreGate.resolve(exact, osVersion: "15.6.0") == .none)
+
+        let older = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us",
+            latestMinimumMacOS: "12.0", storeName: nil)
+        #expect(AppStoreGate.resolve(older, osVersion: "15.6.0") == .none)
+    }
+
+    /// `.macIncompatible` outranks `.needsNewerMacOS` — the more general verdict
+    /// ("no Mac runs this any more") wins over the more specific one ("not one
+    /// this old"). Mutation guard for the priority order in `resolve`: swapping
+    /// these two checks would flip this to `.needsNewerMacOS(minimum: "26.0")`.
+    @Test("macIncompatible outranks needsNewerMacOS when both are true")
+    func macIncompatibleOutranksNeedsNewerMacOS() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us",
+            latestMacCompatible: false, latestMinimumMacOS: "26.0", storeName: nil)
+        #expect(AppStoreGate.resolve(info, osVersion: "15.6.0") == .macIncompatible)
+    }
+
+    /// `.needsNewerMacOS` outranks `.region` — an app that is both region-locked
+    /// and past its OS floor names the OS reason, not the region one. Mutation
+    /// guard: checking `isRegionMismatch` before the floor comparison would
+    /// flip this to `.region`.
+    @Test("needsNewerMacOS outranks region when both are true")
+    func needsNewerMacOSOutranksRegion() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "cn", homeRegion: "us",
+            latestMinimumMacOS: "26.0", storeName: nil)
+        #expect(AppStoreGate.resolve(info, osVersion: "15.6.0") == .needsNewerMacOS(minimum: "26.0"))
+    }
+
+    /// A whole sentence, rather than the bare number `extractMacCompatibility`
+    /// is supposed to reduce it to, must not gate — pins that `resolve` hands
+    /// `canRun` the extracted numeric string, not prose.
+    ///
+    /// ⚠️ The mechanism this actually exercises is NOT `canRun`'s "no digits at
+    /// all" bypass (`declared.rangeOfCharacter(from: .decimalDigits) != nil`) —
+    /// "Requires macOS 26.0 or later." has digits, so that guard does not fire
+    /// here. What fails it open is `VersionComparator`'s tokenizer: the
+    /// sentence's FIRST token is "Requires" (text), "15.6.0"'s first token is
+    /// numeric, and a numeric token always ranks above a text one — see
+    /// `canRun`'s own doc comment ("any value whose FIRST token is
+    /// non-numeric… also compares as satisfied regardless of the number that
+    /// follows it"). Both paths are real fail-open behavior in `canRun`, but
+    /// only one of them is what THIS input exercises — a value with truly no
+    /// digits at all (`"unavailable"`, say) would hit the other one instead.
+    /// `canRun`'s own behavior is tested where `canRun` itself lives; this only
+    /// pins that `resolve` doesn't short-circuit around it for an unreadable
+    /// value.
+    @Test("an unreadable floor fails open")
+    func unreadableFloorFailsOpen() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us",
+            latestMinimumMacOS: "Requires macOS 26.0 or later.", storeName: nil)
+        #expect(AppStoreGate.resolve(info, osVersion: "15.6.0") == .none)
     }
 }

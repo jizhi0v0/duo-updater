@@ -85,11 +85,12 @@ private func staged(_ version: String) -> StagedSelfUpdate {
 private func storeAvailability(
     availableRegion: String = "us",
     homeRegion: String? = "us",
-    latestMacCompatible: Bool? = nil
+    latestMacCompatible: Bool? = nil,
+    latestMinimumMacOS: String? = nil
 ) -> AppStoreAvailability {
     AppStoreAvailability(
         trackID: 123, availableRegion: availableRegion, homeRegion: homeRegion,
-        latestMacCompatible: latestMacCompatible, storeName: nil)
+        latestMacCompatible: latestMacCompatible, latestMinimumMacOS: latestMinimumMacOS, storeName: nil)
 }
 
 // MARK: - canAutoInstall
@@ -335,6 +336,45 @@ private func storeAvailability(
         let actual = UpdatePolicy.canAutoInstall(c.result, settings: c.settings, environment: c.environment)
         #expect(actual == c.expected, "\(c.name): expected \(c.expected), got \(actual)")
     }
+}
+
+/// #546, found by an adversarial review of that PR rather than by a live
+/// report: `canAutoInstall`'s App Store guard used to check only
+/// `isRegionMismatch`/`isLatestMacIncompatible`, so a native Mac App Store app
+/// (or an iOS-on-Mac app on the AX route) whose latest build states a macOS
+/// floor above this Mac's OS still answered `canAutoInstall == true` — and
+/// `UpdateRoute.resolve` checks `canAutoInstall` BEFORE it ever reaches
+/// `.appStore(gate:)`, so the row got a plain "Update" button driving the real
+/// installer instead of the new badge, reproducing the exact failure #546 set
+/// out to fix. `osVersion` is passed explicitly (never `ProcessInfo`) so this
+/// pins the verdict independent of whatever OS this test happens to run on.
+///
+/// Mutation run: reverting the guard in `UpdatePolicy.swift` to
+/// `!info.isRegionMismatch, !info.isLatestMacIncompatible` (dropping the floor
+/// check) turns the first two assertions red — both go `true` where `false`
+/// is expected.
+@Test func appStoreFloorGatesCanAutoInstall() {
+    let hostOS = "15.6.0"
+    let tooOld = storeAvailability(latestMinimumMacOS: "26.0")
+    #expect(!UpdatePolicy.canAutoInstall(
+        fixtureResult(source: "App Store", appStore: tooOld),
+        settings: defaultSettings(strategy: .full), environment: environment(helperEnabled: true),
+        osVersion: hostOS),
+        "the .full route must not offer an update whose floor this Mac doesn't meet")
+    #expect(!UpdatePolicy.canAutoInstall(
+        fixtureResult(source: "App Store", appStore: tooOld),
+        settings: defaultSettings(strategy: .incremental), environment: environment(),
+        osVersion: hostOS),
+        "the .incremental (AX) route must not offer it either — it unconditionally returned true before this guard")
+
+    // The floor this Mac already meets must not gate — pins that the fix
+    // didn't just turn the App Store branch off outright.
+    let met = storeAvailability(latestMinimumMacOS: "12.0")
+    #expect(UpdatePolicy.canAutoInstall(
+        fixtureResult(source: "App Store", appStore: met),
+        settings: defaultSettings(strategy: .full), environment: environment(helperEnabled: true),
+        osVersion: hostOS),
+        "a floor this Mac already meets must still be auto-installable")
 }
 
 // MARK: - requiresInstaller

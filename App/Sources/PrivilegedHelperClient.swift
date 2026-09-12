@@ -169,7 +169,10 @@ final class PrivilegedHelperClient: ObservableObject {
         // prompt. Callers guard against a second press while this is in flight.
         let label = HelperConfig.machServiceName
         // nil means it ran and succeeded; a string is why it didn't.
-        let failure: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+        // Dispatch, not `Task.detached`: a detached task still runs on the
+        // cooperative pool, and the panel below parks the calling thread for as
+        // long as the user takes to answer it. See `offCooperativePool`.
+        let failure: String? = await offCooperativePool(qos: .userInitiated) { () -> String? in
             let shell = "/bin/launchctl kickstart -k system/\(label)"
             let script = "do shell script \"\(shell)\" with administrator privileges"
             let process = Process()
@@ -186,7 +189,7 @@ final class PrivilegedHelperClient: ObservableObject {
                 return String(data: errData, encoding: .utf8) ?? "unknown error"
             }
             return nil
-        }.value
+        }
         if let message = failure {
             // Dismissing the panel lands here too, and is a decision rather than a
             // fault: nothing ran, so nothing is claimed.

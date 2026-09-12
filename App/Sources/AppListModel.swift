@@ -1399,8 +1399,15 @@ final class AppListModel {
         // none per menu-bar open — everything else goes through
         // `githubTokenForRecheck`, which only reaches here on a miss.
         Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
+        // The resolve shells out to `gh auth token` and blocks in
+        // `waitUntilExit()`, so it goes to Dispatch rather than to the cooperative
+        // pool a detached task shares (see `offCooperativePool`). The task wrapper
+        // stays: it is what `firstResult` races the deadline against, and all it
+        // does itself is await.
         let loader = Task.detached(priority: .utility) {
-            GitHubToken.resolve(explicit: explicit)
+            await offCooperativePool(qos: .utility) {
+                GitHubToken.resolve(explicit: explicit)
+            }
         }
         if let token = await firstResult(of: loader, within: timeout) {
             return token
@@ -2283,6 +2290,10 @@ final class AppListModel {
             URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
             home.appendingPathComponent("Library/Input Methods", isDirectory: true),
         ]
+        // The sweep's own blocking half (`SecStaticCode…` on every orphan it
+        // finds — the exact call #351 measured) hops inside
+        // `InPlaceSwap.recoverInterruptedSwaps`, which is async now that it takes
+        // the install lock. Nothing to do here but await it.
         Task.detached(priority: .utility) { [weak self] in
             var swept = true
             for root in roots {
@@ -4831,7 +4842,11 @@ final class AppListModel {
     /// relaunch a batch of apps during an install. Blocking `@MainActor` here
     /// froze the whole UI (spin report) and stranded the half-restarted app.
     nonisolated private static func runningBuildVersions() async -> [String: String] {
-        await Task.detached(priority: .utility) {
+        // Dispatch, not `Task.detached`: a detached task still runs on the
+        // cooperative pool, and the pair below (`readDataToEndOfFile()` +
+        // `waitUntilExit()`) parks whatever thread it lands on for as long as
+        // `coreservicesd` takes. See `offCooperativePool`.
+        await offCooperativePool(qos: .utility) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
             process.arguments = ["list"]
@@ -4867,7 +4882,7 @@ final class AppListModel {
             // instead of a live process list. This closure only owns invoking the
             // tool and its timeout/kill backstop.
             return LSAppInfoParser.runningBuildVersions(from: text)
-        }.value
+        }
     }
 
     /// Take down a note one of the restart paths wrote — and only if it is still
@@ -5784,9 +5799,13 @@ final class AppListModel {
             return
         }
         do {
-            let restored = try await Task.detached(priority: .userInitiated) { () -> String? in
+            // Off the cooperative pool, not merely off this actor: the restore
+            // dittos the stored bundle out and then runs the same blocking
+            // `InPlaceSwap.replace` an install does, and a detached task still runs
+            // on the pool. See `offCooperativePool`.
+            let restored = try await offCooperativePool(qos: .userInitiated) { () -> String? in
                 try BackupStore.restore(forKey: key, over: target)
-            }.value
+            }
             // The swap has landed; everything below is bookkeeping and needs no
             // exclusion, so hand the claim back rather than holding it through a
             // rescan (same reasoning as the apply permit in `performInstall`).

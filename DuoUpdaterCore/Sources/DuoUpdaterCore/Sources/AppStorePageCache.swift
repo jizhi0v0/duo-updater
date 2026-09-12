@@ -1,8 +1,9 @@
 import Foundation
 
 /// TTL-memoized cache for the two things `MacAppStoreSource` scrapes off an App
-/// Store product page: the Mac-track version (+ "What's New" notes) and the
-/// `isIOSBinaryMacOSCompatible` flag.
+/// Store product page: the Mac-track version (+ "What's New" notes) and whether
+/// the latest build can be installed on a Mac at all
+/// (`MacAppStoreSource.MacCompatibilityReading`).
 ///
 /// **All of the value is across scans, none of it within one.** `resolve()` is
 /// a three-way dispatch with early returns, so exactly one of
@@ -22,7 +23,7 @@ import Foundation
 /// is based on and the wrong assumption an earlier version of this comment
 /// made.
 ///
-/// Deliberately caches a *parse failure* (2xx response, no version/flag found)
+/// Deliberately caches a *parse failure* (2xx response, no version/verdict found)
 /// the same as a *parse success* — an unparseable page costs full price again
 /// only once per TTL window, not once per check, which is the failure mode this
 /// exists to fix (skipping the scrape entirely would instead make the two

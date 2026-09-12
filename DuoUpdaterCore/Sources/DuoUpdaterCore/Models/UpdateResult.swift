@@ -10,10 +10,16 @@ public struct AppStoreAvailability: Sendable, Hashable {
     public let homeRegion: String?
 
     /// For an iPhone/iPad app run on Apple Silicon: whether the *latest* App Store
-    /// build still runs on Macs (Apple's `isIOSBinaryMacOSCompatible` flag).
-    /// Vendors can drop Mac support in a newer release, so the newest version may
-    /// be real but uninstallable here — the App Store shows "Not compatible with
-    /// this device". nil = native Mac app / not checked (assume compatible).
+    /// build can be installed on a Mac at all. Vendors can drop Mac support in a
+    /// newer release, so the newest version may be real but uninstallable here —
+    /// the App Store shows "Not compatible with this device". nil = native Mac
+    /// app / not checked / couldn't tell (assume compatible).
+    ///
+    /// ⚠️ NOT a straight copy of Apple's `isIOSBinaryMacOSCompatible` flag, which
+    /// answers the narrower "does the *iOS binary* run on macOS" and therefore
+    /// reads `false` for every app that ships its own native Mac build. See
+    /// `MacAppStoreSource.MacCompatibilityReading` for the measurements and for
+    /// the second signal (`appPlatforms`) it takes to tell those two apart.
     public let latestMacCompatible: Bool?
 
     /// The store's own listing title, e.g. "DingDing: Redefine Work in AI" for the

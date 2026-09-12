@@ -476,13 +476,69 @@ public struct MacAppStoreSource: UpdateSource {
 
     // MARK: - Mac compatibility (wrapped iOS apps)
 
-    /// Reads Apple's `isIOSBinaryMacOSCompatible` flag for the latest build from
-    /// the product page's inline amp-api JSON. nil when the page/flag can't be
-    /// read — callers treat nil as "assume compatible" so a scrape failure never
-    /// hides a real update. Memoized through `pageCache`, same contract as
-    /// `cachedMacVersion` above: a non-2xx/undecodable response is `.unavailable`
-    /// (not cached, nil returned exactly as before this cache existed); a 2xx
-    /// response with no readable flag is `.success(nil)` (cached).
+    /// What one product page says about running the LATEST build on a Mac.
+    ///
+    /// Two readings, because `isIOSBinaryMacOSCompatible` on its own answers a
+    /// narrower question than its name suggests: it says whether the *iOS
+    /// binary* runs on macOS — i.e. whether this listing is installable on
+    /// Apple Silicon as a wrapped iPhone/iPad app. A listing that ships its own
+    /// **Mac** binary answers `false` there and is nevertheless fully supported
+    /// on Macs; the Mac build, not the wrapper, is what a Mac installs. So the
+    /// flag flips to `false` on the day a developer ADDS Mac support natively,
+    /// which reads exactly like the day one drops it.
+    ///
+    /// `appPlatforms` is the other half: the platforms the listing publishes
+    /// binaries for. `"mac"` in it means a real Mac build exists.
+    ///
+    /// Measured 2026-09-12 against 18 live listings (`us` storefront, Aqara Home
+    /// also `cn`): the page's own "Compatibility" section names Mac exactly when
+    /// `isIOSBinaryMacOSCompatible == true || appPlatforms.contains("mac")`, with
+    /// no exception in either direction.
+    ///   - flag `true`, no `"mac"` platform, Mac listed: Overcast, Aqara Home.
+    ///   - flag `false`, `"mac"` platform, Mac listed: nowdex, GoodNotes,
+    ///     WhatsApp, Kindle, CARROT Weather, Home Assistant, Bear, Things 3,
+    ///     Day One, Todoist, Microsoft To Do.
+    ///   - flag `false`, no `"mac"` platform, Mac NOT listed: Instagram,
+    ///     Discord, Facebook, Scriptable, ChatGPT, Telegram, Fantastical,
+    ///     Microsoft Edge.
+    struct MacCompatibilityReading {
+        /// `data[0].data.lockup.isIOSBinaryMacOSCompatible`.
+        var iosBinaryRunsOnMac: Bool?
+        /// `data[0].data.appPlatforms`.
+        var appPlatforms: [String]?
+
+        /// Both shapes were found. Only `verifyMacCompatPageShape` cares: the
+        /// verdict below stays useful when either one alone survives, so a
+        /// half-drifted page would still answer correctly — and silently — if
+        /// the sweep settled for `macSupported != nil`.
+        var readBothSignals: Bool { iosBinaryRunsOnMac != nil && appPlatforms != nil }
+
+        /// Whether the latest build is installable on a Mac at all. `nil` means
+        /// "couldn't tell" and callers treat it as compatible, so a scrape
+        /// failure never hides a real update.
+        ///
+        /// Fails open in one more place than the shape of the data strictly
+        /// forces: a `false` verdict needs BOTH readings, because a lone
+        /// `isIOSBinaryMacOSCompatible == false` is the majority shape above and
+        /// says nothing on its own. If Apple renames `appPlatforms`, every app
+        /// with a native Mac build lands here as `nil` (offer the update, maybe
+        /// wrongly) rather than as `false` (refuse it, definitely wrongly).
+        var macSupported: Bool? {
+            if iosBinaryRunsOnMac == true { return true }
+            guard let appPlatforms else { return nil }
+            if appPlatforms.contains("mac") { return true }
+            return iosBinaryRunsOnMac == false ? false : nil
+        }
+    }
+
+    /// Reads the two signals above off the product page's inline amp-api JSON
+    /// and reduces them to one verdict. nil when the page can't be read, or
+    /// when what it carries doesn't settle the question — callers treat nil as
+    /// "assume compatible" so a scrape failure never hides a real update.
+    /// Memoized through `pageCache`, same contract as `cachedMacVersion` above:
+    /// a non-2xx/undecodable response is `.unavailable` (not cached, nil
+    /// returned exactly as before this cache existed); a 2xx response with
+    /// nothing readable is `.success(nil)` (cached).
     private func cachedMacCompatibility(trackId: Int, region: String) async throws -> Bool? {
         if let cached = await pageCache.cachedCompatibility(trackId: trackId, region: region) {
             return cached
@@ -491,7 +547,8 @@ public struct MacAppStoreSource: UpdateSource {
             return nil  // malformed URL never happens for a real trackId/region; nothing to cache
         }
         switch try await fetchMacCompatibility(url: url) {
-        case .success(let compat):
+        case .success(let reading):
+            let compat = reading.macSupported
             await pageCache.storeCompatibility(compat, trackId: trackId, region: region)
             return compat
         case .unavailable:
@@ -499,7 +556,7 @@ public struct MacAppStoreSource: UpdateSource {
         }
     }
 
-    private func fetchMacCompatibility(url: URL) async throws -> PageFetchOutcome<Bool?> {
+    private func fetchMacCompatibility(url: URL) async throws -> PageFetchOutcome<MacCompatibilityReading> {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
@@ -515,12 +572,20 @@ public struct MacAppStoreSource: UpdateSource {
         guard let html = String(data: data, encoding: .utf8) else {
             return .unavailable
         }
-        return .success(extractMacCompatible(from: html))
+        return .success(extractMacCompatibility(from: html))
     }
 
-    /// Finds `data[0].data.lockup.isIOSBinaryMacOSCompatible` in the page's
-    /// `<script type="application/json">` blobs. Internal for offline tests.
-    func extractMacCompatible(from html: String) -> Bool? {
+    /// Finds `data[0].data.lockup.isIOSBinaryMacOSCompatible` and
+    /// `data[0].data.appPlatforms` in the page's `<script type="application/json">`
+    /// blobs. Internal for offline tests and for `verifyMacCompatPageShape`,
+    /// which asserts both shapes are still there.
+    ///
+    /// The pages carry more than one lockup — `moreByDeveloper` items have the
+    /// same flag, for other apps entirely — so the path is anchored at
+    /// `data[0].data`, which is this listing's own. (Measured on nowdex's page,
+    /// 2026-09-12: four `isIOSBinaryMacOSCompatible` occurrences, three of them
+    /// the developer's other apps.)
+    func extractMacCompatibility(from html: String) -> MacCompatibilityReading {
         var searchRange = html.startIndex..<html.endIndex
         let open = "<script type=\"application/json\""
         let close = "</script>"
@@ -533,14 +598,22 @@ public struct MacAppStoreSource: UpdateSource {
             if let jsonData = jsonSlice.data(using: .utf8),
                let root = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                let dataArr = root["data"] as? [[String: Any]],
-               let inner   = dataArr.first?["data"] as? [String: Any],
-               let lockup  = inner["lockup"] as? [String: Any],
-               let compat  = lockup["isIOSBinaryMacOSCompatible"] as? Bool {
-                return compat
+               let inner   = dataArr.first?["data"] as? [String: Any] {
+                let reading = MacCompatibilityReading(
+                    iosBinaryRunsOnMac: (inner["lockup"] as? [String: Any])?["isIOSBinaryMacOSCompatible"] as? Bool,
+                    appPlatforms: inner["appPlatforms"] as? [String])
+                // Keep scanning when this blob carried neither — an earlier blob
+                // on the page can be some other payload entirely.
+                if reading.iosBinaryRunsOnMac != nil || reading.appPlatforms != nil { return reading }
             }
             searchRange = bodyEnd.upperBound..<html.endIndex
         }
-        return nil
+        return MacCompatibilityReading()
+    }
+
+    /// The verdict alone, for the one production caller. Internal for offline tests.
+    func extractMacCompatible(from html: String) -> Bool? {
+        extractMacCompatibility(from: html).macSupported
     }
 
     // MARK: -
@@ -924,14 +997,19 @@ extension MacAppStoreSource {
         }
     }
 
-    /// Un-cached fetch + parse of the `isIOSBinaryMacOSCompatible` flag at
-    /// `trackId`'s plain (non `?platform=mac`) product page — the page
+    /// Un-cached fetch + parse of both Mac-compatibility signals at `trackId`'s
+    /// plain (non `?platform=mac`) product page — the page
     /// `remoteVersion(checkMacCompat: true)` scrapes, bypassing `pageCache`.
+    ///
+    /// `found` requires BOTH, not just a usable verdict: either signal drifting
+    /// away on its own still leaves `macSupported` answering — the remaining one
+    /// covers most listings — so a sweep that asked only for a non-nil verdict
+    /// would go quiet on exactly the half-drift it exists to catch.
     public func verifyMacCompatPageShape(trackId: Int, region: String) async throws -> AppStorePageShapeCheck {
         guard let url = URL(string: "https://apps.apple.com/\(region)/app/id\(trackId)")
         else { return .unreachable(httpStatus: nil) }
         switch try await fetchMacCompatibility(url: url) {
-        case .success(let compat): return .reachable(found: compat != nil)
+        case .success(let reading): return .reachable(found: reading.readBothSignals)
         case .unavailable: return .unreachable(httpStatus: nil)
         }
     }

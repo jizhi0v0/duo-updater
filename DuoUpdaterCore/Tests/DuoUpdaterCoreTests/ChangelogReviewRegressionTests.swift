@@ -257,6 +257,22 @@ private let hbuilderXCodeSpanFixture = #"""
     }
 }
 
+/// `headingPattern` is read only by `ChangelogExtractor` — the regex path. A
+/// `.gitHubReleases`/`.zedGitHubReleases` recipe never reaches
+/// `ChangelogExtractor` at all (it goes through `StructuredChangelogDecoder` →
+/// `GitHubMarkdownParser`, which decides which headings to style on its own —
+/// see `Changelog.parserGeneration`'s generation-3 entry), so setting
+/// `headingPattern` there is not an error, it is *nothing*: the field is set and
+/// nothing ever reads it. Same failure shape as `skipSections`/`tagPattern`
+/// above, mirrored the other way — those two are no-ops on the regex path,
+/// this one is a no-op on the structured path.
+@Test func headingPatternOnlyLandsOnAFormatThatReadsIt() {
+    for recipe in ChangelogRecipeRegistry.recipes where recipe.headingPattern != nil {
+        #expect(recipe.structuredFormat == nil,
+                "\(recipe.bundleID): headingPattern is a no-op on \(recipe.structuredFormat!.rawValue)")
+    }
+}
+
 // MARK: - Waku
 
 /// Waku's registered recipe reads GitHub releases, which carry the same bullets

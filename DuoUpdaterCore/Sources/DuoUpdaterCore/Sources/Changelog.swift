@@ -37,9 +37,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   that's threaded into that code and changes its output just as directly —
     ///   `entryPattern`, `itemPatterns`, `skipSections`, `stripTags`,
     ///   `escapedMarkup`, `markdownSource`, `minItemLength`, `newestLast`,
-    ///   `maxEntries`, `source` itself, and so on. A recipe edit that changes what
-    ///   an EXISTING cached version's notes would parse to (not just what a *new*
-    ///   release's notes will) is exactly as invalidating as a code change; two
+    ///   `maxEntries`, `source`, `headingPattern`, and so on. A recipe edit that
+    ///   changes what an EXISTING cached version's notes would parse to (not just
+    ///   what a *new* release's notes will) is exactly as invalidating as a code
+    ///   change; two
     ///   already-merged commits prove it — `0d9d424` (Figma moved to a different
     ///   feed with a different `entryPattern`, same bundle id) and `a6ac16b`
     ///   (`skipSections` added, changing BetterDisplay's existing releases' output).
@@ -64,7 +65,17 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 2: Ollama's recipe gained a paragraph item pattern, so a release written as
     ///   prose (no bullet list) parses to an entry instead of being dropped. Notes
     ///   already cached for 0.34.0 were stored without 0.34.0's own entry.
-    public static let parserGeneration = 2
+    /// - 3: Keep a Changelog / GitHub category headings (`### Added`, `### Fixed`,
+    ///   …) now survive as `.heading` blocks in `content` instead of being
+    ///   silently flattened into `items` — `GitHubMarkdownParser` styles a heading
+    ///   only when it has ≥2 non-boilerplate sibling headings AND contains no
+    ///   digit (a version-restating heading like UTM's `Changes (v5.0.4)` or
+    ///   Rockxy's `Rockxy 0.38.3 (build 58)` fails that second test and stays
+    ///   folded away exactly as before); `ChangelogRecipe.headingPattern` lets a
+    ///   hand-written recipe (Mac Performance Monitor) opt in unconditionally.
+    ///   Notes already cached under the old logic had every group's heading
+    ///   dropped with no way to tell which category a line belonged to.
+    public static let parserGeneration = 3
 
     public let entries: [Entry]
 
@@ -125,19 +136,29 @@ public struct Changelog: Codable, Sendable, Hashable {
         /// The individual change lines, in document order. Emoji/category prefixes
         /// (✨ 🔔 🎨 …) are kept inline as the vendor wrote them. Always the full set
         /// of text lines, even when `content` also carries them interleaved with
-        /// images — so a text-only consumer never needs to walk `content`.
+        /// images or headings — so a text-only consumer never needs to walk
+        /// `content`. A category heading (`### Added`) is NOT a change line and
+        /// never appears here, styled or not — see `Block.heading`.
         public let items: [String]
-        /// Notes and illustration images in their original document order. Empty for
-        /// the common (text-only) case, where the renderer just bullets `items`.
-        /// Populated only when a recipe sets `imagePattern` AND the entry actually
-        /// embeds an image — then the renderer walks this so a screenshot lands
-        /// between the change lines exactly as it does on the vendor's page (WeChat).
+        /// Notes, illustration images, and category headings in their original
+        /// document order. Empty for the common (flat) case, where the renderer
+        /// just bullets `items`. Populated when a recipe sets `imagePattern` AND
+        /// the entry actually embeds an image (then the renderer walks this so a
+        /// screenshot lands between the change lines exactly as it does on the
+        /// vendor's page, WeChat) OR when at least one of the entry's headings
+        /// earned a `.heading` block (see `Block.heading`) — either producer can
+        /// populate this independent of the other, so an entry can carry headings
+        /// with no images, images with no headings, or both.
         public let content: [Block]
 
-        /// One ordered piece of a rich entry: a change line, or an embedded image.
+        /// One ordered piece of a rich entry: a change line, an embedded image, or
+        /// a category heading (`### Added`, `### Fixed`, …) worth styling as its
+        /// own line rather than flattening into the notes around it. Never present
+        /// in `items` — see that property's doc comment.
         public enum Block: Codable, Sendable, Hashable {
             case note(String)
             case image(URL)
+            case heading(String)
         }
 
         public init(

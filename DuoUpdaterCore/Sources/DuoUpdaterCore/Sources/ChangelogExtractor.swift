@@ -25,6 +25,7 @@ public enum ChangelogExtractor {
         let itemRegexes = recipe.itemPatterns.compactMap(compile)
         guard !itemRegexes.isEmpty else { return nil }
         let imageRegex = recipe.imagePattern.flatMap(compile)
+        let headingRegex = recipe.headingPattern.flatMap(compile)
 
         let whole = NSRange(text.startIndex..., in: text)
         var entries: [Changelog.Entry] = []
@@ -63,15 +64,18 @@ public enum ChangelogExtractor {
             guard !noteHits.isEmpty else { return }
             let items = noteHits.map(\.text)
 
-            // Interleave images with the notes by document position — but only when
-            // the recipe asks for images AND this entry has at least one. Otherwise
-            // `content` stays empty and the renderer just bullets `items` (unchanged
-            // for every text-only recipe).
+            // Interleave images and headings with the notes by document position —
+            // but only when the recipe asks for one of them AND this entry actually
+            // has at least one. Otherwise `content` stays empty and the renderer
+            // just bullets `items` (unchanged for every recipe that sets neither).
             let imageBlocks = imageRegex.map { imageHits(in: bodyText, regex: $0) } ?? []
-            let content: [Changelog.Entry.Block] = imageBlocks.isEmpty
+            let headingBlocks = headingRegex
+                .map { headingHits(in: bodyText, regex: $0, recipe: recipe) } ?? []
+            let content: [Changelog.Entry.Block] = (imageBlocks.isEmpty && headingBlocks.isEmpty)
                 ? []
                 : (noteHits.map { ($0.location, Changelog.Entry.Block.note($0.text)) }
-                    + imageBlocks.map { ($0.location, .image($0.url)) })
+                    + imageBlocks.map { ($0.location, .image($0.url)) }
+                    + headingBlocks.map { ($0.location, .heading($0.text)) })
                     .sorted { $0.0 < $1.0 }
                     .map(\.1)
 
@@ -151,6 +155,38 @@ public enum ChangelogExtractor {
             guard let url = URL(string: decoded), let scheme = url.scheme,
                   scheme == "http" || scheme == "https", seen.insert(url).inserted else { continue }
             hits.append((match.range.location, url))
+        }
+        return hits
+    }
+
+    /// Collect category headings (`### Added`, `### Fixed`, …) from an entry body,
+    /// each tagged with its match location so the caller can interleave them with
+    /// the notes they introduce. Each match yields its `heading` group (else
+    /// capture group 1, else the whole match), cleaned exactly like an item —
+    /// `recipe.markdownSource` unwraps inline code/links in the heading text the
+    /// same way it does for a bullet.
+    ///
+    /// Unlike `firstNonEmptyItemHits`, every match from `regex` counts — this is
+    /// opt-in per recipe (`ChangelogRecipe.headingPattern`), so setting it at all
+    /// is the recipe author's declaration that this vendor's headings are real
+    /// categories worth styling unconditionally, the same way `imagePattern`
+    /// declares every matched image worth showing. There's no `GitHubMarkdownParser`
+    /// -style "≥2 siblings, no digit" heuristic here because that heuristic exists
+    /// to guess at structure across dozens of vendors sharing one parser; a
+    /// hand-written recipe is already curated for one vendor's page, so the guess
+    /// is unnecessary — see `Changelog.parserGeneration`'s generation-3 entry.
+    private static func headingHits(
+        in body: String, regex: NSRegularExpression, recipe: ChangelogRecipe
+    ) -> [(location: Int, text: String)] {
+        let range = NSRange(body.startIndex..., in: body)
+        var hits: [(location: Int, text: String)] = []
+        for match in regex.matches(in: body, range: range) {
+            let raw = group(match, "heading", in: body)
+                ?? group(match, nil, in: body)
+                ?? ""
+            let cleaned = clean(raw, recipe)
+            guard !cleaned.isEmpty else { continue }
+            hits.append((match.range.location, cleaned))
         }
         return hits
     }

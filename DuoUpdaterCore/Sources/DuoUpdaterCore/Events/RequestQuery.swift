@@ -497,9 +497,9 @@ public struct RequestQuery: Sendable, Equatable {
     }
 
     /// Cache hits carry no status of their own, so "no status" alone would read
-    /// every cache hit as a failure. Asked of the payload rather than of a column
-    /// because it has to hold for rows written before this view existed.
-    /// Reads the denormalised column rather than the payload.
+    /// every cache hit as a failure. Reads the denormalised column rather than
+    /// the payload, falling back to the payload for a row the migration has not
+    /// reached.
     ///
     /// It was `json_extract(payload, '$.fetchType') <> 'localCache'`, which no
     /// index can serve and which the summary asks of every row on every

@@ -290,7 +290,17 @@ public actor BrewFormulaReleaseService {
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
 
-        let (data, response) = try await session.countedData(for: request, purpose: .catalog)
+        // `.changelog`, not `.catalog`. This is one formula's release notes, read
+        // to render them in the changelog pane — exactly what `.changelog`
+        // documents. `.catalog` means the Homebrew index specifically: the
+        // Requests window prints it as "Homebrew catalog" and `RequestQuery`
+        // matches the search token `brew` to it, so tagging a per-formula
+        // `api.github.com` fetch that way labelled it as something it is not.
+        // Visible effect: these hops move from the Catalog row to the Changelog
+        // row in the traffic breakdown. Hops recorded before this keep the label
+        // they were written with — the purpose is stored per event — so the two
+        // rows disagree with their own history across this version.
+        let (data, response) = try await session.countedData(for: request, purpose: .changelog)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             return nil  // 404 = tag has no GitHub release; treat as "no structured notes"
         }

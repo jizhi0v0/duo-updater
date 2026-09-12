@@ -61,7 +61,7 @@ public extension URLSession {
     /// reproducing an origin's own exception) that a body shape does not change.
     /// A success status is what makes this a *disguised* outage rather than a
     /// stated one.
-    /// `purpose` only labels the request in ``RequestLedger``; it changes nothing
+    /// `purpose` only labels the request in ``RequestTotal``; it changes nothing
     /// about the fetch. It defaults to `.versionCheck` because that is what a
     /// version feed is — the one caller that is something else (`ChangelogService`
     /// fetching a release-notes feed through this same retry) passes its own.

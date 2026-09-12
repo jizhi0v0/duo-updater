@@ -24,9 +24,15 @@ public enum Inventory {
 
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        let testflight = testFlightStore(settings)
         return await withTaskGroup(of: [InstalledApp]?.self) { group in
-            group.addTask { AppScanner(extraLocations: extraLocations, testflight: testflight).scan() }
+            // ⚠️ `testFlightStore` opens the database, and that open is the thing
+            // `scanTimeout` exists to race — so it has to be INSIDE this task. It
+            // used to be, invisibly: `AppScanner`'s `testflight:` default was
+            // evaluated here, at the call site. Naming it explicitly on the line
+            // above `withTaskGroup` reads identically and quietly moved the one
+            // blocking call out from under the only thing bounding it.
+            group.addTask { AppScanner(
+                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan() }
             group.addTask {
                 try? await Task.sleep(for: scanTimeout)
                 return nil

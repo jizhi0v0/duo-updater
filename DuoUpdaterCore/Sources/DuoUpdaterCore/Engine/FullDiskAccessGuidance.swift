@@ -80,6 +80,20 @@ public final class FullDiskAccessNeeds: @unchecked Sendable {
         lock.withLock { refusedApps[need, default: []].formUnion(apps) }
     }
 
+    /// Forget everything recorded for one read, because that read is no longer
+    /// wanted — not because it succeeded.
+    ///
+    /// The record is per-launch and nothing else empties it, which is fine while a
+    /// refusal means "we tried and were turned away": that stays true until the
+    /// grant arrives, and the grant makes the whole record moot. A setting that
+    /// switches a read OFF breaks that assumption — the entries describe attempts
+    /// that will not be made again, and the menu's explanation is built from them,
+    /// so it would go on asking for a permission that has stopped mattering
+    /// (`TestFlightDetection`, #547).
+    public func retire(_ need: FullDiskAccessNeed) {
+        lock.withLock { refusedApps[need] = nil }
+    }
+
     /// Everything turned away since launch, by read.
     public func refused() -> [FullDiskAccessNeed: Set<String>] {
         lock.withLock { refusedApps }

@@ -198,14 +198,24 @@ public enum Check {
         // contradiction in the other — which takes an explicit flush: stdout is
         // fully buffered when it is a pipe, so without one the note lands first in
         // `duo check | tee`, measured, while a terminal shows the intended order.
+        //
+        // ⚠️ It counts apps the store COULD have answered for, and says so, rather
+        // than counting betas. Neither available predicate counts betas correctly
+        // with the store unread: `isTestFlightApp` undercounts, because a wrapped
+        // iPhone/iPad beta is recognized from the store itself (#456) — the read
+        // that was skipped — and so never carries the tag (measured on one Mac: 8
+        // rows answer as TestFlight with detection on, 7 carry the tag with it off),
+        // while `isiOSAppOnMac` overcounts, since a wrapped app can just as well
+        // have come from the App Store. The union with honest wording is the one
+        // claim that is true either way.
         let unlookedAt = settings.testFlightDetection.readsStore
-            ? 0 : results.filter(\.app.isTestFlightApp).count
+            ? 0 : results.filter { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac }.count
         if options.checkForUpdates, unlookedAt > 0 {
             fflush(stdout)
             let plural = unlookedAt == 1 ? "" : "s"
             FileHandle.standardError.write(Data((
-                "duo: \(unlookedAt) TestFlight beta\(plural) not checked — TestFlight"
-                + " detection is off (Duo Updater ▸ Settings ▸ General).\n").utf8))
+                "duo: TestFlight detection is off, so \(unlookedAt) app\(plural) it could"
+                + " answer for went unchecked (Duo Updater ▸ Settings ▸ General).\n").utf8))
         }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
         // works. A hidden row is by definition not something to do.

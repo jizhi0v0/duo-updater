@@ -2073,19 +2073,6 @@ final class AppListModel {
     /// only held the answer back by a whole networked check. Measured 2026-09-11 on
     /// the first grant of a launch, where opening the menu started such a round:
     /// the rows changed 3.4s after the grant instead of at once.
-    /// The same, after the user changed what DuoUpdater does about TestFlight in
-    /// Settings (`TestFlightDetection`). The rows on screen were answered under the
-    /// old setting, and nothing else would revisit them until the next round — so
-    /// turning detection off would leave verdicts standing that nothing will ever
-    /// refresh, and turning it on would leave "checking is off" on rows that can now
-    /// be answered.
-    ///
-    /// Deliberately the same path as the permission changing: both change the answer
-    /// to `mayReadTestFlightStore`, which is the only question that path asks.
-    func testFlightDetectionChanged() {
-        Task { await recheckTestFlightRows() }
-    }
-
     private func recheckTestFlightRows() async {
         guard !testFlightRecheckRunning else {
             testFlightRecheckOwed = true
@@ -2150,6 +2137,30 @@ final class AppListModel {
         // this runs for a Full Disk Access switch and for the detection setting, and
         // a line that always said "Full Disk Access" would misreport half of them.
         Log.app.notice("TestFlight rows re-checked while running: \(rechecked.count, privacy: .public) (store readable=\(mayRead, privacy: .public), detection=\(self.prefs.testFlightDetection.rawValue, privacy: .public))")
+    }
+
+    /// The same, after the user changed what DuoUpdater does about TestFlight in
+    /// Settings (`TestFlightDetection`). The rows on screen were answered under the
+    /// old setting, and nothing else would revisit them until the next round — so
+    /// turning detection off would leave verdicts standing that nothing will ever
+    /// refresh, and turning it on would leave "checking is off" on rows that can now
+    /// be answered.
+    ///
+    /// Deliberately the same path as the permission changing, and it needs no
+    /// argument of its own: both change the answer to `mayReadTestFlightStore`,
+    /// which is the only question `recheckTestFlightRows` asks.
+    ///
+    /// Turning it OFF also retires what a read turned away earlier this launch
+    /// recorded. Those refusals outlive the round that made them, and the menu's
+    /// Full Disk Access explanation is built from them — so without this, switching
+    /// detection off and opening the menu puts up a modal asking for a permission
+    /// that would now change nothing, naming a question mark the row no longer
+    /// shows.
+    func testFlightDetectionChanged() {
+        if !prefs.testFlightDetection.readsStore {
+            FullDiskAccessNeeds.shared.retire(.testFlight)
+        }
+        Task { await recheckTestFlightRows() }
     }
 
     /// What earlier rounds in this process already spent a TestFlight sync on

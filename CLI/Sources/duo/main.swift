@@ -458,7 +458,13 @@ case "triage":
     if let cap = args.int("max-calls") { triage.maxCalls = max(0, cap) }
     if let budget = args.int("budget") { triage.budget = TimeInterval(budget) }
     triage.dryRun = args.has("dry-run")
-    run = { Triage.run(triage) }
+    // Off the cooperative pool: `Triage.run` is synchronous end to end and waits
+    // on `opencode` with a `Thread.sleep` poll plus a semaphore, which would park
+    // the thread this closure is awaited on. One hop for the whole command — see
+    // `offCooperativePool`.
+    // Copied so the closure captures a value rather than the mutable local above.
+    let triageOptions = triage
+    run = { await offCooperativePool { Triage.run(triageOptions) } }
 
 case "reconcile":
     guard let report = args.value("report"), let baseline = args.value("baseline") else {
@@ -469,7 +475,9 @@ case "reconcile":
         baselinePath: URL(fileURLWithPath: baseline),
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))
-    run = { Reconcile.run(reconcile) }
+    // Off the cooperative pool, like `triage` above: `Reconcile.run` is
+    // synchronous and every issue it files waits on a `gh` subprocess.
+    run = { await offCooperativePool { Reconcile.run(reconcile) } }
 
 case "help":
     print(usage)

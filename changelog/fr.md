@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.92
+
+**Certaines apps qui se mettent à jour elles-mêmes ne semblent plus à jour alors qu'une version plus récente existe.** Pour les apps dont les informations de mise à jour se trouvent derrière un serveur de téléchargement lent à se rafraîchir, Duo Updater pouvait continuer à voir une version plus ancienne pendant des jours après une publication.
+
+**Les notes de version de Kimi apparaissent désormais dans Duo Updater.**
+
+**Les mises à jour de CodeEdit apparaissent désormais.** Une version plus récente de CodeEdit laissait sa rangée sur un point d'interrogation au lieu de proposer la mise à jour.
+
+**Sous le capot.** La liste Homebrew du menu se remplit plus vite, et les commandes `duo` démarrent plus vite.
+
 ## 0.3.91
 
 **« Vérifier à nouveau » sur une bêta TestFlight donne désormais la vraie réponse.** Avant, la rangée devenait un point d'interrogation jusqu'à la prochaine actualisation.

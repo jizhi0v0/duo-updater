@@ -24,29 +24,73 @@ public enum Inventory {
 
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await withTaskGroup(of: [InstalledApp]?.self) { group in
+        return await scan(timeout: scanTimeout) {
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
-            // `scanTimeout` exists to race — so it has to be INSIDE this task. It
-            // used to be, invisibly: `AppScanner`'s `testflight:` default was
-            // evaluated here, at the call site. Naming it explicitly on the line
-            // above `withTaskGroup` reads identically and quietly moved the one
-            // blocking call out from under the only thing bounding it.
-            group.addTask { AppScanner(
-                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan() }
-            group.addTask {
-                try? await Task.sleep(for: scanTimeout)
-                return nil
+            // `scanTimeout` exists to race — so it has to be INSIDE this closure.
+            // It used to be, invisibly: `AppScanner`'s `testflight:` default was
+            // evaluated at the call site. Naming it explicitly one line further
+            // out reads identically and quietly moves the one blocking call out
+            // from under the only thing bounding it.
+            AppScanner(
+                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan()
+        }
+    }
+
+    /// The bounded scan itself, with the scanner passed in so a test can wedge it.
+    ///
+    /// The scan runs on a plain `Thread`, not in a task group. A group looks like
+    /// it would work — race the scan against a sleep, take whichever lands first —
+    /// but `withTaskGroup` does not return until *every* child has finished, and
+    /// `cancelAll()` cannot touch a thread parked in `guarded_open_np`. That is
+    /// what this used to do, and the doc above already claimed the scan was
+    /// abandoned: the warning printed on time and the command hung anyway. The
+    /// sweep hit the identical bug and fixed it this way first — see
+    /// `Verify.installedVersions`.
+    ///
+    /// The wait itself is taken off the cooperative pool, because a blocking wait
+    /// there occupies one of about as many threads as the machine has cores and
+    /// the pool does not grow to compensate.
+    static func scan(
+        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
+    ) async -> [InstalledApp] {
+        let box = ScanBox()
+        let done = DispatchSemaphore(value: 0)
+        let worker = Thread {
+            box.set(body())
+            done.signal()
+        }
+        worker.start()
+
+        let timedOut = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.global().async {
+                let seconds = Double(timeout.components.seconds)
+                    + Double(timeout.components.attoseconds) / 1e18
+                cont.resume(returning: done.wait(timeout: .now() + seconds) == .timedOut)
             }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            if first == nil {
-                FileHandle.standardError.write(Data("""
-                    duo: the app scan did not finish within 20s. This is almost always \
-                    the TestFlight database waiting on an "access data from other apps" \
-                    prompt — grant it once in System Settings ▸ Privacy & Security.\n
-                    """.utf8))
-            }
-            return first ?? []
+        }
+        guard !timedOut, let scanned = box.take() else {
+            FileHandle.standardError.write(Data("""
+                duo: the app scan did not finish within \(timeout). This is almost always \
+                the TestFlight database waiting on an "access data from other apps" \
+                prompt — grant it once in System Settings ▸ Privacy & Security.\n
+                """.utf8))
+            return []
+        }
+        return scanned
+    }
+
+    /// A slot the scan thread fills and the caller reads, for the case where the
+    /// caller has already given up on it.
+    private final class ScanBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: [InstalledApp]?
+        func set(_ v: [InstalledApp]) {
+            lock.lock(); defer { lock.unlock() }
+            value = v
+        }
+        func take() -> [InstalledApp]? {
+            lock.lock(); defer { lock.unlock() }
+            return value
         }
     }
 

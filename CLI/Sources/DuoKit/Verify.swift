@@ -18,7 +18,8 @@ import DuoUpdaterCore
 public struct VerifyOptions: Sendable {
     public init() {}
     /// Restrict the sweep to recipes whose bundle id or recipe id contains one
-    /// of these. Spot-checking one app shouldn't cost 150 requests.
+    /// of these — see `Verify.filtered`. Spot-checking one app shouldn't cost 150
+    /// requests.
     public var only: [String] = []
     public var registries: Set<Registry> = Set(Registry.allCases)
     public var hostConcurrency = 4
@@ -46,6 +47,20 @@ struct InstalledVersion: Sendable {
     let vendorBuild: String?
 }
 
+/// What `--only` may name. The two ids every registry entry carries, so
+/// `Verify.filtered` has one definition of "matches" instead of one per call
+/// site — see that function for which half was missing.
+protocol VerifySelectable {
+    var bundleID: String { get }
+    var recipeID: String { get }
+}
+
+extension VendorProbeRecipe: VerifySelectable {}
+extension GitHubReleaseRule: VerifySelectable {}
+extension ChangelogRecipe: VerifySelectable {}
+extension MacAppStoreProbeCase: VerifySelectable {}
+extension SparkleFeedCatalog.VerificationCase: VerifySelectable {}
+
 public enum Verify {
 
     public static func run(_ options: VerifyOptions) async -> Int32 {
@@ -59,11 +74,11 @@ public enum Verify {
             print("\n  ⚠︎ \(reason).\n    Sweeping anyway because --allow-stale-binary was passed.\n")
         }
 
-        let vendor = filtered(VendorProbeRegistry.recipes, options) { $0.bundleID }
-        let github = filtered(GitHubReleaseRegistry.rules, options) { $0.bundleID }
-        let changelog = filtered(ChangelogRecipeRegistry.recipes, options) { $0.bundleID }
-        let appStore = filtered(MacAppStoreProbeRegistry.cases, options) { $0.bundleID }
-        let feeds = filtered(SparkleFeedCatalog.verificationCases, options) { $0.bundleID }
+        let vendor = filtered(VendorProbeRegistry.recipes, options)
+        let github = filtered(GitHubReleaseRegistry.rules, options)
+        let changelog = filtered(ChangelogRecipeRegistry.recipes, options)
+        let appStore = filtered(MacAppStoreProbeRegistry.cases, options)
+        let feeds = filtered(SparkleFeedCatalog.verificationCases, options)
 
         // The pkg install specs the pkgarch sweep reads. Counted here like every
         // other registry: without it `duo verify --pkgarch` computes a total of
@@ -265,12 +280,25 @@ public enum Verify {
         return versions["\(recipe.bundleID):\(channel.rawValue)"]
     }
 
-    private static func filtered<T>(
-        _ items: [T], _ options: VerifyOptions, id: (T) -> String
+    /// Both ids, not one: `--only` is documented as matching a bundle id OR a
+    /// recipe id, and it matched the bundle id alone. For four of the five
+    /// registries the recipe id contains the bundle id, so that looked like it
+    /// worked; the GitHub rules are keyed on the repository slug, so no `--only`
+    /// could ever name one by its recipe id — and nothing anywhere could select by
+    /// channel, which is the other half of every recipe id.
+    ///
+    /// Taken from a protocol rather than a per-call-site closure because the
+    /// closure is exactly the part that was wrong, and five of them are five
+    /// chances to be wrong again in a way no test of this function would see.
+    static func filtered<T: VerifySelectable>(
+        _ items: [T], _ options: VerifyOptions
     ) -> [T] {
         guard !options.only.isEmpty else { return items }
         return items.filter { item in
-            options.only.contains { id(item).localizedCaseInsensitiveContains($0) }
+            options.only.contains { needle in
+                item.bundleID.localizedCaseInsensitiveContains(needle)
+                    || item.recipeID.localizedCaseInsensitiveContains(needle)
+            }
         }
     }
 
@@ -1287,8 +1315,11 @@ extension Finding {
     /// persisted report schema and a new field would have to be threaded
     /// through every construction site.
     ///
-    /// It survives `Baseline.signature`, which keys on the first 40 characters,
-    /// so a note stays one stable signature rather than a new one per sweep.
+    /// It never reaches `Finding.signature` at all: that is computed over
+    /// `publicWarnings`, which is defined as the warnings that do NOT carry this
+    /// prefix. So a note can say something different every sweep — it names this
+    /// machine's state — without the signature moving, which is the property the
+    /// nudge rate limit depends on.
     public static let machineNotePrefix = "machine-note: "
 
     /// Attach a note without touching the status — see `machineNotePrefix`. A
@@ -1302,7 +1333,12 @@ extension Finding {
             failureKind: failureKind, failureDetail: failureDetail,
             warnings: warnings + [note], endpointHost: endpointHost, pattern: pattern,
             attempts: attempts, gatewayRetries: gatewayRetries,
-            elapsedMs: elapsedMs, bodySample: bodySample)
+            // Every field forwarded, for the reason spelled out on
+            // `adding(warning:)` below — and this one shipped without
+            // `entryCount`, so a finding that picked up a machine note lost
+            // "entries parsed" from `report.json`. Silently: every argument here
+            // has a default.
+            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
     /// Attach a warning discovered after the fact (the baseline's history checks

@@ -221,13 +221,18 @@ public enum InPlaceSwap {
         return .unchanged
     }
 
-    /// What a completed `replace` did.
+    /// What a completed `replace` did. Both cases are success — `replace` returning
+    /// at all means the new version is live — and no caller branches on this today:
+    /// they discard it, which is the point of the second case existing instead of a
+    /// throw. The debris the cleanup left behind is reported in the log, not to the
+    /// row. (Surfacing it as a note on the row would need a channel through
+    /// `InstallCoordinator.Outcome`; deliberately not built.)
     enum SwapOutcome: Equatable {
         case replaced
-        /// The new bundle is in place, but the exchange's own cleanup failed — a
-        /// displaced bundle left behind, typically. A warning, not a failure: the
-        /// caller must go on to re-check the app and compute restart info, because
-        /// the version on disk has changed.
+        /// The exchange landed and then threw while clearing up after itself — the
+        /// bundle it displaced left behind, typically. The version on disk HAS
+        /// changed, so the install is finished: re-check and restart info must be
+        /// computed exactly as for `.replaced`.
         case replacedButCleanupFailed(String)
     }
 
@@ -281,9 +286,12 @@ public enum InPlaceSwap {
                     identityBefore: identityBefore,
                     identityAfter: inode(of: identityTarget)) {
                 case .replacedThenCleanupFailed:
-                    // Only the elevated and rotation paths reach this with the new
-                    // bundle live: the unprivileged one classifies the same way in
-                    // its `catch` and returns rather than throwing.
+                    // A backstop, and deliberately kept as one. All three exchange
+                    // paths now classify themselves and RETURN on this outcome, so
+                    // nothing throws its way here today — but a future throw added
+                    // after an exchange would otherwise be logged as "the app on
+                    // disk is unchanged", which is the untrue half of the pair this
+                    // whole comparison exists to separate.
                     Log.install.error(
                         "swap threw for \(target.lastPathComponent, privacy: .public) but the bundle at that path was REPLACED anyway — the error came after the exchange, so the new version is live and the failure is in the cleanup")
                 case .unchanged, .targetMissing:
@@ -306,9 +314,10 @@ public enum InPlaceSwap {
         // see `usesContentsRotation`. Never elevated, and that is not a shortcut:
         // the elevated route cannot do this at all (see `rotateContents`).
         if usesContentsRotation(target: target) {
-            try rotateContents(newApp: newApp, over: target)
+            let outcome = try rotateContents(newApp: newApp, over: target)
             replaced = true
-            return .replaced
+            if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
+            return outcome
         }
 
         if !elevated {
@@ -375,9 +384,10 @@ public enum InPlaceSwap {
             return .replaced
         }
 
-        try privilegedReplace(newApp: newApp, target: target)
+        let elevatedOutcome = try privilegedReplace(newApp: newApp, target: target)
         replaced = true
-        return .replaced
+        if case .replacedButCleanupFailed(let reason) = elevatedOutcome { cleanupFailure = reason }
+        return elevatedOutcome
     }
 
     /// Whether replacing `target` has to go through the administrator prompt.
@@ -598,7 +608,8 @@ public enum InPlaceSwap {
     /// `staff`, so the group already had exactly the owner's rights — and the
     /// vendor's own installer restores `root:staff` the next time it runs. It is
     /// logged rather than left silent.
-    static func rotateContents(newApp: URL, over target: URL) throws {
+    @discardableResult
+    static func rotateContents(newApp: URL, over target: URL) throws -> SwapOutcome {
         let fm = FileManager.default
         let liveContents = target.appendingPathComponent("Contents", isDirectory: true)
         let sourceContents = newApp.appendingPathComponent("Contents", isDirectory: true)
@@ -659,6 +670,11 @@ public enum InPlaceSwap {
 
         let ownerBefore = (try? fm.attributesOfItem(atPath: liveContents.path))?[.ownerAccountName]
             as? String
+        // The identity of the thing this exchange replaces — `Contents`, not the
+        // bundle. Asking the bundle would answer "unchanged" for every outcome: a
+        // rotation deliberately leaves the outer directory's inode alone.
+        let identityBefore = inode(of: liveContents)
+        var cleanupFailure: String?
         do {
             // A named backup, not `nil`. `replaceItemAt` deletes it on success
             // (measured: the bundle holds `Contents` alone afterwards), so this
@@ -680,10 +696,24 @@ public enum InPlaceSwap {
                         "rotate: left \(rotationStagedName, privacy: .public) inside \(target.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
                 }
             }
-            if isAppManagementDenial(error) {
+            // `replaceItemAt` here can land the new `Contents` and then throw while
+            // removing the one it displaced, exactly as on the whole-bundle path —
+            // and it raises the same `NSCocoaErrorDomain 513` an App Management
+            // denial does, so the error cannot be asked. When it landed, the input
+            // method on disk IS the new build: fall through to the ownership carry
+            // below (which describes what is now live) and report a cleanup
+            // failure rather than throwing an update that happened away.
+            let site = classifySwapFailure(
+                targetExists: fm.fileExists(atPath: liveContents.path),
+                identityBefore: identityBefore,
+                identityAfter: inode(of: liveContents))
+            if site == .replacedThenCleanupFailed {
+                cleanupFailure = error.localizedDescription
+            } else if isAppManagementDenial(error) {
                 throw AppManagementRequiredError(targetPath: target.path)
+            } else {
+                throw SwapError.notReplaceable(error.localizedDescription)
             }
-            throw SwapError.notReplaceable(error.localizedDescription)
         }
         let ownerAfter = (try? fm.attributesOfItem(atPath: liveContents.path))?[.ownerAccountName]
             as? String
@@ -691,6 +721,8 @@ public enum InPlaceSwap {
             Log.install.notice(
                 "rotate: \(target.lastPathComponent, privacy: .public)/Contents changed owner from \(ownerBefore, privacy: .public) to \(ownerAfter ?? "?", privacy: .public) — unprivileged by necessity, see rotateContents")
         }
+        if let cleanupFailure { return .replacedButCleanupFailed(cleanupFailure) }
+        return .replaced
     }
 
     /// Refuse a rotation on a bundle that holds more than `Contents`. Hidden
@@ -709,7 +741,16 @@ public enum InPlaceSwap {
         }
     }
 
-    private static func privilegedReplace(newApp: URL, target: URL) throws {
+    private static func privilegedReplace(newApp: URL, target: URL) throws -> SwapOutcome {
+        // Read before anything moves. The shell's last clause —
+        // `{ chown …; rm -rf old; }` — runs AFTER the two renames have put the new
+        // bundle at `target`, so a failure there exits the chain non-zero with the
+        // update already live. Every other way the chain can fail leaves `target`'s
+        // identity where it was: `ditto` failing, `mv tgt old` failing, or
+        // `mv new tgt` failing and the in-band `mv old tgt` putting the original
+        // back (a rename preserves the inode, so the restored bundle answers with
+        // the same number it started with).
+        let identityBefore = inode(of: target)
         let shell = privilegedReplacementShell(newApp: newApp, target: target)
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
 
@@ -741,8 +782,24 @@ public enum InPlaceSwap {
             if isAuthorizationDeclined(msg) {
                 throw AuthorizationDeclinedError(targetPath: target.path)
             }
+            // Asked after the declined check, which is about a shell that never
+            // ran. This is the majority route — every root-owned bundle takes it,
+            // 28 apps in `/Applications` on the development machine by this file's
+            // own count — so "the cleanup failed" being reported as "the update
+            // failed" is not an edge case: the app really is on the new version and
+            // the row would have said otherwise.
+            if classifySwapFailure(
+                targetExists: FileManager.default.fileExists(atPath: target.path),
+                identityBefore: identityBefore,
+                identityAfter: inode(of: target)) == .replacedThenCleanupFailed {
+                // The osascript stderr, unedited: it is the only account of what the
+                // shell could not finish (a `.duoupdater-old` left behind, most
+                // likely), and it goes into the log line `replace` emits.
+                return .replacedButCleanupFailed(msg)
+            }
             throw SwapError.notReplaceable(msg)
         }
+        return .replaced
     }
 
     /// The authenticated shell transaction, split out so its metadata guarantees

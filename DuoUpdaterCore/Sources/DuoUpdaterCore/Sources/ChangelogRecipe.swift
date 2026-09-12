@@ -2981,9 +2981,11 @@ public enum ChangelogRecipeRegistry {
         // IS a real category, unconditionally (no "≥2 siblings" guess needed the
         // way `GitHubMarkdownParser` needs one across dozens of unrelated GitHub
         // vendors — see `Changelog.parserGeneration`'s generation-3 entry).
-        // Bounded the same way the item pattern is, so a heading also stops at
-        // the next entry or the trailing link-reference block rather than
-        // swallowing the rest of the file.
+        // A heading is one line, so it needs none of the item pattern's lookahead
+        // boundary list above: `[^\n]+` is a negated character class, which
+        // already cannot cross the newline that ends it. Simpler than the item
+        // pattern by construction, not by omission — there is no multi-line
+        // heading to bound against here.
         ChangelogRecipe(
             bundleID: "uk.co.bzwrd.macperfmonitor",
             source: URL(string: "https://raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md")!,

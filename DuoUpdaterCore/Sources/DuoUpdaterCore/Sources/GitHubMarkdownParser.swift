@@ -127,6 +127,17 @@ public enum GitHubMarkdownParser {
     /// heading is exactly as invisible as it always was: dropped, never folded
     /// into `items`, not shown at all.
     ///
+    /// That threshold has a real cost, not just a benefit: Rockxy's current
+    /// release body has exactly two headings, `Rockxy 0.38.3 (build 58)` (its own
+    /// version, restated) and `Fixed` — a genuine Keep a Changelog category on an
+    /// app in this registry. The digit filter above removes the first, leaving
+    /// one candidate, which is below the threshold, so `Fixed` renders as nothing
+    /// on that release. Lowering the threshold to 1 would fix Rockxy but re-admit
+    /// exactly the Shotbase noise (below) the threshold exists to stop, so this
+    /// is deliberate — the point of naming it here is so the next person weighing
+    /// "should this be ≥1?" starts from this measurement instead of rediscovering
+    /// Rockxy.
+    ///
     /// Returns the qualifying headings' raw (non-lowercased) text, since that's
     /// what a `.heading` block displays and membership only needs a set. A
     /// heading repeated in one body (CotEditor's beta releases list an

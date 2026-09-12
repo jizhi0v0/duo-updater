@@ -133,7 +133,14 @@ public struct VendorProbeSource: UpdateSource {
             // recency), so this only flags consistently-broken recipes. Recorded for
             // the `.notApplicable` case below too: "this Mac has no such identity"
             // is exactly the kind of standing miss the sweep wants to see.
-            await RecipeHealth.shared.recordMiss(id: bundleID, source: name, detail: detail)
+            // `outcome.recipeID`, not `bundleID`: one bundle id can carry several
+            // recipes (Android Studio's Stable and Canary, and every `variant`
+            // recipe), and under a shared key whichever ran LAST decided the
+            // verdict for all of them — a broken channel recipe reads healthy on
+            // the strength of its sibling's success. Same reasoning, same fix as
+            // `GitHubReleasesSource`.
+            await RecipeHealth.shared.recordMiss(
+                id: outcome.recipeID, source: name, detail: detail)
 
             // A recipe that cannot apply on THIS machine is not a failure and has
             // nothing to retry: the device-identity and rollout-track selectors
@@ -155,7 +162,7 @@ public struct VendorProbeSource: UpdateSource {
             throw ProbeFailed(bundleID: bundleID, failure: outcome.failure)
         }
         // The recipe answered — clears any standing miss on the next comparison.
-        await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
+        await RecipeHealth.shared.recordSuccess(id: outcome.recipeID, source: name)
         return remote
     }
 

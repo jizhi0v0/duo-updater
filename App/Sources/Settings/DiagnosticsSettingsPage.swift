@@ -9,9 +9,11 @@ struct DiagnosticsSettingsPage: View {
     @State private var entries: [RecipeHealth.Entry] = []
     @State private var loaded = false
 
-    /// bundleID → app name, so a Vendor recipe (keyed by bundle id) shows a
-    /// friendly name. GitHub recipes are keyed by `owner/repo`, which has no app
-    /// to resolve, so those fall back to the raw key.
+    /// bundleID → app name, so a recipe whose id carries a bundle id shows a
+    /// friendly name next to it (`RecipeHealth.Entry.displayName(resolving:)` does
+    /// the resolving — an id is `vendor:<bundle id>:<channel>`, not a bare bundle
+    /// id). A GitHub rule's id carries `owner/repo` and no bundle id, so those
+    /// still render as the raw key.
     private var names: [String: String] {
         var map: [String: String] = [:]
         for result in model.results {
@@ -137,7 +139,7 @@ struct DiagnosticsSettingsPage: View {
             Image(systemName: entry.isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(entry.isHealthy ? .green : .orange)
             VStack(alignment: .leading, spacing: 1) {
-                Text(names[entry.id] ?? entry.id).font(.callout)
+                Text(entry.displayName(resolving: names)).font(.callout)
                 if !entry.isHealthy, let detail = entry.lastMissDetail {
                     Text(detail).font(.caption2).foregroundStyle(.secondary)
                 }

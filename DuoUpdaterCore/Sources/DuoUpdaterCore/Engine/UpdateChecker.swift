@@ -596,16 +596,32 @@ public struct UpdateChecker: Sendable {
         // The remote looks newer by marketing version alone — but some vendors
         // fold the build INTO the version string: Oray reports "16.5.0.30757"
         // while the installed bundle splits it into short "16.5.0" + build
-        // "30757". Re-check against the installed short+build; if that isn't older
-        // than the remote, the app is actually current — otherwise the row would
-        // show a perpetual "update" even right after a successful install. Guarded
-        // to a plain-numeric build tail not already part of the short version, so
-        // normal apps (whose build duplicates/dot-extends the short version) are
-        // unaffected — they never reach here unless genuinely behind.
+        // "30757". Those two name the SAME release, so recognise that one shape
+        // and settle the row to current; otherwise it shows a perpetual "update"
+        // even right after a successful install.
+        //
+        // The test is equality with the folded form, not "the remote is no newer
+        // than it". The looser test read the fabricated `short + "." + build` tail
+        // as a version component, and a build number is a large integer: installed
+        // short "12.10" + build "282987" fabricates "12.10.282987", which outranks
+        // every real "12.10.x" the vendor can ship. Every source that reports no
+        // separate build (Homebrew, GitHub, the App Store, Electron, most vendor
+        // probes) reaches this line, so every app whose marketing version has
+        // fewer components than its build has digits had its hotfixes swallowed —
+        // an ordinary shape, not a rare one. Equality cannot do that: it fires only
+        // when the remote IS the folded pair.
+        //
+        // The two shapes are not otherwise separable: "12.10" + "282987" against
+        // "12.10.1" and "16.5.0" + "30757" against "16.5.0.29000" are the same
+        // string problem, so a folded remote naming an OLDER build than the one on
+        // disk now reads as an update instead of being suppressed. That direction
+        // is the one to fail in — it offers the vendor's currently published
+        // package to a copy that is ahead of it, which is visible and recoverable,
+        // where the other direction hid real updates silently.
         if let build = installed.buildVersion,
            !build.isEmpty, !build.contains("."), !isv.hasSuffix(build) {
             let combined = "\(isv).\(build)"
-            if !VersionComparator.isNewer(rs, than: combined) {
+            if VersionComparator.compare(rs, combined) == .orderedSame {
                 return .upToDate
             }
         }

@@ -1568,7 +1568,7 @@ final class AppListModel {
 
     /// Log every release in `checked` that arrived with a trustworthy vendor
     /// date into the release timeline, then refresh the UI snapshot. The store
-    /// dedupes by (app, version), so re-checks are cheap; only a genuinely new
+    /// dedupes by (app, version, vendor date), so re-checks are cheap; only a genuinely new
     /// release or changed display metadata writes the timeline file. Results
     /// with neither a `publishedAt` nor a `vendorDay` (vendor probes, MAS,
     /// Homebrew) use the observation path below rather than this path.
@@ -1590,7 +1590,9 @@ final class AppListModel {
             }
             // …plus any prior releases the source surfaced (Sparkle appcast items,
             // a GitHub releases list), so an app's history backfills in one shot.
-            // The store dedupes by version, so the latest overlapping here is free.
+            // The store dedupes on version + vendor date, and the latest release's
+            // date comes from the same feed item as its entry here, so the overlap
+            // is free.
             for entry in remote.releaseHistory {
                 await releaseTimelineStore.record(
                     appID: result.app.id,
@@ -6576,8 +6578,13 @@ final class AppListModel {
         let actionable = results.filter(isActionableUpdate)
         // The version we'd announce for each app; key by `key(for:)` to match how
         // ignore/skip identify an app (survives the app moving on disk).
+        //
+        // Build-aware: `displayVersion` is marketing-first and a vendor may leave
+        // that string alone across any number of builds, which made every build
+        // after the first read as already-announced. See `NotifiedUpdateVersions`,
+        // where the rule and its baseline migration are executed.
         func version(_ r: UpdateResult) -> String {
-            r.remote?.displayVersion ?? r.remote?.shortVersion ?? ""
+            NotifiedUpdateVersions.announceKey(r.remote?.versionSide)
         }
         var baseline = prefs.notifiedVersions
 
@@ -6593,10 +6600,14 @@ final class AppListModel {
 
         // Consult the legacy key too: a baseline recorded before the switch to
         // per-path keys lives under the old bundle-id key, and we don't want that
-        // migration to re-announce everything once as "new".
+        // migration to re-announce everything once as "new". The same is true of a
+        // baseline recorded before the key became build-aware, which
+        // `wasAnnounced` handles by also accepting a stored marketing-only value.
         func wasNotified(_ r: UpdateResult) -> Bool {
-            baseline[prefs.key(for: r.app)] == version(r)
-                || baseline[prefs.legacyKey(for: r.app)] == version(r)
+            NotifiedUpdateVersions.wasAnnounced(
+                r.remote?.versionSide,
+                under: [prefs.key(for: r.app), prefs.legacyKey(for: r.app)],
+                in: baseline)
         }
         let newly = actionable.filter { !wasNotified($0) }
 

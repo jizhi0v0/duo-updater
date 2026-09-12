@@ -55,7 +55,8 @@ public struct SparkleAppcastSource: UpdateSource {
         // Every in-channel item that carries a date — the appcast usually keeps the
         // last N releases, so this backfills the app's whole visible history into
         // the release timeline in one shot (not just the newest). Keyed on the same
-        // version string the timeline dedupes by.
+        // version string, and read through the same `publishedFields` call, that the
+        // timeline dedupes by — so the newest item does not double-record.
         let history = Self.releaseHistory(from: usable)
         let bestFields = ReleaseDate.publishedFields(from: best.pubDate)
 

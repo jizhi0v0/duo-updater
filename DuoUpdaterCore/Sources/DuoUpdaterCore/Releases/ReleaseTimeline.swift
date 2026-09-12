@@ -29,8 +29,14 @@ import Foundation
 /// reflects our polling cadence and the user's machine being awake, so it's never
 /// used as a release time on its own.
 public struct ReleaseEvent: Codable, Sendable, Hashable {
-    /// The version string we keyed on (the remote's `displayVersion`). Also the
-    /// dedupe key within an app — we record each version exactly once.
+    /// The version string we keyed on (the remote's `displayVersion`).
+    ///
+    /// NOT the dedupe key on its own. A dated release is deduped on this string
+    /// PLUS the vendor date, because several releases can ship under one marketing
+    /// version (Surge has shipped four called "6.9.0"); an estimated release is
+    /// deduped on this string alone, which its caller already builds build-aware
+    /// ("6.9.0 (2381)"). So one app can hold more than one event naming the same
+    /// version, and anything looking a release up must match the date too.
     public let version: String
     /// The vendor's published timestamp, to the minute — set only for the
     /// trustworthy tier. nil for vendor-day and estimated (detection-only) events.

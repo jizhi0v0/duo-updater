@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// `ReleaseTimelineStore` is the persistent log of every release we've seen a
-/// source announce. The fragile parts are: it records each version exactly once
+/// source announce. The fragile parts are: it records each dated release exactly once
 /// (re-checks don't pile up), it silently drops releases with no trustworthy
 /// vendor date, and the JSON round-trips so history survives a relaunch.
 
@@ -54,6 +54,34 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     let tl = await store.timeline(forAppID: id)
     #expect(tl?.events.count == 1)
     #expect(tl?.events.first?.detectedAt == d1)   // first sighting wins
+}
+
+/// Several releases can ship under ONE marketing version — Surge has shipped
+/// four called "6.9.0", Amp shipped ten builds as "1.0" in a day. Dedupe keyed on
+/// the version string alone logged the first of them and read the rest as
+/// already-recorded, so the timeline under-counted exactly the vendors whose
+/// marketing string has stopped carrying information. A vendor date is what this
+/// path is FOR (it refuses to record without one), so the date is what separates
+/// them.
+@Test func recordsEachDatedReleaseSharingOneMarketingVersion() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/ZZFixture-Frozen.app"
+    let first = await store.record(appID: id, appName: "ZZFixtureFrozen", bundleID: nil,
+        version: "6.9.0", sourceName: "Sparkle", publishedAt: d1)
+    let second = await store.record(appID: id, appName: "ZZFixtureFrozen", bundleID: nil,
+        version: "6.9.0", sourceName: "Sparkle", publishedAt: d2)
+    let third = await store.record(appID: id, appName: "ZZFixtureFrozen", bundleID: nil,
+        version: "6.9.0", sourceName: "Sparkle", publishedAt: nil, vendorDay: d3)
+    #expect(first)
+    #expect(second)
+    #expect(third)
+    let tl = await store.timeline(forAppID: id)
+    #expect(tl?.events.count == 3)
+    // Re-checking any of them is still a no-op.
+    #expect(!(await store.record(appID: id, appName: "ZZFixtureFrozen", bundleID: nil,
+        version: "6.9.0", sourceName: "Sparkle", publishedAt: d1)))
+    #expect(await store.timeline(forAppID: id)?.events.count == 3)
+    #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Frozen.app"))
 }
 
 @Test func appendsDistinctVersionsSortedByPublishDate() async {

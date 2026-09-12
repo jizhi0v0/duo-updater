@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import DuoUpdaterCore
 
 @Test func basicOrdering() {
@@ -116,6 +117,44 @@ import Testing
     // Older marketing version → still detected.
     #expect(UpdateChecker.evaluate(installed: aweSun(short: "16.3.0", build: "29530"), remote: remote)
         == .updateAvailable(latest: "16.5.0.30757"))
+}
+
+/// The build-folding fallback must only fire for the shape it was written for —
+/// a remote string that IS the folded form of installed short+build. A remote
+/// that is simply one component longer than the installed marketing version is
+/// not that shape, and reading it as one hid real updates from every source that
+/// reports no separate build (Homebrew, GitHub, MAS, Electron, most vendor
+/// probes): the fabricated `short + "." + build` tail is a large integer, so the
+/// genuinely-newer remote compared as OLDER.
+@Test func evaluateFoldingDoesNotSwallowAnExtraMarketingComponent() {
+    func app(short: String, build: String) -> InstalledApp {
+        InstalledApp(
+            name: "ZZFixtureFold", bundleID: "zz.fixture.fold",
+            shortVersion: short, buildVersion: build,
+            path: .init(fileURLWithPath: "/ZZFixture-Fold.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+    func remote(_ short: String) -> RemoteVersion {
+        RemoteVersion(shortVersion: short, version: nil, downloadURL: nil, sourceName: "Vendor")
+    }
+
+    // Two-component marketing plus a small integer build: the hotfix must show.
+    #expect(UpdateChecker.evaluate(installed: app(short: "2.0", build: "15"), remote: remote("2.0.3"))
+        == .updateAvailable(latest: "2.0.3"))
+    // The shape this Mac's Telegram copy carries (short "12.10", build "282987",
+    // read from its Info.plist on 2026-09-13): the fabricated "12.10.282987"
+    // outranked every real "12.10.x" release. The fixture is the shape, not the
+    // app — nothing here reads the copy.
+    #expect(UpdateChecker.evaluate(installed: app(short: "12.10", build: "282987"), remote: remote("12.10.1"))
+        == .updateAvailable(latest: "12.10.1"))
+    // Three-component marketing with an integer build — already worked, pinned so
+    // a future rewrite cannot regress it.
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.2.3", build: "500"), remote: remote("1.2.4"))
+        == .updateAvailable(latest: "1.2.4"))
+    // The Oray shape itself still settles to current.
+    #expect(UpdateChecker.evaluate(installed: app(short: "16.5.0", build: "30757"),
+                                   remote: remote("16.5.0.30757")) == .upToDate)
+    #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Fold.app"))
 }
 
 /// The build-folding fallback must NOT make a genuinely-behind normal app (whose

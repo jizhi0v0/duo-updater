@@ -118,6 +118,27 @@ struct SelfUpdaterStagingTests {
         }
     }
 
+    /// Same shape as the Sparkle branch's own test: a ShipIt state naming a build
+    /// that is numerically newer but a marketing release OLDER must not be offered
+    /// as an update. `buildVersion ?? shortVersion` on each side collapsed the pair
+    /// to one string and compared the builds, which reads a downgrade as an update.
+    @Test func ignoresStagedBuildWhoseMarketingVersionTrails() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+            let installed = root.appendingPathComponent("Squirrel.app")
+            try makeApp(at: installed, short: "1.3.0", build: "1990")
+            let stagedApp = caches.appendingPathComponent("\(bundleID).ShipIt/update.xyz/Squirrel.app")
+            try makeApp(at: stagedApp, short: "1.2.0", build: "2001")
+            try writeShipItState(in: caches, target: installed, update: stagedApp)
+
+            let result = SelfUpdaterStaging.staged(
+                for: app(at: installed, short: "1.3.0", build: "1990"),
+                cachesDirectory: caches)
+            #expect(result == nil)
+        }
+    }
+
     @Test func ignoresStateTargetingADifferentBundle() throws {
         try withScratch { root in
             let caches = root.appendingPathComponent("Caches")

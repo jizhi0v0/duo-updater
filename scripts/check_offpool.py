@@ -33,6 +33,19 @@ own body can reveal. Answering it needs a call graph. So this gate catches the
 shape at the point where it is visible — the blocking call written directly in
 async-reachable code — and the rule for everything else stays a rule.
 
+Two consequences of that limit, both real and both already paid for here:
+
+  * `BoundedBlockingWork.run` is a synchronous function, so `.run(key:` is
+    reported where it is WRITTEN (inside sync readers, i.e. never) and not where
+    it is reached from. `TestFlightInventory()` is an initializer whose body is
+    that call; a `Task.detached { TestFlightInventory() }` is a five-second park
+    on the cooperative pool and this gate cannot see it. Eleven of those were
+    found by reading, not by running this.
+  * The same goes for any wrapper: a blocking call one function call away from
+    an `async` body is invisible here. Adding the token spellings is cheap;
+    adding a call graph is not, and a gate that claims to have one when it does
+    not is worse than this one.
+
 `offpool-lint:allow — <reason>` on a comment line inside the enclosing function
 exempts that function's calls. The reason is mandatory, and an exemption that no
 longer matches anything fails the build: a dead exemption is a standing pass for
@@ -49,10 +62,18 @@ ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources"]
 # Calls that park the calling thread until something outside this process moves.
 # Deliberately a short list of exact spellings rather than a guess at intent:
 # every one of them is a documented member of the family in `OffPool.swift`.
+#
+# `.run(key:` is `BoundedBlockingWork.run`, which is the one entry here that does
+# not block forever — it gives up after its timeout. It is still a
+# `DispatchSemaphore.wait` on the calling thread for up to five seconds, and five
+# seconds of a pool as wide as the core count is the thing this file is about.
 BLOCKING = [
     "waitUntilExit()",
     "readDataToEndOfFile()",
     "SecStaticCodeCheckValidity",
+    ".wait()",
+    ".wait(timeout:",
+    ".run(key:",
 ]
 
 MARKER = "offpool-lint:allow"
@@ -71,29 +92,85 @@ OFFPOOL_CALL = re.compile(r"\boffCooperativePool\b")
 # A closure that names its own signature, e.g. `{ () -> Info? in` or
 # `{ [self] () async -> Int32 in` — the `async` there belongs to the closure.
 ASYNC_CLOSURE = re.compile(r"\{[^}]*\basync\b[^}]*\bin\b")
+# An `async` computed accessor: `var x: T { get async { … } }`. Without this the
+# accessor body reads as an ordinary brace and inherits from the enclosing type,
+# i.e. from nothing.
+GET_ASYNC = re.compile(r"\bget\s+async\b")
+# Closures that do NOT run on the cooperative pool, so blocking inside them is
+# the fix rather than the bug: a GCD queue's `async`/`asyncAfter`, a
+# `DispatchWorkItem`, a `Thread`. Written against `.async`/`.asyncAfter` on any
+# receiver because the queue is as often a stored property (`errQueue.async {`)
+# as it is `DispatchQueue.global()`.
+#
+# ⚠️ `.sync { }` is deliberately NOT here. It runs the block on the CALLING
+# thread, so blocking inside it parks exactly the thread this check is protecting
+# — treating it as a hop would hide the violation rather than find it.
+GCD = re.compile(
+    r"\.(?:async|asyncAfter)\s*(?:\([^{]*\))?\s*\{"
+    r"|\bDispatchWorkItem\s*\{"
+    r"|\bThread\s*(?:\{|\(\s*block:)")
+# An `await` in front of the call means it is an async wait, not a parked thread
+# (`AsyncSemaphore.wait()`, and every other `await x.wait()` shape). This is the
+# one place a blocking token is dismissed on the line's own evidence.
+AWAIT = re.compile(r"\bawait\b")
 
-STRING = re.compile(r'"(?:\\.|[^"\\])*"')
+EXTENDED_STRING_OPEN = re.compile(r'(#+)"')
 
 
-def strip_noise(line):
-    """Line with string literals and trailing comments blanked out.
+def strip_noise(line, in_block=False, in_multiline=False):
+    """(code on this line, still in a block comment, still in a `\"\"\"` literal).
 
     Brace counting is the only thing downstream cares about, and a `}` inside a
-    log message or a `//` aside is not a scope. String interpolation braces are
-    balanced, so blanking the whole literal keeps the count right.
+    log message, a regex, or a comment is not a scope. Walked character by
+    character rather than run through a pile of regexes in some order, because
+    every order is wrong for something: this repo has `/*` inside a `//` comment
+    (`AppRuntime.swift:252`), `#\"…\"#` regexes full of quotes, and multi-line SQL.
     """
-    line = STRING.sub('""', line)
-    cut = line.find("//")
-    if cut >= 0:
-        line = line[:cut]
-    return line
+    if in_multiline:
+        return "", in_block, ('"""' not in line)
+    out, index, length = [], 0, len(line)
+    while index < length:
+        if in_block:
+            if line.startswith("*/", index):
+                in_block = False
+                index += 2
+            else:
+                index += 1
+            continue
+        if line.startswith('"""', index):
+            return "".join(out), in_block, True
+        if line.startswith("//", index):
+            break
+        if line.startswith("/*", index):
+            in_block = True
+            index += 2
+            continue
+        extended = EXTENDED_STRING_OPEN.match(line, index)
+        if extended:
+            closing = '"' + extended.group(1)
+            end = line.find(closing, extended.end())
+            out.append('""')
+            index = length if end < 0 else end + len(closing)
+            continue
+        if line[index] == '"':
+            index += 1
+            while index < length and line[index] != '"':
+                index += 2 if line[index] == "\\" else 1
+            out.append('""')
+            index += 1
+            continue
+        out.append(line[index])
+        index += 1
+    return "".join(out), in_block, False
 
 
 def frame_kind(text, parent):
     """What an opening brace on this line makes the scope inside it."""
     if OFFPOOL_CALL.search(text):
         return OFFPOOL
-    if ASYNC_FUNC.search(text) or ASYNC_CLOSURE.search(text):
+    if GCD.search(text):
+        return SYNC
+    if ASYNC_FUNC.search(text) or ASYNC_CLOSURE.search(text) or GET_ASYNC.search(text):
         return ASYNC
     if FUNC.search(text):
         return SYNC
@@ -119,30 +196,46 @@ def scan(path):
     gets the nesting wrong in opposite directions for those two.
     """
     stack = []            # [(kind, comments attached to that scope)]
-    pending = []          # comment lines since the last statement
+    pending = []          # (line number, text) of comments since the last statement
     # A signature wrapped across lines, kept so the `{` that opens the body is
     # still judged against the whole declaration. Without it every `async`
     # function whose parameters do not fit on one line reads as synchronous —
     # which is most of the interesting ones. `VendorProbeSource`'s
     # `zipEntryPlistValue` is the case that caught it.
     declaration = ""
+    in_block = in_multiline = False
     out = []
     for number, raw in enumerate(path.read_text(errors="replace").splitlines(), 1):
         stripped = raw.strip()
-        if stripped.startswith("//"):
-            pending.append(re.sub(r"^/{2,3}\s?", "", stripped))
+        was_in_block, was_in_multiline = in_block, in_multiline
+        text, in_block, in_multiline = strip_noise(raw, in_block, in_multiline)
+        if (was_in_block or was_in_multiline) and not text.strip():
             continue
-        text = strip_noise(raw)
+        if stripped.startswith("//") and not was_in_block:
+            pending.append((number, re.sub(r"^/{2,3}\s?", "", stripped)))
+            continue
         braces = "{" in text or "}" in text
         judged = (declaration + " " + text).strip() if declaration else text
-        if braces:
-            declaration = ""
-        elif declaration:
-            declaration += " " + text
-        elif FUNC.search(text):
+        if not braces and declaration:
+            declaration = judged
+        elif not braces and FUNC.search(text):
             declaration = text
+        elif braces and declaration and text.count("{") == text.count("}") \
+                and not text.rstrip().endswith("{"):
+            # The signature is still open: this line's braces balance and none of
+            # them opened a body, so they belong to a default argument
+            # (`onDone: () -> Void = { }`) or a literal inside the parameter list.
+            # Resetting here loses the `async` that is still three lines up.
+            declaration = judged
+        else:
+            declaration = ""
         hits = sorted(
             (text.index(call), call) for call in BLOCKING if call in text)
+        # `await x.wait()` is an async wait, not a parked thread. Dismissed on the
+        # line's own evidence because the alternative — leaving `.wait()` out of
+        # BLOCKING — loses the semaphore and group waits CLAUDE.md names.
+        if AWAIT.search(text):
+            hits = [hit for hit in hits if not hit[1].startswith(".wait")]
         if not braces:
             for _, call in hits:
                 comments = [c for _, scope in stack for c in scope] + pending
@@ -186,20 +279,25 @@ def review(root, roots=ROOTS):
                 for i, line in enumerate(text.splitlines())
                 if MARKER in line
             ]
+            # Which marker LINES did work, identified by line number. Comparing
+            # marker text by containment let a live `…allow — network retry
+            # budget` cover a stale `…allow — network` elsewhere in the file:
+            # the stale one then never came up for review again, which is the
+            # single thing this half exists to prevent.
             used = set()
             for number, call, verdict, comments in scan(path):
                 calls += 1
-                marker = next((c for c in comments if MARKER in c), None)
+                marker = next(((n, c) for n, c in comments if MARKER in c), None)
                 if verdict != ASYNC:
                     continue
                 if marker is None:
                     offences.append((rel, number, "blocking", call))
-                elif not REASON.search(marker):
+                elif not REASON.search(marker[1]):
                     offences.append((rel, number, "no-reason", call))
                 else:
-                    used.add(marker.strip())
-            for line_number, line in markers:
-                if not any(u in line or line.endswith(u) for u in used):
+                    used.add(marker[0])
+            for line_number, _ in markers:
+                if line_number not in used:
                     dead.append((rel, line_number))
     return {"missing": missing, "scanned": scanned, "calls": calls,
             "offences": offences, "dead": dead}

@@ -497,10 +497,16 @@ public struct AppScanner: Sendable {
         // cached DB, this is local and never stale — it still recognizes a
         // TestFlight install whose build has OUTRUN the DB (Paste on 18771 while the
         // DB still lists 18655 → the old DB-only check fell through to the MAS path
-        // and got compared against the App Store stable track). It also cleanly
-        // distinguishes a TestFlight copy from an App Store copy of an app the user
-        // merely has TestFlight access to. Fall back to the DB match when the type
-        // is unreadable (e.g. Spotlight indexing off).
+        // and got compared against the App Store stable track). Fall back to the DB
+        // match when the type is unreadable (e.g. Spotlight indexing off).
+        //
+        // ⚠️ This clause distinguishes a TestFlight copy from a store copy of an app
+        // the user merely has TestFlight access to — but only on its own. It cannot
+        // do so from inside this `||`: a "Production" receipt makes THIS term false
+        // and every later term is still free to make the whole thing true. This
+        // comment used to claim the distinction as a property of the result, and it
+        // is not one. `cam.thescreen`, measured 2026-09-12, is what that cost — see
+        // `TestFlightInventory.isManaged`, which is the term that fired.
         //
         // The two `isiOSAppOnMac` clauses exist because NEITHER of the other two
         // can answer for a wrapped bundle: there is no receipt to read (measured —
@@ -514,10 +520,18 @@ public struct AppScanner: Sendable {
         // is local but privately formatted, the DB is documented by its own schema
         // but sits behind the app-data privacy gate and lags real installs.
         //
-        // The DB clause asks whether TestFlight says this build is installed HERE,
-        // not merely whether the user has access to it — so it cannot promote a
-        // store copy of an app the user also happens to beta-test, even when the
-        // two carry the same build number. See `hasInstalledIOSBuild`.
+        // Both DB clauses ask whether TestFlight says this build is installed HERE
+        // (`ZINSTALLSTATUSRAW = 1`), not merely whether the user has access to it —
+        // so neither promotes a store copy of an app the user also happens to
+        // beta-test, even when the two carry the same build number. See
+        // `hasInstalledIOSBuild` and `isManaged`.
+        //
+        // ⚠️ That was true of the iOS clause only until 2026-09-12. The mac clause
+        // (`isManaged`) read a table of every mac row the DB held, installed or
+        // not, while this comment — singular, "The DB clause" — pointed at the iOS
+        // one as if it spoke for both. On a schema with no `ZINSTALLSTATUSRAW` the
+        // mac clause still fails open to that older behaviour by design, so the
+        // sentence above is a statement about the common case, not a guarantee.
         let isTestFlight =
             (hasReceipt && Self.appStoreReceiptType(bundleURL) == "ProductionSandbox")
             || (isiOSAppOnMac && Self.wrappedBundleIsTestFlight(bundleURL))

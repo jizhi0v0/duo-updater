@@ -123,6 +123,47 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertFalse(tf.isManaged(bundleID: "com.wiheads.paste", installedBuild: nil))
     }
 
+    /// The mac membership question is `ZINSTALLSTATUSRAW = 1`, not "a row exists".
+    ///
+    /// Replays the shape measured 2026-09-12: a store purchase whose shipping
+    /// build carries the same `CFBundleVersion` as a beta the user has access to
+    /// but never installed. Build match alone answers "TestFlight install" for it,
+    /// which is what let `AppScanner`'s `||` override a Production receipt and
+    /// take the whole row away from the App Store.
+    ///
+    /// The paths and ids here are invented on purpose — a case that named the real
+    /// app would be measuring this machine's TestFlight library, not this rule.
+    func testIsManagedIgnoresBuildsTestFlightDidNotInstallHere() {
+        let tf = TestFlightInventory(
+            macRows: [
+                // Available to this tester: the promoted build, and a newer beta.
+                ("zz.fixture.promoted", "1.3.1", "2026090300"),
+                ("zz.fixture.promoted", "1.4.0", "2026091000"),
+                // A second app TestFlight really did install here.
+                ("zz.fixture.beta", "2.0", "900")
+            ],
+            installedMacRows: [("zz.fixture.beta", "2.0", "900")])
+
+        // The store copy sits at the promoted build. A row exists for it; an
+        // install does not.
+        XCTAssertFalse(tf.isManaged(bundleID: "zz.fixture.promoted", installedBuild: "2026090300"))
+        XCTAssertFalse(tf.isManaged(bundleID: "zz.fixture.promoted", installedBuild: "2026091000"))
+        XCTAssertTrue(tf.isManaged(bundleID: "zz.fixture.beta", installedBuild: "900"))
+
+        // `latest(forBundleID:)` is the other question and must still see every
+        // available row — including the app TestFlight did not install here.
+        XCTAssertEqual(tf.latest(forBundleID: "zz.fixture.promoted")?.latestBuild, "2026091000")
+    }
+
+    /// Unknown ≠ none. A schema with no `ZINSTALLSTATUSRAW` (and a fixture that
+    /// does not say) must cost the precision, not the signal — otherwise every
+    /// native-Mac TestFlight app silently loses its tag and stops being offered
+    /// beta updates, which is a worse failure than the one above.
+    func testIsManagedFailsOpenWhenInstallStatusIsUnknown() {
+        let tf = TestFlightInventory(macRows: [("zz.fixture.beta", "2.0", "900")])
+        XCTAssertTrue(tf.isManaged(bundleID: "zz.fixture.beta", installedBuild: "900"))
+    }
+
     func testCheckerOffersBetaUpdateWhenNewerBuildExists() async {
         let tf = inventory()
         let checker = UpdateChecker(sources: [], testflight: tf)

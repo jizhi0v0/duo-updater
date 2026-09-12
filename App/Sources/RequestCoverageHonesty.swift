@@ -37,19 +37,30 @@ enum RequestCoverageHonesty {
     ///     type exists to fix.
     ///   - now: injected rather than read from the clock, so the answer does
     ///     not depend on when or where the test runs.
+    ///   - locale: forwarded to ``relativeDescription(of:relativeTo:locale:)``.
+    ///     Defaulted to `.current` for real callers (the point of a relative
+    ///     phrase is to match the device's own locale), but a test that does
+    ///     not pin this explicitly is a test that asks the host what locale it
+    ///     is in — CLAUDE.md's 2026-09-09 rule. Before this parameter existed,
+    ///     `annotation` had no way to avoid that: it always fell through to
+    ///     `.current` with no seam for a test to inject anything else, so
+    ///     `note?.contains("19")` only passed on a host whose locale renders
+    ///     Western digits.
     ///
     /// `floor == nil` (the store holds no request events at all) is treated as
     /// *not* honouring any range that has a cutoff — fail closed, matching
     /// this repo's other "can't tell → don't claim it" rules — rather than as
     /// vacuously honouring every range. An empty store has kept nothing, so
     /// nothing it promises is backed by data.
-    static func annotation(since: Date?, floor: Date?, now: Date = Date()) -> String? {
+    static func annotation(
+        since: Date?, floor: Date?, now: Date = Date(), locale: Locale = .current
+    ) -> String? {
         guard let since else { return nil }
         guard let floor else {
             return String(localized: "no requests recorded yet")
         }
         guard floor > since else { return nil }
-        let span = relativeDescription(of: floor, relativeTo: now)
+        let span = relativeDescription(of: floor, relativeTo: now, locale: locale)
         return String(localized: "records only go back to \(span)")
     }
 
@@ -77,13 +88,50 @@ enum RequestCoverageHonesty {
     /// The caption and status-bar phrasing — a neutral statement of fact, not
     /// a warning about an unmet promise (that is ``annotation(since:floor:now:)``).
     ///
-    /// Deliberately "go back to `<relative phrase>`" rather than "since
-    /// `<relative phrase>`": `relativeDescription` already reads as "N units
-    /// ago", and several languages double-mark the tense when a preposition
-    /// meaning "since" is put in front of an "ago"-phrase (German "seit vor 19
-    /// Stunden", French "depuis il y a 19 heures" both read as mistakes to a
-    /// native speaker). "Go back to" takes an "ago"-phrase as its object
-    /// cleanly in all six languages this catalog carries.
+    /// The English source is "go back to `<relative phrase>`" rather than
+    /// "since `<relative phrase>`": `relativeDescription` already reads as "N
+    /// units ago", and English (and several other languages) double-mark the
+    /// tense when a preposition meaning "since" is put directly in front of an
+    /// "ago"-phrase.
+    ///
+    /// That does not mean every language's catalog entry reuses an English
+    /// "go back to" shape — composing the actual sentence (19 hours / 3 days,
+    /// substituted into each template) surfaced the same clash inside two of
+    /// the six translations themselves:
+    ///
+    /// - **fr**: `l'historique remonte à %@` composed to `remonte à il y a 19
+    ///   heures` — "à" stacked directly on "il y a" ("at" + "ago"), the same
+    ///   mistake in French this comment used to claim French avoided. Fixed to
+    ///   `l'historique commence %@` ("the log started `<phrase>`"), which
+    ///   takes "il y a 19 heures" as a plain adverbial with no preposition in
+    ///   front of it. The paired warning key (``annotation``'s
+    ///   `records only go back to %@`) had the identical bug
+    ///   (`ne remonte qu'à il y a 19 heures`) and is now the unrelated
+    ///   construction `limite : %@` ("limit: `<phrase>`") — a colon-label
+    ///   avoids the elision question a `que`-before-the-argument fix would
+    ///   have raised (`que` vs `qu'` depends on whether the substituted phrase
+    ///   starts with a vowel sound, which varies: "il y a…" does, but a
+    ///   calendar-named result like "la semaine dernière" does not).
+    /// - **ru**: `древнее %@ записей нет` composed to `древнее 19 часов назад
+    ///   записей нет` — `древнее` ("older than") is a comparative that wants a
+    ///   genitive noun, and "19 часов назад" is an adverbial "ago"-phrase, not
+    ///   a noun in that case. Fixed to `самые старые записи — лишь %@` ("the
+    ///   oldest records — only `<phrase>`"), reusing the neutral key's
+    ///   dash-apposition (which has no case requirement) with `лишь` ("only")
+    ///   added.
+    ///
+    /// The other four — **de** (`bis vor %@ zurück`, using the standalone "bis
+    /// vor …" idiom, e.g. "bis vor Kurzem"), **es** (`hasta hace %@`, the same
+    /// "hasta hace poco" shape), **ja** (`%@から…`, where relative phrases
+    /// already end in "前" and "前から" is the ordinary way to say "since …
+    /// ago"), and **zh-Hans** (`追溯到%@`, "traces back to `<phrase>`") — were
+    /// each composed the same way (19 hours, 3 days) and read correctly by the
+    /// same non-native reasoning that caught the fr/ru cases.
+    ///
+    /// **None of the six — including the two fixes above — has been checked by
+    /// a native speaker.** Treat all six as 未验证 (unverified) beyond that
+    /// reasoning; ru and fr are the two this comment can say were *wrong*
+    /// before, not the two guaranteed right now.
     static func floorDescription(_ date: Date, relativeTo now: Date = Date()) -> String {
         String(localized: "records go back to \(relativeDescription(of: date, relativeTo: now))")
     }

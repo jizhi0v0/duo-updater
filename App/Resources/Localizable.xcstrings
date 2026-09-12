@@ -23426,7 +23426,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "l'historique remonte à %@"
+            "value": "l'historique commence %@"
           }
         },
         "ja": {
@@ -23467,7 +23467,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "l'historique ne remonte qu'à %@"
+            "value": "limite : %@"
           }
         },
         "ja": {
@@ -23479,7 +23479,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "древнее %@ записей нет"
+            "value": "самые старые записи — лишь %@"
           }
         },
         "zh-Hans": {

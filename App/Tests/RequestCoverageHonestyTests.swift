@@ -54,10 +54,19 @@ struct RequestCoverageHonestyTests {
     ///
     /// Mutation: flip the `floor > since` comparison — this case would then
     /// wrongly report the range as honoured (`nil`).
+    ///
+    /// `locale: Self.usLocale` matters here specifically, unlike the nil/
+    /// non-nil checks elsewhere in this file: this is the one assertion that
+    /// inspects the *contents* of the note (`contains("19")`), and without a
+    /// pinned locale `annotation` falls through to `Locale.current` — a host
+    /// whose locale renders non-Western digits would fail this for a reason
+    /// that has nothing to do with the code under test. CLAUDE.md's 2026-09-09
+    /// rule: "would this test's answer change on another machine?" — before
+    /// this parameter existed on `annotation`, the answer was yes.
     @Test func aRangeTheStoreCannotBackGetsAnnotated() {
         let since = Self.daysAgo(7)           // "Last 7 days"
         let floor = Self.hoursAgo(19)         // store only goes back 19 hours
-        let note = RequestCoverageHonesty.annotation(since: since, floor: floor, now: Self.now)
+        let note = RequestCoverageHonesty.annotation(since: since, floor: floor, now: Self.now, locale: Self.usLocale)
         #expect(note != nil)
         #expect(note?.contains("19") == true)
     }

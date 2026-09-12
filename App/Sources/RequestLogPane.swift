@@ -129,10 +129,18 @@ struct RequestLogPane: View {
 
     /// A range's label, with a parenthetical when the store cannot actually
     /// back it — "Last 7 days (records only go back to 19 hours ago)".
+    ///
+    /// Plain interpolation, not `String(localized:)`: `range.label` and `note`
+    /// are both already fully localized strings, so after specifier removal
+    /// the composed key would be `%@ (%@)` — no letters left, which is exactly
+    /// why `check_localizable_keys.py` never requires (or would even notice)
+    /// a catalog entry for it. Wrapping the interpolation in `String(localized:)`
+    /// implied a translatability step that was not actually happening — the
+    /// lookup would always miss and fall back to the same interpolated value.
     private func rangeMenuLabel(_ range: Range) -> String {
         guard let note = RequestCoverageHonesty.annotation(since: range.since, floor: retainedFloor)
         else { return range.label }
-        return String(localized: "\(range.label) (\(note))")
+        return "\(range.label) (\(note))"
     }
 
     private var query: RequestQuery {
@@ -784,6 +792,24 @@ struct RequestLogPane: View {
 
     // MARK: - Footer
 
+    /// The status bar's footprint line, built as one already-localized `String`
+    /// so `statusBar` can hold exactly one `Text` with exactly one set of
+    /// modifiers rather than branching on `retainedFloor` twice.
+    ///
+    /// `String(localized:)`, not plain interpolation: a bare Swift string
+    /// built with `"\(retainedEvents) events · …"` would skip the localization
+    /// catalog entirely (and with it the plural rule on `retainedEvents`) —
+    /// `Text`'s own interpolation-to-`LocalizedStringKey` machinery is what
+    /// makes that automatic, and building the `String` by hand loses it unless
+    /// it goes through `String(localized:)` explicitly, the same way `caption`
+    /// already builds its `requests`/`hosts` locals below.
+    private var footprintLine: String {
+        guard let retainedFloor else {
+            return String(localized: "\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk")
+        }
+        return String(localized: "\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk · \(RequestCoverageHonesty.floorDescription(retainedFloor))")
+    }
+
     private var statusBar: some View {
         HStack(spacing: 10) {
             // Says when the list is a window onto the matches rather than all of
@@ -812,15 +838,14 @@ struct RequestLogPane: View {
             // about the file on disk, not about the query above it. Before
             // #460 this line had a count and a size but no span, so the range
             // menu's promise had nothing on screen to check it against.
-            if let retainedFloor {
-                Text("\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk · \(RequestCoverageHonesty.floorDescription(retainedFloor))")
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            } else {
-                Text("\(retainedEvents) events · \(ByteFormat.string(storeBytes)) on disk")
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
+            //
+            // The string is built first so there is exactly one `Text` and one
+            // set of modifiers — the branch is only in the text, not in the
+            // view, so there is nothing to keep in sync between two copies of
+            // `.foregroundStyle`/`.monospacedDigit`.
+            Text(footprintLine)
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
             Button("Export JSON") { onExport(query) }
                 .buttonStyle(.link)
             Button(role: .destructive) {

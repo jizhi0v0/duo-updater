@@ -29,6 +29,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **You choose how much Duo Updater does about TestFlight betas, in Settings → General.** *When I refresh* reads what TestFlight already knows and asks it for a fresh answer when you press Refresh; *Keep it fresh* also lets Duo Updater ask on its own, so a beta TestFlight installed in the background no longer sits as a question mark until you refresh, and a build waiting for you no longer goes unnoticed behind an "up to date"; *Off* reads nothing and says so on those rows instead of guessing. Macs that already had Full Disk Access start at *When I refresh*, everyone else at *Off*.
 
+**An App Store update that needs a newer macOS than you're running now says so.** Before, the row offered to install it anyway and the App Store refused at the last step, with nothing on screen explaining why.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

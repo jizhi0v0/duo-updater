@@ -19,6 +19,7 @@ test:
 	python3 scripts/test_appcast_edit.py
 	python3 scripts/test_publish_release.py
 	python3 scripts/test_check_prose_claims.py
+	python3 scripts/test_check_offpool.py
 	python3 scripts/test_claude_lag_probe.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
@@ -30,6 +31,7 @@ test:
 	python3 scripts/check_engine_notes.py
 	python3 scripts/check_skill_docs.py
 	python3 scripts/check_prose_claims.py
+	python3 scripts/check_offpool.py
 
 # Render every row state to verify/row-states/*.png. The images are committed:
 # re-run after a UI change and read the diff. Fails if a state draws nothing.

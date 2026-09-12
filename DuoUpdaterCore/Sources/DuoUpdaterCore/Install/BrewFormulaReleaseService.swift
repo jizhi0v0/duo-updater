@@ -229,7 +229,13 @@ public actor BrewFormulaReleaseService {
         process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        // nullDevice, not `Pipe()`: an undrained stderr pipe deadlocks once its
+        // 64KB buffer fills — brew blocks writing (a long run of deprecation
+        // warnings or a Ruby backtrace is enough), we block forever in the
+        // `readDataToEndOfFile()` below waiting on stdout, which brew never
+        // reaches. Same failure shape, and same fix, as
+        // `BrewFormulaService.realExecutor`; this one was the last `Pipe()` left.
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()

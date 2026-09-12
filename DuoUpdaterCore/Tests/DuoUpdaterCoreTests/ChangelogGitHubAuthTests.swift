@@ -49,6 +49,30 @@ import Foundation
         #expect(await ChangelogService.gitHubToken() == "pasted-in-settings")
     }
 
+    /// The settings token must be answered WITHOUT entering the `gh` deadline
+    /// race, because everything in that race is slower than a memory read and
+    /// some of it is slower than the deadline.
+    ///
+    /// This is the test above's CI failure, made deterministic. The race was
+    /// entered unconditionally once the resolve moved onto a Dispatch hop, and
+    /// on the 3-core runner with the suite in parallel the hop's queue admission
+    /// lost to the 2-second timeout: a token sitting in settings resolved to nil,
+    /// 18.9s into a test that passes instantly on a 14-core laptop. A deadline of
+    /// one nanosecond is that same race, lost on purpose and on every machine.
+    ///
+    /// Mutation: delete the `GitHubToken.preresolved` short-circuit in
+    /// `gitHubToken` and this returns nil. `timeout:` exists for it.
+    @Test func anExplicitTokenDoesNotRaceTheDeadline() async {
+        defer {
+            ChangelogService.setExplicitGitHubToken(nil)
+            ChangelogService.resetGitHubTokenCache()
+        }
+        ChangelogService.setExplicitGitHubToken("pasted-in-settings")
+        ChangelogService.resetGitHubTokenCache()
+        #expect(await ChangelogService.gitHubToken(timeout: .nanoseconds(1))
+                == "pasted-in-settings")
+    }
+
     /// Whitespace and empty strings mean "no explicit token" — `Preferences` stores
     /// an empty string for a cleared field, and pushing that must fall back to the
     /// env/`gh` path rather than sending `Bearer `.

@@ -90,12 +90,18 @@ public enum InPlaceSwap {
                 "another installer holds the install lock, sweep deferred: \(error, privacy: .public)")
             return false
         }
-        sweepInterruptedSwaps(in: directory)
-        // Unconditional rather than deferred, and it stays correct only because
-        // the sweep below neither throws nor suspends: there is no early return
-        // and no cancellation point between the claim and here. (`defer` cannot
-        // hold an `await` anyway.) Anything added to that function that can bail
-        // out early has to release the claim on its way.
+        // Off the cooperative pool: the sweep validates every orphan it finds with
+        // `SecStaticCodeCheckValidity`, which is the exact call #351 measured
+        // parking all three cooperative threads on a 3-core runner, and this is
+        // reached from a `Task.detached` that runs on that same pool. See
+        // `offCooperativePool`.
+        await offCooperativePool(qos: .utility) { sweepInterruptedSwaps(in: directory) }
+        // Unconditional rather than deferred, and it stays correct because the
+        // sweep neither throws nor returns early: the hop above suspends, but it
+        // is not cancellable and always resumes (see `offCooperativePool`), so
+        // there is still no path from the claim to here that skips the release.
+        // (`defer` cannot hold an `await` anyway.) Anything added to that
+        // function that can bail out early has to release the claim on its way.
         await lock.release()
         return true
     }
@@ -801,9 +807,16 @@ public enum InPlaceSwap {
         // `/Applications` on the development machine, 22 of them store-installed)
         // a batch can reach it twice at once — two system panels stacked over each
         // other, neither saying which app it belongs to. Blocking here rather than
-        // making `replace` async is deliberate: the callers are synchronous, and
-        // the thread this parks was going to sit in `waitUntilExit` waiting on the
-        // same human anyway, so this moves the wait rather than adding one.
+        // making `replace` async is deliberate: the thread this parks was going to
+        // sit in `waitUntilExit` waiting on the same human anyway, so this moves
+        // the wait rather than adding one.
+        //
+        // ⚠️ It parks whatever thread `replace` was called on, for as long as the
+        // user takes to answer — so every async caller must reach `replace`
+        // through `offCooperativePool`, never directly. Both installers and the
+        // rollback path do. An earlier version of this comment said "the callers
+        // are synchronous"; they are `async` and always were, which is exactly the
+        // shape #351 measured killing the runtime.
         elevationPanel.lock()
         defer { elevationPanel.unlock() }
 

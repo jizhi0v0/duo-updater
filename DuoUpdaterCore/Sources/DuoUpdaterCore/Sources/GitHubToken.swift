@@ -11,6 +11,25 @@ import Foundation
 ///      many developers who already have GitHub CLI authenticated.
 public enum GitHubToken {
     public static func resolve(explicit: String? = nil) -> String? {
+        preresolved(explicit: explicit) ?? ghCLIToken()
+    }
+
+    /// Steps 1 and 2 alone — the ones that are two memory reads and cannot block.
+    /// nil means "nothing here", i.e. only `gh` is left to ask.
+    ///
+    /// Split out because the deadline an async caller puts around `resolve` is
+    /// there for step 3 and only step 3, and spending it on the other two is not
+    /// free: the hop those callers make has to be ADMITTED to a Dispatch queue
+    /// first, and admission is not instant on a loaded machine. Measured on CI
+    /// (3-core runner, the full suite in parallel): a settings token that needs
+    /// no subprocess at all lost a 2-second race to queue admission and came back
+    /// nil, so the pane went anonymous with a valid token sitting in settings.
+    /// Same shape as the timing note in CLAUDE.md — on that runner, pool
+    /// admission is measured in seconds.
+    ///
+    /// So callers answer from here when they can, and spend the deadline only on
+    /// the call that can actually hang.
+    public static func preresolved(explicit: String? = nil) -> String? {
         if let explicit = explicit?.trimmingCharacters(in: .whitespacesAndNewlines),
            !explicit.isEmpty {
             return explicit
@@ -22,11 +41,18 @@ public enum GitHubToken {
                 return value
             }
         }
-        return ghCLIToken()
+        return nil
     }
 
-    /// Ask the `gh` CLI for its stored token. Cheap subprocess; callers should
-    /// resolve once per check run rather than per request.
+    /// Ask the `gh` CLI for its stored token.
+    ///
+    /// Cheap only when it answers: `gh` can sit on a keychain prompt nobody is
+    /// looking at, and `run` waits for it with no deadline of its own. So this is
+    /// **blocking** work — every async caller must reach it through
+    /// `offCooperativePool` (both do, each with its own timeout race), never
+    /// directly and not via `Task.detached`, which still runs on the cooperative
+    /// pool. Callers should also resolve once per check run rather than per
+    /// request.
     private static func ghCLIToken() -> String? {
         guard let gh = ghExecutablePath() else { return nil }
         guard let out = run(gh, ["auth", "token"]) else { return nil }
@@ -136,7 +162,10 @@ public enum GitHubToken {
         process.arguments = args
         let out = Pipe()
         process.standardOutput = out
-        process.standardError = Pipe()
+        // nullDevice, not an undrained `Pipe()`: nothing reads stderr here, and a
+        // pipe nobody drains deadlocks the pair below once the child fills its
+        // ~64KB buffer. Same reasoning as `BrewFormulaService.realExecutor`.
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -151,7 +180,8 @@ public enum GitHubToken {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
         let err = Pipe()
-        process.standardOutput = Pipe()
+        // nullDevice for the half we do not read, for the reason `run` above gives.
+        process.standardOutput = FileHandle.nullDevice
         process.standardError = err
         do { try process.run() } catch { return ("", false) }
         let data = err.fileHandleForReading.readDataToEndOfFile()

@@ -165,6 +165,21 @@ public struct TestFlightInventory: Sendable {
         self.buildsByBundleID = Self.buildIndex(macInstalledRows ?? rows)
     }
 
+    /// The initializer above, off the cooperative pool.
+    ///
+    /// `BoundedBlockingWork` bounds the *wait*, it does not un-block it: the
+    /// calling thread still sits in `DispatchSemaphore.wait` for up to
+    /// `openTimeout` seconds, and every caller builds this from `Task.detached`,
+    /// which runs on the cooperative pool. Eleven construction sites in the menu
+    /// bar app × five seconds is the #351 shape with a cap on it — and the cap is
+    /// reached exactly when the app-data gate is unanswered, which is when the
+    /// app has the most other work in flight. See `offCooperativePool`.
+    public static func loadOffPool(
+        databaseURL: URL? = nil, qos: DispatchQoS.QoSClass = .userInitiated
+    ) async -> TestFlightInventory {
+        await offCooperativePool(qos: qos) { TestFlightInventory(databaseURL: databaseURL) }
+    }
+
     /// Test seam / explicit construction: inject the parsed rows directly, skipping
     /// the DB read. `accessible` defaults to `true` (the caller supplied data); pass
     /// `false` to build the "couldn't read TestFlight" sentinel used when the TCC

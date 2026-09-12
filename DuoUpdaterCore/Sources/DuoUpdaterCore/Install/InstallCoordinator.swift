@@ -199,7 +199,13 @@ public actor InstallCoordinator {
         let fromStore = (route == .appStore)
         let path = app.path
         let bundleID = app.bundleID
-        return await Task.detached(priority: .userInitiated) { () -> BackupOutcome in
+        // Dispatch, not `Task.detached`: a detached task still runs on the
+        // cooperative pool, and everything below blocks — `unreadableFiles` walks
+        // the bundle, `BackupStore.save` waits on `ditto`, and the input-method
+        // copy waits on another. Measured at 8.7s twice over for Word, which is
+        // 8.7s of a pool that is only as wide as the core count. See
+        // `offCooperativePool`.
+        return await offCooperativePool(qos: .userInitiated) { () -> BackupOutcome in
             // Only *sealed* unreadable files stop a backup. Unsealed ones are the
             // app's own runtime droppings; the copy skips them and still restores.
             let unreadable = BackupManifest.unreadableFiles(in: path)
@@ -251,7 +257,7 @@ public actor InstallCoordinator {
                     "backup: \(path.lastPathComponent, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
                 return .failed
             }
-        }.value
+        }
     }
 
     /// Fetch and apply `result` by `route`.

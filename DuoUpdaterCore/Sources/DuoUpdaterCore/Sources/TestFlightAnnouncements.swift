@@ -153,6 +153,16 @@ public struct TestFlightAnnouncements: Sendable {
         self.accessible = opened
     }
 
+    /// The initializer above, off the cooperative pool — for the same reason, and
+    /// with the same caveat, as `TestFlightInventory.loadOffPool`: the bound stops
+    /// us waiting, not the thread being held, and the thread being held is one of
+    /// very few.
+    public static func loadOffPool(
+        databaseURL: URL? = nil, qos: DispatchQoS.QoSClass = .userInitiated
+    ) async -> TestFlightAnnouncements {
+        await offCooperativePool(qos: qos) { TestFlightAnnouncements(databaseURL: databaseURL) }
+    }
+
     /// Test seam: inject the parsed announcements directly.
     public init(announcements: [Announcement], accessible: Bool = true) {
         self.announcements = announcements

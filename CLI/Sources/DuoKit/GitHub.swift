@@ -43,10 +43,24 @@ enum GitHub {
             input.fileHandleForWriting.write(Data(stdin.utf8))
             try? input.fileHandleForWriting.close()
         }
+        // Drain both pipes CONCURRENTLY. Reading stdout to EOF and only then
+        // stderr deadlocks as soon as the child fills stderr's ~64KB buffer while
+        // stdout is still open — `gh` writes progress, deprecation and auth notices
+        // there — because it blocks in `write()`, stdout never reaches EOF, and
+        // neither side moves. Same failure shape and same fix as
+        // `ArchiveExtractor.run`.
+        let errData = Locked(Data())
+        let drained = DispatchSemaphore(value: 0)
+        let errHandle = errorPipe.fileHandleForReading
+        DispatchQueue.global().async {
+            let data = errHandle.readDataToEndOfFile()
+            errData.withLock { $0 = data }
+            drained.signal()
+        }
         let out = String(
             decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        let err = String(
-            decoding: errorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        drained.wait()
+        let err = String(decoding: errData.withLock { $0 }, as: UTF8.self)
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {

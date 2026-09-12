@@ -45,7 +45,7 @@ public enum Doctor {
             // reports a grant duo does not hold.
             isResponsibleForItself: TCCPreflight.isResponsibleForItself(),
             installedApp: installedAppPath(),
-            privilegedHelper: helperStatus(),
+            privilegedHelper: await helperStatus(),
             githubToken: tokenDescription(settings),
             alcoveCredentials: settings.alcove != nil,
             masInstalled: which("mas") != nil,
@@ -181,15 +181,21 @@ public enum Doctor {
     /// `/Library/LaunchDaemons`, so a file check reports "not registered" for a
     /// helper that is registered and running. (It did, on a machine where it
     /// was.)
-    static func helperStatus() -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["print", "system/com.duoupdater.helper"]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+    ///
+    /// `async` because `waitUntilExit()` blocks and `run` is reached from the
+    /// cooperative pool: the wait goes to Dispatch (see `offCooperativePool`).
+    static func helperStatus() async -> String {
+        let registered = await offCooperativePool { () -> Bool in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            process.arguments = ["print", "system/com.duoupdater.helper"]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        }
+        return registered
             ? "registered"
             : "not registered — approve it once in the menu-bar app; the CLI cannot register it"
     }

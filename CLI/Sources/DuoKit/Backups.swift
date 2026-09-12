@@ -211,9 +211,14 @@ public enum Backups {
     /// `Install.run`'s shape.
     private static func performRestore(app: InstalledApp, key: String, json: Bool) async -> Int32 {
         do {
-            let restored = try await Task.detached(priority: .userInitiated) { () -> String? in
-                try BackupStore.restore(forKey: key, over: app.path)
-            }.value
+            // Off the cooperative pool, not merely off this task: the restore
+            // dittos the stored bundle out and then runs the blocking
+            // `InPlaceSwap.replace`, and a detached task still runs on the pool.
+            // See `offCooperativePool`.
+            let path = app.path
+            let restored = try await offCooperativePool(qos: .userInitiated) { () -> String? in
+                try BackupStore.restore(forKey: key, over: path)
+            }
             if json {
                 emitRestoreJSON(app: app.name, key: key, restoredVersion: restored)
             } else {

@@ -6111,11 +6111,12 @@ final class AppListModel {
         // flush is one rename, not a multi-second bundle swap, and the whole point
         // of this stream is to put the row into its checking state before the user
         // can act on a verdict their flip has just invalidated — every millisecond
-        // of debounce is time that row spends live and wrong. It used to be 1s,
-        // which was the bulk of the measured 2.4s a flip took to settle. Cutting it
-        // is only safe now that `recheckChannelSwitches` supersedes its own passes:
-        // a burst that fires several times just cancels itself down to the last
-        // one, where before each extra event was work we could not take back.
+        // of debounce is time that row spends live and wrong. Cutting it from the
+        // original 1s is only safe now that `recheckChannelSwitches` supersedes its
+        // own passes (see `docs/engine-notes/app-list-model.md` §3 for the settle
+        // time that debounce used to be most of): a burst that fires several times
+        // just cancels itself down to the last one, where before each extra event
+        // was work we could not take back.
         let prefPaths = ChannelBinding.preferenceWatchPaths
         if !prefPaths.isEmpty {
             let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 0.25) { [weak self] in
@@ -6718,28 +6719,21 @@ final class AppListModel {
     /// flow). Coalesced against overlapping calls.
     private func recheckChannelSwitches(trigger: String) async {
         guard !results.isEmpty else { return }
-        // Latest wins. A pass already on the network was started from a choice the
-        // user has since left, so its verdict is not merely late — it is wrong, and
+        // Latest wins: a pass already on the network was started from a choice the
+        // user has since left, so its verdict is not merely late but wrong, and
         // letting it finish would write the superseded track into the row. Cancel it
-        // and start over rather than queueing behind it. Dropping the new trigger
-        // instead (what the old `channelSwitchRecheckRunning` guard did) was worse
-        // still: the flip was forgotten entirely, and because the fingerprints had
-        // already been booked, nothing compared them again — a row kept offering a
-        // prerelease to someone who had just opted out, for up to the watcher's
-        // 900s re-arm. See issue #74.
+        // and start over rather than queueing behind it or dropping the new trigger —
+        // see `docs/engine-notes/app-list-model.md` §3 for what the dropped-trigger
+        // design did instead, and why (issue #74).
         let previous = channelRecheckTask
         previous?.cancel()
         let task = Task { @MainActor [weak self] in
-            // Cancelling only raises a flag. The superseded pass keeps running until
-            // its `recheck` returns — `recheckMany` scans on a DETACHED task, which
-            // cancellation cannot reach at all — and for that whole time it still
-            // holds `installing[id] = .checking` on the rows it claimed. Starting the
-            // new pass on top of that made it skip those very rows, because its claim
-            // filter is `installing[id] == nil`: it rechecked nothing, the dying pass
-            // rechecked nothing either, and the flip was acted on by neither. That is
-            // issue #74 moved rather than fixed — two flips half a second apart, or
-            // one flip plus any unrelated write to the machine-wide
-            // `~/Library/Preferences` during the pass, were enough to hit it.
+            // `Task.cancel()` only raises a flag: the superseded pass keeps running
+            // (and holding `installing[id] = .checking` on its claimed rows) until its
+            // `recheck` returns, so starting a new claim pass on top of it just skips
+            // those same rows. See `docs/engine-notes/app-list-model.md` §3 for the
+            // race that let a flip go un-rechecked by either pass, and how narrow it
+            // turned out to be (issue #74).
             //
             // So wait the old pass out. It happens HERE, inside the new task, so that
             // `channelRecheckTask` below is still assigned synchronously: a third
@@ -6784,8 +6778,9 @@ final class AppListModel {
         // Mark every target busy BEFORE the first network call, not one at a time as
         // we reach it. The row's action button is replaced by the checking state, so
         // this is what stops a click landing on a verdict the flip has already
-        // invalidated — the window between the toggle and the new answer is ~2.4s,
-        // and only the marked part of it is safe.
+        // invalidated — the window between the toggle and the new answer used to
+        // measure ~2.4s (`docs/engine-notes/app-list-model.md` §3; not re-measured
+        // since the debounce above was cut), and only the marked part of it is safe.
         var claimed: [UpdateResult] = []
         for result in targets where installing[result.id] == nil {
             installing[result.id] = .checking

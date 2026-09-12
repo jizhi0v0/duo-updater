@@ -120,6 +120,82 @@ it replaced.
 
 ---
 
+**§3** (below) is the third slice: channel-switch detection
+(`recheckChannelSwitches` / `runChannelSwitchRecheck` /
+`fingerprints(forBoundIDs:)`, under the `// MARK: - Channel-switch recheck`
+heading), the scheduling around a `ChannelBinding` app's own in-app channel
+toggle that issue #74 found broken and that got revised twice in the same
+evening. The current contract — cancel-and-restart beats both "drop the new
+trigger" and "let both run", and the cancelling task must wait the superseded
+one out before its own claim pass starts — stays next to the code; what
+follows is why those two alternatives were tried and rejected.
+
+## §3 Why a channel-switch recheck cancels and waits, rather than dropping or racing (issue #74)
+
+The watcher that notices a flip at all — a filesystem stream on the vendor
+preference files a bound app's channel lives in, debounced and coalesced
+through a fingerprint compare — predates this section, and its own genesis
+(the Surge timeline: a launch event reading `KDDefaults.plist` before Surge
+had finished writing it) already has an authoritative home,
+`ChannelBinding.preferenceWatchPaths`'s own doc comment — not repeated here.
+What follows is two bugs found in the recheck *scheduling* around that
+watcher, both from 2026-08-26.
+
+**The original bug** (issue #74, filed and fixed 2026-08-26). Before commit
+`3d19c1f8` ("supersede an in-flight channel recheck instead of dropping the
+new one"), a trigger that arrived while a recheck was already on the network
+was dropped by a `channelSwitchRecheckRunning` guard — and because
+`lastSeenChannelFingerprints` was booked *before* the per-row rechecks ran,
+nothing ever compared that state again. Observed on this machine, flipping
+BetterDisplay's prerelease toggle back and forth: "a single flip settles in
+~2.4s every time (1s FSEvents debounce + fingerprint pass + networked
+recheck)" (quoted from the issue), and a flip landing inside another flip's
+~2.4s window was forgotten until an unrelated event — another bound app's
+launch/quit, the watcher's 900s re-arm, wake, or the next full check —
+happened to trigger a fresh pass; worst case, ~15 minutes on the wrong track.
+Fixed by cancelling the in-flight pass and starting over instead of dropping
+the new trigger, with fingerprints booked per id only once that id's own
+recheck finishes (`ChannelSwitchDetector.booked`).
+
+**The bug that fix introduced** (found by reading, the same evening — see the
+caveat below on how it was found; fixed by commit `7e7b89d0`, ~75 minutes
+after `3d19c1f8`).
+`Task.cancel()` only raises a flag: the cancelled pass kept running —
+`recheckMany` scans on a detached task, which cancellation cannot reach — and
+kept holding `installing[id] = .checking` on the rows it had claimed. The new
+pass's claim filter is `installing[id] == nil`, so it skipped exactly those
+rows: neither pass rechecked them, and a flip could go un-acted-on by both.
+Fixed by making the new task explicitly await the superseded one's
+completion before running its own claim pass, chained inside the new task so
+`channelRecheckTask` is already reassigned by the time a third trigger
+arrives.
+
+⚠️ **How likely that second bug was, in the fixing commit's own words, is more
+qualified than the source comment (before this pass) put it.** `7e7b89d0`
+measured the claim window at roughly 0.3s inside a ~0.72s settle, and ran
+twenty flips with deliberately dense extra triggers — a bound app
+launching/quitting, an unrelated `~/Library/Preferences` write, each within
+300ms of the flip — without reproducing it once, closing with "this is a
+defect found by reading... not a bug anyone has reported." The source
+comment in `recheckChannelSwitches`, before this pass, described the same
+double-trigger shape as "enough to hit it," with no such caveat. Both
+statements describe a real, narrow window that the fix correctly closes —
+the difference is confidence, not mechanism — so this is flagged as
+overstated rather than rewritten as false, and the source now points here
+instead of repeating either framing.
+
+Not independently re-verified this pass (2026-09-12): whether the 2.4s /
+0.72s / 0.3s timings above still hold — the preference-watcher debounce they
+were measured against has since been cut from 1s to 0.25s (same MARK
+section, `armLocalRescan`), which should shorten all three, and none of them
+has been re-measured since. What *was* re-checked: `recheckChannelSwitches`
+still cancels-and-waits rather than dropping or racing, and
+`runChannelSwitchRecheck` still books per completed id via
+`ChannelSwitchDetector.booked` — the architecture both 2026-08-26 fixes
+produced has not drifted.
+
+---
+
 Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has no dedicated test for
 the host-gate release point itself (it's exercised indirectly by
 `AppListModel`'s own concurrency, which the app-layer test target does not
@@ -134,3 +210,17 @@ is the cache `refreshRunningApps` calls into — eviction on a process quit,
 re-resolution on reappearance, the staging-name normalisation `retry()`'s
 correctness depends on — everything downstream of "here is this event's
 snapshot of running bundle URLs", not the KVO delivery itself.
+
+Same absence for §3: nothing constructs `AppListModel` to exercise
+`recheckChannelSwitches`'s cancel-and-wait scheduling itself — the two
+2026-08-26 races were both found by reading, not by a failing test, and
+neither has one today. What IS tested, in
+`DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelSwitchDetectorTests.swift`,
+is `ChannelSwitchDetector.changes`/`.booked` — the per-id fingerprint compare
+and the "leave an unfinished id looking changed" bookkeeping the first fix
+depends on — not the `Task`-cancellation race the second fix closes. That
+test file's own `/// The regression behind issue #74, as a sequence.` comment
+(line 220) is a second retelling of the first bug, written to justify its own
+fixture rather than to be a design record; left as is, per this directory's
+own guidance that a test's incident retelling documents the test, not the
+class.

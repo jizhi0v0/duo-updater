@@ -431,7 +431,7 @@ Useful overrides:
 
 | Component | Where | Licence |
 | --- | --- | --- |
-| [Sparkle](https://github.com/sparkle-project/Sparkle) 2.9.3 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
+| [Sparkle](https://github.com/sparkle-project/Sparkle) 2.9.6 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
 | [`mas`](https://github.com/mas-cli/mas) | `App/Resources/mas`, a prebuilt universal binary invoked for Mac App Store installs | MIT |
 | PermissionFlow | `App/Sources/Vendor/PermissionFlow/` (vendored source) | MIT — see the `LICENSE` and `NOTICE.md` in that directory |
 

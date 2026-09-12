@@ -1638,9 +1638,12 @@ private struct ChangelogEntryView: View {
                     }
                 }
             }
-            // Rich entries (notes interleaved with images, e.g. WeChat) walk `content`
-            // so a screenshot lands between the change lines exactly as on the vendor's
-            // page. Text-only entries (the common case) just bullet `items`.
+            // Rich entries — notes interleaved with images (WeChat) or category
+            // headings (Mac Performance Monitor's Keep a Changelog file, a
+            // GitHub-sourced app whose release body had ≥2 real ones — see
+            // `Changelog.Entry.Block`) — walk `content` so a screenshot or a
+            // heading lands exactly where it does on the vendor's page. Text-only
+            // entries (the common case) just bullet `items`.
             // LAZY, not a plain VStack. An entry used to be a couple of dozen lines
             // at most, because every changelog came from a recipe. A Sparkle feed's
             // inline notes are not capped that way — TablePro's 0.67.0 carries 205
@@ -1659,6 +1662,7 @@ private struct ChangelogEntryView: View {
                         switch block {
                         case let .note(text): noteRow(text)
                         case let .image(url): noteImage(url)
+                        case let .heading(text): headingRow(text)
                         }
                     }
                 }
@@ -1710,6 +1714,18 @@ private struct ChangelogEntryView: View {
         CachedImage(url: url)
             .frame(maxWidth: 480, alignment: .leading)
             .padding(.vertical, 2)
+    }
+
+    /// A category heading (`Added`, `Fixed`, …) grouping the notes that follow it.
+    /// Deliberately smaller than the version title above and left-aligned like a
+    /// bullet, not indented — it is a sub-section of THIS entry, not a nested
+    /// entry of its own. Markdown-rendered like a bullet (`rendered(_:syntax:)`),
+    /// since a GitHub-sourced heading carries the same inline syntax an item does.
+    @ViewBuilder
+    private func headingRow(_ text: String) -> some View {
+        Text(Self.rendered(text, syntax: syntax))
+            .font(.subheadline).bold()
+            .padding(.top, 2)
     }
 
     private static func displayDate(for raw: String) -> String {

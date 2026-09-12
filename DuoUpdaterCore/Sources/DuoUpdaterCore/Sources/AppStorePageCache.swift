@@ -1,21 +1,30 @@
 import Foundation
 
-/// TTL-memoized cache for the two things `MacAppStoreSource` scrapes off an App
-/// Store product page: the Mac-track version (+ "What's New" notes) and whether
-/// the latest build can be installed on a Mac at all
-/// (`MacAppStoreSource.MacCompatibilityReading`).
+/// TTL-memoized cache for the two App Store product pages `MacAppStoreSource`
+/// scrapes: the `?platform=mac` page (`versionStore`) and the plain product
+/// page (`compatStore`). Each fetch runs BOTH extractors
+/// (`extractMacVersionInfo` + `extractMacCompatibility`) over whichever page
+/// it fetched, bundling everything that one scrape settled into one
+/// `MacAppStoreSource.MacPageFacts` value — see that type's doc comment for
+/// why a page can answer one half and not the other (Nowdex's `?platform=mac`
+/// page has no version shelf at all, yet still carries the compatibility
+/// signals and the OS floor).
 ///
 /// **All of the value is across scans, none of it within one.** `resolve()` is
 /// a three-way dispatch with early returns, so exactly one of
 /// `nativeMacVersion` / `remoteVersion(checkMacCompat:)` / `iosOnMacVersion`
-/// runs per app per check — and the version and compatibility pages use
-/// different URLs *and* different dictionaries, so neither can serve the
-/// other. What this class removes is the second scan's fetch, and the
-/// third's, up to the TTL — so the benefit is `1 − interval/ttl`, and at the
-/// six-hour default interval (`Preferences`) an interval longer than the TTL
-/// means every scheduled round is a cold miss and this class saves nothing
-/// there. (How many installs leave that default alone is not something this
-/// repo can see, so the claim stops at the default itself.) What it still buys is the
+/// runs per app per check, and each of those fetches at most ONE of the two
+/// pages — so a given app's check populates at most one of `versionStore` /
+/// `compatStore` this round, never both. The two stores are kept separate
+/// (not merged, even though they now hold the same value type) precisely
+/// because they answer for two different URLs: Nowdex's `?platform=mac`
+/// scrape and its plain-page scrape can and do disagree about what they can
+/// settle. What this class removes is a second app-launch scan's fetch, up to
+/// the TTL — so the benefit is `1 − interval/ttl`, and at the six-hour default
+/// interval (`Preferences`) an interval longer than the TTL means every
+/// scheduled round is a cold miss and this class saves nothing there. (How
+/// many installs leave that default alone is not something this repo can see,
+/// so the claim stops at the default itself.) What it still buys is the
 /// second scan inside one app launch: the scheduler ticks immediately on a
 /// cold start and opening the workbench forces another refresh, so that pair
 /// costs one round of pages instead of two. See
@@ -23,23 +32,25 @@ import Foundation
 /// is based on and the wrong assumption an earlier version of this comment
 /// made.
 ///
-/// Deliberately caches a *parse failure* (2xx response, no version/verdict found)
-/// the same as a *parse success* — an unparseable page costs full price again
-/// only once per TTL window, not once per check, which is the failure mode this
-/// exists to fix (skipping the scrape entirely would instead make the two
-/// call sites for a Mac version disagree with each other and with the lookup
-/// API, since only one of them would ever get a fresh page). A *transport
-/// failure or non-2xx response* is NOT cached: a network blip or a server
-/// hiccup must not freeze a bad answer in place for an hour. Callers keep those
-/// two outcomes apart before they ever reach this cache — see
-/// `MacAppStoreSource.fetchMacVersion`/`fetchMacCompatibility`, whose
+/// Deliberately caches a *parse failure* (2xx response, nothing either
+/// extractor could read) the same as a *parse success* — an unparseable page
+/// costs full price again only once per TTL window, not once per check, which
+/// is the failure mode this exists to fix (skipping the scrape entirely would
+/// instead make the two call sites for a Mac version disagree with each other
+/// and with the lookup API, since only one of them would ever get a fresh
+/// page). A *transport failure or non-2xx response* is NOT cached: a network
+/// blip or a server hiccup must not freeze a bad answer in place for an hour.
+/// Callers keep those two outcomes apart before they ever reach this cache —
+/// see `MacAppStoreSource.fetchMacVersion`/`fetchMacCompatibility`, whose
 /// `PageFetchOutcome.unavailable` case is exactly "don't cache this".
 ///
-/// The outer optional in `cachedVersion`/`cachedCompatibility` distinguishes "no
-/// entry, or a stale one" (nil — go fetch) from "cached, and the cached value is
-/// itself nil" (`.some(nil)` — a real answer, use it). Collapsing those two
-/// would re-fetch a legitimately-nil cached parse failure on every single call,
-/// defeating the point of caching it at all.
+/// `cachedVersionFacts`/`cachedCompatibilityFacts` need only a single Optional
+/// (not the `MacPageFacts??` an earlier, per-field version of this cache
+/// needed): the cached VALUE is a `MacPageFacts` struct, which a page that
+/// answered but parsed nothing useful still produces (with nil fields) —
+/// there is no "real answer that is itself nil" to distinguish from "no entry
+/// yet", the way there was when the cached value type was `MacVersionInfo?`/
+/// `Bool?` directly.
 public actor AppStorePageCache {
 
     /// The process-wide cache, and the one production actually uses.
@@ -85,8 +96,15 @@ public actor AppStorePageCache {
     let ttl: TimeInterval
     private let now: @Sendable () -> Date
 
-    private var versionStore: [Key: Entry<MacAppStoreSource.MacVersionInfo?>] = [:]
-    private var compatStore: [Key: Entry<Bool?>] = [:]
+    /// Keyed by URL, same as `compatStore` below — and deliberately NOT merged
+    /// with it, even though both now hold the same `MacPageFacts` value type.
+    /// They are two different pages (`?platform=mac` here, the plain product
+    /// page below): Nowdex's `?platform=mac` page has no version shelf at all
+    /// while the plain page's own scrape can still answer compatibility, so
+    /// collapsing the two stores would make one page's cache miss look like
+    /// the other's.
+    private var versionStore: [Key: Entry<MacAppStoreSource.MacPageFacts>] = [:]
+    private var compatStore: [Key: Entry<MacAppStoreSource.MacPageFacts>] = [:]
 
     /// Reverse index from an installed app's bundle id to every `(trackId,
     /// region)` key its scrapes have been filed under, so `invalidate(bundleIDs:)`
@@ -155,11 +173,11 @@ public actor AppStorePageCache {
     ///
     /// ⚠️ "Forces a live scrape" only absent an overlapping sweep. A scheduled
     /// check that missed the cache for app X and is still awaiting X's page
-    /// when this runs will `storeVersion` a fresh entry afterwards, and the
+    /// when this runs will `storeVersionFacts` a fresh entry afterwards, and the
     /// recheck's own fan-out then reads it — so a recheck racing a sweep can
     /// still be answered from a memo. The window is one page fetch. This is
     /// not new (`invalidateAll` lost the same race) and closing it needs a
-    /// per-key generation counter checked in `storeVersion`, which nobody has
+    /// per-key generation counter checked in `storeVersionFacts`, which nobody has
     /// written; the guarantee is stated here so the next reader doesn't take
     /// the absolute wording at face value.
     ///
@@ -192,31 +210,35 @@ public actor AppStorePageCache {
         }
     }
 
-    /// The cached Mac-version scrape for (trackId, region), if a fresh entry
-    /// exists. `.some(nil)` means "cached, and the page had no version";
-    /// nil means "not cached (or expired) — go fetch it".
-    func cachedVersion(trackId: Int, region: String) -> MacAppStoreSource.MacVersionInfo?? {
+    /// The cached `?platform=mac` page scrape for (trackId, region), if a
+    /// fresh entry exists. A single optional is enough now (unlike the earlier
+    /// `MacVersionInfo??`/`Bool??` shape this replaced): the cached VALUE is a
+    /// `MacPageFacts` struct, which is never itself absent — a page that
+    /// answered but parsed nothing useful is still a real `MacPageFacts` (with
+    /// nil fields), not a Swift `nil`. So `nil` here means only "not cached
+    /// (or expired) — go fetch it".
+    func cachedVersionFacts(trackId: Int, region: String) -> MacAppStoreSource.MacPageFacts? {
         let key = Key(trackId: trackId, region: region)
         guard let entry = versionStore[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {
             return nil
         }
-        return .some(entry.value)
+        return entry.value
     }
 
-    func storeVersion(_ value: MacAppStoreSource.MacVersionInfo?, trackId: Int, region: String) {
+    func storeVersionFacts(_ value: MacAppStoreSource.MacPageFacts, trackId: Int, region: String) {
         versionStore[Key(trackId: trackId, region: region)] = Entry(value: value, fetchedAt: now())
     }
 
-    /// Same shape as `cachedVersion`, for the Mac-compatibility flag.
-    func cachedCompatibility(trackId: Int, region: String) -> Bool?? {
+    /// Same shape as `cachedVersionFacts`, for the plain product page.
+    func cachedCompatibilityFacts(trackId: Int, region: String) -> MacAppStoreSource.MacPageFacts? {
         let key = Key(trackId: trackId, region: region)
         guard let entry = compatStore[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {
             return nil
         }
-        return .some(entry.value)
+        return entry.value
     }
 
-    func storeCompatibility(_ value: Bool?, trackId: Int, region: String) {
+    func storeCompatibilityFacts(_ value: MacAppStoreSource.MacPageFacts, trackId: Int, region: String) {
         compatStore[Key(trackId: trackId, region: region)] = Entry(value: value, fetchedAt: now())
     }
 }

@@ -9,18 +9,44 @@ public struct AppStoreAvailability: Sendable, Hashable {
     /// Region of the signed-in App Store account, e.g. "us" (nil if unknown).
     public let homeRegion: String?
 
-    /// For an iPhone/iPad app run on Apple Silicon: whether the *latest* App Store
-    /// build can be installed on a Mac at all. Vendors can drop Mac support in a
-    /// newer release, so the newest version may be real but uninstallable here —
-    /// the App Store shows "Not compatible with this device". nil = native Mac
-    /// app / not checked / couldn't tell (assume compatible).
+    /// Whether the *latest* App Store build is installable here at all. nil =
+    /// not checked / couldn't tell (assume compatible).
     ///
-    /// ⚠️ NOT a straight copy of Apple's `isIOSBinaryMacOSCompatible` flag, which
-    /// answers the narrower "does the *iOS binary* run on macOS" and therefore
+    /// Two different questions feed this, depending on which of `resolve()`'s
+    /// three branches produced it — the row never needs to know which, only the
+    /// verdict:
+    ///   - For a wrapped iPhone/iPad app run on Apple Silicon (`remoteVersion
+    ///     (checkMacCompat:)`): does the *iOS binary* still run on a Mac at all.
+    ///     Vendors can drop Mac support in a newer release, so the newest
+    ///     version may be real but uninstallable here — the App Store shows
+    ///     "Not compatible with this device". This is `MacCompatibilityReading
+    ///     .macSupported`.
+    ///   - For a native Mac build or an iOS-on-Mac listing whose Mac build is a
+    ///     separate release line (`nativeMacVersion` / `iosOnMacVersion`): does
+    ///     the LISTING still publish a Mac build at all — a copy that already
+    ///     IS the Mac build asks a different question than a wrapped one does.
+    ///     This is `MacCompatibilityReading.publishesMacBuild`. Before issue
+    ///     #545's second consequence was fixed, these two branches never set
+    ///     this field, so a native-Mac listing that genuinely dropped Mac
+    ///     support got no warning.
+    ///
+    /// ⚠️ Neither reading is a straight copy of Apple's `isIOSBinaryMacOSCompatible`
+    /// flag, which answers only the first, narrower question and therefore
     /// reads `false` for every app that ships its own native Mac build. See
-    /// `MacAppStoreSource.MacCompatibilityReading` for the measurements and for
-    /// the second signal (`appPlatforms`) it takes to tell those two apart.
+    /// `MacAppStoreSource.MacCompatibilityReading` for the measurements behind
+    /// both readings and the second signal (`appPlatforms`) each one takes.
     public let latestMacCompatible: Bool?
+
+    /// The macOS floor the *latest* App Store build states for its Mac build,
+    /// reduced to the bare numeric run ("15.6"). nil when the page states
+    /// none, or couldn't be read — `AppStoreGate.resolve` treats nil the same
+    /// way it treats `latestMacCompatible == nil`: assume this Mac can run it,
+    /// so a scrape failure never hides a real update.
+    ///
+    /// See `MacAppStoreSource.MacCompatibilityReading.minimumMacOS` for where
+    /// this comes from and the storefront-localization trap its extraction
+    /// avoids.
+    public let latestMinimumMacOS: String?
 
     /// The store's own listing title, e.g. "DingDing: Redefine Work in AI" for the
     /// app whose bundle is named "DingTalk". nil when the lookup didn't supply one.
@@ -41,11 +67,12 @@ public struct AppStoreAvailability: Sendable, Hashable {
     // back to matching on the bundle name, which is the bug this field exists to fix.
     // Every construction site should have to answer the question.
     public init(trackID: Int, availableRegion: String, homeRegion: String?,
-                latestMacCompatible: Bool? = nil, storeName: String?) {
+                latestMacCompatible: Bool? = nil, latestMinimumMacOS: String? = nil, storeName: String?) {
         self.trackID = trackID
         self.availableRegion = availableRegion
         self.homeRegion = homeRegion
         self.latestMacCompatible = latestMacCompatible
+        self.latestMinimumMacOS = latestMinimumMacOS
         self.storeName = storeName
     }
 

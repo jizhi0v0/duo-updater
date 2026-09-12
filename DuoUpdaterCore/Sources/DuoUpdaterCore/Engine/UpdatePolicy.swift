@@ -71,7 +71,8 @@ public enum UpdatePolicy {
     public static func canAutoInstall(
         _ result: UpdateResult,
         settings: UpdateSettings,
-        environment: InstallEnvironment
+        environment: InstallEnvironment,
+        osVersion: String = HostOS.numericVersion()
     ) -> Bool {
         // The user was asked for an administrator password for this exact install
         // and said no. Keeping the Update button would re-raise that panel on every
@@ -151,8 +152,15 @@ public enum UpdatePolicy {
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         case "App Store":
-            // Requires the adamID, and that the app is installable here: not
-            // region-locked and not a newer build that dropped Mac support. Both
+            // Requires the adamID, and that the app is installable here — not
+            // region-locked, not a newer build that dropped Mac support, and not
+            // one that states a macOS floor this Mac doesn't meet
+            // (`AppStoreGate.resolve`, the SAME precedence and comparison the row's
+            // own badge uses, reused rather than re-derived: issue #546 was exactly
+            // this guard answering "installable" from two of the three gates while
+            // a THIRD, newer one silently offered an update that fails at the
+            // store's last step — because `UpdateRoute.resolve` checks
+            // `canAutoInstall` before it ever reaches `.appStore(gate:)`). Both
             // routes replay the store's own download, so it's the app's real update
             // channel — no mixing. Which route depends on the user's preference:
             //   • full        → mas CLI; offered only when mas is actually installed
@@ -161,7 +169,7 @@ public enum UpdatePolicy {
             //     on demand at install time (mirroring App Management), so we don't
             //     gate the offer on it here.
             guard let info = result.remote?.appStore,
-                  !info.isRegionMismatch, !info.isLatestMacIncompatible else { return false }
+                  AppStoreGate.resolve(info, osVersion: osVersion) == .none else { return false }
             switch settings.appStoreUpdateStrategy {
             // `.full` routes mas through the privileged helper — offered only once
             // the helper is approved (else the row falls back to an App Store

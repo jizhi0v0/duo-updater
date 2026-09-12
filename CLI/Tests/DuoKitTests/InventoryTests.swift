@@ -135,8 +135,24 @@ private let installed = [
     /// …and the ordinary case still hands back what the scan found, rather than
     /// the empty list the timeout produces.
     @Test func aScanThatFinishesIsReturned() async {
-        let scanned = await Inventory.scan(timeout: .seconds(20)) { installed }
+        let scanned = await Inventory.scan(timeout: BoundedScan.timeout) { installed }
         #expect(scanned.map(\.name) == installed.map(\.name))
+    }
+
+    /// The sweep's copy of this primitive read only `components.seconds`, which
+    /// floors any sub-second bound to "do not wait at all". Both callers pass
+    /// whole seconds, so nothing in production would ever have shown it — but the
+    /// two copies meant the same argument did different things depending on which
+    /// one you reached, and now there is only one.
+    ///
+    /// Asserted as arithmetic rather than as elapsed time on purpose: a wall-clock
+    /// bound in a parallel suite on a 3-core runner is not a measurement.
+    ///
+    /// Mutation: drop the attoseconds term.
+    @Test func aSubSecondBoundIsNotFlooredToZero() {
+        #expect(BoundedScan.seconds(.milliseconds(200)) == 0.2)
+        #expect(BoundedScan.seconds(.seconds(20)) == 20)
+        #expect(BoundedScan.seconds(BoundedScan.timeout) == 20)
     }
 }
 

@@ -4,13 +4,6 @@ import DuoUpdaterCore
 /// Scanning and checking, shared by `duo list` and `duo check`.
 public enum Inventory {
 
-    /// `AppScanner` reads TestFlight's SQLite database, which lives behind the
-    /// Sequoia app-data TCC gate. With nobody at the keyboard to answer the
-    /// prompt the `open()` never returns — the first CI sweep hung until the job
-    /// timed out. A scan that takes this long is a permission wall, not a slow
-    /// disk, so it is abandoned rather than waited on.
-    static let scanTimeout = Duration.seconds(20)
-
     /// TestFlight's store, or the sentinel that stands for "not read", according to
     /// the user's setting. One function so the scan and the checker cannot disagree
     /// about it within a single run — a scan that read it would tag wrapped
@@ -24,9 +17,9 @@ public enum Inventory {
 
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await scan(timeout: scanTimeout) {
+        return await scan(timeout: BoundedScan.timeout) {
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
-            // `scanTimeout` exists to race — so it has to be INSIDE this closure.
+            // the timeout exists to race — so it has to be INSIDE this closure.
             // It used to be, invisibly: `AppScanner`'s `testflight:` default was
             // evaluated at the call site. Naming it explicitly one line further
             // out reads identically and quietly moves the one blocking call out
@@ -36,39 +29,14 @@ public enum Inventory {
         }
     }
 
-    /// The bounded scan itself, with the scanner passed in so a test can wedge it.
-    ///
-    /// The scan runs on a plain `Thread`, not in a task group. A group looks like
-    /// it would work — race the scan against a sleep, take whichever lands first —
-    /// but `withTaskGroup` does not return until *every* child has finished, and
-    /// `cancelAll()` cannot touch a thread parked in `guarded_open_np`. That is
-    /// what this used to do, and the doc above already claimed the scan was
-    /// abandoned: the warning printed on time and the command hung anyway. The
-    /// sweep hit the identical bug and fixed it this way first — see
-    /// `Verify.installedVersions`.
-    ///
-    /// The wait itself is taken off the cooperative pool, because a blocking wait
-    /// there occupies one of about as many threads as the machine has cores and
-    /// the pool does not grow to compensate.
+    /// The bounded scan, with the scanner passed in so a test can wedge it.
+    /// `BoundedScan` holds the thread-and-timeout half and the reasons for it;
+    /// what belongs here is only what `duo` should say when the scan is given up
+    /// on, which is not what the sweep says about the same event.
     static func scan(
         timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
     ) async -> [InstalledApp] {
-        let box = ScanBox()
-        let done = DispatchSemaphore(value: 0)
-        let worker = Thread {
-            box.set(body())
-            done.signal()
-        }
-        worker.start()
-
-        let timedOut = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            DispatchQueue.global().async {
-                let seconds = Double(timeout.components.seconds)
-                    + Double(timeout.components.attoseconds) / 1e18
-                cont.resume(returning: done.wait(timeout: .now() + seconds) == .timedOut)
-            }
-        }
-        guard !timedOut, let scanned = box.take() else {
+        guard let scanned = await BoundedScan.result(within: timeout, body) else {
             FileHandle.standardError.write(Data("""
                 duo: the app scan did not finish within \(timeout). This is almost always \
                 the TestFlight database waiting on an "access data from other apps" \
@@ -77,21 +45,6 @@ public enum Inventory {
             return []
         }
         return scanned
-    }
-
-    /// A slot the scan thread fills and the caller reads, for the case where the
-    /// caller has already given up on it.
-    private final class ScanBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value: [InstalledApp]?
-        func set(_ v: [InstalledApp]) {
-            lock.lock(); defer { lock.unlock() }
-            value = v
-        }
-        func take() -> [InstalledApp]? {
-            lock.lock(); defer { lock.unlock() }
-            return value
-        }
     }
 
     /// Build the checker the same way the menu-bar app does, so a version

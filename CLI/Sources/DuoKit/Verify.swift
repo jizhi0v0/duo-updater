@@ -1211,42 +1211,22 @@ public enum Verify {
         return make(actionable.isEmpty ? .ok : .warn, version: version, warnings: warnings)
     }
 
-    /// How long to wait for the local scan before deciding the cross-check isn't
-    /// worth the run.
-    static let scanTimeout = Duration.seconds(20)
-
     /// Index the locally installed apps by the recipe id they'd be checked
     /// under, so a recipe can find its own installed copy without re-deriving
     /// the channel gate.
     ///
-    /// **Bounded, because this scan can block forever.** `AppScanner` reads
-    /// TestFlight's SQLite database, which lives behind macOS's app-data
-    /// privacy gate. On a machine with someone at the keyboard that surfaces a
-    /// consent prompt; on a headless runner nothing ever answers it and the
-    /// `open()` syscall simply never returns. The first CI run sat in
-    /// `guarded_open_np` until the job timed out.
-    ///
-    /// The blocked thread can't be cancelled — it is stuck in a syscall — so
-    /// this abandons it instead and moves on. The cross-check is a bonus signal;
+    /// **Bounded, because this scan can block forever** — `BoundedScan` holds the
+    /// mechanism and every reason for it. The cross-check is a bonus signal:
     /// losing it costs one class of finding, while waiting for it costs the
     /// entire sweep.
     ///
-    /// The scan runs on a plain `Thread`, not in a task group. A group looks
-    /// like it would work — race the scan against a sleep, take whichever lands
-    /// first — but `withTaskGroup` does not return until *every* child has
-    /// finished, and `cancelAll()` cannot touch a thread parked in
-    /// `guarded_open_np`. The warning printed on time and the sweep hung anyway;
-    /// 2026-08-15 it sat there for ten minutes at 0.03s of CPU.
-    ///
-    /// `TestFlightInventory` now bounds that open itself, so this should no
-    /// longer be reachable through TestFlight. It stays because it is the last
-    /// guard around everything *else* `scan()` touches — other apps' containers,
-    /// network volumes, a stalled automount.
+    /// `TestFlightInventory` now bounds its own open, so this should no longer be
+    /// reachable through TestFlight. It stays because it is the last guard around
+    /// everything *else* `scan()` touches — other apps' containers, network
+    /// volumes, a stalled automount.
     static func installedVersions() async -> [String: InstalledVersion] {
-        let box = ScanBox()
-        let done = DispatchSemaphore(value: 0)
         let proofs = ResolvedChannelStore.Snapshot()
-        let worker = Thread {
+        let scanned = await BoundedScan.result(within: BoundedScan.timeout) {
             var out: [String: InstalledVersion] = [:]
             for app in AppScanner().scan() {
                 guard let bundleID = app.bundleID else { continue }
@@ -1269,21 +1249,11 @@ public enum Verify {
                     marketing: app.shortVersion, build: app.buildVersion,
                     vendorBuild: app.vendorBuildVersion)
             }
-            box.set(out)
-            done.signal()
+            return out
         }
-        worker.start()
-
-        // Wait off the cooperative pool so a stuck scan can never starve it.
-        let timedOut = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            DispatchQueue.global().async {
-                let seconds = Double(scanTimeout.components.seconds)
-                cont.resume(returning: done.wait(timeout: .now() + seconds) == .timedOut)
-            }
-        }
-        guard !timedOut, let scanned = box.take() else {
+        guard let scanned else {
             FileHandle.standardError.write(Data("""
-                ⚠︎ the local app scan did not finish within \(scanTimeout) — continuing \
+                ⚠︎ the local app scan did not finish within \(BoundedScan.timeout) — continuing \
                 without the installed-copy cross-check.
                   Usually means a privacy prompt nobody can answer (TestFlight's \
                 database is behind the app-data gate).\n
@@ -1291,21 +1261,6 @@ public enum Verify {
             return [:]
         }
         return scanned
-    }
-
-    /// A slot the scan thread fills and the caller reads, for the case where the
-    /// caller has already given up.
-    private final class ScanBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value: [String: InstalledVersion]?
-        func set(_ v: [String: InstalledVersion]) {
-            lock.lock(); defer { lock.unlock() }
-            value = v
-        }
-        func take() -> [String: InstalledVersion]? {
-            lock.lock(); defer { lock.unlock() }
-            return value
-        }
     }
 }
 

@@ -631,9 +631,10 @@ public struct UpdateChecker: Sendable {
         // — it is chosen to clear Anki's "1" and every constant of that kind while
         // leaving real counters alone, and a vendor who genuinely folds a 99 would
         // be offered a re-install of the version it is already on, which is the
-        // harmless direction.
+        // harmless direction. `buildIsFoldableCounter` measures that by string, so
+        // a build too wide for `Int64` stays foldable.
         if let build = installed.buildVersion, !build.contains("."), !isv.hasSuffix(build),
-           let counter = Int(build), counter >= 100 {
+           Self.buildIsFoldableCounter(build) {
             let combined = "\(isv).\(build)"
             if VersionComparator.compare(rs, combined) == .orderedSame {
                 return .upToDate
@@ -641,6 +642,21 @@ public struct UpdateChecker: Sendable {
         }
 
         return .updateAvailable(latest: remote.displayVersion ?? rs)
+    }
+
+    /// Whether a build number is big enough to be the kind of counter a vendor
+    /// folds into its version string: ASCII digits only, and at least three of
+    /// them once leading zeros are off.
+    ///
+    /// Measured by string, not by `Int(build)`, for the same reason
+    /// `VersionComparator`'s tokenizer keeps digit runs as strings: an epoch-ms
+    /// or concatenated build overflows `Int64`, and `Int(build)` answering nil
+    /// there would silently switch fold recognition OFF for exactly the vendors
+    /// whose builds are largest. Stripping leading zeros first matches that
+    /// tokenizer's own normalisation, so "007" is the counter 7, not a 3-digit one.
+    static func buildIsFoldableCounter(_ build: String) -> Bool {
+        guard !build.isEmpty, build.allSatisfy({ $0.isASCII && $0.isNumber }) else { return false }
+        return build.drop(while: { $0 == "0" }).count >= 3
     }
 
     /// Drop a leading product-code run like "IU-"/"AI-" from a build number so a

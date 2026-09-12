@@ -38,10 +38,12 @@ public enum NotifiedUpdateVersions {
     /// A stored value equal to the offer's MARKETING half alone also counts as
     /// announced. That is the migration from the marketing-keyed baseline: without
     /// it, the first run after an upgrade re-announces every pending update at
-    /// once. It costs at most one suppressed announcement per app — the very next
-    /// pass rewrites that entry build-aware, after which only a genuinely
-    /// unannounced build can match — and it is deliberately not time-limited,
-    /// because an app that stops being actionable keeps its old entry indefinitely.
+    /// once. It costs at most one PASS per app, not one announcement: the pass
+    /// that sees the stale entry rewrites it build-aware, so only builds offered
+    /// during that single pass are swallowed — two builds shipped between two
+    /// passes are both swallowed, and after it only a genuinely unannounced build
+    /// can match. Deliberately not time-limited, because an app that stops being
+    /// actionable keeps its old entry indefinitely.
     public static func wasAnnounced(
         _ offered: VersionSide?, under keys: [String], in baseline: [String: String]
     ) -> Bool {

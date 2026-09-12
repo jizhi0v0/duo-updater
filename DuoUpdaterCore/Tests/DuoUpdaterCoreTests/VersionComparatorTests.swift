@@ -154,6 +154,15 @@ import Foundation
     // The Oray shape itself still settles to current.
     #expect(UpdateChecker.evaluate(installed: app(short: "16.5.0", build: "30757"),
                                    remote: remote("16.5.0.30757")) == .upToDate)
+    // The accepted risk, pinned so that a later "improvement" back toward
+    // `!isNewer(rs, combined)` is caught: a fold-shaped remote naming an OLDER
+    // build than the installed one now reads as an update rather than being
+    // suppressed. The two shapes are not separable from the strings, and offering
+    // the vendor's published package to a copy ahead of it is visible and
+    // recoverable, where suppressing hid real updates silently.
+    #expect(UpdateChecker.evaluate(installed: app(short: "16.5.0", build: "30757"),
+                                   remote: remote("16.5.0.29000"))
+        == .updateAvailable(latest: "16.5.0.29000"))
     #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Fold.app"))
 }
 
@@ -186,6 +195,18 @@ import Foundation
         == .updateAvailable(latest: "1.5.99"))
     #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: "100"), remote: remote("1.5.100"))
         == .upToDate)
+    // Zero padding is not width: "007" is the counter 7, the same normalisation
+    // `VersionComparator`'s tokenizer applies.
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: "007"), remote: remote("1.5.007"))
+        == .updateAvailable(latest: "1.5.007"))
+    // The floor must be measured by string: a build far too wide for Int64 is the
+    // MOST counter-like shape there is (epoch-ms, concatenated counters), and
+    // `Int(build)` returning nil there would switch fold recognition off for
+    // exactly those vendors.
+    let wide = "1234567890123456789012345"  // 25 digits
+    #expect(Int(wide) == nil)
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: wide),
+                                   remote: remote("1.5.\(wide)")) == .upToDate)
     // And the shape the fallback exists for is untouched.
     #expect(UpdateChecker.evaluate(installed: app(short: "16.5.0", build: "30757"),
                                    remote: remote("16.5.0.30757")) == .upToDate)

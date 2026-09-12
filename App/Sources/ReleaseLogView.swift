@@ -137,7 +137,23 @@ struct ReleaseLogView: View {
         let appID: String
         let appName: String
         let event: ReleaseEvent
-        var id: String { appID + "|" + event.version }
+
+        /// The version is NOT unique within an app, so it cannot be the id on its
+        /// own: `ReleaseTimelineStore.record` dedupes on the version PLUS the
+        /// vendor date, because several releases can ship under one marketing
+        /// version (Surge has shipped four called "6.9.0"). Two rows with the same
+        /// `Identifiable` id is SwiftUI's undefined-behaviour case, and this id
+        /// also decides which row hides its separator (`feed`).
+        ///
+        /// So the id is exactly the store's dedupe key with the app in front of
+        /// it, which makes it unique by construction rather than by luck: a dated
+        /// release cannot repeat that triple, and an estimated release (both date
+        /// fields nil) is still deduped on the version alone.
+        var id: String {
+            let published = event.publishedAt?.timeIntervalSince1970 ?? -1
+            let day = event.vendorDay?.timeIntervalSince1970 ?? -1
+            return "\(appID)|\(event.version)|\(published)|\(day)"
+        }
     }
 
     private struct DayGroup {

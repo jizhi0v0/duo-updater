@@ -81,6 +81,14 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     #expect(!(await store.record(appID: id, appName: "ZZFixtureFrozen", bundleID: nil,
         version: "6.9.0", sourceName: "Sparkle", publishedAt: d1)))
     #expect(await store.timeline(forAppID: id)?.events.count == 3)
+    // The invariant `ReleaseLogView.Row.id` is built on: (version, publishedAt,
+    // vendorDay) does not repeat within one app. Two rows sharing an
+    // `Identifiable` id is SwiftUI's undefined-behaviour case, and the version
+    // alone stopped being unique the moment this dedupe changed.
+    let keys = (await store.timeline(forAppID: id)?.events ?? []).map {
+        "\($0.version)|\($0.publishedAt?.timeIntervalSince1970 ?? -1)|\($0.vendorDay?.timeIntervalSince1970 ?? -1)"
+    }
+    #expect(Set(keys).count == keys.count)
     #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Frozen.app"))
 }
 

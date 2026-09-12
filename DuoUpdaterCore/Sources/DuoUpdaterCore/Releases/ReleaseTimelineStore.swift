@@ -203,6 +203,19 @@ public actor ReleaseTimelineStore {
 
         // Don't double-record a version already known (e.g. a trustworthy event
         // landed for it earlier, or a beta flapped back).
+        //
+        // Deliberately still the version ALONE, even though `record` above no
+        // longer treats "same version" as "same release". The two tiers key on
+        // different strings and neither reading is weakened here:
+        //
+        //  - Within this tier the version already IS the full discriminator. The
+        //    caller passes `side.text(withBuild: true)`, so a frozen-marketing
+        //    vendor's next build arrives as a different string ("6.9.0 (2382)")
+        //    and is not suppressed. Adding a date here would key on OUR polling
+        //    clock, which changes every check and would defeat the guard entirely.
+        //  - Across tiers, suppressing is the right answer: this path only runs
+        //    when the source stated no date at all, so an estimated window for a
+        //    version some source already dated is strictly worse information.
         guard !timeline.events.contains(where: { $0.version == version }) else {
             return false
         }

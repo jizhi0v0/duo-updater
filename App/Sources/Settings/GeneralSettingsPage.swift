@@ -20,7 +20,11 @@ struct GeneralSettingsPage: View {
     @State private var spotlit: Set<String> = []
 
     var body: some View {
-        SettingsPage(section: .general) {
+        SettingsPage(
+            section: .general,
+            reveal: model.requestedSettingsAnchor,
+            onReveal: { model.requestedSettingsAnchor = nil }
+        ) {
             scheduleCard
             afterUpdateCard
             concurrencyCard
@@ -190,7 +194,7 @@ struct GeneralSettingsPage: View {
                 .settingsRow()
             }
 
-            testFlightCard
+            testFlightCard.settingsAnchor(.testFlightDetection)
         }
     }
 

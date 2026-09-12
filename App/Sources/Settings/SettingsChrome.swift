@@ -20,26 +20,115 @@ enum SettingsMetrics {
     static let contentWidth: CGFloat = 620
 }
 
+/// A card a deep link can name. Raw strings are not persisted anywhere — this is
+/// only ever in-memory between the control that links and the page that lands —
+/// so adding a case costs nothing beyond marking the card.
+enum SettingsAnchor: String, Hashable, Sendable {
+    /// Settings ▸ General ▸ TestFlight betas. Linked from the mark on a beta row
+    /// whose detection is off, which is the one place in the app that tells someone
+    /// to go and change a setting.
+    case testFlightDetection
+}
+
+private struct RevealedSettingsAnchorKey: EnvironmentKey {
+    static let defaultValue: SettingsAnchor? = nil
+}
+
+extension EnvironmentValues {
+    /// The card being pointed at right now, read by `settingsAnchor(_:)`. An
+    /// environment value rather than a parameter threaded down: a card is written
+    /// several `@ViewBuilder`s below the page, and every one of them would have to
+    /// carry it.
+    var revealedSettingsAnchor: SettingsAnchor? {
+        get { self[RevealedSettingsAnchorKey.self] }
+        set { self[RevealedSettingsAnchorKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Name this card so a deep link can scroll to it, and outline it while it is
+    /// the one being pointed at.
+    func settingsAnchor(_ anchor: SettingsAnchor) -> some View {
+        modifier(SettingsAnchorHighlight(anchor: anchor))
+    }
+}
+
+/// The outline itself: the card's own shape, in the accent colour, over it rather
+/// than around it so nothing reflows when it appears and disappears.
+private struct SettingsAnchorHighlight: ViewModifier {
+    let anchor: SettingsAnchor
+    @Environment(\.revealedSettingsAnchor) private var revealed
+
+    func body(content: Content) -> some View {
+        let lit = revealed == anchor
+        return content
+            .id(anchor)
+            .overlay {
+                RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .opacity(lit ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .animation(.easeInOut(duration: 0.3), value: lit)
+    }
+}
+
 // MARK: - Page scaffold
 
 /// One settings pane: a large title, a subtitle, then a stack of cards in a
 /// scroll view. Panes provide only the cards.
 struct SettingsPage<Content: View>: View {
     let section: SettingsSection
+    /// A card on this page that something elsewhere in the app asked to be taken
+    /// to. Landing on the right PAGE is not landing on the right control: General
+    /// is four cards long, and a reader sent here from a beta row was looking at
+    /// one setting, not at the page. So the card is scrolled into view and outlined
+    /// for a moment.
+    var reveal: SettingsAnchor?
+    /// Called once the request above has been acted on, so the page that owns it
+    /// can clear it — otherwise the next open of this window would scroll and flash
+    /// again for a link the user followed minutes ago.
+    var onReveal: () -> Void = {}
     @ViewBuilder var content: Content
 
+    /// What is outlined right now. Separate from `reveal` because the two have
+    /// different lifetimes: the request is consumed immediately, the outline stays
+    /// long enough to be seen.
+    @State private var revealed: SettingsAnchor?
+
     var body: some View {
-        ScrollView {
-            cards
-                .frame(maxWidth: SettingsMetrics.contentWidth, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .top)
-                .padding(.horizontal, 24)
-                .padding(.top, 18)
-                .padding(.bottom, 28)
+        ScrollViewReader { proxy in
+            ScrollView {
+                cards
+                    .frame(maxWidth: SettingsMetrics.contentWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+                    .padding(.bottom, 28)
+            }
+            .scrollContentBackground(.hidden)
+            .softScrollEdges()
+            .environment(\.revealedSettingsAnchor, revealed)
+            .task(id: reveal) { await take(proxy) }
         }
-        .scrollContentBackground(.hidden)
-        .softScrollEdges()
         .navigationTitle(section.label)
+    }
+
+    /// Scroll to the requested card and outline it, then let the outline go.
+    ///
+    /// The hop before scrolling is load-bearing: `.task` runs after this body is
+    /// evaluated, but the page arrives during `SettingsView`'s 0.28s cross-fade, and
+    /// scrolling to a target the outgoing page still overlaps lands short.
+    private func take(_ proxy: ScrollViewProxy) async {
+        guard let target = reveal else { return }
+        onReveal()
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .center) }
+        revealed = target
+        try? await Task.sleep(for: .seconds(2))
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.7)) { revealed = nil }
     }
 
     private var cards: some View {

@@ -1063,6 +1063,7 @@ private struct DetailHeader: View {
                         grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
                         openTestFlightSetting: {
                             model.requestedSettingsSection = .general
+                            model.requestedSettingsAnchor = .testFlightDetection
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         }),

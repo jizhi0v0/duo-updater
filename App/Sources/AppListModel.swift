@@ -770,6 +770,11 @@ final class AppListModel {
     /// "Set Up GitHub…" before it opens Settings. `SettingsView` consumes and clears
     /// it on appear/change, so the window lands on that tab instead of General.
     var requestedSettingsSection: SettingsView.Section?
+    /// And which card on that page, when the link was about one setting rather
+    /// than the page it lives on (`SettingsAnchor`). Cleared by the page that acts
+    /// on it, not here — `requestedSettingsSection` is cleared by `SettingsView`
+    /// once the page is selected, which is earlier than this one can be honoured.
+    var requestedSettingsAnchor: SettingsAnchor?
 
     /// An app the workbench should jump to — set by the menu-bar row's "Changelog"
     /// item (the result `id`, i.e. the app path) before it opens the workbench.

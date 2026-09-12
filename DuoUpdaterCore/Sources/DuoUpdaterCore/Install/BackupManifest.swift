@@ -37,6 +37,11 @@ public struct BackupManifest: Codable, Equatable, Sendable {
     /// recreates them. A file the seal *does* cover is shipped payload
     /// (EasyConnect's setuid helpers), and a copy without it is a broken app, so
     /// there is nothing honest to store.
+    ///
+    /// "The seal covers it" is not the same as "`CodeResources` lists it": the
+    /// bundle's own main executable, its `Info.plist` and the signature directory
+    /// are sealed by the CodeDirectory's special slots instead and appear in no
+    /// resource list. See ``directlySealedKeys(of:interior:fileManager:)``.
     public struct UnreadableFiles: Sendable {
         /// Relative to the bundle root, e.g. `Contents/mmkv.default`.
         public let sealed: [String]
@@ -54,6 +59,7 @@ public struct BackupManifest: Codable, Equatable, Sendable {
         // plist and its seal under `Wrapper/<Inner>.app/`. Read from the bundle
         // rather than assumed, so the seal keys below line up with the walk.
         let interior = BundleLayout.interiorPrefix(for: bundle, fileManager: fm)
+        let directlySealed = directlySealedKeys(of: bundle, interior: interior, fileManager: fm)
         let base = bundle.standardizedFileURL.path
         var sealed: [String] = []
         var unsealed: [String] = []
@@ -70,7 +76,13 @@ public struct BackupManifest: Codable, Equatable, Sendable {
             let sealKey = relative.hasPrefix(interior)
                 ? String(relative.dropFirst(interior.count)) : relative
             guard let sealedPaths else { sealed.append(relative); continue }
-            if sealedPaths.contains(sealKey) { sealed.append(relative) } else { unsealed.append(relative) }
+            if sealedPaths.contains(sealKey)
+                || directlySealed.contains(sealKey)
+                || sealKey.hasPrefix("_CodeSignature/") {
+                sealed.append(relative)
+            } else {
+                unsealed.append(relative)
+            }
         }
         return UnreadableFiles(sealed: sealed.sorted(), unsealed: unsealed.sorted())
     }
@@ -91,6 +103,52 @@ public struct BackupManifest: Codable, Equatable, Sendable {
             if let entries = plist[key] as? [String: Any] { out.formUnion(entries.keys) }
         }
         return out
+    }
+
+    /// Paths the code signature seals **directly**, relative to the bundle's
+    /// interior, rather than through the resource envelope — so they are sealed
+    /// while being listed in no `CodeResources` dictionary.
+    ///
+    /// `files`/`files2` enumerate *resources*. The bundle's own `Info.plist` and
+    /// main executable are hashed into the CodeDirectory (the plist into a special
+    /// slot, the executable into the page hashes carrying the signature itself),
+    /// and `_CodeSignature/` is the envelope, which cannot list itself. Measured
+    /// 2026-09-13 on `/Applications/{Safari,Keka,DuoUpdater}.app`: `Info.plist`,
+    /// `MacOS/<CFBundleExecutable>` and `_CodeSignature/CodeResources` are absent
+    /// from both dictionaries in all three, and in a scratch `ditto` copy
+    /// appending one byte to any of them makes `codesign --verify --deep --strict`
+    /// exit 1 ("invalid Info.plist", a main-executable hash mismatch, "invalid
+    /// resource directory"). Treating the omission as "unsealed" let `ditto` skip
+    /// an unreadable main executable and had the manifest certify — and
+    /// `.savedWithoutRuntimeState` report success for — a bundle that cannot run.
+    ///
+    /// `Contents/PkgInfo` is the counter-example that keeps this list from growing
+    /// into "every top-level file": it is in neither place, and on the same two
+    /// bundles mutating *and* deleting it left verification passing.
+    ///
+    /// An unreadable `Info.plist` costs us the executable's name, but it is itself
+    /// in this set, so such a bundle is refused on that entry alone.
+    private static func directlySealedKeys(
+        of bundle: URL, interior: String, fileManager fm: FileManager
+    ) -> Set<String> {
+        var keys: Set<String> = ["Info.plist"]
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(
+                for: bundle, fileManager: fm)),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any],
+              let executable = plist["CFBundleExecutable"] as? String,
+              !executable.isEmpty
+        else { return keys }
+        // `Contents/MacOS/<exe>` in a normal bundle; a wrapped iPhone/iPad app has
+        // a flat layout and keeps its executable at the interior root. Settled by
+        // what is on disk rather than by which layout we think this is, the way
+        // `BundleLayout` settles the interior itself.
+        let interiorURL = bundle.appendingPathComponent(interior, isDirectory: true)
+        let nested = "MacOS/" + executable
+        keys.insert(
+            fm.fileExists(atPath: interiorURL.appendingPathComponent(nested).path)
+                ? nested : executable)
+        return keys
     }
 
     /// Files present and readable in `source` but absent from `copy`, ignoring

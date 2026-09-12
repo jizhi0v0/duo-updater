@@ -23,10 +23,11 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `ChangelogRecipe.init` currently takes **24** parameters. Beyond the ones below it
+> `ChangelogRecipe.init` currently takes **25** parameters. Beyond the ones below it
 > also carries `channel`, `includesPromotedStable`, `sourceTemplate`, `newestLast`,
 > `imagePattern`, `minimumAppVersion`, `belowAppVersion`, `structuredFormat`,
-> `httpMethod`, `requestBody`, `skipSections` and `acknowledgedStaleEntry`. Read
+> `httpMethod`, `requestBody`, `skipSections`, `tagPattern` and
+> `acknowledgedStaleEntry`. Read
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` before
 > concluding the registry can't express something.
 
@@ -58,6 +59,30 @@ wins per entry.
 
 The recipe is forgivingly `Codable`: a remote/JSON-authored recipe needs only
 `bundleID`, `source`, `entryPattern`, `itemPatterns`; every tuning field defaults.
+
+### `tagPattern` — for a MONOREPO's GitHub releases
+
+Only `.gitHubReleases` reads it. Set it when the repo publishes several products
+from one Releases list, which breaks that format's two silent assumptions: every
+release is this app's, and the tag IS the version (minus a leading `v`).
+
+`cline/cline` is the live case — 33 `desktop-*` releases share the list with the
+VS Code extension's `v*`, `cli-v*` and `sdk/sdk/v*`. Without a pattern the stable
+rail rendered **20 foreign entries** beside its 13 real ones, each a real release
+with real notes, so nothing looked malformed; and every entry was titled
+`desktop-v0.0.26` rather than `0.0.26`.
+
+Capture group 1 is the version; a group-less pattern is a pure filter and the tag
+is read the usual way. **Anchor both ends** — matching is unanchored, and
+`ChangelogReviewRegressionTests` now fails a pattern that isn't.
+
+```swift
+tagPattern: #"^desktop-v([0-9]+(?:\.[0-9]+){1,3})$"#
+```
+
+Rolling "latest feed" tags are releases in the list too (`desktop-beta` is
+`prerelease: true` and carries a body), so the `$` anchor is what keeps a
+permanently-present tag from rendering as an entry whose version never changes.
 
 ## Worked example — CleanShot X
 

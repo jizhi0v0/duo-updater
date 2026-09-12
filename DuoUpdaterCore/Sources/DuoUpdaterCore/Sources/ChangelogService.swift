@@ -189,7 +189,8 @@ public enum ChangelogService {
             return StructuredChangelogDecoder.decode(
                 body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries,
                 skipSections: recipe.skipSections,
-                includesPromotedStable: recipe.includesPromotedStable)
+                includesPromotedStable: recipe.includesPromotedStable,
+                tagPattern: recipe.tagPattern)
         }
         return ChangelogExtractor.extract(from: body, using: recipe)
     }

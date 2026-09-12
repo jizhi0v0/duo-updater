@@ -28,7 +28,7 @@ public enum StructuredChangelogDecoder {
     public static func decode(
         _ body: String, format: ChangelogRecipe.StructuredFormat,
         channel: ReleaseChannel?, maxEntries: Int?, skipSections: [String] = [],
-        includesPromotedStable: Bool = false
+        includesPromotedStable: Bool = false, tagPattern: String? = nil
     ) -> Changelog? {
         switch format {
         case .warpChannelVersions:
@@ -54,7 +54,7 @@ public enum StructuredChangelogDecoder {
         case .gitHubReleases:
             return decodeGitHubReleases(
                 body, channel: channel, maxEntries: maxEntries, skipSections: skipSections,
-                includesPromotedStable: includesPromotedStable)
+                includesPromotedStable: includesPromotedStable, tagPattern: tagPattern)
         case .alcoveChangelog:
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
@@ -673,7 +673,8 @@ public enum StructuredChangelogDecoder {
     /// sentences is NOT, since the parser's prose pass covers those.
     static func decodeGitHubReleases(
         _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
-        skipSections: [String] = [], includesPromotedStable: Bool = false
+        skipSections: [String] = [], includesPromotedStable: Bool = false,
+        tagPattern: String? = nil
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
@@ -690,7 +691,18 @@ public enum StructuredChangelogDecoder {
         var entries: [Changelog.Entry] = []
         for release in releases where wanted(release) && !release.draft {
             guard let raw = release.body, !raw.isEmpty else { continue }
-            let version = stripLeadingV(release.tagName)
+            // A monorepo's Releases carry several products; `tagPattern` says which
+            // rows are this app's and where its version sits in the tag. Without
+            // one, every row is this app's and the tag IS the version — the shape
+            // every recipe before Cline relies on. See `ChangelogRecipe.tagPattern`.
+            let version: String
+            if let tagPattern {
+                guard let captured = taggedVersion(release.tagName, pattern: tagPattern)
+                else { continue }
+                version = captured
+            } else {
+                version = stripLeadingV(release.tagName)
+            }
             guard !version.isEmpty else { continue }
             let date = isoDay(release.publishedAt)
             guard let parsed = GitHubMarkdownParser.parse(
@@ -702,6 +714,22 @@ public enum StructuredChangelogDecoder {
         }
         guard !entries.isEmpty else { return nil }
         return Changelog(entries: entries, itemSyntax: .markdown)
+    }
+
+    /// This app's version as `pattern` reads it out of `tag`, or nil when the tag
+    /// belongs to another product in the same repo.
+    ///
+    /// Capture group 1 is the version when the pattern has one; a group-less
+    /// pattern is a pure filter and the tag is read the unfiltered way. Anchoring
+    /// is the caller's job — `NSRegularExpression` matches anywhere, so an
+    /// unanchored `desktop-v(...)` would also accept `preview-desktop-v1.2.3`.
+    private static func taggedVersion(_ tag: String, pattern: String) -> String? {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(tag.startIndex..., in: tag)
+        guard let m = re.firstMatch(in: tag, range: range) else { return nil }
+        guard m.numberOfRanges > 1, let g = Range(m.range(at: 1), in: tag)
+        else { return stripLeadingV(tag) }
+        return String(tag[g])
     }
 
     /// `v0.1.12` → `0.1.12`. Only a leading `v`, and only when a digit follows, so

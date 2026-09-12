@@ -542,6 +542,231 @@ import DuoUpdaterCore
     }
 }
 
+/// #445: `Install.itemPlan` is the pure `ReconsiderOutcome` → `ItemPlan`
+/// mapping the issue asked for — everything `apply`'s loop used to assemble by
+/// hand (the text printed, the `--json` reason, the route, and which
+/// `RowOutcome` bucket the item lands in) for one exit from the loop. Every
+/// case below asserts all four `Terminal` fields, not just `outcome`: a test
+/// that only checked the bucket would stay green if the reason or route
+/// drifted, which is exactly the kind of disagreement #436 was filed about.
+@Suite struct InstallItemPlanTests {
+
+    private func vendorResult(latest: String = "1.2") -> UpdateResult {
+        UpdateResult(
+            app: InstalledApp(
+                name: "Fixture", bundleID: "com.example.fixture", shortVersion: "1.0",
+                buildVersion: "1", path: URL(fileURLWithPath: "/Applications/Fixture.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: RemoteVersion(
+                shortVersion: latest, version: nil,
+                downloadURL: URL(string: "https://example.com/fixture.dmg"),
+                sourceName: "Vendor", requiresManualInstaller: false,
+                vendorInstallerKind: .dmg),
+            status: .updateAvailable(latest: latest))
+    }
+
+    /// Mutation (reverted after running): changed the `.proceed` case in
+    /// `Install.itemPlan` to `return .end(Terminal(outcome: .skipped, ...))`
+    /// — went red (expected `.install`, got `.end`).
+    @Test func proceedBecomesAnInstallCarryingTheConfirmedResultAndRoute() {
+        let confirmed = vendorResult(latest: "1.2")
+        let plan = Install.itemPlan(for: .proceed(confirmed, .vendor), offeredVersion: nil, confirmedVersion: nil)
+        guard case .install(let result, let route) = plan else {
+            Issue.record("expected an install, got \(plan)")
+            return
+        }
+        #expect(result.remote?.displayVersion == "1.2")
+        #expect(route == .vendor)
+    }
+
+    /// Mutation (reverted after running): in the `.notRequested` case, changed
+    /// `reason: "not requested: --route no longer includes it"` to
+    /// `reason: "not requested"` — went red (reason mismatch).
+    @Test func notRequestedNamesTheRouteInBothReasonAndConsole() {
+        let plan = Install.itemPlan(for: .notRequested(.homebrew), offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .skipped)
+        #expect(terminal.reason == "not requested: --route no longer includes it")
+        #expect(terminal.route == .homebrew)
+        #expect(terminal.console
+            == "skipping: re-checked route is now homebrew, no longer requested")
+    }
+
+    /// Mutation (reverted after running): in the `.skip` case, changed
+    /// `console: "skipping: \(why)"` to `console: why` (dropped the
+    /// "skipping: " prefix that `apply` no longer adds itself) — went red
+    /// (console text missing the prefix).
+    @Test func skipCarriesTheGivenRouteReasonAndConsoleText() {
+        let plan = Install.itemPlan(
+            for: .skip("already at 1.1 on disk — nothing to install", .vendor),
+            offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .skipped)
+        #expect(terminal.reason == "already at 1.1 on disk — nothing to install")
+        #expect(terminal.route == .vendor)
+        #expect(terminal.console == "skipping: already at 1.1 on disk — nothing to install")
+    }
+
+    /// #404 review #5: `.unreadable` must carry `route == nil` — there is no
+    /// freshly re-derived route to give. Mutation (reverted after running):
+    /// changed `route: nil` to `route: .vendor` in the `.unreadable` case —
+    /// went red (expected `nil`, got `.vendor`).
+    @Test func unreadableHasNoRoute() {
+        let why = "no readable bundle at /Applications/Fixture.app right now — it may have "
+            + "been uninstalled, or its Info.plist could not be parsed"
+        let plan = Install.itemPlan(for: .unreadable(why), offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .skipped)
+        #expect(terminal.route == nil)
+        #expect(terminal.reason == why)
+        #expect(terminal.console == "skipping: \(why)")
+    }
+
+    /// `.cannotConfirm(nil)` must still produce the `"no source covers this
+    /// app"` default reason, and carry `route == nil` (#404 review #5).
+    /// Mutation (reverted after running): changed
+    /// `outcome: .failed` to `outcome: .skipped` in the `.cannotConfirm` case
+    /// — **this reinstates #436's exact defect** — went red (expected
+    /// `.failed`, got `.skipped`).
+    @Test func cannotConfirmWithNoMessageDefaultsTheReasonAndIsAFailure() {
+        let plan = Install.itemPlan(for: .cannotConfirm(nil), offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .failed)
+        #expect(terminal.reason == "no source covers this app")
+        #expect(terminal.route == nil)
+        #expect(terminal.console
+            == "failed: the pre-install re-check could not confirm an update: no source covers this app")
+    }
+
+    @Test func cannotConfirmWithAMessageUsesItVerbatim() {
+        let plan = Install.itemPlan(
+            for: .cannotConfirm("connection timed out"), offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .failed)
+        #expect(terminal.reason == "connection timed out")
+        #expect(terminal.route == nil)
+        #expect(terminal.console
+            == "failed: the pre-install re-check could not confirm an update: connection timed out")
+    }
+
+    /// #404 review #5: `.answerRegressed` must carry `route == nil`. Mutation
+    /// (reverted after running): changed `outcome: .failed` to
+    /// `outcome: .skipped` in the `.answerRegressed` case — **the other half
+    /// of #436's defect the issue named** — went red (expected `.failed`, got
+    /// `.skipped`).
+    @Test func answerRegressedNamesBothVersionsAndIsAFailure() {
+        let plan = Install.itemPlan(
+            for: .answerRegressed, offeredVersion: "1.1", confirmedVersion: "1.0")
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.outcome == .failed)
+        #expect(terminal.reason == "answer regressed: offered 1.1, confirmed 1.0")
+        #expect(terminal.route == nil)
+        #expect(terminal.console
+            == "failed: the update source answered 1.1, then 1.0 — nothing was installed.")
+    }
+
+    /// `offeredVersion`/`confirmedVersion` are `nil` exactly when the caller's
+    /// `UpdateResult`s carry no remote — `apply` passes
+    /// `item.result.remote?.displayVersion` straight through, which can be
+    /// `nil`. Mutation (reverted after running): changed
+    /// `offeredVersion ?? "?"` to `offeredVersion ?? ""` — went red (expected
+    /// "offered ?, confirmed ?", got "offered , confirmed ?").
+    @Test func answerRegressedFallsBackToQuestionMarksWhenVersionsAreMissing() {
+        let plan = Install.itemPlan(for: .answerRegressed, offeredVersion: nil, confirmedVersion: nil)
+        guard case .end(let terminal) = plan else {
+            Issue.record("expected an end, got \(plan)")
+            return
+        }
+        #expect(terminal.reason == "answer regressed: offered ?, confirmed ?")
+    }
+}
+
+/// #445: `RowOutcome`'s five cases are exactly 1:1 with `apply`'s five
+/// counters — `Tally` is the only place that mapping happens, replacing the
+/// five separate `var`s `apply` used to increment by hand next to each exit
+/// from its loop.
+@Suite struct InstallTallyTests {
+
+    /// All five counts distinct and nonzero, so a mutation that increments the
+    /// wrong counter for some case is visible on that case's own field, not
+    /// masked by another field happening to match. Mutation (reverted after
+    /// running): swapped the `.openedInstaller`/`.declined` arms in
+    /// `Tally.record` — went red (`openedInstaller` read 4, `declined` read 2).
+    @Test func recordIncrementsExactlyTheMatchingCounter() {
+        var tally = Install.Tally()
+        tally.record(.installed)
+        for _ in 0..<2 { tally.record(.openedInstaller) }
+        for _ in 0..<3 { tally.record(.skipped) }
+        for _ in 0..<4 { tally.record(.declined) }
+        for _ in 0..<5 { tally.record(.failed) }
+        #expect(tally.installed == 1)
+        #expect(tally.openedInstaller == 2)
+        #expect(tally.skipped == 3)
+        #expect(tally.declined == 4)
+        #expect(tally.failed == 5)
+    }
+
+    @Test func aFreshTallyIsAllZero() {
+        let tally = Install.Tally()
+        #expect(tally.installed == 0)
+        #expect(tally.openedInstaller == 0)
+        #expect(tally.skipped == 0)
+        #expect(tally.declined == 0)
+        #expect(tally.failed == 0)
+    }
+
+    /// `Install.summaryLine(_ tally:)` is the overload `apply` actually calls
+    /// (#445) — it must forward every field to the right positional argument
+    /// of the five-argument form, which the existing
+    /// `summaryLineAccountsForAllFiveBucketsWhenEachIsNonzero` test pins.
+    /// Five distinct, nonzero counts so a transposed forward is visible.
+    /// Mutation (reverted after running): in the `Tally` overload, changed
+    /// `declined: tally.declined` to `declined: tally.skipped` — went red
+    /// (expected "4 declined", the string said "3 declined").
+    @Test func summaryLineFromTallyForwardsEveryFieldToItsOwnArgument() {
+        var tally = Install.Tally()
+        tally.record(.installed)
+        for _ in 0..<2 { tally.record(.openedInstaller) }
+        for _ in 0..<3 { tally.record(.skipped) }
+        for _ in 0..<4 { tally.record(.declined) }
+        for _ in 0..<5 { tally.record(.failed) }
+        #expect(Install.summaryLine(tally)
+            == "1 installed, 5 failed, 3 skipped, 4 declined, 2 opened in the installer.")
+    }
+
+    /// #445, #435: the `applied` → `RowOutcome` decision, single-sourced so
+    /// `installedPayload`'s `--json` category and `apply`'s counter can never
+    /// disagree. Mutation (reverted after running): changed
+    /// `applied ? .installed : .openedInstaller` to
+    /// `applied ? .openedInstaller : .installed` — both tests below went red
+    /// (each expected the opposite of what it got).
+    @Test func rowOutcomeForAppliedIsInstalledWhenTrue() {
+        #expect(Install.rowOutcome(forApplied: true) == .installed)
+    }
+
+    @Test func rowOutcomeForAppliedIsOpenedInstallerWhenFalse() {
+        #expect(Install.rowOutcome(forApplied: false) == .openedInstaller)
+    }
+}
+
 /// #404 review #5 and #3, plus #435/#436: the `--json` payloads for both an
 /// actual install (`installedPayload`) and an item the pre-install re-check
 /// did not install (`skippedPayload`), and the text-mode summary line's

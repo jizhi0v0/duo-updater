@@ -402,6 +402,87 @@ public enum Install {
         }
     }
 
+    /// What `apply`'s loop does with one item, once `reconsider` has spoken —
+    /// either install it, or stop here. `#445`: this is the pure mapping the
+    /// issue asked for, and it exists because `RowOutcome`'s five cases are
+    /// exactly 1:1 with `apply`'s five counters. Before this, the ending for
+    /// each `ReconsiderOutcome` case was assembled by hand at its own `case` in
+    /// `apply` — the text printed, the `--json` reason, the route, and which
+    /// counter got incremented were four separately-editable pieces of code
+    /// for the same event, and nothing forced them to agree. Collapsing all
+    /// four into one `Terminal` value, keyed by one `RowOutcome`, makes
+    /// "the emitted row and the incremented counter disagree" (#436's defect)
+    /// structurally impossible rather than merely reviewed-by-hand.
+    enum ItemPlan: Equatable {
+        /// Proceed to backup/replace with this (freshly re-derived) result and
+        /// route — never the plan's stale `offered` (see `reconsider`'s doc
+        /// comment on `.proceed`).
+        case install(UpdateResult, InstallCoordinator.Route)
+        /// Nothing more happens to this item this run.
+        case end(Terminal)
+    }
+
+    /// One item's ending: the `RowOutcome` IS the counter to increment and the
+    /// NDJSON category to emit — there is no second value to keep in sync with
+    /// it. `route` is `nil` exactly when no freshly re-derived route exists to
+    /// report (#404 review #5); `console` is the text-mode line this item
+    /// prints, without the leading three-space indent `apply` adds uniformly
+    /// (so the same string serves both the `print` and the
+    /// `FileHandle.standardError.write` call sites, which historically added
+    /// the indent themselves at each call).
+    struct Terminal: Equatable {
+        let outcome: RowOutcome
+        let reason: String
+        let route: InstallCoordinator.Route?
+        let console: String
+    }
+
+    /// Pure — no I/O, mirroring `reconsider` and `classify`. `offeredVersion`/
+    /// `confirmedVersion` exist only for `.answerRegressed`, whose message and
+    /// `reason` both need to name the two versions that disagreed; every other
+    /// case ignores them. Every string below is copied verbatim from the
+    /// `apply` call sites it replaces (see #404 reviews #2–#8, #435, #436) —
+    /// this is a refactor of WHERE the wiring happens, not a rewording of what
+    /// it says.
+    static func itemPlan(
+        for outcome: ReconsiderOutcome, offeredVersion: String?, confirmedVersion: String?
+    ) -> ItemPlan {
+        switch outcome {
+        case .proceed(let result, let route):
+            return .install(result, route)
+        case .notRequested(let route):
+            return .end(Terminal(
+                outcome: .skipped,
+                reason: "not requested: --route no longer includes it",
+                route: route,
+                console: "skipping: re-checked route is now \(route.rawValue), no longer requested"))
+        case .skip(let why, let route):
+            return .end(Terminal(outcome: .skipped, reason: why, route: route,
+                                  console: "skipping: \(why)"))
+        case .unreadable(let why):
+            return .end(Terminal(outcome: .skipped, reason: why, route: nil,
+                                  console: "skipping: \(why)"))
+        case .cannotConfirm(let message):
+            // `nil` route, not the plan's stale one: `reconsider` returns here
+            // BEFORE ever calling `classify` on a fresh read, so there is no
+            // freshly re-derived route to give (#404 review #5).
+            let reason = message ?? "no source covers this app"
+            return .end(Terminal(
+                outcome: .failed, reason: reason, route: nil,
+                console: "failed: the pre-install re-check could not confirm an update: \(reason)"))
+        case .answerRegressed:
+            // Both versions in the message, because the pair IS the finding:
+            // either number alone reads as an ordinary check.
+            let was = offeredVersion ?? "?"
+            let now = confirmedVersion ?? "?"
+            return .end(Terminal(
+                outcome: .failed,
+                reason: "answer regressed: offered \(was), confirmed \(now)",
+                route: nil,
+                console: "failed: the update source answered \(was), then \(now) — nothing was installed."))
+        }
+    }
+
     static func describe(_ plan: [Planned], refusals: [(UpdateResult, String)]) {
         if !plan.isEmpty {
             print("\nWill install:")
@@ -527,23 +608,12 @@ public enum Install {
             settings, testflight: recheckTestflight,
             announcements: recheckAnnouncements, toolbox: recheckToolbox,
             appStoreSignedIn: nil)
-        var failed = 0
-        var installedCount = 0
-        var skippedCount = 0
-        // Declined elevation is a decision, not a failure (see the catch below),
-        // but it must not vanish from the summary either — counted separately
-        // so `installedCount + failed + skippedCount + declinedCount +
-        // openedInstallerCount` accounts for every item in the plan (#404
-        // review #3, #435).
-        var declinedCount = 0
-        // The `.installer` route's `perform` returns without throwing, but with
-        // `applied == false`: the bytes were fetched and verified and a system
-        // installer window is open, but nothing has replaced the app on disk
-        // yet. Kept apart from `installedCount` (which would be false at the
-        // moment the summary line prints) and from `skippedCount` (real work
-        // already happened here, unlike an actual skip) — see `summaryLine`
-        // (#435).
-        var openedInstallerCount = 0
+        // One counter per `RowOutcome`, and the only place that maps one to the
+        // other (#445) — see `Tally.record`. Before this, `apply` kept five
+        // separate `var`s and incremented one by hand next to each exit from
+        // the loop below, which let the emitted row and the incremented
+        // counter disagree (#436's defect).
+        var tally = Tally()
         // Only items whose bundle was ACTUALLY replaced
         // (`InstallCoordinator.Outcome.applied`) — a `.notRequested`, `.skip`,
         // `.unreadable`, `.cannotConfirm`, or `.answerRegressed` item was never
@@ -567,66 +637,37 @@ public enum Install {
                 checker: recheckChecker)
             let live = liveEnvironment(
                 for: confirmed ?? item.result, plannedElevation: elevationRequiredPaths)
-            let outcome = reconsider(
+            let reconsidered = reconsider(
                 offered: item.result, confirmed: confirmed, settings: settings,
                 environment: live, routes: routes)
+            let outcome = itemPlan(
+                for: reconsidered,
+                offeredVersion: item.result.remote?.displayVersion,
+                confirmedVersion: confirmed?.remote?.displayVersion)
 
             let toInstall: UpdateResult
             let route: InstallCoordinator.Route
             switch outcome {
-            case .proceed(let result, let derivedRoute):
+            case .install(let result, let derivedRoute):
                 toInstall = result
                 route = derivedRoute
-            case .notRequested(let derivedRoute):
-                if !json {
-                    print("   skipping: re-checked route is now \(derivedRoute.rawValue), "
-                        + "no longer requested")
+            case .end(let end):
+                // Every ending's `console` line was written without its
+                // leading indent (see `Terminal`'s doc comment); reproduced
+                // here so the printed text is byte-for-byte what the old,
+                // per-case call sites wrote. A `.failed` ending goes to
+                // stderr unconditionally, matching what `.cannotConfirm` and
+                // `.answerRegressed` always did; every other ending prints to
+                // stdout only when `!json`, matching what `.notRequested`,
+                // `.skip`, and `.unreadable` always did.
+                if end.outcome == .failed {
+                    FileHandle.standardError.write(Data("   \(end.console)\n".utf8))
+                } else if !json {
+                    print("   \(end.console)")
                 }
-                emitSkipped(name: name, route: derivedRoute,
-                            reason: "not requested: --route no longer includes it",
-                            outcome: .skipped, json: json)
-                skippedCount += 1
-                continue
-            case .skip(let why, let derivedRoute):
-                if !json { print("   skipping: \(why)") }
-                emitSkipped(name: name, route: derivedRoute, reason: why, outcome: .skipped, json: json)
-                skippedCount += 1
-                continue
-            case .unreadable(let why):
-                // Not counted as `failed`: like `.alreadyCurrent`/`.managedElsewhere`
-                // above, there is nothing here a retry would change — either the
-                // app really is gone, or its Info.plist needs fixing by hand,
-                // and re-running `duo install` answers neither.
-                if !json { print("   skipping: \(why)") }
-                emitSkipped(name: name, route: nil, reason: why, outcome: .skipped, json: json)
-                skippedCount += 1
-                continue
-            case .cannotConfirm(let message):
-                failed += 1
-                let reason = message ?? "no source covers this app"
-                FileHandle.standardError.write(Data(
-                    "   failed: the pre-install re-check could not confirm an update: \(reason)\n".utf8))
-                // `nil`, not `item.route`: `reconsider` returns here BEFORE ever
-                // calling `classify` on a fresh read, so there is no freshly
-                // re-derived route to give — only the plan's stale one, which
-                // is exactly the value #404 review #5 says not to fall back to.
-                // Caught by code review after the first pass only fixed `.skip`.
-                emitSkipped(name: name, route: nil, reason: reason, outcome: .failed, json: json)
-                continue
-            case .answerRegressed:
-                failed += 1
-                // Both versions in the message, because the pair IS the finding:
-                // either number alone reads as an ordinary check. Same rule
-                // `AppListModel.performInstall` follows for the same case.
-                let was = item.result.remote?.displayVersion ?? "?"
-                let now = confirmed?.remote?.displayVersion ?? "?"
-                FileHandle.standardError.write(Data(
-                    "   failed: the update source answered \(was), then \(now) — nothing was installed.\n".utf8))
-                // `nil` for the same reason as `.cannotConfirm` above: no fresh
-                // route was ever derived for a regressed answer either.
-                emitSkipped(name: name, route: nil,
-                            reason: "answer regressed: offered \(was), confirmed \(now)",
-                            outcome: .failed, json: json)
+                emitSkipped(name: name, route: end.route, reason: end.reason,
+                            outcome: end.outcome, json: json)
+                tally.record(end.outcome)
                 continue
             }
 
@@ -664,31 +705,39 @@ public enum Install {
                 // route returns here with `applied == false` while the system
                 // installer window is still open, and the "still running the old
                 // code" summary below must not call that app's running copy
-                // stale (#404 review #2). The same `applied` bit is what keeps
-                // `installedCount` and `openedInstallerCount` apart (#435) —
-                // keyed off the outcome, not off `route == .installer`, since
-                // `applied` is the documented, already-in-scope signal.
+                // stale (#404 review #2). `rowOutcome(forApplied:)` is the same
+                // function `installedPayload` uses for `emit`'s `--json` row
+                // (#445) — one decision, not two independently-swappable copies
+                // of the same ternary.
+                let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path))
-                    installedCount += 1
-                } else {
-                    openedInstallerCount += 1
                 }
+                tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)
             } catch is AuthorizationDeclinedError {
                 // Dismissing the password panel is a decision, not a failure — it
                 // does not count toward `failed`, and it is remembered so neither
                 // `duo` nor the menu bar re-raises the panel for this copy until
                 // the user asks. Written to the same suite the app reads. Still
-                // counted (`declinedCount`) and still emitted (`emitSkipped`): the
-                // old code left this item out of every counter and out of the
-                // `--json` stream, so it vanished from the summary entirely
-                // (#404 review #3).
+                // counted and still emitted (`emitSkipped`): the old code left
+                // this item out of every counter and out of the `--json` stream,
+                // so it vanished from the summary entirely (#404 review #3).
+                //
+                // Bound to one local value used for both calls below (#445) — not
+                // pulled into a `rowOutcome(for: Error)` function, unlike
+                // `rowOutcome(forApplied:)` above: there is only this one call
+                // site for this classification (nothing else in `Install.swift`
+                // maps an error to a `RowOutcome`), so a pure function here would
+                // add a testable unit without removing any real duplication —
+                // and `apply` itself stays untested either way (real I/O). Left
+                // review-only, uncovered; see the PR description.
+                let category: RowOutcome = .declined
                 Settings.recordDeclinedElevation(toInstall.app)
-                declinedCount += 1
+                tally.record(category)
                 emitSkipped(name: name, route: route,
                             reason: "administrator access was declined",
-                            outcome: .declined, json: json)
+                            outcome: category, json: json)
                 FileHandle.standardError.write(Data("""
                        skipped: administrator access was declined, so \(name) will no \
                     longer be offered as a one-click. Undo it from the app's row menu, \
@@ -696,16 +745,20 @@ public enum Install {
                     \(UpdateSettings.declinedElevationKeysKey)`.\n
                     """.utf8))
             } catch {
-                failed += 1
+                // Same reasoning as the `AuthorizationDeclinedError` arm above:
+                // one local value, used for both calls, and left as a literal
+                // rather than a pure function for the same reason.
+                let category: RowOutcome = .failed
                 let message = (error as? LocalizedError)?.errorDescription
                     ?? error.localizedDescription
+                tally.record(category)
                 FileHandle.standardError.write(Data("   failed: \(message)\n".utf8))
                 // The one ending a `--json` consumer most needs to see. Every
                 // other way an approved item can end without being installed
                 // now leaves a row; a failure leaving none would mean the
                 // stream undercounts exactly the failures, which is the
                 // opposite of the property `emitSkipped` was added for.
-                emitSkipped(name: name, route: route, reason: message, outcome: .failed, json: json)
+                emitSkipped(name: name, route: route, reason: message, outcome: category, json: json)
                 if error is AppManagementRequiredError {
                     FileHandle.standardError.write(Data("""
                            Grant App Management to this binary in System Settings ▸ \
@@ -716,10 +769,7 @@ public enum Install {
             }
         }
         if !json {
-            print("\n" + summaryLine(
-                installed: installedCount, failed: failed,
-                skipped: skippedCount, declined: declinedCount,
-                openedInstaller: openedInstallerCount))
+            print("\n" + summaryLine(tally))
             // The bundle on disk is new; the process still running is not. The
             // menu-bar app restarts these itself per the user's preference; the
             // CLI does not quit your apps behind your back, but it must not leave
@@ -734,7 +784,7 @@ public enum Install {
                 print("  duo restart \(stale.joined(separator: " "))")
             }
         }
-        return failed == 0 ? 0 : 1
+        return tally.failed == 0 ? 0 : 1
     }
 
     /// The text-mode summary line, pulled out as a pure function so its exact
@@ -763,6 +813,17 @@ public enum Install {
             + (openedInstaller > 0 ? ", \(openedInstaller) opened in the installer" : "") + "."
     }
 
+    /// Same line, from a `Tally` — the overload `apply` actually calls (#445).
+    /// Forwards to the five-argument form above rather than duplicating its
+    /// phrasing, so `apply` no longer has five positional arguments it could
+    /// mis-wire (the issue's mutation "passing `openedInstaller: 0` at the call
+    /// site" is no longer expressible once the call site only has a `Tally`).
+    static func summaryLine(_ tally: Tally) -> String {
+        summaryLine(
+            installed: tally.installed, failed: tally.failed, skipped: tally.skipped,
+            declined: tally.declined, openedInstaller: tally.openedInstaller)
+    }
+
     /// The machine-readable category every `--json` row (`emit`'s and
     /// `emitSkipped`'s alike) carries, alongside `applied` — which is kept
     /// exactly as it was, so an existing reader does not break; `outcome` is
@@ -774,7 +835,7 @@ public enum Install {
     /// stream as a new, unrecognised category — the same principle as
     /// `RowActions.live` in the menu-bar app: a call site must say which
     /// bucket it is, not fall into a defaulted guess.
-    enum RowOutcome: String {
+    enum RowOutcome: String, Equatable {
         case installed
         /// The `.installer` route only, today: bytes fetched and verified, a
         /// system installer window is open, nothing replaced yet. See
@@ -783,6 +844,41 @@ public enum Install {
         case skipped
         case declined
         case failed
+    }
+
+    /// One counter per `RowOutcome`, and the ONLY place that maps a
+    /// `RowOutcome` to a counter (#445). Before this, `apply` kept five
+    /// separate `var`s and incremented one by hand next to each exit from its
+    /// loop — a call site could increment a DIFFERENT counter than the
+    /// `RowOutcome` it just emitted (exactly #436's defect: a real failure
+    /// counted as a skip), and nothing but reading every call site by hand
+    /// would catch it. `record` is the single place that wiring happens now.
+    struct Tally: Sendable, Equatable {
+        private(set) var installed = 0
+        private(set) var openedInstaller = 0
+        private(set) var skipped = 0
+        private(set) var declined = 0
+        private(set) var failed = 0
+
+        mutating func record(_ outcome: RowOutcome) {
+            switch outcome {
+            case .installed: installed += 1
+            case .openedInstaller: openedInstaller += 1
+            case .skipped: skipped += 1
+            case .declined: declined += 1
+            case .failed: failed += 1
+            }
+        }
+    }
+
+    /// The `applied` → `RowOutcome` decision, single-sourced (#445): before
+    /// this, `installedPayload` computed `outcome.applied ? .installed :
+    /// .openedInstaller` and `apply`'s loop duplicated the identical branch
+    /// for its own counter, so a mutation swapping one branch's two arms
+    /// (#435's fix) was two separate, independently-swappable pieces of code.
+    /// Both call sites now go through this one function.
+    static func rowOutcome(forApplied applied: Bool) -> RowOutcome {
+        applied ? .installed : .openedInstaller
     }
 
     static func emit(
@@ -811,7 +907,7 @@ public enum Install {
     static func installedPayload(
         name: String, route: InstallCoordinator.Route, outcome: InstallCoordinator.Outcome
     ) -> [String: Any] {
-        let category: RowOutcome = outcome.applied ? .installed : .openedInstaller
+        let category = rowOutcome(forApplied: outcome.applied)
         var payload: [String: Any] = [
             "app": name, "route": route.rawValue,
             "bytesDownloaded": outcome.bytesDownloaded,

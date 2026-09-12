@@ -2100,6 +2100,68 @@ final class AppListModel {
         Log.app.notice("permissions: Full Disk Access \(mayRead ? "granted" : "missing", privacy: .public) while running — re-checked \(rechecked.count, privacy: .public) TestFlight rows")
     }
 
+    /// What earlier rounds in this process already spent a TestFlight sync on
+    /// (#539). Per-process by design — see `TestFlightSyncPolicy.Ledger`, which
+    /// explains why the durable half of the question is TestFlight's own write-ahead
+    /// log date rather than anything we persist.
+    @ObservationIgnored private var testFlightSyncLedger = TestFlightSyncPolicy.Ledger()
+
+    /// Whether an automatic sync is still running. The round that starts one does not
+    /// wait for it, so without this a round beginning moments later would read a
+    /// store nothing has written yet and start a second hidden TestFlight against the
+    /// same evidence. `Ledger.begin` covers the floor; this covers the overlap.
+    @ObservationIgnored private var testFlightSyncInFlight = false
+
+    /// Start a sync the user did not ask for, **without holding the round**.
+    ///
+    /// The button's sync is awaited because the user is watching for that answer, and
+    /// it is started before the scan so it overlaps one. An automatic one is neither:
+    /// it is decided from the check's own output, so awaiting it would add its whole
+    /// wait — up to `TestFlightRefresh.defaultDeadline` — to the moment every app's
+    /// verdict is published, TestFlight rows and everything else alike. Instead the
+    /// round publishes on time and the beta rows correct themselves afterwards
+    /// through `recheckTestFlightRows`, the same path a Full Disk Access grant
+    /// mid-session already uses.
+    private func startAutomaticTestFlightSync(for evidence: [TestFlightSyncPolicy.Evidence]) {
+        testFlightSyncInFlight = true
+        testFlightSyncLedger.begin(at: .now)
+        Task { @MainActor [weak self] in
+            // Bounded, and the bound is not `run`'s own: `run` is bounded internally
+            // by `defaultDeadline`, but the launch it awaits first is not, so a
+            // LaunchServices that never answers would leave `testFlightSyncInFlight`
+            // true for the rest of the session and silently retire automatic syncs
+            // altogether. Comfortably past the deadline, so this only ever catches a
+            // stuck launch and never a slow store.
+            let outcome = await Self.firstResult(
+                of: Task.detached(priority: .utility) { await TestFlightRefresh().run() },
+                within: TestFlightRefresh.defaultDeadline + .seconds(30))
+            guard let self else { return }
+            self.testFlightSyncInFlight = false
+            guard let outcome else {
+                Log.app.error("TestFlight sync: the attempt never returned — automatic syncs stay armed")
+                return
+            }
+            self.testFlightSyncLedger.finish(evidence, ran: outcome.testFlightRan, at: .now)
+            Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public) (automatic)")
+            guard outcome.storeChanged else { return }
+            await self.recheckTestFlightRows()
+        }
+    }
+
+    /// One log line for why a round is about to start a hidden TestFlight. Names the
+    /// apps for `staleStore`, because "the store is behind" without saying behind
+    /// what is the kind of line that reads as noise the next time someone is
+    /// debugging this.
+    private static func describe(_ reason: TestFlightSyncPolicy.Reason) -> String {
+        switch reason {
+        case .staleStore(let evidence):
+            let named = evidence.map { "\($0.bundleID) @\($0.installedBuild)" }.joined(separator: ", ")
+            return "the store cannot bound \(evidence.count) row(s): \(named)"
+        case .floor:
+            return "nothing has written the store in \(Int(TestFlightSyncPolicy.floorInterval / 3600))h"
+        }
+    }
+
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
@@ -2205,8 +2267,10 @@ final class AppListModel {
             allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
         if allowTestFlight { testFlightReadThisSession = true }
 
-        // The refresh button, and only the button, also asks TestFlight to sync —
-        // in a hidden instance of our own; see `TestFlightRefresh`. Started here,
+        // The refresh button is the one intent that asks TestFlight to sync
+        // unconditionally — in a hidden instance of our own; see `TestFlightRefresh`.
+        // A round of any intent can still earn one further down, from what the check
+        // saw (`TestFlightSyncPolicy`). Started here,
         // before the scan, and awaited only after the network check, because its
         // wait is long and unrelated to everything else here: a store that never
         // moves holds it for the whole `TestFlightRefresh.defaultDeadline`. Awaited
@@ -2371,6 +2435,24 @@ final class AppListModel {
         // exactly those betas carry neither yet. The
         // re-read is bounded like the first one, for the same reason — a read that
         // has not returned is a prompt that is still up.
+        // A round that was not given a sync up front can still earn one from what the
+        // check just saw — the store is provably behind for some row, or nothing has
+        // written it in `TestFlightSyncPolicy.floorInterval` (#539). It cannot be
+        // started early, because its evidence IS the check's output; and it is
+        // deliberately not awaited here, so it cannot delay this round's rows.
+        if testFlightSync == nil, allowTestFlight, testflight.accessible, !testFlightSyncInFlight {
+            let evidence = TestFlightSyncPolicy.evidence(
+                in: checkable, inventory: testflight, announcements: announcements)
+            if let reason = TestFlightSyncPolicy.reason(
+                evidence: evidence,
+                storeStamp: TestFlightRefresh.storeStamp(),
+                ledger: testFlightSyncLedger,
+                now: .now
+            ) {
+                Log.app.notice("TestFlight sync: starting one — \(Self.describe(reason), privacy: .public)")
+                startAutomaticTestFlightSync(for: evidence)
+            }
+        }
         if let testFlightSync {
             let outcome = await testFlightSync.value
             Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")

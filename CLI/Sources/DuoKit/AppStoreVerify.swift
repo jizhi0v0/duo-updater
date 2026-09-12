@@ -187,7 +187,7 @@ extension Verify {
     ///  1. `single.kind`/`single.trackId` match what the registry declared.
     ///  2/3. `pageShape` — the product page the declared route depends on
     ///     still carries the JSON shape `extractMacVersionInfo`/
-    ///     `extractMacCompatible` parses.
+    ///     `extractMacCompatibility` parses.
     ///  4. (native-Mac cases only) `trackViewCheck` — `trackViewUrl` is still
     ///     an `https://apps.apple.com` URL reachable with zero redirects.
     ///  5. `batchEntry` — a batched lookup agrees with the single lookup on
@@ -235,8 +235,10 @@ extension Verify {
                             + "mostRecentVersion shelf — the parser and the live page have drifted apart")
                 case .wrappedIOS:
                     warnings.append(
-                        "compatFlagNotFound: page fetched fine, but extractMacCompatible found no "
-                            + "isIOSBinaryMacOSCompatible flag")
+                        "compatSignalsNotFound: page fetched fine, but extractMacCompatibility "
+                            + "did not find BOTH isIOSBinaryMacOSCompatible and appPlatforms — "
+                            + "either one drifting away silently narrows what the Mac-compat "
+                            + "verdict can tell apart")
                 }
             }
         case .unreachable(let code):

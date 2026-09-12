@@ -186,9 +186,55 @@ public enum InPlaceSwap {
         }
     }
 
+    /// Where the bundle stood when a swap threw. Decided by the target's identity
+    /// before and after, not by its existence: after a successful replacement the
+    /// path exists too, so `fileExists` answers the same for two opposite outcomes.
+    ///
+    /// Pure and separately testable because the branch it drives is the difference
+    /// between "the update failed, go grant App Management" and "the update is
+    /// live". `replaceItemAt` really does produce the middle case — observed
+    /// restoring ToDesk on 2026-08-26, where the new bundle was in place and the
+    /// error came from removing the one it displaced — and `NSCocoaErrorDomain 513`
+    /// is exactly what `isAppManagementDenial` matches, so that landed install was
+    /// reported as a permission failure.
+    ///
+    /// Fail-closed: an identity we could not read on either side counts as
+    /// `unchanged`, i.e. a failure, rather than being promoted to a success.
+    enum SwapFailureSite: Equatable {
+        /// The exchange landed; the error came afterwards, from the cleanup. The
+        /// new version is live.
+        case replacedThenCleanupFailed
+        /// The app on disk is the one that was there before.
+        case unchanged
+        /// The target is gone from disk (the privileged path moved it aside and
+        /// could not restore it).
+        case targetMissing
+    }
+
+    static func classifySwapFailure(
+        targetExists: Bool, identityBefore: UInt64?, identityAfter: UInt64?
+    ) -> SwapFailureSite {
+        guard targetExists else { return .targetMissing }
+        if let before = identityBefore, let after = identityAfter, before != after {
+            return .replacedThenCleanupFailed
+        }
+        return .unchanged
+    }
+
+    /// What a completed `replace` did.
+    enum SwapOutcome: Equatable {
+        case replaced
+        /// The new bundle is in place, but the exchange's own cleanup failed — a
+        /// displaced bundle left behind, typically. A warning, not a failure: the
+        /// caller must go on to re-check the app and compute restart info, because
+        /// the version on disk has changed.
+        case replacedButCleanupFailed(String)
+    }
+
     /// Replace `target` with `newApp`. Tries a user-level atomic swap first; if the
     /// location needs admin rights, falls back to an authenticated copy.
-    static func replace(newApp: URL, over target: URL) throws {
+    @discardableResult
+    static func replace(newApp: URL, over target: URL) throws -> SwapOutcome {
         try validateTarget(target)
         stripQuarantine(newApp)
         // The single moment the user's disk actually changes. Logged at `.notice`
@@ -218,17 +264,29 @@ public enum InPlaceSwap {
             ? target.appendingPathComponent("Contents", isDirectory: true)
             : target
         let identityBefore = inode(of: identityTarget)
+        var cleanupFailure: String?
         Log.install.notice(
             "swap start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         defer {
             if replaced {
-                Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
+                if let cleanupFailure {
+                    Log.install.error(
+                        "swap replaced \(target.lastPathComponent, privacy: .public) but its cleanup failed — the new version is live and the caller is told to carry on: \(cleanupFailure, privacy: .public)")
+                } else {
+                    Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
+                }
             } else if FileManager.default.fileExists(atPath: identityTarget.path) {
-                let identityAfter = inode(of: identityTarget)
-                if let before = identityBefore, let after = identityAfter, before != after {
+                switch Self.classifySwapFailure(
+                    targetExists: true,
+                    identityBefore: identityBefore,
+                    identityAfter: inode(of: identityTarget)) {
+                case .replacedThenCleanupFailed:
+                    // Only the elevated and rotation paths reach this with the new
+                    // bundle live: the unprivileged one classifies the same way in
+                    // its `catch` and returns rather than throwing.
                     Log.install.error(
                         "swap threw for \(target.lastPathComponent, privacy: .public) but the bundle at that path was REPLACED anyway — the error came after the exchange, so the new version is live and the failure is in the cleanup")
-                } else {
+                case .unchanged, .targetMissing:
                     Log.install.error(
                         "swap did NOT replace \(target.lastPathComponent, privacy: .public) — the app on disk is unchanged")
                 }
@@ -250,7 +308,7 @@ public enum InPlaceSwap {
         if usesContentsRotation(target: target) {
             try rotateContents(newApp: newApp, over: target)
             replaced = true
-            return
+            return .replaced
         }
 
         if !elevated {
@@ -288,6 +346,22 @@ public enum InPlaceSwap {
                             "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
                     }
                 }
+                // Which of the two opposite things just happened. `replaceItemAt`
+                // can land the new bundle and then throw while removing the one it
+                // displaced, and both user-facing shapes below describe a CAUSE for
+                // an update that did not happen — so classifying first is what
+                // stops a landed install from being reported as a missing
+                // permission (the ToDesk restore of 2026-08-26: 513 both times).
+                // The cleanup failure is still said out loud, in the `defer`.
+                let site = Self.classifySwapFailure(
+                    targetExists: fm.fileExists(atPath: identityTarget.path),
+                    identityBefore: identityBefore,
+                    identityAfter: inode(of: identityTarget))
+                if site == .replacedThenCleanupFailed {
+                    replaced = true
+                    cleanupFailure = error.localizedDescription
+                    return .replacedButCleanupFailed(error.localizedDescription)
+                }
                 // `/Applications` is group-writable for admins, so we took the
                 // user-level path — but replacing *another app's* bundle is gated
                 // by App Management on macOS 13+. That denial surfaces as EPERM;
@@ -298,11 +372,12 @@ public enum InPlaceSwap {
                 throw SwapError.notReplaceable(error.localizedDescription)
             }
             replaced = true
-            return
+            return .replaced
         }
 
         try privilegedReplace(newApp: newApp, target: target)
         replaced = true
+        return .replaced
     }
 
     /// Whether replacing `target` has to go through the administrator prompt.

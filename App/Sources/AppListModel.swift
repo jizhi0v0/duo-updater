@@ -878,6 +878,14 @@ final class AppListModel {
     /// Everything the store is holding, filter or no filter — the footprint line,
     /// which is about the file on disk and not about the question being asked.
     private(set) var retainedEventCount = 0
+    /// The retention floor — the oldest event of kind `"request"` the store
+    /// still holds, unfiltered by whatever query the pane is showing. `nil`
+    /// means the store holds no request events at all.
+    ///
+    /// Set from the same `coverage(kind:)` call as ``retainedEventCount`` so
+    /// the two can never disagree about which sweep of the store they
+    /// describe (#460).
+    private(set) var retainedEventFloor: Date?
     /// Whether the log has been read at least once.
     ///
     /// Not the same as "the log is empty", and the window has to tell them
@@ -1436,7 +1444,14 @@ final class AppListModel {
         // `kind: "request"` matters: install events live in the same table and
         // are never pruned, so an unfiltered count would report the retained
         // request window as the whole install history.
-        retainedEventCount = await eventStore.coverage(kind: "request").count
+        //
+        // One call for both fields, not two: `retainedEventFloor` is the
+        // retention floor the status bar and range menu warn against, and a
+        // second, separately-timed call could describe a different sweep of
+        // the store than `retainedEventCount` did (#460).
+        let coverage = await eventStore.coverage(kind: "request")
+        retainedEventCount = coverage.count
+        retainedEventFloor = coverage.oldest
         eventStoreBytes = await eventStore.databaseBytes()
         requestLogLoaded = true
     }

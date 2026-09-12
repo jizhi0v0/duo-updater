@@ -59,6 +59,7 @@ struct NetworkWindowView: View {
                     summary: model.requestSummary,
                     events: model.requestLog,
                     retainedEvents: model.retainedEventCount,
+                    retainedFloor: model.retainedEventFloor,
                     storeBytes: model.eventStoreBytes,
                     onQuery: { await model.reloadRequestLog($0) },
                     onReset: { query in Task { await model.resetRequestLog(query) } },

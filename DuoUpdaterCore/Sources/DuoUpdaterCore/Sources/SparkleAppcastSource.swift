@@ -593,18 +593,23 @@ struct SparkleAppcastItem {
     /// terms. Absent for the vast majority of feeds.
     var minimumAutoupdateVersion: String?
     /// Inline release notes — the `<description>` body, usually CDATA-wrapped HTML.
+    /// One language's worth: a feed repeating the element per `xml:lang` is
+    /// narrowed to the reader's by `preferredVariant`.
     var descriptionHTML: String?
     /// Inline release notes shipped as Markdown via `<markdownDescription>` — some
     /// feeds (e.g. Surge) publish only this and no HTML `<description>`. Parsed
     /// into a structured changelog so the notes render natively instead of falling
-    /// back to a web view.
+    /// back to a web view. Localized the same way `descriptionHTML` is.
     var markdownDescription: String?
     /// `<pubDate>` — the item's publish date, verbatim. RSS spells this many ways
     /// (RFC822, ISO8601, or a bare Unix epoch as Surge does); kept raw and
     /// normalized only when we build a changelog entry.
     var pubDate: String?
     /// `<sparkle:releaseNotesLink>` — an external notes page, when the feed links
-    /// out instead of (or in addition to) inlining them.
+    /// out instead of (or in addition to) inlining them. Localized the same way
+    /// `descriptionHTML` is, and this is the field where it bites hardest: the
+    /// link is one page per language, so picking the wrong variant means fetching
+    /// and rendering a whole page of notes nobody asked for.
     var releaseNotesLink: URL?
 
     /// Prefer the build version (Sparkle's canonical key); fall back to short.
@@ -635,9 +640,13 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// space to `%20` in the enclosure string before parsing. Nothing we read
     /// needs that yet, and doing it here would quietly start accepting items this
     /// has always dropped.
-    static func parse(_ data: Data, relativeTo base: URL? = nil) -> [SparkleAppcastItem] {
+    static func parse(
+        _ data: Data,
+        relativeTo base: URL? = nil,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> [SparkleAppcastItem] {
         let parser = XMLParser(data: data)
-        let delegate = SparkleAppcastParser(base: base)
+        let delegate = SparkleAppcastParser(base: base, preferredLanguages: preferredLanguages)
         parser.delegate = delegate
         parser.parse()
         return delegate.items
@@ -646,8 +655,15 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// The appcast's own URL, for resolving the relative URLs inside it.
     private let base: URL?
 
-    init(base: URL? = nil) {
+    /// The reader's language preferences, most-preferred first. Injected rather
+    /// than read from the process inside `preferredVariant` so a test can state
+    /// which reader it is describing instead of inheriting whatever language the
+    /// host Mac — or a CI runner — happens to be set to.
+    private let preferredLanguages: [String]
+
+    init(base: URL? = nil, preferredLanguages: [String] = Locale.preferredLanguages) {
         self.base = base
+        self.preferredLanguages = preferredLanguages
         super.init()
     }
 
@@ -657,6 +673,117 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// and a relative `URL` would print as `assets/…` in a log or a report.
     private func resolve(_ string: String) -> URL? {
         URL(string: string, relativeTo: base)?.absoluteURL
+    }
+
+    // MARK: - Localized children
+
+    /// One `<item>` child element repeated per language, in document order.
+    ///
+    /// Sparkle lets a vendor ship the SAME child of `<item>` several times, each
+    /// tagged with `xml:lang`, and picks the one matching the reader
+    /// (https://sparkle-project.org/documentation/publishing/). Two feeds we track
+    /// do exactly that, in the two different shapes the format allows, and until
+    /// this existed we read BOTH of them by position — which is to say, at random
+    /// from the user's point of view (issue #399):
+    ///
+    ///  * Mac Mouse Fix links out: 12 `<sparkle:releaseNotesLink xml:lang>` per
+    ///    item (de, es, fr, pt-BR, vi, tr, cs, ru, zh-Hans, zh-Hant, zh-HK, ko) and
+    ///    no untagged one at all. `releaseNotesLink` was first-wins, so every
+    ///    reader on earth got `…/3.0.8/de.html`.
+    ///  * Mole inlines: 10 CDATA `<description xml:lang>` per item. `descriptionHTML`
+    ///    was last-wins, so every reader got the language the vendor happened to
+    ///    list last.
+    ///
+    /// Collected per item and resolved at `</item>` rather than assigned as each
+    /// element closes, because the choice cannot be made until every variant has
+    /// been seen.
+    private var localizedChildren: [String: [(language: String?, text: String)]] = [:]
+
+    /// The `xml:lang` of the element currently being read, or nil when it carries
+    /// none. Set on every `didStartElement` exactly like `textBuffer` is cleared
+    /// there, which is sound for the three elements below because all of them are
+    /// leaves — their content arrives as characters or CDATA, never as child
+    /// elements that would overwrite this mid-read.
+    private var currentLanguage: String?
+
+    /// Record one language variant of a localizable `<item>` child.
+    ///
+    /// Guarded on `current` for the same reason `<description>` always was: a feed
+    /// may carry a channel-level copy of these elements outside any `<item>`, and
+    /// attaching those to the first item that comes along would be worse than
+    /// dropping them.
+    private func recordLocalized(_ name: String, _ text: String) {
+        guard current != nil, !text.isEmpty else { return }
+        localizedChildren[name, default: []].append((currentLanguage, text))
+    }
+
+    /// Pick the variant to use, following Sparkle's `-[SUAppcast bestNodeInNodes:]`
+    /// exactly (Sparkle 2.x, `Sparkle/SUAppcast.m`):
+    ///
+    ///  1. A lone variant wins outright — its `xml:lang` is never even read. This
+    ///     is what keeps every single-variant feed we already parse byte-for-byte
+    ///     unchanged, including one whose only `<description>` is tagged `de`.
+    ///  2. Otherwise an untagged variant counts as `"en"` (Sparkle logs an error
+    ///     and assumes the same), and `preferredLocalizations` picks the winner.
+    ///  3. A reader matching nothing gets the FIRST variant.
+    ///
+    /// ⚠️ Step 3 is not a corner case, and it is not the `else` below doing it:
+    /// `Bundle.preferredLocalizations(from:forPreferences:)` itself answers with
+    /// the array's first element when nothing matches (measured 2026-09-12 on
+    /// macOS 27 — `["de","es",…,"ko"]` against `["en-US"]` and against `["ja-JP"]`
+    /// both come back `["de"]`). So an English reader still sees German for Mac
+    /// Mouse Fix, whose feed lists no `en` variant even though `…/3.0.8/en.html`
+    /// is published and reachable. That is the vendor's omission — Sparkle's own
+    /// updater shows German there too — and deviating would mean guessing at URLs
+    /// the feed does not offer.
+    ///
+    /// The `else` is therefore belt-and-braces rather than the mechanism, and it
+    /// is stated that way because it cannot be tested: no input reaches it. The
+    /// API returned a non-empty array present in the input for every adversarial
+    /// list tried (`""`, `"EN"`, `"en_US"`, `"Deutsch"`, `"🙂"`), and a lone
+    /// variant has already returned above. Sparkle carries the same unreachable
+    /// fallback (it logs an error beside it), and a future OS could make it live.
+    static func preferredVariant(
+        _ variants: [(language: String?, text: String)],
+        preferredLanguages: [String]
+    ) -> String? {
+        guard variants.count > 1 else { return variants.first?.text }
+        let languages = variants.map { $0.language.flatMap { $0.isEmpty ? nil : $0 } ?? "en" }
+        guard
+            let choice = Bundle.preferredLocalizations(
+                from: languages, forPreferences: preferredLanguages).first,
+            let index = languages.firstIndex(of: choice)
+        else { return variants.first?.text }
+        return variants[index].text
+    }
+
+    /// Resolve every collected variant onto the item that is closing.
+    ///
+    /// The table is emptied when an item OPENS rather than here, so "these
+    /// variants belong to the item currently being read" holds because of where
+    /// the reset lives and not because the feed closed its tags. `</item>` is the
+    /// vendor's to get wrong; `<item>` is what actually creates `current`.
+    ///
+    /// ⚠️ A chosen `<sparkle:releaseNotesLink>` that does not resolve leaves the
+    /// field nil, where the old first-wins guard (`releaseNotesLink == nil`) would
+    /// have gone on to try the next element in the item. That fall-through was an
+    /// accident of the guard, not a design: the next element is a different
+    /// LANGUAGE, so what it rescued was a reader silently getting notes they
+    /// cannot read. `resolve` only fails on a string `URL(string:)` refuses — a
+    /// literal space is the realistic one, since this parser deliberately skips
+    /// Sparkle's space→%20 rewrite (see `parse`) — and no notes URL is better than
+    /// the wrong language's.
+    private func applyLocalizedChildren() {
+        func best(_ name: String) -> String? {
+            localizedChildren[name].flatMap {
+                Self.preferredVariant($0, preferredLanguages: preferredLanguages)
+            }
+        }
+        if let text = best("description") { current?.descriptionHTML = text }
+        if let text = best("markdownDescription") { current?.markdownDescription = text }
+        if let text = best("sparkle:releaseNotesLink") {
+            current?.releaseNotesLink = resolve(text)
+        }
     }
 
     private var items: [SparkleAppcastItem] = []
@@ -680,9 +807,13 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         attributes attributeDict: [String: String]
     ) {
         textBuffer = ""
+        currentLanguage = attributeDict["xml:lang"]
         switch elementName {
         case "item":
             current = SparkleAppcastItem()
+            // Whatever is still in the table belongs to an item that is over. See
+            // `applyLocalizedChildren` for why the reset lives here.
+            localizedChildren.removeAll(keepingCapacity: true)
         case "sparkle:deltas":
             deltasDepth += 1
         case "enclosure":
@@ -771,19 +902,30 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             }
         case "description":
             // Only inside an <item>; the channel-level <description> has no
-            // `current` to attach to, so it's harmlessly dropped.
-            if !text.isEmpty { current?.descriptionHTML = text }
+            // `current` to attach to, so it's harmlessly dropped (see
+            // `recordLocalized`).
+            //
+            // ⚠️ This was last-non-empty-wins, and for a localized feed that was
+            // the bug. For an item repeating <description> with NO xml:lang on any
+            // of them — vendor duplication rather than translation — every copy now
+            // reads as "en" and the FIRST one wins instead of the last. That is
+            // Sparkle's behaviour, and the two feeds known to repeat a localizable
+            // child at all — Mac Mouse Fix's and Mole's, both fetchable by anyone —
+            // tag every duplicate with xml:lang, so neither takes this branch.
+            recordLocalized("description", text)
         case "markdownDescription", "sparkle:markdownDescription":
-            if current?.markdownDescription == nil, !text.isEmpty {
-                current?.markdownDescription = text
-            }
+            // Both spellings share one key, so a feed mixing them compares its
+            // variants against each other rather than letting whichever spelling
+            // came first win outright.
+            recordLocalized("markdownDescription", text)
         case "pubDate":
             if current?.pubDate == nil, !text.isEmpty { current?.pubDate = text }
         case "sparkle:releaseNotesLink":
-            if current?.releaseNotesLink == nil, !text.isEmpty {
-                current?.releaseNotesLink = resolve(text)
-            }
+            recordLocalized("sparkle:releaseNotesLink", text)
         case "item":
+            // Before appending: the localized children can only be resolved once
+            // every variant in this item has been seen.
+            applyLocalizedChildren()
             if let item = current { items.append(item) }
             current = nil
         default:

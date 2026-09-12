@@ -354,25 +354,47 @@ public enum GitHubMarkdownParser {
         var pendingHeading: Changelog.Entry.Block?
         var inSkippedSection = false
         var inCodeBlock = false
+        var inFencedBlock = false
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Fenced code block (lenient only): skip its contents so a release's
-            // SHA256 table or example snippet isn't mistaken for change items.
-            if lenient, trimmed.hasPrefix("```") {
-                inCodeBlock.toggle()
-                continue
+            // Fenced code block: `inCodeBlock` stays LENIENT-ONLY — it decides
+            // whether a line can become an item, and the strict pass has always
+            // read fenced bullets as items. `inFencedBlock` is tracked in both
+            // passes and read only by the heading branch below, which is new
+            // state, so switching it on for the strict pass changes no item.
+            if trimmed.hasPrefix("```") {
+                inFencedBlock.toggle()
+                if lenient {
+                    inCodeBlock.toggle()
+                    continue
+                }
             }
             if inCodeBlock { continue }
 
             // Section heading: ## Title or ### Title
             if let raw = headingRawText(of: trimmed) {
                 let heading = raw.lowercased()
+                // Computed for a fenced heading too, exactly as before this guard
+                // existed: in the strict pass a fenced `## New Contributors` has
+                // always opened a skipped section, and which lines become items is
+                // not what this fix is about.
                 inSkippedSection = skipKeywords.contains(where: { heading.contains($0) })
                     || isSkipped(heading, by: skipSections)
-                pendingHeading = (!inSkippedSection && qualifying.contains(raw))
-                    ? .heading(raw) : nil
+                // But a heading INSIDE a fence must not touch `pendingHeading`.
+                // `qualifyingHeadings` skips fenced lines, so such a heading can
+                // never be in `qualifying` — the reassignment could therefore only
+                // ever clear a real heading that was still waiting for its first
+                // note, discarding it. Measured before this guard:
+                // `## Improvements` / fence / `## Added` / fence / `- <bullet>` /
+                // `## Notes` / `- <bullet>` rendered as
+                // `[n(…) H(Notes) n(…)]` — the first group silently lost its
+                // label while the second kept one, an asymmetry inside one entry.
+                if !inFencedBlock {
+                    pendingHeading = (!inSkippedSection && qualifying.contains(raw))
+                        ? .heading(raw) : nil
+                }
                 continue
             }
 

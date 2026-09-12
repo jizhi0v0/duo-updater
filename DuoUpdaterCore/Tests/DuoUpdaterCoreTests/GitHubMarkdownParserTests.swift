@@ -466,3 +466,58 @@ import Testing
         body: body, version: "1.0", date: nil)?.entries.first?.items)
     #expect(items == ["Fix the sidebar flicker", "Improve startup time"])
 }
+
+/// A heading line inside a fenced code block must not clear a heading that is
+/// still waiting for its first note.
+///
+/// The strict bullet pass deliberately does not track fences — it has always read
+/// a fenced bullet as an item — so a `##` line inside a fence reaches the heading
+/// branch. `qualifyingHeadings` DOES skip fenced lines, so such a heading can
+/// never be styled; before the guard, its only effect was to discard a real
+/// pending heading, and the entry rendered with one group labelled and an
+/// identical group above it bare.
+///
+/// Mutation: drop the `if !inFencedBlock` guard around the `pendingHeading`
+/// reassignment in `extractItems`. `Improvements` then disappears from `content`
+/// while `Notes` survives, and this fails.
+@Test func aFencedHeadingDoesNotDiscardThePendingRealHeading() {
+    let body = """
+    ## Improvements
+    ```
+    ## Added
+    ```
+    - Made the scrolling much smoother in long lists
+    ## Notes
+    - Another real change line here for length
+    """
+    let entry = GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first
+    var headings: [String] = []
+    for block in entry?.content ?? [] {
+        if case let .heading(text) = block { headings.append(text) }
+    }
+    #expect(headings == ["Improvements", "Notes"])
+}
+
+/// The companion guard: turning fence tracking on for the strict pass must not
+/// change which lines become items. `inCodeBlock` stays lenient-only and only the
+/// new `inFencedBlock` is tracked in both, so a fenced bullet is still an item in
+/// the strict pass and a fenced `## New Contributors` still opens a skipped
+/// section there — both exactly as before.
+///
+/// Mutation: gate the strict pass's item extraction on `inFencedBlock` too (i.e.
+/// make the fence skip items as well). The fenced bullet vanishes from `items`
+/// and this fails.
+@Test func fenceTrackingForHeadingsLeavesItemExtractionAlone() {
+    let body = """
+    ## Improvements
+    ```
+    - A fenced bullet the strict pass has always read as an item
+    ```
+    - Made the scrolling much smoother in long lists
+    ## Notes
+    - Another real change line here for length
+    """
+    let entry = GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first
+    #expect(entry?.items.count == 3)
+    #expect(entry?.items.first == "A fenced bullet the strict pass has always read as an item")
+}

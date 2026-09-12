@@ -186,6 +186,27 @@ public enum Check {
         } else {
             emitText(rows, checked: options.checkForUpdates)
         }
+        // Betas this run did not answer because TestFlight detection is off.
+        //
+        // Said out loud, because the alternative is "Everything is up to date."
+        // printed over apps nothing looked at — the confident wrong answer this
+        // setting exists to make avoidable, not something for it to hide behind. On
+        // stderr so it cannot corrupt the NDJSON on stdout, and in both modes:
+        // without `--all` these rows are filtered out of the JSON entirely, so a
+        // machine reader has no other way to know they were skipped. After the
+        // result rather than before it — a caveat read in that order, a
+        // contradiction in the other — which takes an explicit flush: stdout is
+        // fully buffered when it is a pipe, so without one the note lands first in
+        // `duo check | tee`, measured, while a terminal shows the intended order.
+        let unlookedAt = settings.testFlightDetection.readsStore
+            ? 0 : results.filter(\.app.isTestFlightApp).count
+        if options.checkForUpdates, unlookedAt > 0 {
+            fflush(stdout)
+            let plural = unlookedAt == 1 ? "" : "s"
+            FileHandle.standardError.write(Data((
+                "duo: \(unlookedAt) TestFlight beta\(plural) not checked — TestFlight"
+                + " detection is off (Duo Updater ▸ Settings ▸ General).\n").utf8))
+        }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
         // works. A hidden row is by definition not something to do.
         return rows.contains(where: isActionable) ? 1 : 0

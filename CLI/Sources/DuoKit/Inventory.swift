@@ -11,10 +11,22 @@ public enum Inventory {
     /// disk, so it is abandoned rather than waited on.
     static let scanTimeout = Duration.seconds(20)
 
+    /// TestFlight's store, or the sentinel that stands for "not read", according to
+    /// the user's setting. One function so the scan and the checker cannot disagree
+    /// about it within a single run — a scan that read it would tag wrapped
+    /// iPhone/iPad betas as TestFlight rows (#456) that the checker then had no
+    /// store to answer.
+    static func testFlightStore(_ settings: Settings) -> TestFlightInventory {
+        settings.testFlightDetection.readsStore
+            ? TestFlightInventory()
+            : TestFlightInventory(macRows: [], accessible: false)
+    }
+
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
+        let testflight = testFlightStore(settings)
         return await withTaskGroup(of: [InstalledApp]?.self) { group in
-            group.addTask { AppScanner(extraLocations: extraLocations).scan() }
+            group.addTask { AppScanner(extraLocations: extraLocations, testflight: testflight).scan() }
             group.addTask {
                 try? await Task.sleep(for: scanTimeout)
                 return nil
@@ -40,14 +52,22 @@ public enum Inventory {
     /// pre-install re-check (`Install.apply`) passes in the TestFlight-free
     /// sentinel and the single `ToolboxInventory` it built once for the whole
     /// batch — see that function's doc comment (#404 review #8).
+    /// `testflight`/`announcements` default to nil rather than to a live read, so
+    /// the read can be resolved from `settings` — a default argument is evaluated at
+    /// the call site and cannot see the parameter it would have to consult. Passing
+    /// either explicitly still wins, which is what the pre-install re-check does.
     public static func checker(
         _ settings: Settings,
-        testflight: TestFlightInventory = TestFlightInventory(),
-        announcements: TestFlightAnnouncements = TestFlightAnnouncements(),
+        testflight: TestFlightInventory? = nil,
+        announcements: TestFlightAnnouncements? = nil,
         toolbox: ToolboxInventory = ToolboxInventory(),
         appStoreSignedIn: Bool? = AppStoreSignIn.isSignedIn()
     ) -> UpdateChecker {
-        UpdateChecker(
+        let reads = settings.testFlightDetection.readsStore
+        let testflight = testflight ?? testFlightStore(settings)
+        let announcements = announcements
+            ?? (reads ? TestFlightAnnouncements() : TestFlightAnnouncements(announcements: [], accessible: false))
+        return UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,
                 channelStore: ResolvedChannelStore.shared),

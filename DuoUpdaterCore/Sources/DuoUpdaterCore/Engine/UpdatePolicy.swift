@@ -645,9 +645,22 @@ public enum UpdatePolicy {
         // to catch trailing builds would otherwise let such leftovers block installs
         // forever, which is worse than the collision this prevents. Trailing-but-
         // different still blocks: that one has not been applied and will be.
-        let stagedV = staged.buildVersion ?? staged.version
-        if let installedV = result.app.buildVersion ?? result.app.shortVersion,
-           stagedV == installedV { return nil }
+        //
+        // Compared as PAIRS. Picking one string per side compares whatever the two
+        // `??`s happen to land on, and they do not have to land in the same
+        // namespace: Spotify's staged update carries no build number at all
+        // (`SelfUpdaterStaging` builds it with `buildVersion: nil`, because
+        // `update.json` states only a marketing `version_to`), so that pick put the
+        // staged MARKETING string against the installed BUILD number — never equal,
+        // so an applied-and-not-yet-swept staging directory went on blocking
+        // installs. `isSame` compares only the fields both sides carry, and
+        // `buildIsDerived` covers the scanner's substituted builds (Xcode, 豆包),
+        // whose build is not `CFBundleVersion` and cannot be compared to a staged
+        // bundle's at all.
+        if VersionComparator.isSame(
+            result.app.versionSide, as: staged.versionSide,
+            buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)
+        ) { return nil }
         // Nothing to protect on routes we do not swap ourselves — Homebrew, the App
         // Store and Toolbox hand the install to something that owns the bundle, so a
         // stale staging directory belonging to a different mechanism must not block

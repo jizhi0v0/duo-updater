@@ -127,10 +127,17 @@ public enum SelfUpdaterStaging {
             // strictly-newer filter belongs here, matching the two branches below.
             // Offering Relaunch for an older staged build would be offering a
             // downgrade, which is exactly the ChatGPT case.
+            //
+            // Pair comparison, not `buildIdentity`: both sides here carry a
+            // marketing string AND a build, and collapsing each to one string
+            // compares the builds alone. A vendor whose builds run monotonically
+            // across two trains then hands a staged 1.2.0 (build 2001) over an
+            // installed 1.3.0 (build 1990) and this offers Relaunch for a
+            // downgrade. Marketing settles direction; the build breaks its ties,
+            // which is the whole point of ``StagedSelfUpdate/versionSide``.
             if requireNewerThanInstalled {
-                let stagedV = staged.buildIdentity
-                guard let installedV = app.buildVersion ?? app.shortVersion,
-                      VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+                guard VersionComparator.isNewer(staged.versionSide, than: app.versionSide)
+                else { return nil }
             }
             return staged
         }
@@ -162,14 +169,15 @@ public enum SelfUpdaterStaging {
         else { return nil }
         let stagedBuild = infoDict["CFBundleVersion"] as? String
 
-        // Compare the staged build against what's installed, mirroring
-        // `computeRestartInfo`'s build-then-short preference. Only a strictly newer
+        // Compare the staged bundle against what's installed as a PAIR — same
+        // reasoning as the Sparkle branch above: each side carries both strings, and
+        // picking one per side compares the builds alone, which reads a trailing
+        // release carrying a leading build as an update. Only a strictly newer
         // staged version counts — a leftover state file whose staged bundle equals
         // (or trails) what's on disk has already been applied.
         if requireNewerThanInstalled {
-            let stagedV = stagedBuild ?? stagedShort
-            guard let installedV = app.buildVersion ?? app.shortVersion,
-                  VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+            let stagedSide = VersionSide(marketing: stagedShort, build: stagedBuild)
+            guard VersionComparator.isNewer(stagedSide, than: app.versionSide) else { return nil }
         }
 
         return StagedSelfUpdate(

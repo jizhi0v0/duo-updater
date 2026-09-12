@@ -251,6 +251,29 @@ struct SparkleStagingTests {
         }
     }
 
+    /// A vendor whose builds run monotonically ACROSS trains stages a build that
+    /// is numerically newer and a release OLDER. Deciding this on the build alone
+    /// reads that as an update and offers Relaunch for a downgrade. Marketing
+    /// settles direction; the build only breaks a marketing tie.
+    @Test func aStagedBuildWhoseMarketingVersionTrailsIsNotReportedAsAnUpdate() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "1.2.0", build: "2001")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.3.0", build: "1990")
+            let app = sparkleApp(at: installed, short: "1.3.0", build: "1990")
+
+            let parked = [parkedInstaller(in: caches)]
+            #expect(SelfUpdaterStaging.staged(
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: parked) == nil)
+            // The restart check still has to see it — that is the collision case.
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: parked)?.version == "1.2.0")
+        }
+    }
+
     /// The candidate pre-filter has to let Sparkle apps through, or none of the
     /// above is ever asked. It must keep saying no to an app with neither.
     @Test func theCandidateFilterAdmitsSparkleApps() {

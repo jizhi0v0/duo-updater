@@ -973,10 +973,12 @@ private func matches(
     #expect(matches("anki-26.08.1-mac-apple.dmg", "net.ankiweb.anki"))
     #expect(matches("anki-26.08.1-mac-intel.dmg", "net.ankiweb.anki"))
     #expect(!matches("anki-26.08.1-windows-qt6.exe", "net.ankiweb.anki"))
-    // Pins the known gap so it can't be mistaken for a rule bug later: Anki stamps
-    // CFBundleVersion "1" on every build, and evaluate()'s folded-build fallback
-    // turns installed 26.8 + build 1 into "26.8.1", which equals the real 26.08.1
-    // release — so that one patch step reads as up-to-date. Documented on the rule.
+    // Was a known gap, now closed, and pinned here because this rule is where it
+    // showed: Anki stamps CFBundleVersion "1" on every build, and evaluate()'s
+    // folded-build fallback turned installed 26.8 + build 1 into "26.8.1", which
+    // equals the real 26.08.1 release — so that one patch step read as up-to-date.
+    // The fallback now requires the installed build to be a counter of at least
+    // 100, which a hand-stamped "1" is not.
     let installed = InstalledApp(
         name: "Anki", bundleID: "net.ankiweb.anki",
         shortVersion: "26.8", buildVersion: "1",
@@ -985,14 +987,13 @@ private func matches(
     let remote = RemoteVersion(
         shortVersion: "26.08.1", version: nil, downloadURL: nil,
         sourceName: "GitHub", requiresManualInstaller: false)
-    // Recorded as a KNOWN issue, so the day someone tightens the fallback this test
-    // reports "known issue was not recorded" — a prompt to delete the wrapper and
-    // the note on the rule, rather than a failure blaming the fix.
-    withKnownIssue("evaluate()'s folded-build fallback reads installed 26.8 + build 1 as 26.8.1, hiding the real 26.08.1 release") {
-        guard case .updateAvailable = UpdateChecker.evaluate(installed: installed, remote: remote) else {
-            Issue.record("26.08.1 not offered over installed 26.8")
-            return
-        }
+    // This was wrapped in `withKnownIssue` while the gap was open, precisely so
+    // that tightening the fallback would report "known issue was not recorded" and
+    // prompt for the wrapper's removal. That is what happened, so the assertion is
+    // now made straight.
+    guard case .updateAvailable = UpdateChecker.evaluate(installed: installed, remote: remote) else {
+        Issue.record("26.08.1 not offered over installed 26.8")
+        return
     }
 }
 

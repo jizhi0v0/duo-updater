@@ -104,6 +104,36 @@ extension StagedBlocksInstallTests {
 
 extension StagedBlocksInstallTests {
 
+    /// Spotify's staging carries no `CFBundleVersion` at all — `SelfUpdaterStaging`
+    /// constructs it with `buildVersion: nil`, because `update.json` reports only a
+    /// marketing `version_to`. Picking `buildVersion ?? version` on each side
+    /// independently then compared the staged MARKETING string against the installed
+    /// BUILD number: two namespaces, never equal, so a leftover staging directory
+    /// went on blocking installs for as long as it sat there. (Measured 2026-09-13:
+    /// this Mac's Spotify copy happens to carry identical short and build strings,
+    /// which hides it — the pick is wrong whether or not today's data exposes it.)
+    @Test func anAppliedStagedUpdateWithNoBuildNumberDoesNotBlock() {
+        let app = InstalledApp(
+            name: "ZZFixtureStage", bundleID: "zz.fixture.stage",
+            shortVersion: "1.2.60", buildVersion: "108000456",
+            path: URL(fileURLWithPath: "/ZZFixture-Stage.app"),
+            isMASApp: false, sparkleFeedURL: nil, hasSelfUpdater: true)
+        let r = UpdateResult(
+            app: app,
+            remote: RemoteVersion(
+                shortVersion: "1.2.61", version: nil,
+                downloadURL: URL(string: "https://example.com/a.zip"), sourceName: "Vendor"),
+            status: .updateAvailable(latest: "1.2.61"))
+        // Staged marketing == installed marketing: already applied, must not block.
+        #expect(UpdatePolicy.stagedBlocksInstall(r, staged: staged("1.2.60", build: nil)) == nil)
+        // A different staged marketing version has NOT been applied and still blocks.
+        #expect(UpdatePolicy.stagedBlocksInstall(r, staged: staged("1.2.61", build: nil)) != nil)
+        #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Stage.app"))
+    }
+}
+
+extension StagedBlocksInstallTests {
+
     /// `actionableStaged` gates the **Relaunch** button, so it must never point at a
     /// build older than what is installed — relaunching into that applies a
     /// DOWNGRADE, and `relaunchStagedUpdate` waits for the on-disk version to move

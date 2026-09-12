@@ -296,7 +296,9 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Past releases the source surfaced alongside the latest — every dated entry
     /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
     /// an app's whole visible history at once (the latest is included too; the
-    /// store dedupes by version). Empty for sources that only resolve one release.
+    /// store dedupes on version + vendor date, and both paths read that date from
+    /// the same item, so the overlap costs nothing). Empty for sources that only
+    /// resolve one release.
     public let releaseHistory: [ReleaseHistoryEntry]
 
     /// The channel of the rule that produced this answer.

@@ -596,21 +596,67 @@ public struct UpdateChecker: Sendable {
         // The remote looks newer by marketing version alone — but some vendors
         // fold the build INTO the version string: Oray reports "16.5.0.30757"
         // while the installed bundle splits it into short "16.5.0" + build
-        // "30757". Re-check against the installed short+build; if that isn't older
-        // than the remote, the app is actually current — otherwise the row would
-        // show a perpetual "update" even right after a successful install. Guarded
-        // to a plain-numeric build tail not already part of the short version, so
-        // normal apps (whose build duplicates/dot-extends the short version) are
-        // unaffected — they never reach here unless genuinely behind.
-        if let build = installed.buildVersion,
-           !build.isEmpty, !build.contains("."), !isv.hasSuffix(build) {
+        // "30757". Those two name the SAME release, so recognise that one shape
+        // and settle the row to current; otherwise it shows a perpetual "update"
+        // even right after a successful install.
+        //
+        // The test is equality with the folded form, not "the remote is no newer
+        // than it". The looser test read the fabricated `short + "." + build` tail
+        // as a version component, and a build number is a large integer: installed
+        // short "12.10" + build "282987" fabricates "12.10.282987", which outranks
+        // every real "12.10.x" the vendor can ship. Every source that reports no
+        // separate build (Homebrew, GitHub, the App Store, Electron, most vendor
+        // probes) reaches this line, so every app whose marketing version has
+        // fewer components than its build has digits had its hotfixes swallowed —
+        // an ordinary shape, not a rare one. Equality cannot do that: it fires only
+        // when the remote IS the folded pair.
+        //
+        // The two shapes are not otherwise separable: "12.10" + "282987" against
+        // "12.10.1" and "16.5.0" + "30757" against "16.5.0.29000" are the same
+        // string problem, so a folded remote naming an OLDER build than the one on
+        // disk now reads as an update instead of being suppressed. That direction
+        // is the one to fail in — it offers the vendor's currently published
+        // package to a copy that is ahead of it, which is visible and recoverable,
+        // where the other direction hid real updates silently.
+        // Equality is still not enough on its own when the installed build is a
+        // small hand-stamped constant. Anki stamps `CFBundleVersion` as a literal
+        // "1" for every build, so short "26.8" + build "1" folds to exactly
+        // "26.8.1" and the vendor's real 26.8.1 patch matched the folded form —
+        // the same hidden hotfix in miniature.
+        //
+        // So: a floor. A vendor folds its build into the version string BECAUSE
+        // the build is a large monotonic counter (Oray's 30757); a one- or
+        // two-digit `CFBundleVersion` is a constant somebody typed, not something
+        // anyone folds. Three digits is a judgment call, not a measured universal
+        // — it is chosen to clear Anki's "1" and every constant of that kind while
+        // leaving real counters alone, and a vendor who genuinely folds a 99 would
+        // be offered a re-install of the version it is already on, which is the
+        // harmless direction. `buildIsFoldableCounter` measures that by string, so
+        // a build too wide for `Int64` stays foldable.
+        if let build = installed.buildVersion, !build.contains("."), !isv.hasSuffix(build),
+           Self.buildIsFoldableCounter(build) {
             let combined = "\(isv).\(build)"
-            if !VersionComparator.isNewer(rs, than: combined) {
+            if VersionComparator.compare(rs, combined) == .orderedSame {
                 return .upToDate
             }
         }
 
         return .updateAvailable(latest: remote.displayVersion ?? rs)
+    }
+
+    /// Whether a build number is big enough to be the kind of counter a vendor
+    /// folds into its version string: ASCII digits only, and at least three of
+    /// them once leading zeros are off.
+    ///
+    /// Measured by string, not by `Int(build)`, for the same reason
+    /// `VersionComparator`'s tokenizer keeps digit runs as strings: an epoch-ms
+    /// or concatenated build overflows `Int64`, and `Int(build)` answering nil
+    /// there would silently switch fold recognition OFF for exactly the vendors
+    /// whose builds are largest. Stripping leading zeros first matches that
+    /// tokenizer's own normalisation, so "007" is the counter 7, not a 3-digit one.
+    static func buildIsFoldableCounter(_ build: String) -> Bool {
+        guard !build.isEmpty, build.allSatisfy({ $0.isASCII && $0.isNumber }) else { return false }
+        return build.drop(while: { $0 == "0" }).count >= 3
     }
 
     /// Drop a leading product-code run like "IU-"/"AI-" from a build number so a

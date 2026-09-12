@@ -61,10 +61,11 @@ public actor ReleaseTimelineStore {
 
     /// Record one observed release. No-op when both `publishedAt` and `vendorDay`
     /// are nil (the source gave no trustworthy date at all) or when we've already
-    /// recorded this version for this app — each version is logged exactly once,
-    /// at first sighting, so re-checks don't pile up duplicates or drift the
-    /// recorded `detectedAt`. Duplicate sightings may still refresh the
-    /// timeline's display metadata.
+    /// recorded this (version, vendor date) for this app — each release is logged
+    /// exactly once, at first sighting, so re-checks don't pile up duplicates or
+    /// drift the recorded `detectedAt`. Two releases the vendor dated differently
+    /// are two releases even when they share a marketing version. Duplicate
+    /// sightings may still refresh the timeline's display metadata.
     ///
     /// `publishedAt` and `vendorDay` are alternatives, never both real for the
     /// same call: a source names one precision for a given release, and passing
@@ -97,8 +98,24 @@ public actor ReleaseTimelineStore {
         timeline.appName = appName
         timeline.bundleID = bundleID
 
-        // Already logged this version? Nothing to do — first sighting wins.
-        guard !timeline.events.contains(where: { $0.version == version }) else {
+        // Already logged this release? Nothing to do — first sighting wins.
+        //
+        // Keyed on the version AND the vendor date, because several releases can
+        // ship under one marketing version: Surge has put out four called "6.9.0",
+        // Amp shipped ten builds as "1.0" in a day. On the version alone the first
+        // of them was logged and the rest read as already-recorded, so the timeline
+        // under-counted exactly the vendors whose marketing string has stopped
+        // carrying information. The date is the discriminator available HERE (a
+        // `ReleaseHistoryEntry` carries no build number) and a sound one: this path
+        // refuses to record at all without one, and two releases the vendor dated
+        // differently are two releases.
+        //
+        // Same-release re-checks still dedupe: both call sites read one item's date
+        // through `ReleaseDate.publishedFields`, so the latest release and its own
+        // entry in `releaseHistory` produce byte-identical dates.
+        guard !timeline.events.contains(where: {
+            $0.version == version && $0.publishedAt == publishedAt && $0.vendorDay == vendorDay
+        }) else {
             // Persist the refreshed name/bundle even when no event was added.
             timelines[appID] = timeline
             if displayFieldsChanged { timelinesDirty = true }
@@ -186,6 +203,19 @@ public actor ReleaseTimelineStore {
 
         // Don't double-record a version already known (e.g. a trustworthy event
         // landed for it earlier, or a beta flapped back).
+        //
+        // Deliberately still the version ALONE, even though `record` above no
+        // longer treats "same version" as "same release". The two tiers key on
+        // different strings and neither reading is weakened here:
+        //
+        //  - Within this tier the version already IS the full discriminator. The
+        //    caller passes `side.text(withBuild: true)`, so a frozen-marketing
+        //    vendor's next build arrives as a different string ("6.9.0 (2382)")
+        //    and is not suppressed. Adding a date here would key on OUR polling
+        //    clock, which changes every check and would defeat the guard entirely.
+        //  - Across tiers, suppressing is the right answer: this path only runs
+        //    when the source stated no date at all, so an estimated window for a
+        //    version some source already dated is strictly worse information.
         guard !timeline.events.contains(where: { $0.version == version }) else {
             return false
         }

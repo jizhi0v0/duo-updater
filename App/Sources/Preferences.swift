@@ -327,7 +327,9 @@ final class Preferences {
     }
 
     /// Per-app version we've already posted a "new update available" notification
-    /// for (key → the offered version). Persisted so the banner fires regardless
+    /// for (key → the offered version, as `NotifiedUpdateVersions.announceKey`
+    /// spells it: build-aware, so a vendor that freezes its marketing string can
+    /// still announce its next build). Persisted so the banner fires regardless
     /// of *which* refresh path first surfaces the update — manual menu-open or
     /// scheduled background — instead of the in-memory list silently becoming the
     /// baseline; and so the same version isn't re-announced across relaunches.

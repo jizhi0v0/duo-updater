@@ -8,9 +8,12 @@ import Foundation
 /// Entries expire after ``ttl`` seconds so the window always reflects recent
 /// releases rather than a session-long snapshot.
 ///
-/// Keyed on the recipe's canonical `source` URL so each recipe owns exactly one
-/// cache slot, regardless of the per-run resolved detail URL (index redirects
-/// don't inflate the key space). The cache stores parsed ``Changelog`` values —
+/// Keyed on the recipe's canonical `source` URL plus the recipe's own identity as
+/// a fragment (``ChangelogService/cacheKeyURL(for:resolved:)``), so each recipe
+/// owns exactly one cache slot and no two recipes share one — several recipes can
+/// read one page (Warp's three channels, Antigravity's two products). The per-run
+/// resolved detail URL stays out of it, so index redirects don't inflate the key
+/// space. The cache stores parsed ``Changelog`` values —
 /// not raw HTML — so it carries no ambiguity about what `nil` means.
 ///
 /// Concurrent callers requesting the same URL while a fetch is in-flight are
@@ -105,6 +108,21 @@ public actor ChangelogCache {
         inflight[url]?.cancel()
         inflight[url] = nil
         store[url] = nil
+    }
+
+    /// Drop every slot whose key carries this fragment — i.e. every slot belonging
+    /// to one recipe, whatever page it resolved to.
+    ///
+    /// One recipe is not one URL: a templated recipe (`sourceTemplate`) fetches a
+    /// different page per version, so it can own several slots at once, and the
+    /// caller after an on-disk update knows the recipe but not which versions the
+    /// user has opened. Matching on the fragment is what makes "drop this recipe's
+    /// notes" unable to miss. Compared percent-encoded, because that is how
+    /// ``ChangelogService/cacheKeyURL(for:resolved:)`` writes it.
+    public func invalidate(fragment: String) {
+        let keys = Set(store.keys).union(inflight.keys)
+            .filter { $0.fragment(percentEncoded: true) == fragment }
+        for key in keys { invalidate(key) }
     }
 
     // MARK: - Low-level access (also used by tests)

@@ -207,6 +207,52 @@ import DuoUpdaterCore
         let body = #"{"version":"1.2.3"}"#
         #expect(ResponseSample.condense(body, limit: 4096, pattern: nil) == body)
     }
+
+    /// `limit` is `maxSampleBytes` and the note says "bytes elided", but the head
+    /// and tail were taken with `String.prefix`/`suffix`, which count Characters.
+    /// On a CJK page that is 3 bytes each: a 1 200-byte cap kept ~3 600 bytes, and
+    /// the elided count it reported was the one it would have dropped had the cap
+    /// been honoured. Both halves of the promise are checked here — what is kept,
+    /// and what the sample claims about what is gone.
+    @Test func theSampleIsCappedInBytesAndReportsTheBytesItActuallyDropped() throws {
+        let body = String(repeating: "中", count: 5_000)  // 5 000 Characters, 15 000 bytes
+        let limit = 1_200
+        let sample = ResponseSample.condense(body, limit: limit, pattern: nil)
+
+        let note = try #require(
+            sample.range(of: #"\n…\[\d+ bytes elided\]…\n"#, options: .regularExpression))
+        let reported = try #require(Int(sample[note].filter(\.isNumber)))
+        let kept = sample.replacingCharacters(in: note, with: "")
+
+        #expect(kept.utf8.count <= limit)
+        #expect(reported == body.utf8.count - kept.utf8.count)
+        // A multi-byte character is never split down the middle.
+        #expect(kept.allSatisfy { $0 == "中" })
+    }
+
+    /// The same cap, on the branch that usually runs. `condense` only reaches the
+    /// head/tail path when the pattern's anchors are all gone; when one is still
+    /// there — the normal case — the window comes from `windowAroundAnchor`, which
+    /// was counting Characters too.
+    @Test func theAnchoredWindowIsCappedInBytesToo() {
+        let limit = 1_200
+        let body = String(repeating: "中", count: 3_000)
+            + #"<li id="codex-1">版本 4.2.0</li>"#
+            + String(repeating: "文", count: 3_000)
+        let sample = ResponseSample.condense(
+            body, limit: limit, pattern: #"<li id="codex-[^"]*">"#)
+
+        #expect(sample.contains("centred on the pattern's anchor"))
+        #expect(sample.contains(#"<li id="codex-1">版本 4.2.0</li>"#))
+        // The framing lines are the tool talking; the window it wrapped is what the
+        // cap is about.
+        let window = sample
+            .replacingOccurrences(
+                of: #"^…\[sample centred on the pattern's anchor '[^']*'\]…\n"#,
+                with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\n…[truncated]…", with: "")
+        #expect(window.utf8.count <= limit)
+    }
 }
 
 /// A suggestion in an issue is read weeks later, when the only thing that says

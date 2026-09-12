@@ -2996,3 +2996,28 @@ private let kimiReleaseNotesFixture = #"""
     #expect(log.entries[2].items.last == "Fixed several bugs and improved some interactions")
     #expect(!log.entries.contains { $0.items.contains { $0.contains("(2026-") || $0.contains("helpful") } })
 }
+
+// MARK: - Typeless, CRLF (the trap `bulletItems` and `postmanItems` already close)
+
+// A v3 array payload whose one feature's `content` separates its two bullets with
+// CRLF. `decodeTypeless` split that content on the literal "\n", and Swift treats
+// "\r\n" as a SINGLE Character that does not equal "\n" — so the whole body came
+// back as one "line", `bulletItems(from:).first` kept only the first bullet, and
+// the second one silently vanished. Two sibling call sites in this same decoder
+// (`bulletItems`, `postmanItems`) carry doc comments explaining exactly this trap;
+// this one had been missed.
+private let typelessCRLFB64 = "H4sIAAAAAAAC/03LMQ7CMAwF0KtYnkkVioQEJ+AObYfQOhDJTVDsslS9O0kmhr+8//+w45eyhBTxDth3trN4AlycUgPbX429mfOl6oed+pTX2qxuTlLRk9MtkxQcdtSg3J6P8HpzibbRnKJS1FoY8CGLwnNjJgUOkcY8RgNCZbX8Ox7TMf0An2tl66IAAAA="
+
+private let typelessCRLFFixture = """
+<!doctype html><html><body>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"platform":"macos","dataKey":"typeless-release-notes--v3--macos","embeddedLangCode":"en","compressedData":"\(typelessCRLFB64)"}},"page":"/help/release-notes/[platform]"}</script>
+</body></html>
+"""
+
+@Test func typelessDecodeSplitsCRLFBodiesIntoSeparateNotes() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        typelessCRLFFixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 12))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "2.0.0")
+    #expect(changelog.entries[0].items == ["first bullet line", "second bullet line"])
+}

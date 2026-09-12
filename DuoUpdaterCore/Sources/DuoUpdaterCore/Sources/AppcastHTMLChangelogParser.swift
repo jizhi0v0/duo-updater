@@ -135,6 +135,12 @@ enum AppcastHTMLChangelogParser {
         cleaned.range(of: #"^release date\b"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// Compiled once: `cleanInline` runs per `<li>`, and a long appcast
+    /// `<description>` has dozens. Same reasoning — and same thread-safety — as
+    /// `ChangelogExtractor.elementBreakRegex`.
+    private static let anchorRegex = try? NSRegularExpression(
+        pattern: #"<a\b[^>]*>([\s\S]*?)</a>"#, options: [.caseInsensitive])
+
     /// Clean one captured heading/`<li>` body for plain-text display: flatten
     /// `<a href="…">text</a>` to just `text` (no bracket/paren markup, no bare
     /// URL — `Changelog.itemSyntax` for this path is `.plain`, so anything left
@@ -143,9 +149,10 @@ enum AppcastHTMLChangelogParser {
     /// collapse whitespace. nil when nothing readable is left.
     private static func cleanInline(_ raw: String) -> String? {
         var s = raw
-        s = s.replacingOccurrences(
-            of: #"<a\b[^>]*>([\s\S]*?)</a>"#, with: "$1",
-            options: [.regularExpression, .caseInsensitive])
+        if let anchorRegex {
+            s = anchorRegex.stringByReplacingMatches(
+                in: s, range: NSRange(s.startIndex..., in: s), withTemplate: "$1")
+        }
         // Known HTML elements only — NOT a blind `<[^>]+>` sweep. TablePro's notes
         // carry `` `USE <database>` `` and `` `<unsupported: type>` `` as literal
         // text inside CDATA, and a blind sweep deletes exactly the identifier the

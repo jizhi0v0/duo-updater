@@ -56,8 +56,14 @@ public enum ChangelogExtractor {
                 .flatMap { $0.isEmpty ? nil : $0 }
 
             // Items come from the `body` group when present, else the whole entry.
+            // NOT `group(match, nil, …)`, whose fallback is capture group 1: a named
+            // group is a numbered group too, so for a pattern without a `body` group
+            // that handed the item regexes the `version` capture — a version string,
+            // never any items — and the entry was dropped for having none. All 65
+            // registered entry patterns declare `body` today, so it only ever
+            // mattered for the next one written without it.
             let bodyText = group(match, "body", in: text)
-                ?? group(match, nil, in: text)
+                ?? wholeMatch(match, in: text)
                 ?? ""
 
             let noteHits = firstNonEmptyItemHits(in: bodyText, regexes: itemRegexes, recipe: recipe)
@@ -207,6 +213,13 @@ public enum ChangelogExtractor {
         return String(text[r])
     }
 
+    /// The entire matched text, capture groups ignored.
+    private static func wholeMatch(_ match: NSTextCheckingResult, in text: String) -> String? {
+        guard match.range.location != NSNotFound,
+              let r = Range(match.range, in: text) else { return nil }
+        return String(text[r])
+    }
+
     /// Strip tags (optional), decode entities (optional), collapse whitespace, trim.
     private static func clean(_ raw: String, _ recipe: ChangelogRecipe) -> String {
         var s = raw
@@ -263,9 +276,11 @@ public enum ChangelogExtractor {
             options: .regularExpression)
     }
 
+    private static let inlineCodeRegex = try? NSRegularExpression(
+        pattern: "``([^\n]*?)``|`([^`\n]+?)`")
+
     static func unwrapMarkdownInlineCode(_ s: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: "``([^\n]*?)``|`([^`\n]+?)`")
-        else { return s }
+        guard let regex = inlineCodeRegex else { return s }
         return regex.stringByReplacingMatches(
             in: s, range: NSRange(location: 0, length: (s as NSString).length),
             withTemplate: "$1$2")
@@ -288,6 +303,19 @@ public enum ChangelogExtractor {
         "var", "video",
     ]
 
+    /// Compiled once, not per call. `clean()` runs for every item, heading, title,
+    /// version and date of every entry, so a 60-release page with 20 notes each
+    /// re-compiled these thousands of times per panel open — and the element-name
+    /// alternation below re-joined its 70 names each time on top of that.
+    /// `NSRegularExpression` is immutable and thread-safe, which is what lets these
+    /// be `static let` (the same reason `RecordedPath.tokenShapes` is).
+    private static let elementBreakRegex = try? NSRegularExpression(
+        pattern: #"<\s*/?\s*(?:br|p|li|div|ul|ol|tr|td|th|h[1-6])\b[^>]*>"#,
+        options: [.caseInsensitive])
+    private static let elementRestRegex = try? NSRegularExpression(
+        pattern: #"<\s*/?\s*(?:\#(htmlElementNames.joined(separator: "|")))\b[^>]*>"#,
+        options: [.caseInsensitive])
+
     /// Strip only *known* HTML elements, turning the block-level ones into a space
     /// so adjacent text doesn't glue together, and leave every other angle-bracket
     /// run as literal text.
@@ -306,34 +334,32 @@ public enum ChangelogExtractor {
     /// `<custom-tag>`) survives as text, which is the safe direction — visible
     /// noise beats invisible deletion.
     static func stripHTMLElements(_ s: String) -> String {
-        let names = htmlElementNames.joined(separator: "|")
         var out = s
         // Block/line-breaking elements first, to a space.
-        if let breaks = try? NSRegularExpression(
-            pattern: #"<\s*/?\s*(?:br|p|li|div|ul|ol|tr|td|th|h[1-6])\b[^>]*>"#,
-            options: [.caseInsensitive]) {
+        if let breaks = elementBreakRegex {
             out = breaks.stringByReplacingMatches(
                 in: out, range: NSRange(out.startIndex..., in: out), withTemplate: " ")
         }
-        if let rest = try? NSRegularExpression(
-            pattern: #"<\s*/?\s*(?:\#(names))\b[^>]*>"#, options: [.caseInsensitive]) {
+        if let rest = elementRestRegex {
             out = rest.stringByReplacingMatches(
                 in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
         }
         return out
     }
 
+    /// See `elementBreakRegex` for why these are hoisted.
+    private static let tagBreakRegex = try? NSRegularExpression(
+        pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
+        options: [.caseInsensitive])
+    private static let anyTagRegex = try? NSRegularExpression(pattern: #"<[^>]+>"#)
+
     static func stripTags(_ s: String) -> String {
-        let breaks = try? NSRegularExpression(
-            pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
-            options: [.caseInsensitive])
         var out = s
-        if let breaks {
+        if let breaks = tagBreakRegex {
             out = breaks.stringByReplacingMatches(
                 in: out, range: NSRange(out.startIndex..., in: out), withTemplate: " ")
         }
-        let anyTag = try? NSRegularExpression(pattern: #"<[^>]+>"#)
-        if let anyTag {
+        if let anyTag = anyTagRegex {
             out = anyTag.stringByReplacingMatches(
                 in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
         }
@@ -348,54 +374,73 @@ public enum ChangelogExtractor {
         decodeJSONUnicodeEscapes(decodeHTMLEntities(s))
     }
 
-    /// The HTML half on its own: named entities plus numeric `&#NNN;` / `&#xHHH;`.
-    /// Split out from `decodeEntities` because the JSON `\uXXXX` pass that follows
-    /// it there has nothing to do with HTML — it exists for json-mode feeds whose
-    /// server escapes non-ASCII. A caller working on real markup (the Sparkle
-    /// appcast HTML parser) wants this half only: running the JSON pass over a
-    /// vendor's prose would rewrite a literal `\uXXXX` the vendor actually typed.
-    static func decodeHTMLEntities(_ s: String) -> String {
-        var out = s
-        let named: [String: String] = [
-            "&amp;": "&", "&lt;": "<", "&gt;": ">",
-            "&quot;": "\"", "&apos;": "'", "&#39;": "'",
-            "&nbsp;": " ", "&mdash;": "—", "&ndash;": "–",
-            "&hellip;": "…", "&rsquo;": "’", "&lsquo;": "‘",
-            "&ldquo;": "“", "&rdquo;": "”", "&times;": "×",
-        ]
-        for (entity, replacement) in named {
-            out = out.replacingOccurrences(of: entity, with: replacement)
-        }
-        // Numeric escapes: &#NNN; (decimal) and &#xHHH; (hex).
-        out = decodeNumericEntities(out)
-        return out
-    }
+    /// The named entities worth decoding. No `&#39;` here even though it decodes to
+    /// the same apostrophe: numeric escapes are handled by the same pass, from the
+    /// `&#…;` branch of `entityRegex`, so a second spelling of it would be dead.
+    private static let namedEntities: [String: String] = [
+        "&amp;": "&", "&lt;": "<", "&gt;": ">",
+        "&quot;": "\"", "&apos;": "'",
+        "&nbsp;": " ", "&mdash;": "—", "&ndash;": "–",
+        "&hellip;": "…", "&rsquo;": "’", "&lsquo;": "‘",
+        "&ldquo;": "“", "&rdquo;": "”", "&times;": "×",
+    ]
 
-    private static func decodeNumericEntities(_ s: String) -> String {
-        guard let regex = try? NSRegularExpression(
-            pattern: #"&#(x?[0-9a-fA-F]+);"#, options: [.caseInsensitive]) else { return s }
+    /// Every entity shape in one expression: `&#NNN;`, `&#xHHH;`, `&name;`.
+    private static let entityRegex = try? NSRegularExpression(
+        pattern: #"&(?:#([xX]?[0-9a-fA-F]+)|[a-zA-Z][a-zA-Z0-9]*);"#)
+
+    /// The HTML half of `decodeEntities` on its own: named entities plus numeric
+    /// `&#NNN;` / `&#xHHH;`. Split out from `decodeEntities` because the JSON
+    /// `\uXXXX` pass that follows it there has nothing to do with HTML — it exists
+    /// for json-mode feeds whose server escapes non-ASCII. A caller working on real
+    /// markup (the Sparkle appcast HTML parser) wants this half only: running the
+    /// JSON pass over a vendor's prose would rewrite a literal `\uXXXX` the vendor
+    /// actually typed.
+    ///
+    /// ONE left-to-right pass, which is both the correct semantics and the reason
+    /// this isn't a loop over the dictionary any more.
+    ///
+    /// It used to be `for (entity, replacement) in named` — and Swift randomises
+    /// `Dictionary` iteration order per process (a per-launch hash seed), so what a
+    /// double-escaped body decoded to changed from launch to launch: `&amp;lt;`,
+    /// which a vendor writes to show the reader a literal `&lt;`, came out as
+    /// `&lt;` when `&amp;` was substituted late and as `<` when it was substituted
+    /// early. The numeric pass was not even random — it ran unconditionally after
+    /// the named one, so `&amp;#39;` always decoded twice.
+    ///
+    /// Ordering the passes instead (numerics first, `&amp;` last) does not fix it:
+    /// `&#38;` IS an ampersand, so `&#38;lt;` would become `&lt;` and the named
+    /// pass behind it would eat that too. A single pass cannot double-decode in
+    /// either direction, because it never re-reads what it has written — each
+    /// entity present in the INPUT is decoded exactly once.
+    static func decodeHTMLEntities(_ s: String) -> String {
+        guard s.contains("&"), let regex = entityRegex else { return s }
         let ns = s as NSString
         var result = ""
         var last = 0
         for m in regex.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
             result += ns.substring(with: NSRange(location: last, length: m.range.location - last))
-            let token = ns.substring(with: m.range(at: 1))
-            let scalarValue: UInt32?
-            if token.lowercased().hasPrefix("x") {
-                scalarValue = UInt32(token.dropFirst(), radix: 16)
+            let whole = ns.substring(with: m.range)
+            let decoded: String?
+            if m.range(at: 1).location != NSNotFound {
+                // Numeric: &#NNN; (decimal) and &#xHHH; (hex).
+                let token = ns.substring(with: m.range(at: 1))
+                let value = token.lowercased().hasPrefix("x")
+                    ? UInt32(token.dropFirst(), radix: 16)
+                    : UInt32(token, radix: 10)
+                decoded = value.flatMap(Unicode.Scalar.init).map { String(Character($0)) }
             } else {
-                scalarValue = UInt32(token, radix: 10)
+                decoded = namedEntities[whole]
             }
-            if let v = scalarValue, let scalar = Unicode.Scalar(v) {
-                result.append(Character(scalar))
-            } else {
-                result += ns.substring(with: m.range)  // leave it untouched
-            }
+            result += decoded ?? whole  // an unknown entity is left untouched
             last = m.range.location + m.range.length
         }
         result += ns.substring(from: last)
         return result
     }
+
+    private static let jsonEscapeRegex = try? NSRegularExpression(
+        pattern: #"\\(u[0-9a-fA-F]{4}|.)"#, options: [.dotMatchesLineSeparators])
 
     /// Full JSON string unescape (`\"`, `\\`, `\/`, `\n`, `\t`, `\r`, `\b`, `\f`,
     /// `\uXXXX`) in one left-to-right pass — used only for `.json`-mode feeds, where
@@ -404,9 +449,7 @@ public enum ChangelogExtractor {
     /// An unknown escape drops the backslash and keeps the char (lenient, like JSON).
     private static func decodeJSONStringEscapes(_ s: String) -> String {
         guard s.contains("\\") else { return s }
-        guard let regex = try? NSRegularExpression(
-            pattern: #"\\(u[0-9a-fA-F]{4}|.)"#, options: [.dotMatchesLineSeparators]
-        ) else { return s }
+        guard let regex = jsonEscapeRegex else { return s }
         let ns = s as NSString
         var result = ""
         var last = 0
@@ -460,10 +503,15 @@ public enum ChangelogExtractor {
         return out
     }
 
+    private static let whitespaceRunRegex = try? NSRegularExpression(pattern: #"\s+"#)
+
     /// Internal (not `private`) — see `stripTags`.
     static func collapseWhitespace(_ s: String) -> String {
-        let collapsed = s.replacingOccurrences(
-            of: #"\s+"#, with: " ", options: .regularExpression)
+        guard let regex = whitespaceRunRegex else {
+            return s.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let collapsed = regex.stringByReplacingMatches(
+            in: s, range: NSRange(s.startIndex..., in: s), withTemplate: " ")
         return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

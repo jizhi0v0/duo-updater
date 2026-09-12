@@ -75,7 +75,14 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   hand-written recipe (Mac Performance Monitor) opt in unconditionally.
     ///   Notes already cached under the old logic had every group's heading
     ///   dropped with no way to tell which category a line belonged to.
-    public static let parserGeneration = 3
+    /// - 4: HTML entity decoding is one left-to-right pass instead of a loop over a
+    ///   `Dictionary`, whose iteration order Swift randomises per process — so a
+    ///   double-escaped note (`&amp;lt;`, a vendor showing the reader a literal
+    ///   `&lt;`) decoded once on one launch and twice on the next, and whichever
+    ///   reading the cache happened to catch is now wrong half the time. Typeless's
+    ///   decoder also splits CRLF bodies correctly, so an entry cached from one kept
+    ///   only its first note.
+    public static let parserGeneration = 4
 
     public let entries: [Entry]
 

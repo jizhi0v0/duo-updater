@@ -66,7 +66,7 @@ public struct VendorProbeSource: UpdateSource {
         let status: Int?
     }
 
-    /// The same rule `ProbeFailure.category` applies to version probes: 5xx and
+    /// The same rule `ProbeFailure.classification` applies to version probes: 5xx and
     /// 429 are the vendor having a bad day, anything else in 4xx is us.
     static func isTransientStatus(_ code: Int) -> Bool {
         code >= 500 || code == 429

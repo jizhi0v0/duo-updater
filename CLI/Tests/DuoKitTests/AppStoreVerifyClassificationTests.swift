@@ -97,7 +97,7 @@ import Foundation
     /// Mutation: the page fetched (2xx) but the production parser
     /// (`extractMacVersionInfo`) found nothing — A2's main silent-failure
     /// mode. Message differs by route (`versionShelfNotFound` vs.
-    /// `compatFlagNotFound`), so this is run for all three routes.
+    /// `compatSignalsNotFound`), so this is run for all three routes.
     @Test func pageFetchedButShapeNotFoundIsBroken() throws {
         for probeCase in [try nativeMacCase(), try iosOnMacCase(), try wrappedIOSCase()] {
             var observation = passingObservation(for: probeCase)
@@ -106,7 +106,7 @@ import Foundation
                 trackViewCheck: observation.trackViewCheck, batchEntry: observation.batchEntry)
             let verdict = Verify.classifyAppStore(probeCase, observation)
             #expect(verdict.status == .broken, "\(probeCase.bundleID)")
-            let expectedPrefix = probeCase.route == .wrappedIOS ? "compatFlagNotFound:" : "versionShelfNotFound:"
+            let expectedPrefix = probeCase.route == .wrappedIOS ? "compatSignalsNotFound:" : "versionShelfNotFound:"
             #expect(verdict.warnings.contains { $0.hasPrefix(expectedPrefix) }, "\(probeCase.bundleID)")
         }
     }

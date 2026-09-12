@@ -18,6 +18,10 @@ import SQLite3
 ///     app can hold iOS rows of its own, so a merged table would offer it an
 ///     iPhone build as its next Mac update.
 ///   - `ZINSTALLSTATUSRAW` 1 == a build TestFlight installed on this machine.
+///     Read on BOTH platform branches. It used to gate only the iOS one, which
+///     left `isManaged(bundleID:installedBuild:)` answering membership out of a
+///     table of everything merely AVAILABLE — see that method for the App Store
+///     purchase it mistagged.
 ///   - `ZTFAPPMODEL.ZISTESTER` 1, reached through a build row's `ZAPP` == the signed-in
 ///     account is testing that app. Read by its own query; see `readTesters`.
 ///     Measured 2026-09-08: 6 of 110 rows carry it, no nulls, values only 0/1, and
@@ -68,8 +72,15 @@ public struct TestFlightInventory: Sendable {
     /// newest available build plus the full set of build numbers, so we can both
     /// offer an update and recognize that an on-disk build is a TestFlight install.
     private let appsByBundleID: [String: App]
-    /// Every (bundleID, build) macOS pair seen — used to confirm a given on-disk
-    /// app really is the TestFlight install (its build appears here).
+    /// The (bundleID, build) macOS pairs `ZINSTALLSTATUSRAW` marks as installed
+    /// HERE — used to confirm a given on-disk app really is the TestFlight
+    /// install. The mirror of `iosBuildsByBundleID` below, and separate from
+    /// `appsByBundleID` above for the same reason: that one answers "what is
+    /// available", this one answers "is this copy TestFlight's".
+    ///
+    /// ⚠️ Falls back to EVERY mac row when the status column could not be read
+    /// (`macRowsOnlySQL`, or a fixture built without `installedMacRows`) — see
+    /// `isManaged(bundleID:installedBuild:)` for why unknown fails open here.
     private let buildsByBundleID: [String: Set<String>]
     /// The same, for the iOS rows TestFlight marks as installed here, and
     /// deliberately a separate map rather than more entries in the one above.
@@ -139,17 +150,19 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, iosRows, iosAvailableRows, frontiers, testers, opened) = Self.readRows(at: url)
+        let (rows, macInstalledRows, iosRows, iosAvailableRows, frontiers, testers, opened) =
+            Self.readRows(at: url)
         self.accessible = opened
         self.frontierByBundleID = frontiers
         self.testerBundleIDs = testers
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
-        var builds: [String: Set<String>] = [:]
-        for row in rows { builds[row.bundleID, default: []].insert(row.build) }
         self.appsByBundleID = Self.newestByBundleID(rows)
-        self.buildsByBundleID = builds
+        // `?? rows` is the fail-open: a schema without `ZINSTALLSTATUSRAW` costs
+        // the precision, not the signal, so every native-Mac TestFlight app keeps
+        // its tag rather than silently losing it.
+        self.buildsByBundleID = Self.buildIndex(macInstalledRows ?? rows)
     }
 
     /// Test seam / explicit construction: inject the parsed rows directly, skipping
@@ -165,6 +178,13 @@ public struct TestFlightInventory: Sendable {
     /// such precondition — every mac row is kept, installed or not, because
     /// ``latest(forBundleID:)`` is asking what is available.
     ///
+    /// ⚠️ `installedMacRows` is the mac mirror of `installedIOSRows`, and omitting
+    /// it means "this fixture does not say which mac builds TestFlight installed",
+    /// NOT "it installed none" — ``isManaged(bundleID:installedBuild:)`` then falls
+    /// back to `macRows` — what it did before the status column was read here. A
+    /// case about a copy TestFlight did NOT install has to pass it (`[]`, or the
+    /// other builds).
+    ///
     /// `availableIOSRows` is the other iOS bucket and carries the opposite
     /// precondition: it is NOT filtered by install status, because
     /// ``latestIOS(forBundleID:)`` is asking what TestFlight offers. Passing only
@@ -173,6 +193,7 @@ public struct TestFlightInventory: Sendable {
     /// to use for a case about an update being available.
     public init(
         macRows: [(bundleID: String, shortVersion: String, build: String)],
+        installedMacRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
         installedIOSRows: [(bundleID: String, shortVersion: String, build: String)] = [],
         availableIOSRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
         frontiers: [String: Frontier] = [:],
@@ -187,16 +208,35 @@ public struct TestFlightInventory: Sendable {
         // available ones, so a fixture that names only the installed rows gets the
         // same shape rather than an inventory that says "installed but not offered".
         self.iosLatestByBundleID = Self.newestByBundleID(availableIOSRows ?? installedIOSRows)
-        var builds: [String: Set<String>] = [:]
-        for row in macRows { builds[row.bundleID, default: []].insert(row.build) }
         self.appsByBundleID = Self.newestByBundleID(macRows)
-        self.buildsByBundleID = builds
+        self.buildsByBundleID = Self.buildIndex(installedMacRows ?? macRows)
     }
 
-    /// Whether an on-disk app is a TestFlight install: its bundle id has macOS
-    /// rows in the DB and the installed build is one of them. Matching the build
-    /// (not just the bundle id) avoids mistaking an App Store copy of an app the
-    /// user merely *has access to* on TestFlight for a TestFlight install.
+    /// Whether an on-disk app is a TestFlight install: TestFlight marks a macOS
+    /// build as installed here (`ZINSTALLSTATUSRAW = 1`) and that is the build on
+    /// disk. The mac counterpart of ``hasInstalledIOSBuild(bundleID:installedBuild:)``,
+    /// and it requires both the same way and for the same reasons.
+    ///
+    /// ⚠️ Matching the build alone is NOT enough, and the comment here used to say
+    /// it was ("avoids mistaking an App Store copy of an app the user merely *has
+    /// access to*"). Measured 2026-09-12 on a machine where it did exactly that:
+    /// `cam.thescreen` is an App Store purchase — `Contents/_MASReceipt` present,
+    /// `kMDItemAppStoreReceiptType = Production`, `Authority=Apple Mac OS
+    /// Application Signing` — while the DB held
+    /// `cam.thescreen | 1.3.1 | 20260903024310 | platform 3 | ZINSTALLSTATUSRAW 0`,
+    /// i.e. a beta the user has access to that happens to carry the same
+    /// `CFBundleVersion` as the shipping build. Build match alone said "TestFlight
+    /// install", `AppScanner`'s `isTestFlight` is an `||` so the Production receipt
+    /// could not veto it, and `UpdateChecker` then returned from the TestFlight
+    /// branch before any source ran — the App Store could never answer for that row.
+    ///
+    /// A vendor shipping the same build to both channels is not exotic; it is what
+    /// happens whenever a beta is promoted unchanged.
+    ///
+    /// Fails OPEN when the status is unknown — `macRowsOnlySQL` (a schema with no
+    /// `ZINSTALLSTATUSRAW`), or a fixture built without `installedMacRows` — by
+    /// falling back to every mac row, because losing the column must cost the
+    /// precision and not the signal.
     public func isManaged(bundleID: String?, installedBuild: String?) -> Bool {
         guard let bundleID, let installedBuild,
               let builds = buildsByBundleID[bundleID] else { return false }
@@ -360,8 +400,11 @@ public struct TestFlightInventory: Sendable {
     typealias Row = (bundleID: String, shortVersion: String, build: String)
     /// What one read of the database yields: the two platform buckets, plus
     /// whether we got in at all.
+    /// `macInstalledRows` is nil — not empty — when the query could not name
+    /// `ZINSTALLSTATUSRAW`. Empty would say "TestFlight installed nothing here",
+    /// which is a claim that read never made.
     typealias Reading = (
-        rows: [Row], iosRows: [Row], iosAvailableRows: [Row],
+        rows: [Row], macInstalledRows: [Row]?, iosRows: [Row], iosAvailableRows: [Row],
         frontiers: [String: Frontier], testers: Set<String>?, opened: Bool)
 
     /// How long to wait for the database to open before treating it as
@@ -397,7 +440,7 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], [], [], [:], nil, false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil, [], [], [:], nil, false) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
@@ -407,7 +450,8 @@ public struct TestFlightInventory: Sendable {
         // tuple type and `Reading`, and the compiler rejects it.
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
-        } ?? (rows: [], iosRows: [], iosAvailableRows: [], frontiers: [:], testers: nil, opened: false)
+        } ?? (rows: [], macInstalledRows: nil, iosRows: [], iosAvailableRows: [],
+              frontiers: [:], testers: nil, opened: false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -418,18 +462,20 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], [], [], [:], nil, false)
+            return ([], nil, [], [], [:], nil, false)
         }
         defer { sqlite3_close(db) }
 
         // Two queries, tried in order, because a prepare failure is total: it
         // returns an empty inventory that still reports `opened`, so every
         // TestFlight app silently loses its build and no native-Mac beta is
-        // offered an update again. `ZINSTALLSTATUSRAW` only feeds the wrapped-bundle
-        // signal, so a schema that no longer has that column must cost that signal
-        // and nothing else — not the macOS rows this file has read since before it
-        // existed. Naming a column in a SELECT is what makes its absence fatal, so
-        // the fallback names one fewer.
+        // offered an update again. `ZINSTALLSTATUSRAW` now feeds the mac
+        // membership signal too, so a schema that no longer has that column costs
+        // `isManaged` its precision — it falls back to every mac row, the answer
+        // it gave before the column was read — and still costs nothing else, not
+        // the macOS rows this file has read since before it existed. Naming a
+        // column in a SELECT is what makes its absence fatal, so the fallback
+        // names one fewer.
         if var reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
             reading.frontiers = readFrontiers(db)
             reading.testers = readTesters(db)
@@ -450,7 +496,7 @@ public struct TestFlightInventory: Sendable {
         // one cannot prepare — and the whole reason the frontier got its own query is
         // that each signal fails on its own. Returning here without trying made the
         // implication run backwards.
-        return ([], [], [], readFrontiers(db), readTesters(db), true)  // we opened it; the schema just didn't match
+        return ([], nil, [], [], readFrontiers(db), readTesters(db), true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -559,13 +605,16 @@ public struct TestFlightInventory: Sendable {
     /// Runs one of the two queries above. `nil` means it would not prepare, which
     /// is the caller's cue to try the next one.
     ///
-    /// ⚠️ `hasInstallStatus` cannot change the outcome today — the fallback query
-    /// selects `ZPLATFORMRAW = 3`, so no iOS row ever reaches the branch that reads
-    /// it (measured: inverting the flag leaves the suite green). It stays because
-    /// of what it guards, not what it currently decides: column 4 does not exist in
+    /// `hasInstallStatus` now decides a real outcome: it gates BOTH platform
+    /// branches' membership buckets, and it is what makes `macInstalledRows` nil
+    /// ("unknown") rather than empty ("installed nothing") on the fallback query.
+    /// It previously could not change anything — the fallback selects
+    /// `ZPLATFORMRAW = 3`, so no iOS row ever reached the only branch that read
+    /// it, and inverting the flag left the suite green.
+    ///
+    /// What it has always also done, and still does: column 4 does not exist in
     /// the fallback's result set, and `&&` short-circuiting is what keeps
-    /// `sqlite3_column_int64(stmt, 4)` from being an out-of-range read the day
-    /// someone widens that query the way the primary one is widened.
+    /// `sqlite3_column_int64(stmt, 4)` from being an out-of-range read.
     private static func runRowQuery(
         _ db: OpaquePointer?, sql: String, hasInstallStatus: Bool
     ) -> Reading? {
@@ -577,6 +626,7 @@ public struct TestFlightInventory: Sendable {
         defer { sqlite3_finalize(stmt) }
 
         var rows: [Row] = []
+        var macInstalledRows: [Row] = []
         var iosRows: [Row] = []
         var iosAvailableRows: [Row] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -598,6 +648,14 @@ public struct TestFlightInventory: Sendable {
                 // Every mac row, installed or not: `latest(forBundleID:)` is
                 // asking which builds are AVAILABLE.
                 rows.append((bundleID, short, build))
+                // …and, separately, the one TestFlight says it installed here —
+                // the same split the iOS branch below has always made. Without
+                // it `isManaged` answered a membership question out of the
+                // availability table, and a store purchase of an app the user
+                // also beta-tests read as a TestFlight install.
+                if hasInstallStatus, sqlite3_column_int64(stmt, 4) == Self.installedHere {
+                    macInstalledRows.append((bundleID, short, build))
+                }
             case Self.iOSPlatform:
                 // Every iOS row is what TestFlight OFFERS for this bundle, which is
                 // the only bucket an update can come out of.
@@ -614,7 +672,10 @@ public struct TestFlightInventory: Sendable {
             }
         }
         // Frontiers are filled in by `openAndRead`, from its own query.
-        return (rows, iosRows, iosAvailableRows, [:], nil, true)
+        // `hasInstallStatus == false` means the status column was never selected,
+        // so "installed here" is unknown for mac rows, not empty.
+        return (rows, hasInstallStatus ? macInstalledRows : nil,
+                iosRows, iosAvailableRows, [:], nil, true)
     }
 
     /// `ZPLATFORMRAW` values, both named because both are now matched positively.

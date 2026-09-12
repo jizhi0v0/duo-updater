@@ -22,8 +22,8 @@ public struct MacAppStoreProbeCase: Sendable {
         case iosOnMac
         /// `kind == "software"`, installed as the wrapped iOS binary →
         /// `remoteVersion(checkMacCompat: true)`: reads
-        /// `isIOSBinaryMacOSCompatible` off the plain (non `platform=mac`)
-        /// product page.
+        /// `isIOSBinaryMacOSCompatible` *and* `appPlatforms` off the plain
+        /// (non `platform=mac`) product page.
         case wrappedIOS
     }
 
@@ -68,7 +68,7 @@ public struct MacAppStoreProbeCase: Sendable {
 /// only unit-test coverage against captured fixtures.
 ///
 /// The failure mode this exists to catch is SILENT. If Apple reshapes the
-/// embedded JSON `extractMacVersionInfo`/`extractMacCompatible` parse:
+/// embedded JSON `extractMacVersionInfo`/`extractMacCompatibility` parse:
 ///   - `nativeMacVersion` quietly falls back to the (possibly stale) lookup
 ///     version — no error, no red row, just an answer that stopped being the
 ///     freshest one.
@@ -142,10 +142,20 @@ public enum MacAppStoreProbeRegistry {
         // Discord — `kind == "software"`, installable on Apple Silicon Macs
         // as the wrapped iOS binary. Exercises
         // `remoteVersion(checkMacCompat: true)`, which reads
-        // `isIOSBinaryMacOSCompatible` off the plain (non `?platform=mac`)
-        // product page. Confirmed live 2026-09-04: flag present (false —
-        // Discord ships a native build now, which is itself evidence the
-        // flag is still read correctly, not evidence the parse failed).
+        // `isIOSBinaryMacOSCompatible` and `appPlatforms` off the plain (non
+        // `?platform=mac`) product page. Confirmed live 2026-09-04: flag
+        // present. Re-measured 2026-09-12: flag false, `appPlatforms`
+        // `["phone", "pad"]`, and the page's Compatibility section names no
+        // Mac at all — a true negative, which is what keeps this case a
+        // useful probe of the `false` verdict.
+        //
+        // The 2026-09-04 note here used to explain the `false` as "Discord
+        // ships a native build now". That reading was wrong twice over: the
+        // App Store listing publishes no Mac binary (Discord's Mac app is a
+        // direct download, off-store), and had it been true the verdict would
+        // have been backwards — a native Mac build is precisely the shape that
+        // makes `isIOSBinaryMacOSCompatible == false` mean "supported", which
+        // is the bug `MacCompatibilityReading` exists to fix.
         MacAppStoreProbeCase(
             bundleID: "com.hammerandchisel.discord", trackId: 985746746,
             expectedKind: "software", route: .wrappedIOS),

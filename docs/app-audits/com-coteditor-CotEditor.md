@@ -173,8 +173,12 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
 - **`AppScanner` 填 `SparkleFeedCatalog` 时不看 `isMASApp`**（#368 的第二半）已修，
   fill-in 和 superseded 两个入口都加了 `!isMAS`；随后 `UpdateChecker` 又加了统一的商店闸，
   商店副本根本到不了 `SparkleAppcastSource`。CotEditor 不走那条路，本来就不受影响。
-  （这条原先写着"Keka 是真实的商店副本自带 feed"——不是，Keka 是 Developer ID 签的、
-  没有 `_MASReceipt`。那句话我是从 `UpdateChecker` 的注释里转引的，没有复核。）
+  （这条先写着"Keka 是真实的商店副本自带 feed"，后来被"更正"成"不是，Keka 是
+  Developer ID 签的、没有 `_MASReceipt`"。2026-09-12 两台机器实测：同为 Keka 1.6.7，
+  一台带 2026-07-01 的 `_MASReceipt` + `Authority=Apple Mac OS Application Signing`
+  + `SUFeedURL = https://u.keka.io`，另一台是 Developer ID、无 receipt。
+  **两句都是各自机器上的真话，也都被写成了关于这个 app 的事实。**
+  「商店副本自带 feed」这个组合是真实存在的，别再拿某一台的 `ls` 结果去否掉它。）
 
 ## Changelog
 

@@ -21,6 +21,10 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.93
 
+**Apps that added a Mac version no longer show as "not supported on this Mac."** An iPhone or iPad app you run on Apple silicon was mistakenly flagged the moment its developer shipped a real Mac build — the one change that makes the update more available, not less.
+
+**An App Store app you also beta-test is no longer mistaken for a TestFlight build.** When a developer promoted a beta unchanged, the two carried the same build number and your purchased copy was handed to TestFlight — so the App Store could never offer it an update.
+
 **The Requests window now shows how far back its log actually reaches, and marks date ranges it can't fully cover.** Before, picking "Last 30 days" on a log that only went back a few hours looked exactly like picking "Last 24 hours," with nothing on screen explaining why.
 
 **TestFlight betas no longer wait for you to press Refresh.** When TestFlight installed a beta in the background, its row showed a question mark until the next manual refresh — and a build TestFlight had not installed yet could go unnoticed while the row said the beta was up to date. Duo Updater now checks with TestFlight on its own when a row needs it.

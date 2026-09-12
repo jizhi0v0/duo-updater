@@ -20,22 +20,112 @@ import Foundation
     #expect(result.releaseNotes == "Bug fixes:\n• Fixed a crash\n• Faster launch")
 }
 
-/// The product-page scrape reads Apple's `isIOSBinaryMacOSCompatible` flag for a
-/// wrapped iPhone/iPad app, so we can warn when the latest build dropped Mac
-/// support (e.g. Aqara Home: a newer version exists but won't install here).
-@Test func extractsMacCompatibilityFlag() {
+/// The product-page scrape decides whether a wrapped iPhone/iPad app's latest
+/// build can be installed on a Mac at all, so we can warn when one really did
+/// drop Mac support instead of offering an update the store will refuse.
+///
+/// The three payloads below are the three live shapes measured 2026-09-12 (see
+/// `MacAppStoreSource.MacCompatibilityReading` for the full 18-listing table);
+/// each is the real `data[0].data` key layout, trimmed to the two fields the
+/// parser reads.
+///
+/// The middle one is the regression: `isIOSBinaryMacOSCompatible` answers "does
+/// the *iOS binary* run on macOS", so a developer who ADDS a native Mac build
+/// flips it to `false` — indistinguishable, on that field alone, from one who
+/// drops Mac support. Reading the flag by itself told a nowdex 1.1.0 user their
+/// 1.1.2 update was impossible, on the day the vendor shipped the Mac build that
+/// made it possible.
+@Test func extractsMacCompatibilityVerdict() {
     let src = MacAppStoreSource()
-    let incompatible = """
+    func page(_ inner: String) -> String {
+        """
+        <html><script type="application/json" id="shoebox">
+        {"data":[{"data":\(inner)}]}
+        </script></html>
+        """
+    }
+    // Discord, us: no Mac binary, and the iOS binary is opted out of Mac.
+    let noMacAtAll = page(
+        """
+        {"appPlatforms":["phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":false}}
+        """)
+    // nowdex, cn: ships its own Mac build, so the wrapper flag reads false.
+    let nativeMacBuild = page(
+        """
+        {"appPlatforms":["mac","phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":false}}
+        """)
+    // Overcast, us: no Mac binary, but the iOS binary runs on Apple Silicon.
+    let wrappedOnMac = page(
+        """
+        {"appPlatforms":["watch","phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":true}}
+        """)
+    let missing = page("{}")
+
+    #expect(src.extractMacCompatibility(from: noMacAtAll).macSupported == false)
+    #expect(src.extractMacCompatibility(from: nativeMacBuild).macSupported == true)
+    #expect(src.extractMacCompatibility(from: wrappedOnMac).macSupported == true)
+    #expect(src.extractMacCompatibility(from: missing).macSupported == nil)  // unknown ⇒ assume compatible
+}
+
+/// A `false` verdict takes both signals. With `appPlatforms` gone — Apple
+/// renaming it, or a page shape we haven't seen — the flag alone is the majority
+/// shape of Mac-SUPPORTED listings, so concluding "incompatible" from it would
+/// hide real updates for every app that ships a native Mac build. Fail open.
+@Test func aLoneIncompatibleFlagIsNotEnoughToRefuseAnUpdate() {
+    let src = MacAppStoreSource()
+    let flagOnly = """
     <html><script type="application/json" id="shoebox">
     {"data":[{"data":{"lockup":{"isIOSBinaryMacOSCompatible":false}}}]}
     </script></html>
     """
-    let compatible = incompatible.replacingOccurrences(of: "false", with: "true")
-    let missing = "<html><script type=\"application/json\">{\"data\":[{\"data\":{}}]}</script></html>"
+    #expect(src.extractMacCompatibility(from: flagOnly).macSupported == nil)
+    #expect(src.extractMacCompatibility(from: flagOnly).readBothSignals == false)
+}
 
-    #expect(src.extractMacCompatible(from: incompatible) == false)
-    #expect(src.extractMacCompatible(from: compatible) == true)
-    #expect(src.extractMacCompatible(from: missing) == nil)  // unknown ⇒ assume compatible
+/// `duo verify`'s wrapped-iOS sweep asks for BOTH shapes, not merely a usable
+/// verdict. Either signal surviving alone still answers most listings, so a
+/// sweep that settled for `macSupported != nil` would stay green through exactly
+/// the half-drift it exists to catch.
+@Test func theSweepDemandsBothCompatibilitySignals() {
+    let src = MacAppStoreSource()
+    func page(_ inner: String) -> String {
+        "<html><script type=\"application/json\">{\"data\":[{\"data\":\(inner)}]}</script></html>"
+    }
+    let both = page(
+        """
+        {"appPlatforms":["mac","phone","pad"],"lockup":{"isIOSBinaryMacOSCompatible":false}}
+        """)
+    let platformsOnly = page(
+        """
+        {"appPlatforms":["mac","phone","pad"]}
+        """)
+
+    #expect(src.extractMacCompatibility(from: both).readBothSignals)
+    // Still a verdict, but no longer a shape the sweep should call healthy.
+    #expect(src.extractMacCompatibility(from: platformsOnly).macSupported == true)
+    #expect(src.extractMacCompatibility(from: platformsOnly).readBothSignals == false)
+}
+
+/// A product page carries more than one lockup: `moreByDeveloper` items have the
+/// same flag, for other apps entirely. Measured on nowdex's page 2026-09-12 —
+/// four occurrences, three of them the developer's three other apps, all `true`
+/// while nowdex's own is `false`. Anchoring at `data[0].data` is what keeps the
+/// verdict about the app being checked; a looser search would read a neighbour.
+@Test func readsThisListingsLockupNotTheDevelopersOtherApps() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{
+      "appPlatforms":["phone","pad"],
+      "lockup":{"adamId":"1","isIOSBinaryMacOSCompatible":false},
+      "shelfMapping":{"moreByDeveloper":{"items":[
+        {"adamId":"2","isIOSBinaryMacOSCompatible":true},
+        {"adamId":"3","isIOSBinaryMacOSCompatible":true}
+      ]}}
+    }}]}
+    </script></html>
+    """
+    #expect(src.extractMacCompatibility(from: html).macSupported == false)
 }
 
 /// The product-page scrape for an iOS-on-Mac app reads the latest Mac build's

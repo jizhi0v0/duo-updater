@@ -214,14 +214,28 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
 
 - **「转引一条实测」也是断言,而且是最容易漏的那种。** 引用一句带日期、带数字的实测,
   等于你自己也说了一遍——现有规矩只管「写新断言前先量」,不管「引用旧断言算不算」。
-  2026-09-06 实测过一次代价:`UpdateChecker` 里一句「measured 2026-08-29, Keka is a store
-  copy carrying `SUFeedURL`, 1 of the 22 store apps on this machine」写下来那天就是错的
-  (Keka 是 Developer ID 签的、没有 `_MASReceipt`,而 `isMAS` 的推导那天和今天逐字相同),
-  它却是「不给 `SparkleAppcastSource` 加商店闸」的**唯一记录理由**,撑了一周,并且被
-  转抄进另外三个文件——其中一次是我,而我当时的行为在旧规矩下完全合规。
+  `UpdateChecker` 里一句「measured 2026-08-29, Keka is a store copy carrying
+  `SUFeedURL`, 1 of the 22 store apps on this machine」是「不给 `SparkleAppcastSource`
+  加商店闸」的**唯一记录理由**,撑了一周,并且被转抄进另外三个文件。
   要么复测,要么写明「转引自 X,未复测」。
+
+- ⚠️ **这一条自己也栽在下一条上,2026-09-12 实测。** 上面这段原先接着写:
+  「(Keka 是 Developer ID 签的、没有 `_MASReceipt`,而 `isMAS` 的推导那天和今天逐字相同)」
+  ——那个**更正本身是错的**,而且错法和它要纠正的那句一模一样。
+  两台机器同为 Keka 1.6.7:一台 `/Applications/Keka.app/Contents/_MASReceipt/receipt`
+  在(2026-07-01)、`Authority=Apple Mac OS Application Signing`、且
+  `SUFeedURL = https://u.keka.io`;另一台是 `Developer ID Application`、无 receipt。
+  **原句在一台上是真的,更正在另一台上是真的,两句都被写成了关于这个 app 的事实。**
+
+- **「这份拷贝是什么」不是「这个 app 是什么」。** 上面那对错误的共同根因。Keka、WhatsApp、
+  CotEditor 都同时以商店和 Developer ID 两种方式分发,所以任何「app X 是/不是商店副本」
+  的句子,**别人在别的机器上复核只会得到相反的结论**,而这恰好是最像"已经量过了"的那种句子。
+  要写就写成 per-copy:「我这台的 X 是…」,或者干脆别靠它论证——
+  `SourceStorePolicyTests` 那种从 registry 推导的检查谁都能重跑。
+
 - **复合断言拆开写证据。** 那句话是 `Keka 带 SUFeedURL`(真从 plist 读的)∧
-  `Keka 是商店副本`(推的),合取继承了实测那半边的可信度。**写到"推断"两个字的时候就会暴露。**
+  `Keka 是商店副本`(**当时是推的,后来实测在一台机器上成立**),合取继承了实测那半边的可信度。
+  **写到"推断"两个字的时候就会暴露。**
 - **有一道闸,但只管一小片。** `scripts/check_prose_claims.py`(挂在 `make test` 里)拒绝
   「以本机 app 群体为分母的计数」——那种断言 CI、subagent、以后的读者都无法复现或证伪。
   它**管不了断言真不真**,只管它住在哪、长什么形状;换个说法就绕过去了,这是设计如此。

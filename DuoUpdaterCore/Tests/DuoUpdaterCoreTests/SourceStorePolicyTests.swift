@@ -14,12 +14,23 @@ import Foundation
 /// because each fix went where the bite was.
 ///
 /// The prose left behind was an inventory of who carried the guard, and it went
-/// wrong twice. Most recently it justified `SparkleAppcastSource`'s exemption
-/// with "Keka is a store copy carrying a `SUFeedURL`" — measured, dated, and
-/// false on the day it was written: `/Applications/Keka.app` is Developer
-/// ID-signed with no `Contents/_MASReceipt`, and `AppScanner`'s `isMAS`
-/// derivation is byte-identical then and now. That single sentence was the only
-/// recorded reason not to close the hole, and it held for a week.
+/// wrong three times. It justified `SparkleAppcastSource`'s exemption with "Keka
+/// is a store copy carrying a `SUFeedURL`"; that was then "corrected" to "Keka is
+/// Developer ID-signed with no `Contents/_MASReceipt`, and `AppScanner`'s `isMAS`
+/// derivation is byte-identical then and now" — and the correction is the third
+/// error. Measured 2026-09-12, two Macs, Keka 1.6.7 on both: one has a
+/// 2026-07-01 `_MASReceipt` and `Authority=Apple Mac OS Application Signing`
+/// alongside `SUFeedURL = https://u.keka.io`; the other is Developer ID with no
+/// receipt.
+///
+/// Both sentences were true of the machine their author was sitting at, and both
+/// were written as facts about the app. A store copy carrying its own feed is a
+/// real arrangement — so the hole the original sentence described is real, and
+/// the "correction" argued it away on the strength of a different laptop.
+///
+/// That is the whole reason this file exists: a per-source reason checked against
+/// what the type declares can be re-run by anyone, and a sentence about what is
+/// installed on one Mac cannot.
 ///
 /// So: a registered reason per source, checked against what the type actually
 /// declares, plus a behavioural case that runs the real `UpdateChecker`.

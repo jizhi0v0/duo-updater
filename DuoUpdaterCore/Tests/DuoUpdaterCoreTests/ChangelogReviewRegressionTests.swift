@@ -229,6 +229,34 @@ private let hbuilderXCodeSpanFixture = #"""
     }
 }
 
+/// `tagPattern` is read only by `.gitHubReleases`. Same failure shape as
+/// `skipSections` above and the same reason for deriving it from the registry: on
+/// any other format the field is not an error, it is *nothing* — the author has
+/// declared which releases are this app's and every release is still taken.
+///
+/// The bite is worse than `skipSections`' cosmetic one, which is why this is a
+/// separate check rather than a line folded into that one: the field exists to
+/// keep a MONOREPO's other products out of the panel, so a no-op here renders
+/// another product's changelog under this app's name.
+@Test func tagPatternOnlyLandsOnAFormatThatReadsIt() {
+    for recipe in ChangelogRecipeRegistry.recipes {
+        guard let tagPattern = recipe.tagPattern else { continue }
+        let format = recipe.structuredFormat.map(\.rawValue) ?? "the regex path"
+        #expect(recipe.structuredFormat == .gitHubReleases,
+                "\(recipe.bundleID): tagPattern is a no-op on \(format)")
+        // A pattern that cannot compile is silently "no release is this app's",
+        // which renders an empty panel rather than the wrong one — quieter than
+        // the no-op above and just as wrong.
+        #expect((try? NSRegularExpression(pattern: tagPattern)) != nil,
+                "\(recipe.bundleID): tagPattern does not compile: \(tagPattern)")
+        // Anchoring is the author's job (`taggedVersion` does not add it), and an
+        // unanchored pattern silently widens: `desktop-v(…)` without `^` also
+        // accepts a hypothetical `preview-desktop-v1.2.3`.
+        #expect(tagPattern.hasPrefix("^") && tagPattern.hasSuffix("$"),
+                "\(recipe.bundleID): tagPattern must be anchored both ends: \(tagPattern)")
+    }
+}
+
 // MARK: - Waku
 
 /// Waku's registered recipe reads GitHub releases, which carry the same bullets

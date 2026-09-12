@@ -199,23 +199,29 @@ public enum Check {
         // fully buffered when it is a pipe, so without one the note lands first in
         // `duo check | tee`, measured, while a terminal shows the intended order.
         //
-        // ⚠️ It counts apps the store COULD have answered for, and says so, rather
-        // than counting betas. Neither available predicate counts betas correctly
-        // with the store unread: `isTestFlightApp` undercounts, because a wrapped
-        // iPhone/iPad beta is recognized from the store itself (#456) — the read
-        // that was skipped — and so never carries the tag (measured on one Mac: 8
-        // rows answer as TestFlight with detection on, 7 carry the tag with it off),
-        // while `isiOSAppOnMac` overcounts, since a wrapped app can just as well
-        // have come from the App Store. The union with honest wording is the one
-        // claim that is true either way.
-        let unlookedAt = settings.testFlightDetection.readsStore
+        // ⚠️ **No count, deliberately — one cannot be got right from here.** With
+        // the store unread, `isTestFlightApp` is whatever the receipt environment
+        // said (`AppScanner.readApp`), and that misses two classes the store would
+        // have caught: a wrapped iPhone/iPad bundle, which carries no receipt at all
+        // and is recognized from the database alone, and a store copy whose
+        // installed build the database also lists. Measured on one Mac: 8 rows
+        // answer as TestFlight with detection on, 7 carry the tag with it off — and
+        // the missing one, ScreenCam, is NOT wrapped (no `WrappedBundle`, a real
+        // `_MASReceipt`), so `isiOSAppOnMac` does not recover it either while adding
+        // every wrapped App Store app as a false positive. A number here would be
+        // wrong in both directions; the sentence it appears in does not need one.
+        //
+        // The trigger keeps both predicates because between them they cover what is
+        // visible without the read. A store copy on a beta track is invisible to
+        // both, so on a Mac whose only beta is one of those this line does not
+        // appear — a miss, and a smaller one than a confident wrong count.
+        let affected = settings.testFlightDetection.readsStore
             ? 0 : results.filter { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac }.count
-        if options.checkForUpdates, unlookedAt > 0 {
+        if options.checkForUpdates, affected > 0 {
             fflush(stdout)
-            let plural = unlookedAt == 1 ? "" : "s"
             FileHandle.standardError.write(Data((
-                "duo: TestFlight detection is off, so \(unlookedAt) app\(plural) it could"
-                + " answer for went unchecked (Duo Updater ▸ Settings ▸ General).\n").utf8))
+                "duo: TestFlight betas were not checked — detection is off"
+                + " (Duo Updater ▸ Settings ▸ General).\n").utf8))
         }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
         // works. A hidden row is by definition not something to do.

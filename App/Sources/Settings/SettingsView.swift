@@ -53,7 +53,17 @@ struct SettingsView: View {
         // open (onChange) — e.g. onboarding asking for the GitHub page.
         .onChange(of: model.requestedSettingsSection) { applyRequestedSection() }
         .onChange(of: model.requestedSettingsAnchor) { applyRequestedAnchor() }
-        .onDisappear { model.endTrustPolling(); model.windowDisappeared() }
+        // A request is spent the moment the reader navigates off the page that owns
+        // it. Without this it stands for the life of the window, and `SettingsPage`
+        // starts its reveal whenever a page APPEARS — so leaving General and coming
+        // back would scroll and flash again for a link followed minutes ago. The
+        // page-select this function performs itself does not trip it: the new
+        // selection IS the anchor's section. Cleared on close too, in case the scene
+        // keeps its state across a reopen.
+        .onChange(of: selection) { _, now in
+            if let reveal, reveal.anchor.section != now { self.reveal = nil }
+        }
+        .onDisappear { model.endTrustPolling(); model.windowDisappeared(); reveal = nil }
     }
 
     private var detail: some View {

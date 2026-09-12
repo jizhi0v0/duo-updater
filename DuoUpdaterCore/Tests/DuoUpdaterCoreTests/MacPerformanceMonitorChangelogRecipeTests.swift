@@ -150,4 +150,35 @@ struct MacPerformanceMonitorChangelogRecipeTests {
             }
         }
     }
+
+    /// #554 (part of #399): the whole point of `headingPattern` on this recipe.
+    /// 1.7.1 has TWO groups (`Fixed`, `Changed`) — the reported case, Mac
+    /// Performance Monitor 1.7.1 — so both must survive as `.heading` blocks,
+    /// interleaved with their own bullets in document order, distinct from the
+    /// OTHER entry's `Added` group two releases later.
+    ///
+    /// Unlike `GitHubMarkdownParser`'s ≥2-siblings rule, this recipe styles every
+    /// heading unconditionally — including 1.7.0's single `Added` group — because
+    /// it is curated for one real Keep a Changelog file, where every `###` is
+    /// always a genuine category (see `ChangelogRecipe.headingPattern`'s doc
+    /// comment).
+    ///
+    /// Mutation this catches: dropping `headingPattern` from the recipe (or
+    /// reverting `ChangelogExtractor` to ignore it) — every assertion here would
+    /// fail with an empty `content`.
+    @Test func groupHeadingsSurviveAsStyledBlocksForEveryEntry() throws {
+        let parsed = try #require(ChangelogService.parse(try Self.recipe, body: Self.fixture))
+        let newest = try #require(parsed.entries.first)
+        #expect(newest.version == "1.7.1")
+        #expect(newest.content == [
+            .heading("Fixed"),
+            .note(newest.items[0]),
+            .note(newest.items[1]),
+            .heading("Changed"),
+            .note(newest.items[2]),
+        ])
+        let oldest = try #require(parsed.entries.last)
+        #expect(oldest.version == "1.7.0")
+        #expect(oldest.content == [.heading("Added"), .note(oldest.items[0])])
+    }
 }

@@ -55,8 +55,18 @@ import Foundation
     /// 2 moves neither fixture: it is Ollama's paragraph fallback, which changes
     /// what a release written as prose parses to — pinned by
     /// `extractsOllamaProseReleases`, not here.
+    ///
+    /// 3 (category headings surviving as `.heading` blocks, #554) ALSO moves
+    /// neither fixture below — checked by hand, not assumed: v4.3.6's only
+    /// non-boilerplate heading is `Changes` (`Included Localizations` is
+    /// `skipSections`-excluded), 1 candidate is below the ≥2-sibling threshold;
+    /// v5.0.2 is the bullet-less prose fixture and has no headings at all; the
+    /// Figma recipe below is a hand-written regex recipe with no
+    /// `headingPattern` set. Pinned by the new heading-specific tests in
+    /// `GitHubMarkdownParserTests.swift` and
+    /// `MacPerformanceMonitorChangelogRecipeTests.swift` instead.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 2)
+        #expect(Changelog.parserGeneration == 3)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

@@ -77,6 +77,12 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let maxAttempts = 5
 
     private var continuation: CheckedContinuation<URL, Error>?
+    /// The attempt's data task, and whether a cancellation has already arrived for
+    /// it. Both live under `lock` with `continuation`: the cancellation handler runs
+    /// on whatever thread cancelled the Swift task, which is neither the caller's
+    /// nor the delegate queue.
+    private var inFlightTask: URLSessionTask?
+    private var attemptCancelled = false
     /// Guards `continuation` so the delegate callbacks (which fire on a concurrent
     /// delegate queue) can't double-resume or race a leaked resume.
     private let lock = NSLock()
@@ -274,6 +280,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
         var lastError: Error = URLError(.unknown)
         for attempt in 0..<maxAttempts {
+            // Stopping "Update All" has to stop the bytes. Checked before every
+            // attempt (not just the first) so a cancellation that arrives between
+            // two resumes is not answered with another request.
+            try Task.checkCancellation()
             do {
                 let result = try await runAttempt(url: url, headers: headers, partial: partial)
                 let secs = Date().timeIntervalSince(started)
@@ -282,6 +292,13 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 return result
             } catch {
                 lastError = error
+                // A cancelled transfer arrives here as URLSession's `-999`, which is
+                // an error like any other: without this it would be classified,
+                // logged as a download failure and — for the shapes that are
+                // transient — retried. Ask the task instead of the error, and say
+                // `CancellationError` so every caller up the chain (the coordinator,
+                // `installAll`) reads it as "stopped", not "failed".
+                try Task.checkCancellation()
                 // Bytes already on disk: the next attempt resumes from here, so it
                 // is the one number that says whether a retry is making progress.
                 let attrs = try? FileManager.default.attributesOfItem(atPath: partial.path)
@@ -296,8 +313,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 Log.install.notice(
                     "download retry \(attempt + 1, privacy: .public)/\(self.maxAttempts, privacy: .public): resuming from \(onDisk, privacy: .public) bytes on disk — \(error.localizedDescription, privacy: .public)")
                 // Brief, growing backoff (0.5s, 1.0s, …) so we don't hammer a CDN
-                // that's momentarily resetting connections.
-                try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 500_000_000)
+                // that's momentarily resetting connections. NOT `try?`: swallowing
+                // the sleep's cancellation put the loop straight into the next
+                // attempt, so a stop during a backoff bought one more full request.
+                try await Task.sleep(nanoseconds: UInt64(attempt + 1) * 500_000_000)
             }
         }
         Log.install.error(
@@ -343,9 +362,31 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         lastReportedPercent = -1
 
         guard let session else { throw URLError(.unknown) }
-        return try await withCheckedThrowingContinuation { cont in
-            lock.lock(); continuation = cont; lock.unlock()
-            session.dataTask(with: request).resume()
+        lock.withLock { inFlightTask = nil; attemptCancelled = false }
+        // A URLSession task is not part of the Swift task tree: cancelling the
+        // `Task` that awaits this continuation leaves the transfer running to
+        // completion (up to five times over, with resume). Bridge the two.
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                lock.lock(); continuation = cont; lock.unlock()
+                let task = session.dataTask(with: request)
+                // Published before `resume()`, and the flag re-read after it: a
+                // cancellation that lands in that window would otherwise find no
+                // task to cancel and the transfer would run on unattended.
+                // `resume()` first either way — cancelling a task that was never
+                // resumed has no defined delivery, and the continuation must be
+                // resumed by `didCompleteWithError` or it leaks.
+                lock.lock(); inFlightTask = task; lock.unlock()
+                task.resume()
+                lock.lock(); let alreadyCancelled = attemptCancelled; lock.unlock()
+                if alreadyCancelled { task.cancel() }
+            }
+        } onCancel: {
+            lock.lock()
+            attemptCancelled = true
+            let task = inFlightTask
+            lock.unlock()
+            task?.cancel()
         }
     }
 

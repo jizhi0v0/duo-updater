@@ -3164,9 +3164,11 @@ final class AppListModel {
 
     /// Install an update, routing to the right installer for its source. `notify`
     /// is false for the batch path so "Update All" posts one summary banner
-    /// instead of one per app. Returns true only when a bundle was actually
-    /// installed (not when the app turned out already-current, or an early-out/
-    /// error path was taken) so the batch summary count is exact.
+    /// instead of one per app. Returns `.installed` only when a bundle was actually
+    /// installed — not when the app turned out already-current, an early-out/error
+    /// path was taken (`.notInstalled`), or a `.pkg` was handed to macOS's
+    /// Installer (`.handedOffToSystemInstaller`, which is neither) — so the batch
+    /// summary count is exact.
     ///
     /// The per-app "updated"/"ready to restart" banners are NOT gated on
     /// `prefs.notifyOnUpdates`: that setting governs unsolicited *background*
@@ -3180,17 +3182,17 @@ final class AppListModel {
     /// `lsappinfo` call that can stall right after we relaunch apps) blocked the
     /// next install from starting. `installAll` runs it once after the whole batch.
     @discardableResult
-    func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false) async -> Bool {
+    func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false) async -> InstallAttemptOutcome {
         let id = result.id
         // Re-entrancy / cross-path guard (matches `retry`): the popover "Update
         // anyway" button and the major-upgrade badge aren't disabled while an install
         // is in flight, so a double-click — or a manual click racing "Update All" for
         // the same app — could otherwise launch two concurrent installs (two
         // downloads, two in-place swaps, two notifications). Claim the id *before* any
-        // await so whoever sets `.queued` first wins and the loser returns false.
+        // await so whoever sets `.queued` first wins and the loser installs nothing.
         // `installAll` pre-claims all its targets, so a manual click on a queued batch
         // row no-ops here and the row keeps its spinner instead of a live button.
-        guard installing[id] == nil else { return false }
+        guard installing[id] == nil else { return .notInstalled }
         // Re-initiating clears a prior attempt's error/note right away, so a re-clicked
         // row shows a clean "Queued" spinner — not last failure's red error text
         // sitting beside it. (Otherwise the error only clears later in `performInstall`,
@@ -3209,7 +3211,7 @@ final class AppListModel {
     /// every target `.queued` up front (so each shows a queued spinner at once and
     /// the re-entrancy guard blocks a manual click) while the gates here still pace
     /// the actual installs.
-    private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
+    private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> InstallAttemptOutcome {
         let id = result.id
         // Hold the list still for the duration — this row's rank is about to change
         // under whoever is clicking down the list. Every exit below clears
@@ -3253,7 +3255,7 @@ final class AppListModel {
         if Task.isCancelled {
             installing[id] = nil
             await gate?.signal()
-            return false
+            return .notInstalled
         }
         // What the host gate protects is a HOST'S BANDWIDTH, so it belongs to the
         // download phase and nothing after it — see
@@ -3280,9 +3282,9 @@ final class AppListModel {
                 ?? String(describing: error)
             installing[id] = nil
             await hostGate.release()
-            return false
+            return .notInstalled
         }
-        let didInstall = await performInstall(
+        let outcome = await performInstall(
             result, notify: notify, deferBookkeeping: deferBookkeeping,
             releaseAfterDownload: isAppStore ? nil : hostGate)
         await ProcessInstallLock.shared.release()
@@ -3291,7 +3293,7 @@ final class AppListModel {
         // deferred — drain it now that the install is done (no-op in a batch, which
         // drains once at the end of `installAll`, and when nothing was deferred).
         await drainDeferredLocalRescan()
-        return didInstall
+        return outcome
     }
 
     /// A semaphore permit that can be handed to a callee to release early, while the
@@ -3317,7 +3319,7 @@ final class AppListModel {
     private func performInstall(
         _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
         releaseAfterDownload: GateHandle? = nil
-    ) async -> Bool {
+    ) async -> InstallAttemptOutcome {
         let id = result.id
         installErrors[id] = nil
         installNotes[id] = nil
@@ -3372,7 +3374,7 @@ final class AppListModel {
                 localized: "No readable bundle was found right now — it may have been uninstalled, or its Info.plist could not be parsed.")
             await computeRestartInfo()
             installing[id] = nil
-            return false
+            return .notInstalled
         }
         // A regressed answer must NOT become the row. Writing it in replaces a
         // real "1.0.9 available" with "1.0.8, up to date", and an up-to-date row
@@ -3433,7 +3435,7 @@ final class AppListModel {
             // state is recomputed either way.
             await computeRestartInfo()
             installing[id] = nil
-            return false
+            return .notInstalled
         }
 
         // Install policy: a running self-updating app is handed to its own
@@ -3460,7 +3462,7 @@ final class AppListModel {
             // focus repeatedly.
             openSelfUpdater(result, activating: !deferBookkeeping)
             installing[id] = nil
-            return false
+            return .notInstalled
         }
 
         // The app's own updater may already have this release in flight. Ours would
@@ -3491,7 +3493,7 @@ final class AppListModel {
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
-            return false
+            return .notInstalled
         }
 
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
@@ -3500,7 +3502,7 @@ final class AppListModel {
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
-            return false
+            return .notInstalled
         }
 
         // Back up the current bundle first (when enabled) so this update can be
@@ -3574,10 +3576,15 @@ final class AppListModel {
                     // can offer "Install" — a re-open of this exact file — instead
                     // of "Update", which would download the same hundreds of
                     // megabytes again. If they dismiss the window the package is
-                    // still on disk and still the right version.
+                    // still on disk and still the right version. Reported as a
+                    // hand-off, not as an install: this used to return `true`, which
+                    // "Update All" counted, so a batch of two vendor-pkg apps
+                    // announced "2 apps were updated" with both Installer windows
+                    // still open and neither bundle replaced. It is not a failure
+                    // either — the row carries no error and keeps the staged package.
                     recordStagedPackage(result, packageURL: packageURL)
                     installing[id] = nil
-                    return true
+                    return .handedOffToSystemInstaller
                 }
             case .appStore:
                 // On the mas route a wrapped iPhone/iPad app can only be updated by
@@ -3599,13 +3606,13 @@ final class AppListModel {
                    result.remote?.appStore?.isRegionMismatch != true {
                     installing[id] = nil
                     if let url = result.remote?.appStore?.deepLink { NSWorkspace.shared.open(url) }
-                    return false
+                    return .notInstalled
                 }
                 // Reset the spinner on this early-out too (see Homebrew above) so a
                 // missing adamID can't wedge every future install for this app.
                 guard let adamID = result.remote?.appStore?.trackID else {
                     installing[id] = nil
-                    return false
+                    return .notInstalled
                 }
                 // Arm the reopen before anything can quit the app. On this route
                 // the store's own daemon terminates a running app to replace its
@@ -3653,7 +3660,7 @@ final class AppListModel {
                     // defer above hands it back.
                     reopenAfterQuit[id] = nil
                     installing[id] = nil
-                    return false
+                    return .notInstalled
                 }
                 // Pre-flight before we drive the store: the row may have gone current
                 // since the install-time re-check ran — the App Store's own background
@@ -3687,7 +3694,7 @@ final class AppListModel {
                     await refreshRow(result)
                     reopenAfterQuit[id] = nil
                     installing[id] = nil
-                    return false
+                    return .notInstalled
                 }
                 if result.remote?.appStore?.isRegionMismatch == true {
                     // Region-locked app (listed in a storefront other than the signed-in
@@ -3703,7 +3710,7 @@ final class AppListModel {
                         installing[id] = nil
                         installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
                         presentAccessibilityPermissionFlow()
-                        return false
+                        return .notInstalled
                     }
                     try await appStoreAXInstaller.update(
                         trackID: adamID,
@@ -3780,7 +3787,7 @@ final class AppListModel {
                         installing[id] = nil
                         installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
                         presentAccessibilityPermissionFlow()
-                        return false
+                        return .notInstalled
                     }
                 }
                 // The store is done fetching and installing: release before the
@@ -3835,7 +3842,7 @@ final class AppListModel {
                 }
                 installing[id] = nil
                 relaunching.remove(id)
-                return false
+                return .notInstalled
             }
             // The bundle was replaced in place (same path); drop its cached icon so
             // the row re-reads the new one instead of showing the old until restart.
@@ -3881,7 +3888,7 @@ final class AppListModel {
                 reopenIfQuitForUpdate(result, installSucceeded: false)
                 installing[id] = nil
                 relaunching.remove(id)
-                return false
+                return .notInstalled
             }
 
             // Tell the user it landed. If the app was running, its live process
@@ -3936,7 +3943,7 @@ final class AppListModel {
             reopenAfterQuit[id] = nil
             installing[id] = nil
             relaunching.remove(id)
-            return false
+            return .notInstalled
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
             // API to request it, so guide the user to the right Settings pane with
@@ -3997,7 +4004,7 @@ final class AppListModel {
                 relaunching.remove(id)
                 await refreshRow(result)  // re-scan + re-check → up-to-date, error-free
                 installing[id] = nil       // clear the spinner last, matching the skip path
-                return false
+                return .notInstalled
             }
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
@@ -4020,8 +4027,8 @@ final class AppListModel {
         // Drop the "Relaunching…" indicator a confirmed App Store quit raised, on
         // every exit (success or error) so a failed/cancelled install can't strand it.
         relaunching.remove(id)
-        // True only if we reached the install path without throwing.
-        return !failed
+        // `.installed` only if we reached the install path without throwing.
+        return failed ? .notInstalled : .installed
     }
 
     /// True when the row's install error is the mas receipt-import dead end — mas
@@ -5913,7 +5920,7 @@ final class AppListModel {
     private func installInParallel(_ targets: [UpdateResult], limit: Int) async -> Int {
         guard !targets.isEmpty, limit > 0 else { return 0 }
         var installed = 0
-        await withTaskGroup(of: Bool.self) { group in
+        await withTaskGroup(of: InstallAttemptOutcome.self) { group in
             var next = 0
             var inFlight = 0
 
@@ -5933,8 +5940,8 @@ final class AppListModel {
             while inFlight < limit, addNext() {
                 inFlight += 1
             }
-            while let didInstall = await group.next() {
-                if didInstall { installed += 1 }
+            while let outcome = await group.next() {
+                if outcome.countsAsUpdatedApp { installed += 1 }
                 inFlight -= 1
                 if Task.isCancelled {
                     group.cancelAll()
@@ -6028,14 +6035,17 @@ final class AppListModel {
         let installerTargets = InstallBatchOrdering.sortByDownloadSize(rest.filter(requiresInstaller))
         let limit = min(Self.maxParallelInstalls, parallelTargets.count)
         Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), installer=\(installerTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
-        // Count only the installs that actually happened (runInstall returns false for
-        // already-current/early-out/error), so the summary banner is exact.
+        // Count only the installs that actually happened — `runInstall` reports
+        // `.notInstalled` for already-current/early-out/error and
+        // `.handedOffToSystemInstaller` for a `.pkg` whose Installer window the user
+        // has yet to drive — so the summary banner is exact.
         var installed = 0
         installed += await installInParallel(parallelTargets, limit: limit)
         for target in serialTargets + installerTargets {
             if Task.isCancelled { break }
             // `runInstall`, not `install`: the target is already claimed above.
-            if await runInstall(target, notify: false, deferBookkeeping: true) {
+            if await runInstall(target, notify: false, deferBookkeeping: true)
+                .countsAsUpdatedApp {
                 installed += 1
             }
             if hitAppManagementGate(target) {

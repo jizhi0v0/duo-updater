@@ -21,6 +21,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.93
 
+**Release notes now show up in your own language when an app publishes them in several.** Some apps ship their notes translated alongside each release; Duo Updater used to take whichever translation the app happened to list first or last, so one app's notes read in German for everyone and another's changed language from one release to the next.
+
 **Apps that added a Mac version no longer show as "not supported on this Mac."** An iPhone or iPad app you run on Apple silicon was mistakenly flagged the moment its developer shipped a real Mac build — the one change that makes the update more available, not less.
 
 **An App Store app you also beta-test is no longer mistaken for a TestFlight build.** When a developer promoted a beta unchanged, the two carried the same build number and your purchased copy was handed to TestFlight — so the App Store could never offer it an update.

@@ -35,6 +35,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Cline now gets updates, on both its release and beta builds, and shows its release notes.** Until now it sat with a question mark instead of a version — it ships no update feed of the kind Duo Updater could read, and there is no Homebrew package for it. Duo Updater now asks the same address Cline's own updater asks, so the update offered is the one Cline would have installed itself, and the beta build stays on the beta track.
 
+**Mac Mouse Fix now offers its beta releases if you've turned on "Get Beta Versions" in its own General settings.** Before, Duo Updater could only see Mac Mouse Fix's regular releases, so a beta build sat unnoticed until the next regular version shipped.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

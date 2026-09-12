@@ -186,6 +186,13 @@ import Foundation
             isWatched(file.standardizedFileURL.path),
             "CapCut's \(file.lastPathComponent) — a file its resolver reads — is not under any watched root")
     }
+    // Mac Mouse Fix keeps `General.checkForPrereleases` in its own
+    // Application Support config.plist, like Surge — not in
+    // `~/Library/Preferences`, so the generic CFPreferences assertion below
+    // would not exercise this path at all.
+    #expect(
+        isWatched(MacMouseFixChannel.configFileURL.standardizedFileURL.path),
+        "Mac Mouse Fix's config.plist — the file its resolver reads — is not under any watched root")
 
     // Everyone else resolves through `CFPreferencesCopyAppValue`, backed by
     // `~/Library/Preferences/<domain>.plist` for an unsandboxed app.

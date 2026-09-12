@@ -130,6 +130,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * CapCut   → `~/Movies/CapCut/User Data/Config/updateInfo` (`joinBeta` in an INI)
 ///   * CotEditor→ `UserDefaults[checksUpdatesForBeta]`, in its sandbox CONTAINER
 ///                                     (Bool: true→beta; false→nil, see the type)
+///   * Mac Mouse Fix→ `…/Application Support/com.nuebling.mac-mouse-fix/config.plist`
+///                                     → `General.checkForPrereleases` (Bool: true→beta)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -170,6 +172,7 @@ public enum ChannelBinding {
         CotEditorChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
         SuperconductorChannel.bundleID.lowercased(),
+        MacMouseFixChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -240,6 +243,12 @@ public enum ChannelBinding {
         // is what makes flipping "Update to prereleases when available" show up
         // without waiting for a relaunch.
         roots.append(CotEditorChannel.preferencesDirectoryURL)
+        // Mac Mouse Fix is the second app (after Surge) that keeps its channel
+        // choice in its own Application Support file rather than in
+        // `~/Library/Preferences` — `General.checkForPrereleases` lives in
+        // `config.plist`, not in a CFPreferences domain, so neither of the two
+        // roots above would ever see it change.
+        roots.append(MacMouseFixChannel.configFileURL.deletingLastPathComponent())
         // Windscribe deliberately adds nothing: it is not sandboxed and its
         // QSettings scope (`Windscribe`/`Windscribe2`) lands on
         // `~/Library/Preferences/com.windscribe.Windscribe2.plist`, already
@@ -380,6 +389,8 @@ public enum ChannelBinding {
         case SuperconductorChannel.bundleID.lowercased():
             return SuperconductorChannel.resolveCurrent
         case CodeEditChannel.bundleID.lowercased(): return CodeEditChannel.resolveCurrent
+        case MacMouseFixChannel.bundleID.lowercased():
+            return MacMouseFixChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -428,6 +439,8 @@ public enum ChannelBinding {
         (TablePlusChannel.bundleID, TablePlusChannel.resolve(receiveBeta: true)),
         (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: false)),
         (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: true)),
+        (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: false)),
+        (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
         // Both toggles, because "internal" subsumes "pre" — a user with both on is
         // opted into two tags at once and must be offered whichever is newer.
         (BetterDisplayChannel.bundleID,

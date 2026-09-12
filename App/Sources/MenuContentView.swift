@@ -75,7 +75,10 @@ struct MenuContentView: View {
     /// `"Café".localizedCaseInsensitiveContains("cafe")` is **false** and
     /// `"Café".localizedStandardContains("cafe")` is true. That is the one
     /// user-facing difference: typing "cafe" now finds an app spelled "Café".
-    /// Same predicate `SettingsSection.matches` searches its pages with.
+    /// Same folding (case + diacritics) `SettingsSection.matches` searches its
+    /// pages with — NOT the same predicate: that one is
+    /// `range(of:options: [.caseInsensitive, .diacriticInsensitive])` with no
+    /// locale, while this one passes `Locale.current`.
     private func matches(_ result: UpdateResult, _ query: String) -> Bool {
         if result.app.name.localizedStandardContains(query) { return true }
         if let bundleID = result.app.bundleID,

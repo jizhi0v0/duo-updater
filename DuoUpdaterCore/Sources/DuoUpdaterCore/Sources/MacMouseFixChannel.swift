@@ -61,6 +61,21 @@ import Foundation
 ///     once the marketing strings tie. Both call sites lean on the same fact:
 ///     `CFBundleVersion` here is a real, monotonically increasing build id.
 ///
+/// ⚠️ **This file is the ONLY thing on disk that can tell a beta copy from a
+/// stable one**, which is why the binding has to exist rather than leaving the
+/// app to `ReleaseChannel.detect()`. Measured 2026-09-12 against the real
+/// detector: `detect(version: "3.1.0 Beta 1")` answers `.stable`. Its
+/// version-suffix signal reads the `-beta.1` shape, not a space-separated
+/// `Beta 1`, and the bundle id, app name and bundle filename are identical on
+/// both tracks — so nothing else has anything to go on. The practical
+/// consequence to keep in mind when touching `readCheckForPrereleases`: a
+/// config file we cannot read resolves to an AUTHORITATIVE `.stable` (see
+/// `AppScanner`, where a non-nil binding sets `channelIsAuthoritative`), and no
+/// `detect()` signal is being suppressed when that happens — there was never one
+/// to suppress. That is what makes false-on-failure safe HERE and is not a
+/// licence to copy it into a resolver whose app does mark its betas; CotEditor's
+/// maps false to nil for exactly the opposite reason.
+///
 /// Team ID is unchanged across channels: the downloaded 3.1.0 Beta 1 bundle is
 /// signed `Developer ID Application: Noah Nuebling (LM5Z78756B)`, matching the
 /// installed stable copy — so a one-click install does not cross signing

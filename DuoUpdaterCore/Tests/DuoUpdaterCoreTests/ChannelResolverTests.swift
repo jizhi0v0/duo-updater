@@ -385,3 +385,20 @@ import Foundation
     #expect(ChannelBinding.resolve(bundleID: "com.tinyapp.TablePlus") != nil)
     #expect(ChannelBinding.resolve(bundleID: "COM.DanPristupov.FORK") != nil)
 }
+
+/// Pins the measurement `MacMouseFixChannel`'s doc comment rests on: nothing on
+/// disk except that config file distinguishes a Mac Mouse Fix beta, because the
+/// detector cannot read the vendor's space-separated `Beta 1` as a channel
+/// token. If this ever starts answering `.beta`, the doc comment's claim — and
+/// the reasoning that makes false-on-unreadable-config safe for this app — stops
+/// being true and both need revisiting.
+///
+/// Mutation: teach `ReleaseChannel.detect` to read a space-separated channel word
+/// out of the version string. This test goes red, which is the intended signal.
+@Test func nothingButTheConfigFileMarksAMacMouseFixBeta() {
+    let detected = ReleaseChannel.detect(
+        name: "Mac Mouse Fix", bundleID: MacMouseFixChannel.bundleID,
+        keystoneChannel: nil, version: "3.1.0 Beta 1",
+        bundleFileName: "Mac Mouse Fix.app")
+    #expect(detected == .stable)
+}

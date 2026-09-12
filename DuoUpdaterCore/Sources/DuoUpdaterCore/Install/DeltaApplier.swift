@@ -2,10 +2,17 @@ import Foundation
 
 /// Applies a Sparkle binary patch: installed bundle + `.delta` → the new bundle.
 ///
-/// Sparkle's format is its own (version 3 since Sparkle 2.1 — a custom container
-/// with lzma, replacing the xar/bzip2 of version 2), so the only correct reader
-/// is Sparkle's own `BinaryDelta`. We ship that executable rather than reimplement
-/// a format that has already changed once and carries no compatibility promise.
+/// Sparkle's format is its own and has now changed twice: version 2 (xar/bzip2)
+/// → version 3 (Sparkle 2.1, a custom container with lzma) → version 4 (Sparkle
+/// 2.7, and the default our bundled tool cuts today — `BinaryDelta info` on one
+/// reports `Patch version 4.2`). So the only correct reader is Sparkle's own
+/// `BinaryDelta`, and we ship that executable rather than reimplement a format
+/// that carries no compatibility promise.
+///
+/// Reading OLDER patches still works, which is what matters here: we apply what
+/// the vendor's feed happens to carry, and that was cut by whatever Sparkle the
+/// vendor builds with. Measured on 2.9.6 (2026-09-13): patches created at
+/// `--version=2`, `3` and `4` each reconstructed the target bundle byte for byte.
 ///
 /// A patch saves download, not disk. Applying one reads the installed bundle and
 /// writes a complete replacement into the scratch directory, so the I/O is

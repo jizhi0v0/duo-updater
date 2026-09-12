@@ -8781,6 +8781,88 @@
         }
       }
     },
+    "Duo Updater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater hat keinen Festplattenvollzugriff, um die Builds zu lesen, die TestFlight dir anbietet – daher lässt sich nicht sagen, ob diese Beta aktuell ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater no tiene acceso total al disco para leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater n’a pas l’accès complet au disque pour lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater に TestFlight から提供されるビルドを読み取るためのフルディスクアクセスがないため、このベータ版が最新かどうか判断できません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У Duo Updater нет полного доступа к диску, чтобы прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater 没有完全磁盘访问权限，读不到 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新"
+          }
+        }
+      }
+    },
+    "Duo Updater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater prüft TestFlight-Betas nicht. Schalte es unter „Einstellungen“ → „Allgemein“ ein, um zu sehen, ob diese Beta aktuell ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater no está comprobando las betas de TestFlight. Actívalo en Ajustes → General para ver si esta beta está al día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater ne vérifie pas les bêtas TestFlight. Activez-le dans Réglages → Général pour voir si cette bêta est à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater は TestFlight のベータ版を確認していません。設定 → 一般 でオンにすると、このベータ版が最新かどうかがわかります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater не проверяет бета-версии TestFlight. Включите проверку в «Настройки» → «Основные», чтобы узнать, актуальна ли эта бета-версия."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duo Updater 没有在检测 TestFlight 测试版。在「设置」→「通用」中打开，即可知道此测试版是否已是最新。"
+          }
+        }
+      }
+    },
     "Duo Updater itself": {
       "extractionState": "manual",
       "localizations": {
@@ -11739,6 +11821,47 @@
         }
       }
     },
+    "Keep it fresh": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuell halten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantener al día"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder à jour"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に最新に"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддерживать актуальность"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持最新"
+          }
+        }
+      }
+    },
     "Last 24 hours": {
       "extractionState": "manual",
       "localizations": {
@@ -11985,43 +12108,43 @@
         }
       }
     },
-    "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — without it, TestFlight betas show a question mark.": {
+    "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit kann Duo Updater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – ohne diesen Zugriff zeigen TestFlight-Betas ein Fragezeichen."
+            "value": "Damit kann Duo Updater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – und die TestFlight-Prüfung hat unter „Einstellungen“ → „Allgemein“ einen eigenen Schalter, der diese Berechtigung braucht, um überhaupt etwas lesen zu können."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite a Duo Updater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: sin él, las betas de TestFlight muestran un signo de interrogación."
+            "value": "Permite a Duo Updater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: además, la comprobación de TestFlight tiene su propio ajuste en Ajustes → General, que necesita este permiso para poder leer algo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à Duo Updater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — sans cet accès, les bêtas TestFlight affichent un point d’interrogation."
+            "value": "Permet à Duo Updater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — et la vérification TestFlight a son propre réglage dans Réglages → Général, qui a besoin de cette autorisation pour lire quoi que ce soit."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。許可しない場合、TestFlight のベータ版には疑問符が表示されます。"
+            "value": "Duo Updater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。なお TestFlight の確認には 設定 → 一般 に独立したスイッチがあり、そのスイッチが何かを読み取るにはこの許可が必要です。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет Duo Updater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — без этого доступа у бета-версий TestFlight будет вопросительный знак."
+            "value": "Позволяет Duo Updater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — и у проверки TestFlight есть собственный переключатель в «Настройки» → «Основные», которому этот доступ нужен, чтобы вообще что-то прочитать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让 Duo Updater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——不授权时，TestFlight 测试版显示问号。"
+            "value": "让 Duo Updater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
           }
         }
       }
@@ -14242,6 +14365,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "现在运行的是 %@。"
+          }
+        }
+      }
+    },
+    "Off": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactivé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
           }
         }
       }
@@ -19501,6 +19665,47 @@
         }
       }
     },
+    "TestFlight betas": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight-Betas"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betas de TestFlight"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bêtas TestFlight"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight のベータ版"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-версии TestFlight"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 测试版"
+          }
+        }
+      }
+    },
     "TestFlight betas (%@): Duo Updater reads the builds TestFlight offers you. Without it, their rows show a question mark.": {
       "extractionState": "manual",
       "localizations": {
@@ -19542,43 +19747,43 @@
         }
       }
     },
-    "TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current": {
+    "TestFlight checking is off, so Duo Updater can’t say whether this beta is current": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight hat uns den neuesten Build dieser Beta nicht mitgeteilt, oder Duo Updater hat keinen Festplattenvollzugriff, um ihn zu lesen – daher können wir nicht sagen, ob sie aktuell ist"
+            "value": "Die TestFlight-Prüfung ist aus – daher kann Duo Updater nicht sagen, ob diese Beta aktuell ist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight no nos ha indicado la compilación más reciente de esta beta, o Duo Updater no tiene acceso total al disco para leerla, así que no podemos saber si está al día"
+            "value": "La comprobación de TestFlight está desactivada, así que Duo Updater no puede saber si esta beta está al día"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight ne nous a pas indiqué la dernière version de cette bêta, ou Duo Updater n’a pas l’accès complet au disque pour la lire : impossible de dire si elle est à jour"
+            "value": "La vérification TestFlight est désactivée : impossible de dire si cette bêta est à jour"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight からこのベータ版の最新ビルドが知らされていないか、Duo Updater にそれを読むためのフルディスクアクセスがないため、最新かどうか判断できません"
+            "value": "TestFlight の確認がオフのため、このベータ版が最新かどうか判断できません"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight не сообщил последнюю сборку этой бета-версии или у Duo Updater нет полного доступа к диску, чтобы её прочитать, поэтому нельзя сказать, актуальна ли она"
+            "value": "Проверка TestFlight выключена, поэтому нельзя сказать, актуальна ли эта бета-версия"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight 尚未提供此测试版的最新版本信息，或 Duo Updater 没有读取它所需的完全磁盘访问权限，因此无法判断它是否已是最新"
+            "value": "TestFlight 检测已关闭，因此无法判断此测试版是否已是最新"
           }
         }
       }
@@ -19620,6 +19825,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "TestFlight 尚未告知 Duo Updater 此测试版的最新版本。刷新会请 TestFlight 检查。"
+          }
+        }
+      }
+    },
+    "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight hat uns den neuesten Build dieser Beta nicht mitgeteilt – daher können wir nicht sagen, ob sie aktuell ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight no nos ha indicado la compilación más reciente de esta beta, así que no podemos saber si está al día"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight ne nous a pas indiqué la dernière version de cette bêta : impossible de dire si elle est à jour"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight からこのベータ版の最新ビルドが知らされていないため、最新かどうか判断できません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight не сообщил последнюю сборку этой бета-версии, поэтому нельзя сказать, актуальна ли она"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未提供此测试版的最新版本信息，因此无法判断它是否已是最新"
+          }
+        }
+      }
+    },
+    "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets Duo Updater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight führt die Builds, die es dir anbietet, in einer eigenen Datenbank, und nur TestFlight selbst bringt diese Datenbank je auf den neuesten Stand. Beide „Ein“-Einstellungen brauchen Festplattenvollzugriff, um sie zu lesen; ohne die Berechtigung sagen die Beta-Zeilen das.\n\n„Beim Aktualisieren“ liest, was bereits da ist, und bittet TestFlight um eine frische Antwort, wenn du auf „Aktualisieren“ drückst. „Aktuell halten“ lässt Duo Updater außerdem von sich aus fragen – höchstens einmal pro Stunde, und immer dann, wenn erkennbar ist, dass eine Beta ohne es weitergezogen ist. Dabei wird TestFlight jeweils für ein paar Sekunden im Hintergrund gestartet (rund 0,7 MB). Bei „Aus“ wird nichts gelesen, und die Beta-Zeilen sagen das, statt zu raten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight guarda las compilaciones que te ofrece en su propia base de datos, y solo TestFlight la pone al día. Ambos ajustes de «activado» necesitan acceso total al disco para leerla; sin el permiso, las filas de betas lo indican.\n\n«Al actualizar» lee lo que ya hay y le pide a TestFlight una respuesta nueva cuando pulsas Actualizar. «Mantener al día» además deja que Duo Updater pregunte por su cuenta —como mucho una vez por hora, y siempre que detecte que una beta ha avanzado sin él—, lo que inicia TestFlight en segundo plano unos segundos cada vez (unos 0,7 MB). Desactivado, no se lee nada y las filas de betas lo dicen en lugar de adivinar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight conserve les versions qu’il vous propose dans sa propre base de données, et lui seul la met à jour. Les deux réglages « activés » ont besoin de l’accès complet au disque pour la lire ; sans l’autorisation, les lignes des bêtas l’indiquent.\n\n« À l’actualisation » lit ce qui s’y trouve déjà et demande une réponse fraîche à TestFlight quand vous appuyez sur Actualiser. « Garder à jour » laisse en plus Duo Updater demander de lui-même — au plus une fois par heure, et dès qu’il constate qu’une bêta a avancé sans lui — ce qui lance TestFlight en arrière-plan quelques secondes à chaque fois (environ 0,7 Mo). Désactivé, rien n’est lu et les lignes des bêtas le disent au lieu de deviner."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight は提供するビルドを自身のデータベースに保持しており、そのデータベースを更新できるのは TestFlight 自身だけです。「オン」の 2 つの設定はどちらも、それを読むためにフルディスクアクセスを必要とします。権限がない場合、ベータ版の行にはその旨が表示されます。\n\n「更新したときだけ」は、すでにあるものを読み取り、「更新」を押したときに TestFlight へ最新の情報を求めます。「常に最新に」では、それに加えて Duo Updater が自分から問い合わせます（1 時間に 1 回まで、およびベータ版が知らないうちに進んだと分かったとき）。そのたびに TestFlight がバックグラウンドで数秒起動します（約 0.7 MB）。オフの場合は何も読み取らず、ベータ版の行は推測せずにその旨を表示します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight хранит предлагаемые вам сборки в собственной базе данных, и обновляет её только сам TestFlight. Обоим включённым режимам нужен полный доступ к диску, чтобы её прочитать; без разрешения строки бета-версий сообщают об этом.\n\n«При обновлении» читает то, что уже есть, и просит у TestFlight свежий ответ, когда вы нажимаете «Обновить». «Поддерживать актуальность» вдобавок позволяет Duo Updater спрашивать самому — не чаще раза в час и всякий раз, когда видно, что бета-версия ушла вперёд без него. Каждый раз TestFlight на несколько секунд запускается в фоне (около 0,7 МБ). При «Выключено» ничего не читается, и строки бета-версий сообщают об этом вместо догадок."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 把提供给你的 build 存在它自己的数据库里，而只有 TestFlight 自己会让这份数据库前进。两个「开」的选项都需要完全磁盘访问权限才能读它；没有权限时，测试版所在的行会如实说明。\n\n「我刷新时」读取已经在那里的内容，并在你按下刷新时请 TestFlight 给一个新答案。「保持最新」还允许 Duo Updater 自己去问——每小时最多一次，以及每当它看出某个测试版已经在它不知情的情况下更新过。每次都会在后台启动 TestFlight 几秒钟（约 0.7 MB）。选择关闭时什么都不读，测试版所在的行会照实说明，而不是猜。"
           }
         }
       }
@@ -22127,6 +22414,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "新功能 — Duo Updater 自身的发行说明"
+          }
+        }
+      }
+    },
+    "When I refresh": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al actualizar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À l’actualisation"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新したときだけ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При обновлении"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我刷新时"
           }
         }
       }

@@ -385,6 +385,7 @@ struct MenuContentView: View {
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
+            model.requestedSettingsAnchor = .githubToken
             openWindow(id: SettingsView.windowID)
             model.surfaceWindow(sceneID: SettingsView.windowID)
         } label: {
@@ -1017,12 +1018,18 @@ private struct AppRow: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() }),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                        openTestFlightSetting: {
+                            model.requestedSettingsSection = .general
+                            model.requestedSettingsAnchor = .testFlightDetection
+                            openWindow(id: SettingsView.windowID)
+                            model.surfaceWindow(sceneID: SettingsView.windowID)
+                        }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: downloadReadout,
                     showsStageLabel: showsStageLabel,
-                    fullDiskAccessMissing: model.fullDiskAccessMissing)
+                    testFlightUnboundedReason: model.testFlightUnboundedReason)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

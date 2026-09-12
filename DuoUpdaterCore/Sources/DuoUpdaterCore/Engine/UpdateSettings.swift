@@ -125,6 +125,16 @@ public struct UpdateSettings: Sendable {
     public static let appStoreUpdateStrategyKey = "AppStoreUpdateStrategy"
     /// The UserDefaults key the app persists `vendorInstallPolicy` under.
     public static let vendorInstallPolicyKey = "VendorInstallPolicy"
+    /// The UserDefaults key the app persists `TestFlightDetection` under. Shared
+    /// for the same reason as the two above, and with one more: the CLI reads
+    /// TestFlight's store too, so a drifted name would leave "off" true in the
+    /// menu bar and false for `duo check` on the same Mac.
+    ///
+    /// No shared default beside it on purpose — the value is written on the first
+    /// launch that finds the key absent (`TestFlightDetection.firstRunDefault`),
+    /// so a reader that finds nothing is reading a Mac the app has not started on
+    /// yet. `TestFlightDetection.off` is the right answer for such a reader.
+    public static let testFlightDetectionKey = "TestFlightDetection"
 
     /// What `vendorInstallPolicy` resolves to when the key is absent.
     ///

@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The Requests window now shows how far back its log actually reaches, and marks date ranges it can't fully cover.** Before, picking "Last 30 days" on a log that only went back a few hours looked exactly like picking "Last 24 hours," with nothing on screen explaining why.
 
-**TestFlight betas no longer wait for you to press Refresh.** When TestFlight installed a beta in the background, its row showed a question mark until the next manual refresh — and a build TestFlight had not installed yet could go unnoticed while the row said the beta was up to date. Duo Updater now checks with TestFlight on its own when a row needs it.
+**You choose how much Duo Updater does about TestFlight betas, in Settings → General.** *When I refresh* reads what TestFlight already knows and asks it for a fresh answer when you press Refresh; *Keep it fresh* also lets Duo Updater ask on its own, so a beta TestFlight installed in the background no longer sits as a question mark until you refresh, and a build waiting for you no longer goes unnoticed behind an "up to date"; *Off* reads nothing and says so on those rows instead of guessing. Macs that already had Full Disk Access start at *When I refresh*, everyone else at *Off*.
 
 ## 0.3.92
 

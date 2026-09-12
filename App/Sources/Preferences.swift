@@ -66,6 +66,7 @@ final class Preferences {
     /// definitions moved to DuoUpdaterCore so the CLI shares the same types.
     typealias AppStoreUpdateStrategy = DuoUpdaterCore.AppStoreUpdateStrategy
     typealias VendorInstallPolicy = DuoUpdaterCore.VendorInstallPolicy
+    typealias TestFlightDetection = DuoUpdaterCore.TestFlightDetection
 
     private enum Key {
         static let githubToken = "GitHubToken"   // legacy plaintext key — migration-only (read once, then removed; token now lives in the Keychain)
@@ -80,6 +81,7 @@ final class Preferences {
         static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
+        static let testFlightDetection = UpdateSettings.testFlightDetectionKey
         static let customScanPaths = "CustomScanPaths"
         static let ignoredKeys = UpdateSettings.ignoredKeysKey
         static let declinedElevationKeys = UpdateSettings.declinedElevationKeysKey
@@ -249,6 +251,21 @@ final class Preferences {
     /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.
     var vendorInstallPolicy: VendorInstallPolicy {
         didSet { defaults.set(vendorInstallPolicy.rawValue, forKey: Key.vendorInstallPolicy) }
+    }
+
+    /// What DuoUpdater does about TestFlight betas. See `TestFlightDetection`.
+    ///
+    /// Nothing here re-checks the rows: the value decides what the next read is
+    /// allowed to do, and the rows already on screen were answered under the old
+    /// one. `AppListModel.testFlightDetectionChanged()` is what settles them, and
+    /// it is called from the control that changes this — a `didSet` cannot, since
+    /// `Preferences` deliberately knows nothing about the model.
+    var testFlightDetection: TestFlightDetection {
+        didSet {
+            guard testFlightDetection != oldValue else { return }
+            defaults.set(testFlightDetection.rawValue, forKey: Key.testFlightDetection)
+            Log.app.notice("prefs: TestFlight detection \(oldValue.rawValue, privacy: .public) → \(self.testFlightDetection.rawValue, privacy: .public)")
+        }
     }
 
     /// Extra folders the user added to the scan, beyond the built-in roots
@@ -471,6 +488,26 @@ final class Preferences {
         }
         self.vendorInstallPolicy = VendorInstallPolicy(
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? UpdateSettings.vendorInstallPolicyDefault
+        // First launch that finds no choice recorded decides one from the Full Disk
+        // Access this Mac has right now, and writes it down
+        // (`TestFlightDetection.firstRunDefault` explains both halves). Written here
+        // rather than left to resolve on each read, so the answer cannot change
+        // later behind the user's back when the permission does. An unreadable
+        // value — a hand-typed `defaults write` with a typo — is a value the user
+        // meant to set, so it is not silently overwritten with the migration; it
+        // falls back to `.off`, the state that reads nothing.
+        if let stored = defaults.string(forKey: Key.testFlightDetection) {
+            self.testFlightDetection = TestFlightDetection(rawValue: stored) ?? .off
+            if TestFlightDetection(rawValue: stored) == nil {
+                Log.app.error("prefs: TestFlight detection is set to \(stored, privacy: .public), which is not one of \(TestFlightDetection.allCases.map(\.rawValue).joined(separator: "/"), privacy: .public) — reading it as off")
+            }
+        } else {
+            let migrated = TestFlightDetection.firstRunDefault(
+                fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
+            self.testFlightDetection = migrated
+            defaults.set(migrated.rawValue, forKey: Key.testFlightDetection)
+            Log.app.notice("prefs: TestFlight detection not set — starting at \(migrated.rawValue, privacy: .public)")
+        }
         self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])

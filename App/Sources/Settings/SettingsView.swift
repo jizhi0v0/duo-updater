@@ -25,6 +25,14 @@ struct SettingsView: View {
 
     @State private var selection: SettingsSection = .general
     @State private var query = ""
+    /// The card a deep link asked for, consumed from the model here and handed to
+    /// the pages through the environment. Consumed HERE and not by the page that
+    /// acts on it: a page keying its work on a value it then clears cancels itself
+    /// (see `SettingsPage`), and the request has to outlive the page swap anyway.
+    @State private var reveal: SettingsReveal?
+    /// Advances per request, so two clicks on the same link both land instead of
+    /// the second comparing equal and never re-firing.
+    @State private var revealToken = 0
 
     var body: some View {
         NavigationSplitView {
@@ -37,15 +45,30 @@ struct SettingsView: View {
         .frame(minWidth: 660, minHeight: 440)
         // A real macOS window, so route the lifecycle through the model to keep
         // focus and trust-polling consistent with the other top-level windows.
-        .onAppear { model.windowAppeared(); model.beginTrustPolling(); applyRequestedSection() }
+        .onAppear {
+            model.windowAppeared(); model.beginTrustPolling()
+            applyRequestedSection(); applyRequestedAnchor()
+        }
         // Deep-link set before the window opened (onAppear) or while it's already
         // open (onChange) — e.g. onboarding asking for the GitHub page.
         .onChange(of: model.requestedSettingsSection) { applyRequestedSection() }
-        .onDisappear { model.endTrustPolling(); model.windowDisappeared() }
+        .onChange(of: model.requestedSettingsAnchor) { applyRequestedAnchor() }
+        // A request is spent the moment the reader navigates off the page that owns
+        // it. Without this it stands for the life of the window, and `SettingsPage`
+        // starts its reveal whenever a page APPEARS — so leaving General and coming
+        // back would scroll and flash again for a link followed minutes ago. The
+        // page-select this function performs itself does not trip it: the new
+        // selection IS the anchor's section. Cleared on close too, in case the scene
+        // keeps its state across a reopen.
+        .onChange(of: selection) { _, now in
+            if let reveal, reveal.anchor.section != now { self.reveal = nil }
+        }
+        .onDisappear { model.endTrustPolling(); model.windowDisappeared(); reveal = nil }
     }
 
     private var detail: some View {
         page(for: selection)
+            .environment(\.settingsReveal, reveal)
             .background(SettingsBackdrop(section: selection))
             // Cross-fade pages rather than letting the glass cards pop: the
             // backdrop tint animates underneath at the same time.
@@ -73,6 +96,19 @@ struct SettingsView: View {
         query = ""
         selection = requested
         model.requestedSettingsSection = nil
+    }
+
+    /// The same for a card within that page (`SettingsAnchor`). Selects the page it
+    /// lives on as well, so a link that names only the card still lands: the two
+    /// requests are set together today, and a caller that forgets one should not
+    /// leave the window on whatever page it was last on.
+    private func applyRequestedAnchor() {
+        guard let anchor = model.requestedSettingsAnchor else { return }
+        query = ""
+        selection = anchor.section
+        revealToken += 1
+        reveal = SettingsReveal(anchor: anchor, token: revealToken)
+        model.requestedSettingsAnchor = nil
     }
 }
 

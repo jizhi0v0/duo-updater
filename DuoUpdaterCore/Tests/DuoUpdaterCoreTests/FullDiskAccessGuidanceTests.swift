@@ -134,4 +134,28 @@ struct FullDiskAccessNeedsTests {
             refused, rows: [stableEditor, betaEditor, beta, untouched])
         #expect(picked.map(\.id) == [stableEditor.id])
     }
+
+    /// Mutation: `retire` → a no-op, or `refusedApps[need] = []`. The record is
+    /// per-launch and nothing else empties it, which is why switching TestFlight
+    /// detection off has to: the entries then describe attempts that will never be
+    /// made again, and the menu's Full Disk Access explanation is built from
+    /// `refused()` — so a stale entry puts up a modal asking for a permission that
+    /// would change nothing (#547).
+    ///
+    /// The second half is what an empty set instead of a removal would miss:
+    /// `AppListModel.offerFullDiskAccessIfNeeded` gives up on `refused().isEmpty`,
+    /// which an empty-but-present entry is not.
+    @Test func retiringAReadForgetsItWithoutTouchingTheOther() {
+        let needs = FullDiskAccessNeeds()
+        needs.recordRefusal(.testFlight, for: ["zz.fixture.beta"])
+        needs.recordRefusal(.cotEditorChannel, for: ["zz.fixture.editor"])
+
+        needs.retire(.testFlight)
+
+        #expect(needs.refused()[.testFlight] == nil)
+        #expect(needs.refused()[.cotEditorChannel] == ["zz.fixture.editor"])
+
+        needs.retire(.cotEditorChannel)
+        #expect(needs.refused().isEmpty)
+    }
 }

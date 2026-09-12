@@ -93,7 +93,8 @@ enum RowStateGalleryCases {
                 PopoverRowAction(
                     state: state, result: result,
                     downloadReadout: popoverDownloadReadoutOverrides[name] ?? .barAndPercent,
-                    showsStageLabel: popoverShowsStageLabelOverrides[name] ?? { _ in true })
+                    showsStageLabel: popoverShowsStageLabelOverrides[name] ?? { _ in true },
+                    testFlightUnboundedReason: testFlightUnboundedReasonOverrides[name] ?? .storeSilent)
                 .frame(width: tileWidth, height: tileHeight, alignment: .trailing))
         }
     }
@@ -123,7 +124,9 @@ enum RowStateGalleryCases {
             return AnyView(EmptyView())
         }
         return AnyView(
-            WorkbenchRowAction(state: state, result: result)
+            WorkbenchRowAction(
+                state: state, result: result,
+                testFlightUnboundedReason: testFlightUnboundedReasonOverrides[name] ?? .storeSilent)
                 .frame(width: tileWidth, height: tileHeight, alignment: .trailing))
     }
 
@@ -211,6 +214,24 @@ enum RowStateGalleryCases {
         ("38-major-upgrade-explanation", .updateAvailable(.majorUpgrade), app),
         ("39-region-hint-explanation", .updateAvailable(.appStore(managedHere: false, gate: .region)), storeRegionLocked),
         ("40-mac-compat-hint-explanation", .updateAvailable(.appStore(managedHere: false, gate: .macIncompatible)), storeMacIncompatible),
+        // The other two reasons a TestFlight row cannot bound its beta. Same state
+        // as 29 — `RowActionState` does not carry the reason, both surfaces take it
+        // as an input (`TestFlightUnboundedReason`) — so these two names exist to
+        // draw the marks 29 cannot: a question mark that means "the permission is
+        // missing" and, for detection off, a minus that must NOT be a question mark
+        // (#547). Without them nothing would notice a later change drawing all
+        // three alike.
+        ("41-testflight-no-full-disk-access", .managedElsewhere(.testFlight), app),
+        ("42-testflight-checking-off", .managedElsewhere(.testFlight), app),
+    ]
+
+    /// Which reason each TestFlight-unbounded case is drawn with, on BOTH surfaces
+    /// — they draw the same mark from the same input, and an override that reached
+    /// only one of them would leave the other silently drawing case 29 again under
+    /// a new name. Anything absent takes the production default, `.storeSilent`.
+    static let testFlightUnboundedReasonOverrides: [String: TestFlightUnboundedReason] = [
+        "41-testflight-no-full-disk-access": .noFullDiskAccess,
+        "42-testflight-checking-off": .checkingOff,
     ]
 
     /// Popover-only overrides for the three readout/stage-label cases above, keyed
@@ -310,6 +331,13 @@ enum RowStateGalleryCases {
         // up to date when nothing had established it.
         ["popover/27-managed-app-store", "popover/31-up-to-date-app-store"],
         ["workbench/27-managed-app-store", "workbench/31-up-to-date-app-store"],
+        // Same question mark, and it should be: both mean "asked, and could not be
+        // told". Only the tooltip says which — the store had nothing to say, or the
+        // permission to read it is missing — and the tooltip check below is what
+        // holds them apart. The THIRD reason, detection off, is case 42 and is
+        // deliberately not exempted here: it must not draw a question mark at all.
+        ["popover/29-managed-testflight", "popover/41-testflight-no-full-disk-access"],
+        ["workbench/29-managed-testflight", "workbench/41-testflight-no-full-disk-access"],
     ]
 
     /// Tiles whose PICTURE is a harness artifact and must not be read as the real

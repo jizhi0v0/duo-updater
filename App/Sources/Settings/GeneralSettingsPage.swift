@@ -189,6 +189,38 @@ struct GeneralSettingsPage: View {
                 }
                 .settingsRow()
             }
+
+            testFlightCard.settingsAnchor(.testFlightDetection)
+        }
+    }
+
+    /// What DuoUpdater does about TestFlight betas (`TestFlightDetection`).
+    ///
+    /// Here rather than under Updates, which is Duo Updater's own self-update: this
+    /// is the same question as the two pickers above — how much to do about one
+    /// source — and the tip on a TestFlight row sends the reader to this page.
+    ///
+    /// The footer names the permission and the cost because both are real and
+    /// neither is visible from the picker: the two "on" states need Full Disk
+    /// Access, and only the third starts an app the user did not start.
+    private var testFlightCard: some View {
+        SettingsCard(
+            footer: "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets Duo Updater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing."
+        ) {
+            AdaptivePickerRow(title: Text("TestFlight betas")) {
+                Picker("TestFlight betas", selection: $prefs.testFlightDetection) {
+                    ForEach(Preferences.TestFlightDetection.allCases) { detection in
+                        Text(detection.label).tag(detection)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                // The rows on screen were answered under the old setting and nothing
+                // else revisits them until the next round, so the change is settled
+                // here — a `didSet` on `Preferences` cannot, it knows no model.
+                .onChange(of: prefs.testFlightDetection) { model.testFlightDetectionChanged() }
+            }
+            .settingsRow()
         }
     }
 }

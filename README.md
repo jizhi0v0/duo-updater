@@ -76,6 +76,17 @@ apply, try the next one". Two kinds of app never reach that stack at all:
 `UpdateChecker` before the first source is consulted, because Toolbox and
 TestFlight each own the update and there is no second opinion worth having.
 
+How much DuoUpdater does about TestFlight betas is your choice — **Settings →
+General → TestFlight betas** — because the answer lives in a database only
+TestFlight itself ever writes. **Off** reads nothing and says so on those rows.
+**When I refresh** reads that database on every check and asks TestFlight for a
+fresh answer when you press Refresh. **Keep it fresh** also lets DuoUpdater ask
+on its own — at most once an hour, and whenever it can see a beta has moved on
+without it — which starts TestFlight in the background for a few seconds
+(about 0.7 MB) each time. Both "on" settings need Full Disk Access; see below.
+A Mac that already had Full Disk Access when it first ran this version starts at
+*When I refresh*, everyone else at *Off*.
+
 It **respects each app's own update channel**:
 
 | Channel | Action |
@@ -229,7 +240,9 @@ needs it:
 
 - the builds TestFlight offers you, for a beta installed from TestFlight. Without
   it the beta is still recognized, but its row shows a question mark instead of
-  the latest build.
+  the latest build. Only when TestFlight detection is on — with it *Off*, this
+  read is not one of the two, and CotEditor is the only thing left that wants the
+  permission.
 - CotEditor's update channel, which that sandboxed app keeps in its container.
   Without it, CotEditor is checked against its stable releases even if you asked
   it for prereleases (a prerelease you already run is still recognized from its
@@ -245,7 +258,10 @@ most once more if another such app appears; the welcome window and Settings →
 Diagnostics show whether it is granted, and tapping the question mark on a
 TestFlight row says why it is there — offering to grant it when that is the
 reason. A stable CotEditor carries a small lock beside its name that does the
-same.
+same. With TestFlight detection *Off* none of that mentions TestFlight: nothing
+was attempted, so the permission is not what is missing, and the beta rows carry
+a minus rather than a question mark — asked-and-not-told and never-asked are
+different things to say.
 
 **App Management** — required to install anything. Replacing an app in
 `/Applications` that some other installer put there is gated on this, and macOS

@@ -78,6 +78,12 @@ struct RowActions {
     var openToolbox: () -> Void = {}
     var openTestFlight: () -> Void = {}
     var grantFullDiskAccess: () -> Void = {}
+    /// Deep-link to Settings → General, where TestFlight detection is. Only the
+    /// "checking is off" tip offers it, and it is an action rather than a sentence
+    /// pointing at a menu for the same reason `grantFullDiskAccess` is: the row is
+    /// where the user is, and the way out of the state should be one click from
+    /// there.
+    var openTestFlightSetting: () -> Void = {}
 
     /// The full set, with no defaults — for a real window, where a missing action
     /// is a dead control rather than a deliberate omission.
@@ -91,13 +97,15 @@ struct RowActions {
         openSelfUpdater: @escaping () -> Void,
         openToolbox: @escaping () -> Void,
         openTestFlight: @escaping () -> Void,
-        grantFullDiskAccess: @escaping () -> Void
+        grantFullDiskAccess: @escaping () -> Void,
+        openTestFlightSetting: @escaping () -> Void
     ) -> RowActions {
         RowActions(
             install: install, openStagedPackage: openStagedPackage, retry: retry,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
-            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess)
+            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
+            openTestFlightSetting: openTestFlightSetting)
     }
 }
 
@@ -110,10 +118,10 @@ struct WorkbenchRowAction: View {
     /// is given (which is what lets `RowStateGallery` render every case with no
     /// model at all).
     var helperEnabled: Bool = true
-    /// Whether Full Disk Access is missing — decides what the question mark on a
-    /// TestFlight row explains, and whether it offers to grant it. An input for
-    /// the same reason as `helperEnabled`.
-    var fullDiskAccessMissing: Bool = false
+    /// Why a TestFlight row cannot bound its beta — decides which mark it carries
+    /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
+    /// same reason as `helperEnabled`.
+    var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
 
     @State private var showTestFlightTip = false
 
@@ -273,10 +281,13 @@ struct WorkbenchRowAction: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
-        .overlay(alignment: .bottomTrailing) { TestFlightUnboundedMark().offset(x: 4, y: 4) }
+        .dimmedWhenOff(testFlightUnboundedReason)
+        .overlay(alignment: .bottomTrailing) {
+            TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help("TestFlight hasn't told us this beta's latest build, or Duo Updater has no Full Disk Access to read it, so we can't say whether it's current")
+        .help(testFlightUnboundedReason.rowHelp)
         // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
         // out of a borderless button.
         .contentShape(Rectangle())
@@ -285,7 +296,8 @@ struct WorkbenchRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                fullDiskAccessMissing: fullDiskAccessMissing, grant: actions.grantFullDiskAccess)
+                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess,
+                openSetting: actions.openTestFlightSetting)
         }
     }
 
@@ -493,50 +505,130 @@ struct ProgressRing: View {
     }
 }
 
-/// The question mark on a TestFlight row whose store could not bound it. One
-/// view for both surfaces, so the popover and the workbench cannot drift into
-/// two different marks for one state.
+/// The mark on a TestFlight row whose store could not bound it. One view for both
+/// surfaces, so the popover and the workbench cannot drift into two different
+/// marks for one state.
+///
+/// Two symbols, because the row has two things to say and they are not the same
+/// thing. A question mark means *asked, and could not be told* — the store was
+/// read and had no answer, or the permission to read it is missing. With detection
+/// off nothing was asked at all, and a question mark there reads as a failure the
+/// user should go and fix, which is how someone ends up granting Full Disk Access
+/// for a read that will still not happen (#547). That state gets a slash.
+///
+/// ⚠️ **The badge alone does not carry this.** It was a `minus.circle.fill` first,
+/// and the person who asked for the setting misread the shipped build as a
+/// question mark — at 9pt a dash inside a filled circle has very nearly the
+/// silhouette of a "?", and telling the two states apart is the entire job. So the
+/// glyph is a slash, which differs in direction rather than in fine detail, and
+/// `dimmedWhenOff` mutes the icon under it: at this size the reliable signal is the
+/// 16pt icon changing, not the 9pt badge. Neither half is decoration — a change
+/// that drops one of them puts the state back where it was misread.
 ///
 /// Not inside a button on purpose: `ImageRenderer` draws an SF Symbol in a
 /// borderless button as a placeholder, and the gallery would then have to
 /// list this state as unfaithful.
 struct TestFlightUnboundedMark: View {
+    var reason: TestFlightUnboundedReason = .storeSilent
+
     var body: some View {
-        Image(systemName: "questionmark.circle.fill")
+        Image(systemName: reason == .checkingOff ? "slash.circle.fill" : "questionmark.circle.fill")
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.secondary)
             .background(Circle().fill(.background).padding(1))
     }
 }
 
-/// What tapping that question mark opens, in both windows: why the row cannot say
-/// whether the beta is current, and — when the reason is a missing Full Disk
-/// Access — the way to grant it. Shared so the two windows cannot explain one
-/// state two ways. Two literal `Text`s rather than a ternary, which could resolve
-/// to `String` and skip localization.
+extension View {
+    /// Mute a TestFlight row's icon when nothing is checking it — the other half of
+    /// `TestFlightUnboundedMark`, applied to the mark's host rather than living
+    /// inside it because it is the ICON that has to change, not the badge.
+    ///
+    /// Grayscale and half opacity: the same "this is switched off" idiom macOS uses
+    /// for a disabled control, and a change big enough to read from across the row.
+    /// Deliberately not applied to the other two reasons — those rows ARE being
+    /// checked, and dimming them would say the opposite of what is true.
+    @ViewBuilder func dimmedWhenOff(_ reason: TestFlightUnboundedReason) -> some View {
+        if reason == .checkingOff {
+            self.grayscale(1).opacity(0.5)
+        } else {
+            self
+        }
+    }
+}
+
+extension TestFlightUnboundedReason {
+    /// The row's own tooltip — the whole sentence, since a pointer never gets the
+    /// tip that a tap opens. Three whole sentences rather than one assembled from
+    /// parts, so each is a key the catalog carries and can be translated as a
+    /// sentence.
+    ///
+    /// A `String(localized:)` rather than a `Text`: the gallery's tooltip check
+    /// reflects the view tree for the string a `.help` carries, and this is the one
+    /// `.help` in the app whose text is computed rather than written at the call
+    /// site (`main.swift`'s `collectHelpTexts`).
+    var rowHelp: String {
+        switch self {
+        case .checkingOff:
+            return String(localized: "TestFlight checking is off, so Duo Updater can’t say whether this beta is current")
+        case .noFullDiskAccess:
+            return String(localized: "Duo Updater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current")
+        case .storeSilent:
+            return String(localized: "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current")
+        }
+    }
+}
+
+/// What tapping that mark opens, in both windows: why the row cannot say whether
+/// the beta is current, and — when the reason is a missing Full Disk Access — the
+/// way to grant it. Shared so the two windows cannot explain one state two ways.
+/// A literal `Text` per case rather than a value built from parts, which could
+/// resolve to `String` and skip localization.
+///
+/// Two of the three reasons carry a way out, and it is a different way out each
+/// time: a missing permission is granted, a switched-off setting is switched on.
+/// Offering Grant… for the second would send the user to a permission that changes
+/// nothing while the setting is off. `storeSilent` gets no button because there is
+/// nothing to open — Refresh, which the sentence names, is already on screen.
 struct TestFlightUnboundedTip: View {
-    let fullDiskAccessMissing: Bool
+    let reason: TestFlightUnboundedReason
     let grant: () -> Void
+    var openSetting: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
+
+    private var fullDiskAccessMissing: Bool { reason == .noFullDiskAccess }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Group {
-                if fullDiskAccessMissing {
+                switch reason {
+                case .checkingOff:
+                    Text("Duo Updater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.")
+                case .noFullDiskAccess:
                     Text("Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
-                } else {
+                case .storeSilent:
                     Text("TestFlight hasn’t told Duo Updater this beta’s latest build yet. Refreshing asks TestFlight to check.")
                 }
             }
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)
+            // Trailing, where macOS puts the action in a dialog or popover.
             if fullDiskAccessMissing {
-                // Trailing, where macOS puts the action in a dialog or popover.
                 HStack {
                     Spacer()
                     Button("Grant…") {
                         dismiss()
                         grant()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            } else if reason == .checkingOff {
+                HStack {
+                    Spacer()
+                    Button("Settings…") {
+                        dismiss()
+                        openSetting()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

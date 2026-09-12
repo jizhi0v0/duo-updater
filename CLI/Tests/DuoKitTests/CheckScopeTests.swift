@@ -27,7 +27,11 @@ import DuoUpdaterCore
             ignoredKeys: Set(ignored.map { InstallPreferenceKey.key(for: $0) }),
             skippedVersions: Dictionary(
                 uniqueKeysWithValues: skipped.map { (InstallPreferenceKey.key(for: $0.key), $0.value) }),
-            customScanPaths: [], maxConcurrency: 12, keepBackups: true,
+            customScanPaths: [], maxConcurrency: 12,
+            // `.off` so nothing here reads the TestFlight store on the machine
+            // running the tests — none of these cases is about TestFlight, and a
+            // fixture that read it would put the host into the equation.
+            testFlightDetection: .off, keepBackups: true,
             githubToken: nil, alcove: nil)
     }
 

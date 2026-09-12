@@ -39,6 +39,17 @@ public struct Settings: Sendable {
     public var skippedVersions: [String: String]
     public var customScanPaths: [String]
     public var maxConcurrency: Int
+    /// What the user chose DuoUpdater should do about TestFlight betas. `duo`
+    /// honours the same choice: it reads the same store on the same Mac, so a CLI
+    /// that ignored the setting would make "off" true in the menu bar and false at
+    /// the prompt — including the "Data Access Blocked" notices turning it off is
+    /// meant to stop.
+    ///
+    /// Only ``TestFlightDetection/readsStore`` is consulted here. The two "on"
+    /// states differ by whether a round may start TestFlight of its own accord, and
+    /// `duo` never does that: it has no scheduler, and it is not the thing whose
+    /// rows go stale between checks.
+    public var testFlightDetection: TestFlightDetection
     /// Whether to store a rollback point before replacing a bundle. Defaults to
     /// true when unset, matching the app — a CLI that defaulted the other way
     /// would silently install without the safety net the user believes they have.
@@ -72,6 +83,11 @@ public struct Settings: Sendable {
             // 0 means "never set"; the app's own default is 12.
             maxConcurrency: max(1, defaults.integer(forKey: "MaxConcurrency") == 0
                 ? 12 : defaults.integer(forKey: "MaxConcurrency")),
+            // No key means the menu-bar app has never started on this Mac, so no
+            // choice has been recorded (it writes one on first launch). `.off` is
+            // the right reading for that: read nothing until somebody has said to.
+            testFlightDetection: defaults.string(forKey: UpdateSettings.testFlightDetectionKey)
+                .flatMap(TestFlightDetection.init(rawValue:)) ?? .off,
             keepBackups: defaults.object(forKey: "KeepBackups") as? Bool ?? true,
             // Same ladder as the app: the token the user entered, else the
             // environment, else whatever `gh` is logged in as.

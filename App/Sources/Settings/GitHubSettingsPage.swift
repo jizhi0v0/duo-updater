@@ -33,7 +33,10 @@ struct GitHubSettingsPage: View {
     var body: some View {
         SettingsPage(section: .github) {
             cliCard
-            tokenCard
+            // The rate-limit banner and the welcome window both link here about the
+            // TOKEN, and it is the second card — below the CLI one, and below the
+            // fold on a short window.
+            tokenCard.settingsAnchor(.githubToken)
         }
         // Click anywhere outside the field to drop focus. Child controls get the
         // tap first, so buttons/field still work; only empty space resigns.

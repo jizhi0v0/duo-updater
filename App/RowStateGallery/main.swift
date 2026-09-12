@@ -286,10 +286,21 @@ enum TooltipCheckResult {
 /// which is also why this can't be generalized to walk an arbitrary `AnyView`:
 /// it relies on knowing the concrete type at the call site.
 @MainActor
-private func rowActionHelpTexts(surface: String, state: RowActionState, result: UpdateResult) -> [String] {
+private func rowActionHelpTexts(
+    surface: String, name: String, state: RowActionState, result: UpdateResult
+) -> [String] {
+    // The same per-name override the tiles apply. Without it the two TestFlight
+    // pairs below would be handed the default reason and extract one identical
+    // tooltip — the check would report them undifferentiated, which would be a true
+    // statement about a view neither surface ever draws.
+    let reason = RowStateGalleryCases.testFlightUnboundedReasonOverrides[name] ?? .storeSilent
     switch surface {
-    case "popover": return collectHelpTexts(PopoverRowAction(state: state, result: result).body)
-    case "workbench": return collectHelpTexts(WorkbenchRowAction(state: state, result: result).body)
+    case "popover":
+        return collectHelpTexts(
+            PopoverRowAction(state: state, result: result, testFlightUnboundedReason: reason).body)
+    case "workbench":
+        return collectHelpTexts(
+            WorkbenchRowAction(state: state, result: result, testFlightUnboundedReason: reason).body)
     default: return []
     }
 }
@@ -310,6 +321,9 @@ private let tooltipDifferentiatedPairs: Set<Set<String>> = [
     // "Both a bordered Update: … the tooltip is what separates them."
     ["popover/13-update-installer", "popover/19-update-app-store"],
     ["workbench/13-update-installer", "workbench/19-update-app-store"],
+    // "Same question mark … only the tooltip says which."
+    ["popover/29-managed-testflight", "popover/41-testflight-no-full-disk-access"],
+    ["workbench/29-managed-testflight", "workbench/41-testflight-no-full-disk-access"],
 ]
 
 @MainActor
@@ -344,8 +358,8 @@ func tooltipsDifferentiateExemptedPairs() -> TooltipCheckResult {
               let (_, stateA, resultA) = byName[nameA],
               let (_, stateB, resultB) = byName[nameB] else { continue }
 
-        let helpA = Set(rowActionHelpTexts(surface: surfaceA, state: stateA, result: resultA))
-        let helpB = Set(rowActionHelpTexts(surface: surfaceA, state: stateB, result: resultB))
+        let helpA = Set(rowActionHelpTexts(surface: surfaceA, name: nameA, state: stateA, result: resultA))
+        let helpB = Set(rowActionHelpTexts(surface: surfaceA, name: nameB, state: stateB, result: resultB))
         totalHelpStringsFound += helpA.count + helpB.count
         checked += 1
         if helpA == helpB {

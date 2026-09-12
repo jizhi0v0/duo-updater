@@ -231,6 +231,14 @@ final class AppListModel {
     var fullDiskAccessMissing: Bool {
         fullDiskAccessStatus == .denied || fullDiskAccessStatus == .notDetermined
     }
+    /// Why a TestFlight row cannot bound its beta right now — the mark it carries
+    /// and what tapping the mark says (`TestFlightUnboundedReason`). One property
+    /// so the popover and the workbench are handed the same answer rather than each
+    /// combining the setting and the permission for itself.
+    var testFlightUnboundedReason: TestFlightUnboundedReason {
+        .of(detection: prefs.testFlightDetection,
+            fullDiskAccessMissing: fullDiskAccessMissing)
+    }
     /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
     /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
     /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
@@ -470,9 +478,10 @@ final class AppListModel {
     func openTestFlight(for result: UpdateResult) {
         let bundleID = result.app.bundleID
         // Without Full Disk Access the read cannot succeed and would only post a
-        // system notice; the list is where it would have landed anyway.
+        // system notice, and with detection off it is a read the user turned off;
+        // either way the list is where it would have landed anyway.
         guard mayReadTestFlightStore else {
-            Log.app.info("TestFlight: no Full Disk Access to read an app id — opening its list")
+            Log.app.info("TestFlight: not reading the store for an app id (detection=\(self.prefs.testFlightDetection.rawValue, privacy: .public)) — opening its list")
             openTestFlight()
             return
         }
@@ -761,6 +770,11 @@ final class AppListModel {
     /// "Set Up GitHub…" before it opens Settings. `SettingsView` consumes and clears
     /// it on appear/change, so the window lands on that tab instead of General.
     var requestedSettingsSection: SettingsView.Section?
+    /// And which card on that page, when the link was about one setting rather
+    /// than the page it lives on (`SettingsAnchor`). Cleared by the page that acts
+    /// on it, not here — `requestedSettingsSection` is cleared by `SettingsView`
+    /// once the page is selected, which is earlier than this one can be honoured.
+    var requestedSettingsAnchor: SettingsAnchor?
 
     /// An app the workbench should jump to — set by the menu-bar row's "Changelog"
     /// item (the result `id`, i.e. the app path) before it opens the workbench.
@@ -1302,12 +1316,19 @@ final class AppListModel {
     /// once (`owesTestFlightRead`).
     private(set) var testFlightReadThisSession = false
 
-    /// Whether anything may read TestFlight's store right now: only with Full Disk
-    /// Access, since without it the read cannot succeed and each attempt posts a
-    /// system notice (`TCCPreflight.admitsOtherAppsData`). Asked live rather than
-    /// from `fullDiskAccessStatus`, which is only kept fresh while a window shows it.
+    /// Whether anything may read TestFlight's store right now: only when the user
+    /// has TestFlight detection on at all (`TestFlightDetection.readsStore`), and
+    /// only with Full Disk Access, since without it the read cannot succeed and each
+    /// attempt posts a system notice (`TCCPreflight.admitsOtherAppsData`). Asked
+    /// live rather than from `fullDiskAccessStatus`, which is only kept fresh while
+    /// a window shows it.
+    ///
+    /// The setting is asked FIRST, and not only for tidiness: off means the read was
+    /// never attempted, so a Mac that also lacks the grant must not be told the
+    /// permission is what is missing (`TestFlightUnboundedReason`).
     private var mayReadTestFlightStore: Bool {
-        TCCPreflight.admitsOtherAppsData(fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
+        prefs.testFlightDetection.readsStore
+            && TCCPreflight.admitsOtherAppsData(fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
     }
 
     /// Whether opening the menu or the workbench should run the full refresh that
@@ -2112,7 +2133,34 @@ final class AppListModel {
         let rechecked = await checker.check(targets)
         if inventory.accessible { testFlightReadThisSession = true }
         results = sorted(TestFlightRefresh.merging(results, resynced: rechecked))
-        Log.app.notice("permissions: Full Disk Access \(mayRead ? "granted" : "missing", privacy: .public) while running — re-checked \(rechecked.count, privacy: .public) TestFlight rows")
+        // Named by what changed the answer, not by one of the two things that can:
+        // this runs for a Full Disk Access switch and for the detection setting, and
+        // a line that always said "Full Disk Access" would misreport half of them.
+        Log.app.notice("TestFlight rows re-checked while running: \(rechecked.count, privacy: .public) (store readable=\(mayRead, privacy: .public), detection=\(self.prefs.testFlightDetection.rawValue, privacy: .public))")
+    }
+
+    /// The same, after the user changed what DuoUpdater does about TestFlight in
+    /// Settings (`TestFlightDetection`). The rows on screen were answered under the
+    /// old setting, and nothing else would revisit them until the next round — so
+    /// turning detection off would leave verdicts standing that nothing will ever
+    /// refresh, and turning it on would leave "checking is off" on rows that can now
+    /// be answered.
+    ///
+    /// Deliberately the same path as the permission changing, and it needs no
+    /// argument of its own: both change the answer to `mayReadTestFlightStore`,
+    /// which is the only question `recheckTestFlightRows` asks.
+    ///
+    /// Turning it OFF also retires what a read turned away earlier this launch
+    /// recorded. Those refusals outlive the round that made them, and the menu's
+    /// Full Disk Access explanation is built from them — so without this, switching
+    /// detection off and opening the menu puts up a modal asking for a permission
+    /// that would now change nothing, naming a question mark the row no longer
+    /// shows.
+    func testFlightDetectionChanged() {
+        if !prefs.testFlightDetection.readsStore {
+            FullDiskAccessNeeds.shared.retire(.testFlight)
+        }
+        Task { await recheckTestFlightRows() }
     }
 
     /// What earlier rounds in this process already spent a TestFlight sync on
@@ -2230,11 +2278,18 @@ final class AppListModel {
         // the notices that only ever qualify what it says. With it the read is
         // silent, so even the scheduler's tick takes it. Asked once, here, so the
         // whole round agrees (`RefreshIntent.readsTestFlight(fullDiskAccess:)`).
+        //
+        // And none at all when the user has TestFlight detection off: that is the
+        // whole meaning of the setting, and it is asked here so every consequence
+        // below — the store, the sync, the announcements, the refusal the menu would
+        // explain — falls out of one answer rather than three sites remembering.
+        let detection = prefs.testFlightDetection
         let fullDiskAccess = TCCPreflight.fullDiskAccessStatus()
-        let mayReadTestFlight = TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess)
+        let mayReadTestFlight = detection.readsStore
+            && TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess)
         refreshTaskMayReadTestFlight = mayReadTestFlight
-        let allowTestFlight = intent.readsTestFlight(fullDiskAccess: fullDiskAccess)
-        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public))")
+        let allowTestFlight = detection.readsStore && intent.readsTestFlight(fullDiskAccess: fullDiskAccess)
+        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public), detection=\(detection.rawValue, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
         // Once per session, before the scan: recover any app left at
@@ -2372,7 +2427,10 @@ final class AppListModel {
         }.value
         // The store was turned away above, before the scan knew which apps it would
         // have answered; now it does, so the menu can name them.
-        if !mayReadTestFlight {
+        // Only when the grant is what stopped it. With detection off no read was
+        // wanted, and recording a refusal would have the menu offer Full Disk Access
+        // for a read that would still not happen once it was given.
+        if !mayReadTestFlight, detection.readsStore {
             FullDiskAccessNeeds.shared.recordRefusal(
                 .testFlight, for: found.filter(\.isTestFlightApp).map { $0.bundleID ?? $0.id })
         }
@@ -2486,7 +2544,10 @@ final class AppListModel {
         // (`RefreshIntent.keepsTestFlightVerdicts`).
         let plan = ScanRowAssembly.roundPlan(
             checkable,
-            keepsTestFlightRows: intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess),
+            // Never with detection off, for the same reason as a known-missing grant:
+            // a kept verdict is one nothing will ever refresh.
+            keepsTestFlightRows: detection.readsStore
+                && intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess),
             onScreen: roundBaseline)
         var checkedRows = await checker.check(plan.check) + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
@@ -2504,7 +2565,13 @@ final class AppListModel {
         // written it in `TestFlightSyncPolicy.floorInterval` (#539). It cannot be
         // started early, because its evidence IS the check's output; and it is
         // deliberately not awaited here, so it cannot delay this round's rows.
-        if testFlightSync == nil, allowTestFlight, testflight.accessible, testFlightSyncTask == nil {
+        //
+        // Only for `.keepFresh`. This is the one thing that starts an app the user
+        // did not start, so it is the one thing behind its own choice (#547) — the
+        // Refresh button still syncs on `.whenAsked`, because that is the user
+        // asking.
+        if testFlightSync == nil, detection.syncsUnasked, allowTestFlight,
+           testflight.accessible, testFlightSyncTask == nil {
             let evidence = TestFlightSyncPolicy.evidence(
                 in: checkable, inventory: testflight, announcements: announcements)
             if let reason = TestFlightSyncPolicy.reason(

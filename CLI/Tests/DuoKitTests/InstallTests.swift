@@ -42,7 +42,11 @@ import DuoUpdaterCore
             updateSettings: UpdateSettings(
                 appStoreUpdateStrategy: appStoreStrategy, vendorInstallPolicy: vendorPolicy),
             ignoredKeys: [], skippedVersions: [:], customScanPaths: [],
-            maxConcurrency: 12, keepBackups: true, githubToken: nil, alcove: nil)
+            maxConcurrency: 12,
+            // `.off` so nothing here reads the TestFlight store on the machine
+            // running the tests — none of these cases is about TestFlight, and a
+            // fixture that read it would put the host into the equation.
+            testFlightDetection: .off, keepBackups: true, githubToken: nil, alcove: nil)
     }
 
     private func environment(running: Bool = false) -> InstallEnvironment {
@@ -266,7 +270,11 @@ import DuoUpdaterCore
             updateSettings: UpdateSettings(
                 appStoreUpdateStrategy: .full, vendorInstallPolicy: .deferWhenRunning),
             ignoredKeys: [], skippedVersions: [:], customScanPaths: [],
-            maxConcurrency: 12, keepBackups: true, githubToken: nil, alcove: nil)
+            maxConcurrency: 12,
+            // `.off` so nothing here reads the TestFlight store on the machine
+            // running the tests — none of these cases is about TestFlight, and a
+            // fixture that read it would put the host into the equation.
+            testFlightDetection: .off, keepBackups: true, githubToken: nil, alcove: nil)
     }
 
     private func environment() -> InstallEnvironment {

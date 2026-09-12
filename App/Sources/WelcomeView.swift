@@ -146,7 +146,7 @@ struct WelcomeView: View {
             PermissionCard(
                 systemImage: "internaldrive",
                 title: String(localized: "Full Disk Access"),
-                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — without it, TestFlight betas show a question mark."),
+                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything."),
                 status: fullDiskAccessCardStatus,
                 action: { model.presentFullDiskAccessPermissionFlow() }
             )
@@ -235,9 +235,16 @@ struct WelcomeView: View {
 
     // MARK: - Full Disk Access (optional)
 
-    /// Optional, like GitHub: without it TestFlight rows show a question mark and
-    /// nothing reads TestFlight's store, so the missing state is the subdued button,
-    /// never the prominent one.
+    /// Optional, like GitHub: without it nothing reads TestFlight's store or
+    /// CotEditor's channel, so the missing state is the subdued button, never the
+    /// prominent one.
+    ///
+    /// The card names TestFlight's own switch because this permission is necessary
+    /// for it and not sufficient: a Mac reaching this window has no Full Disk
+    /// Access, so `TestFlightDetection.firstRunDefault` has already put detection at
+    /// `.off`, and a grant made here alone changes nothing for a beta row. Saying
+    /// only "TestFlight betas show a question mark", as this card used to, would
+    /// promise a result the grant cannot deliver on its own (#547).
     private var fullDiskAccessCardStatus: PermissionCard.Status {
         switch model.fullDiskAccessStatus {
         case .granted: return .granted
@@ -267,6 +274,7 @@ struct WelcomeView: View {
     /// instead of hunting for the tab.
     private func openGitHubSetup() {
         model.requestedSettingsSection = .github
+        model.requestedSettingsAnchor = .githubToken
         openWindow(id: SettingsView.windowID)
         model.surfaceWindow(sceneID: SettingsView.windowID)
     }

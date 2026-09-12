@@ -223,10 +223,16 @@ import DuoUpdaterCore
 /// item's download can hold open for a long time. `Install.reconsider` is the
 /// pure classification the fix hangs on; `Install.apply` (mostly untested here —
 /// it's I/O around a concrete, unmockable `InstallCoordinator`) does the
-/// re-scan/re-check and calls this right before backup. The `attempted`/
-/// `declinedCount` bookkeeping `apply` does around `coordinator.perform` (#404
-/// review #2, #3) is therefore verified by code reading, not a mutation-tested
-/// unit test here — see the PR description for what was checked by hand.
+/// re-scan/re-check and calls this right before backup. Two things around
+/// `coordinator.perform` remain verified by code reading, not a mutation-tested
+/// unit test here (#404 review #2, #3) — see the PR description for what was
+/// checked by hand: the `attempted` array `apply` builds to name apps still
+/// running the old code afterward, and the `AuthorizationDeclinedError` catch
+/// arm's CHOICE of `.declined` in the first place (`Install.swift`'s own
+/// comment on that arm explains why a pure classifier wasn't worth it there).
+/// What IS mutation-tested, by `#445`'s `InstallTallyTests`, is the other
+/// half: once an outcome has been chosen, `Tally.record` mapping it to the
+/// right counter — see `recordIncrementsExactlyTheMatchingCounter`.
 ///
 /// Each fixture below builds an `offered` (what the plan showed) and a
 /// `confirmed` (what a fresh disk read + source query answers right before
@@ -565,12 +571,26 @@ import DuoUpdaterCore
             status: .updateAvailable(latest: latest))
     }
 
+    /// A result with no `remote` at all — the shape `.answerRegressed`'s
+    /// `?? "?"` fallback exists for. `offered`/`confirmed` are otherwise
+    /// unused by every `itemPlan` case but `.answerRegressed`; this stands in
+    /// for both when a test doesn't care what they are.
+    private func resultWithNoRemote() -> UpdateResult {
+        UpdateResult(
+            app: InstalledApp(
+                name: "Fixture", bundleID: "com.example.fixture", shortVersion: "1.0",
+                buildVersion: "1", path: URL(fileURLWithPath: "/Applications/Fixture.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: nil, status: .unknown)
+    }
+
     /// Mutation (reverted after running): changed the `.proceed` case in
     /// `Install.itemPlan` to `return .end(Terminal(outcome: .skipped, ...))`
     /// — went red (expected `.install`, got `.end`).
     @Test func proceedBecomesAnInstallCarryingTheConfirmedResultAndRoute() {
         let confirmed = vendorResult(latest: "1.2")
-        let plan = Install.itemPlan(for: .proceed(confirmed, .vendor), offeredVersion: nil, confirmedVersion: nil)
+        let plan = Install.itemPlan(
+            for: .proceed(confirmed, .vendor), offered: resultWithNoRemote(), confirmed: nil)
         guard case .install(let result, let route) = plan else {
             Issue.record("expected an install, got \(plan)")
             return
@@ -583,7 +603,8 @@ import DuoUpdaterCore
     /// `reason: "not requested: --route no longer includes it"` to
     /// `reason: "not requested"` — went red (reason mismatch).
     @Test func notRequestedNamesTheRouteInBothReasonAndConsole() {
-        let plan = Install.itemPlan(for: .notRequested(.homebrew), offeredVersion: nil, confirmedVersion: nil)
+        let plan = Install.itemPlan(
+            for: .notRequested(.homebrew), offered: resultWithNoRemote(), confirmed: nil)
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -602,7 +623,7 @@ import DuoUpdaterCore
     @Test func skipCarriesTheGivenRouteReasonAndConsoleText() {
         let plan = Install.itemPlan(
             for: .skip("already at 1.1 on disk — nothing to install", .vendor),
-            offeredVersion: nil, confirmedVersion: nil)
+            offered: resultWithNoRemote(), confirmed: nil)
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -620,7 +641,7 @@ import DuoUpdaterCore
     @Test func unreadableHasNoRoute() {
         let why = "no readable bundle at /Applications/Fixture.app right now — it may have "
             + "been uninstalled, or its Info.plist could not be parsed"
-        let plan = Install.itemPlan(for: .unreadable(why), offeredVersion: nil, confirmedVersion: nil)
+        let plan = Install.itemPlan(for: .unreadable(why), offered: resultWithNoRemote(), confirmed: nil)
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -638,7 +659,7 @@ import DuoUpdaterCore
     /// — **this reinstates #436's exact defect** — went red (expected
     /// `.failed`, got `.skipped`).
     @Test func cannotConfirmWithNoMessageDefaultsTheReasonAndIsAFailure() {
-        let plan = Install.itemPlan(for: .cannotConfirm(nil), offeredVersion: nil, confirmedVersion: nil)
+        let plan = Install.itemPlan(for: .cannotConfirm(nil), offered: resultWithNoRemote(), confirmed: nil)
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -652,7 +673,7 @@ import DuoUpdaterCore
 
     @Test func cannotConfirmWithAMessageUsesItVerbatim() {
         let plan = Install.itemPlan(
-            for: .cannotConfirm("connection timed out"), offeredVersion: nil, confirmedVersion: nil)
+            for: .cannotConfirm("connection timed out"), offered: resultWithNoRemote(), confirmed: nil)
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -671,7 +692,7 @@ import DuoUpdaterCore
     /// `.skipped`).
     @Test func answerRegressedNamesBothVersionsAndIsAFailure() {
         let plan = Install.itemPlan(
-            for: .answerRegressed, offeredVersion: "1.1", confirmedVersion: "1.0")
+            for: .answerRegressed, offered: vendorResult(latest: "1.1"), confirmed: vendorResult(latest: "1.0"))
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return
@@ -683,14 +704,15 @@ import DuoUpdaterCore
             == "failed: the update source answered 1.1, then 1.0 — nothing was installed.")
     }
 
-    /// `offeredVersion`/`confirmedVersion` are `nil` exactly when the caller's
-    /// `UpdateResult`s carry no remote — `apply` passes
-    /// `item.result.remote?.displayVersion` straight through, which can be
-    /// `nil`. Mutation (reverted after running): changed
-    /// `offeredVersion ?? "?"` to `offeredVersion ?? ""` — went red (expected
-    /// "offered ?, confirmed ?", got "offered , confirmed ?").
+    /// The version strings read `?? "?"` exactly when the `UpdateResult`s
+    /// carry no `remote` — `apply` passes `item.result`/`confirmed` straight
+    /// through, and either can be a result with no remote. Mutation
+    /// (reverted after running): changed `offered.remote?.displayVersion ??
+    /// "?"` to `?? ""` in `itemPlan`'s `.answerRegressed` case — went red
+    /// (expected "offered ?, confirmed ?", got "offered , confirmed ?").
     @Test func answerRegressedFallsBackToQuestionMarksWhenVersionsAreMissing() {
-        let plan = Install.itemPlan(for: .answerRegressed, offeredVersion: nil, confirmedVersion: nil)
+        let plan = Install.itemPlan(
+            for: .answerRegressed, offered: resultWithNoRemote(), confirmed: resultWithNoRemote())
         guard case .end(let terminal) = plan else {
             Issue.record("expected an end, got \(plan)")
             return

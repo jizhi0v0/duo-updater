@@ -437,15 +437,25 @@ public enum Install {
         let console: String
     }
 
-    /// Pure — no I/O, mirroring `reconsider` and `classify`. `offeredVersion`/
-    /// `confirmedVersion` exist only for `.answerRegressed`, whose message and
-    /// `reason` both need to name the two versions that disagreed; every other
-    /// case ignores them. Every string below is copied verbatim from the
+    /// Pure — no I/O, mirroring `reconsider` and `classify`. `offered`/
+    /// `confirmed` are the SAME two `UpdateResult`s `reconsider` itself was
+    /// called with (not the version strings pulled out of them) — only
+    /// `.answerRegressed` reads them, but taking the results rather than two
+    /// `String?`s closes off a mis-wiring `apply`'s untested call site would
+    /// otherwise be free to make: `offered` is non-optional and `confirmed`
+    /// is `Optional`, so transposing them at the call site is a COMPILE
+    /// ERROR, not a wrong-but-plausible message — the same reasoning
+    /// `summaryLine(_ tally:)` closes off for its five counters, applied
+    /// here to the one remaining pair of positional arguments. It also
+    /// single-sources "`remote?.displayVersion` is the right field to read",
+    /// which a `String?`-taking signature would have left the call site to
+    /// know for itself. Every string below is copied verbatim from the
     /// `apply` call sites it replaces (see #404 reviews #2–#8, #435, #436) —
-    /// this is a refactor of WHERE the wiring happens, not a rewording of what
-    /// it says.
+    /// this is a refactor of WHERE the wiring happens, not a rewording of
+    /// what it says, and that includes the rationale comments, not just the
+    /// user-facing text.
     static func itemPlan(
-        for outcome: ReconsiderOutcome, offeredVersion: String?, confirmedVersion: String?
+        for outcome: ReconsiderOutcome, offered: UpdateResult, confirmed: UpdateResult?
     ) -> ItemPlan {
         switch outcome {
         case .proceed(let result, let route):
@@ -460,21 +470,31 @@ public enum Install {
             return .end(Terminal(outcome: .skipped, reason: why, route: route,
                                   console: "skipping: \(why)"))
         case .unreadable(let why):
+            // Not counted as `failed`: like `.alreadyCurrent`/`.managedElsewhere`
+            // (both folded into `.skip` by `reconsider` before this ever runs),
+            // there is nothing here a retry would change — either the app
+            // really is gone, or its Info.plist needs fixing by hand, and
+            // re-running `duo install` answers neither.
             return .end(Terminal(outcome: .skipped, reason: why, route: nil,
                                   console: "skipping: \(why)"))
         case .cannotConfirm(let message):
             // `nil` route, not the plan's stale one: `reconsider` returns here
             // BEFORE ever calling `classify` on a fresh read, so there is no
-            // freshly re-derived route to give (#404 review #5).
+            // freshly re-derived route to give — only the plan's stale one,
+            // which is exactly the value #404 review #5 says not to fall back
+            // to. Caught by code review after the first pass only fixed `.skip`.
             let reason = message ?? "no source covers this app"
             return .end(Terminal(
                 outcome: .failed, reason: reason, route: nil,
                 console: "failed: the pre-install re-check could not confirm an update: \(reason)"))
         case .answerRegressed:
             // Both versions in the message, because the pair IS the finding:
-            // either number alone reads as an ordinary check.
-            let was = offeredVersion ?? "?"
-            let now = confirmedVersion ?? "?"
+            // either number alone reads as an ordinary check. Same rule
+            // `AppListModel.performInstall` follows for the same case.
+            let was = offered.remote?.displayVersion ?? "?"
+            let now = confirmed?.remote?.displayVersion ?? "?"
+            // `nil` for the same reason as `.cannotConfirm` above: no fresh
+            // route was ever derived for a regressed answer either.
             return .end(Terminal(
                 outcome: .failed,
                 reason: "answer regressed: offered \(was), confirmed \(now)",
@@ -640,10 +660,7 @@ public enum Install {
             let reconsidered = reconsider(
                 offered: item.result, confirmed: confirmed, settings: settings,
                 environment: live, routes: routes)
-            let outcome = itemPlan(
-                for: reconsidered,
-                offeredVersion: item.result.remote?.displayVersion,
-                confirmedVersion: confirmed?.remote?.displayVersion)
+            let outcome = itemPlan(for: reconsidered, offered: item.result, confirmed: confirmed)
 
             let toInstall: UpdateResult
             let route: InstallCoordinator.Route
@@ -835,7 +852,7 @@ public enum Install {
     /// stream as a new, unrecognised category — the same principle as
     /// `RowActions.live` in the menu-bar app: a call site must say which
     /// bucket it is, not fall into a defaulted guess.
-    enum RowOutcome: String, Equatable {
+    enum RowOutcome: String {
         case installed
         /// The `.installer` route only, today: bytes fetched and verified, a
         /// system installer window is open, nothing replaced yet. See
@@ -934,9 +951,9 @@ public enum Install {
     /// line.
     ///
     /// `outcome` is a required parameter, not defaulted (#436): every call site
-    /// in `apply` already knows which counter it is about to increment (it is
-    /// sitting right next to `skippedCount += 1` / `declinedCount += 1` /
-    /// `failed += 1`), so this asks it to say so once more, in a form a
+    /// in `apply` already knows which `RowOutcome` bucket it is about to
+    /// record (`#445`: it is the same value passed to `tally.record(...)`
+    /// right alongside), so this asks it to say so once more, in a form a
     /// `--json` consumer can read back — the same reasoning CLAUDE.md gives
     /// for `RowActions.live` taking no defaults: a new call site should have to
     /// say which bucket it is rather than silently landing in a wrong one.

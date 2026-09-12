@@ -26,6 +26,25 @@ enum SystemProxyEnvironment {
     /// Never overwrites a variable the caller already has: if the app *was*
     /// launched from a shell that exported `https_proxy`, that explicit choice
     /// wins over the system pane.
+    ///
+    /// **"Already has" folds case, and for one variable that has a consequence.**
+    /// `man curl`, ENVIRONMENT: "The environment variables can be specified in
+    /// lower case or upper case. The lower case version has precedence.
+    /// `http_proxy` is an exception as it is only available in lower case."
+    /// (read 2026-09-13 against the curl shipped on this machine). So an
+    /// inherited `HTTPS_PROXY` or `ALL_PROXY` is honoured by curl and skipping
+    /// the lowercase key is exactly right — but an inherited `HTTP_PROXY` is
+    /// read by nobody: curl ignores it, and this skips `http_proxy` because the
+    /// name is taken. That environment gets no HTTP proxy at all.
+    ///
+    /// Left that way on purpose. The alternative is to fill `http_proxy` from
+    /// the system pane while an explicit `HTTP_PROXY` names a different host,
+    /// which trades a visible gap for a silent redirect to a proxy the user did
+    /// not ask for — and this type's whole contract is that an explicit export
+    /// wins. Pinned by `upperCaseHTTPProxyBlocksTheLowerCaseKey`, which exists to
+    /// make the decision visible rather than to call it obviously right: an
+    /// `HTTP_PROXY`-only environment is the one shape where this rule costs
+    /// something, and whoever wants to revisit it should start from that test.
     static func applied(
         to env: [String: String],
         settings: [String: Any]? = currentSettings()

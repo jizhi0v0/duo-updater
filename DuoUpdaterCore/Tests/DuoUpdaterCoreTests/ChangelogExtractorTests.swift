@@ -2409,6 +2409,26 @@ private let typelessFixture = """
     #expect(json.contains("Ten paragraph"))
 }
 
+/// gzip's ISIZE trailer is four bytes of whoever served the response, and
+/// `decompress` hands it to the inflater as a buffer hint. Unclamped, a vendor
+/// page (or anything that can answer for one) could ask for a 4 GiB allocation
+/// by writing `FF FF FF FF` at the end of a 500-byte member.
+///
+/// Two assertions because either one alone is vacuous: the ceiling is what
+/// stops the allocation, and the round trip is what proves the ceiling did not
+/// buy that by breaking the decode — the buffer is scratch the loop refills, so
+/// a hint below the real output size only costs iterations.
+@Test func gzipDecodeClampsAHostileISIZETrailer() throws {
+    #expect(GzipDecode.chunkSize(hint: 0xFFFF_FFFF) == GzipDecode.maxChunkBytes)
+
+    let honest = try #require(Data(base64Encoded: typelessB64))
+    let expected = try #require(GzipDecode.decompress(honest))
+
+    var hostile = honest
+    hostile.replaceSubrange(hostile.count - 4..<hostile.count, with: [0xFF, 0xFF, 0xFF, 0xFF])
+    #expect(GzipDecode.decompress(hostile) == expected)
+}
+
 @Test func decodesTypelessSortedNewestFirstWithImages() throws {
     let changelog = try #require(StructuredChangelogDecoder.decode(
         typelessFixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 12))

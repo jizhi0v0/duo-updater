@@ -82,16 +82,10 @@ public enum Redactor {
     public static func text(_ input: String, limit: Int? = nil) -> String {
         var out = input
 
-        // `key=…` / `token: …` inside a URL, a query string, or a log line. Stops
-        // at the delimiters that end a value in any of those contexts.
-        let assignment = "(?i)\\b(" + sensitiveParameterNames
-            .map { NSRegularExpression.escapedPattern(for: $0) }
-            .joined(separator: "|")
-            + ")([A-Za-z_-]*)\\s*[=:]\\s*[^&\\s\"'<>,}]+"
-        out = replace(out, pattern: assignment, with: "$1$2=\(placeholder)")
+        out = replace(out, regex: assignmentRegex, with: "$1$2=\(placeholder)")
 
-        for pattern in secretPatterns {
-            out = replace(out, pattern: pattern, with: placeholder)
+        for regex in secretRegexes {
+            out = replace(out, regex: regex, with: placeholder)
         }
 
         if let limit, out.count > limit {
@@ -105,8 +99,29 @@ public enum Redactor {
         return sensitiveParameterNames.contains { lowered.contains($0) }
     }
 
-    private static func replace(_ input: String, pattern: String, with template: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return input }
+    /// `key=…` / `token: …` inside a URL, a query string, or a log line. Stops
+    /// at the delimiters that end a value in any of those contexts.
+    ///
+    /// Compiled once, like `RecordedPath`'s patterns. Both this and
+    /// ``secretRegexes`` used to be built per call, and `text(_:limit:)` is not
+    /// a cold path: `Finding.redacted` runs it over every warning and every body
+    /// sample of every finding a sweep produces, so a `duo verify` run paid for
+    /// six `NSRegularExpression` compilations — one of them a twenty-name
+    /// alternation — several hundred times over. The inputs are constants, so
+    /// there was never a per-call pattern to build.
+    private static let assignmentRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: "(?i)\\b(" + sensitiveParameterNames
+            .map { NSRegularExpression.escapedPattern(for: $0) }
+            .joined(separator: "|")
+            + ")([A-Za-z_-]*)\\s*[=:]\\s*[^&\\s\"'<>,}]+")
+
+    private static let secretRegexes: [NSRegularExpression] =
+        secretPatterns.compactMap { try? NSRegularExpression(pattern: $0) }
+
+    private static func replace(
+        _ input: String, regex: NSRegularExpression?, with template: String
+    ) -> String {
+        guard let regex else { return input }
         return regex.stringByReplacingMatches(
             in: input, range: NSRange(input.startIndex..., in: input), withTemplate: template)
     }

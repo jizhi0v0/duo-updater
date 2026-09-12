@@ -618,8 +618,22 @@ public struct UpdateChecker: Sendable {
         // is the one to fail in — it offers the vendor's currently published
         // package to a copy that is ahead of it, which is visible and recoverable,
         // where the other direction hid real updates silently.
-        if let build = installed.buildVersion,
-           !build.isEmpty, !build.contains("."), !isv.hasSuffix(build) {
+        // Equality is still not enough on its own when the installed build is a
+        // small hand-stamped constant. Anki stamps `CFBundleVersion` as a literal
+        // "1" for every build, so short "26.8" + build "1" folds to exactly
+        // "26.8.1" and the vendor's real 26.8.1 patch matched the folded form —
+        // the same hidden hotfix in miniature.
+        //
+        // So: a floor. A vendor folds its build into the version string BECAUSE
+        // the build is a large monotonic counter (Oray's 30757); a one- or
+        // two-digit `CFBundleVersion` is a constant somebody typed, not something
+        // anyone folds. Three digits is a judgment call, not a measured universal
+        // — it is chosen to clear Anki's "1" and every constant of that kind while
+        // leaving real counters alone, and a vendor who genuinely folds a 99 would
+        // be offered a re-install of the version it is already on, which is the
+        // harmless direction.
+        if let build = installed.buildVersion, !build.contains("."), !isv.hasSuffix(build),
+           let counter = Int(build), counter >= 100 {
             let combined = "\(isv).\(build)"
             if VersionComparator.compare(rs, combined) == .orderedSame {
                 return .upToDate

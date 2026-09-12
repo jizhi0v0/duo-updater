@@ -157,6 +157,41 @@ import Foundation
     #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Fold.app"))
 }
 
+/// Equality alone still swallows a hotfix when the installed build is a small
+/// hand-stamped constant: Anki stamps `CFBundleVersion` as a literal "1" for
+/// every build, so short "26.8" + build "1" folds to exactly "26.8.1" and the
+/// real 26.8.1 patch matched the folded form. A vendor folds a build into its
+/// version string because the build is a large counter, so a one- or two-digit
+/// build is evidence against the folded reading — hence the floor.
+@Test func evaluateFoldingIgnoresBuildsTooSmallToBeFoldedCounters() {
+    func app(short: String, build: String) -> InstalledApp {
+        InstalledApp(
+            name: "ZZFixtureFloor", bundleID: "zz.fixture.floor",
+            shortVersion: short, buildVersion: build,
+            path: .init(fileURLWithPath: "/ZZFixture-Floor.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+    func remote(_ short: String) -> RemoteVersion {
+        RemoteVersion(shortVersion: short, version: nil, downloadURL: nil, sourceName: "Vendor")
+    }
+
+    // Anki's shape — the counter-example the floor exists for.
+    #expect(UpdateChecker.evaluate(installed: app(short: "26.8", build: "1"), remote: remote("26.8.1"))
+        == .updateAvailable(latest: "26.8.1"))
+    // A single-digit build under a two-component marketing version, same shape.
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: "6"), remote: remote("1.5.6"))
+        == .updateAvailable(latest: "1.5.6"))
+    // The boundary itself, both sides of it.
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: "99"), remote: remote("1.5.99"))
+        == .updateAvailable(latest: "1.5.99"))
+    #expect(UpdateChecker.evaluate(installed: app(short: "1.5", build: "100"), remote: remote("1.5.100"))
+        == .upToDate)
+    // And the shape the fallback exists for is untouched.
+    #expect(UpdateChecker.evaluate(installed: app(short: "16.5.0", build: "30757"),
+                                   remote: remote("16.5.0.30757")) == .upToDate)
+    #expect(!FileManager.default.fileExists(atPath: "/ZZFixture-Floor.app"))
+}
+
 /// The build-folding fallback must NOT make a genuinely-behind normal app (whose
 /// short version is simply older) look current.
 @Test func evaluateBuildFoldingDoesNotMaskRealUpdate() {

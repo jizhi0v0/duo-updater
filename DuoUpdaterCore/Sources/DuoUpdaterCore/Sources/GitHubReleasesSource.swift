@@ -2019,20 +2019,27 @@ public enum GitHubReleaseRegistry {
         // `SUFeedURL` are deliberately absent: `SparkleAppcastSource` already covers
         // them with no rule at all.
         //
-        // One shared caveat, repeated on the two rules it reaches. When an app's
-        // `CFBundleShortVersionString` has no patch component AND its
-        // `CFBundleVersion` is a small dotless counter, `UpdateChecker.evaluate`'s
-        // "the vendor folded the build into the version" fallback rebuilds the
-        // installed side as short + "." + build — "3.5" + "1" = "3.5.1" — and can
-        // read a genuine x.y.1 release as already installed. Of the artifacts
-        // inspected for this batch only Anki and noTunes have that shape. The others
-        // are safe for one of two DIFFERENT reasons, worth keeping straight: a dotted
-        // `CFBundleVersion` skips the fallback outright (that is the only thing the
-        // guard tests), while a three-component short version still RUNS it — the
-        // rebuilt string is simply four components, which is very unlikely to match
-        // a real release. The second group is practically safe, not structurally
-        // immune: four-component versions do exist in this batch (OpenLens reports
-        // 6.5.2-366), and there it is the dotted build that keeps it off this path.
+        // One shared caveat, repeated on the two rules it reaches — CLOSED for the
+        // shape described here, kept because the reasoning still decides which
+        // rules are safe. When an app's `CFBundleShortVersionString` has no patch
+        // component AND its `CFBundleVersion` is a small dotless counter,
+        // `UpdateChecker.evaluate`'s "the vendor folded the build into the version"
+        // fallback rebuilds the installed side as short + "." + build — "3.5" + "1"
+        // = "3.5.1" — and used to read a genuine x.y.1 release as already
+        // installed. Of the artifacts inspected for this batch only Anki and
+        // noTunes have that shape.
+        //
+        // The fallback now requires the remote to EQUAL the rebuilt string and the
+        // build to be a counter of at least 100, so a hand-stamped "1" no longer
+        // reaches it at all. What is left exposed is narrower: a constant build of
+        // 100 or more under a two-component marketing version. The other rules are
+        // safe for one of two DIFFERENT reasons, worth keeping straight: a dotted
+        // `CFBundleVersion` skips the fallback outright, while a three-component
+        // short version still RUNS it — the rebuilt string is simply four
+        // components, which is very unlikely to match a real release. The second
+        // group is practically safe, not structurally immune: four-component
+        // versions do exist in this batch (OpenLens reports 6.5.2-366), and there
+        // it is the dotted build that keeps it off this path.
 
         // CC Switch — Claude Code / Codex profile switcher, no Sparkle, ships one
         // macOS dmg per release (`CC-Switch-v<ver>-macOS.dmg`, beside a .zip and a
@@ -2606,12 +2613,13 @@ public enum GitHubReleaseRegistry {
         // noTunes — tags are `vX.Y` (two components), which the default pattern
         // handles. One-click: digital.twisted.noTunes, Team JP6WW46Y42, notarized.
         //
-        // Carries the same latent shape as Anki (see the batch header): the app
-        // reports `CFBundleShortVersionString` 3.5 with `CFBundleVersion` 1, so if
-        // upstream ever tags a three-component `v3.5.1`, `evaluate`'s folded-build
-        // fallback would rebuild the installed side as "3.5.1" and call it current.
-        // Not reachable today — every tag this repo has published (v1.0 through
-        // v3.5) is two-component — but it is the same trap, not a different one.
+        // Carried the same latent shape as Anki (see the batch header): the app
+        // reports `CFBundleShortVersionString` 3.5 with `CFBundleVersion` 1, so a
+        // three-component `v3.5.1` tag would have had `evaluate`'s folded-build
+        // fallback rebuild the installed side as "3.5.1" and call it current. That
+        // is closed with Anki's: a build of 1 is below the fallback's counter
+        // floor, so this rule is no longer waiting on upstream to keep tagging two
+        // components.
         GitHubReleaseRule(
             bundleID: "digital.twisted.noTunes",
             owner: "tombonez", repo: "noTunes",
@@ -2794,15 +2802,21 @@ public enum GitHubReleaseRegistry {
         // token-free `-mac-apple` wins on Apple silicon. Team ZL66D3NMZM and
         // notarization verified on BOTH dmgs.
         //
-        // KNOWN GAP (verified on this machine 2026-08-16, not a rule bug): Anki
-        // stamps `CFBundleVersion` as a literal "1" for every build. When the
-        // installed short version has no patch component (26.08 → app reports
+        // CLOSED GAP (was verified on this machine 2026-08-16, and was never a rule
+        // bug): Anki stamps `CFBundleVersion` as a literal "1" for every build. When
+        // the installed short version has no patch component (26.08 → app reports
         // "26.8"), `UpdateChecker.evaluate`'s "vendor folded the build into the
-        // version" fallback rebuilds it as "26.8" + "1" = "26.8.1" and concludes the
-        // app is already current — hiding exactly the x.y → x.y.1 patch. Every other
-        // step (26.8.1 → 26.9) reports normally. Fixing it means tightening that
-        // fallback (it exists for Oray-style 5-digit builds), which is a change to
-        // shared logic, not to this rule.
+        // version" fallback rebuilt it as "26.8" + "1" = "26.8.1" and concluded the
+        // app was already current — hiding exactly the x.y → x.y.1 patch. Every
+        // other step (26.8.1 → 26.9) always reported normally.
+        //
+        // Fixed in the shared logic rather than here, as this note said it would
+        // have to be: that fallback now demands the remote EQUAL the rebuilt string
+        // and the installed build be a counter of at least 100 — a vendor folds a
+        // build in because it is a large counter (Oray's 30757), so a hand-stamped
+        // "1" is evidence against the folded reading. Pinned by
+        // `evaluateFoldingIgnoresBuildsTooSmallToBeFoldedCounters`, whose first case
+        // is this one.
         // One-click: net.ankiweb.anki, Team ZL66D3NMZM, notarized.
         GitHubReleaseRule(
             bundleID: "net.ankiweb.anki",

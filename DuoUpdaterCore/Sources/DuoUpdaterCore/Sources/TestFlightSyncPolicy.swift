@@ -152,14 +152,35 @@ public enum TestFlightSyncPolicy {
     ///
     /// Evidence outranks the floor: it names something to learn, the floor only
     /// says time has passed.
+    ///
+    /// ⚠️ **Except after an attempt that never reached TestFlight.** Evidence is not
+    /// retired by one of those (see ``Ledger/finish(_:ran:at:)``), so on a Mac where
+    /// TestFlight can never be reached — signed out of the App Store, or TestFlight
+    /// deleted with a beta still installed — the evidence branch would otherwise
+    /// return `.staleStore` on every single round, forever. `run` returns before
+    /// spawning in those cases, so nothing is launched, but each round still pays an
+    /// accounts-database read and writes two log lines: the per-tick degeneration
+    /// this type exists to prevent, reached through a different door than the
+    /// expired-build one. So after such an attempt everything waits for the floor,
+    /// and the retry that follows still carries its evidence.
     public static func reason(
         evidence: [Evidence], storeStamp: Date?, ledger: Ledger, now: Date
     ) -> Reason? {
         let fresh = evidence.filter { ledger.syncedFor[$0.bundleID] != $0.installedBuild }
-        if !fresh.isEmpty { return .staleStore(fresh) }
+        if !fresh.isEmpty, ledger.lastAttemptReachedTestFlight { return .staleStore(fresh) }
         let lastTouched = [storeStamp, ledger.lastAttemptAt].compactMap { $0 }.max()
-        guard let lastTouched else { return .floor }
-        return now.timeIntervalSince(lastTouched) >= floorInterval ? .floor : nil
+        // A stamp in the FUTURE is not a freshly written store, it is a clock that
+        // moved — an NTP correction, a restored VM, a timezone bug — and reading it
+        // as "just synced" would park the floor until real time caught up with it,
+        // which for a backwards jump of a day is a day. Out-of-range reads as no
+        // information at all, which is the same answer as having no stamp.
+        // `CheckSchedule.nextWait` clamps the mirror image of this arithmetic with
+        // `max(0, due.timeIntervalSince(now))`.
+        let age = lastTouched.map { now.timeIntervalSince($0) }
+        guard let age, age >= 0, age < floorInterval else {
+            return fresh.isEmpty ? .floor : .staleStore(fresh)
+        }
+        return nil
     }
 
     /// What earlier rounds already spent a sync on. **Lives for one process**, and
@@ -183,10 +204,20 @@ public enum TestFlightSyncPolicy {
         public var lastAttemptAt: Date?
         /// bundleID → the installed build a sync was already spent on.
         public var syncedFor: [String: String]
+        /// Whether the last attempt actually started TestFlight. False parks the
+        /// evidence branch behind the floor — see ``TestFlightSyncPolicy/reason(evidence:storeStamp:ledger:now:)``
+        /// for the Mac that made this necessary. True before any attempt, so the
+        /// first round with evidence does not wait.
+        public var lastAttemptReachedTestFlight: Bool
 
-        public init(lastAttemptAt: Date? = nil, syncedFor: [String: String] = [:]) {
+        public init(
+            lastAttemptAt: Date? = nil,
+            syncedFor: [String: String] = [:],
+            lastAttemptReachedTestFlight: Bool = true
+        ) {
             self.lastAttemptAt = lastAttemptAt
             self.syncedFor = syncedFor
+            self.lastAttemptReachedTestFlight = lastAttemptReachedTestFlight
         }
 
         /// Stamp an attempt as *started*. Separate from ``finish(_:ran:at:)`` because
@@ -205,6 +236,7 @@ public enum TestFlightSyncPolicy {
         /// round pays them.
         public mutating func finish(_ evidence: [Evidence], ran: Bool, at now: Date) {
             lastAttemptAt = now
+            lastAttemptReachedTestFlight = ran
             guard ran else { return }
             for item in evidence { syncedFor[item.bundleID] = item.installedBuild }
         }

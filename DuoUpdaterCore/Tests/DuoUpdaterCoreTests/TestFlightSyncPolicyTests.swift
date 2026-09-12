@@ -214,19 +214,58 @@ struct TestFlightSyncPolicyTests {
             == .floor)
     }
 
+    /// A stamp in the future is a clock that moved, not a store that was just
+    /// written. Mutation: drop the `age >= 0` clause — a backwards clock jump parks
+    /// the floor for as long as the jump lasted, silently, and nothing on the Mac
+    /// says why TestFlight stopped being synced.
+    @Test func aStampFromTheFutureIsNotFreshness() {
+        #expect(TestFlightSyncPolicy.reason(
+            evidence: [], storeStamp: now.addingTimeInterval(86_400),
+            ledger: .init(), now: now)
+            == .floor)
+    }
+
     // MARK: - ledger
 
-    /// Mutation: drop the `ran` guard in `finish` — an attempt that returned before
-    /// spawning anything (signed out, TestFlight not installed) retires the evidence,
-    /// so signing back in never produces the sync that would pick the store up.
-    @Test func anAttemptThatNeverStartedTestFlightRetiresNothing() {
+    /// An attempt that returned before spawning anything (signed out, TestFlight not
+    /// installed) must not retire the evidence — but it must not re-fire on the very
+    /// next round either, or a Mac where TestFlight can never be reached pays an
+    /// accounts read and two log lines every tick, forever.
+    ///
+    /// Two mutations, one per half. Drop the `ran` guard in `finish`: the evidence is
+    /// retired, and signing back in never produces the sync that would pick the store
+    /// up. Drop `lastAttemptReachedTestFlight` from `reason`'s first branch: the
+    /// immediate re-fire comes back.
+    @Test func anAttemptThatNeverStartedTestFlightIsParkedNotRetired() {
         var ledger = TestFlightSyncPolicy.Ledger()
         let evidence = [TestFlightSyncPolicy.Evidence(bundleID: "zz.a", installedBuild: "81")]
         ledger.finish(evidence, ran: false, at: now)
         #expect(ledger.syncedFor.isEmpty)
         #expect(ledger.lastAttemptAt == now)
+        // Parked: the next round does not try again.
         #expect(TestFlightSyncPolicy.reason(
-            evidence: evidence, storeStamp: nil, ledger: ledger, now: now) == .staleStore(evidence))
+            evidence: evidence, storeStamp: nil, ledger: ledger, now: now) == nil)
+        // Not retired: once the floor comes round, it is still evidence, and it is
+        // reported as such rather than as a bare `.floor`.
+        #expect(TestFlightSyncPolicy.reason(
+            evidence: evidence, storeStamp: nil, ledger: ledger,
+            now: now.addingTimeInterval(TestFlightSyncPolicy.floorInterval))
+            == .staleStore(evidence))
+    }
+
+    /// The other side of that gate: an attempt that DID reach TestFlight leaves the
+    /// evidence branch armed, so a background install landing a minute later is acted
+    /// on at the next round rather than waiting out the floor. Mutation: leave
+    /// `lastAttemptReachedTestFlight` false in `finish` regardless of `ran` — every
+    /// new build waits up to an hour, which is the freshness this whole change buys.
+    @Test func anAttemptThatRanLeavesTheEvidenceBranchArmed() {
+        var ledger = TestFlightSyncPolicy.Ledger()
+        ledger.finish([], ran: true, at: now)
+        let newBuild = [TestFlightSyncPolicy.Evidence(bundleID: "zz.a", installedBuild: "82")]
+        #expect(TestFlightSyncPolicy.reason(
+            evidence: newBuild, storeStamp: now, ledger: ledger,
+            now: now.addingTimeInterval(60))
+            == .staleStore(newBuild))
     }
 
     /// The other side of the same line. Mutation: record nothing at all — `finish`

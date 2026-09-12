@@ -215,9 +215,9 @@ public enum Check {
         // visible without the read. A store copy on a beta track is invisible to
         // both, so on a Mac whose only beta is one of those this line does not
         // appear — a miss, and a smaller one than a confident wrong count.
-        let affected = settings.testFlightDetection.readsStore
-            ? 0 : results.filter { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac }.count
-        if options.checkForUpdates, affected > 0 {
+        let affected = !settings.testFlightDetection.readsStore
+            && results.contains { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac }
+        if options.checkForUpdates, affected {
             fflush(stdout)
             FileHandle.standardError.write(Data((
                 "duo: TestFlight betas were not checked — detection is off"

@@ -29,7 +29,7 @@ enum SettingsMetrics {
 /// page is not landing on the control: General is four cards long and GitHub's
 /// token sits under its CLI card, so a reader sent from a beta row or from the
 /// rate-limit banner still has to go looking for the thing they were sent for.
-enum SettingsAnchor: String, Hashable, Sendable, CaseIterable {
+enum SettingsAnchor: String, Hashable, Sendable {
     /// Linked from the mark on a beta row whose detection is off.
     case testFlightDetection
     /// Linked from the menu's rate-limit banner and from the welcome window's

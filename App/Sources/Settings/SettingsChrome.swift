@@ -1,4 +1,5 @@
 import SwiftUI
+import DuoUpdaterCore
 
 /// Shared chrome for the Settings window: the page scaffold, the card, and the
 /// row/control styling every pane is built from.
@@ -53,9 +54,20 @@ extension View {
     }
 }
 
-/// The outline itself: the card's own shape, in the accent colour, over it rather
-/// than around it so nothing reflows when it appears and disappears.
+/// The outline itself: the card's own shape in the accent colour, standing off
+/// from the card's edge rather than sitting on it — flush against the border it
+/// read as a second border on the card instead of a ring around it.
+///
+/// Still an overlay, drawn OUTSIDE the card's bounds by a negative inset rather
+/// than by padding the card: nothing may reflow when it appears and disappears,
+/// and the cards below must not shift down for two seconds. The gap is half the
+/// space between cards, so the ring cannot reach a neighbour, and the radius grows
+/// with it to stay concentric with the corner it traces.
 private struct SettingsAnchorHighlight: ViewModifier {
+    /// Half of `SettingsMetrics.cardSpacing`, which is what bounds it: any more and
+    /// the ring around one card touches the one above.
+    private static let gap: CGFloat = SettingsMetrics.cardSpacing / 2 - 3
+
     let anchor: SettingsAnchor
     @Environment(\.revealedSettingsAnchor) private var revealed
 
@@ -64,8 +76,10 @@ private struct SettingsAnchorHighlight: ViewModifier {
         return content
             .id(anchor)
             .overlay {
-                RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous)
+                RoundedRectangle(
+                    cornerRadius: SettingsMetrics.cardRadius + Self.gap, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .padding(-Self.gap)
                     .opacity(lit ? 1 : 0)
                     .allowsHitTesting(false)
             }
@@ -91,9 +105,20 @@ struct SettingsPage<Content: View>: View {
     var onReveal: () -> Void = {}
     @ViewBuilder var content: Content
 
-    /// What is outlined right now. Separate from `reveal` because the two have
-    /// different lifetimes: the request is consumed immediately, the outline stays
-    /// long enough to be seen.
+    /// The request, copied out of `reveal` and held here.
+    ///
+    /// ⚠️ **The work must not be keyed on `reveal` itself.** The first version was
+    /// `.task(id: reveal)` calling `onReveal()` at the top: clearing the request
+    /// changes the id, `.task(id:)` cancels on an id change, and the task killed
+    /// itself before its first `await` returned — the scroll and the outline never
+    /// ran once. A token that only ever advances is what makes "act on it, then
+    /// consume it" safe, and it also lets the same card be asked for twice in a row
+    /// (two clicks on the same link) instead of the second one going quiet because
+    /// the anchor did not change.
+    @State private var pending: SettingsAnchor?
+    @State private var pendingToken = 0
+    /// What is outlined right now. Separate from the request: the request is
+    /// consumed at once, the outline stays long enough to be seen.
     @State private var revealed: SettingsAnchor?
 
     var body: some View {
@@ -109,7 +134,16 @@ struct SettingsPage<Content: View>: View {
             .scrollContentBackground(.hidden)
             .softScrollEdges()
             .environment(\.revealedSettingsAnchor, revealed)
-            .task(id: reveal) { await take(proxy) }
+            // `initial: true` because the usual case is a link that OPENS this
+            // window: the page is built with the request already in hand, so there
+            // is no change to observe.
+            .onChange(of: reveal, initial: true) { _, requested in
+                guard let requested else { return }
+                pending = requested
+                pendingToken += 1
+                onReveal()
+            }
+            .task(id: pendingToken) { await take(proxy) }
         }
         .navigationTitle(section.label)
     }
@@ -120,10 +154,10 @@ struct SettingsPage<Content: View>: View {
     /// evaluated, but the page arrives during `SettingsView`'s 0.28s cross-fade, and
     /// scrolling to a target the outgoing page still overlaps lands short.
     private func take(_ proxy: ScrollViewProxy) async {
-        guard let target = reveal else { return }
-        onReveal()
+        guard let target = pending else { return }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
+        Log.app.debug("settings: revealing \(target.rawValue, privacy: .public) on \(self.section.rawValue, privacy: .public)")
         withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .center) }
         revealed = target
         try? await Task.sleep(for: .seconds(2))

@@ -24,11 +24,40 @@ enum SettingsMetrics {
 /// A card a deep link can name. Raw strings are not persisted anywhere — this is
 /// only ever in-memory between the control that links and the page that lands —
 /// so adding a case costs nothing beyond marking the card.
-enum SettingsAnchor: String, Hashable, Sendable {
-    /// Settings ▸ General ▸ TestFlight betas. Linked from the mark on a beta row
-    /// whose detection is off, which is the one place in the app that tells someone
-    /// to go and change a setting.
+///
+/// Every link that names a SETTING rather than a page belongs here. Landing on the
+/// page is not landing on the control: General is four cards long and GitHub's
+/// token sits under its CLI card, so a reader sent from a beta row or from the
+/// rate-limit banner still has to go looking for the thing they were sent for.
+enum SettingsAnchor: String, Hashable, Sendable, CaseIterable {
+    /// Linked from the mark on a beta row whose detection is off.
     case testFlightDetection
+    /// Linked from the menu's rate-limit banner and from the welcome window's
+    /// "Set Up…", both of which are about the token specifically.
+    case githubToken
+
+    /// Which page holds it. A page ignores a request for a card it does not have,
+    /// so this is what keeps one request from making every page run a scroll —
+    /// and it is the compiler's reminder to put a new card somewhere real.
+    var section: SettingsSection {
+        switch self {
+        case .testFlightDetection: .general
+        case .githubToken: .github
+        }
+    }
+}
+
+/// One request to reveal a card, carried to whichever page owns it.
+///
+/// The token is not decoration: two clicks on the same link must both land, and an
+/// anchor alone would compare equal the second time and never re-fire.
+struct SettingsReveal: Equatable {
+    let anchor: SettingsAnchor
+    let token: Int
+}
+
+private struct SettingsRevealKey: EnvironmentKey {
+    static let defaultValue: SettingsReveal? = nil
 }
 
 private struct RevealedSettingsAnchorKey: EnvironmentKey {
@@ -36,6 +65,14 @@ private struct RevealedSettingsAnchorKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
+    /// The card a deep link asked for, put here by `SettingsView` — which consumes
+    /// the model's request at once, so no page has to clear anything and no page
+    /// needs the model to take part.
+    var settingsReveal: SettingsReveal? {
+        get { self[SettingsRevealKey.self] }
+        set { self[SettingsRevealKey.self] = newValue }
+    }
+
     /// The card being pointed at right now, read by `settingsAnchor(_:)`. An
     /// environment value rather than a parameter threaded down: a card is written
     /// several `@ViewBuilder`s below the page, and every one of them would have to
@@ -60,13 +97,14 @@ extension View {
 ///
 /// Still an overlay, drawn OUTSIDE the card's bounds by a negative inset rather
 /// than by padding the card: nothing may reflow when it appears and disappears,
-/// and the cards below must not shift down for two seconds. The gap is half the
-/// space between cards, so the ring cannot reach a neighbour, and the radius grows
-/// with it to stay concentric with the corner it traces.
+/// and the cards below must not shift down for two seconds. The radius grows with
+/// the gap so the ring stays concentric with the corner it traces.
 private struct SettingsAnchorHighlight: ViewModifier {
-    /// Half of `SettingsMetrics.cardSpacing`, which is what bounds it: any more and
-    /// the ring around one card touches the one above.
-    private static let gap: CGFloat = SettingsMetrics.cardSpacing / 2 - 3
+    /// A third of `SettingsMetrics.cardSpacing`, not half of it. Half is the hard
+    /// ceiling — at 9pt on an 18pt gutter two rings would meet — so it is the one
+    /// value to leave room under, not the one to use: 6pt keeps 6pt of clear gutter
+    /// between the rings of two adjacent cards.
+    private static let gap: CGFloat = SettingsMetrics.cardSpacing / 3
 
     let anchor: SettingsAnchor
     @Environment(\.revealedSettingsAnchor) private var revealed
@@ -93,32 +131,21 @@ private struct SettingsAnchorHighlight: ViewModifier {
 /// scroll view. Panes provide only the cards.
 struct SettingsPage<Content: View>: View {
     let section: SettingsSection
-    /// A card on this page that something elsewhere in the app asked to be taken
-    /// to. Landing on the right PAGE is not landing on the right control: General
-    /// is four cards long, and a reader sent here from a beta row was looking at
-    /// one setting, not at the page. So the card is scrolled into view and outlined
-    /// for a moment.
-    var reveal: SettingsAnchor?
-    /// Called once the request above has been acted on, so the page that owns it
-    /// can clear it — otherwise the next open of this window would scroll and flash
-    /// again for a link the user followed minutes ago.
-    var onReveal: () -> Void = {}
     @ViewBuilder var content: Content
 
-    /// The request, copied out of `reveal` and held here.
+    /// The pending deep link, read from the environment so EVERY page gets this
+    /// without opting in — a page only has to mark its card with
+    /// `settingsAnchor(_:)`.
     ///
-    /// ⚠️ **The work must not be keyed on `reveal` itself.** The first version was
-    /// `.task(id: reveal)` calling `onReveal()` at the top: clearing the request
-    /// changes the id, `.task(id:)` cancels on an id change, and the task killed
-    /// itself before its first `await` returned — the scroll and the outline never
-    /// ran once. A token that only ever advances is what makes "act on it, then
-    /// consume it" safe, and it also lets the same card be asked for twice in a row
-    /// (two clicks on the same link) instead of the second one going quiet because
-    /// the anchor did not change.
-    @State private var pending: SettingsAnchor?
-    @State private var pendingToken = 0
-    /// What is outlined right now. Separate from the request: the request is
-    /// consumed at once, the outline stays long enough to be seen.
+    /// ⚠️ **Whoever owns the request must not clear it while this task keys on it.**
+    /// The first version took the request as a parameter and cleared it at the top
+    /// of the task: clearing changed `.task(id:)`'s id, SwiftUI cancels on an id
+    /// change, and the task killed itself before its first `await` returned — the
+    /// scroll and the outline never ran once, on any path. `SettingsView` consumes
+    /// the model's request BEFORE publishing it here, so what this reads is stable.
+    @Environment(\.settingsReveal) private var request
+    /// What is outlined right now. Separate from the request: the request stands,
+    /// the outline is meant to fade.
     @State private var revealed: SettingsAnchor?
 
     var body: some View {
@@ -134,16 +161,10 @@ struct SettingsPage<Content: View>: View {
             .scrollContentBackground(.hidden)
             .softScrollEdges()
             .environment(\.revealedSettingsAnchor, revealed)
-            // `initial: true` because the usual case is a link that OPENS this
-            // window: the page is built with the request already in hand, so there
-            // is no change to observe.
-            .onChange(of: reveal, initial: true) { _, requested in
-                guard let requested else { return }
-                pending = requested
-                pendingToken += 1
-                onReveal()
-            }
-            .task(id: pendingToken) { await take(proxy) }
+            // `.task(id:)` and not `.onChange`: the usual case is a link that OPENS
+            // this window, so the page is built with the request already in hand and
+            // there is no change to observe.
+            .task(id: request) { await take(proxy) }
         }
         .navigationTitle(section.label)
     }
@@ -154,7 +175,7 @@ struct SettingsPage<Content: View>: View {
     /// evaluated, but the page arrives during `SettingsView`'s 0.28s cross-fade, and
     /// scrolling to a target the outgoing page still overlaps lands short.
     private func take(_ proxy: ScrollViewProxy) async {
-        guard let target = pending else { return }
+        guard let target = request?.anchor, target.section == section else { return }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         Log.app.debug("settings: revealing \(target.rawValue, privacy: .public) on \(self.section.rawValue, privacy: .public)")

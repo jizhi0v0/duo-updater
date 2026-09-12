@@ -385,6 +385,7 @@ struct MenuContentView: View {
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
+            model.requestedSettingsAnchor = .githubToken
             openWindow(id: SettingsView.windowID)
             model.surfaceWindow(sceneID: SettingsView.windowID)
         } label: {

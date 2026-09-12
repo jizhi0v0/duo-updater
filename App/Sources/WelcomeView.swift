@@ -274,6 +274,7 @@ struct WelcomeView: View {
     /// instead of hunting for the tab.
     private func openGitHubSetup() {
         model.requestedSettingsSection = .github
+        model.requestedSettingsAnchor = .githubToken
         openWindow(id: SettingsView.windowID)
         model.surfaceWindow(sceneID: SettingsView.windowID)
     }

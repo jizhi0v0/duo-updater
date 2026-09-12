@@ -20,11 +20,7 @@ struct GeneralSettingsPage: View {
     @State private var spotlit: Set<String> = []
 
     var body: some View {
-        SettingsPage(
-            section: .general,
-            reveal: model.requestedSettingsAnchor,
-            onReveal: { model.requestedSettingsAnchor = nil }
-        ) {
+        SettingsPage(section: .general) {
             scheduleCard
             afterUpdateCard
             concurrencyCard

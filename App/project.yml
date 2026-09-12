@@ -76,10 +76,11 @@ targets:
 
   # A developer tool, not part of the shipped app: renders every `RowActionState`
   # to `verify/row-states/*.png` so a change to how a row is drawn shows up as an
-  # image diff. It exists because there is no test target over `App/Sources` (see
-  # below), so nothing else executes the row rendering — and the failure that
-  # created the need was a state drawing NOTHING, which no assertion about the
-  # state itself can catch. Run with `make gallery`.
+  # image diff. It exists because the test target above compiles only the files it
+  # names, and the row views are not among them (see below), so nothing else
+  # executes the row rendering — and the failure that created the need was a state
+  # drawing NOTHING, which no assertion about the state itself can catch. Run with
+  # `make gallery`.
   #
   # The sources it links are deliberately free of `AppListModel`: the views take a
   # state plus plain closures, so the gallery needs no scanning, no network and no

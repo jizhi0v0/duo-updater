@@ -1205,7 +1205,11 @@ final class AppListModel {
     /// Refresh the mirrored permission states once, and auto-dismiss a drag-panel whose
     /// grant just landed. Cheap: `AXIsProcessTrusted()`, a `TCCAccessPreflight` call, and
     /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
-    /// refused.
+    /// refused. It also reads `SMAppService.status`, which the "Cheap" above used to
+    /// leave out — ONCE, via `helperClient.refreshStatus()`. It was twice until
+    /// 2026-09-13: `helperClient.isEnabled` is deliberately a live query, so asking
+    /// it right after `refreshStatus()` re-asked the same question, and the Welcome
+    /// and Settings panes poll this every 1.5 s.
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -1391,7 +1395,9 @@ final class AppListModel {
     ) async -> String? {
         // Logged so a resolve is visible in `log stream`: without an explicit or env
         // token each one is a `gh auth token` subprocess, and this line is how to
-        // count them per action (one per full check; none per Update click).
+        // count them per action. One per full check; none per Update click, and
+        // none per menu-bar open — everything else goes through
+        // `githubTokenForRecheck`, which only reaches here on a miss.
         Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
         let loader = Task.detached(priority: .utility) {
             GitHubToken.resolve(explicit: explicit)
@@ -2198,11 +2204,13 @@ final class AppListModel {
         testFlightSyncLedger.begin(at: .now)
         Task { @MainActor [weak self] in
             // Bounded, and the bound is not `run`'s own: `run` is bounded internally
-            // by `defaultDeadline`, but the launch it awaits first is not, so a
-            // LaunchServices that never answers would leave the gate above closed for
-            // the rest of the session and silently retire automatic syncs altogether.
-            // Comfortably past the deadline, so this only ever catches a stuck launch
-            // and never a slow store.
+            // by `defaultDeadline`, and the launch it awaits first is bounded too
+            // (`AppRestarter.launchTimeout`, 60 s) — but those are two bounds in
+            // series, not one, and neither covers everything `run` does between
+            // them. A gate left closed by an attempt that never returns would
+            // silently retire automatic syncs for the rest of the session, so the
+            // whole thing gets one outer bound. Comfortably past the deadline, so
+            // this only ever catches a stuck attempt and never a slow store.
             let outcome = await Self.firstResult(
                 of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
             guard let self else { return }
@@ -2400,10 +2408,12 @@ final class AppListModel {
                 testFlightSyncTask = started
                 testFlightSync = started
                 // Bounded for the reason `startAutomaticTestFlightSync` is: `run`
-                // bounds its polling but not the launch it awaits first, and a gate
-                // left closed by a stuck launch would silently switch automatic syncs
-                // off for the whole session. The round below still awaits `started`
-                // itself — this only frees the gate.
+                // bounds its polling and `AppRestarter.launchTimeout` bounds the
+                // launch it awaits first, but those are bounds in series rather than
+                // one bound over the attempt, and a gate left closed by an attempt
+                // that never returns would silently switch automatic syncs off for
+                // the whole session. The round below still awaits `started` itself —
+                // this only frees the gate.
                 Task { @MainActor [weak self] in
                     _ = await Self.firstResult(
                         of: started, within: TestFlightRefresh.defaultDeadline + .seconds(30))
@@ -6213,14 +6223,17 @@ final class AppListModel {
         // latest, i.e. this very version), so it must not outlive the skip.
         //
         // Cleared, NOT withdrawn — unlike ignoring. The skip is recorded against the
-        // offered `displayVersion`, while the gate that has to hold afterwards
-        // (`VisibilityRules.isVersionSkipped`, through `nudgeableStaged`) is asked
-        // about `staged.version`, and it compares strings exactly where
-        // `actionableStaged` compares versions. Where those two strings differ — a
-        // build suffix, "1.2" against "1.2.0" — forgetting the ledger entry would
-        // let the very next staging pass post a banner for the version the user just
-        // skipped. The entry is the belt behind those braces. The cost is that
-        // un-skipping doesn't bring the banner back; the row and the badge do.
+        // offered `remote.versionSide` (as `VisibilityRules.skipKey`, a
+        // marketing+build pair — NOT the display string), while the gate that has to
+        // hold afterwards (`VisibilityRules.isVersionSkipped`, through
+        // `nudgeableStaged`) is asked about `staged.versionSide`. Two different
+        // values, and `isVersionSkipped` compares their keys exactly where
+        // `actionableStaged` compares versions. Where those keys differ — a build
+        // the offer carried and the staged copy does not, "1.2" against "1.2.0" —
+        // forgetting the ledger entry would let the very next staging pass post a
+        // banner for the version the user just skipped. The entry is the belt behind
+        // those braces. The cost is that un-skipping doesn't bring the banner back;
+        // the row and the badge do.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
         Log.app.info("skip \(VisibilityRules.skipKey(version), privacy: .public): \(result.app.name, privacy: .public)")
     }

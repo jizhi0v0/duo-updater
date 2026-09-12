@@ -564,8 +564,9 @@ private struct TrafficRow: View {
 /// source onto a second line instead of clipping it away — the split has to stay
 /// fully visible to be checkable against the total.
 ///
-/// Shared with the workbench's Network Activity panel, whose purpose legend has
-/// the same requirement for the same reason; hence not `private`.
+/// Shared with the Requests tab's legends and the query field's token row
+/// (`RequestLogPane`, `QueryTokenField`), which have the same requirement for the
+/// same reason; hence not `private`.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 

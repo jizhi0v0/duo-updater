@@ -471,9 +471,14 @@ struct WorkbenchRowAction: View {
 /// The readouts a downloading row can wear, WIDEST FIRST — `AppRow` walks
 /// `allCases` in order and takes the first one the app's name leaves room for, so
 /// the declaration order is the algorithm. Reorder these and every downloading row
-/// silently degrades to the narrowest option: no compile error, no test (there is
-/// no test target over `App/Sources`), and no gallery tile, since the gallery draws
-/// only the default.
+/// silently degrades to the narrowest option, with no compile error — and the
+/// algorithm itself is in `AppRow`, which `DuoUpdaterAppTests` does not compile
+/// (that target builds only the files `App/project.yml` names). What holds the
+/// order is the gallery: tiles 35 and 36 draw `.ringAndPercent` and `.ringOnly`
+/// (via `RowStateGalleryCases.popoverDownloadReadoutOverrides`), and
+/// `RowStateGalleryCases.downloadReadoutOrderIsIntact()` fails the build outright
+/// if this declaration order changes — because an image diff is a symptom, not an
+/// assertion.
 ///
 /// The widths are what the group actually lays out to: the indicator, the 4pt
 /// HStack spacing, and the percentage's fixed 32pt slot.

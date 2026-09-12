@@ -12,8 +12,9 @@ import DuoUpdaterCore
 ///
 /// Nothing is decided in this file. Every figure comes off ``RequestLogSummary``,
 /// every filter is a ``RequestQuery``, and even the field's colouring comes from
-/// ``RequestQuery/highlights(_:)`` — all in Core, because `App/project.yml` has
-/// no test target, so a rule written into a `body` is a rule nothing executes.
+/// ``RequestQuery/highlights(_:)`` — all in Core, because `DuoUpdaterAppTests`
+/// compiles only the files `App/project.yml` names and this one is not among
+/// them, so a rule written into a `body` is a rule nothing executes.
 ///
 /// The filter chips are not a second filtering path: each one is literally a
 /// token appended to the field, so a question asked by clicking and the same

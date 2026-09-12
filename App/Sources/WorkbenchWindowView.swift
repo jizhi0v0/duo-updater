@@ -5,12 +5,12 @@ import DuoUpdaterCore
 
 /// The unified workbench window — one roomy home for everything the menu-bar
 /// popover can't hold. App-centric: the left column lists every scanned app; the
-/// right pane shows the selected app through one of two lenses, toggled in the
-/// toolbar:
-///   • Release Notes — its changelog (recipe → structured → inline HTML → web page).
-///   • Traffic       — the exact bytes we've downloaded for it, event by event.
-/// A toolbar gear opens Settings as a sheet, so all three former windows
-/// (Changelog, Traffic, Settings) now live in this single window.
+/// right pane shows the selected app's changelog (recipe → structured → inline
+/// HTML → web page).
+///
+/// There is no lens switcher any more: download traffic has its own window
+/// (`NetworkWindowView`), so the detail pane is always Release Notes. The toolbar
+/// gear opens Settings in its own window too (`openWindow`), not as a sheet.
 struct WorkbenchWindowView: View {
     static let windowID = "workbench"
 
@@ -79,10 +79,8 @@ struct WorkbenchWindowView: View {
     /// match the model's own backstop cadence rather than out-polling it 12×.
     private let refreshTimer = Timer.publish(every: 180, on: .main, in: .common).autoconnect()
 
-    /// The sidebar app list. One stable order regardless of the active lens —
-    /// pending updates float to the top, everything else alphabetical — so
-    /// flipping between Release Notes and Traffic never reshuffles the list under
-    /// the user. The lens only changes each row's trailing detail, not its place.
+    /// The sidebar app list. One stable order — pending updates float to the top,
+    /// everything else alphabetical.
     ///
     /// Brew-managed casks are excluded here: they live under the Brew tree instead
     /// (the "cask 只在此面板" rule), so they never appear in both places.
@@ -120,15 +118,6 @@ struct WorkbenchWindowView: View {
                 return model.rollbackIsDistinct(result)
             }
             .sorted { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }
-    }
-
-    /// Whether to show the Rollback section at all — hidden when nothing is restorable.
-    private var hasRollback: Bool { !rollbackableApps.isEmpty }
-
-    /// Content-fitting height for the (bottom-pinned) Rollback list, capped so a long
-    /// list scrolls internally instead of crowding out the Apps tree above it.
-    private var rollbackListHeight: CGFloat {
-        min(CGFloat(rollbackableApps.count) * 34 + 12, 240)
     }
 
     /// `apps` narrowed by the search field. A blank query passes everything through;
@@ -640,8 +629,6 @@ private struct SplitViewAutosave: NSViewRepresentable {
     }
 }
 
-// MARK: - Mode switcher
-
 // MARK: - Sidebar row
 
 private struct WorkbenchSidebarRow: View {
@@ -822,6 +809,11 @@ private struct WorkbenchSidebarRow: View {
                     // White over the blue highlight when selected; blue tint otherwise.
                     .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                     .lineLimit(1)
+                    // Its `.stagedRelaunch` / `.restart` siblings scale; this one is
+                    // the longest of the four (two versions, both possibly with a
+                    // build in parentheses) and had only the line limit, so it
+                    // truncated where they shrank.
+                    .minimumScaleFactor(0.75)
             } else {
                 Text("v\(result.installedDisplay ?? "?")")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -1625,8 +1617,6 @@ private struct ChangelogVersionList: View {
         return entry.version.isEmpty ? "—" : entry.version
     }
 }
-
-// MARK: - Traffic pane
 
 // MARK: - One changelog entry
 

@@ -5,7 +5,7 @@ import DuoUpdaterCore
 /// The popover's row action — the trailing edge of every row in the menu bar.
 ///
 /// Model-free by construction: it takes the shared `RowActionState`, the row, and
-/// plain closures. That is what lets `RowStateGallery` draw all 30 states without
+/// plain closures. That is what lets `RowStateGallery` draw every state without
 /// an `AppListModel` (whose `init` registers notification permission, arms timers
 /// and starts FS watchers — not things a screenshot tool should do).
 ///

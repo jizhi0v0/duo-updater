@@ -115,8 +115,12 @@ struct AppScannerStoreCopyTests {
     /// not any more. `UpdateChecker`'s gate declines every non-store source for a
     /// store row, so the address recorded here has no consumer. The earlier
     /// version of this comment justified the split with "Keka is a real store
-    /// copy carrying `SUFeedURL`", which was never true: Developer ID-signed, no
-    /// `_MASReceipt`.
+    /// copy carrying `SUFeedURL`"; the version after that called it "never true:
+    /// Developer ID-signed, no `_MASReceipt`". Measured 2026-09-12, both spellings
+    /// exist — one Mac's Keka 1.6.7 carries a 2026-07-01 `_MASReceipt` and
+    /// `SUFeedURL` together, another's carries neither. The arrangement this case
+    /// scans for is real; which copy a given Mac has is not the point, which is
+    /// why the fixture below is invented rather than named after Keka.
     ///
     /// Mutation: extend the guard to the `SUFeedURL` read and this goes nil.
     @Test func aStoreCopyKeepsTheFeedItsOwnBundleStates() throws {

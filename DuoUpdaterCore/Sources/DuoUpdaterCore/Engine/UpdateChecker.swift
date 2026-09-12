@@ -428,11 +428,30 @@ public struct UpdateChecker: Sendable {
         //
         // It used to be an inventory of which sources happened to carry
         // `guard !app.isMASApp`, kept accurate by hand and re-checked whenever a
-        // source was added. It was wrong twice: once by naming one source when
-        // three could run, and then, in the commit that fixed that, by citing
-        // Keka as a store copy carrying a `SUFeedURL` — Keka is Developer
-        // ID-signed with no `_MASReceipt`, so `isMASApp` was false for it under
-        // the very same derivation both then and now.
+        // source was added. It was wrong three times, and the third time is the
+        // instructive one.
+        //
+        //  1. It named one source when three could run.
+        //  2. The commit that fixed that cited "Keka is a store copy carrying a
+        //     `SUFeedURL`" as the worked example.
+        //  3. The commit that "corrected" THAT replaced it with "Keka is
+        //     Developer ID-signed with no `_MASReceipt`, so `isMASApp` was false
+        //     for it under the very same derivation both then and now."
+        //
+        // Measured 2026-09-12, two Macs, same app at the same version 1.6.7:
+        // one has `/Applications/Keka.app/Contents/_MASReceipt/receipt` (dated
+        // 2026-07-01, `Authority=Apple Mac OS Application Signing`) AND
+        // `SUFeedURL = https://u.keka.io`; the other is
+        // `Authority=Developer ID Application: Jorge Garcia Armero` with no
+        // receipt. So (2) was true of one machine and (3) of the other, and each
+        // was written down as a fact about the app.
+        //
+        // Whether a given copy is a store copy is not a property of the app.
+        // Keka, WhatsApp and CotEditor all ship both ways, so no sentence of the
+        // form "app X is/isn't a store copy" can be checked by anyone but the
+        // person running it — which is exactly why this paragraph no longer rests
+        // on one. `SourceStorePolicyTests.exactlyOneSourceAnswersStoreCopies`
+        // does, and it is derived from the registry rather than from a machine.
         //
         // TestFlight returns before the loop and never gets here at all.
         if let lastError, !app.isToolboxManaged {

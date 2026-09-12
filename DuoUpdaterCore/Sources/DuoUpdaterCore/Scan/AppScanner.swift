@@ -563,10 +563,16 @@ public struct AppScanner: Sendable {
         //
         // Deliberately NOT extended to the bundle's own `SUFeedURL` read above.
         // That read records what the bundle says — a fact, not a decision — and
-        // the decision now lives in one place, the gate. (The earlier version of
-        // this comment justified the split with "Keka is a store copy carrying
-        // one". It is not: Developer ID-signed, no `_MASReceipt`. Verified before
-        // repeating it would have taken one `ls`.)
+        // the decision now lives in one place, the gate.
+        //
+        // (Two earlier versions of this comment argued the split from Keka — first
+        // "Keka is a store copy carrying one", then "It is not: Developer
+        // ID-signed, no `_MASReceipt`". Both are true, of different machines:
+        // measured 2026-09-12, one Mac's Keka 1.6.7 has a 2026-07-01
+        // `_MASReceipt` and `SUFeedURL = https://u.keka.io`, another's is
+        // Developer ID with no receipt. An `ls` settles which copy is in front of
+        // you and nothing more, which is the whole point — a store copy carrying
+        // a feed is a real arrangement, so this branch has to be right for both.)
         if feedURL == nil, !isMAS { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
         // The narrower gap: the bundle DOES name a feed, and the vendor stopped
         // publishing to it. Matched on the dead address itself, not on the bundle

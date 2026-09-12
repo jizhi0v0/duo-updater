@@ -215,10 +215,13 @@ import Foundation
     /// they get when the store is quietly keeping the app current.
     ///
     /// ⚠️ This paragraph used to be a hand-kept inventory of which sources
-    /// carried `guard !app.isMASApp`, and it was wrong twice — the second time
-    /// citing Keka as a store copy carrying a `SUFeedURL`, which was false on the
-    /// day it was written (Developer ID, no `_MASReceipt`). Do not reintroduce an
-    /// inventory here; the gate and its table are the answer.
+    /// carried `guard !app.isMASApp`, and it was wrong three times — twice about
+    /// the sources, and once about Keka, which two successive comments called a
+    /// store copy and then not one. Both were measured, on different Macs, and
+    /// both were wrong to be written as facts about the app (see
+    /// `SourceStorePolicyTests`). Do not reintroduce an inventory here, and do not
+    /// settle a policy question with what is installed on the machine you happen
+    /// to be on; the gate and its table are the answer.
     ///
     /// If a later change makes this `.appStoreManaged`, that is a decision to
     /// argue for here, not a tidy-up of an inconsistency.

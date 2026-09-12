@@ -198,8 +198,8 @@ outside our own container:
 - **Your App Store sign-in** — whenever TestFlight's data is read, the system
   accounts database is read for one thing: whether the active App Store account's
   media types include the App Store. It decides whether a TestFlight beta can be
-  offered to you right now, and keeps the refresh button from starting TestFlight
-  just to ask you to sign in. Nothing else is read from it — no Apple ID, no name,
+  offered to you right now, and keeps DuoUpdater from starting TestFlight in the
+  background just to ask you to sign in. Nothing else is read from it — no Apple ID, no name,
   no identifier — and nothing read there leaves the Mac.
 
 Credentials you enter yourself (a GitHub token, an Alcove licence) are stored in

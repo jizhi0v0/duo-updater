@@ -107,11 +107,18 @@ public enum RefreshIntent: Sendable, Equatable {
     /// Whether this refresh asks TestFlight to sync its store first, by starting
     /// a hidden instance of TestFlight of our own (`TestFlightRefresh`).
     ///
-    /// The button only. That starts an app the user did not start, and the
-    /// system deliberately declines this work while the Mac is in use — so it
-    /// happens when the user asks for a fresh answer and at no other time.
-    /// Opening the menu is not asking: it would start TestFlight in the
-    /// background on every glance at the list.
+    /// The button only — meaning the only intent that syncs *unconditionally*.
+    /// That starts an app the user did not start, and the system deliberately
+    /// declines this work while the Mac is in use, so no intent gets it for free:
+    /// opening the menu is not asking, and would start TestFlight on every glance
+    /// at the list.
+    ///
+    /// ⚠️ **This is no longer the whole answer to "when does a round sync".** Since
+    /// #539 a round of any intent may also earn one from what it saw —
+    /// `TestFlightSyncPolicy`, decided after the check because its evidence is the
+    /// check's own output. This flag is the unconditional half; that type is the
+    /// rationed half. A reader who stops here will conclude a background round
+    /// never syncs, which was true and is not.
     public var refreshesTestFlight: Bool {
         switch self {
         case .userRequested: true

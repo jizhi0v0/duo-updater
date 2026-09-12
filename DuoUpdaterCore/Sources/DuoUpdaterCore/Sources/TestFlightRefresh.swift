@@ -55,13 +55,43 @@ import Foundation
 /// of those 210 were claimed while this was measured. Say "may queue", never
 /// "will install".
 ///
-/// ⚠️ **This is an explicit, user-initiated action.** It starts an app the user did
-/// not start. Do not put it on a periodic check: the system deliberately declines
-/// to do this work while the device is in use, and doing it for the system on a
-/// timer would be overriding that decision on the user's behalf. Its callers are
-/// the two places a user asks for exactly this — `duo check --refresh-testflight`
-/// and the menu's refresh button (`RefreshIntent.userRequested`) — and not the
-/// menu opening, which is not asking.
+/// ⚠️ **And those 210 did not accumulate — they were enqueue attempts, which
+/// `appstored` dedups.** Measured 2026-09-12: its install queue is a real table
+/// (`app_install` in `~/Library/Caches/com.apple.appstoreagent/storeSystem.db`)
+/// carrying a `cancel_if_duplicate` column and a `DetectDuplicateRequestTask`, with
+/// log paths for `Skipped duplicate job`, `Skipping duplicate install`, and
+/// `Queue check found duplicate items in the queue`. The dedup fired on all seven of
+/// that day's real TestFlight installs (`Ignoring duplicate resumption request`), and
+/// the table held 0 rows before and after each of four back-to-back hidden launches.
+/// The `TestFlightExtensionSyncActivity` registration behaves the same way — it is
+/// keyed by identifier, and the binary's own string for re-registering it is
+/// "Resetting activity for TestFlight extension due to changed intervals".
+///
+/// So the cost of repeating this is **the fetch, not a backlog**: 694–705 KB in and
+/// 29–34 KB out per launch across those four, with no caching between them (one ran
+/// two minutes after the previous and fetched 704 KB anyway). That is what
+/// `TestFlightSyncPolicy` rations.
+///
+/// ⚠️ **This starts an app the user did not start, so no caller may run it on a
+/// bare timer.** The system deliberately declines this work while the device is in
+/// use, and doing it for the system every few minutes would be overriding that
+/// decision on the user's behalf — at the 5-minute default, 288 launches a day.
+///
+/// What that ruled out was a *timer*, and for a while it was read as ruling out
+/// everything but the button. #539 measured the cost of that reading: 20 hours
+/// after the last sync, 3 of this Mac's 8 TestFlight rows could not be bounded by
+/// the store, and a build published but not yet installed reads as "up to date"
+/// with nothing local able to witness it. So there are now three callers, and the
+/// two automatic ones are rationed by `TestFlightSyncPolicy` rather than by a
+/// clock:
+///
+/// - `duo check --refresh-testflight` and the menu's refresh button
+///   (`RefreshIntent.userRequested`) — the user asking, unconditionally.
+/// - A round that saw the store fall provably behind, once per `(bundle, build)`.
+/// - A round that finds nothing has written the store in six hours.
+///
+/// Read `TestFlightSyncPolicy` before adding a fourth. What must not come back is a
+/// call that runs every round.
 public struct TestFlightRefresh: Sendable {
 
     /// What one attempt did. Every case is a thing the caller may want to say out
@@ -300,6 +330,20 @@ extension TestFlightRefresh.Outcome {
         switch self {
         case .refreshed, .changedWithoutSettling: true
         case .noChange, .notSignedIn, .accountTestsNothing, .notInstalled, .launchFailed: false
+        }
+    }
+
+    /// Whether an instance of TestFlight was actually started.
+    ///
+    /// Distinct from ``storeChanged``: `noChange` means it ran and wrote nothing,
+    /// which is a real answer about the store, while the four below mean the
+    /// question was never put to TestFlight at all. `TestFlightSyncPolicy.Ledger`
+    /// needs this one — retiring a row's evidence on an attempt that never spawned
+    /// would silence it on the strength of nothing.
+    public var testFlightRan: Bool {
+        switch self {
+        case .refreshed, .changedWithoutSettling, .noChange: true
+        case .notSignedIn, .accountTestsNothing, .notInstalled, .launchFailed: false
         }
     }
 }

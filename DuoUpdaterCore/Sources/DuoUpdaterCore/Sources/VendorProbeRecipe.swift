@@ -231,8 +231,10 @@ public struct VendorProbeRecipe: Sendable {
     /// The release channel this recipe's endpoint serves. The source refuses to
     /// apply the recipe unless the installed app is on the SAME channel, so a
     /// stable endpoint can never be served to a Beta/Canary install that shares
-    /// the bundle id. Every recipe here targets Stable, so this defaults to
-    /// `.stable`; set it explicitly when adding a channel-specific endpoint.
+    /// the bundle id. Most recipes here target Stable, so this defaults to
+    /// `.stable` — but a substantial minority do not, across most of
+    /// `ReleaseChannel`'s cases (beta, canary, nightly, preview, dev, esr, rc and
+    /// more), so set it explicitly when adding a channel-specific endpoint.
     public let channel: ReleaseChannel
 
     /// Distinguishes several recipes that share a bundle id AND a channel — the
@@ -632,10 +634,12 @@ public struct VendorProbeRecipe: Sendable {
     ///
     /// Also re-anchors `^`, `$`, `\A`, `\z` and lookbehind to entry boundaries
     /// rather than the whole body's — a pattern relying on "start/end of the
-    /// document" now means "start/end of one entry" instead. Six recipes in
-    /// this registry pin `versionPattern` with `^…$` today; none has adopted
-    /// `entryStartPattern`, and this is why one shouldn't without re-deriving
-    /// those patterns against a single sliced entry first.
+    /// document" now means "start/end of one entry" instead. A minority of recipes
+    /// anchor `versionPattern` that way, and none of them has adopted
+    /// `entryStartPattern` — don't, without re-deriving the pattern against a
+    /// single sliced entry first. That is a build failure rather than a convention:
+    /// `EntryStartPatternRegistryClaims.noAnchoredVersionPatternHasAdoptedEntryStartPattern`
+    /// walks the registry for the combination and names any recipe that has it.
     ///
     /// One more shape worth naming rather than discovering later: selection now
     /// searches the feed's entire history, not just its recent head, so a
@@ -932,7 +936,15 @@ public struct VendorProbeRecipe: Sendable {
     /// entries scored by first-match while the version it goes on to report
     /// (computed by the caller with the SAME flag) uses highest-match — two
     /// different readings of "highest" disagreeing on which entry even won.
-    /// No registry recipe combines the two today.
+    ///
+    /// Registry recipes DO combine the two — WeChat's Sparkle appcast and
+    /// Windscribe's prerelease ChangeLogs feeds — and they are the recipes that
+    /// depend on the straddle guard below being SKIPPED under `selectHighest`:
+    /// several `versionPattern` matches inside one `<item>` / one `"id"` block are
+    /// the expected shape for them, not evidence the slice spans two releases.
+    /// Those two apps are named because a test pins them
+    /// (`EntryStartPatternRegistryClaims.onlyTheDocumentedRecipesCombineSelectHighestWithEntryStartPattern`),
+    /// so a third one cannot appear without this paragraph being revisited.
     public static func highestVersionEntry(
         in text: String, entryStartPattern: String, versionPattern: String,
         selectHighest: Bool = false
@@ -1046,10 +1058,11 @@ public struct VendorProbeRecipe: Sendable {
 /// The verified recipe table. Consulted by `VendorProbeSource` only after the
 /// three standard sources have all missed.
 ///
-/// Intentionally empty until a vendor's stable, versioned link is confirmed via
-/// the probe harness. Shipping an unverified recipe risks a false "update
-/// available", which this source must never produce — an empty table simply
-/// means those apps stay "unknown", which is the correct, honest default.
+/// An app stays OUT of this table until a vendor's stable, versioned link is
+/// confirmed via the probe harness — the table started empty and has only ever
+/// grown that way. Shipping an unverified recipe risks a
+/// false "update available", which this source must never produce; leaving an app
+/// out simply means it stays "unknown", which is the correct, honest default.
 ///
 /// Every recipe below was verified by probing the live endpoint and confirming
 /// it yields the app's current version (≥ the installed copy). Endpoints are

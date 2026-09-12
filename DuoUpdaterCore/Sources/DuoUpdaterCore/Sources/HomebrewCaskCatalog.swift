@@ -24,8 +24,9 @@ struct CaskIndex: Sendable {
 /// it by the `.app` filename each cask installs (e.g. "TablePlus.app"), plus a
 /// bundle-identifier fallback drawn from each cask's `uninstall: quit:` field.
 ///
-/// The catalog is ~5 MB, so we fetch and parse it a single time and reuse the
-/// index for every app in a check run.
+/// The catalog is ~2 MB (measured at 2007 KB on 2026-09-05; see `load`), so we
+/// fetch and parse it a single time and reuse the index for every app in a
+/// check run.
 public actor HomebrewCaskCatalog {
     public static let shared = HomebrewCaskCatalog()
 
@@ -33,7 +34,7 @@ public actor HomebrewCaskCatalog {
     private var indexLoadedAt: Date?
     private var loadTask: Task<CaskIndex, Error>?
     /// A failed refresh should not make every subsequent lookup immediately retry
-    /// the same 5 MB request. While this is in the future, a stale index remains
+    /// the same ~2 MB request. While this is in the future, a stale index remains
     /// usable and `isExpired` treats it as fresh enough to serve.
     private var retryRefreshAfter: Date?
 
@@ -47,7 +48,7 @@ public actor HomebrewCaskCatalog {
     /// and immune to that fix because the in-memory index short-circuits the
     /// request entirely.
     ///
-    /// Six hours, not minutes: the refetch is a full 5 MB whenever the catalog
+    /// Six hours, not minutes: the refetch is the full ~2 MB whenever the catalog
     /// actually changed (which is most of the time — brew publishes constantly),
     /// so this trades a few hours of staleness for bounded background traffic.
     /// Only paid on machines that have casks installed at all; `HomebrewCaskSource`
@@ -65,7 +66,7 @@ public actor HomebrewCaskCatalog {
     }
 
     /// Test seam: seed a fixed index so source-level tests run offline instead of
-    /// fetching the 5 MB live catalog.
+    /// fetching the ~2 MB live catalog.
     init(testIndex: CaskIndex) {
         self.session = .shared
         self.index = testIndex

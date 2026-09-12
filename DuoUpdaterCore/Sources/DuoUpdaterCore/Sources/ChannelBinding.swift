@@ -116,7 +116,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///
 /// Why this is per-app: Sparkle never persists the user's channel. `allowedChannels`
 /// is a delegate the host app computes at runtime; vendors keep the choice
-/// wherever they like. Four apps, four encodings, none alike:
+/// wherever they like. No two encodings alike. A sample, not the roster —
+/// `boundBundleIDs` below is the roster, and it is longer than this list:
 ///   * DuoPaste → `UserDefaults[sparkleIncludePrereleases]`           (Bool: true→beta)
 ///   * Fork     → `UserDefaults[applicationUpdateChannel]`            (Int: 1→stable)
 ///   * Surge    → `…/Application Support/<id>/KDDefaults.plist`        (`IncludeBetaBuilds` Bool)
@@ -205,7 +206,8 @@ public enum ChannelBinding {
     /// writes nothing back, so it cannot loop; the wake one is actively wanted,
     /// since a toggle flipped just before sleep arrives with no live event.
     ///
-    /// Three roots, not ten files, because a preference file is *replaced* rather
+    /// Directories, and far fewer of them than there are bound apps — not the
+    /// files themselves, because a preference file is *replaced* rather
     /// than written in place (cfprefsd writes a temp file and renames), so a
     /// per-file watch would go deaf the first time the file changed.
     ///

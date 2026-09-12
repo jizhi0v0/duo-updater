@@ -279,4 +279,39 @@ struct ChangelogURLPolicyTests {
                     "\(bundleID): \(url.absoluteString)")
         }
     }
+
+    /// The lookup's FOURTH fallback (`?? group.first`), which its own doc omitted
+    /// for a while and two comments then reasoned past.
+    ///
+    /// A bundle id whose recipes are ALL on non-stable channels has nothing for
+    /// the channel-agnostic and `.stable` steps to find, so without step 4 an
+    /// off-channel lookup returns nil and the pane goes empty for an app that has
+    /// notes. Derived from the registry rather than naming the groups: the set
+    /// changes whenever a preview-only app is added, and a written-down list would
+    /// be the thing that goes stale.
+    @Test func aGroupWithNoStableRecipeStillResolves() {
+        let groups = Dictionary(
+            grouping: ChangelogRecipeRegistry.recipes, by: { $0.bundleID.lowercased() })
+        let nonStableOnly = groups.filter { _, recipes in
+            !recipes.contains { $0.channel == nil || $0.channel == .stable }
+        }
+        #expect(!nonStableOnly.isEmpty, """
+            no bundle id is non-stable-only any more — step 4 has nothing to answer for, so \
+            this test is measuring nothing and the doc should say so.
+            """)
+
+        for (bundleID, recipes) in nonStableOnly {
+            // A channel none of the group's recipes declares: steps 1–3 all miss.
+            let foreign = ReleaseChannel.allCases.first { channel in
+                !recipes.contains { $0.channel == channel }
+            }
+            let resolved = ChangelogRecipeRegistry.recipe(
+                forBundleID: bundleID, channel: foreign)
+            let channels = recipes.compactMap { $0.channel?.rawValue }
+            #expect(resolved != nil, """
+                \(bundleID) has only \(channels) — an off-channel lookup must still land on \
+                one of them, not on nil.
+                """)
+        }
+    }
 }

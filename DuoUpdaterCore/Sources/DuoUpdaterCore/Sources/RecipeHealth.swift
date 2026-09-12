@@ -21,7 +21,15 @@ public actor RecipeHealth {
     public init() {}
 
     public struct Entry: Sendable, Equatable, Identifiable {
-        /// Stable per-recipe key, e.g. a bundle id or an `owner/repo` slug.
+        /// Stable per-recipe key — the recipe's own id (`vendor:<bundle id>:<channel>`,
+        /// `github:<owner>/<repo>:<channel>`, `changelog:…`), or a bare bundle id
+        /// for a source whose recipes are one-per-app (the Electron manifest read).
+        ///
+        /// Per RECIPE and not per app, because an app can carry several: Zed and
+        /// Zed Preview are two GitHub rules over one repo, Android Studio's Stable
+        /// and Canary are two vendor recipes under one bundle id. Keyed by the
+        /// thing they share, whichever ran last decided the verdict for both and a
+        /// broken channel recipe read healthy on its sibling's success.
         ///
         /// **Not unique on its own.** The same bundle id can be tracked under
         /// more than one `source` at once — e.g. Notion carries both a
@@ -60,6 +68,26 @@ public actor RecipeHealth {
         /// same rendered string. Not `Codable`/persisted anywhere, so the exact
         /// encoding has no compatibility surface to preserve.
         public var key: String { "\(source)\u{0}\(id)" }
+
+        /// The label a diagnostics row shows for this entry, given a bundle id →
+        /// app name map.
+        ///
+        /// A recipe id carries its bundle id as one `:`-separated component rather
+        /// than being one, so the plain lookup the panel used to do misses every id
+        /// but the bare-bundle-id ones. Resolving the component and keeping the raw
+        /// id alongside it is what lets a reader tell "Zed" from "Zed Preview" when
+        /// both are listed — dropping the id would merge them on screen exactly
+        /// where keying by the shared part merged them in storage.
+        ///
+        /// In Core rather than in the view because the view file has no test target
+        /// over it; this is pure string work with a test next to it.
+        public func displayName(resolving names: [String: String]) -> String {
+            if let exact = names[id] { return exact }
+            for part in id.split(separator: ":") where !part.isEmpty {
+                if let name = names[String(part)] { return "\(name) · \(id)" }
+            }
+            return id
+        }
     }
 
     /// Recipes are keyed by `(id, source)` together, not by `id` alone — see the

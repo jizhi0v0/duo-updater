@@ -287,12 +287,17 @@ public struct SparkleAppcastSource: UpdateSource {
             // offer it, changelog history included. See `archVerdict`.
             return archVerdict(for: item, hostArch: hostArch, canRunIntel: canRunIntel) != .unrunnable
         }
-        // Deterministic tie-break on equal versions. `sorted(by:)` is NOT a stable
-        // sort in Swift, so per-architecture twins could come back in either order
-        // from run to run — and the changelog dedupe below keeps the FIRST item
-        // that yields notes. Rank the twin built for this Mac first; only fall
-        // back to the enclosure URL when architecture doesn't disambiguate
-        // (identical bodies, or neither item names an architecture at all).
+        // Tie-break on equal versions, because the comparison alone does not say
+        // which of a release's per-architecture twins wins and the changelog dedupe
+        // below keeps the FIRST item that yields notes. Not a stability repair:
+        // Swift's sort IS stable and documented as such (SE-0372, Swift 5.8 —
+        // "The sorting algorithm is guaranteed to be stable"), so without this the
+        // winner would simply be whichever twin the VENDOR happened to list first,
+        // which is their layout decision leaking into which enclosure we install.
+        // Rank the twin built for this Mac first; only fall back to the enclosure
+        // URL when architecture doesn't disambiguate (identical bodies, or neither
+        // item names an architecture at all), which makes the answer depend on the
+        // items themselves rather than on their order in the feed.
         return usable.sorted { (lhs: SparkleAppcastItem, rhs: SparkleAppcastItem) -> Bool in
             switch VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) {
             case .orderedDescending: return true

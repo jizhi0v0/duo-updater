@@ -244,7 +244,7 @@ struct GitHubListProbeTests {
         let outcome = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
 
         #expect(outcome.remote?.shortVersion == "1.5.0-beta.1")
-        let entry = await RecipeHealth.shared.snapshot().first { $0.id == rule.slug && $0.source == source.name }
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == rule.recipeID && $0.source == source.name }
         #expect(entry != nil)
         #expect(entry?.lastMiss == nil)
         #expect(entry?.lastSuccess != nil)

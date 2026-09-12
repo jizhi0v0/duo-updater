@@ -34,8 +34,11 @@ public enum ChangelogRecipeSelection {
     ///
     /// The catalog half is gated; the `remote` half is not, and deliberately.
     /// For every `UpdateSource`, `UpdateChecker` only lets one whose
-    /// `answersAppStoreCopies` is true near a store copy (`UpdateChecker.swift`
-    /// line 252, and line 144 for the batch), and `MacAppStoreSource` is the only
+    /// `answersAppStoreCopies` is true near a store copy — the
+    /// `if app.isMASApp, !source.answersAppStoreCopies { continue }` guard in its
+    /// source loop, and `UpdateChecker.apps(_:visibleTo:)` for the batch paths
+    /// (named rather than cited by line number: the two this comment used to give
+    /// had both moved) — and `MacAppStoreSource` is the only
     /// one — so a store copy's `changelogURL` is a store listing. ⚠️ That is a
     /// property of the SOURCE LOOP, not of `runSources` as a whole: the Toolbox
     /// and TestFlight branches return before the loop and pass neither gate. The

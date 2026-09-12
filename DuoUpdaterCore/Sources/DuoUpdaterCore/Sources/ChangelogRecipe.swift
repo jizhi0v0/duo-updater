@@ -156,8 +156,10 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// `org.mozilla.thunderbird` but live on separate version trains, so each gets
     /// its own recipe distinguished by `channel`. `recipe(forBundleID:channel:)`
     /// prefers an exact channel match, then a channel-agnostic recipe, then a
-    /// `.stable` one — so existing single-recipe apps (channel nil) keep matching
-    /// every channel exactly as before.
+    /// `.stable` one, and finally ANY recipe in the group — so existing
+    /// single-recipe apps (channel nil) keep matching every channel exactly as
+    /// before, and a bundle id whose recipes are all non-stable still answers.
+    /// See that method for the fourth step, which is easy to reason past.
     public let channel: ReleaseChannel?
 
     /// For a non-stable recipe over a feed that splits by GitHub's `prerelease`
@@ -3576,19 +3578,22 @@ public enum ChangelogRecipeRegistry {
         // GitHub is missing 2.15.9 entirely (the vendor's API has it), so the
         // releases are the vendor's notes but not provably ALL of them.
         //
-        // ⚠️ WHOEVER ADDS CHANNEL DETECTION FOR THIS APP MUST COME BACK HERE.
-        // `channel: .stable` is right only while every Windscribe copy detects as
-        // stable, which is true today because nothing reads its channel yet. The
-        // moment a `ChannelBinding` resolver lands, a beta copy detects as `.beta`
-        // — and `recipe(forBundleID:channel:)` does NOT then return nil, it falls
-        // back to the `.stable` recipe. So that copy keeps this list, which
-        // `.gitHubReleases` has filtered to `prerelease: false` only, while the row
-        // beside it offers a prerelease build (2.24.10, say). The pane would show
-        // 2.24.12 / 2.23.11 / 2.22.10 and omit the exact entry being offered —
-        // the failure `includesPromotedStable` exists for; see CotEditor above.
+        // ⚠️ `channel: .stable` covers ONLY copies that detect as stable, and
+        // channel detection for this app has since landed (`WindscribeChannel`),
+        // so beta and guinea-pig copies are real. They are covered by the two
+        // recipes declared just below, NOT by this one — and the reason this
+        // warning had to become those recipes is that
+        // `recipe(forBundleID:channel:)` does not return nil for an uncovered
+        // channel: it walks exact match → channel-agnostic → `.stable` → any, so
+        // without them a beta copy landed here, on a list `.gitHubReleases` has
+        // filtered to `prerelease: false` only, while the row beside it offered a
+        // prerelease build (2.24.10, say). The pane would show 2.24.12 / 2.23.11 /
+        // 2.22.10 and omit the exact entry being offered — the failure
+        // `includesPromotedStable` exists for; see CotEditor above.
         // Windscribe's tracks are a ladder (level N is served the newest build from
-        // tracks 0…N), so the channel variants want the vendor's own
-        // `ChangeLogs?platform=osx` and its per-entry `beta` number, not this feed.
+        // tracks 0…N), which is why those recipes set `includesPromotedStable`; the
+        // precise fix remains the vendor's own `ChangeLogs?platform=osx` and its
+        // per-entry `beta` number, not this feed.
         ChangelogRecipe(
             bundleID: "com.windscribe.client",
             source: URL(string: windscribeReleases)!,
@@ -3605,10 +3610,11 @@ public enum ChangelogRecipeRegistry {
         // the beta and release lines is newer, so the pane has to be able to hold
         // both or it omits the very entry the row offers.
         //
-        // Without these two, `recipe(forBundleID:channel:)` falls back to the
-        // `.stable` recipe above rather than to nil, so a beta copy got a list
-        // filtered to release builds — containing the offered version only while
-        // release leads, about a quarter of each cycle.
+        // Without these two, `recipe(forBundleID:channel:)` walks past the exact
+        // match it cannot find and lands on the `.stable` recipe above rather than
+        // on nil, so a beta copy got a list filtered to release builds —
+        // containing the offered version only while release leads, about a quarter
+        // of each cycle.
         //
         // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
         // releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
@@ -3670,11 +3676,20 @@ public enum ChangelogRecipeRegistry {
     ///   1. a recipe whose `channel` exactly matches the install's channel;
     ///   2. a channel-agnostic recipe (`channel == nil`) — every existing
     ///      single-recipe app, so passing a channel never changes their result;
-    ///   3. the `.stable` recipe as a last resort (an unknown/odd channel still
-    ///      gets *some* notes rather than none).
-    /// Passing `channel: nil` skips step 1 and lands on step 2/3 — the behavior the
-    /// old single-arg lookup had. Step 0 is inert for every group whose recipes
-    /// declare no window, which is all of them but Raycast's.
+    ///   3. the `.stable` recipe (an unknown/odd channel still gets *some* notes
+    ///      rather than none);
+    ///   4. failing all of those, the group's first recipe in declaration order.
+    /// Step 4 is not a rounding error: a bundle id whose recipes are ALL on
+    /// non-stable channels (a preview-only app, like Zed Preview or Warp Preview)
+    /// has nothing for steps 2 and 3 to find, so without it an off-channel lookup
+    /// returns nil and an app that HAS notes shows none. Reasoning as though the
+    /// ladder stopped at step 3 gives the wrong answer for exactly those groups —
+    /// two comments in this file did, which is why the property is now pinned by
+    /// `ChangelogURLPolicyTests.aGroupWithNoStableRecipeStillResolves` (derived
+    /// from the registry, so a new preview-only app is covered the day it lands).
+    /// Passing `channel: nil` skips step 1 and lands on step 2/3/4 — the behavior
+    /// the old single-arg lookup had. Step 0 is inert for every group whose
+    /// recipes declare no window, which is all of them but Raycast's.
     public static func recipe(
         forBundleID bundleID: String?, channel: ReleaseChannel? = nil,
         version: String? = nil

@@ -637,7 +637,9 @@ public enum UpdateStatus: Sendable, Equatable {
     /// limit — the common transient when checking GitHub-sourced apps without a
     /// token. Drives the inline "Rate-limited" row badge and the aggregate
     /// "add a token" banner. Matches the message produced by
-    /// `GitHubReleasesSource.GitHubError` (kept in sync with that string).
+    /// `GitHubReleasesSource.GitHubError.rateLimited` (kept in sync with that
+    /// string) — and deliberately NOT the one a 403 with budget left produces,
+    /// since a token cannot fix a repo that went private.
     public var isRateLimitError: Bool {
         if case .error(let message) = self {
             return message.localizedCaseInsensitiveContains("rate limit")

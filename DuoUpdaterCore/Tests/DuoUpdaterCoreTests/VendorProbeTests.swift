@@ -1275,8 +1275,10 @@ private func verdict(
 /// is also set: entries are scored by the SAME extractor
 /// (`highestVersion`/`extractVersion`) the caller will apply to the winner
 /// afterwards, so the two can't disagree about which entry "the highest
-/// version" even refers to. No registry recipe combines the two today, but the
-/// primitive must not silently narrow `selectHighest`'s meaning if one does.
+/// version" even refers to. Registry recipes do combine the two (WeChat and
+/// Windscribe's prerelease tracks — `EntryStartPatternRegistryClaims` pins which),
+/// and the primitive must not silently narrow `selectHighest`'s meaning for them
+/// or for the next one.
 @Test func highestVersionEntryScoresBySelectHighestWhenTheRecipeAsksForIt() {
     // Entry A's FIRST match ("1.0") is lower than entry B's ("2.0"), but A
     // contains a SECOND, higher match ("9.0") buried later — exactly the shape

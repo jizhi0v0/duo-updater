@@ -2,6 +2,56 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
+// MARK: - Derived from the registry
+
+/// Two claims in `VendorProbeRecipe`'s own documentation, pinned here so they
+/// cannot quietly stop being true. Worth pinning rather than counting: a count in
+/// a comment goes stale in silence, which is exactly how both of these went wrong
+/// — one said "no registry recipe combines the two" while three did.
+@Suite struct EntryStartPatternRegistryClaims {
+
+    /// `highestVersionEntry` skips its straddle guard under `selectHighest`, and
+    /// the doc names WHICH recipes depend on that being skipped. Both directions
+    /// fail: a new recipe combining the two flags without being named, and a named
+    /// one that stopped combining them — a stale exemption is a free pass for the
+    /// next drift (the `mayLookAlike` lesson).
+    @Test func onlyTheDocumentedRecipesCombineSelectHighestWithEntryStartPattern() {
+        let documented: Set<String> = ["com.tencent.xinWeChat", "com.windscribe.client"]
+        let combining = Set(
+            VendorProbeRegistry.recipes
+                .filter { $0.entryStartPattern != nil && $0.selectHighest }
+                .map(\.bundleID))
+
+        #expect(combining == documented, """
+            the recipes combining `selectHighest` with `entryStartPattern` have changed. \
+            `VendorProbeRecipe.highestVersionEntry`'s doc names them as the recipes relying \
+            on the straddle guard being skipped — update it and this set together.
+            """)
+    }
+
+    /// The warning on `entryStartPattern`: slicing re-anchors `^`/`$` to entry
+    /// boundaries, so a recipe pinning its `versionPattern` to the whole document
+    /// must not adopt slicing without re-deriving that pattern first. Nothing
+    /// enforced it — and the count of anchored recipes the comment used to carry
+    /// enforced nothing either.
+    @Test func noAnchoredVersionPatternHasAdoptedEntryStartPattern() {
+        let anchored: (VendorProbeRecipe) -> Bool = {
+            $0.versionPattern.hasPrefix("^") || $0.versionPattern.hasSuffix("$")
+        }
+        let both = VendorProbeRegistry.recipes.filter { $0.entryStartPattern != nil && anchored($0) }
+
+        #expect(both.isEmpty, """
+            \(both.map(\.recipeID)) anchor `versionPattern` with ^ or $ AND slice with \
+            `entryStartPattern`. Those anchors now mean "start/end of one entry", not of the \
+            document — re-derive the pattern against a single sliced entry before allowing this.
+            """)
+        // Non-vacuity: both halves have to exist in the registry or the check is
+        // measuring an empty intersection of empty sets.
+        #expect(VendorProbeRegistry.recipes.contains { $0.entryStartPattern != nil })
+        #expect(VendorProbeRegistry.recipes.contains(where: anchored))
+    }
+}
+
 @Test func intelliJVersionPatternSurvivesAFourthSegment() {
     // JetBrains shipped "2026.2.0.1" against a pattern pinned to exactly three
     // segments, so it matched nothing and the row fell to "unknown" — a silent

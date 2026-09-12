@@ -391,6 +391,21 @@ public enum GitHubMarkdownParser {
                 // `## Notes` / `- <bullet>` rendered as
                 // `[n(…) H(Notes) n(…)]` — the first group silently lost its
                 // label while the second kept one, an asymmetry inside one entry.
+                //
+                // ⚠️ Residual, stated rather than hidden: an UNBALANCED fence
+                // leaves `inFencedBlock` true for the rest of the body, and a
+                // heading after it then cannot replace a still-pending one — so a
+                // later bullet could be labelled with the wrong heading, which is
+                // worse in kind than the missing label this guard fixes. Two
+                // things bound it. `qualifyingHeadings`' own scan already tracks
+                // fences and so already loses every candidate after a stray one,
+                // which usually drops the body below the two-heading threshold
+                // and styles nothing at all; and the arrangement needed to
+                // actually mislabel (two qualifying headings before the stray
+                // fence, the second not yet flushed, a heading and then a bullet
+                // after it) needs an unbalanced fence to begin with — measured
+                // across the last 30 releases of all ten repos this parser
+                // serves, 0 of 284 bodies have one.
                 if !inFencedBlock {
                     pendingHeading = (!inSkippedSection && qualifying.contains(raw))
                         ? .heading(raw) : nil

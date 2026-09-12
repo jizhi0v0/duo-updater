@@ -36,6 +36,8 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
   见「发布」和「CI」两节)。想在本机过一遍就 `DUO_DOWNLOAD_GATE=1 make test`,约 185 MB。
 - **卡住的时候用 `scripts/run-with-hang-report.sh 1800 make test`**,超时会抓线程栈再杀树
   ——ci.yml 就是这么跑的。为什么必须在进程外面,见「CI」那节。
+- **`make cli` 的 derived data 也走 `scripts/derived_data_path.py` 了**(2026-09-13 前是死路径
+  `/tmp/duo-cli-dd`,两个 worktree 同时 `make cli` 会撞 xcodebuild 的 SQLite 锁)。
 
 ## 行状态:两个界面读同一份,改渲染要跑 gallery
 
@@ -507,7 +509,23 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
 - **一段连续的闸序列用一次 hop,不要每个闸一次。** 顺序是承重的(gate 5 必须在 5b 前),
   多次 hop 就是多次意外打乱它的机会。
 - ⚠️ **这不是 CI 专属问题。** `InstallPermits(applies: 2)` 意味着产品里就有两个并发 apply,
-  `recoverInterruptedSwapsOnce` 还从 `Task.detached` 再加。**CI 只是核数低到能撞上的地方。**
+  启动时的 `recoverInterruptedSwapsOnce` 再加一个(2026-09-13 起 `recoverInterruptedSwaps` 自己
+  把签名校验那段包进 `offCooperativePool`,以前是裸 `Task.detached`)。**CI 只是核数低到能撞上的地方。**
+- **有一道闸:`scripts/check_offpool.py`(挂在 `make test` 里)。** 它对每个阻塞调用往外找
+  「决定线程归谁」的第一层作用域,落在 `async func` / `Task {}` / `Task.detached` 里且没被
+  `offCooperativePool {` 包住的就报。豁免用 `offpool-lint:allow — <理由>`,理由必填,
+  不再匹配任何东西的豁免让构建失败(照抄 `check_prose_claims.py`)。
+  ⚠️ **它看不穿同步函数**:`InPlaceSwap.replace` 是同步的、里面有 `waitUntilExit`,
+  从 async 调它而不 hop 是合法的 Swift、闸也不报——它只管调用点自己是不是阻塞调用。
+  2026-09-13 一次修的面:`InPlaceSwap.replace` 的三个调用方、`DeltaApplier`、备份、
+  `PackageInstaller` 整个 actor、Spotify 的 `unzip`、`lsappinfo`、两处 osascript、
+  `gh auth token` 的两个调用方、四处 CLI、十一处在 `Task.detached` 里构造
+  `TestFlightInventory` 的地方。闸在修前的 main 上报 8 处、修后 0 处(51 个阻塞调用点全在同步
+  函数或 hop 里)。
+  ⚠️ **hop 只该包真会阻塞的那段。** 第一版把 `GitHubToken.resolve` 整个包进去,连「读 Settings
+  里的 token」这种纯内存步骤也要先排 Dispatch 队列才能返回,而它外面套着 2 秒的 `firstResult`
+  竞速——14 核本机秒过,3 核 runner 上队列准入就吃掉了 2 秒,Settings 里的 token 被当成匿名。
+  现在 `GitHubToken.preresolved(explicit:)` 不 hop,只有 `gh auth token` 那步进池外。
 - ⚠️ **修法能救池,不保证能救那个调用。** 那个 Security 的 group 到底在等什么,至今不知道
   (栈里没有 XPC 帧,没有任何线程在推进校验)。所以它把「整进程死掉」换成「一个操作卡住」,
   这已经是巨大的改善,但别把它说成"修好了那个调用"。
@@ -559,6 +577,10 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   #403 就是这么验的(`aa9f400b` == `aa9f400b`)才合的。**绿勾不带提交号,人眼看不出它验的是哪棵树。**
 - **`make test` 经 `scripts/run-with-hang-report.sh` 跑**,超时会对每个候选进程抓
   `sample(1)`、打两轮相隔 60 秒的 CPU 增量和线程栈、杀进程树、退 124。
+  ⚠️ **「杀树」以前是全机 `pkill -9 -f 'swift-test|xcodebuild|…'`**,2026-09-13 有三个并行
+  worktree 的 `make test` 被别人的超时杀成 `Killed: 9`,而且长得像自己的构建失败。
+  现在按 `pgrep -P` 递归收集 `$child` 的后代再杀。本机看到无缘无故的 `Killed: 9`,
+  先查是不是哪个旧 checkout 还在跑旧版脚本。
   ⚠️ **看门狗必须在进程外**:进程内的要靠跑到的代码上膛(上一版在下载闸里上膛,
   结果闸关着那轮它根本不存在),而异步超时是**它要报告的那个池上的 Task**,
   运行时停止调度时它永远不会触发——实测 5 分钟的 `firstToFinish` 坐穿了 16 分钟静默。

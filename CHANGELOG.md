@@ -39,6 +39,28 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Mac Mouse Fix now offers its beta releases if you've turned on "Get Beta Versions" in its own General settings.** Before, Duo Updater could only see Mac Mouse Fix's regular releases, so a beta build sat unnoticed until the next regular version shipped.
 
+**Apps whose build number is a plain counter no longer hide their own patch releases.** For an app reporting a version like 12.10 with build 282987, a 12.10.1 release used to read as "already up to date".
+
+**A new build of an app that keeps the same version name is announced again.** Once one build had been announced, every later build under that name arrived silently — the row lit up, the badge counted it, but no banner ever came.
+
+**"Update All" now counts only apps that were actually updated.** An app that opens Apple's Installer for you to finish used to be counted as done while its window was still open, so "2 apps were updated" could mean nothing had changed yet.
+
+**An update that landed but left a leftover behind is now reported as installed, not as "grant App Management."** The new version was already running while the row sent you to System Settings.
+
+**Stopping "Update All" now stops the download in progress.** Before, a multi-gigabyte transfer kept going to the end, retrying up to five times, and only then noticed it had been cancelled.
+
+**Release notes are no longer mixed up between two apps that share one changelog page, and stay current after an update for apps whose notes live on per-version pages.** Antigravity and Antigravity IDE could show each other's notes for a quarter of an hour; Thunderbird, WeChat, Opera and a few others kept showing the previous version's notes for a while after updating.
+
+**Searching the app list ignores accents, as the Settings search already did.** Typing "cafe" now finds "Café".
+
+**The Diagnostics page lists a health line per release channel.** A broken beta or preview rule used to be hidden behind its healthy stable sibling.
+
+**A GitHub "forbidden" answer is no longer reported as a rate limit.** A repository that went private or a token missing a scope used to nudge you toward adding a token that would not have helped.
+
+**Relaunch is no longer offered for a self-updating app whose waiting build is older than the one running.**
+
+**Under the hood.** Installs, backups and package checks no longer tie up the threads the rest of the app runs on, so the menu stays responsive while one is in progress; the menu also stays smooth while a large download is in progress; the Release Log counts every release a vendor ships under one version name; a rollback backup is refused rather than stored when it would be missing the app's own executable; the first launch on a fresh Mac no longer logs spurious database errors; `duo verify` and `duo reconcile` now report a changelog whose entries collapsed and an installer address that has been failing for days; a stalled `duo` command gives up on its scan after twenty seconds instead of hanging.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

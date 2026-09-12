@@ -156,7 +156,91 @@ codesign -dvvv "<path>" 2>&1 | grep "TeamIdentifier"
 
 ### Phase 1: Distribution sources — WHERE can users get this app?
 
-**1a-0. FIRST: ask whether a generic source already covers it. Often it does.**
+**1a-00. FIRST OF ALL: is this app open source? If so, read the repo before
+inferring anything else.**
+
+Everything the rest of this phase (and Phase 2/3) spends effort *inferring* —
+which feeds/tracks exist, how the channel is switched, how the version string
+is built, how release-notes URLs are structured, whether a "prerelease" tag is
+a real track — is exactly the kind of thing an open-source project states
+outright in its own repo, as the Mac Mouse Fix example below does. Read the
+repo first; only fall back to inference for what it doesn't answer.
+
+Check in this order — stop at the first hit:
+- the app's own About panel, or the vendor site's footer, for a "Source",
+  "GitHub", or license link
+- a Sparkle feed URL naming a GitHub raw address (see the box right below —
+  this is often how it's found, not a separate check)
+- `gh search repos "<app name>" --limit 5` as a last resort
+
+⚠️ **A `raw.githubusercontent.com/<owner>/<repo>/<branch>/…` feed URL IS the
+open-source signal, and it names the branch to enumerate — don't treat it as
+just another download address:**
+
+```bash
+defaults read "<path>/Contents/Info" SUFeedURL
+# e.g. https://raw.githubusercontent.com/noah-nuebling/mac-mouse-fix/update-feed/appcast.xml
+#      owner=noah-nuebling  repo=mac-mouse-fix  branch=update-feed (NOT the default branch)
+```
+
+Once you have `<owner>/<repo>`, enumerate it — the default branch **and** any
+non-default branch a feed URL points into — before inferring anything. Start
+top-level; it usually answers:
+
+```bash
+gh api repos/<owner>/<repo> -q '.default_branch'
+gh api "repos/<owner>/<repo>/git/trees/<default_branch>" -q '.tree[].path'
+# and, separately, the branch a feed URL named:
+gh api "repos/<owner>/<repo>/git/trees/<branch>" -q '.tree[].path'
+```
+
+Mac Mouse Fix (#555, still open as of this writing): the top-level listing of
+the `update-feed` branch is 21 entries, and that's already enough — it shows
+`appcast.xml` **and** `appcast-pre.xml` side by side, plus a
+`generate_releases.py` that writes both, settling the channel question
+outright with no probing or guessing needed.
+
+**Only go recursive if the top level doesn't answer** — a feed can live in a
+subdirectory, and silently reporting "not there" from a top-level miss is
+worse than the alternative. Don't print the whole tree: filter for what
+you're looking for, and check `.truncated`, since a repo over Git's cap
+(100,000 entries / 7MB) comes back with an incomplete listing that looks
+complete unless you check for it. On this same repo, unconditional recursion
+is the trap, not the fix: 21 top-level entries already had the answer, and
+`?recursive=1` balloons that to 4028 entries — printing them all would burn
+the next agent's context for nothing:
+
+```bash
+# Two calls on purpose: a filter that also swallows the flag is not a check.
+gh api "repos/<owner>/<repo>/git/trees/<branch>?recursive=1" -q '.truncated'
+gh api "repos/<owner>/<repo>/git/trees/<branch>?recursive=1" -q '.tree[].path' \
+  | grep -Ei 'appcast|feed|release|\.xml$'
+```
+
+Read the script that builds the feed/release, not just its output, when the
+directory listing alone doesn't say enough. **Quote the whole path — the
+`?ref=` query breaks as an unquoted glob in zsh:**
+
+```bash
+gh api "repos/<owner>/<repo>/contents/<path-from-tree>?ref=<branch>" -q '.content' | base64 -d
+```
+
+**What this settles, so later steps consume it instead of re-deriving it:**
+
+| What the repo tells you | What later steps would otherwise guess | Where to look |
+|---|---|---|
+| Which feeds/tracks exist | 1a-0 `feed-discover`, Phase 2a brew/vendor-page search | branch tree listing |
+| How the channel is switched | Phase 2c (`KSChannelID`, bundle-id suffix, ASK the user) | the pref key / build flag in source |
+| How the version string is built | Phase 3½ (probe vs. marketing vs. build number) | the release/build script |
+| How release-notes URLs are structured | the changelog question under "declared" below | the same generator script |
+| Whether a "prerelease" tag is a real track | Phase 2a "GitHub repo for prerelease tags" | the release workflow / tag script |
+
+If the repo answers a row above, write "settled from source: `<path>` on
+`<branch>`" in the audit doc for that row instead of the inferred language the
+corresponding phase below would otherwise produce. Not open source, or the repo
+doesn't say? Fall through to the rest of this phase as written.
+
+**1a-0. Then: ask whether a generic source already covers it. Often it does.**
 
 Two families need no per-app entry at all, because a generic source reads the
 address out of the bundle itself:
@@ -208,7 +292,7 @@ history, OS floor — the generic source already does.
 | Sparkle feed? | `defaults read ".../Info" SUFeedURL` — if present, app has built-in auto-update |
 | Homebrew cask? | `brew search --cask "<name>"` — also check `auto_updates` flag |
 | Mac App Store? | `mas search "<name>"` or check `kMDItemAppStoreHasReceipt` |
-| GitHub repo? | Search `github.com/<vendor>/<app>` for macOS release assets |
+| GitHub repo? | Already found in 1a-00? Use that. Otherwise search `github.com/<vendor>/<app>` for macOS release assets |
 | Vendor download page? | Check official site for direct download |
 
 **1b. For each source found, note:**
@@ -230,6 +314,8 @@ the app **falls through** to the next source in the priority chain. This means:
 ### Phase 2: Release channels — WHICH tracks exist?
 
 **2a. Does the app ship multiple channels?**
+- If 1a-00 already read the repo, start from what it found (branch tree,
+  release script) instead of re-guessing from tag names below.
 - `brew search --cask "<name>"` — look for `@beta`, `@nightly`, `@canary`
 - Vendor's download page for "Beta", "Canary", "Nightly", "Insider" links
 - GitHub repo for prerelease tags
@@ -242,6 +328,9 @@ For each non-stable channel found:
   - Same → continue to 2c
 
 **2c. For same-bundle-ID channels:**
+- If 1a-00 already found the pref key or build flag that switches channel in
+  source, that outranks every signal below — it's the mechanism, not a proxy
+  for it.
 - Can we detect the channel? Apply the signal hierarchy `ReleaseChannel.detect()`
   uses, highest-priority first:
   0. **Mozilla `RemotingName`** from `Contents/Resources/application.ini`
@@ -314,6 +403,12 @@ For each (distribution source × channel) combination that we want to support:
 - These are mostly automatic — just confirm the app is listed
 
 ### Phase 3½: Version scheme validation (CRITICAL for VendorProbe/GitHub)
+
+If 1a-00 found the release/build script, read how it stamps the version before
+guessing from probed strings below — an open-source build script usually states
+outright whether the published number is the marketing string, the build
+number, or a commit hash, which is exactly the ambiguity this phase exists to
+resolve by trial and error.
 
 **This step has caught real bugs in production (Office, OneDrive, Teams).** The
 version a vendor endpoint returns may NOT match what the installed app reports.

@@ -37,6 +37,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Release notes that group changes under headings like Added and Fixed now keep those headings.** Before, every group was merged into one flat list, so you couldn't tell which changes were new features and which were bug fixes.
 
+**Mac Mouse Fix now offers its beta releases if you've turned on "Get Beta Versions" in its own General settings.** Before, Duo Updater could only see Mac Mouse Fix's regular releases, so a beta build sat unnoticed until the next regular version shipped.
+
 ## 0.3.92
 
 **Some self-updating apps no longer look up to date while a newer version is out.** For apps whose update information sits behind a slow-to-refresh download server, Duo Updater could keep seeing an older version for days after a release.

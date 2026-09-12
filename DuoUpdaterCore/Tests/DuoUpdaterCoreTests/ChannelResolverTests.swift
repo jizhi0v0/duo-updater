@@ -150,6 +150,66 @@ import Foundation
     #expect(r.feedOverride == IINAChannel.stableFeed)
 }
 
+// MARK: - Mac Mouse Fix (`General.checkForPrereleases` Bool, own config.plist → feed swap)
+
+@Test func macMouseFixCheckForPrereleasesTrueRetargetsToBetaFeed() {
+    let r = MacMouseFixChannel.resolve(checkForPrereleases: true)
+    #expect(r.channel == .beta)
+    #expect(r.feedOverride == MacMouseFixChannel.betaFeed)
+}
+
+@Test func macMouseFixCheckForPrereleasesFalseStaysOnStableFeed() {
+    let r = MacMouseFixChannel.resolve(checkForPrereleases: false)
+    #expect(r.channel == .stable)
+    #expect(r.feedOverride == MacMouseFixChannel.stableFeed)
+}
+
+/// The nested-dict lookup (`plist["General"]["checkForPrereleases"]`), tested
+/// directly against constructed dictionaries rather than a real config file —
+/// mirrors `ForkChannel.channelPref(from:)`'s split for the same reason.
+///
+/// Mutation this guards against: collapsing the lookup to a flat top-level key
+/// (`plist["checkForPrereleases"]` or `plist["General.checkForPrereleases"]`,
+/// mistaking the dotted string seen in `AppDelegate.m` for the on-disk shape
+/// rather than Mac Mouse Fix's own config-accessor syntax). Run by hand against
+/// a flat-key rewrite of `checkForPrereleases(fromConfig:)`: every case below
+/// that expects `true` from the nested shape reads `false` instead, and
+/// `wrongTypeAtTheNestedKeyIsFalse`'s NSNumber probe stops exercising the
+/// nested branch at all — both are exactly the silent "beta toggle is on but we
+/// never see it" failure this recipe exists to avoid.
+@Test func realConfigShapeNestedGeneralDictReadsTrue() {
+    let plist: [String: Any] = ["General": ["checkForPrereleases": true]]
+    #expect(MacMouseFixChannel.checkForPrereleases(fromConfig: plist))
+}
+
+@Test func realConfigShapeNestedGeneralDictReadsFalse() {
+    let plist: [String: Any] = ["General": ["checkForPrereleases": false]]
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: plist))
+}
+
+@Test func missingGeneralDictIsFalse() {
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: [:]))
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: nil))
+}
+
+@Test func generalDictWithoutTheKeyIsFalse() {
+    let plist: [String: Any] = ["General": ["buttonKillSwitch": false]]
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: plist))
+}
+
+/// A flat top-level key (the shape a flat-key mutation would read) must NOT be
+/// mistaken for the real nested one — pins the "nested, not dotted-flat" half
+/// of the mutation described above from the other direction.
+@Test func flatTopLevelKeyIsNotTheRealShapeAndReadsFalse() {
+    let plist: [String: Any] = ["General.checkForPrereleases": true, "checkForPrereleases": true]
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: plist))
+}
+
+@Test func wrongTypeAtTheNestedKeyIsFalse() {
+    let plist: [String: Any] = ["General": ["checkForPrereleases": "not a bool"]]
+    #expect(!MacMouseFixChannel.checkForPrereleases(fromConfig: plist))
+}
+
 // MARK: - CapCut (`joinBeta` in an INI outside the sandbox container)
 
 @Test func capCutJoinBetaMapsToTheBetaTrack() {

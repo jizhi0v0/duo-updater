@@ -504,6 +504,12 @@ public enum ChannelProofRegistry {
             .recipeAnchor(#"appcast-signed-beta\.xml"#, in: ["feedOverride"]),
         ChannelProofKey("com.colliderli.iina", .beta):
             .recipeAnchor(#"appcast-beta\.xml"#, in: ["feedOverride"]),
+        // Mac Mouse Fix: same feed-swap shape as IINA, and the same reasoning —
+        // stable and beta share host, path prefix and repo, differing only in
+        // the trailing filename (`appcast.xml` vs `appcast-pre.xml`), which is
+        // exactly what the anchor targets.
+        ChannelProofKey("com.nuebling.mac-mouse-fix", .beta):
+            .recipeAnchor(#"appcast-pre\.xml"#, in: ["feedOverride"]),
         // TablePlus is the sharpest case in the population and the only
         // header-keyed one. Stable and beta share ONE feed URL; the server decides
         // which builds to return from a request header, and the VALUE is

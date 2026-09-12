@@ -791,4 +791,52 @@ struct DownloaderTrafficTests {
         _ = try await downloader.download(src)
         #expect(downloader.bytesDownloaded == Int64(body.count))
     }
+
+    // MARK: - #419: `startFresh` must not swallow a failed `createFile`
+
+    /// #419 theorized `startFresh`'s `removeItem`/`createFile` racing
+    /// `finalizePartial`'s `moveItem` on the retry-to-200 path. That theory did
+    /// not hold up (see `startFresh`'s doc comment and
+    /// `downloaderRestartsWhenRangeIsAnsweredAs200`, which replays exactly that
+    /// shape and passes), but chasing it surfaced a real, narrower gap:
+    /// `FileManager.createFile`'s `Bool` was discarded, so a failed create
+    /// silently fell through to whatever the next line, `FileHandle(forWritingTo:)`,
+    /// happened to throw — never `Downloader.DownloadError`.
+    ///
+    /// Deterministic and timing-free: making the scratch directory read-only
+    /// up front means the very first `startFresh` (attempt 1 is a "200" too —
+    /// no partial exists yet) hits a `createFile` that is guaranteed to fail,
+    /// no server choreography or retry needed. Read+execute permission is left
+    /// in place so `FileManager` can still resolve `destinationDir` itself;
+    /// only creating an entry inside it is blocked.
+    @Test func downloaderNamesTheFailureWhenStartFreshCannotCreateThePartial() async throws {
+        let body = Data((0..<4096).map { UInt8($0 & 0xFF) })
+        let server = try OneShotHTTPServer(body: body)
+        defer { server.stop() }
+        let workDir = try makeWorkDir("readonly-scratch")
+        defer {
+            // Restore write permission before cleanup — `removeItem` on a
+            // read-only directory's contents would otherwise fail too.
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755], ofItemAtPath: workDir.path)
+            try? FileManager.default.removeItem(at: workDir)
+        }
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: workDir.path)
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
+        let downloader = Downloader(destinationDir: workDir) { _ in }
+        do {
+            _ = try await downloader.download(url)
+            Issue.record("expected download to fail when its scratch directory can't be written to")
+        } catch let error as Downloader.DownloadError {
+            guard case .cannotCreatePartialFile = error else {
+                Issue.record("unexpected DownloadError: \(error)"); return
+            }
+        } catch {
+            let message = "createFile's failure surfaced as \(type(of: error)) (\(error)) "
+                + "instead of Downloader.DownloadError.cannotCreatePartialFile"
+            Issue.record("\(message)")
+        }
+    }
 }

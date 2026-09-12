@@ -45,6 +45,15 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         /// than the server itself declared as the object's length. Transient when
         /// short — the next attempt resumes from where this one stopped.
         case lengthMismatch(received: Int64, expected: Int64)
+        /// `startFresh` could not (re)create the partial file on disk — its
+        /// scratch directory is gone, unwritable, or out of space. Investigated
+        /// as a candidate for #419 and found NOT to be that mechanism (see
+        /// `Downloader.swift`'s `startFresh` doc comment); kept because
+        /// `FileManager.createFile`'s `Bool` was previously discarded, so this
+        /// failure used to surface only indirectly, as whatever error the next
+        /// `FileHandle(forWritingTo:)` happened to throw. Not retried: the same
+        /// directory problem would recur.
+        case cannotCreatePartialFile(String)
         var errorDescription: String? {
             switch self {
             case .httpStatus(let code):
@@ -55,6 +64,8 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 return "The server sent a partial response that cannot be used: \(reason)."
             case .lengthMismatch(let received, let expected):
                 return "The server closed the connection after \(received) of \(expected) bytes."
+            case .cannotCreatePartialFile(let path):
+                return "Couldn't create a fresh download file at \(path)."
             }
         }
     }
@@ -594,9 +605,31 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// Start the partial file over from byte zero for a response that carries the
     /// whole object, and adopt that response's validator for later resumes: the
     /// old one described bytes that are being thrown away.
+    ///
+    /// This is the only place mid-download that removes the partial, and it was
+    /// investigated as the mechanism behind #419 (a local-only flake in
+    /// `installPipelineDryRun`, theorized as a race between this `removeItem`
+    /// and `finalizePartial`'s `moveItem`). It isn't one: `download`'s data
+    /// tasks run one at a time on one serial delegate queue, and the previous
+    /// attempt's `fileHandle` is already closed (in `didCompleteWithError`,
+    /// before the next attempt's response can reach here) — there is no second
+    /// writer for a `removeItem` to race. A deterministic replay of the exact
+    /// suspected shape (a truncated first response, then a resume answered
+    /// `200` instead of `206`) passes reliably; see
+    /// `downloaderRestartsWhenRangeIsAnsweredAs200`.
+    ///
+    /// `createFile`'s `Bool` WAS being discarded, though: if it fails (its
+    /// directory vanished, filled up, or lost write permission), the `try
+    /// FileHandle(forWritingTo:)` right below still throws — just with
+    /// whatever generic "no such file" error `FileHandle` happens to produce,
+    /// not one that names `startFresh` as the place it went wrong. Checking it
+    /// only makes that existing failure legible; it does not change whether
+    /// this throws.
     private func startFresh(from http: HTTPURLResponse?) throws {
         try? FileManager.default.removeItem(at: partialURL!)
-        FileManager.default.createFile(atPath: partialURL!.path, contents: nil)
+        guard FileManager.default.createFile(atPath: partialURL!.path, contents: nil) else {
+            throw DownloadError.cannotCreatePartialFile(partialURL!.path)
+        }
         fileHandle = try FileHandle(forWritingTo: partialURL!)
         writtenOffset = 0
         resumeValidator = Self.strongValidator(http)

@@ -158,7 +158,7 @@ struct BackupStoreTests {
     /// a staging artifact into the backup listing. Retention=1 builds the new copy in
     /// a hidden staging dir and only swaps it in once complete.
     ///
-    /// Mutation: drop the `removeOffPool(staging)` in the ditto-failed branch of
+    /// Mutation: drop the `removeItemOffCooperativePool(at: staging)` in the ditto-failed branch of
     /// `save` → its staging directory is left in the store.
     @Test func failedRebackupKeepsPriorBackup() async throws {
         try await withScratchRoot { root in
@@ -477,7 +477,7 @@ struct BackupStoreTests {
     /// Removed after the call now rather than in a `defer`, so both exits are
     /// pinned.
     ///
-    /// Mutation: drop the `removeOffPool(scratch)` after the restore → the scratch
+    /// Mutation: drop the `removeItemOffCooperativePool(at: scratch)` after the restore → the scratch
     /// directory is left in the temp dir (the refused copy still in it).
     @Test func aRestoreLeavesNoScratchCopyBehind() async throws {
         try await withScratchRoot { root in

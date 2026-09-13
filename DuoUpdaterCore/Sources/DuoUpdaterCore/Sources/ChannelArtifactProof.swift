@@ -113,7 +113,7 @@ public enum ChannelProofRegistry {
     ///
     /// A GitHub rule's protection is real but structural: it lives in whichever
     /// pattern the author happened to write, and nothing re-derives it. Most of
-    /// the rules below gate the channel in their `versionPattern` — a stable tag
+    /// the rules this map covers gate the channel in their `versionPattern` — a stable tag
     /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
     /// sweep of 2026-08-27 found nothing misresolving. THREE do not, and they are
     /// the three carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha

@@ -1064,7 +1064,7 @@ public struct VendorProbeRecipe: Sendable {
 /// false "update available", which this source must never produce; leaving an app
 /// out simply means it stays "unknown", which is the correct, honest default.
 ///
-/// Every recipe below was verified by probing the live endpoint and confirming
+/// Every recipe in `Recipes/` (listed by `AppRecipeIndex`) was verified by probing the live endpoint and confirming
 /// it yields the app's current version (≥ the installed copy). Endpoints are
 /// arm64-flavored where the vendor splits by architecture — fine for Apple
 /// Silicon; an Intel build would need its own URLs.
@@ -1080,7 +1080,7 @@ public struct VendorProbeRecipe: Sendable {
 /// Studio's Stable, Canary, and Beta tracks all share `com.google.android.studio`;
 /// the install's channel is read from the bundle filename (`ReleaseChannel.detect`
 /// step 0.5) and `VendorProbeSource`'s channel gate routes each to its own recipe
-/// below — Stable to developer.android.com/studio, Canary/Beta to the official
+/// (`Recipes/com-google-android-studio.swift`) — Stable to developer.android.com/studio, Canary/Beta to the official
 /// releases-list JSON (compared on the `build` field via `versionIsBuild`).
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.

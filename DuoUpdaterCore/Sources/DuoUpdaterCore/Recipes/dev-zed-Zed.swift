@@ -8,7 +8,7 @@ enum dev_zed_Zed {
         // zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
         // with an `<article>` of `<li>` items). Replaced 2026-08-21 with the
         // GitHub Releases API list we already fetch for version detection
-        // (`GitHubReleaseRule` in `GitHubReleasesSource.swift`, bundle ids
+        // (the `githubRules` in this file, bundle ids
         // `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response instead of two
         // multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
         // (see `StructuredFormat.zedGitHubReleases`). Both channels share this one

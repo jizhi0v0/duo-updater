@@ -748,7 +748,7 @@ public struct ChangelogRecipe: Codable, Sendable {
 /// a miss simply means we keep the existing behavior (embed `changelogURL` in a
 /// web view). Adding a recipe is the same loop as a vendor probe: confirm it
 /// extracts real entries from the live page (see `ChangelogExtractorTests`) before
-/// landing it here.
+/// landing it in the app's `Recipes/<family>.swift`.
 public enum ChangelogRecipeRegistry {
     // TablePro — deliberately NO recipe. The app ships a Sparkle feed
     // (`SUFeedURL` = raw.githubusercontent.com/TableProApp/TablePro/main/

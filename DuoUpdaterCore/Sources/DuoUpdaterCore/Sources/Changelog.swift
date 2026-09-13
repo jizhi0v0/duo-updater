@@ -33,7 +33,7 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// need a bump:
     /// - the extraction CODE: `ChangelogExtractor`, `StructuredChangelogDecoder`,
     ///   `GitHubMarkdownParser`;
-    /// - the per-recipe DATA in `ChangelogRecipeRegistry` (`ChangelogRecipe.swift`)
+    /// - the per-recipe DATA in `ChangelogRecipeRegistry` (`Recipes/<family>.swift`)
     ///   that's threaded into that code and changes its output just as directly —
     ///   `entryPattern`, `itemPatterns`, `skipSections`, `stripTags`,
     ///   `escapedMarkup`, `markdownSource`, `minItemLength`, `newestLast`,

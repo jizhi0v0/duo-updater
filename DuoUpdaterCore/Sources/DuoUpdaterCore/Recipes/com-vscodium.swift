@@ -19,7 +19,7 @@ enum com_vscodium {
         // VSCodium Insiders — its own repo (VSCodium/vscodium-insiders), its own
         // bundle id com.vscodium.VSCodiumInsiders. NOT VS Code Insiders (the
         // com.microsoft.VSCodeInsiders VendorProbeRecipe in
-        // VendorProbeRecipe.swift) — different product, different cask
+        // `Recipes/com-microsoft-VSCode.swift`) — different product, different cask
         // (`vscodium@insiders` vs `visual-studio-code@insiders`).
         //
         // Detection needs no `ReleaseChannel` change, but not for the reason it
@@ -37,7 +37,7 @@ enum com_vscodium {
         // quiet with the test still green. That is the failure to watch for here.
         //
         // CRUCIAL — this is the SECOND instance of a trap the VS Code Insiders
-        // recipe (VendorProbeRecipe.swift) already hit, not a VSCodium quirk:
+        // recipe (`Recipes/com-microsoft-VSCode.swift`) already hit, not a VSCodium quirk:
         // tags carry the `-insider` suffix (`1.126.04518-insider`), which IS
         // part of both CFBundleShortVersionString and CFBundleVersion on the
         // installed app — verified by downloading the real asset and reading

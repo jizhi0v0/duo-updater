@@ -88,7 +88,7 @@ public struct MacAppStoreProbeCase: Sendable {
 /// fine; deriving the list from `AppScanner().scan()` would not be.
 ///
 /// Picked to cover every branch `resolve()` can take, confirmed live against
-/// the real endpoints on 2026-09-04 (see the per-case comments below) — and
+/// the real endpoints on 2026-09-04 (see the per-case comments in each app's `Recipes/<family>.swift`) — and
 /// picked for apps unlikely to vanish from the store or change distribution
 /// model, so this doesn't need re-curating every few months the way an
 /// arbitrary installed-app sample would.

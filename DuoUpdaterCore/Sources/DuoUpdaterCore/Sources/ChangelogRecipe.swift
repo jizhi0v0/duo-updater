@@ -450,6 +450,14 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// become lines of their own ahead of their commits, as
         /// `alcoveChangelog`'s do.
         case superconductorChangelog
+        /// Claude Desktop's docs changelog, `claude.com/docs/cowork/changelog.md` —
+        /// `<Update label="v…" description="YYYY-MM-DD">` blocks whose bullets sit
+        /// under `**General**` / `**Code**` / `**Cowork**` / `**3P**`. Decoded
+        /// rather than regex-extracted because the in-app "What's new" groups the
+        /// same notes differently — by kind (New / Improved / Fixed), not by
+        /// surface — and regrouping is not something a pattern can do. See
+        /// `StructuredChangelogDecoder.decodeClaudeDesktop`.
+        case claudeDesktopChangelog
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -935,24 +943,19 @@ public enum ChangelogRecipeRegistry {
         // version = the label minus its leading "v" (matches the
         // com.anthropic.claudefordesktop build the VendorProbe reads); date = the
         // description verbatim. Inside, notes are grouped into `**General**`, `**Code**`,
-        // `**Cowork**`, and `**3P**` sections of `* ` markdown bullets, in that fixed
-        // order. We deliberately DROP the trailing **3P** section — it's enterprise/MDM
-        // only (managed-settings.json keys) that a normal user never sees in-app (the
-        // popup filters by surface) — by bounding `body` to stop at `**3P**` (or
-        // `</Update>` for a block with none). stripTags is OFF because Code notes carry
-        // literal angle-bracket text (e.g. a typed `<channel-message>` turn) that
-        // tag-stripping would eat; the source is markdown, so there's nothing else to
-        // strip or entity-decode. A parse miss just falls back to embedding the page.
+        // `**Cowork**`, and `**3P**` sections of `* ` markdown bullets.
+        //
+        // Decoded, not regex-extracted: the regex recipe that used to live here
+        // flattened General + Code + Cowork into one unheaded list, which is not what
+        // the in-app popup shows — it shows the Code tab's General + Code notes grouped
+        // as New / Improved / Fixed. `decodeClaudeDesktop` reproduces that, and says
+        // where the reproduction is inferred. A parse miss falls back to embedding the
+        // page.
         ChangelogRecipe(
             bundleID: "com.anthropic.claudefordesktop",
             source: URL(string: "https://claude.com/docs/cowork/changelog.md")!,
-            entryPattern:
-                #"<Update label="v(?<version>[^"]+)" description="(?<date>[^"]*)">"#
-                + #"(?<body>.*?)(?=\*\*3P\*\*|</Update>)"#,
-            itemPatterns: [#"\n[ \t]*\*[ \t]+(?<item>[^\n]+)"#],
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .claudeDesktopChangelog),
 
         // ChatWise — the public /changelog page is a SvelteKit shell (a ~4 KB
         // document with no notes in it) that hydrates from the releases JSON
@@ -1329,8 +1332,7 @@ public enum ChangelogRecipeRegistry {
         // NOT `structuredFormat`: that decoder path (`StructuredChangelogDecoder`)
         // is for feeds too irregular for the regex extractor; this one is a
         // clean, uniform `## <version>` / `* <item>` document that the regex
-        // path (same as com.anthropic.claudefordesktop above) handles
-        // directly — and `structuredFormat` would also disable
+        // path handles directly — and `structuredFormat` would also disable
         // `indexLinkPattern` handling in `ChangelogService`, which is irrelevant
         // here anyway since there's no second hop to disable.
         //

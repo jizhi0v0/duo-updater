@@ -54,6 +54,15 @@ struct WorkbenchWindowView: View {
     /// always-visible header (with its count pill) is the discovery cue, and expanding
     /// it is opt-in rather than permanently crowding the Apps tree above.
     @State private var rollbackExpanded = false
+    /// Bumped by each "Show in Window" request from the popover's unchecked-brew
+    /// tip; the Brew list scrolls to those rows when it sees a value it hasn't
+    /// handled. A counter, not a flag, so the list can mark it handled without
+    /// changing its own `.task(id:)` and cancelling the highlight it just started —
+    /// and so collapsing and re-expanding the tree later doesn't replay it.
+    @State private var uncheckedRevealRequest = 0
+    @State private var uncheckedRevealHandled = 0
+    /// Briefly true after a reveal, so the rows it scrolled to stand out.
+    @State private var highlightUnchecked = false
 
     /// Negative top padding that cancels the top inset VSplitView adds to each pane's
     /// sidebar list (see `splitRegion`). Measured at 10pt; kept as one constant so the
@@ -176,6 +185,15 @@ struct WorkbenchWindowView: View {
         return model.brewFormulae.first { $0.name == name }
     }
 
+    /// The unchecked Brew package selected, when the selection is one of those rows
+    /// (tagged `brew:unchecked:<package id>`).
+    private var selectedUnchecked: BrewUncheckedPackage? {
+        let prefix = "brew:unchecked:"
+        guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
+        let packageID = String(id.dropFirst(prefix.count))
+        return model.brewUnchecked.first { $0.id == packageID }
+    }
+
     var body: some View {
         let lists = sidebarLists
         return NavigationSplitView {
@@ -188,6 +206,9 @@ struct WorkbenchWindowView: View {
             } else if let formula = selectedFormula {
                 FormulaDetailPane(formula: formula, model: model)
                     .id("brew:formula:\(formula.name)")
+            } else if let package = selectedUnchecked {
+                BrewUncheckedDetailPane(package: package)
+                    .id("brew:unchecked:\(package.id)")
             } else {
                 ContentUnavailableView(
                     "Select an app",
@@ -215,6 +236,7 @@ struct WorkbenchWindowView: View {
             // `model.results`, so the detail can render right away.
             let hadRequest = model.requestedWorkbenchAppID != nil
             if hadRequest { applyRequestedApp() }
+            applyRequestedBrewUnchecked()
             // First open with no data: full (networked) check. Otherwise, if no
             // round has read TestFlight yet this launch and one may
             // (`owesTestFlightRead`), run one full refresh; past that a cheap,
@@ -258,6 +280,15 @@ struct WorkbenchWindowView: View {
             // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
             Task { await model.refreshLocal() }
+            // Brew too: `refreshLocal` doesn't read it, and nothing watches brew's
+            // files, so a `brew trust` / `upgrade` / `update` run in a terminal (the
+            // unchecked pane hands out the trust command to copy) stayed invisible
+            // until the window was reopened. Skipped while one of our own brew runs
+            // is going: each of those re-reads brew when it ends, and a read started
+            // mid-run could land after that one with the half-done state.
+            if !model.brewUpgrading, !model.homebrewUpdating, model.upgradingFormulae.isEmpty {
+                Task { await model.refreshBrewFormulae() }
+            }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
         // fresh. Skip ticks while hidden/minimized: refreshing for a window no one
@@ -306,6 +337,7 @@ struct WorkbenchWindowView: View {
         // A "Changelog" deep-link arriving while the window is already open — the
         // `.task` above only fires on a fresh open, so catch the in-flight case here.
         .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
+        .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
     }
 
     /// Whether a `didBecomeKey` notification's object is this workbench's own
@@ -325,6 +357,17 @@ struct WorkbenchWindowView: View {
         model.requestedWorkbenchAppID = nil
         selection = id
         detailSelection = id
+    }
+
+    /// Honor a pending "Show in Window" from the popover's unchecked-brew tip:
+    /// open the Brew tree if it's collapsed and ask its list to reveal those rows.
+    /// Clears the request like `applyRequestedApp`.
+    private func applyRequestedBrewUnchecked() {
+        guard model.requestedWorkbenchBrewUnchecked else { return }
+        model.requestedWorkbenchBrewUnchecked = false
+        guard !model.brewUnchecked.isEmpty else { return }
+        brewExpanded = true
+        uncheckedRevealRequest += 1
     }
 
     // MARK: - Sidebar
@@ -556,42 +599,83 @@ struct WorkbenchWindowView: View {
     /// The Brew tree's scrolling list: brew-managed casks (reusing the app row + its
     /// existing install path) above outdated CLI formulae (their own inline action).
     private func brewListView(_ lists: SidebarLists) -> some View {
-        List(selection: $selection) {
-            if let update = model.homebrewSelfUpdate {
-                HomebrewSelfUpdateSidebarRow(update: update, model: model)
-                    // Nothing to show in the detail pane for Homebrew itself.
-                    .selectionDisabled()
+        ScrollViewReader { proxy in
+            List(selection: $selection) {
+                if let update = model.homebrewSelfUpdate {
+                    HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                        // Nothing to show in the detail pane for Homebrew itself.
+                        .selectionDisabled()
+                }
+                ForEach(lists.brewCasks) { result in
+                    WorkbenchSidebarRow(
+                        result: result,
+                        checkAgain: { Task { await model.retry(result) } },
+                        isChecking: model.installing[result.id] != nil,
+                        isSelected: result.id == selection,
+                        isRunning: model.isRunning(result),
+                        versionLineState: model.versionLineState(for: result),
+                        showsRuntime: model.prefs.showRuntimeTags,
+                        isIgnored: model.prefs.isIgnored(result.app),
+                        isVersionSkipped: model.prefs.isVersionSkipped(
+                            result.app, version: result.remote?.versionSide),
+                        toggleIgnore: { model.toggleIgnore(result) },
+                        skipVersion: { model.skipThisVersion(result) },
+                        clearSkip: { model.prefs.clearSkip(result.app) },
+                        fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
+                        .tag(result.id)
+                }
+                ForEach(model.brewFormulae) { formula in
+                    BrewFormulaSidebarRow(formula: formula, model: model)
+                        .tag("brew:formula:\(formula.name)")
+                }
+                ForEach(model.brewUnchecked) { package in
+                    BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+                        .tag("brew:unchecked:\(package.id)")
+                }
             }
-            ForEach(lists.brewCasks) { result in
-                WorkbenchSidebarRow(
-                    result: result,
-                    checkAgain: { Task { await model.retry(result) } },
-                    isChecking: model.installing[result.id] != nil,
-                    isSelected: result.id == selection,
-                    isRunning: model.isRunning(result),
-                    versionLineState: model.versionLineState(for: result),
-                    showsRuntime: model.prefs.showRuntimeTags,
-                    isIgnored: model.prefs.isIgnored(result.app),
-                    isVersionSkipped: model.prefs.isVersionSkipped(
-                        result.app, version: result.remote?.versionSide),
-                    toggleIgnore: { model.toggleIgnore(result) },
-                    skipVersion: { model.skipThisVersion(result) },
-                    clearSkip: { model.prefs.clearSkip(result.app) },
-                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
-                    .tag(result.id)
-            }
-            ForEach(model.brewFormulae) { formula in
-                BrewFormulaSidebarRow(formula: formula, model: model)
-                    .tag("brew:formula:\(formula.name)")
-            }
-            // Untagged on purpose: there's no version to compare and no notes to
-            // load, so nothing for a detail pane to show.
-            ForEach(model.brewUnchecked) { package in
-                BrewUncheckedSidebarRow(package: package)
+            .listStyle(.sidebar)
+            // Runs on a new request, and also when this list is created by the expand
+            // that request caused (with the tree collapsed there was no list to scroll).
+            .task(id: uncheckedRevealRequest) {
+                guard uncheckedRevealRequest != uncheckedRevealHandled else { return }
+                // Let a list that expand just created lay out its rows before
+                // scrolling it. Not measured whether the wait is strictly needed.
+                try? await Task.sleep(for: .milliseconds(150))
+                // Marked handled only by the task that actually scrolls. A freshly
+                // opened window replaces this list once while settling (measured:
+                // height 80 → 381, and this task woke cancelled); marking it before
+                // the sleep let that dead list's task claim the request, so the
+                // list on screen never scrolled.
+                guard !Task.isCancelled, let last = model.brewUnchecked.last else { return }
+                uncheckedRevealHandled = uncheckedRevealRequest
+                withAnimation(.easeIn(duration: 0.2)) { highlightUnchecked = true }
+                // The unchecked rows are the tail of the list; anchoring the last one
+                // at the bottom brings the whole run into view.
+                //
+                // Twice, on purpose. In a freshly opened window one scroll stopped
+                // several rows short, the same spot every time (measured: two runs,
+                // ending on trivy with the unchecked rows below the fold), while the
+                // same call in a window already open landed. A second scroll a
+                // moment later reached the bottom (measured: two runs). Why the
+                // first falls short isn't established. The last row's `onAppear` was
+                // tried as a "did it land" signal and read true after the short
+                // scroll too, so it can't decide whether to retry.
+                //
+                // Scrolled to by the row's selection tag, not an `.id`. Once the rows
+                // were tagged (so selecting one opens `BrewUncheckedDetailPane`),
+                // `scrollTo(package.id)` with `.id(package.id)` on the row stopped
+                // moving the list at all, with `.id` inside or outside the tag
+                // (measured: one run each, list left at the top); scrolling to the
+                // tag value reached the bottom (measured: one run).
+                proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)
+                try? await Task.sleep(for: .milliseconds(250))
+                proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)
+                try? await Task.sleep(for: .seconds(2))
+                // Not guarded on cancellation: a highlight left on would never clear.
+                withAnimation(.easeOut(duration: 0.6)) { highlightUnchecked = false }
             }
         }
-        .listStyle(.sidebar)
     }
 
     // MARK: - Detail
@@ -1001,24 +1085,13 @@ private struct HomebrewSelfUpdateSidebarRow: View {
 /// call, so the row offers the `brew trust` command to copy instead of running it.
 private struct BrewUncheckedSidebarRow: View {
     let package: BrewUncheckedPackage
+    /// Set briefly when the popover's tip sends the user here.
+    var highlighted = false
 
     @State private var copied = false
 
-    private var status: String {
-        switch package.reason {
-        case .tapNotTrusted: String(localized: "Not checked · tap not trusted")
-        case .unreadable: String(localized: "Not checked · Homebrew can’t read it")
-        }
-    }
-
-    private var explanation: String {
-        switch package.reason {
-        case .tapNotTrusted:
-            String(localized: "Homebrew won’t read \(package.fullName) from its tap until you trust it, so updates can’t be checked. To trust it, run: \(package.trustCommand)")
-        case .unreadable:
-            String(localized: "Homebrew didn’t read \(package.fullName) from its tap, so updates can’t be checked.")
-        }
-    }
+    private var status: String { package.uncheckedStatus }
+    private var explanation: String { package.uncheckedExplanation }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1045,7 +1118,117 @@ private struct BrewUncheckedSidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.accentColor.opacity(highlighted ? 0.25 : 0))
+                .padding(.horizontal, -6))
         .help(explanation)
+    }
+}
+
+/// The copy the unchecked row and its detail pane share.
+private extension BrewUncheckedPackage {
+    var uncheckedStatus: String {
+        switch reason {
+        case .tapNotTrusted: String(localized: "Not checked · tap not trusted")
+        case .unreadable: String(localized: "Not checked · Homebrew can’t read it")
+        }
+    }
+
+    var uncheckedExplanation: String {
+        switch reason {
+        case .tapNotTrusted:
+            String(localized: "Homebrew won’t read \(fullName) from its tap until you trust it, so updates can’t be checked. To trust it, run: \(trustCommand)")
+        case .unreadable:
+            String(localized: "Homebrew didn’t read \(fullName) from its tap, so updates can’t be checked.")
+        }
+    }
+}
+
+// MARK: - Unchecked package detail pane
+
+/// The detail pane for a selected unchecked Brew package. No release notes: brew
+/// refuses to load the definition, so there is no version or homepage to fetch
+/// them from. What it can say is why, and what to run.
+private struct BrewUncheckedDetailPane: View {
+    let package: BrewUncheckedPackage
+
+    private static let tapTrustDocs = URL(string: "https://docs.brew.sh/Tap-Trust")!
+
+    @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "terminal")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(package.name).font(.title2).fontWeight(.semibold)
+                    // The version is brew's install record, the only one it gives
+                    // for a package it won't load.
+                    Text("\(package.fullName) · \(package.installedVersion)")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                    Text(package.uncheckedStatus)
+                        .font(.callout).foregroundStyle(.orange)
+                }
+                Spacer()
+            }
+            .padding(16)
+            Divider()
+            VStack(alignment: .leading, spacing: 12) {
+                Text(package.uncheckedExplanation)
+                if package.reason == .tapNotTrusted {
+                    HStack(spacing: 8) {
+                        Text(package.trustCommand)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(package.trustCommand, forType: .string)
+                            copied = true
+                            copiedResetTask?.cancel()
+                            // Back to the copy glyph, so a second copy confirms again.
+                            copiedResetTask = Task {
+                                try? await Task.sleep(for: .seconds(1.5))
+                                guard !Task.isCancelled else { return }
+                                copied = false
+                            }
+                        } label: {
+                            // One frame for both glyphs: the checkmark is shorter than
+                            // doc.on.doc, and the box resized when they swapped.
+                            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                                .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(String(localized: "Copy “\(package.trustCommand)”"))
+                    }
+                    .padding(10)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                    // NSWorkspace rather than SwiftUI `openURL`, which errors -50 in
+                    // this app's windows (see `AlcoveSettingsPage`).
+                    Button {
+                        NSWorkspace.shared.open(Self.tapTrustDocs)
+                    } label: {
+                        Text(String(localized: "Homebrew docs: Tap Trust")).underline()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .help(Self.tapTrustDocs.absoluteString)
+                }
+            }
+            .padding(16)
+            // Top, not `.leading` (vertically centered): this block can measure
+            // taller than it draws, and centered it sat 7pt lower for
+            // claude-code-notification than for musl-cross (measured in an
+            // NSHostingView copy of this pane), so switching rows jumped.
+            .frame(maxWidth: 560, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

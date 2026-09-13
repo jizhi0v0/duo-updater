@@ -749,6 +749,9 @@ final class AppListModel {
     /// Bumped by every check; a check only applies its outcome if it is still the
     /// latest one started. See `checkHomebrewSelfUpdate`.
     private var homebrewCheckGeneration = 0
+    /// The same for `refreshBrewFormulae`: the workbench re-reads brew on every
+    /// focus, so reads overlap, and one started earlier must not land last.
+    private var brewRefreshGeneration = 0
     /// True while `brew update` is running.
     private(set) var homebrewUpdating = false
     /// Streamed tail of the running `brew update`.
@@ -818,6 +821,10 @@ final class AppListModel {
     /// `WorkbenchWindowView` consumes and clears it on appear/change, selecting that
     /// app in the sidebar instead of defaulting to the first row.
     var requestedWorkbenchAppID: String?
+    /// The same kind of request for the Brew tree's unchecked packages — set by the
+    /// popover's "not checked" tip. `WorkbenchWindowView` consumes and clears it,
+    /// expanding the Brew tree and scrolling to and highlighting those rows.
+    var requestedWorkbenchBrewUnchecked = false
 
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
     /// time the source stack was built. Drives the aggregate rate-limit banner:
@@ -3085,13 +3092,24 @@ final class AppListModel {
         // every app before its update check lands. The `await` yields to the runloop,
         // so SwiftUI repaints with the list before phase 2 runs. Best-effort:
         // installedLeaves() returns [] on any brew hiccup.
-        brewFormulae = (try? await brewFormulaService.installedLeaves()) ?? []
+        //
+        // Only when the tree is empty. On a re-read (the workbench refreshes brew
+        // every time it becomes key) this paint replaced the badged, updates-first
+        // tree with a bare one until phase 2 landed: measured, an outdated formula
+        // dropped off the top of the list at +0.9s after focus and came back at
+        // +1.5s, on every focus. The previous tree stays up until the new one is
+        // complete.
+        brewRefreshGeneration += 1
+        let generation = brewRefreshGeneration
+        let leaves = (try? await brewFormulaService.installedLeaves()) ?? []
+        if generation == brewRefreshGeneration, brewFormulae.isEmpty { brewFormulae = leaves }
 
         // Phase 2 — the slower `brew outdated` read: learn which leaves have an
         // upgrade, then re-stamp the already-shown list so badges appear in place
         // (updates floating to the top). `brewChecked` flips only here, since until
-        // outdated returns we don't actually know the update state.
-        defer { brewChecked = true }
+        // outdated returns we don't actually know the update state — and only for
+        // the latest read, which is the one whose results get applied.
+        defer { if generation == brewRefreshGeneration { brewChecked = true } }
         // Independent of `outdated()` — four local reads, started now so they
         // overlap it rather than queueing behind it.
         async let unchecked = brewFormulaService.uncheckedPackages()
@@ -3102,19 +3120,30 @@ final class AppListModel {
             Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
             outdated = []
         }
-        // Merge the formula badges into the tree BEFORE folding in casks: the tree
-        // lists `brew leaves`, which casks are not, so a cask name could only ever
-        // fail to match there.
-        brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: outdated)
         // App-less casks (CLIs, fonts) have no per-app row and no other home — see
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
         // formula count we already have.
         let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
+        let newUnchecked = await unchecked
+        // Every read is in; apply them together, and only if no newer refresh has
+        // started since — its results are fresher and it applies its own.
+        guard generation == brewRefreshGeneration else { return }
         if !casks.isEmpty {
             Log.app.info("brew outdated: \(outdated.count, privacy: .public) formulae + \(casks.count, privacy: .public) app-less casks (\(casks.map(\.name).joined(separator: ", "), privacy: .public))")
         }
+        // Merge the formula badges into the tree BEFORE folding in casks: the tree
+        // lists `brew leaves`, which casks are not, so a cask name could only ever
+        // fail to match there.
+        //
+        // An empty leaves read replacing a non-empty tree is taken as a failed read
+        // (`runReading` answers "" for any non-zero exit, so the two can't be told
+        // apart) and the previous tree is re-stamped instead of blanked. The cost:
+        // uninstalling the very last leaf leaves its row up until a read that
+        // returns something.
+        let inventory = leaves.isEmpty ? brewFormulae : leaves
+        brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated)
         brewOutdatedFormulae = outdated + casks
-        brewUnchecked = await unchecked
+        brewUnchecked = newUnchecked
         if !brewUnchecked.isEmpty {
             Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
         }

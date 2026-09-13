@@ -126,17 +126,18 @@ public actor BrewFormulaService {
     /// outcomes without spawning a real subprocess or asking the host whether
     /// Homebrew is installed. `nil` means "no brew" (never throws for that case), a
     /// thrown error means the process itself couldn't start (mirrors
-    /// `Process.run()` throwing), and a returned tuple is the definite outcome —
+    /// `ChildProcess.run` throwing), and a returned tuple is the definite outcome —
     /// the *caller* decides what a nonzero `status` means (an error for
     /// `outdated()`, an empty read for `runReading`).
     ///
-    /// `HomebrewInstaller.brewPath()` lives INSIDE `realExecutor` below, not in
+    /// `HomebrewInstaller.brewPath()` is asked only by the real executor
+    /// (`executor(brewPath:)` below, wired in `init()`), not by
     /// `outdated()` / `installedLeaves()` / `outdatedCasks()` themselves — those
     /// three used to each ask it directly before running the subprocess, which
     /// would leave a fake executor unable to answer "no brew" on its own and would
     /// leave a test for "did the two reads overlap" quietly asking the real host
     /// underneath its own fixture. See CLAUDE.md "测试不能问宿主".
-    typealias Executor = @Sendable ([String]) throws -> (status: Int32, stdout: Data)?
+    typealias Executor = @Sendable ([String]) async throws -> (status: Int32, stdout: Data)?
 
     /// The tap a cask's Caskroom install receipt records (`source.tap`), or nil.
     /// A seam for the same reason as `Executor`: the real one reads the disk.
@@ -149,7 +150,7 @@ public actor BrewFormulaService {
     private let caskInstallsAnApp: CaskInstallsAnApp
 
     public init() {
-        self.executor = Self.realExecutor
+        self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
         self.caskInstallsAnApp = { Self.installsAnApp(caskToken: $0) }
     }
@@ -192,17 +193,13 @@ public actor BrewFormulaService {
     /// outdated, so a missing/clean machine simply shows no row.
     public func outdated() async throws -> [BrewOutdatedFormula] {
         // --formula: casks are HomebrewCaskSource's job. --json=v2: stable schema.
-        // `HOMEBREW_NO_AUTO_UPDATE=1` (set inside `realExecutor`) keeps this a pure
+        // `HOMEBREW_NO_AUTO_UPDATE=1` (set inside `executor(brewPath:)`) keeps this a pure
         // read of local state — never an implicit `brew update`.
         //
-        // The spawn/read/wait happens inside `executor`, off this actor via
-        // `offCooperativePool` — doing that sequence directly here would occupy one
-        // of the cooperative pool's few threads for the whole subprocess. See
-        // `offCooperativePool`'s doc comment for why that matters.
-        let exec = executor
-        let outcome = try await offCooperativePool({
-            try exec(["outdated", "--formula", "--json=v2"])
-        })
+        // The spawn and the wait happen inside `executor`, which awaits the child
+        // rather than parking a thread (see `ChildProcess`), so this actor is free
+        // while `brew` runs.
+        let outcome = try await executor(["outdated", "--formula", "--json=v2"])
         guard let outcome else { return [] }
 
         guard outcome.status == 0 else {
@@ -227,14 +224,16 @@ public actor BrewFormulaService {
     /// the user only cares about what they asked for (the analog of "apps you have").
     public func installedLeaves() async throws -> [BrewInstalledFormula] {
         // The two reads are independent and each spawns a brew subprocess, and they
-        // genuinely overlap now that `runReading` hops off the actor for the
-        // blocking part (see `offCooperativePool`): the `await` inside it is a real
+        // genuinely overlap because `runReading` awaits the executor, which awaits
+        // the child (see `ChildProcess`): the `await` inside it is a real
         // suspension point, so this actor is free to start the second `async let`
         // while the first's subprocess is still running.
         //
-        // Before that hop, `runReading`'s body had no suspension point at all — the
-        // whole Process spawn/read/wait ran synchronously on this actor — so the
-        // second `async let` could not even begin until the first one returned.
+        // Before `runReading` hopped off the actor (through `offCooperativePool`,
+        // until `ChildProcess` replaced that hop), its body had no suspension point
+        // at all — the whole Process spawn/read/wait ran synchronously on this
+        // actor — so the second `async let` could not even begin until the first
+        // one returned.
         // This comment used to claim the two reads ran concurrently; they did not.
         // Measured 2026-09-11, during review of this fix, against the real
         // (pre-fix) BrewFormulaService on a 14-core M3 Max under heavy load
@@ -448,15 +447,14 @@ public actor BrewFormulaService {
     /// failing to start, or a nonzero exit — the callers treat a missing read as
     /// "nothing to show" rather than surfacing an error.
     ///
-    /// The spawn/read/wait happens inside `executor`, off this actor via
-    /// `offCooperativePool`. That suspension point is also what lets two
-    /// `runReading` calls (the `async let` pair in `installedLeaves()`) genuinely
-    /// overlap instead of serializing behind this actor — see the comment there.
+    /// The spawn and the wait happen inside `executor`, awaited. That suspension
+    /// point is also what lets two `runReading` calls (the `async let` pair in
+    /// `installedLeaves()`) genuinely overlap instead of serializing behind this
+    /// actor — see the comment there.
     private func runReading(_ arguments: [String]) async -> String {
-        let exec = executor
         let outcome: (status: Int32, stdout: Data)?
         do {
-            outcome = try await offCooperativePool({ try exec(arguments) })
+            outcome = try await executor(arguments)
         } catch {
             return ""
         }
@@ -465,42 +463,39 @@ public actor BrewFormulaService {
     }
 
     /// The real `Executor`: locate `brew`, spawn it read-only (never an implicit
-    /// `brew update`), and block until it exits.
+    /// `brew update`), and await its exit.
     ///
-    /// This is the ONLY place that calls `HomebrewInstaller.brewPath()` for the
+    /// This is the ONLY place `HomebrewInstaller.brewPath()` is consulted for the
     /// three read paths in this actor — keeping that check out of `outdated()` /
     /// `installedLeaves()` / `outdatedCasks()` themselves is what lets a fake
     /// `Executor` answer "no brew" on its own, without a test asking the actual
     /// host underneath its own fixture.
     ///
-    /// Always runs off the actor: called only from inside `offCooperativePool` (in
-    /// `outdated()` and `runReading`), never directly from actor-isolated code —
-    /// this function itself blocks synchronously.
-    private static func realExecutor(_ arguments: [String]) throws -> (status: Int32, stdout: Data)? {
-        guard let brew = HomebrewInstaller.brewPath() else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brew)
-        process.arguments = arguments
-        var env = ProcessInfo.processInfo.environmentWithSystemProxy
-        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        env["HOMEBREW_NO_ENV_HINTS"] = "1"
-        process.environment = env
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        // nullDevice, not Pipe(): an undrained stderr pipe deadlocks once its
-        // 64KB buffer fills — brew blocks writing (a long run of deprecation
-        // warnings or a Ruby backtrace is enough), we block forever in the
-        // `readDataToEndOfFile()` below waiting on stdout, which brew never
-        // reaches. Same failure shape as `AppListModel.runningBuildVersions`'s
-        // `lsappinfo` call, which documents it at the call site. `offCooperativePool`
-        // is not cancellable, so this would leak a Dispatch thread and a wedged
-        // `brew` process — and since this is what the Brew tree loads on, the
-        // menu's Brew list would simply never finish loading.
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return (process.terminationStatus, data)
+    /// stderr is discarded, as it was: `ChildProcess` drains it either way, so a
+    /// long run of deprecation warnings or a Ruby backtrace cannot wedge the
+    /// stdout read — the deadlock the old `nullDevice` here was avoiding.
+    ///
+    /// Runs to completion if the caller is cancelled, although it only reads. The
+    /// caller does not stop when cancelled: `AppListModel.refreshBrewFormulae` runs
+    /// from a view's `.task`, is cancelled when the popover closes, and goes on to
+    /// write what these reads returned — a killed `brew` reads as `""` in
+    /// `runReading`, so the Brew tree, the outdated badges and the unchecked list
+    /// would all be replaced with empty ones. The Dispatch hop this replaced could
+    /// not be cancelled, so those writes always carried real data.
+    ///
+    /// `brewPath` is a parameter so a test can hand in an invented script and still
+    /// exercise this real executor, cancellation policy included.
+    static func executor(brewPath: @escaping @Sendable () -> String?) -> Executor {
+        { arguments in
+            guard let brew = brewPath() else { return nil }
+            var env = ProcessInfo.processInfo.environmentWithSystemProxy
+            env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+            env["HOMEBREW_NO_ENV_HINTS"] = "1"
+            let outcome = try await ChildProcess.run(
+                brew, arguments, environment: env,
+                standardError: .discard, onCancel: .runToCompletion)
+            return (outcome.terminationStatus, outcome.standardOutput)
+        }
     }
 
     /// Outdated casks that install **no app** — the ones nothing else covers. See
@@ -685,9 +680,6 @@ public actor BrewFormulaService {
     ) async throws {
         guard let brew = HomebrewInstaller.brewPath() else { throw BrewError.brewNotFound }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brew)
-        process.arguments = arguments
         // Non-interactive so brew never blocks on a prompt we can't answer. We do
         // NOT set HOMEBREW_NO_AUTO_UPDATE here: on the real upgrade, letting brew
         // refresh first is correct — it's what a terminal `brew upgrade` does, and
@@ -696,13 +688,17 @@ public actor BrewFormulaService {
         env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
-        process.environment = env
 
-        // Lines, not chunks, and until EOF, not exit — see `StreamedLines`.
-        let output = try await StreamedLines.run(process, onOutput: onOutput)
+        // Lines, not chunks, and until the output ends, not just the exit — see
+        // `StreamedLines`. Runs to completion if the caller is cancelled: this is
+        // brew replacing what is installed, and a SIGKILL halfway is worse than
+        // letting it finish (the `terminationHandler` wait it replaced was not
+        // cancellable either).
+        let (outcome, output) = try await StreamedLines.run(
+            brew, arguments, environment: env, onOutput: onOutput)
 
-        guard process.terminationStatus == 0 else {
-            throw BrewError.failed(code: process.terminationStatus, output: output)
+        guard outcome.succeeded else {
+            throw BrewError.failed(code: outcome.terminationStatus, output: output)
         }
     }
 }

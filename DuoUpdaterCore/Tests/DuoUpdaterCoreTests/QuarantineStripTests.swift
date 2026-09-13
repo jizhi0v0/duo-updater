@@ -16,7 +16,7 @@ import Testing
     /// status is non-zero) — `exitStatus`/`remaining` come back as a clean strip
     /// and this goes red. Reverting to the original fire-and-forget version does
     /// the same.
-    @Test func aPartialStripReportsWhatIsStillQuarantined() throws {
+    @Test func aPartialStripReportsWhatIsStillQuarantined() async throws {
         let scratch = try scratch()
         defer { cleanUp(scratch) }
         let app = try fixtureBundle(in: scratch)
@@ -28,7 +28,7 @@ import Testing
         #expect(chflags(app.appendingPathComponent(locked).path, UInt32(UF_IMMUTABLE)) == 0)
         #expect(chmod(app.appendingPathComponent(sealed).path, 0o555) == 0)
 
-        let result = InPlaceSwap.stripQuarantine(app)
+        let result = await InPlaceSwap.stripQuarantine(app)
 
         #expect(result.exitStatus != 0)
         #expect(result.exitStatus != nil)
@@ -52,12 +52,12 @@ import Testing
     /// The negative control: a writable tree is fully cleared, reported as such,
     /// and logs nothing. Mutation: drop `-r` from the `xattr` arguments — the
     /// nested files stay quarantined and this goes red.
-    @Test func aCompleteStripReportsNothing() throws {
+    @Test func aCompleteStripReportsNothing() async throws {
         let scratch = try scratch()
         defer { cleanUp(scratch) }
         let app = try fixtureBundle(in: scratch)
 
-        let result = InPlaceSwap.stripQuarantine(app)
+        let result = await InPlaceSwap.stripQuarantine(app)
 
         #expect(result == .init(exitStatus: 0, remaining: []))
         #expect(InPlaceSwap.quarantineScan(in: app) == ([], []))
@@ -70,7 +70,7 @@ import Testing
     /// bundle with nothing left in it. Mutation: drop `-s` from the `xattr`
     /// arguments — the link keeps its xattr under exit 0 and the dangling link
     /// exits 1, and this goes red.
-    @Test func symlinksAreStrippedNotFollowed() throws {
+    @Test func symlinksAreStrippedNotFollowed() async throws {
         let scratch = try scratch()
         defer { cleanUp(scratch) }
         let app = try fixtureBundle(in: scratch)
@@ -92,7 +92,7 @@ import Testing
             try #require(rc == 0, "could not quarantine \(path)")
         }
 
-        let result = InPlaceSwap.stripQuarantine(app)
+        let result = await InPlaceSwap.stripQuarantine(app)
 
         #expect(result == .init(exitStatus: 0, remaining: []))
         #expect(!isQuarantined(app.appendingPathComponent(link)))
@@ -104,7 +104,7 @@ import Testing
     /// Mutation: count every `getxattr` failure as "not quarantined" (drop the
     /// `errno != ENOATTR` branch) — `unreadable` comes back empty, the line says
     /// "nothing in it is still quarantined", and this goes red.
-    @Test func unreadableEntriesAreReportedAsUnknown() throws {
+    @Test func unreadableEntriesAreReportedAsUnknown() async throws {
         let scratch = try scratch()
         defer { cleanUp(scratch) }
         let app = try fixtureBundle(in: scratch)
@@ -113,7 +113,7 @@ import Testing
         #expect(chmod(app.appendingPathComponent(file).path, 0o000) == 0)
         #expect(chmod(app.appendingPathComponent(dir).path, 0o000) == 0)
 
-        let result = InPlaceSwap.stripQuarantine(app)
+        let result = await InPlaceSwap.stripQuarantine(app)
 
         #expect(result.exitStatus == 1)
         #expect(result.remaining == [])

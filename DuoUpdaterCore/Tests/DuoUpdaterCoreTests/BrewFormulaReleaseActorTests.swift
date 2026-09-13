@@ -43,10 +43,11 @@ struct BrewFormulaReleaseActorTests {
     }
 
     /// A disk-cached formula must stay instantly readable while a prewarm-sized batch
-    /// of uncached `release(...)` calls is in flight. Guards the executor hop in
-    /// `brewInfoOffActor`: revert it to a synchronous `Self.brewInfo(name:)` and each
-    /// subprocess holds the actor for its whole run, so a `cached(...)` issued beside
-    /// one can only return after it exits.
+    /// of uncached `release(...)` calls is in flight. Guards the suspension in
+    /// `brewInfoOffActor`: make it wait synchronously on the actor again (a blocking
+    /// `waitUntilExit()`, as it did before any hop) and each subprocess holds the
+    /// actor for its whole run, so a `cached(...)` issued beside one can only return
+    /// after it exits.
     ///
     /// Ordering, not wall clock. Two bounds were tried and both went red on healthy
     /// builds on the 3-core runner: a fixed 0.2s (#394), then half of one `brew info`

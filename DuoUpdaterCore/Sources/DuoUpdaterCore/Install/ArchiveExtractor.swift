@@ -44,15 +44,22 @@ enum ArchiveExtractor {
 
     /// Extract `archive` into a fresh temp dir and return the contained `.app`.
     /// `workDir` is the caller-owned scratch directory to clean up afterward.
-    static func extractApp(from archive: URL, workDir: URL) throws -> URL {
+    ///
+    /// Runs to completion once started, whatever happens to the calling task:
+    /// every tool here writes (`hdiutil attach` mounts, `ditto`/`tar` fill the
+    /// scratch directory, `hdiutil detach` unmounts), and none of it checks for
+    /// cancellation — a DMG left mounted because a cancel landed between attach and
+    /// detach is exactly what must not happen. That is also what the
+    /// `offCooperativePool` hop its callers used to make guaranteed.
+    static func extractApp(from archive: URL, workDir: URL) async throws -> URL {
         let ext = archive.pathExtension.lowercased()
         switch ext {
         case "dmg":
-            return try fromDMG(archive, workDir: workDir)
+            return try await fromDMG(archive, workDir: workDir)
         case "zip":
-            return try fromZip(archive, workDir: workDir)
+            return try await fromZip(archive, workDir: workDir)
         case "gz", "bz2", "xz", "tar", "tbz", "tgz":
-            return try fromTar(archive, workDir: workDir)
+            return try await fromTar(archive, workDir: workDir)
         case "app":
             return archive  // already an app (rare, but possible)
         default:
@@ -62,11 +69,11 @@ enum ArchiveExtractor {
 
     // MARK: dmg
 
-    private static func fromDMG(_ dmg: URL, workDir: URL) throws -> URL {
+    private static func fromDMG(_ dmg: URL, workDir: URL) async throws -> URL {
         let mountPoint = workDir.appendingPathComponent("mnt-\(dmg.lastPathComponent)")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
 
-        let attach = try run("/usr/bin/hdiutil", [
+        let attach = try await run("/usr/bin/hdiutil", [
             "attach", dmg.path,
             "-nobrowse", "-readonly", "-noverify",
             "-mountpoint", mountPoint.path
@@ -74,15 +81,27 @@ enum ArchiveExtractor {
         guard attach.code == 0 else {
             throw ExtractError.toolFailed("hdiutil attach", attach.code, attach.err)
         }
-        defer { detach(mountPoint) }
+        // Detached on every path out, as the `defer` that used to sit here did —
+        // spelled out because a `defer` cannot await.
+        let copied: Result<URL, Error>
+        do {
+            copied = .success(try await copyApp(outOf: mountPoint, into: workDir))
+        } catch {
+            copied = .failure(error)
+        }
+        await detach(mountPoint)
+        return try copied.get()
+    }
 
+    private static func copyApp(outOf mountPoint: URL, into workDir: URL) async throws -> URL {
         guard let appInMount = firstApp(in: mountPoint) else {
             throw ExtractError.noAppFound
         }
         // Copy the app out of the read-only mount into our work dir.
         let dest = workDir.appendingPathComponent(appInMount.lastPathComponent)
-        try? FileManager.default.removeItem(at: dest)
-        let copy = try run("/usr/bin/ditto", [appInMount.path, dest.path])
+        // A leftover here is a whole app bundle, so its removal is off the pool.
+        await removeItemOffCooperativePool(at: dest)
+        let copy = try await run("/usr/bin/ditto", [appInMount.path, dest.path])
         guard copy.code == 0 else {
             throw ExtractError.toolFailed("ditto", copy.code, copy.err)
         }
@@ -91,10 +110,10 @@ enum ArchiveExtractor {
 
     // MARK: zip
 
-    private static func fromZip(_ zip: URL, workDir: URL) throws -> URL {
+    private static func fromZip(_ zip: URL, workDir: URL) async throws -> URL {
         let dest = workDir.appendingPathComponent("unzipped")
         try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-        let r = try run("/usr/bin/ditto", ["-x", "-k", zip.path, dest.path])
+        let r = try await run("/usr/bin/ditto", ["-x", "-k", zip.path, dest.path])
         guard r.code == 0 else {
             throw ExtractError.toolFailed("ditto -x -k", r.code, r.err)
         }
@@ -104,10 +123,10 @@ enum ArchiveExtractor {
 
     // MARK: tar
 
-    private static func fromTar(_ tar: URL, workDir: URL) throws -> URL {
+    private static func fromTar(_ tar: URL, workDir: URL) async throws -> URL {
         let dest = workDir.appendingPathComponent("untarred")
         try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-        let r = try run("/usr/bin/tar", ["-xf", tar.path, "-C", dest.path])
+        let r = try await run("/usr/bin/tar", ["-xf", tar.path, "-C", dest.path])
         guard r.code == 0 else {
             throw ExtractError.toolFailed("tar", r.code, r.err)
         }
@@ -162,70 +181,46 @@ enum ArchiveExtractor {
     /// Detach a mounted image, retrying once after a short pause: a `ditto` that
     /// just finished copying can leave the volume momentarily busy, and a single
     /// `-force` detach then fails, leaking the mount and blocking workDir cleanup.
-    private static func detach(_ mountPoint: URL) {
-        if (try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]))?.code == 0 {
+    ///
+    /// The pause is taken in a detached task so a cancelled caller cannot cut it
+    /// short — `Task.sleep` in this task would return at once and turn the retry
+    /// into a second attempt on a volume that is still busy.
+    private static func detach(_ mountPoint: URL) async {
+        if (try? await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]))?.code == 0 {
             return
         }
-        Thread.sleep(forTimeInterval: 0.5)
-        _ = try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
+        await Task.detached { try? await Task.sleep(for: .milliseconds(500)) }.value
+        _ = try? await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
     }
 
-    /// Reference holder so a background pipe-drain can publish its result back to
-    /// the caller without Swift 6 flagging a captured-`var` mutation. Single writer
-    /// (the drain closure), read only after a `DispatchGroup` barrier, so the
-    /// `@unchecked` is sound.
-    private final class DataBox: @unchecked Sendable { var data = Data() }
-
+    /// Run one extraction tool, capturing both streams, and wait for it.
+    ///
+    /// Watchdog: a wedged `hdiutil attach` on a malformed/maliciously-crafted dmg
+    /// (or a pathological `ditto`/`tar`) can block indefinitely, freezing the
+    /// install actor with no way out. SIGTERM at 300 s, SIGKILL at 305 s if it
+    /// ignores that — generous enough that a large Electron-bundle extraction on a
+    /// slow disk finishes well within it, short enough that a true hang doesn't
+    /// wedge the install indefinitely. `code` is the signal number when it came to
+    /// that, as `Process.terminationStatus` reported it, so the "failed (15)" in
+    /// `ExtractError.toolFailed` reads the same.
+    ///
+    /// Both pipes drain concurrently (`ChildProcess` always does): tar/hdiutil/
+    /// ditto on a corrupt or pathological archive can emit more than a pipe
+    /// buffer of stderr while stdout is still open.
+    ///
+    /// Never torn down on the caller's account — see `extractApp`.
     @discardableResult
-    private static func run(_ launchPath: String, _ args: [String]) throws
+    private static func run(_ launchPath: String, _ args: [String]) async throws
         -> (code: Int32, out: String, err: String)
     {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchPath)
-        process.arguments = args
-        let outPipe = Pipe(), errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        try process.run()
-        // Watchdog: a wedged `hdiutil attach` on a malformed/maliciously-crafted dmg
-        // (or a pathological `ditto`/`tar`) can block indefinitely, freezing the
-        // install actor with no way out. SIGTERM at the cap, then SIGKILL shortly
-        // after if it ignores that (a stuck process can hold its stdout write end
-        // open, so the drain below would never return) — SIGKILL closes the pipe and
-        // unblocks the read for sure. Same pattern as the lsappinfo guard.
-        let pid = process.processIdentifier
-        let term = DispatchWorkItem { process.terminate() }
-        let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
-        // 5-min ceiling: generous enough that a large Electron-bundle extraction on
-        // a slow disk finishes well within it, short enough that a true hang doesn't
-        // wedge the install indefinitely.
-        DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: term)
-        DispatchQueue.global().asyncAfter(deadline: .now() + 305, execute: kill)
-        // Drain both pipes CONCURRENTLY. Reading stdout to EOF first and only then
-        // stderr deadlocks when the child fills stderr's ~64KB buffer while stdout
-        // is still open (tar/hdiutil/ditto on a corrupt or pathological archive can
-        // emit large stderr): the child blocks on its stderr write(), stdout never
-        // reaches EOF, and we block forever. Read stderr on a background queue so
-        // both buffers drain in parallel.
-        let errBox = DataBox()
-        let errQueue = DispatchQueue(label: "com.duoupdater.archiveextractor.stderr")
-        let errDone = DispatchGroup()
-        errDone.enter()
-        let errHandle = errPipe.fileHandleForReading
-        errQueue.async {
-            errBox.data = errHandle.readDataToEndOfFile()
-            errDone.leave()
-        }
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        errDone.wait()
-        let errData = errBox.data
-        process.waitUntilExit()
-        term.cancel()
-        kill.cancel()
+        let outcome = try await ChildProcess.run(
+            launchPath, args,
+            deadline: .init(terminateAfter: .seconds(300), killAfter: .seconds(305)),
+            onCancel: .runToCompletion)
         return (
-            process.terminationStatus,
-            String(data: outData, encoding: .utf8) ?? "",
-            String(data: errData, encoding: .utf8) ?? ""
+            outcome.terminationStatus,
+            String(data: outcome.standardOutput, encoding: .utf8) ?? "",
+            String(data: outcome.standardError, encoding: .utf8) ?? ""
         )
     }
 }

@@ -346,34 +346,31 @@ public actor MASInstaller {
     /// every installed MAS app, so we cap the wait: a stalled network must not hang
     /// the install pipeline.
     ///
-    /// offpool-lint:allow — the wait here is the `terminationHandler` continuation,
-    /// not a parked thread; by the time the drain below runs the child has exited
-    /// and Foundation has closed the parent's copy of the write end, so it reads
-    /// buffered bytes and hits EOF without blocking.
+    /// SIGTERM at 20 s as before, now with SIGKILL 5 s later. The old watchdog sent
+    /// only the SIGTERM, so a `mas` that ignored it kept the pre-flight waiting for
+    /// good; the answer on a timeout is `nil` either way.
+    ///
+    /// Runs to completion if the caller is cancelled: the App Store pre-flight
+    /// carries on and acts on the answer, and a killed `mas` would read as "could
+    /// not check" — which that pre-flight treats as permission to skip on the disk
+    /// verdict alone. The deadline bounds the wait, as the old watchdog did.
     private func runOutdated() async -> Set<Int>? {
-        guard let mas = Self.executablePath else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: mas)
-        process.arguments = ["outdated"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
+        await Self.outdatedAdamIDs(mas: Self.executablePath)
+    }
 
-        // Terminate by pid if we overrun; the work item is cancelled on a normal
-        // exit, so the kill only fires when we actually timed out. Capturing the pid
-        // (a value) rather than the Process keeps the closure Sendable.
-        let pid = process.processIdentifier
-        let timeout = DispatchWorkItem { kill(pid, SIGTERM) }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: timeout)
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in cont.resume() }
-        }
-        timeout.cancel()
-
-        guard process.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return Self.parseOutdatedAdamIDs(from: String(data: data, encoding: .utf8) ?? "")
+    /// `runOutdated` with the `mas` path handed in, so a test can use an invented
+    /// script.
+    static func outdatedAdamIDs(mas: String?) async -> Set<Int>? {
+        guard let mas else { return nil }
+        guard let outcome = try? await ChildProcess.run(
+            mas, ["outdated"],
+            standardError: .discard,
+            deadline: .init(terminateAfter: .seconds(20), killAfter: .seconds(25)),
+            onCancel: .runToCompletion)
+        else { return nil }
+        guard outcome.succeeded else { return nil }
+        return Self.parseOutdatedAdamIDs(
+            from: String(data: outcome.standardOutput, encoding: .utf8) ?? "")
     }
 
     /// Parse `mas outdated` output into the set of outdated adamIDs. Each line leads

@@ -60,12 +60,12 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
 /// fixtures. None of this touches a real installed app.
 @Suite(.serialized) struct BackupsStoreBackedTests {
 
-    private func withScratchRoot(_ body: (URL) throws -> Void) throws {
+    private func withScratchRoot(_ body: (URL) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoKitBackupsTest-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
-        try BackupStore.$rootOverride.withValue(root) {
-            try body(root)
+        try await BackupStore.$rootOverride.withValue(root) {
+            try await body(root)
         }
     }
 
@@ -84,8 +84,8 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
 
     /// An installed app's backup is shown under the app's own name, not the
     /// hashed key — that's the whole point of joining against the inventory.
-    @Test func aMatchedBackupIsLabelledWithTheAppName() throws {
-        try withScratchRoot { _ in
+    @Test func aMatchedBackupIsLabelledWithTheAppName() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -94,7 +94,7 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
             let bundle = try makeApp(named: "Cursor.app", in: scratch)
             let cursor = app("Cursor", "com.todesktop.230313mzl4w4u92", bundle.path)
             let key = BackupStore.key(bundleID: cursor.bundleID, path: cursor.path)
-            try BackupStore.save(appPath: bundle, key: key, version: "1.0", bundleID: cursor.bundleID)
+            try await BackupStore.save(appPath: bundle, key: key, version: "1.0", bundleID: cursor.bundleID)
 
             let rows = Backups.rows(installed: [cursor], backups: BackupStore.allBackups())
             #expect(rows.count == 1)
@@ -109,15 +109,15 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
     /// `BackupStore.Backup` carries no name or bundle id, so the only honest
     /// label left is the key itself — dropping the row would hide real disk
     /// usage the user might want to reclaim.
-    @Test func anOrphanedBackupIsListedUnderItsRawKey() throws {
-        try withScratchRoot { _ in
+    @Test func anOrphanedBackupIsListedUnderItsRawKey() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: scratch) }
 
             let bundle = try makeApp(named: "Gone.app", in: scratch)
-            try BackupStore.save(appPath: bundle, key: "orphan-key", version: "9.0", bundleID: nil)
+            try await BackupStore.save(appPath: bundle, key: "orphan-key", version: "9.0", bundleID: nil)
 
             let rows = Backups.rows(installed: [], backups: BackupStore.allBackups())
             #expect(rows.count == 1)
@@ -127,8 +127,8 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
         }
     }
 
-    @Test func rowsAreSortedByAppNameCaseInsensitively() throws {
-        try withScratchRoot { _ in
+    @Test func rowsAreSortedByAppNameCaseInsensitively() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -138,10 +138,10 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
             let appleBundle = try makeApp(named: "Apple.app", in: scratch)
             let banana = app("banana", nil, bananaBundle.path)
             let apple = app("Apple", nil, appleBundle.path)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: bananaBundle, key: BackupStore.key(bundleID: nil, path: banana.path),
                 version: "1.0", bundleID: nil)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: appleBundle, key: BackupStore.key(bundleID: nil, path: apple.path),
                 version: "1.0", bundleID: nil)
 
@@ -150,15 +150,15 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
         }
     }
 
-    @Test func backupSizeReflectsWhatWasStored() throws {
-        try withScratchRoot { _ in
+    @Test func backupSizeReflectsWhatWasStored() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: scratch) }
 
             let bundle = try makeApp(named: "Foo.app", in: scratch)
-            try BackupStore.save(appPath: bundle, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: bundle, key: "k", version: "1.0", bundleID: nil)
 
             let backup = try #require(BackupStore.backup(forKey: "k"))
             #expect(Backups.backupSize(backup) > 0)
@@ -167,8 +167,8 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
 
     // MARK: - resolveKey
 
-    @Test func resolvesToTheCanonicalKeyWhenABackupExists() throws {
-        try withScratchRoot { _ in
+    @Test func resolvesToTheCanonicalKeyWhenABackupExists() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -177,7 +177,7 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
             let bundle = try makeApp(named: "Foo.app", in: scratch)
             let target = app("Foo", "com.example.foo", bundle.path)
             let key = BackupStore.key(bundleID: target.bundleID, path: target.path)
-            try BackupStore.save(appPath: bundle, key: key, version: "1.0", bundleID: target.bundleID)
+            try await BackupStore.save(appPath: bundle, key: key, version: "1.0", bundleID: target.bundleID)
 
             #expect(Backups.resolveKey(for: target) == key)
         }
@@ -187,8 +187,8 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
     /// bundle id. `AppListModel.rollback` still finds it via `keyCandidates`,
     /// and this must too — otherwise upgrading to path-scoped keys would have
     /// silently orphaned every pre-existing rollback point from the CLI's view.
-    @Test func fallsBackToTheLegacyKeyWhenOnlyItHasABackup() throws {
-        try withScratchRoot { _ in
+    @Test func fallsBackToTheLegacyKeyWhenOnlyItHasABackup() async throws {
+        try await withScratchRoot { _ in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -197,14 +197,14 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
             let bundle = try makeApp(named: "Foo.app", in: scratch)
             let target = app("Foo", "com.example.foo", bundle.path)
             let legacyKey = "com.example.foo"
-            try BackupStore.save(appPath: bundle, key: legacyKey, version: "1.0", bundleID: target.bundleID)
+            try await BackupStore.save(appPath: bundle, key: legacyKey, version: "1.0", bundleID: target.bundleID)
 
             #expect(Backups.resolveKey(for: target) == legacyKey)
         }
     }
 
-    @Test func returnsNilRatherThanAKeyWithNoBackup() throws {
-        try withScratchRoot { _ in
+    @Test func returnsNilRatherThanAKeyWithNoBackup() async throws {
+        try await withScratchRoot { _ in
             let target = app("Nope", "com.example.nope", "/Applications/Nope.app")
             #expect(Backups.resolveKey(for: target) == nil)
         }

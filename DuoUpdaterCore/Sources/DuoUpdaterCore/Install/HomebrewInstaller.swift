@@ -31,10 +31,8 @@ public actor HomebrewInstaller {
     ) async throws {
         guard let brew = Self.brewPath() else { throw BrewError.brewNotFound }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brew)
         // `--` terminates option parsing so a token can never be misread as a flag.
-        process.arguments = ["install", "--cask", "--force", "--", caskToken]
+        let arguments = ["install", "--cask", "--force", "--", caskToken]
         // Non-interactive so brew never blocks on a prompt we can't answer.
         // We deliberately allow auto-update here: our detection reads the fresh
         // formulae.brew.sh API, so the local tap must refresh first or brew
@@ -42,13 +40,16 @@ public actor HomebrewInstaller {
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
-        process.environment = env
+        // Lines, not chunks, and until the output ends, not just the exit — see
+        // `StreamedLines`. Runs to completion if the caller is cancelled: this is
+        // brew replacing what is installed, and a SIGKILL halfway is worse than
+        // letting it finish (the `terminationHandler` wait it replaced was not
+        // cancellable either).
+        let (outcome, output) = try await StreamedLines.run(
+            brew, arguments, environment: env, onOutput: onOutput)
 
-        // Lines, not chunks, and until EOF, not exit — see `StreamedLines`.
-        let output = try await StreamedLines.run(process, onOutput: onOutput)
-
-        guard process.terminationStatus == 0 else {
-            throw BrewError.failed(code: process.terminationStatus, output: output)
+        guard outcome.succeeded else {
+            throw BrewError.failed(code: outcome.terminationStatus, output: output)
         }
     }
 

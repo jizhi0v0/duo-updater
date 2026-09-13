@@ -41,7 +41,7 @@ public enum Doctor {
     }
 
     public static func run(json: Bool) async -> Int32 {
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let report = Report(
             executable: CommandLine.arguments[0],
             appManagement: String(describing: TCCPreflight.appManagementStatus()),
@@ -198,22 +198,22 @@ public enum Doctor {
     /// helper that is registered and running. (It did, on a machine where it
     /// was.)
     ///
-    /// `async` because `waitUntilExit()` blocks and `run` is reached from the
-    /// cooperative pool: the wait goes to Dispatch (see `offCooperativePool`).
+    /// `async` because `launchctl` is awaited through `ChildProcess`.
     static func helperStatus() async -> String {
-        let registered = await offCooperativePool { () -> Bool in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            process.arguments = ["print", "system/com.duoupdater.helper"]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        }
+        let registered = await exitsZero("/bin/launchctl", ["print", "system/com.duoupdater.helper"])
         return registered
             ? "registered"
             : "not registered — approve it once in the menu-bar app; the CLI cannot register it"
+    }
+
+    /// Whether the command exits 0. Runs to completion if the caller is cancelled:
+    /// `doctor` prints the answer either way, and a killed `launchctl` would print
+    /// "not registered" for a helper that is.
+    static func exitsZero(_ executable: String, _ arguments: [String]) async -> Bool {
+        (try? await ChildProcess.run(
+            executable, arguments,
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion))?
+            .succeeded ?? false
     }
 
     static func installedAppPath() -> String? {

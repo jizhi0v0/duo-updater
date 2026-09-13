@@ -152,7 +152,7 @@ struct GitHubEndpointAuditTests {
     /// looking at the ledger. Hits the network; 404 is stable and costs one
     /// request.
     @Test func aNonSuccessResponseIsStillRecorded() async throws {
-        let source = GitHubReleasesSource(token: GitHubToken.resolve())
+        let source = GitHubReleasesSource(token: await GitHubToken.resolve())
         let rule = GitHubReleaseRule(
             bundleID: "com.example.nonexistent",
             owner: "jizhi0v0", repo: "duo-updater-no-such-repo-135")

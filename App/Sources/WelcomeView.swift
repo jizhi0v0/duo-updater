@@ -72,7 +72,7 @@ struct WelcomeView: View {
             guard controlActiveState != .inactive else { return }
             let explicit = model.prefs.githubToken.isEmpty ? nil : model.prefs.githubToken
             githubConnected = await Task.detached(priority: .utility) {
-                GitHubToken.resolve(explicit: explicit) != nil
+                await GitHubToken.resolve(explicit: explicit) != nil
             }.value
         }
     }

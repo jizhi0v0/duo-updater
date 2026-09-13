@@ -38,7 +38,7 @@ struct GeneralSettingsPage: View {
             // to `gh auth token`, so keep it off the main thread.
             let explicit = prefs.githubToken.isEmpty ? nil : prefs.githubToken
             hasGitHubToken = await Task.detached(priority: .utility) {
-                GitHubToken.resolve(explicit: explicit) != nil
+                await GitHubToken.resolve(explicit: explicit) != nil
             }.value
         }
         .task {

@@ -1364,6 +1364,33 @@ public struct VendorProbeSource: UpdateSource {
         }
     }
 
+    /// `unzip -p <archive> <entry>`: the entry's bytes, or the failure.
+    ///
+    /// Awaited, not parked: this runs on every check and every `duo verify`.
+    /// Runs to completion if the caller is cancelled: a killed `unzip` surfaced as
+    /// `archiveExtractionFailed`, which the diagnostics classify as a recipe fault —
+    /// "a human needs to look" — for what was only a cancelled check. The archive
+    /// is a small stub read from a temp file, so there is nothing to save by
+    /// killing it.
+    static func extractZipEntry(archive: URL, entry: String) async -> Result<Data, ProbeFailure> {
+        let extracted: ChildProcess.Outcome
+        do {
+            extracted = try await ChildProcess.run(
+                "/usr/bin/unzip", ["-p", archive.path, entry],
+                standardError: .discard, onCancel: .runToCompletion)
+        } catch {
+            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
+        }
+        guard extracted.terminationStatus == 0 else {
+            return .failure(.archiveExtractionFailed(
+                "unzip exited \(extracted.terminationStatus) extracting '\(entry)'"))
+        }
+        guard !extracted.standardOutput.isEmpty else {
+            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
+        }
+        return .success(extracted.standardOutput)
+    }
+
     /// Download a (small) zip and read one property-list entry's string value —
     /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
     /// only cheap version surface is a stub-installer archive whose bundled app's
@@ -1390,42 +1417,21 @@ public struct VendorProbeSource: UpdateSource {
 
         // `unzip` needs a seekable file (the zip's central directory lives at the
         // end), so stage the archive in a temp file and extract just the one entry
-        // to stdout. The entry is a small plist — well under the pipe buffer — so a
-        // read-then-wait can't deadlock.
+        // to stdout.
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
         do { try data.write(to: tmp) }
         catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
+        // A synchronous removal in a `defer` on purpose, unlike the bundle-sized
+        // ones elsewhere: this is one file of a stub installer's size (it was
+        // downloaded into memory just above), so unlinking it costs nothing a hop
+        // would save.
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        // Off the cooperative pool: `readDataToEndOfFile()` + `waitUntilExit()` park
-        // the calling thread, and this runs on every check and every `duo verify`.
-        // See `offCooperativePool`.
-        let extracted: (status: Int32, data: Data)
-        do {
-            let archive = tmp
-            extracted = try await offCooperativePool { () -> (status: Int32, data: Data) in
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-                proc.arguments = ["-p", archive.path, entry]
-                let out = Pipe()
-                proc.standardOutput = out
-                proc.standardError = FileHandle.nullDevice
-                try proc.run()
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                proc.waitUntilExit()
-                return (proc.terminationStatus, data)
-            }
-        } catch {
-            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
-        }
-        let plistData = extracted.data
-        guard extracted.status == 0 else {
-            return .failure(.archiveExtractionFailed(
-                "unzip exited \(extracted.status) extracting '\(entry)'"))
-        }
-        guard !plistData.isEmpty else {
-            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
+        let plistData: Data
+        switch await Self.extractZipEntry(archive: tmp, entry: entry) {
+        case .success(let data): plistData = data
+        case .failure(let failure): return .failure(failure)
         }
 
         // Parse as a property list (Spotify's is a binary plist, `bplist00`) and

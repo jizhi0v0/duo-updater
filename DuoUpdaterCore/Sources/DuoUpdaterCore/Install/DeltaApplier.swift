@@ -88,52 +88,41 @@ public enum DeltaApplier {
     /// Throws on a non-zero exit or a missing result. Never touches `installedApp`
     /// — a failed patch leaves the running app exactly as it was, which is what
     /// lets the caller fall back to the full download without cleanup.
+    ///
+    /// Runs to completion even if the calling task is cancelled: a `BinaryDelta`
+    /// killed partway leaves a half-written bundle at `destination`, and the
+    /// `offCooperativePool` hop this used to be called through could not be
+    /// cancelled either.
     public static func apply(
         installedApp: URL,
         patch: URL,
         destination: URL,
         bundle: Bundle = .main
-    ) throws {
+    ) async throws {
         guard let tool = toolURL(bundle: bundle) else { throw DeltaError.toolMissing }
 
-        let process = Process()
-        process.executableURL = tool
-        process.arguments = ["apply", installedApp.path, destination.path, patch.path]
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        // nullDevice, not a `Pipe()` we read second: only stderr is used here, and
-        // draining stdout *after* stderr deadlocks the moment the tool fills
-        // stdout's ~64KB buffer while we are still waiting on stderr's EOF — it
-        // blocks in `write()`, we block in `readDataToEndOfFile()`, neither moves.
-        // Same reasoning as `BrewFormulaService.realExecutor`.
-        process.standardOutput = FileHandle.nullDevice
-
-        try process.run()
+        // Only stderr is used. stdout is drained and dropped rather than sent to
+        // `/dev/null`: `ChildProcess` reads both pipes concurrently, so neither can
+        // fill its buffer while the other is waited on.
+        //
         // Watchdog: `BinaryDelta` reads the whole installed bundle and writes a new
         // one, so a wedged run has no self-imposed bound and the caller is holding
         // an apply permit throughout. SIGTERM at the cap, SIGKILL shortly after if
-        // it is ignored (a stuck process holds stderr's write end open, so the
-        // drain below would never return) — same pattern as
-        // `ArchiveExtractor.run`. Ten minutes is deliberately far above the work:
-        // the largest patch measured here reconstructs ChatGPT's 1.4 GB bundle in
-        // 7.5s, so nothing short of a hang can reach it.
-        let pid = process.processIdentifier
-        let term = DispatchWorkItem { process.terminate() }
-        let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 600, execute: term)
-        DispatchQueue.global().asyncAfter(deadline: .now() + 605, execute: kill)
-        // Drained before `waitUntilExit` so a verbose failure can't fill the pipe
-        // buffer and deadlock the tool against a reader that never runs.
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        term.cancel()
-        kill.cancel()
+        // it is ignored — same ladder as `ArchiveExtractor.run`. Ten minutes is
+        // deliberately far above the work: the largest patch measured here
+        // reconstructs ChatGPT's 1.4 GB bundle in 7.5s, so nothing short of a hang
+        // can reach it.
+        let outcome = try await ChildProcess.run(
+            tool.path, ["apply", installedApp.path, destination.path, patch.path],
+            standardOutput: .discard,
+            deadline: .init(terminateAfter: .seconds(600), killAfter: .seconds(605)),
+            onCancel: .runToCompletion)
 
-        guard process.terminationStatus == 0 else {
-            let message = String(decoding: errData, as: UTF8.self)
+        guard outcome.terminationStatus == 0 else {
+            let message = String(decoding: outcome.standardError, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .split(separator: "\n").last.map(String.init) ?? ""
-            throw DeltaError.applyFailed(code: process.terminationStatus, message: message)
+            throw DeltaError.applyFailed(code: outcome.terminationStatus, message: message)
         }
         guard FileManager.default.fileExists(atPath: destination.path) else {
             throw DeltaError.producedNothing
@@ -169,7 +158,7 @@ public enum DeltaApplier {
         workDir: URL,
         edPublicKey: String?,
         onStage: @escaping @Sendable (InstallStage) -> Void
-    ) throws -> URL {
+    ) async throws -> URL {
         guard let onDisk = InstalledBuild.read(at: installedApp) else {
             throw DeltaError.baselineUnreadable
         }
@@ -179,18 +168,25 @@ public enum DeltaApplier {
 
         if let key = edPublicKey, !key.isEmpty {
             onStage(.verifyingSignature)
-            let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
-            try SignatureVerifier.verifyEdSignature(
-                fileData: bytes,
-                signatureBase64: patch.edSignature,
-                publicKeyBase64: key)
+            // Reads and hashes the whole patch, and until this function became
+            // async all of it ran inside the callers' `offCooperativePool` hop —
+            // so the read and the check stay on Dispatch.
+            let signature = patch.edSignature
+            try await offCooperativePool {
+                let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
+                try SignatureVerifier.verifyEdSignature(
+                    fileData: bytes,
+                    signatureBase64: signature,
+                    publicKeyBase64: key)
+            }
         }
 
         onStage(.extracting)
         let destination = workDir
             .appendingPathComponent("patched-\(installedApp.lastPathComponent)")
-        try? FileManager.default.removeItem(at: destination)
-        try apply(installedApp: installedApp, patch: patchFile, destination: destination)
+        // A leftover here is a whole reconstructed bundle.
+        await removeItemOffCooperativePool(at: destination)
+        try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
         return destination
     }
 

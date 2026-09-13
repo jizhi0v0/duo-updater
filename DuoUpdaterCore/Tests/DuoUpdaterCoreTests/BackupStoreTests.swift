@@ -13,12 +13,12 @@ struct BackupStoreTests {
     /// Run `body` with `rootOverride` bound to a fresh scratch dir, removed
     /// afterwards. The binding is scoped to this task, so it is invisible to suites
     /// running in parallel with this one.
-    private func withScratchRoot(_ body: (URL) throws -> Void) throws {
+    private func withScratchRoot(_ body: (URL) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoUpdaterBackupTest-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
-        try BackupStore.$rootOverride.withValue(root) {
-            try body(root)
+        try await BackupStore.$rootOverride.withValue(root) {
+            try await body(root)
         }
     }
 
@@ -107,15 +107,15 @@ struct BackupStoreTests {
 
     // MARK: - Save / query
 
-    @Test func saveThenQueryReturnsBackup() throws {
-        try withScratchRoot { _ in
+    @Test func saveThenQueryReturnsBackup() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
 
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "com.example.foo", version: "1.0", bundleID: "com.example.foo")
+            try await BackupStore.save(appPath: app, key: "com.example.foo", version: "1.0", bundleID: "com.example.foo")
 
             let backup = BackupStore.backup(forKey: "com.example.foo")
             #expect(backup?.version == "1.0")
@@ -124,16 +124,16 @@ struct BackupStoreTests {
         }
     }
 
-    @Test func retentionIsOne() throws {
-        try withScratchRoot { _ in
+    @Test func retentionIsOne() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
 
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
-            try BackupStore.save(appPath: app, key: "k", version: "2.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "2.0", bundleID: nil)
 
             // Only the newest backup survives.
             #expect(BackupStore.backup(forKey: "k")?.version == "2.0")
@@ -146,8 +146,8 @@ struct BackupStoreTests {
         }
     }
 
-    @Test func queryReturnsNilWhenNoBackup() throws {
-        try withScratchRoot { _ in
+    @Test func queryReturnsNilWhenNoBackup() async throws {
+        try await withScratchRoot { _ in
             #expect(BackupStore.backup(forKey: "nope") == nil)
             #expect(BackupStore.allBackups().isEmpty)
         }
@@ -157,21 +157,24 @@ struct BackupStoreTests {
     /// `ditto` errors) must NOT destroy the existing rollback point, and must not leak
     /// a staging artifact into the backup listing. Retention=1 builds the new copy in
     /// a hidden staging dir and only swaps it in once complete.
-    @Test func failedRebackupKeepsPriorBackup() throws {
-        try withScratchRoot { _ in
+    ///
+    /// Mutation: drop the `removeItemOffCooperativePool(at: staging)` in the ditto-failed branch of
+    /// `save` → its staging directory is left in the store.
+    @Test func failedRebackupKeepsPriorBackup() async throws {
+        try await withScratchRoot { root in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
 
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
 
             // A second save whose source can't be copied must fail without touching
             // the prior backup.
             let missing = apps.appendingPathComponent("Gone.app")
-            #expect(throws: (any Error).self) {
-                try BackupStore.save(appPath: missing, key: "k", version: "2.0", bundleID: nil)
+            await #expect(throws: (any Error).self) {
+                try await BackupStore.save(appPath: missing, key: "k", version: "2.0", bundleID: nil)
             }
 
             let surviving = try #require(BackupStore.backup(forKey: "k"))
@@ -179,6 +182,11 @@ struct BackupStoreTests {
             #expect(marker(of: surviving.bundlePath) == "v1")
             // No leftover staging dir leaks into the listing.
             #expect(BackupStore.allBackups().count == 1)
+            // Nor stays on disk, where the listing (which skips hidden names)
+            // would never show it.
+            let leftovers = try FileManager.default.contentsOfDirectory(atPath: root.path)
+                .filter { $0.hasPrefix(BackupStore.stagingPrefix(key: "k")) }
+            #expect(leftovers.isEmpty, "stranded: \(leftovers)")
         }
     }
 
@@ -186,8 +194,8 @@ struct BackupStoreTests {
     /// sanitised bundle id. Once a canonical path-scoped backup is saved, that
     /// orphan must be dropped so we don't leak a whole stale bundle per migrated
     /// app — while the *first* (legacy-keyed) save must not delete itself.
-    @Test func saveDropsOrphanedLegacyBundleIDBackup() throws {
-        try withScratchRoot { _ in
+    @Test func saveDropsOrphanedLegacyBundleIDBackup() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -199,12 +207,12 @@ struct BackupStoreTests {
 
             // Pre-fix backup under the legacy key. This save's own cleanup is a
             // no-op (legacy == key), so the backup it just wrote survives.
-            try BackupStore.save(appPath: app, key: legacyKey, version: "1.0", bundleID: bundleID)
+            try await BackupStore.save(appPath: app, key: legacyKey, version: "1.0", bundleID: bundleID)
             #expect(BackupStore.backup(forKey: legacyKey) != nil)
 
             // The canonical path-scoped save supersedes and removes the orphan.
             let canonical = BackupStore.key(bundleID: bundleID, path: app)
-            try BackupStore.save(appPath: app, key: canonical, version: "2.0", bundleID: bundleID)
+            try await BackupStore.save(appPath: app, key: canonical, version: "2.0", bundleID: bundleID)
 
             #expect(BackupStore.backup(forKey: canonical)?.version == "2.0")
             #expect(BackupStore.backup(forKey: legacyKey) == nil)  // orphan reclaimed
@@ -214,8 +222,8 @@ struct BackupStoreTests {
 
     // MARK: - Restore round-trip
 
-    @Test func restoreSwapsBackupOverUpdatedApp() throws {
-        try withScratchRoot { _ in
+    @Test func restoreSwapsBackupOverUpdatedApp() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -223,41 +231,41 @@ struct BackupStoreTests {
 
             // Install v1, back it up.
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
 
             // "Update" the app in place to v2.
             try makeApp(named: "Foo.app", in: apps, marker: "v2")
             #expect(marker(of: app) == "v2")
 
             // Roll back → the bundle on disk is v1 again, backup still present.
-            let restored = try BackupStore.restore(forKey: "k", over: app)
+            let restored = try await BackupStore.restore(forKey: "k", over: app)
             #expect(restored == "1.0")
             #expect(marker(of: app) == "v1")
             #expect(BackupStore.backup(forKey: "k") != nil)
         }
     }
 
-    @Test func restoreThrowsWithoutBackup() throws {
-        try withScratchRoot { _ in
+    @Test func restoreThrowsWithoutBackup() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            #expect(throws: (any Error).self) {
-                try BackupStore.restore(forKey: "missing", over: app)
+            await #expect(throws: (any Error).self) {
+                try await BackupStore.restore(forKey: "missing", over: app)
             }
         }
     }
 
-    @Test func removeDropsBackup() throws {
-        try withScratchRoot { _ in
+    @Test func removeDropsBackup() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
             BackupStore.remove(forKey: "k")
             #expect(BackupStore.backup(forKey: "k") == nil)
         }
@@ -269,8 +277,8 @@ struct BackupStoreTests {
     /// or moved to a new path-scoped key) has nothing left to restore onto —
     /// `pruneOrphans` should reclaim it, and leave backups whose app is still
     /// installed untouched.
-    @Test func pruneOrphansRemovesBackupsForUninstalledApps() throws {
-        try withScratchRoot { _ in
+    @Test func pruneOrphansRemovesBackupsForUninstalledApps() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -278,8 +286,8 @@ struct BackupStoreTests {
 
             let stillInstalled = try makeApp(named: "Keep.app", in: apps, marker: "v1")
             let uninstalled = try makeApp(named: "Gone.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: stillInstalled, key: "keep", version: "1.0", bundleID: nil)
-            try BackupStore.save(appPath: uninstalled, key: "gone", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: stillInstalled, key: "keep", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: uninstalled, key: "gone", version: "1.0", bundleID: nil)
 
             // Simulate the second app having been uninstalled.
             try FileManager.default.removeItem(at: uninstalled)
@@ -291,23 +299,23 @@ struct BackupStoreTests {
         }
     }
 
-    @Test func pruneOrphansIsNoOpWhenAllAppsStillInstalled() throws {
-        try withScratchRoot { _ in
+    @Test func pruneOrphansIsNoOpWhenAllAppsStillInstalled() async throws {
+        try await withScratchRoot { _ in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: apps) }
 
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
 
             #expect(BackupStore.pruneOrphans() == 0)
             #expect(BackupStore.backup(forKey: "k") != nil)
         }
     }
 
-    @Test func totalSizeReflectsStoredBackups() throws {
-        try withScratchRoot { _ in
+    @Test func totalSizeReflectsStoredBackups() async throws {
+        try await withScratchRoot { _ in
             #expect(BackupStore.totalSize() == 0)
 
             let apps = FileManager.default.temporaryDirectory
@@ -316,7 +324,7 @@ struct BackupStoreTests {
             defer { try? FileManager.default.removeItem(at: apps) }
 
             let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
-            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
 
             #expect(BackupStore.totalSize() > 0)
         }
@@ -328,22 +336,22 @@ struct BackupStoreTests {
     /// 2026-08-09), but restoring one only puts the app bundle back — a package
     /// can lay down helpers and daemons beside it. The store records which kind
     /// it was so the restore path can say so.
-    @Test func aPackageBackupRemembersHowItWasInstalled() throws {
-        try withScratchRoot { root in
+    @Test func aPackageBackupRemembersHowItWasInstalled() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp",
                 fromPackageInstall: true)
             #expect(BackupStore.backup(forKey: key)?.fromPackageInstall == true)
         }
     }
 
-    @Test func anInPlaceBackupIsNotMarkedAsAPackage() throws {
-        try withScratchRoot { root in
+    @Test func anInPlaceBackupIsNotMarkedAsAPackage() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
             #expect(BackupStore.backup(forKey: key)?.fromPackageInstall == false)
             #expect(BackupStore.backup(forKey: key)?.fromAppStore == false)
@@ -355,11 +363,11 @@ struct BackupStoreTests {
     /// is change the store's mind: the update is offered again at once, and
     /// re-applied unattended when automatic app updates are on. The restore path
     /// says so, and can only say so if the store remembers which route it was.
-    @Test func anAppStoreBackupRemembersThatTheStoreWillReofferTheUpdate() throws {
-        try withScratchRoot { root in
+    @Test func anAppStoreBackupRemembersThatTheStoreWillReofferTheUpdate() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp",
                 fromAppStore: true)
             let backup = BackupStore.backup(forKey: key)
@@ -373,8 +381,8 @@ struct BackupStoreTests {
     /// Sidecars written before the field existed must still decode. A backup whose
     /// sidecar cannot be read is treated as absent, so a stricter decoder would
     /// have made every pre-existing rollback point silently vanish.
-    @Test func aSidecarWithoutTheFieldStillReads() throws {
-        try withScratchRoot { root in
+    @Test func aSidecarWithoutTheFieldStillReads() async throws {
+        try await withScratchRoot { root in
             let key = "com.example.legacy-0000"
             let dir = root.appendingPathComponent(key, isDirectory: true)
             try makeApp(named: "Legacy.app", in: dir, marker: "old")
@@ -397,8 +405,8 @@ struct BackupStoreTests {
     /// that is thrown away, and (when the unreadable files are root-owned) the
     /// staging cleanup cannot remove its own leftovers either. The pre-check is
     /// what keeps a `.pkg` app from paying that on every install.
-    @Test func anUnreadableFileIsFoundBeforeAnythingIsCopied() throws {
-        try withScratchRoot { root in
+    @Test func anUnreadableFileIsFoundBeforeAnythingIsCopied() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
             #expect(BackupStore.firstUnreadablePath(in: app) == nil)
 
@@ -427,8 +435,8 @@ struct BackupStoreTests {
     /// Several real apps (ToDesk, EasyConnect) break their own signature by
     /// writing state inside their bundle, and the old gate refused a perfect
     /// copy of what the user was running.
-    @Test func aBackupWithABrokenVendorSealStillRestores() throws {
-        try withScratchRoot { root in
+    @Test func aBackupWithABrokenVendorSealStillRestores() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             // Stand in for a vendor that dirties its own bundle: an unsigned
             // fixture with an extra file is exactly the shape that fails
@@ -436,11 +444,11 @@ struct BackupStoreTests {
             try Data("runtime state".utf8).write(
                 to: app.appendingPathComponent("Contents/state.json"))
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            try BackupStore.save(
+            try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
 
             try makeApp(named: "Fixture.app", in: root, marker: "new")
-            #expect(try BackupStore.restore(forKey: key, over: app) == "1.0")
+            #expect(try await BackupStore.restore(forKey: key, over: app) == "1.0")
             let restored = try String(
                 contentsOf: app.appendingPathComponent("Contents/marker.txt"), encoding: .utf8)
             #expect(restored == "old")
@@ -449,42 +457,69 @@ struct BackupStoreTests {
 
     /// And the gate still bites: editing the stored copy behind our back must
     /// stop the restore, which is the whole reason a gate is there.
-    @Test func tamperingWithTheStoredCopyIsRefused() throws {
-        try withScratchRoot { root in
+    @Test func tamperingWithTheStoredCopyIsRefused() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            let saved = try BackupStore.save(
+            let saved = try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
 
             try Data("tampered".utf8).write(
                 to: saved.bundlePath.appendingPathComponent("Contents/marker.txt"))
 
-            #expect(throws: BackupStore.BackupError.self) {
-                try BackupStore.restore(forKey: key, over: app)
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.restore(forKey: key, over: app)
             }
+        }
+    }
+
+    /// A rollback's scratch copy goes whether the restore lands or is refused.
+    /// Removed after the call now rather than in a `defer`, so both exits are
+    /// pinned.
+    ///
+    /// Mutation: drop the `removeItemOffCooperativePool(at: scratch)` after the restore → the scratch
+    /// directory is left in the temp dir (the refused copy still in it).
+    @Test func aRestoreLeavesNoScratchCopyBehind() async throws {
+        try await withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let scratch = FileManager.default.temporaryDirectory
+                .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
+            let saved = try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            try await BackupStore.restore(forKey: key, over: app)
+            #expect(!FileManager.default.fileExists(atPath: scratch.path), "after a restore that landed")
+
+            try Data("tampered".utf8).write(
+                to: saved.bundlePath.appendingPathComponent("Contents/marker.txt"))
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.restore(forKey: key, over: app)
+            }
+            #expect(!FileManager.default.fileExists(atPath: scratch.path), "after a refused restore")
         }
     }
 
     /// Adding a file to the stored copy is as much a change as editing one —
     /// a manifest keyed only on the files it knew about would miss it.
-    @Test func anExtraFileInTheStoredCopyIsRefused() throws {
-        try withScratchRoot { root in
+    @Test func anExtraFileInTheStoredCopyIsRefused() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            let saved = try BackupStore.save(
+            let saved = try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
 
             try Data("smuggled".utf8).write(
                 to: saved.bundlePath.appendingPathComponent("Contents/extra.dylib"))
 
-            #expect(throws: BackupStore.BackupError.self) {
-                try BackupStore.restore(forKey: key, over: app)
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.restore(forKey: key, over: app)
             }
         }
     }
 
-    @Test func theManifestIsStableAcrossRecomputation() throws {
-        try withScratchRoot { root in
+    @Test func theManifestIsStableAcrossRecomputation() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "x")
             let first = BackupManifest.compute(for: app)
             let second = BackupManifest.compute(for: app)
@@ -498,8 +533,8 @@ struct BackupStoreTests {
     /// An unreadable file the signature does NOT cover is the app's own runtime
     /// state (ToDesk keeps an mmkv database and log caches under Contents/).
     /// Skipping it still yields a bundle that runs, so the backup proceeds.
-    @Test func runtimeStateIsSkippedAndTheBackupStillRestores() throws {
-        try withScratchRoot { root in
+    @Test func runtimeStateIsSkippedAndTheBackupStillRestores() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             // A seal is what makes the payload/droppings distinction possible, so
             // this fixture needs one — an unsigned bundle is deliberately treated
@@ -519,14 +554,14 @@ struct BackupStoreTests {
             #expect(classified.unsealed == ["Contents/mmkv.default"])
 
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            let saved = try BackupStore.save(
+            let saved = try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
             #expect(!FileManager.default.fileExists(
                 atPath: saved.bundlePath.appendingPathComponent("Contents/mmkv.default").path),
                 "the unreadable dropping must not be in the stored copy")
 
             try makeApp(named: "Fixture.app", in: root, marker: "new")
-            #expect(try BackupStore.restore(forKey: key, over: app) == "1.0")
+            #expect(try await BackupStore.restore(forKey: key, over: app) == "1.0")
             #expect(try String(
                 contentsOf: app.appendingPathComponent("Contents/marker.txt"),
                 encoding: .utf8) == "old")
@@ -536,8 +571,8 @@ struct BackupStoreTests {
     /// Without a `_CodeSignature` to consult we cannot tell payload from
     /// droppings, so everything unreadable counts as payload and the backup is
     /// refused rather than silently partial.
-    @Test func withoutASealEveryUnreadableFileCountsAsPayload() throws {
-        try withScratchRoot { root in
+    @Test func withoutASealEveryUnreadableFileCountsAsPayload() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             let file = app.appendingPathComponent("Contents/opaque.bin")
             try Data("x".utf8).write(to: file)
@@ -550,8 +585,8 @@ struct BackupStoreTests {
             #expect(BackupManifest.unreadableFiles(in: app).sealed == ["Contents/opaque.bin"])
 
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            #expect(throws: BackupStore.BackupError.self) {
-                try BackupStore.save(
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.save(
                     appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
             }
         }
@@ -564,8 +599,8 @@ struct BackupStoreTests {
     /// from `files` and `files2` in all three, yet appending one byte to it makes
     /// `codesign --verify` fail. Reading the omission as "unsealed" would have
     /// `ditto` skip it and the manifest certify a bundle with no executable.
-    @Test func theMainExecutableCountsAsSealedThoughCodeResourcesOmitsIt() throws {
-        try withScratchRoot { root in
+    @Test func theMainExecutableCountsAsSealedThoughCodeResourcesOmitsIt() async throws {
+        try await withScratchRoot { root in
             let app = root.appendingPathComponent("ZZFixture-Sealed.app")
             #expect(!FileManager.default.fileExists(atPath: app.path))
             try makeApp(named: "ZZFixture-Sealed.app", in: root, marker: "old")
@@ -590,8 +625,8 @@ struct BackupStoreTests {
             #expect(classified.unsealed.isEmpty)
 
             let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
-            #expect(throws: BackupStore.BackupError.self) {
-                try BackupStore.save(
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.save(
                     appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
             }
         }
@@ -602,8 +637,8 @@ struct BackupStoreTests {
     /// slots rather than listed as resources. Mutating either made
     /// `codesign --verify` report "invalid Info.plist" / "invalid resource
     /// directory".
-    @Test func theInfoPlistAndSignatureDirectoryCountAsSealed() throws {
-        try withScratchRoot { root in
+    @Test func theInfoPlistAndSignatureDirectoryCountAsSealed() async throws {
+        try await withScratchRoot { root in
             let app = root.appendingPathComponent("ZZFixture-Slots.app")
             #expect(!FileManager.default.fileExists(atPath: app.path))
             try makeApp(named: "ZZFixture-Slots.app", in: root, marker: "old")
@@ -634,8 +669,8 @@ struct BackupStoreTests {
     /// `Wrapper/<Inner>.app/` and the executable sits at that interior's root, not
     /// under `MacOS/`. So the rule cannot hard-code a macOS layout — it has to
     /// follow the same `BundleLayout.interiorPrefix` the seal keys are relative to.
-    @Test func theMainExecutableOfAWrappedBundleCountsAsSealed() throws {
-        try withScratchRoot { root in
+    @Test func theMainExecutableOfAWrappedBundleCountsAsSealed() async throws {
+        try await withScratchRoot { root in
             let fm = FileManager.default
             let app = root.appendingPathComponent("ZZFixture-Wrapped.app")
             #expect(!fm.fileExists(atPath: app.path))
@@ -682,8 +717,8 @@ struct BackupStoreTests {
     /// top-level file": `Contents/PkgInfo` is in neither `files2` nor a special
     /// slot. Measured 2026-09-13 on Keka and DuoUpdater — mutating *and* deleting
     /// it left `codesign --verify` passing — so it stays skippable.
-    @Test func pkgInfoIsNotSealedSoAnUnreadableOneStillAllowsTheBackup() throws {
-        try withScratchRoot { root in
+    @Test func pkgInfoIsNotSealedSoAnUnreadableOneStillAllowsTheBackup() async throws {
+        try await withScratchRoot { root in
             let app = root.appendingPathComponent("ZZFixture-PkgInfo.app")
             #expect(!FileManager.default.fileExists(atPath: app.path))
             try makeApp(named: "ZZFixture-PkgInfo.app", in: root, marker: "old")
@@ -706,8 +741,8 @@ struct BackupStoreTests {
     /// The copy must be rejected when it lost something we meant to keep — a
     /// single exit status cannot distinguish "skipped the droppings" from "ran
     /// out of disk".
-    @Test func anUnexpectedOmissionIsDetected() throws {
-        try withScratchRoot { root in
+    @Test func anUnexpectedOmissionIsDetected() async throws {
+        try await withScratchRoot { root in
             let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
             let copy = root.appendingPathComponent("Copy.app")
             try FileManager.default.copyItem(at: app, to: copy)
@@ -728,8 +763,8 @@ struct BackupStoreTests {
     /// whether a backup is worth keeping — whether the app it would restore onto
     /// still exists. A listing that dropped that flag would present orphans and
     /// live rollback points as the same thing.
-    @Test func listingReportsSizeAndWhetherTheAppIsStillInstalled() throws {
-        try withScratchRoot { root in
+    @Test func listingReportsSizeAndWhetherTheAppIsStillInstalled() async throws {
+        try await withScratchRoot { root in
             // Outside the backup root on purpose: `listing()` now reports every
             // directory under it, including leftovers with no sidecar, so fixtures
             // stored inside would show up as backups of their own.
@@ -739,10 +774,10 @@ struct BackupStoreTests {
             defer { try? FileManager.default.removeItem(at: dir) }
             let live = try makeApp(named: "Live.app", in: dir, marker: String(repeating: "x", count: 4096))
             let gone = try makeApp(named: "Gone.app", in: dir, marker: "y")
-            _ = try BackupStore.save(
+            _ = try await BackupStore.save(
                 appPath: live, key: BackupStore.key(bundleID: "com.example.live", path: live),
                 version: "2.0", bundleID: "com.example.live")
-            _ = try BackupStore.save(
+            _ = try await BackupStore.save(
                 appPath: gone, key: BackupStore.key(bundleID: "com.example.gone", path: gone),
                 version: "1.0", bundleID: "com.example.gone")
             try FileManager.default.removeItem(at: gone)
@@ -778,8 +813,8 @@ struct BackupStoreTests {
     /// Simulated by making the leftover's contents unremovable through its own
     /// permissions rather than by owner, which needs no root and fails removal the
     /// same way. The assertion is that the backup succeeds regardless.
-    @Test func aLeftoverStagingDirThatWillNotClearDoesNotBlockTheBackup() throws {
-        try withScratchRoot { root in
+    @Test func aLeftoverStagingDirThatWillNotClearDoesNotBlockTheBackup() async throws {
+        try await withScratchRoot { root in
             let fm = FileManager.default
             let apps = root.appendingPathComponent("apps")
             try fm.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -796,7 +831,7 @@ struct BackupStoreTests {
             defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: inner.path) }
             #expect(throws: (any Error).self) { try fm.removeItem(at: leftover) }
 
-            let saved = try BackupStore.save(
+            let saved = try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.poisoned")
             #expect(saved.version == "1.0")
             let readBack = try #require(BackupStore.backup(forKey: key))
@@ -816,8 +851,8 @@ struct BackupStoreTests {
     /// cleared, and retention could not replace the copy it superseded, so every
     /// later backup of that app failed. Found on 2026-08-26 after three rounds of
     /// looking at ownership and permissions, which were correct the whole time.
-    @Test func anImmutableFileInTheSourceDoesNotFreezeTheStoredCopy() throws {
-        try withScratchRoot { root in
+    @Test func anImmutableFileInTheSourceDoesNotFreezeTheStoredCopy() async throws {
+        try await withScratchRoot { root in
             let fm = FileManager.default
             let apps = root.appendingPathComponent("apps")
             try fm.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -836,7 +871,7 @@ struct BackupStoreTests {
             }
             let key = BackupStore.key(bundleID: "com.example.locked", path: app)
 
-            let saved = try BackupStore.save(
+            let saved = try await BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.locked")
             let copied = saved.bundlePath.appendingPathComponent("Contents/advInfo.json")
             #expect(fm.fileExists(atPath: copied.path))
@@ -845,7 +880,7 @@ struct BackupStoreTests {
 
             // The point of clearing it: a second backup has to be able to replace
             // the first. This is the call that failed for ToDesk every time.
-            let again = try BackupStore.save(
+            let again = try await BackupStore.save(
                 appPath: app, key: key, version: "1.1", bundleID: "com.example.locked")
             #expect(again.version == "1.1")
             #expect(BackupStore.backup(forKey: key)?.version == "1.1")
@@ -855,8 +890,8 @@ struct BackupStoreTests {
     /// A backup generation written before the flag was stripped must not block the
     /// one replacing it. This is the state a real machine is left in: one poisoned
     /// copy already in the store, and every later backup failing to supersede it.
-    @Test func aPoisonedPreviousGenerationDoesNotBlockTheNextBackup() throws {
-        try withScratchRoot { root in
+    @Test func aPoisonedPreviousGenerationDoesNotBlockTheNextBackup() async throws {
+        try await withScratchRoot { root in
             let fm = FileManager.default
             let apps = root.appendingPathComponent("apps")
             try fm.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -869,7 +904,7 @@ struct BackupStoreTests {
                 }
             }
 
-            _ = try BackupStore.save(appPath: app, key: key, version: "1.0",
+            _ = try await BackupStore.save(appPath: app, key: key, version: "1.0",
                                      bundleID: "com.example.locked")
             // Poison the stored generation the way `ditto` used to: a file inside it
             // that nobody but root can delete.
@@ -878,7 +913,7 @@ struct BackupStoreTests {
             try Data("{}".utf8).write(to: stored)
             try fm.setAttributes([.immutable: true], ofItemAtPath: stored.path)
 
-            let again = try BackupStore.save(appPath: app, key: key, version: "1.1",
+            let again = try await BackupStore.save(appPath: app, key: key, version: "1.1",
                                              bundleID: "com.example.locked")
             #expect(again.version == "1.1")
             #expect(BackupStore.backup(forKey: key)?.version == "1.1")

@@ -11,7 +11,7 @@ import Foundation
     let apps = AppScanner().scan()
     let checker = UpdateChecker(sources: [
         MacAppStoreSource(), SparkleAppcastSource(), HomebrewCaskSource(),
-        GitHubReleasesSource(token: GitHubToken.resolve()), VendorProbeSource()
+        GitHubReleasesSource(token: await GitHubToken.resolve()), VendorProbeSource()
     ], toolbox: ToolboxSource())
     let results = await checker.check(apps)
 

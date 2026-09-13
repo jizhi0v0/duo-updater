@@ -68,7 +68,7 @@ public enum Install {
             return 2
         }
 
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let scanned = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(scanned, matching: options.queries) {

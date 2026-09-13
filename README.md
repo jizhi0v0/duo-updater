@@ -366,7 +366,9 @@ those guarded paths reference macOS 26 APIs. Swift 6 language mode throughout
 
 `xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is
 generated from `App/project.yml` and not checked in. `DuoUpdaterCore/` and `CLI/`
-are plain Swift packages: `swift build` and `swift test` need nothing extra.
+are plain Swift packages: `swift build` and `swift test` need nothing extra
+beyond network access the first time, to fetch swift-subprocess (whose manifest
+needs Swift 6.2 or later — the macOS 26 SDK requirement above already implies it).
 
 ### Building under your own Developer ID
 
@@ -439,6 +441,8 @@ Useful overrides:
 | Component | Where | Licence |
 | --- | --- | --- |
 | [Sparkle](https://github.com/sparkle-project/Sparkle) 2.9.6 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
+| [swift-subprocess](https://github.com/swiftlang/swift-subprocess) 1.0.0 | SPM dependency of `DuoUpdaterCore`, runs every child process (`ChildProcess`) | Apache 2.0 |
+| [swift-system](https://github.com/apple/swift-system) 1.8.1 | SPM dependency of swift-subprocess, pinned in `DuoUpdaterCore/Package.swift` | Apache 2.0 |
 | [`mas`](https://github.com/mas-cli/mas) | `App/Resources/mas`, a prebuilt universal binary invoked for Mac App Store installs | MIT |
 | PermissionFlow | `App/Sources/Vendor/PermissionFlow/` (vendored source) | MIT — see the `LICENSE` and `NOTICE.md` in that directory |
 

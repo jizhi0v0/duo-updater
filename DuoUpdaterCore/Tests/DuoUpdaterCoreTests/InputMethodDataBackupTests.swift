@@ -23,8 +23,8 @@ import Testing
     ///
     /// A rule that dropped either half would silently leave real settings out of
     /// the snapshot, which is the exact failure this module exists to prevent.
-    @Test func discoveryFindsSupportByNameAndPreferencesByIdOrName() throws {
-        try withScratchHome { home in
+    @Test func discoveryFindsSupportByNameAndPreferencesByIdOrName() async throws {
+        try await withScratchHome { home in
             let library = home.appendingPathComponent("Library")
             try makeDirectory(library.appendingPathComponent("Application Support/WeType"))
             try makeDirectory(library.appendingPathComponent("Application Support/Unrelated"))
@@ -54,8 +54,8 @@ import Testing
 
     /// Discovery reports only what exists — an app with no data yet must produce
     /// an empty snapshot rather than a set of paths that cannot be copied.
-    @Test func discoverySkipsWhatIsNotThere() throws {
-        try withScratchHome { home in
+    @Test func discoverySkipsWhatIsNotThere() async throws {
+        try await withScratchHome { home in
             try makeDirectory(home.appendingPathComponent("Library/Preferences"))
             #expect(InputMethodDataBackup.locations(
                 bundleName: "Absent", bundleID: "com.example.absent").isEmpty)
@@ -66,9 +66,9 @@ import Testing
 
     /// The whole point, end to end: snapshot, let the update (or the app's own
     /// migration after it) mangle the data, roll back, get it back.
-    @Test func aSnapshotRestoresTheDataTheUpdateChanged() throws {
-        try withScratchHome { home in
-            try withScratchBackupRoot { root in
+    @Test func aSnapshotRestoresTheDataTheUpdateChanged() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
                 let key = "com.example.ime-Fixture"
                 // The snapshot attaches to a bundle backup that already landed.
                 try makeDirectory(root.appendingPathComponent(key))
@@ -82,7 +82,7 @@ import Testing
                 let plist = prefs.appendingPathComponent("com.example.ime.plist")
                 try Data("settings".utf8).write(to: plist)
 
-                let captured = InputMethodDataBackup.save(
+                let captured = await InputMethodDataBackup.save(
                     bundleName: "Fixture", bundleID: "com.example.ime", key: key)
                 #expect(captured.count == 2)
 
@@ -90,7 +90,7 @@ import Testing
                 try Data("wiped".utf8).write(to: dict)
                 try FileManager.default.removeItem(at: plist)
 
-                let restored = try InputMethodDataBackup.restore(forKey: key)
+                let restored = try await InputMethodDataBackup.restore(forKey: key)
                 #expect(restored.count == 2)
                 #expect(try String(contentsOf: dict, encoding: .utf8)
                     == "the words the user taught it")
@@ -101,9 +101,9 @@ import Testing
 
     /// A rollback must not consume the copy it rolled back to: restoring twice has
     /// to work, because the first restore might be the one that goes wrong.
-    @Test func restoringDoesNotConsumeTheSnapshot() throws {
-        try withScratchHome { home in
-            try withScratchBackupRoot { root in
+    @Test func restoringDoesNotConsumeTheSnapshot() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
                 let key = "com.example.ime-Fixture"
                 try makeDirectory(root.appendingPathComponent(key))
                 let support = home.appendingPathComponent("Library/Application Support/Fixture")
@@ -112,27 +112,96 @@ import Testing
                 let dict = support.appendingPathComponent("words.db")
                 try Data("original".utf8).write(to: dict)
 
-                InputMethodDataBackup.save(
+                await InputMethodDataBackup.save(
                     bundleName: "Fixture", bundleID: "com.example.ime", key: key)
                 try Data("mangled".utf8).write(to: dict)
-                _ = try InputMethodDataBackup.restore(forKey: key)
+                _ = try await InputMethodDataBackup.restore(forKey: key)
                 try Data("mangled again".utf8).write(to: dict)
-                _ = try InputMethodDataBackup.restore(forKey: key)
+                _ = try await InputMethodDataBackup.restore(forKey: key)
 
                 #expect(try String(contentsOf: dict, encoding: .utf8) == "original")
             }
         }
     }
 
-    /// Never written on its own: a snapshot in a directory `BackupStore` does not
-    /// know about would never be pruned, and would outlive the app it belongs to.
-    @Test func nothingIsStoredWithoutABundleBackupToAttachTo() throws {
-        try withScratchHome { home in
-            try withScratchBackupRoot { _ in
+    /// A snapshot that stores nothing still removes its staging directory.
+    ///
+    /// Mutation: drop the `removeItemOffCooperativePool(at: staging)` after `snapshot` in `save` → the
+    /// staging directory is left in the store.
+    @Test func aSnapshotThatStoresNothingLeavesNoStagingBehind() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
+                let key = "com.example.ime-Fixture"
+                try makeDirectory(root.appendingPathComponent(key))
                 let support = home.appendingPathComponent("Library/Application Support/Fixture")
                 try makeDirectory(support)
                 try Data("x".utf8).write(to: support.appendingPathComponent("words.db"))
-                #expect(InputMethodDataBackup.save(
+                // Unreadable, so `ditto` cannot copy it and nothing is stored.
+                try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: support.path)
+                defer {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o755], ofItemAtPath: support.path)
+                }
+
+                #expect(await InputMethodDataBackup.save(
+                    bundleName: "Fixture", bundleID: "com.example.ime", key: key).isEmpty)
+                let leftovers = try FileManager.default.contentsOfDirectory(atPath: root.path)
+                    .filter { $0.hasPrefix(BackupStore.stagingPrefix(key: key)) }
+                #expect(leftovers.isEmpty, "stranded: \(leftovers)")
+            }
+        }
+    }
+
+    /// Restore removes each entry's scratch copy whether it lands or cannot even
+    /// be staged.
+    ///
+    /// Mutation: drop the `removeItemOffCooperativePool(at: scratch)` after `restoreEntry` → a
+    /// `DuoUpdater-userdata-<key>-…` directory is left in the temp dir.
+    @Test func aRestoreLeavesNoScratchBehind() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
+                let key = "com.example.ime-ZZFixture-\(UUID().uuidString)"
+                try makeDirectory(root.appendingPathComponent(key))
+                let support = home.appendingPathComponent("Library/Application Support/Fixture")
+                try makeDirectory(support)
+                try Data("original".utf8).write(to: support.appendingPathComponent("words.db"))
+                let captured = await InputMethodDataBackup.save(
+                    bundleName: "Fixture", bundleID: "com.example.ime", key: key)
+                let stored = try #require(captured.first)
+
+                func leftovers() throws -> [String] {
+                    try FileManager.default
+                        .contentsOfDirectory(atPath: FileManager.default.temporaryDirectory.path)
+                        .filter { $0.hasPrefix("DuoUpdater-userdata-\(key)-") }
+                }
+
+                #expect(try await InputMethodDataBackup.restore(forKey: key).count == 1)
+                #expect(try leftovers().isEmpty, "after a restore that landed")
+
+                // The stored copy made unreadable: staging it out of the store fails.
+                let storedCopy = root.appendingPathComponent(key)
+                    .appendingPathComponent("UserData")
+                    .appendingPathComponent(stored.storedName)
+                try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: storedCopy.path)
+                defer {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o755], ofItemAtPath: storedCopy.path)
+                }
+                #expect(try await InputMethodDataBackup.restore(forKey: key).isEmpty)
+                #expect(try leftovers().isEmpty, "after an entry that could not be staged")
+            }
+        }
+    }
+
+    /// Never written on its own: a snapshot in a directory `BackupStore` does not
+    /// know about would never be pruned, and would outlive the app it belongs to.
+    @Test func nothingIsStoredWithoutABundleBackupToAttachTo() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { _ in
+                let support = home.appendingPathComponent("Library/Application Support/Fixture")
+                try makeDirectory(support)
+                try Data("x".utf8).write(to: support.appendingPathComponent("words.db"))
+                #expect(await InputMethodDataBackup.save(
                     bundleName: "Fixture", bundleID: "com.example.ime",
                     key: "no-such-backup").isEmpty)
             }
@@ -141,10 +210,10 @@ import Testing
 
     /// Asking to restore something that was never snapshotted is a real answer,
     /// not an empty success — the caller logs the difference.
-    @Test func restoringWithoutASnapshotThrows() throws {
-        try withScratchBackupRoot { _ in
-            #expect(throws: (any Error).self) {
-                _ = try InputMethodDataBackup.restore(forKey: "never-saved")
+    @Test func restoringWithoutASnapshotThrows() async throws {
+        try await withScratchBackupRoot { _ in
+            await #expect(throws: (any Error).self) {
+                _ = try await InputMethodDataBackup.restore(forKey: "never-saved")
             }
         }
     }
@@ -160,8 +229,8 @@ import Testing
     /// directory, stranded for good and invisible while it sat there, because
     /// every scan of the store's root passes `.skipsHiddenFiles` — so retention
     /// would not prune it and `backupSize` would not count it.
-    @Test func aStrandedUserDataSnapshotIsReclaimedByTheNextBackup() throws {
-        try withScratchBackupRoot { root in
+    @Test func aStrandedUserDataSnapshotIsReclaimedByTheNextBackup() async throws {
+        try await withScratchBackupRoot { root in
             let key = "com.example.ime-Fixture"
             let stranded = root.appendingPathComponent(
                 InputMethodDataBackup.stagingName(key: key), isDirectory: true)
@@ -176,7 +245,7 @@ import Testing
                 isDirectory: true)
             try makeDirectory(other)
 
-            BackupStore.sweepStagingLeftovers(in: root, key: key)
+            await BackupStore.sweepStagingLeftovers(in: root, key: key)
 
             #expect(!FileManager.default.fileExists(atPath: stranded.path))
             #expect(FileManager.default.fileExists(atPath: other.path))
@@ -185,20 +254,20 @@ import Testing
 
     // MARK: - Helpers
 
-    private func withScratchHome(_ body: (URL) throws -> Void) throws {
+    private func withScratchHome(_ body: (URL) async throws -> Void) async throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoIMEHome-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
-        try InputMethodDataBackup.$homeOverride.withValue(home) { try body(home) }
+        try await InputMethodDataBackup.$homeOverride.withValue(home) { try await body(home) }
     }
 
-    private func withScratchBackupRoot(_ body: (URL) throws -> Void) throws {
+    private func withScratchBackupRoot(_ body: (URL) async throws -> Void) async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoIMEBackups-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        try BackupStore.$rootOverride.withValue(root) { try body(root) }
+        try await BackupStore.$rootOverride.withValue(root) { try await body(root) }
     }
 
     private func makeDirectory(_ url: URL) throws {

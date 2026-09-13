@@ -139,8 +139,11 @@ struct CapCutProbeRecipeTests {
         #expect(query["aid"] == "359289")
         #expect(query["device_platform"] == "mac")
         #expect(query["version_code"] == "9.99")
-        // `capcutpc_beta` is a real CapCut channel token and returns NOTHING here.
-        // The beta track is selected by which key the pattern reads, never by this.
+        // `capcutpc_beta` is a real CapCut channel token. It used to return no
+        // `update_reminder` here; re-measured 2026-09-04 it answers the same as
+        // `capcutpc_0` (docs/app-audits/com-lemon-lvoverseas.md), so this pin is
+        // kept for its longer measured history, not because the other token is
+        // known to be harmful. The beta track is selected by which key the pattern reads, never by this.
         #expect(query["channel"] == "capcutpc_0")
     }
 

@@ -4,6 +4,59 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 > `P` = VendorProbe, `G` = GitHub, `C` = Changelog, `B` = ChannelBinding, `S` = Sparkle(auto)
 
+## 从 recipe 注释迁出的历史
+
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` 的注释只留**当前契约**；
+带日期的验证记录、事故经过、实测、否决过的方案搬进该 family 的审计文档。步骤与
+[`docs/engine-notes/README.md`](../engine-notes/README.md) 的
+「Checklist for migrating a comment here」相同——(a)/(b)/(c) 三类、搬之前复核、
+留回链、grep 副本、跑检查——**照那份清单走**，这里只写 recipe 这边的约定。
+
+- **留下（a）**：pattern 为什么这样锚、版本方案的坑、为什么不跟重定向、某个字段是什么意思、
+  下一个改它的人不知道就会改坏的东西。**搬走（b）**：带日期的验证记录（"Verified 2026-08-09
+  by mounting the dmg…"）、事故时间线、实测数字、否决方案和它的实验、"2026-xx 查过：没有
+  changelog 页"。**（c）**：对照**当前代码**（不是对照日期）已经不成立的——改正或删掉，
+  理由写进 PR，**不许当成真话搬进历史**。
+- **以句子为单位。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；契约和实测
+  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面四条先于它：
+  - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
+    "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
+    时可以改（记账 diff 里逐条可见），历史里保留原段落全文；整句原样放回代码的，从历史里删掉，
+    一句话只住一处。
+  - **更正跟着它更正的说法走。** 注释写着"X 以前成立、现在不成立"时，在同一个 PR 里把代码里
+    （以及复述它的测试注释里）的旧说法改掉，不许只把更正搬走、把旧说法留下。反例：第一版把
+    CapCut「`capcutpc_beta` 的坑已不存在」那段搬进历史，代码和 `CapCutProbeRecipeTests` 里剩下的
+    却是 "TRAP" 和 "returns NOTHING here"。
+  - **"错改今天也能过"的警告留下。** Windscribe 的 "Adding an alternation there looks like it
+    works — today it returns 2.24.12"、"so the bug would look like a pass"。
+  - **（c）类改写是新断言。** 它要的证据和任何新断言一样：注释里点出让它成立的符号，PR 里给
+    file:line，并写明成立条件。反例：第一版 Windscribe 写"`duo verify` files an installed copy
+    under its resolved channel"，没写读不到偏好时（文件缺失、解不出、resolver 超时）那份拷贝仍按
+    stable 归档。
+- **搬完单独重读 Swift 文件。** 不看历史、只读留下的注释：每句仍为真（留下的 "today"、"which it
+  is today" 也要核——CapCut 那句 "stable is 9.3.0 — which it is today" 在重读时已经不成立），
+  没有悬空的 "see below"、"that"、"the question"。
+- **接收位置**：`docs/app-audits/<family>.md` 末尾的固定标题 `## 历史与实测`（逐字，
+  `scripts/check_app_audits.py` 认这一整行）。`<family>` 是 recipe 文件名去掉 `.swift`，
+  一个 family 一份——family 里另一个 app 有自己的审计时也一样，历史进 family 那份，
+  需要时再链过去。
+- **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`，
+  下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
+  结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
+  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。
+- **机器状态**：本目录的 `MACHINE_STATE` 规则同样管搬过来的句子。描述"那台机器装了/没有什么"
+  的句子改成针对那份拷贝的说法（"the machine measured on 2026-08-27 had …"），不加豁免。这是
+  历史正文里唯一允许的改写，PR 里逐条列出。
+- **代码里的回链**：恰好一行 `// History: docs/app-audits/<family>.md#历史与实测`，放在 family
+  第一个注释块的开头，或它关心的那条 entry 正上方。
+- **还没有审计的 family**：新建仅含历史的文档——标题、一句"这不是审计，覆盖情况未审"、
+  `## 历史与实测`。登记在下面索引的「仅迁出历史（未审计）」一节，**永远不打勾**；日后真审计了
+  再挪到对应分类。
+- **检查**：`check_app_audits.py` 要求每个回链指向 git 跟踪的文件、文件里有那一行标题、
+  `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
+  指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
+  审计新增行数）要回答的。
+
 ---
 
 ## Multi-channel families (audit covers all channels)
@@ -101,7 +154,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
 - [x] [**微信输入法 (WeType)**](com-tencent-inputmethod-wetype.md) · `com.tencent.inputmethod.wetype` — P+C · 读厂商安装器自己读的 InstallInfo manifest（此前抓的是**安装器壳的版本**，用错 namespace 不会失败、只会答错号）· **一键 ✓（2026-08-28 重新接入，Contents 轮换 + 用户数据快照）**——0.3.25 上线当天撤回的那条，证据链与复活理由都在文档里 · 真机红→绿 656→657 + 回滚实测 ✓（历史 payload 仍可取，用来造红）· 2026-08-28
 
-- [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27
+- [x] [**WorkBuddy（国内站）**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy` — P (one-click) · 与国际站是两个独立 app，非 channel · 按架构分两条 recipe · 两站共用的端点/陷阱/一键闸写在这份 · 真实 DMG channel-verify ✓ · 2026-08-27
+- [x] [**WorkBuddy AI（国际站）**](com-workbuddy-workbuddy-ai.md) · `com.workbuddy.workbuddy-ai` — P (one-click) · 按架构分两条 recipe · changelog 页滞后于自己的轨道（厂商侧）· 共用部分链到国内站那份 · 真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
 - [x] [**Little Snitch**](at-obdev-littlesnitch.md) · `at.obdev.littlesnitch` — P(stable/nightly) C(stable only) · 2 channels，共享 bundle id，channel 词烤进 `CFBundleShortVersionString`（`ReleaseChannel.detect()` 新增 0.7 步）· 端点是 Homebrew cask 自己 livecheck 也在用的 obdev 静态 feed，两 cask 均 `auto_updates` 故原本 `.unknown` · **detection-only**：网络防火墙 + System Extension，一键需要真机红→绿验证才能开 · 未装机审计，从官方 dmg 挂载验证 · 2026-08-29
 - [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍在维护的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
@@ -208,6 +262,13 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Raycast**](com-raycast-macos.md) · `com.raycast.macos` — `CFBundleVersion = 0`，不可用作比较
 - [x] [**QQ音乐**](com-tencent-QQMusicMac.md) · `com.tencent.QQMusicMac`
 - [x] [**VSCodium Insiders**](com-vscodium-VSCodiumInsiders.md) · `com.vscodium.VSCodiumInsiders`
+
+## 仅迁出历史（未审计）
+
+从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」）。
+这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。
+
+- [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档
 

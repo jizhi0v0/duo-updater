@@ -27,12 +27,27 @@ wrong at least once.
    on 2026-08-14 and so resolved for exactly one person. The evidence now lives
    in the audit's own 「如何复验」 section; nothing should point back out.
 
+4. **History moved out of recipe comments loses its way back.** Step 2 of the
+   recipe refactor moves dated verification logs out of
+   `Recipes/<family>.swift` into that family's audit under `## 历史与实测`,
+   leaving `// History: docs/app-audits/<family>.md#历史与实测` in the code
+   (convention: README.md, 「从 recipe 注释迁出的历史」). That pointer can go
+   stale the same ways `check_engine_notes.py` lists for its own — the file is
+   renamed, the file exists on the author's disk but was never tracked
+   (`/docs/*` is gitignored outside the carve-outs, so `git ls-files`, not
+   `os.path.exists`), the heading is reworded — plus two that belong to this
+   convention: a pointer copied into the WRONG family's file (it resolves, to
+   someone else's history), and a `## 历史与实测` nobody points at any more
+   (history whose recipe comment was deleted or re-pointed: it reads as
+   current to whoever opens the audit and is reachable from no code).
+
 Deliberately NOT checked: that every registry bundle id has an audit. 149 of
 them do not, and turning a documentation backlog into a red build would only
 teach people to skip the check.
 """
 import os
 import re
+import subprocess
 import sys
 
 AUD = "docs/app-audits"
@@ -167,6 +182,110 @@ def check_filename_matches_bundle_id(problems, registry):
             )
 
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# The fixed heading moved recipe history lives under. Compared as a whole line:
+# the pointer's `#历史与实测` anchor is what GitHub derives from exactly this
+# heading, so a reworded one ("## 历史与实测（旧）") breaks the link.
+HISTORY_HEADING = "## 历史与实测"
+
+SWIFT_ROOTS = [
+    "DuoUpdaterCore/Sources", "DuoUpdaterCore/Tests",
+    "App/Sources", "App/Tests",
+    "CLI/Sources", "CLI/Tests",
+]
+RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
+# The two files in `Recipes/` that are not a family, the same set
+# `AppRecipeIndexTests.infrastructure` names. A pointer in one of them has no
+# family to be wrong about, and counting them would overstate the family total.
+RECIPES_INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
+
+# One line by convention (README.md). Anything after the anchor is prose, so a
+# trailing period or backtick does not change what is being pointed at.
+HISTORY_POINTER = re.compile(
+    re.escape(AUD) + r"/([A-Za-z0-9._-]+\.md)#" + re.escape(HISTORY_HEADING[3:]))
+
+
+def tracked_audits():
+    """Audit paths as `git clone` will see them — see check_engine_notes.py's
+    `tracked_files` for why existence on this disk is not the question."""
+    out = subprocess.run(
+        ["git", "ls-files", AUD + "/"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout
+    return {p for p in out.splitlines() if p.endswith(".md")}
+
+
+def has_history_heading(rel):
+    with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+        return any(line.rstrip("\n") == HISTORY_HEADING for line in f)
+
+
+def check_history_pointers(problems):
+    """Every `docs/app-audits/<file>.md#历史与实测` in a Swift comment resolves,
+    sits in the family it names, and every history section is pointed at.
+
+    Returns (Swift files scanned, family files scanned) for the vacuity gate:
+    a moved or renamed source root would otherwise turn all of this into a
+    silent pass.
+    """
+    tracked = tracked_audits()
+    recipes_dir = os.path.join(ROOT, RECIPES)
+    pointed = set()
+    scanned = families = 0
+    for root in SWIFT_ROOTS:
+        base = os.path.join(ROOT, root)
+        if not os.path.isdir(base):
+            continue
+        for dirpath, _, filenames in os.walk(base):
+            if ".build" in dirpath.split(os.sep):
+                continue
+            for name in sorted(filenames):
+                if not name.endswith(".swift"):
+                    continue
+                path = os.path.join(dirpath, name)
+                rel = os.path.relpath(path, ROOT)
+                scanned += 1
+                in_recipes = (os.path.dirname(path) == recipes_dir
+                              and name not in RECIPES_INFRASTRUCTURE)
+                families += in_recipes
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    lines = f.read().splitlines()
+                for n, line in enumerate(lines, 1):
+                    if not line.lstrip().startswith("//"):
+                        continue
+                    for m in HISTORY_POINTER.finditer(line):
+                        target = m.group(1)
+                        full = f"{AUD}/{target}"
+                        where = f"{rel}:{n}"
+                        pointed.add(full)
+                        if full not in tracked:
+                            reason = (
+                                "does not exist"
+                                if not os.path.exists(os.path.join(ROOT, full))
+                                else "exists on disk but is not tracked by git "
+                                     "(docs/* is gitignored by default — check "
+                                     "the carve-out in .gitignore)")
+                            problems.append(
+                                f"{where}: history pointer names `{full}`, which {reason}")
+                        elif not has_history_heading(full):
+                            problems.append(
+                                f"{where}: history pointer names `{full}`, which has "
+                                f"no line reading exactly `{HISTORY_HEADING}`")
+                        family = name[:-len(".swift")]
+                        if in_recipes and target != f"{family}.md":
+                            problems.append(
+                                f"{where}: history pointer names `{target}` inside the "
+                                f"`{family}` family — a family's history goes to "
+                                f"`{AUD}/{family}.md`")
+    for full in sorted(tracked):
+        if full not in pointed and has_history_heading(full):
+            problems.append(
+                f"{full}: has `{HISTORY_HEADING}` but no Swift comment points at it "
+                f"(expected `// History: {full}#{HISTORY_HEADING[3:]}`)")
+    return scanned, families
+
+
 def main():
     problems = []
     check_index(problems)
@@ -174,6 +293,15 @@ def main():
     check_no_machine_state(problems)
     check_no_local_evidence_pointers(problems)
     check_filename_matches_bundle_id(problems, registry_bundle_ids())
+    scanned, families = check_history_pointers(problems)
+
+    # Same floor as check_engine_notes.py, plus one for the Recipes dir the
+    # family rule keys on: if it moves, that rule would quietly check nothing.
+    if scanned < 100 or families < 100:
+        print(f"✗ history pointers: only {scanned} Swift files / {families} "
+              f"recipe family files scanned — too few to be a real run "
+              f"(did {RECIPES} move?)", file=sys.stderr)
+        return 1
 
     if problems:
         print("✗ app audits disagree with the rules that keep them publishable:")
@@ -184,7 +312,8 @@ def main():
     n = len(audit_files())
     print(
         f"✓ app audits consistent — {n} docs, all indexed, "
-        "no machine inventory, no pointers into untracked evidence"
+        "no machine inventory, no pointers into untracked evidence, "
+        f"history pointers resolve ({scanned} Swift files, {families} families)"
     )
     return 0
 

@@ -597,3 +597,87 @@ beta 还**倒退**了（9.4.0-beta8 → 9.3.5-beta1）。
 2. 若哪天出现可核实的桌面端 release notes 页，补 `changelogURL`。
 3. 若要给 brew 装的 CapCut 修那个 `9.3.0.4490` vs `9.3.0` 的幽灵形状，那是
    `HomebrewCaskSource` 的事，不是这条配方的事。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-lemon-lvoverseas.swift — stable + beta VendorProbe（两条共用的 `capCutRecipe` 注释）
+
+转引自 recipe 注释，未复测。唯一的改写：原文 "and this machine has no CapCut launch item anywhere" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+
+Measured 2026-08-27, all other
+parameters held fixed:
+```
+    0.0.1 · 8.0.0 · 9.0.0 · 9.3.0 · 9.4.0 · 9.5.0 · 9.9 · 9.99 → beta 9.4.0-beta4
+    1.0.0 · 2.0.0 · 5.9.0                                      → beta 9.3.5-beta1
+    9 · 10.0.0 · 99.9.9 · 9.999.999 · (absent) · "x"           → no update_reminder
+```
+
+It costs nothing today, and this is checked in a way that does not depend
+on guessing the schema (probed 2026-08-27 at `version_code` 9.2.0, 9.3.0,
+9.3.5 and 9.99): the settings object is FLAT — zero of its top-level keys
+contain a dot, so the binary's `diff_update.enable` means a top-level
+`diff_update` object — and that key is absent; a brute-force scan of the
+whole raw body finds no diff/delta/patch key that concerns app updates
+(the hits are draft sizes, material templates, network dispatch); and
+there is no `.delta`/`.patch`/`.diff` URL in the body at all.
+
+(`update_reminder` was never the place to look, which is worth recording
+because the first version of this comment said it was: not one of the
+`update_reminder.*` keys registered in the binary carries a diff, patch
+or delta. `diff_update` is where it would live.)
+
+Worth knowing for the day it does: the patch is almost certainly a
+SPARKLE binary delta, i.e. the exact format `DeltaApplier` already
+applies. CapCut embeds stock Sparkle 2.7.0 (build 2044) and its
+`Autoupdate` carries the whole applier — `BinaryDelta`,
+`SUBinaryDeltaUnarchiver`, `SUBinaryDeltaCommon.m`, `/usr/bin/bspatch`,
+`sparkle:deltaFrom`, and Sparkle's "patch version too old" message — and
+`libVECreator` implements Sparkle's own `installerDidFailToApplyDeltaUpdate`
+callback and builds updates through
+`initWithAppcastItem:secondaryAppcastItem:…`, where `secondaryAppcastItem`
+IS Sparkle's delta slot. (Inference, not proof: no `.delta` is served, so
+none has been examined.)
+
+So consuming it would be plumbing, not new machinery: what is missing is
+a way to take a patch URL from a JSON field instead of from an appcast's
+`<sparkle:deltas>`, which is all `VendorAppcastDeltas` knows how to read.
+
+The reason recorded here on 2026-08-27 — "the endpoint returns no
+`update_reminder` at all for `capcutpc_beta`" — **is no longer true**,
+re-measured 2026-09-04: both tokens now return a 26-field
+`update_reminder`, and the two bodies agree field for field. So the
+token is now inert rather than harmful. Left as `capcutpc_0` because it
+is the value with the longer measured history, not because the old
+hazard still exists; anyone changing it should re-measure rather than
+trust either version of this paragraph.
+
+复测 2026-09-14（2026-09-13T23:16Z）：同一 URL（`version_code=9.99`）分别带 `channel=capcutpc_0` 与 `channel=capcutpc_beta` 各 GET 一次，均 HTTP 200，两份 `update_reminder` 各 26 个字段、逐字段相同；当时 `lastest_stable_url` 是 `…CapCut_9_4_1_4574_capcutpc_0_creatortool.dmg`，`lastest_url` 是 `…CapCut_9_5_5-beta1_4583_capcutpc_beta_creatortool.dmg`，`lastest_beta_number` 是 `"1"`。代码里「token 目前无效」一句以此为据。
+
+One-click: enabled on BOTH tracks, and every gate was checked against the
+real artifacts rather than assumed (2026-08-27, both dmgs downloaded and
+mounted). Each dmg holds `CapCut.app` and an `/Applications` symlink and
+nothing else — no pkg, no `LaunchDaemons`/`LaunchAgents`/
+`PrivilegedHelperTools`, and the machine measured on 2026-08-27 had no CapCut launch item
+anywhere — so the bundle swap IS the whole update. The Homebrew cask
+agrees independently: `artifacts` is `{"app": ["CapCut.app"]}` and its
+`uninstall` is a bare `quit`, its `zap` only user data. Both bundles are
+Developer ID signed by Team `22MMUN2RN5` (BYTEDANCE PTE. LTD.) and
+`spctl -t install` reports "Notarized Developer ID" — the same Team the
+installed copy carries, which is `VendorInstaller`'s mandatory gate.
+
+The cask is also a second witness for the STABLE url itself: it points at
+the byte-identical `…CapCut_9_3_0_4490_capcutpc_0_creatortool.dmg` this
+recipe resolves out of the settings blob.
+
+and capcut.com publishes no desktop release-notes page (/release-notes,
+/whats-new and /support/release-notes all 502, 2026-08-27).
+
+### Recipes/com-lemon-lvoverseas.swift — beta VendorProbe（`trackClosedPattern`）
+
+转引自 recipe 注释，未复测。
+
+Without this the row went red with "no match
+in 436155-byte body" and a Retry that could not work until ByteDance
+opened the next beta.

@@ -6,6 +6,7 @@ enum com_lemon_lvoverseas {
         probes: [
         // MARK: - 2026-08-27 CapCut (ByteDance)
 
+        // History: docs/app-audits/com-lemon-lvoverseas.md#历史与实测
         // CapCut has no appcast. It embeds Sparkle.framework — and `MacUpdater`
         // inside `libVECreator.dylib` does drive `SUAppcastItem` — but the bundle
         // carries NO `SUFeedURL`, and the decision of *what* to install is made
@@ -37,16 +38,13 @@ enum com_lemon_lvoverseas {
         //
         // TRAP, `version_code`: it is required (dropping it, or sending a value the
         // vendor can't parse, removes `update_reminder` from the response entirely)
-        // AND it selects a rollout bucket. Measured 2026-08-27, all other
-        // parameters held fixed:
-        //     0.0.1 · 8.0.0 · 9.0.0 · 9.3.0 · 9.4.0 · 9.5.0 · 9.9 · 9.99 → beta 9.4.0-beta4
-        //     1.0.0 · 2.0.0 · 5.9.0                                      → beta 9.3.5-beta1
-        //     9 · 10.0.0 · 99.9.9 · 9.999.999 · (absent) · "x"           → no update_reminder
+        // AND it selects a rollout bucket (History has the measured buckets).
         // The stable field was 9.3.0 for every value that answered at all, so only
         // the beta recipe is exposed to this. `9.99` is pinned for both because it
         // sits above every 9.x build the vendor has published — so it stays in the
-        // newest bucket rather than ageing into the legacy one, which is the only
-        // failure here that would be SILENT. Falling out of the window instead
+        // newest bucket rather than ageing into the legacy one, a failure that
+        // would be SILENT (so is the vendor rolling every bucket back at once,
+        // which no pin avoids — see the audit). Falling out of the window instead
         // (when CapCut reaches 10.x, or if the vendor narrows the range) removes
         // the key and the pattern matches nothing, which `duo verify` reports.
         // Same "pin an impossible version to turn a should-I-update service into a
@@ -68,60 +66,26 @@ enum com_lemon_lvoverseas {
         // `ReminderUpdateCfg` fields — not fields seen in a response. They prove
         // the client can apply a patch, not that the server sends one.
         //
-        // It costs nothing today, and this is checked in a way that does not depend
-        // on guessing the schema (probed 2026-08-27 at `version_code` 9.2.0, 9.3.0,
-        // 9.3.5 and 9.99): the settings object is FLAT — zero of its top-level keys
-        // contain a dot, so the binary's `diff_update.enable` means a top-level
-        // `diff_update` object — and that key is absent; a brute-force scan of the
-        // whole raw body finds no diff/delta/patch key that concerns app updates
-        // (the hits are draft sizes, material templates, network dispatch); and
-        // there is no `.delta`/`.patch`/`.diff` URL in the body at all. The vendor
-        // ships everyone the full package right now.
-        //
-        // (`update_reminder` was never the place to look, which is worth recording
-        // because the first version of this comment said it was: not one of the
-        // `update_reminder.*` keys registered in the binary carries a diff, patch
-        // or delta. `diff_update` is where it would live.)
-        //
-        // Worth knowing for the day it does: the patch is almost certainly a
-        // SPARKLE binary delta, i.e. the exact format `DeltaApplier` already
-        // applies. CapCut embeds stock Sparkle 2.7.0 (build 2044) and its
-        // `Autoupdate` carries the whole applier — `BinaryDelta`,
-        // `SUBinaryDeltaUnarchiver`, `SUBinaryDeltaCommon.m`, `/usr/bin/bspatch`,
-        // `sparkle:deltaFrom`, and Sparkle's "patch version too old" message — and
-        // `libVECreator` implements Sparkle's own `installerDidFailToApplyDeltaUpdate`
-        // callback and builds updates through
-        // `initWithAppcastItem:secondaryAppcastItem:…`, where `secondaryAppcastItem`
-        // IS Sparkle's delta slot. (Inference, not proof: no `.delta` is served, so
-        // none has been examined.)
-        //
-        // So consuming it would be plumbing, not new machinery: what is missing is
-        // a way to take a patch URL from a JSON field instead of from an appcast's
-        // `<sparkle:deltas>`, which is all `VendorAppcastDeltas` knows how to read.
-        // The real blocker is the pinned `version_code` above — a from→to mapping
+        // The pin costs nothing today: the vendor ships everyone the full package right
+        // now (History has how that was checked). The real blocker is the pinned
+        // `version_code` above — a from→to mapping
         // cannot match a version nobody runs — and un-pinning it needs a way to put
         // the installed version on the wire, which no recipe field offers today.
         //
         // Two components, not three, is also load-bearing: `RecipeSanity` complains
         // when an extracted version appears verbatim in the request URL (the tell
         // for a pattern that matched the query instead of the body). `9.3.0` would
-        // trip that the moment stable is 9.3.0 — which it is today. CapCut versions
+        // trip that whenever stable is 9.3.0, as it was when this was written. CapCut versions
         // are always three-segment, so a two-segment `version_code` can never
         // collide with an answer.
         //
-        // TRAP, `channel`: `capcutpc_beta` is a REAL CapCut channel token, and
-        // both recipes deliberately send `capcutpc_0` instead. The channel a
-        // recipe serves is decided by which `lastest_*` key it reads, not by this
-        // parameter.
-        //
-        // The reason recorded here on 2026-08-27 — "the endpoint returns no
-        // `update_reminder` at all for `capcutpc_beta`" — **is no longer true**,
-        // re-measured 2026-09-04: both tokens now return a 26-field
-        // `update_reminder`, and the two bodies agree field for field. So the
-        // token is now inert rather than harmful. Left as `capcutpc_0` because it
-        // is the value with the longer measured history, not because the old
-        // hazard still exists; anyone changing it should re-measure rather than
-        // trust either version of this paragraph.
+        // `channel`: `capcutpc_beta` is a REAL CapCut channel token, and both
+        // recipes send `capcutpc_0` instead. The channel a recipe serves is
+        // decided by which `lastest_*` key it reads, not by this parameter. The
+        // token is currently inert — both values answer with the same
+        // `update_reminder` (History has the measurements) — so `capcutpc_0` is
+        // kept for its longer measured history, not because `capcutpc_beta` is
+        // known to be harmful. Re-measure before changing it.
         //
         // Version scheme: the `lastest_*_version` integers are nibble-packed
         // (590592 = 0x090300 = 9.3.0), which no regex can decode, so the version is
@@ -173,21 +137,10 @@ enum com_lemon_lvoverseas {
         // published under `lastest_stable_url` then matches NOTHING and degrades to
         // unknown, instead of being reported as a stable release.
         //
-        // One-click: enabled on BOTH tracks, and every gate was checked against the
-        // real artifacts rather than assumed (2026-08-27, both dmgs downloaded and
-        // mounted). Each dmg holds `CapCut.app` and an `/Applications` symlink and
-        // nothing else — no pkg, no `LaunchDaemons`/`LaunchAgents`/
-        // `PrivilegedHelperTools`, and this machine has no CapCut launch item
-        // anywhere — so the bundle swap IS the whole update. The Homebrew cask
-        // agrees independently: `artifacts` is `{"app": ["CapCut.app"]}` and its
-        // `uninstall` is a bare `quit`, its `zap` only user data. Both bundles are
-        // Developer ID signed by Team `22MMUN2RN5` (BYTEDANCE PTE. LTD.) and
-        // `spctl -t install` reports "Notarized Developer ID" — the same Team the
-        // installed copy carries, which is `VendorInstaller`'s mandatory gate.
-        //
-        // The cask is also a second witness for the STABLE url itself: it points at
-        // the byte-identical `…CapCut_9_3_0_4490_capcutpc_0_creatortool.dmg` this
-        // recipe resolves out of the settings blob.
+        // One-click: enabled on BOTH tracks. Each dmg holds `CapCut.app` and an
+        // `/Applications` symlink and nothing else — no pkg, no
+        // `LaunchDaemons`/`LaunchAgents`/`PrivilegedHelperTools` — so the bundle
+        // swap IS the whole update (History has how each gate was checked).
         //
         // No `checksumPattern`: the vendor publishes `lastest_stable_url_md5` /
         // `lastest_url_md5`, and `checksumPattern` consumes a base64 SHA-512. An
@@ -229,9 +182,7 @@ enum com_lemon_lvoverseas {
         //
         // No `changelogURL`: `update_reminder` does carry release notes, but the
         // same generic sentence for all three tracks ("Fixed some known issues…"),
-        // and capcut.com publishes no desktop release-notes page (/release-notes,
-        // /whats-new and /support/release-notes all 502, 2026-08-27). The honest
-        // "no release notes" state beats an unrelated page.
+        // and capcut.com publishes no desktop release-notes page. The honest "no release notes" state beats an unrelated page.
         capCutRecipe(
             channel: .stable, urlKey: "lastest_stable_url",
             packageToken: "capcutpc_0", patchSegment: #"[0-9]+"#,
@@ -244,9 +195,8 @@ enum com_lemon_lvoverseas {
         // `lastest_beta_number` is the vendor saying so in their own data: "4"
         // while beta4 was current (2026-08-27), empty once 9.4.0 shipped and no
         // beta replaced it (2026-09-04, with `lastest_url` == `lastest_stable_url`
-        // == the 9.4.0 stable dmg). Without this the row went red with "no match
-        // in 436155-byte body" and a Retry that could not work until ByteDance
-        // opened the next beta.
+        // == the 9.4.0 stable dmg). Without this the row went red, with a Retry
+        // that could not work until ByteDance opened the next beta.
         //
         // Anchored to the key so it cannot be satisfied by an empty string
         // anywhere else in a ~436 KB body.

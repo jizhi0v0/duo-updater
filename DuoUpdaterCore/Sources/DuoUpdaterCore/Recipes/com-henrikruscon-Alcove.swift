@@ -41,13 +41,15 @@ enum com_henrikruscon_Alcove {
         // trial build), so users without a license key are sent to the download page
         // by hand — and Alcove's own updater keeps them current regardless.
         //
-        // Notes come from `changelogURL` in a WebView rather than a ChangelogRecipe.
+        // Notes come from the `api.tryalcove.com/changelog` ChangelogRecipe below;
+        // `changelogURL` is the page the notes pane falls back to, and links out
+        // to, when no recipe applies (`ChangelogRecipeSelection.fallbackPage`).
+        // That page is not what gets parsed:
         // www.tryalcove.com/changelog is a real page — it server-renders every version
         // and date, newest 1.7.9 — but it is not scrapable: each entry's body is an
         // empty placeholder, with the actual features/fixes arrays inlined in a
         // content-hashed minified route chunk (`/assets/ChangelogPage-<hash>.js`)
-        // whose filename changes on every deploy. Embedding the page renders it
-        // correctly with none of that fragility.
+        // whose filename changes on every deploy.
         VendorProbeRecipe(
             bundleID: "com.henrikruscon.Alcove",
             url: URL(string: "https://download.tryalcove.com/latest")!,
@@ -63,12 +65,11 @@ enum com_henrikruscon_Alcove {
             publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#),
 
         // Alcove — handled by `AlcoveUpdateSource` (licensed api.tryalcove.com), with
-        // a public `update.tryalcove.com` VendorProbeRecipe as the no-credential
-        // fallback. The `henrikruscon/alcove-releases` mirror this rule used to read
-        // LAGS the real release (2026-06-14: stuck at 1.7.2 while the vendor served
-        // 1.7.3) — but so does every public surface, including update.tryalcove.com
-        // (2026-06-17: still 1.7.3 while the licensed channel already had 1.7.4). Only
-        // the licensed channel is authoritative; see `AlcoveUpdateSource`.
+        // the public `download.tryalcove.com/latest` VendorProbeRecipe above as the
+        // no-credential fallback. There is no GitHub rule: the
+        // `henrikruscon/alcove-releases` mirror one used to read LAGS the real release
+        // (2026-06-14: stuck at 1.7.2 while the vendor served 1.7.3). Only the
+        // licensed channel is authoritative; see `AlcoveUpdateSource`.
         ],
         changelogs: [
         // Alcove — its own changelog API. Public and unauthenticated, unlike the
@@ -86,25 +87,5 @@ enum com_henrikruscon_Alcove {
             mode: .json,
             maxEntries: 30,
             structuredFormat: .alcoveChangelog),
-
-        // (No Alcove recipe. It parsed the `body` of update.tryalcove.com, which the
-        // vendor retired outright — NXDOMAIN. Its replacement as the public version
-        // surface, download.tryalcove.com/latest, carries only version/build/date/
-        // assets and no release notes of any kind.
-        //
-        // www.tryalcove.com/changelog IS a real page (an earlier note here said the
-        // site served the same SPA shell on every path; that is no longer true), but
-        // it carries the notes in the wrong shape: it server-renders version numbers
-        // and dates while leaving each entry's body an empty placeholder, with the
-        // actual `features[]`/`fixes[]` arrays inlined in a content-hashed, minified
-        // route chunk (`/assets/ChangelogPage-<hash>.js`). Parsing it would mean a
-        // two-hop fetch, rediscovering the hash on every run because it changes on
-        // every site deploy, and anchoring patterns on minifier output — three
-        // fragilities stacked. The VendorProbe's `changelogURL` points at that page
-        // instead, so the workbench embeds it in a WebView and renders it correctly.
-        //
-        // Licensed users get full structured notes from `AlcoveUpdateSource`, which
-        // reads the `sections` array on the authenticated api.tryalcove.com endpoint.
-        // Re-add a recipe here only if Alcove publishes notes in a parseable form.)
         ])
 }

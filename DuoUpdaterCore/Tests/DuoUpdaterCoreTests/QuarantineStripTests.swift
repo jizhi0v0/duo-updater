@@ -60,7 +60,7 @@ import Testing
         let result = InPlaceSwap.stripQuarantine(app)
 
         #expect(result == .init(exitStatus: 0, remaining: []))
-        #expect(InPlaceSwap.quarantinedPaths(in: app).isEmpty)
+        #expect(InPlaceSwap.quarantineScan(in: app) == ([], []))
         #expect(InPlaceSwap.quarantineStripLogLine(result, app: app.lastPathComponent) == nil)
     }
 
@@ -97,7 +97,40 @@ import Testing
         #expect(result == .init(exitStatus: 0, remaining: []))
         #expect(!isQuarantined(app.appendingPathComponent(link)))
         #expect(!isQuarantined(app.appendingPathComponent(dangling)))
-        #expect(InPlaceSwap.quarantinedPaths(in: app).isEmpty)
+        #expect(InPlaceSwap.quarantineScan(in: app) == ([], []))
+    }
+
+    /// An entry the walk cannot read is reported as unknown, never as cleared.
+    /// Mutation: count every `getxattr` failure as "not quarantined" (drop the
+    /// `errno != ENOATTR` branch) — `unreadable` comes back empty, the line says
+    /// "nothing in it is still quarantined", and this goes red.
+    @Test func unreadableEntriesAreReportedAsUnknown() throws {
+        let scratch = try scratch()
+        defer { cleanUp(scratch) }
+        let app = try fixtureBundle(in: scratch)
+        let file = "Contents/Library/LaunchAgents/com.zzfixture.agent.plist"
+        let dir = "Contents/Resources/sealed"
+        #expect(chmod(app.appendingPathComponent(file).path, 0o000) == 0)
+        #expect(chmod(app.appendingPathComponent(dir).path, 0o000) == 0)
+
+        let result = InPlaceSwap.stripQuarantine(app)
+
+        #expect(result.exitStatus == 1)
+        #expect(result.remaining == [])
+        #expect(result.unreadable == [file, dir])
+        let line = try #require(
+            InPlaceSwap.quarantineStripLogLine(result, app: app.lastPathComponent))
+        #expect(!line.contains("nothing in it is still quarantined"))
+        #expect(line.contains("2 path(s) could not be read"))
+        #expect(line.contains(file))
+        #expect(line.contains(dir))
+        // Restore modes to confirm what the log could not see: both were still
+        // quarantined, and so was the file inside the directory.
+        #expect(chmod(app.appendingPathComponent(dir).path, 0o755) == 0)
+        #expect(chmod(app.appendingPathComponent(file).path, 0o644) == 0)
+        #expect(isQuarantined(app.appendingPathComponent(file)))
+        #expect(isQuarantined(app.appendingPathComponent(dir)))
+        #expect(isQuarantined(app.appendingPathComponent(dir + "/inner")))
     }
 
     /// The line names the bundle root legibly and caps a long list rather than
@@ -149,7 +182,7 @@ import Testing
             }
             try #require(rc == 0, "could not quarantine \(path)")
         }
-        try #require(InPlaceSwap.quarantinedPaths(in: app).count == paths.count)
+        try #require(InPlaceSwap.quarantineScan(in: app).quarantined.count == paths.count)
         return app
     }
 

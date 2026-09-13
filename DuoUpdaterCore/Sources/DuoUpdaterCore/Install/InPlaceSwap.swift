@@ -563,6 +563,11 @@ public enum InPlaceSwap {
         /// so a clean strip costs no second pass over a bundle that can hold tens
         /// of thousands of files.
         let remaining: [String]
+        /// Paths the walk could not read the xattr of (EACCES on a 000 file or
+        /// directory, say), so whether they — and, for a directory, anything inside
+        /// it — are still quarantined is unknown. Kept apart from `remaining` so
+        /// the log never reports them as cleared.
+        var unreadable: [String] = []
     }
 
     /// Best-effort recursive removal of the quarantine xattr. Still non-fatal —
@@ -610,12 +615,18 @@ public enum InPlaceSwap {
         do {
             try p.run()
             p.waitUntilExit()
-            result = p.terminationStatus == 0
-                ? QuarantineStripResult(exitStatus: 0, remaining: [])
-                : QuarantineStripResult(
-                    exitStatus: p.terminationStatus, remaining: quarantinedPaths(in: app))
+            if p.terminationStatus == 0 {
+                result = QuarantineStripResult(exitStatus: 0, remaining: [])
+            } else {
+                let scan = quarantineScan(in: app)
+                result = QuarantineStripResult(
+                    exitStatus: p.terminationStatus, remaining: scan.quarantined,
+                    unreadable: scan.unreadable)
+            }
         } catch {
-            result = QuarantineStripResult(exitStatus: nil, remaining: quarantinedPaths(in: app))
+            let scan = quarantineScan(in: app)
+            result = QuarantineStripResult(
+                exitStatus: nil, remaining: scan.quarantined, unreadable: scan.unreadable)
         }
         if let line = quarantineStripLogLine(result, app: app.lastPathComponent) {
             Log.install.error("\(line, privacy: .public)")
@@ -628,32 +639,56 @@ public enum InPlaceSwap {
     static func quarantineStripLogLine(_ result: QuarantineStripResult, app: String) -> String? {
         guard result.exitStatus != 0 else { return nil }
         let status = result.exitStatus.map { "exited \($0)" } ?? "could not be launched"
-        guard !result.remaining.isEmpty else {
+        guard !result.remaining.isEmpty || !result.unreadable.isEmpty else {
             return "strip quarantine: xattr \(status) for \(app), but nothing in it is still quarantined"
         }
-        let shown = 20
-        let names = result.remaining.prefix(shown).map { $0.isEmpty ? "." : $0 }
-        let more = result.remaining.count > shown ? " (+\(result.remaining.count - shown) more)" : ""
-        return "strip quarantine: xattr \(status) for \(app) — \(result.remaining.count) path(s) still carry com.apple.quarantine (on macOS 27 launchd will not bootstrap a quarantined plist file): \(names.joined(separator: ", "))\(more)"
+        func listed(_ paths: [String]) -> String {
+            let shown = 20
+            let names = paths.prefix(shown).map { $0.isEmpty ? "." : $0 }
+            let more = paths.count > shown ? " (+\(paths.count - shown) more)" : ""
+            return names.joined(separator: ", ") + more
+        }
+        var parts: [String] = []
+        if !result.remaining.isEmpty {
+            parts.append("\(result.remaining.count) path(s) still carry com.apple.quarantine (on macOS 27 launchd will not bootstrap a quarantined plist file): \(listed(result.remaining))")
+        }
+        if !result.unreadable.isEmpty {
+            parts.append("\(result.unreadable.count) path(s) could not be read, so whether they (or anything inside them) are still quarantined is unknown: \(listed(result.unreadable))")
+        }
+        return "strip quarantine: xattr \(status) for \(app) — " + parts.joined(separator: "; ")
     }
 
     /// Every path under `bundle`, itself included, that carries
-    /// `com.apple.quarantine` on the entry itself (symlinks not followed).
-    static func quarantinedPaths(in bundle: URL) -> [String] {
-        func quarantined(_ path: String) -> Bool {
-            getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW) >= 0
-        }
+    /// `com.apple.quarantine` on the entry itself (symlinks not followed), and
+    /// every path whose xattr could not be read at all.
+    ///
+    /// Only `ENOATTR` counts as "not quarantined". Any other `getxattr` failure is
+    /// an unknown, not a no: a 000 file answers EACCES whether or not it carries
+    /// the attribute, and an earlier version counted that as cleared, so the log
+    /// said "nothing in it is still quarantined" over a file `xattr` had just
+    /// failed on. The enumerator's own errors are not recorded separately:
+    /// measured 2026-09-13, every directory it could not open (000, 0300) had
+    /// already answered EACCES to `getxattr`, 000 and 0200 files likewise.
+    static func quarantineScan(in bundle: URL) -> (quarantined: [String], unreadable: [String]) {
+        var quarantined: [String] = []
+        var unreadable: [String] = []
         let root = bundle.standardizedFileURL.path
-        var found: [String] = quarantined(root) ? [""] : []
+        func classify(_ path: String, as rel: String) {
+            if getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW) >= 0 {
+                quarantined.append(rel)
+            } else if errno != ENOATTR {
+                unreadable.append(rel)
+            }
+        }
+        classify(root, as: "")
         let walker = FileManager.default.enumerator(
             at: bundle, includingPropertiesForKeys: nil, options: [],
             errorHandler: { _, _ in true })
         while let url = walker?.nextObject() as? URL {
             let path = url.standardizedFileURL.path
-            guard quarantined(path) else { continue }
-            found.append(path.hasPrefix(root + "/") ? String(path.dropFirst(root.count + 1)) : path)
+            classify(path, as: path.hasPrefix(root + "/") ? String(path.dropFirst(root.count + 1)) : path)
         }
-        return found.sorted()
+        return (quarantined.sorted(), unreadable.sorted())
     }
 
     // MARK: - Input methods: rotate Contents, keep the outer bundle

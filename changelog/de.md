@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.94
+
+**Homebrew-Pakete aus Taps, denen du nicht vertraust, tauchen wieder auf.** Seit Homebrew 6 überspringt brew beim Auflisten der Installationen stillschweigend Pakete aus nicht vertrauten Taps, sodass sie ohne Erklärung aus Duo Updater verschwanden. Jetzt erscheinen sie als „Nicht geprüft · Tap nicht vertraut“, mit dem `brew trust`-Befehl zum Kopieren – und sobald du ihn (oder ein Upgrade) im Terminal ausgeführt hast, zieht das Fenster nach, wenn du zurückwechselst.
+
+**Apps, die für ihr eigenes Update ein Administratorpasswort brauchen, werden nicht mehr doppelt aktualisiert.** Hatte eine App wie Tailscale ihr Update bereits geladen und wartete auf einen Neustart, sah Duo Updater das nicht und bot trotzdem „Aktualisieren“ an – was mit dem eigenen Installer der App kollidieren konnte. Die Zeile bietet jetzt „Neu starten“ an, und „Alle aktualisieren“ lässt die App aus.
+
+**Der Homebrew-Bereich kann jetzt Homebrew selbst aktualisieren.** Wenn eine neue Homebrew-Version erschienen ist, bietet eine Zeile ganz oben an, `brew update` für dich auszuführen. Hast du `HOMEBREW_NO_AUTO_UPDATE` gesetzt, bleibt sie ausgeblendet.
+
+**Ein fehlgeschlagenes Homebrew-Upgrade zeigt jetzt den eigentlichen Fehler von brew.** Früher stand in der Zeile der Rat, den brew nach dem Fehler ausgibt, oder gar nichts – eine Meldung wie „deine Command Line Tools sind zu alt“ kam also nie bei dir an. Außerdem meldet ein Upgrade mehrerer Pakete nicht mehr, fertig zu sein, bevor es das ist.
+
+**Das Menüleistensymbol zählt über 50 hinaus.** Bei mehr als 50 wartenden Updates blieb es bisher bei 50 stehen.
+
+**Versionshinweise: Die von Claude sind wie in Claude selbst nach New, Improved und Fixed gegliedert; die von Mac Mouse Fix erscheinen als Text statt als eingebettete Seite; und Homebrews eigene App hat jetzt Versionshinweise.**
+
+**`duo check` meldet nicht mehr „Everything is up to date.“, wenn es gar nicht prüfen konnte.** Es sagt jetzt, wenn es TestFlight nicht lesen konnte oder der App-Scan abgebrochen wurde.
+
 ## 0.3.93
 
 **Versionshinweise erscheinen jetzt in deiner Sprache, wenn eine App sie in mehreren veröffentlicht.** Manche Apps liefern ihre Hinweise zu jeder Veröffentlichung übersetzt mit; Duo Updater nahm bisher einfach die Übersetzung, die die App zufällig zuerst oder zuletzt aufführte, sodass die Hinweise einer App für alle auf Deutsch erschienen und die einer anderen von Veröffentlichung zu Veröffentlichung die Sprache wechselten.

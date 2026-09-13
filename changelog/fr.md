@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.94
+
+**Les paquets Homebrew issus de taps non approuvés réapparaissent.** Depuis Homebrew 6, brew ignore discrètement les paquets des taps non approuvés quand il liste ce qui est installé ; ils disparaissaient donc de Duo Updater sans explication. Ils sont désormais affichés comme « Non vérifié · tap non approuvé », avec la commande `brew trust` prête à copier — et dès que vous l'avez lancée (ou une mise à niveau) dans le Terminal, la fenêtre se met à jour quand vous y revenez.
+
+**Les apps qui demandent un mot de passe administrateur pour se mettre à jour ne sont plus mises à jour deux fois.** Quand une app comme Tailscale avait déjà téléchargé sa propre mise à jour et attendait un redémarrage, Duo Updater ne le voyait pas et proposait quand même Mettre à jour, au risque d'entrer en collision avec l'installateur de l'app. La ligne propose désormais Relancer, et Tout mettre à jour la laisse de côté.
+
+**La section Homebrew peut maintenant mettre à jour Homebrew lui-même.** Quand une nouvelle version de Homebrew sort, une ligne en haut propose de lancer `brew update` pour vous. Elle reste masquée si vous avez défini `HOMEBREW_NO_AUTO_UPDATE`.
+
+**Une mise à niveau Homebrew qui échoue affiche maintenant la véritable erreur de brew.** La ligne montrait auparavant le conseil que brew affiche après l'erreur, ou rien du tout, si bien qu'un message comme « vos Command Line Tools sont trop anciens » ne vous parvenait jamais. Mettre à niveau plusieurs paquets à la fois n'annonce plus non plus la fin avant qu'elle soit atteinte.
+
+**L'icône de la barre des menus compte au-delà de 50.** Avec plus de 50 mises à jour en attente, elle restait bloquée à 50.
+
+**Notes de version : celles de Claude sont regroupées en New, Improved et Fixed, comme dans Claude lui-même ; celles de Mac Mouse Fix s'affichent en texte plutôt que dans une page intégrée ; et l'app officielle de Homebrew a maintenant ses notes.**
+
+**`duo check` ne dit plus « Everything is up to date. » quand il n'a pas pu vérifier.** Il le signale désormais quand il n'a pas pu lire TestFlight ou quand l'analyse des apps a été abandonnée.
+
 ## 0.3.93
 
 **Les notes de version s'affichent désormais dans ta langue quand une app les publie en plusieurs langues.** Certaines apps traduisent leurs notes à chaque publication ; Duo Updater retenait celle que l'app citait en premier ou en dernier, si bien que les notes d'une app s'affichaient en allemand pour tout le monde et que celles d'une autre changeaient de langue d'une version à l'autre.

@@ -137,7 +137,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
 - [x] [**微信输入法 (WeType)**](com-tencent-inputmethod-wetype.md) · `com.tencent.inputmethod.wetype` — P+C · 读厂商安装器自己读的 InstallInfo manifest（此前抓的是**安装器壳的版本**，用错 namespace 不会失败、只会答错号）· **一键 ✓（2026-08-28 重新接入，Contents 轮换 + 用户数据快照）**——0.3.25 上线当天撤回的那条，证据链与复活理由都在文档里 · 真机红→绿 656→657 + 回滚实测 ✓（历史 payload 仍可取，用来造红）· 2026-08-28
 
-- [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27
+- [x] [**WorkBuddy（国内站）**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy` — P (one-click) · 与国际站是两个独立 app，非 channel · 按架构分两条 recipe · 两站共用的端点/陷阱/一键闸写在这份 · 真实 DMG channel-verify ✓ · 2026-08-27
+- [x] [**WorkBuddy AI（国际站）**](com-workbuddy-workbuddy-ai.md) · `com.workbuddy.workbuddy-ai` — P (one-click) · 按架构分两条 recipe · changelog 页滞后于自己的轨道（厂商侧）· 共用部分链到国内站那份 · 真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
 - [x] [**Little Snitch**](at-obdev-littlesnitch.md) · `at.obdev.littlesnitch` — P(stable/nightly) C(stable only) · 2 channels，共享 bundle id，channel 词烤进 `CFBundleShortVersionString`（`ReleaseChannel.detect()` 新增 0.7 步）· 端点是 Homebrew cask 自己 livecheck 也在用的 obdev 静态 feed，两 cask 均 `auto_updates` 故原本 `.unknown` · **detection-only**：网络防火墙 + System Extension，一键需要真机红→绿验证才能开 · 未装机审计，从官方 dmg 挂载验证 · 2026-08-29
 - [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍在维护的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
@@ -249,6 +250,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」）。
 这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。
+
+- [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档
 

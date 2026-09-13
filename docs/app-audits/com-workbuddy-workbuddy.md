@@ -1,26 +1,25 @@
-# WorkBuddy (Tencent)
+# WorkBuddy（国内站）
 
-审计 2026-08-27。一份文档覆盖两个 bundle id —— WorkBuddy 是**两个 app**，不是一个
-app 的两个 channel。
+审计 2026-08-27。WorkBuddy 是**两个 app**，不是一个 app 的两个 channel：本文档是国内站
+`com.workbuddy.workbuddy`，国际站 `com.workbuddy.workbuddy-ai` 见
+[com-workbuddy-workbuddy-ai.md](com-workbuddy-workbuddy-ai.md)。两站共用的部分（updater 代码、
+更新端点与三个陷阱、changelog 页面标记、一键安装的闸、验证方法）只写在这一份里。
 
 ## 基本信息
 
-| | 国际站 | 国内站 |
-|---|---|---|
-| Bundle ID | `com.workbuddy.workbuddy-ai` | `com.workbuddy.workbuddy` |
-| App 名 | WorkBuddy AI.app | WorkBuddy.app |
-| URL scheme | `workbuddy-ai` | `workbuddy` |
-| 官网 | https://www.workbuddy.ai | https://www.workbuddy.cn |
-| 观测版本 | 5.4.2 | 5.3.14 |
-| Team ID | `FN2V63AD2J` — Tencent Technology (Shanghai) Company Limited | 同左 |
-| 自更新机制 | 自研（Electron + `electron.net.fetch`，非 electron-updater，无 `app-update.yml`，无 Sparkle） | 同左 |
+| | 国内站 |
+|---|---|
+| Bundle ID | `com.workbuddy.workbuddy` |
+| App 名 | WorkBuddy.app |
+| URL scheme | `workbuddy` |
+| 官网 | https://www.workbuddy.cn |
+| 观测版本 | 5.3.14 |
+| Team ID | `FN2V63AD2J` — Tencent Technology (Shanghai) Company Limited（与国际站同一个） |
+| 自更新机制 | 自研（Electron + `electron.net.fetch`，非 electron-updater，无 `app-update.yml`，无 Sparkle） |
 
 两个包的 updater 代码**逐字节相同**；分流完全靠 build 时烤进 product config 的
 `endpoint`（`getUpdateBaseUrl()` 就是读它）。因此**唯一**把安装引到自己那条轨道
 上的东西是 bundle id —— 而 bundle id 正是 recipe 的查找键，两条轨道天然不可能串。
-
-国际版另有 `TuringShield.bundle`（腾讯安全 SDK），国内版没有；这属于两站构建差异，
-与更新检测无关。
 
 ## 覆盖矩阵
 
@@ -28,7 +27,6 @@ app 的两个 channel。
 
 | | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---|---|---|---|---|---|
-| **stable（国际站）** | — | — | — | — | ✓ 一键 |
 | **stable（国内站）** | — | — | — | — | ✓ 一键 |
 
 当前生效源：**VendorProbe**（前四条源全部不适用：无 `SUFeedURL`、无 cask、非 MAS、
@@ -38,7 +36,6 @@ app 的两个 channel。
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---|---|---|---|---|---|
-| stable | `com.workbuddy.workbuddy-ai` | 独立 | — | — | ✓ |
 | stable | `com.workbuddy.workbuddy` | 独立 | — | — | ✓ |
 
 **没有非 stable channel。** 两个 bundle 里都不存在 `KSChannelID`、`RemotingName`、
@@ -97,7 +94,6 @@ app 的两个 channel。
 
 | | URL | 状态 |
 |---|---|---|
-| 国际站 | https://www.workbuddy.ai/docs/workbuddy/Changelog | 200，但**落后于自己的轨道**（写作时最新条目 5.2.7，而发布版是 5.4.2） |
 | 国内站 | https://www.codebuddy.cn/docs/workbuddy/Changelog | 200，与 5.3.14 同步 |
 
 两个 URL 都是 app 自己链的（构建按 `isOverseas()` 分支）。**已做成原生结构化条目**
@@ -120,10 +116,8 @@ app 的两个 channel。
    真条目直接消失。真实页面上实测：朴素正则把 `[5.3.14, 5.3.13]` 变成
    `[9.9.9, 5.3.13]`。
 
-解析结果（2026-08-27 实测）：CN 站 58 条（最新 5.3.14，14 个条目），
-国际站 2 条（最新 5.2.7）。国际站那个 2 是**厂商页面本身**如此，不是 recipe 坏了 ——
-同一条正则在 CN 页跑出 58 条。`duo verify` 会为此报一条 ⚠（最新条目 5.2.7 落后于
-探测到的 5.4.2），这条警告是真的，且厂商补上笔记后会自动消失。
+解析结果（2026-08-27 实测）：CN 站 58 条（最新 5.3.14，14 个条目）。国际站页面只有 2 条，
+见[国际站文档](com-workbuddy-workbuddy-ai.md)的 Changelog 一节。
 
 ## 一键安装
 
@@ -144,7 +138,6 @@ app 的两个 channel。
 ## 已知问题
 
 - 只动 build 计数器的重新出包检测不到（见陷阱二）——已知代价，不是缺陷。
-- 国际站 changelog 页滞后于其发布轨道，vendor 侧问题，我们这边无解。
 - x64 那两条 recipe 的产物没有下载挂载验证过，只验证了「存在 + 分架构命名」；
   跨架构不误取由单测守着（复验方法见下文「如何复验」）。
 

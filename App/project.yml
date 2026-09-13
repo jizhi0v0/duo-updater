@@ -60,6 +60,10 @@ targets:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
       - path: Sources/RequestCoverageHonesty.swift
+      # The root helper's XPC peer gate. Foundation + Security only; the rest of
+      # the helper (main.swift's top-level code, the `mas` runner) stays out.
+      - path: Helper/HelperPeerGate.swift
+      - path: Shared/OwnTeamIdentifier.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore
@@ -289,9 +293,6 @@ targets:
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: ${DUO_TEAM_ID}
-        # `audit_token_to_euid/egid` live in libbsm. The helper uses them to bind
-        # every privileged request to the kernel-authenticated XPC peer identity.
-        OTHER_LDFLAGS: "-lbsm"
       configs:
         Release:
           # Match the app: hardened runtime for notarization. The post-build script

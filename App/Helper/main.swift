@@ -3,7 +3,7 @@ import Foundation
 // Entry point for the privileged helper daemon (`com.duoupdater.helper`). Runs as
 // root under launchd, registered by the main app via `SMAppService.daemon`. It
 // hosts an XPC listener on the Mach service declared in the daemon plist,
-// validates each connecting client's code signature (see HelperService), and
+// validates each connecting client's code signature (see HelperPeerGate), and
 // vends `MASHelperProtocol`.
 //
 // No osascript, no password: the app sends a structured install request, the
@@ -83,9 +83,15 @@ enum IdleExit {
     }
 }
 
-let delegate = HelperListenerDelegate()
 let listener = NSXPCListener(machServiceName: HelperService.machServiceName)
-listener.delegate = delegate
-listener.resume()
+// Installs the client code-signing requirement on the listener, attaches itself
+// as delegate and resumes the listener. Held here because the listener's
+// delegate reference is weak.
+let gate = HelperPeerGate.install(
+    on: listener,
+    interface: NSXPCInterface(with: MASHelperProtocol.self),
+    exportedObject: { HelperService(clientIdentity: $0) },
+    connectionOpened: { IdleExit.connectionOpened() },
+    connectionClosed: { IdleExit.connectionClosed() })
 IdleExit.arm()
 RunLoop.main.run()

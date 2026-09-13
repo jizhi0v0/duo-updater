@@ -67,7 +67,13 @@ enum OwnTeamIdentifier {
     /// comes from our own signature, so neither can carry attacker-controlled text
     /// into the requirement string.
     static func requirement(bundleIdentifier: String) -> String? {
-        guard let team = current else { return nil }
+        requirement(bundleIdentifier: bundleIdentifier, team: current)
+    }
+
+    /// The same string for an explicit team, so a test can pin its exact shape
+    /// without depending on how (or whether) the test process is signed.
+    static func requirement(bundleIdentifier: String, team: String?) -> String? {
+        guard let team, !team.isEmpty else { return nil }
         return "anchor apple generic and identifier \"\(bundleIdentifier)\" "
             + "and certificate leaf[subject.OU] = \"\(team)\""
     }

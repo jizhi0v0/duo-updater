@@ -375,6 +375,63 @@ import DuoUpdaterCore
             publishedAt: old, now: old.addingTimeInterval(61 * 86_400)) == nil)
     }
 
+    /// #559: a beta rule was cross-checked against the STABLE cask, because the
+    /// bundle-id index keeps whichever cask sorts first. Tokens and versions are
+    /// the live catalog's on 2026-09-13 (`utm` 4.7.5, `utm@beta` 5.0.5, both
+    /// quitting `com.utmapp.UTM`, in that order); the beta rule read 5.0.5.
+    @Test func aChannelRuleIsCrossCheckedOnlyAgainstItsOwnChannelsCask() {
+        let utm = ["utm", "utm@beta"]
+        #expect(Verify.caskIndex(for: .stable, amongTokens: utm) == 0)
+        #expect(Verify.caskIndex(for: .beta, amongTokens: utm) == 1)
+
+        // What the sweep filed, and what it says once it reads the right cask.
+        let published = Date(timeIntervalSince1970: 1_786_000_000)
+        let later = published.addingTimeInterval(14 * 86_400)
+        #expect(Verify.phantomVersionComplaint(
+            caskToken: "utm", caskVersion: "4.7.5", version: "5.0.5",
+            publishedAt: published, now: later) != nil)
+        #expect(Verify.phantomVersionComplaint(
+            caskToken: "utm@beta", caskVersion: "5.0.5", version: "5.0.5",
+            publishedAt: published, now: later) == nil)
+
+        // No cask for the channel → no cross-check, not the stable one instead.
+        // KeePassXC's real set: a nightly rule has nothing to be measured against.
+        let keepassxc = ["keepassxc", "keepassxc@beta", "keepassxc@snapshot"]
+        #expect(Verify.caskIndex(for: .nightly, amongTokens: keepassxc) == nil)
+        #expect(Verify.caskIndex(for: .beta, amongTokens: []) == nil)
+        #expect(Verify.caskIndex(for: .stable, amongTokens: []) == nil)
+    }
+
+    /// The same, through `brewComplaint` with the real UTM rules, so the channel
+    /// the check uses is shown to be the rule's own. Each expectation is set up to
+    /// flip under one wrong wiring: reading `.stable` for the beta rule compares
+    /// 5.0.5 with `utm` 4.7.5 (first case fires); skipping non-stable rules
+    /// entirely silences the `utm@beta` lag (second case goes quiet); and a stable
+    /// rule that stopped reading `utm` would lose the third.
+    @Test func theCrossCheckReadsTheCaskForTheRulesOwnChannel() async throws {
+        let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == "com.utmapp.UTM" }
+        let beta = try #require(rules.first { $0.channel == .beta })
+        let stable = try #require(rules.first { $0.channel == .stable })
+        let published = Date(timeIntervalSince1970: 1_786_000_000)
+        let later = published.addingTimeInterval(14 * 86_400)
+        func casks(beta betaVersion: String) -> @Sendable (String) async -> [CaskFacts] {
+            { _ in [
+                CaskFacts(token: "utm", version: "4.7.5", autoUpdates: false),
+                CaskFacts(token: "utm@beta", version: betaVersion, autoUpdates: false),
+            ] }
+        }
+
+        #expect(await Verify.brewComplaint(
+            for: beta, version: "5.0.5", publishedAt: published, now: later,
+            casks: casks(beta: "5.0.5")) == nil)
+        #expect(await Verify.brewComplaint(
+            for: beta, version: "5.0.5", publishedAt: published, now: later,
+            casks: casks(beta: "5.0.4"))?.contains("`utm@beta`") == true)
+        #expect(await Verify.brewComplaint(
+            for: stable, version: "4.7.6", publishedAt: published, now: later,
+            casks: casks(beta: "5.0.5"))?.contains("`utm` ") == true)
+    }
+
     /// …but a changelog a whole release behind still is.
     @Test func aChangelogAWholeReleaseBehindIsFlagged() {
         let complaint = Verify.changelogLagComplaint(entry: "1.85", detected: "1.123.4")

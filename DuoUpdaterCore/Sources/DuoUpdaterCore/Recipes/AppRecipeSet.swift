@@ -18,8 +18,8 @@ import Foundation
 /// `ChannelProofRegistry.githubProofs`: a `ChannelProofKey` does not say which
 /// registry it was written for.
 public struct AppRecipeSet: Sendable {
-    /// The family's file name without `.swift` — the same slug `docs/app-audits/`
-    /// uses (bundle id with dots as dashes).
+    /// The family's file name without `.swift`: its primary bundle id with dots as
+    /// dashes. It matches the family's `docs/app-audits/` file when one exists.
     public let family: String
     public let probes: [VendorProbeRecipe]
     public let changelogs: [ChangelogRecipe]

@@ -81,6 +81,23 @@ enum BoundedScan {
         return box.take()
     }
 
+    /// `result`, for a synchronous caller that cannot await — a `static let`
+    /// initialiser. Same abandoned-thread shape; the difference is that the wait
+    /// is on the calling thread, so it is bounded but not off the pool. Keep the
+    /// timeout short.
+    static func blockingResult<T: Sendable>(
+        within timeout: Duration, _ body: @escaping @Sendable () -> T
+    ) -> T? {
+        let box = Box<T>()
+        let done = DispatchSemaphore(value: 0)
+        Thread {
+            box.set(body())
+            done.signal()
+        }.start()
+        guard done.wait(timeout: .now() + seconds(timeout)) == .success else { return nil }
+        return box.take()
+    }
+
     /// A `Duration` as seconds, for `DispatchTime`.
     ///
     /// Both components, because one of the two copies this replaced took only

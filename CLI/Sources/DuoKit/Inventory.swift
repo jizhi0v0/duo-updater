@@ -34,14 +34,30 @@ public enum Inventory {
     /// betas the checker then cannot answer. `duo check` also names this status as
     /// the reason in its note, so the note and the decision cannot disagree either.
     ///
-    /// ⚠️ **Never touch this inside a bounded closure** (`boundedRead`,
-    /// `BoundedScan.result`). A `static let` is initialised under a one-time lock:
-    /// if its first access is on a thread the bound then abandons and the probe
-    /// never returns, every later access — on the unbounded main path — waits on
-    /// that lock forever, which is the hang the bound exists to prevent.
-    /// `boundedRead` decides on the caller's thread and hands its body a `Bool`, and
+    /// **The probe has its own bound** (`fullDiskAccess(within:probe:)`). A probe
+    /// that never returns — one of `FullDiskAccessProbe`'s opens, or the preflight
+    /// SPI — would otherwise hang `duo` wherever this is first touched, bound or
+    /// no bound: outside the scan's bound it is simply unbounded, and inside it the
+    /// `static let`'s one-time lock makes every later access wait on the abandoned
+    /// thread. A timeout reads as not granted, so nothing reads TestFlight — and a
+    /// note then names Full Disk Access although the probe, not the grant, is what
+    /// failed. The wait is on the first caller's thread, bounded, not off the pool.
+    ///
+    /// Still never touch this inside a bounded closure: `boundedRead` decides on the
+    /// caller's thread and hands its body a `Bool`, and
     /// `InventoryTestFlightReadTests` lists every file that names this property.
-    static let fullDiskAccess: TCCAuthStatus = TCCPreflight.fullDiskAccessStatus()
+    static let fullDiskAccess: TCCAuthStatus = fullDiskAccess(
+        within: .seconds(5), probe: { TCCPreflight.fullDiskAccessStatus() })
+
+    /// The bounded probe behind `fullDiskAccess`, with the probe passed in so a test
+    /// can stall it. Five seconds, as for the TestFlight store's own open: the
+    /// probe is a handful of local opens, so anything near that is a wall, not a
+    /// slow disk.
+    static func fullDiskAccess(
+        within timeout: Duration, probe: @escaping @Sendable () -> TCCAuthStatus
+    ) -> TCCAuthStatus {
+        BoundedScan.blockingResult(within: timeout, probe) ?? .notDetermined
+    }
 
     /// TestFlight's store, or the sentinel that stands for "not read", according to
     /// `readsTestFlight`. One function so the scan and the checker cannot disagree
@@ -75,10 +91,10 @@ public enum Inventory {
     ///
     /// `fullDiskAccess` is an autoclosure, and autoclosures cannot escape, so the
     /// compiler refuses to evaluate it inside `body`: the decision cannot drift
-    /// into the thread the bound may abandon (see `fullDiskAccess` for why that
-    /// thread must never be the one to initialise it). Every bounded scan in `duo`
-    /// goes through here; `InventoryTestFlightReadTests` checks that nothing else
-    /// calls `BoundedScan.result`.
+    /// into the thread the bound may abandon. That is not what stops a stalled
+    /// probe from hanging `duo` — the probe's own bound does (see `fullDiskAccess`).
+    /// Every bounded scan in `duo` goes through here; `InventoryTestFlightReadTests`
+    /// checks that nothing else calls `BoundedScan.result`.
     static func boundedRead<T: Sendable>(
         _ detection: TestFlightDetection,
         fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,

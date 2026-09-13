@@ -144,6 +144,24 @@ import DuoUpdaterCore
         }
     }
 
+    /// A probe that does not answer in time reads as not granted, so the run does
+    /// not read TestFlight; one that answers is taken as it is. The stall is two
+    /// seconds, not forever, so the unbounded version fails this test rather than
+    /// hanging it.
+    ///
+    /// Mutation: have `fullDiskAccess(within:probe:)` return `probe()` directly.
+    @Test func aStalledFullDiskAccessProbeReadsAsNotGranted() {
+        let stalled = Inventory.fullDiskAccess(within: .milliseconds(200)) {
+            Thread.sleep(forTimeInterval: 2)
+            return .granted
+        }
+        #expect(stalled == .notDetermined)
+        #expect(!Inventory.readsTestFlight(.keepFresh, fullDiskAccess: stalled))
+
+        let answered = Inventory.fullDiskAccess(within: .seconds(20)) { .granted }
+        #expect(answered == .granted)
+    }
+
     /// Tripwires over the source tree, for the two properties the compiler cannot
     /// hold on its own.
     ///

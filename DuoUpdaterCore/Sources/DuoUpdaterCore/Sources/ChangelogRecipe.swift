@@ -1274,8 +1274,7 @@ public enum ChangelogRecipeRegistry {
         // NOT `structuredFormat`: that decoder path (`StructuredChangelogDecoder`)
         // is for feeds too irregular for the regex extractor; this one is a
         // clean, uniform `## <version>` / `* <item>` document that the regex
-        // path (same as com.anthropic.claudefordesktop above) handles
-        // directly — and `structuredFormat` would also disable
+        // path handles directly — and `structuredFormat` would also disable
         // `indexLinkPattern` handling in `ChangelogService`, which is irrelevant
         // here anyway since there's no second hop to disable.
         //

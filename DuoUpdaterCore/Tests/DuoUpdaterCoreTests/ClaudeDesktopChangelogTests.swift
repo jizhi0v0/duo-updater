@@ -77,8 +77,8 @@ private let claudeDesktopDocsFixture = #"""
     /// `kind` from the `{surface, kind, text}` array in claude.ai's JS bundle
     /// (cached on this Mac 2026-09-13), `feat`/`improvement`/`fix` rendered as
     /// New/Improved/Fixed in that order, General and Code only. Within a heading
-    /// the order is the `.md`'s, which is alphabetical per surface — the modal's
-    /// own order differs, and that part is not reproduced.
+    /// the order is the `.md`'s (see `decodeClaudeDesktop` for why that is not the
+    /// modal's); that part is not reproduced.
     private let expected = Changelog(entries: [
         Changelog.Entry(
             version: "1.52386.0",

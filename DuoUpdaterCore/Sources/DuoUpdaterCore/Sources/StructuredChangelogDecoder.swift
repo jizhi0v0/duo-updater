@@ -412,15 +412,17 @@ public enum StructuredChangelogDecoder {
     /// (`**General**` / `**Code**` / …) with no `kind`. `kind` is recovered from
     /// the note's first word: `Added` → New, `Fixed` → Fixed, anything else
     /// (`Changed`, `Improved`, `Updated`, `Removed`, …) → Improved. Checked
-    /// against that bundle, every non-3P note in it (433, 72 releases) comes out
-    /// with its real `kind`; the only exception in the whole array is a 3P note
-    /// starting `Published` filed as feat — 3P is dropped here anyway. This is an
-    /// inference from the vendor's writing convention, not a field: a future
+    /// against that bundle, every non-3P note in it (433 notes across 40 releases)
+    /// comes out with its real `kind`; the only exception in the whole array is a
+    /// 3P note starting `Published` filed as feat — 3P is dropped here anyway. This
+    /// is an inference from the vendor's writing convention, not a field: a future
     /// "Introduced …" would land under Improved.
     ///
-    /// Order within a group is the `.md`'s, which lists each surface's notes
-    /// alphabetically — the modal keeps authoring order, so the same lines can
-    /// appear in a different order. Only the surface order (General before Code)
+    /// Order within a group is the `.md`'s, which is not the modal's and has no
+    /// single rule: of the 111 surface sections with two or more notes in the
+    /// 2026-09-13 document, 49 are alphabetical, 20 more are by kind and then
+    /// alphabetical, and the other 42 follow neither. So the same lines can appear in
+    /// a different order than in-app. Only the surface order (General before Code)
     /// carries over.
     ///
     /// Blocks whose label is not a `v<version>` (a "Known issue: …" announcement)

@@ -180,6 +180,16 @@ import Foundation
         #expect(BrewFormulaService.pouredFormula(fromLine: first) == "zzfixture-alpha")
     }
 
+    /// brew's `Error:` lines go to stderr, and they are what `BrewError.failed`
+    /// reports, so stderr has to arrive in the same stream as stdout, in order.
+    /// Mutation: `standardError: .discard` in `run` → the error line is missing.
+    @Test func standardErrorArrivesInTheSameStream() async throws {
+        let r = try #require(try await Self.sh("echo progress; echo 'Error: zzfixture-broken' >&2; exit 1"))
+        #expect(r.status == 1)
+        #expect(r.lines == ["progress", "Error: zzfixture-broken"])
+        #expect(r.text.contains("Error: zzfixture-broken"))
+    }
+
     /// A background child inherits stdout and outlives the shell: no EOF until it
     /// exits. The run returns anyway once the shell has exited and what it printed
     /// is drained (`ChildProcess` stops waiting for EOF at the exit). The child

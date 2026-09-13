@@ -60,6 +60,16 @@ targets:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
       - path: Sources/RequestCoverageHonesty.swift
+      # The root helper's XPC peer gate and its request-identity check. Foundation
+      # + Security only. HelperService is compiled so the identity guard in
+      # installMASApp is executed. Safe today: every test call stops at the identity
+      # or lexical log-path check, and bundledMASPath finds no `mas` beside xctest;
+      # the test also has a tripwire that fails if a TEST_HOST ever changes that.
+      # main.swift's top-level code stays out.
+      - path: Helper/HelperPeerGate.swift
+      - path: Helper/HelperService.swift
+      - path: Shared/OwnTeamIdentifier.swift
+      - path: Shared/MASHelperProtocol.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore
@@ -289,9 +299,6 @@ targets:
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: ${DUO_TEAM_ID}
-        # `audit_token_to_euid/egid` live in libbsm. The helper uses them to bind
-        # every privileged request to the kernel-authenticated XPC peer identity.
-        OTHER_LDFLAGS: "-lbsm"
       configs:
         Release:
           # Match the app: hardened runtime for notarization. The post-build script

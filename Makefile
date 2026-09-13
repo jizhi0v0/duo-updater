@@ -21,6 +21,7 @@ test:
 	python3 scripts/test_check_prose_claims.py
 	python3 scripts/test_check_offpool.py
 	python3 scripts/test_claude_lag_probe.py
+	python3 scripts/test_app_test_coverage.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
 	@scripts/app-tests.sh

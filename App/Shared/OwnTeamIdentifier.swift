@@ -61,14 +61,42 @@ enum OwnTeamIdentifier {
     }
 
     /// Build `anchor apple generic and identifier "<id>" and certificate
-    /// leaf[subject.OU] = "<our team>"`, or nil when our own team is unknown.
-    ///
-    /// The identifier is a compile-time constant in both call sites, and the team
-    /// comes from our own signature, so neither can carry attacker-controlled text
-    /// into the requirement string.
+    /// leaf[subject.OU] = "<our team>"`, or nil when our own team is unknown or not
+    /// a well-formed Team ID.
     static func requirement(bundleIdentifier: String) -> String? {
-        guard let team = current else { return nil }
+        requirement(bundleIdentifier: bundleIdentifier, team: current)
+    }
+
+    /// The same string for an explicit team, so a test can pin its exact shape
+    /// without depending on how (or whether) the test process is signed.
+    ///
+    /// The identifier is a compile-time constant at every call site. The team is a
+    /// parameter — our own signature's in production, anything in a test — so it is
+    /// NOT trusted to be clean: the validation below is the only thing keeping it
+    /// from carrying arbitrary text into the requirement string.
+    ///
+    /// nil unless `team` is exactly ten characters of `A-Z0-9`. The team is spliced
+    /// between quotes in a requirement string, and a malformed requirement makes
+    /// `setConnectionCodeSigningRequirement` raise — a crash at helper launch —
+    /// where refusing is the fail-closed answer. Apple documents a Team ID as ten
+    /// alphanumeric characters (developer.apple.com/help/glossary/team-id says
+    /// "10-character", DTS in forums thread 767608 says "10 alphanumeric"); that it
+    /// is also UPPERCASE is observed, not documented. Were a real team ever
+    /// lowercase, both peers would refuse to pin — closed, not open.
+    static func requirement(bundleIdentifier: String, team: String?) -> String? {
+        guard let team, team.utf8.count == 10,
+              team.utf8.allSatisfy({ (0x41...0x5A).contains($0) || (0x30...0x39).contains($0) })
+        else { return nil }
         return "anchor apple generic and identifier \"\(bundleIdentifier)\" "
             + "and certificate leaf[subject.OU] = \"\(team)\""
+    }
+
+    /// Why `requirement(bundleIdentifier:team:)` returned nil, for logs. The two
+    /// causes need different fixes (sign the build vs. investigate the signature),
+    /// so they must not share one message.
+    static func missingRequirementReason(team: String?) -> String {
+        team == nil
+            ? "own team identifier unavailable"
+            : "own team identifier is not a well-formed Team ID (ten A-Z0-9 characters)"
     }
 }

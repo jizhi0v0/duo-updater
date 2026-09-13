@@ -1,117 +1,21 @@
 import Foundation
 import Security
 
-/// Accepts incoming XPC connections only from the genuine, correctly-signed main
-/// app, then vends `MASHelperProtocol`.
-final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
-    func listener(_ listener: NSXPCListener,
-                  shouldAcceptNewConnection conn: NSXPCConnection) -> Bool {
-        guard let identity = HelperService.validatedClientIdentity(conn) else {
-            NSLog("duo-helper: rejected connection — client failed code-signing check")
-            return false
-        }
-        conn.exportedInterface = NSXPCInterface(with: MASHelperProtocol.self)
-        conn.exportedObject = HelperService(clientIdentity: identity)
-        // Hold the process open for as long as this client is talking to us, and
-        // let it exit once nobody is — see `IdleExit`, which is what keeps a
-        // replaced app bundle from stranding a helper launchd will never restart.
-        // Rejected connections deliberately never get here: they must not keep a
-        // daemon alive.
-        IdleExit.connectionOpened()
-        conn.invalidationHandler = { IdleExit.connectionClosed() }
-        conn.resume()
-        return true
-    }
-}
-
 /// The root-side worker. Each accepted connection gets its own instance; all
 /// installs funnel through one serial queue so two `mas` processes never run as
 /// root at the same time (Update All fans out concurrent calls).
 final class HelperService: NSObject, MASHelperProtocol {
     static let machServiceName = "com.duoupdater.helper"
 
-    /// The caller (main app) must satisfy this requirement: Apple-anchored, our
-    /// bundle id, and the **same Developer ID team that signed this helper**. This
-    /// is THE security gate — only the DuoUpdater app built alongside this helper
-    /// can drive root through it.
-    ///
-    /// nil when our own team can't be read (unsigned/ad-hoc), which
-    /// `isValidClient` treats as "reject everything" — see `OwnTeamIdentifier`.
-    private static let clientRequirement =
-        OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app")
-
     private static let workQueue = DispatchQueue(label: "com.duoupdater.helper.install")
 
-    struct ClientIdentity {
-        let uid: uid_t
-        let gid: gid_t
-        let userName: String
-    }
+    /// Fixed at accept time by `HelperPeerGate`, from the connection that passed
+    /// the code-signing requirement.
+    private let clientIdentity: HelperClientIdentity
 
-    private let clientIdentity: ClientIdentity
-
-    init(clientIdentity: ClientIdentity) {
+    init(clientIdentity: HelperClientIdentity) {
         self.clientIdentity = clientIdentity
         super.init()
-    }
-
-    // MARK: Peer validation
-
-    static func isValidClient(_ conn: NSXPCConnection) -> Bool {
-        validatedClientIdentity(conn) != nil
-    }
-
-    /// Validate the peer's code identity and bind the session identity used by
-    /// every privileged operation to the same kernel-supplied audit token. Client
-    /// arguments remain in the XPC protocol for compatibility, but can no longer
-    /// select a different user's GUI session.
-    static func validatedClientIdentity(_ conn: NSXPCConnection) -> ClientIdentity? {
-        // No resolvable team ⇒ no requirement we're willing to accept. Refuse
-        // rather than degrade to a team-less (forgeable) requirement.
-        guard let clientRequirement else { return nil }
-        guard var token = auditToken(of: conn) else { return nil }
-        let data = Data(bytes: &token, count: MemoryLayout<audit_token_t>.size)
-        let attrs = [kSecGuestAttributeAudit: data] as CFDictionary
-        var code: SecCode?
-        guard SecCodeCopyGuestWithAttributes(nil, attrs, [], &code) == errSecSuccess,
-              let guest = code else { return nil }
-        var requirement: SecRequirement?
-        guard SecRequirementCreateWithString(clientRequirement as CFString, [], &requirement) == errSecSuccess,
-              let req = requirement else { return nil }
-        guard SecCodeCheckValidity(guest, [], req) == errSecSuccess else { return nil }
-        let uid = audit_token_to_euid(token)
-        let gid = audit_token_to_egid(token)
-        guard let user = accountName(for: uid) else { return nil }
-        return ClientIdentity(uid: uid, gid: gid, userName: user)
-    }
-
-    private static func accountName(for uid: uid_t) -> String? {
-        // Listener callbacks may validate more than one connection concurrently;
-        // `getpwuid` uses shared storage, so use its re-entrant counterpart.
-        let suggested = sysconf(_SC_GETPW_R_SIZE_MAX)
-        var buffer = [CChar](
-            repeating: 0, count: max(suggested > 0 ? Int(suggested) : 16_384, 1_024))
-        var entry = passwd()
-        var result: UnsafeMutablePointer<passwd>?
-        let status = buffer.withUnsafeMutableBufferPointer {
-            getpwuid_r(uid, &entry, $0.baseAddress, $0.count, &result)
-        }
-        guard status == 0, result != nil, let name = entry.pw_name else { return nil }
-        return String(cString: name)
-    }
-
-    /// `auditToken` is SPI on NSXPCConnection (stable since macOS 11) — no public
-    /// API exposes it, so read it via KVC, where it bridges as an NSValue wrapping
-    /// the `audit_token_t` struct. This is the long-standing pattern for XPC peer
-    /// validation. If it ever returns nil we fail closed (reject the connection).
-    private static func auditToken(of conn: NSXPCConnection) -> audit_token_t? {
-        guard conn.responds(to: NSSelectorFromString("auditToken")),
-              let value = conn.value(forKey: "auditToken") as? NSValue else { return nil }
-        var token = audit_token_t()
-        withUnsafeMutableBytes(of: &token) { buf in
-            value.getValue(buf.baseAddress!, size: buf.count)
-        }
-        return token
     }
 
     // MARK: MASHelperProtocol
@@ -121,9 +25,8 @@ final class HelperService: NSObject, MASHelperProtocol {
         let identity = clientIdentity
         Self.workQueue.async {
             guard adamID > 0 else { reply(-1, "invalid adamID"); return }
-            guard uid == Int(identity.uid), gid == Int(identity.gid),
-                  userName == identity.userName else {
-                reply(-1, "client identity did not match its XPC audit token"); return
+            guard identity.matchesClaim(uid: uid, gid: gid, userName: userName) else {
+                reply(-1, "client identity did not match its XPC connection"); return
             }
             // logPath is a path the *client* chose that root will redirect onto, so
             // pin it to exactly what `MASInstaller` builds: the basename is the

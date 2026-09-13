@@ -74,8 +74,8 @@ public enum Inventory {
     }
 
     /// `scan`, but nil when the scan was given up on rather than an empty list —
-    /// for `duo check`, which must not follow an abandoned scan with "Everything is
-    /// up to date." The other commands (install, restart, backups, doctor, ignore)
+    /// for `duo check` and `duo list`, which must not follow an abandoned scan with
+    /// "Everything is up to date." or "No apps found." The other commands (install, restart, backups, doctor, ignore)
     /// still take the empty list, and what each prints after it has not been
     /// reviewed for the same claim.
     static func scanIfFinished(_ settings: Settings) async -> [InstalledApp]? {

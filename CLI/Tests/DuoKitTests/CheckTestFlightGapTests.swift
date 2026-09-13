@@ -225,6 +225,30 @@ import DuoUpdaterCore
         #expect(status == 0)
     }
 
+    /// `duo list` after an abandoned scan: nothing was looked at, which "No apps
+    /// found." would call an empty Mac. Its exit status stays 0, and a scan that
+    /// finished with nothing still says "No apps found."
+    ///
+    /// Mutation: have the `list` branch of `emitText` ignore `incomplete`.
+    @Test func anAbandonedListIsNotCalledEmpty() {
+        func list(scanAbandoned: Bool) -> (Int32, Transcript) {
+            let t = Transcript()
+            let status = Check.finish(
+                [], command: "list", json: false, scanAbandoned: scanAbandoned, testFlightGap: nil,
+                out: { t.lines.append(("out", $0)) },
+                err: { t.lines.append(("err", $0)) })
+            return (status, t)
+        }
+        let (abandonedStatus, abandoned) = list(scanAbandoned: true)
+        #expect(abandoned.out == ["No apps listed: the app scan was abandoned (see above)."])
+        #expect(abandoned.err.isEmpty)
+        #expect(abandonedStatus == 0)
+
+        let (emptyStatus, empty) = list(scanAbandoned: false)
+        #expect(empty.out == ["No apps found."])
+        #expect(emptyStatus == 0)
+    }
+
     /// The Full Disk Access test opens files; it runs only when there is a refusal
     /// to explain.
     ///

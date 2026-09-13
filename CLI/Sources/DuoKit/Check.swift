@@ -146,7 +146,8 @@ public enum Check {
             }
         }
         // nil when the scan was given up on: an empty list would read as a Mac
-        // with nothing to update, and the run would end in "Everything is up to date."
+        // with nothing to update (or, for `list`, nothing installed), and the run
+        // would end in "Everything is up to date." or "No apps found."
         let scanned = await Inventory.scanIfFinished(settings)
         let apps = scanned ?? []
         let selected: [InstalledApp]
@@ -374,14 +375,16 @@ public enum Check {
     /// lands first in `duo check | tee`, measured, while a terminal shows the
     /// intended order.
     ///
-    /// **Exit status is unchanged by a gap or an abandoned scan**: 1 when a row is
+    /// **Exit status is unchanged by a gap or an abandoned scan** (decided
+    /// 2026-09-13, kept deliberately): 1 when a row is
     /// actionable, else 0. A new code for "incomplete" would break every
     /// `duo check; [ $? -eq 1 ]` already written, and detection off — the other way
     /// to miss betas — has exited 0 with a note since it existed. The stderr lines,
     /// and a summary that no longer says everything is current, carry it instead.
     ///
-    /// `scanAbandoned`: `Inventory.scanIfFinished` gave up, so no app was checked
-    /// and its own stderr line has already said why.
+    /// `scanAbandoned`: `Inventory.scanIfFinished` gave up, so no app was listed or
+    /// checked, and its own stderr line has already said why. Both commands say so
+    /// in place of their empty-result line.
     static func finish(
         _ rows: [Row], command: String, json: Bool,
         scanAbandoned: Bool, testFlightGap gap: TestFlightGap?,
@@ -459,24 +462,28 @@ public enum Check {
         for row in rows { NDJSON.row(row) }
     }
 
-    /// Why a check that found no update may not say everything is current.
+    /// Why an empty result may not be reported as the usual empty-result line.
     enum Incomplete: Equatable {
-        /// The app scan was given up on, so nothing was checked.
+        /// The app scan was given up on, so nothing was listed or checked.
         case scanAbandoned
         /// Some checked app could not be answered in full
-        /// (`TestFlightGap.leavesVerdictsUnproven`).
+        /// (`TestFlightGap.leavesVerdictsUnproven`). `check` only — `list` asks
+        /// no source, so it has no verdicts to leave unproven.
         case verdictsUnproven
     }
 
-    /// `incomplete`: an empty result is then "nothing found", not "everything is
-    /// current". `print` is the stream, for tests.
+    /// `incomplete`: an empty result is then "nothing found" rather than
+    /// "everything is current", or — after an abandoned scan — "nothing looked at"
+    /// rather than "nothing installed". `print` is the stream, for tests.
     static func emitText(
         _ rows: [Row], checked: Bool, incomplete: Incomplete? = nil,
         print: (String) -> Void = { Swift.print($0) }
     ) {
         guard !rows.isEmpty else {
             guard checked else {
-                print("No apps found.")
+                print(incomplete == .scanAbandoned
+                    ? "No apps listed: the app scan was abandoned (see above)."
+                    : "No apps found.")
                 return
             }
             switch incomplete {

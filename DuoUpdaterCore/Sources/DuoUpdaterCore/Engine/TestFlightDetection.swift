@@ -42,6 +42,24 @@ public enum TestFlightDetection: String, CaseIterable, Identifiable, Sendable {
     /// ``whenAsked`` exists precisely to keep it working while nothing else syncs.
     public var syncsUnasked: Bool { self == .keepFresh }
 
+    /// Whether a trigger the user did not aim at DuoUpdater — a timer, or TestFlight
+    /// being opened for its own reasons — may read TestFlight's container.
+    ///
+    /// ⚠️ **This is not `TCCPreflight.admitsOtherAppsData`, and the difference is the
+    /// whole point.** That one admits `.unknown`, which is right for a refresh someone
+    /// asked for: they are watching, and a prompt is an answer to their request.
+    /// Reading with nothing known about the grant is what raises macOS's "access data
+    /// from other apps" prompt, and `RefreshIntent` states the rule for anything the
+    /// user is not looking at — "a silent check must never surface [it] unprompted".
+    ///
+    /// So this defers to `.scheduled` rather than restating the test. One rule, and a
+    /// new unattended trigger cannot accidentally get a laxer one by reaching for the
+    /// preflight directly: `TestFlightDetectionUnattendedTests` fails if `.unknown`
+    /// starts admitting a read here.
+    public func readsStoreUnattended(fullDiskAccess: TCCAuthStatus) -> Bool {
+        readsStore && RefreshIntent.scheduled.readsTestFlight(fullDiskAccess: fullDiskAccess)
+    }
+
     /// The value a Mac that has never had this setting starts with.
     ///
     /// Full Disk Access already granted means TestFlight rows are answering today,

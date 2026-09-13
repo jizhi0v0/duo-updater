@@ -8,9 +8,10 @@ import SQLite3
 ///
 /// ⚠️ **The first rule written here was wrong, and live data is what said so.**
 /// "An announced build the store does not hold proves the store is behind" sounds
-/// self-evident and is false: the store keeps one row per platform for the *current*
-/// build and no history, so every announcement older than the current build fails a
-/// membership test. Measured 2026-09-10 across the two live stores — of 5
+/// self-evident and is false: the store carries no history of its own, so an
+/// announcement older than what it currently holds fails a membership test. (Nor is
+/// it one row per platform — measured 2026-09-12, one app's version list left 20
+/// rows standing at once. `TestFlightInventory.Frontier` has that measurement.) Measured 2026-09-10 across the two live stores — of 5
 /// announcements, **3 named a build the store did not hold, and in all three the
 /// store was ahead**. Those three numbers are the fixtures below, because a rule
 /// this plausible needs the counter-example written down next to it.
@@ -77,9 +78,11 @@ struct TestFlightAnnouncementWitnessTests {
     }
 
     /// The absence of an announcement proves nothing, so it can never produce a
-    /// refusal. Measured on one of the two Macs: every TestFlight notification there
-    /// was a *post-install* "is Now Up to Date", and the two builds actually waiting
-    /// were never announced at all.
+    /// refusal — and the reason it can be absent is not what this file first recorded.
+    /// Measured 2026-09-13 with four builds across two Macs differing only in OS, a
+    /// macOS 26.6 Mac got a *pre-install* "Ready to Test" for every one of them while
+    /// a macOS 27.0 Mac got none. `TestFlightAnnouncements` carries the comparison.
+    /// Silence means "this OS did not tell us", never "there is no build".
     ///
     /// Mutation: return `true` when `latestAnnouncedBuild` is nil — this fails, and
     /// every app with no notification loses its up-to-date verdict.

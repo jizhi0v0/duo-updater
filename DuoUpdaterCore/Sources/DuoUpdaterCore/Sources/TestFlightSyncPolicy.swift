@@ -13,11 +13,17 @@ import Foundation
 ///   were exactly the three TestFlight had background-installed in that window.
 /// - The same store, for an app whose build is published but **not yet
 ///   installed**, holds `latest == installed` and the row reads `.upToDate`. That
-///   one is a confident wrong answer rather than a question mark, and nothing
-///   local can witness it: TestFlight's notifications are all *post-install*
-///   ("is Now Up to Date"; 5 of 5 here, and four builds published the same day
-///   produced e-mail and no notification at all — see `TestFlightAnnouncements`),
-///   and the user can switch those notifications off anyway.
+///   one is a confident wrong answer rather than a question mark.
+///
+///   ⚠️ This entry used to continue "and nothing local can witness it: TestFlight's
+///   notifications are all *post-install*". That reason is wrong — whether anything
+///   can witness it depends on the OS, not on TestFlight. Measured 2026-09-13 over
+///   four consecutive builds, two Macs on one Apple Account, app installed and
+///   Automatic Updates off on both: macOS 26.6 received a *pre-install* "Ready to
+///   Test" carrying the new build id every time, macOS 27.0 received nothing at all.
+///   `TestFlightAnnouncements` has the full comparison. So the witness does have
+///   input on macOS 26 — it is just only ever consulted inside a round, which is
+///   what the floor below still has to cover, on both versions.
 ///
 /// So there are two gaps and they need two different triggers, which is what this
 /// type decides:
@@ -181,6 +187,33 @@ public enum TestFlightSyncPolicy {
             return fresh.isEmpty ? .floor : .staleStore(fresh)
         }
         return nil
+    }
+
+    /// The same question, asked by a poll of purely local signals rather than by a
+    /// round — and deliberately answering only half of it.
+    ///
+    /// **Evidence only, never the floor.** The floor says "time has passed"; it belongs
+    /// to whatever already runs on a cadence the user chose. A poll that fired it would
+    /// quietly re-time it: on `Once a day` the floor would start syncing about hourly
+    /// instead of once per check, which is a change to what the user picked, not a
+    /// faster answer to a question they asked. Evidence is different — it names
+    /// something learnable right now, and `Ledger.syncedFor` already stops it repeating
+    /// for the same build, so asking more often makes the sync *earlier*, not more
+    /// frequent.
+    ///
+    /// What a poll can see that a round cannot see sooner: an announcement naming a
+    /// build past everything the store holds (shape 3 in ``evidence(in:inventory:announcements:)``),
+    /// which arrives on its own schedule and then waits for the next round. Measured
+    /// 2026-09-13, an announcement lands 3-5 minutes after a build is uploaded — on a
+    /// machine that receives them at all, which is not every machine
+    /// (`TestFlightAnnouncements`).
+    public static func pollReason(
+        evidence: [Evidence], storeStamp: Date?, ledger: Ledger, now: Date
+    ) -> Reason? {
+        guard case .staleStore(let fresh)? = reason(
+            evidence: evidence, storeStamp: storeStamp, ledger: ledger, now: now)
+        else { return nil }
+        return .staleStore(fresh)
     }
 
     /// What earlier rounds already spent a sync on. **Lives for one process**, and

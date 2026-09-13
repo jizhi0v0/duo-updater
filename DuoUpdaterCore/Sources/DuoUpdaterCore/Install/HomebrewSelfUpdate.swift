@@ -142,10 +142,11 @@ public enum LoginShellEnvironment {
     /// swift-subprocess's one worker thread, so a clock started at the call could
     /// expire before the shell existed, return nil without a pid to kill, and leave
     /// the shell to start afterwards with nobody watching it. `beforeSpawn` is a
-    /// test seam for that wait.
+    /// test seam for that wait, and `timerExited` one for the timer's own end.
     static func resolveHomebrewVariables(
         shell: String, environment: [String: String]?, timeout: TimeInterval,
-        beforeSpawn: (@Sendable () async -> Void)? = nil
+        beforeSpawn: (@Sendable () async -> Void)? = nil,
+        timerExited: (@Sendable () -> Void)? = nil
     ) async -> [String: String]? {
         let launched = LaunchedPID()
         let runner = Task {
@@ -166,7 +167,8 @@ public enum LoginShellEnvironment {
                 beforeSpawn: beforeSpawn,
                 standardInputIsOpen: nil)
         }
-        guard case .finished(let outcome) = await race(runner, launched: launched, within: timeout) else {
+        guard case .finished(let outcome) = await race(
+            runner, launched: launched, within: timeout, timerExited: timerExited) else {
             // SIGKILL, not SIGTERM: an interactive zsh ignores SIGTERM, so the
             // shell — and whatever in the rc file it is stuck waiting on — would keep
             // running, one more for every check. The shell's descendants are collected
@@ -195,18 +197,29 @@ public enum LoginShellEnvironment {
     /// `runner`'s value if it lands within `seconds` of the shell's launch, else
     /// `.timedOut` — without waiting for `runner`, which a task group would do. A
     /// runner that finishes without ever launching (the spawn failed) wins the race.
+    ///
+    /// The runner finishing cancels the timer. Without that, a spawn that fails
+    /// (a `pw_shell` naming a shell that is not installed) left the timer parked
+    /// in `waitForLaunch` for good: one leaked task per workbench refresh.
     private static func race(
         _ runner: Task<ChildProcess.Outcome?, Never>, launched: LaunchedPID,
-        within seconds: TimeInterval
+        within seconds: TimeInterval, timerExited: (@Sendable () -> Void)?
     ) async -> Race {
         let once = OnceRace()
         return await withCheckedContinuation { continuation in
             once.arm(continuation)
-            Task { once.resume(.finished(await runner.value)) }
+            let timer = Task {
+                defer { timerExited?() }
+                do {
+                    try await launched.waitForLaunch()
+                    try await Task.sleep(for: .seconds(seconds))
+                    once.resume(.timedOut)
+                } catch {}
+            }
             Task {
-                await launched.waitForLaunch()
-                try? await Task.sleep(for: .seconds(seconds))
-                once.resume(.timedOut)
+                let value = await runner.value
+                timer.cancel()
+                once.resume(.finished(value))
             }
         }
     }
@@ -224,34 +237,45 @@ public enum LoginShellEnvironment {
         }
     }
 
+    /// The shell's pid once it has launched. Same shape as `ChildProcess`'s
+    /// `LaunchSignal`: one waiter, released by the launch or by cancellation.
     private final class LaunchedPID: @unchecked Sendable {
         private let lock = NSLock()
         private var pid: pid_t?
-        private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var waiter: CheckedContinuation<Void, Never>?
 
         func set(_ value: pid_t) {
-            let resume: [CheckedContinuation<Void, Never>] = lock.withLock {
+            let resume: CheckedContinuation<Void, Never>? = lock.withLock {
                 pid = value
-                defer { waiters = [] }
-                return waiters
+                defer { waiter = nil }
+                return waiter
             }
-            resume.forEach { $0.resume() }
+            resume?.resume()
         }
 
         var value: pid_t? { lock.withLock { pid } }
 
-        /// Returns once `set` has been called. A launch that never happens leaves
-        /// this suspended; the race it belongs to is then won by the runner, and
-        /// the suspended timer task is abandoned with it.
-        func waitForLaunch() async {
-            await withCheckedContinuation { continuation in
-                let now: Bool = lock.withLock {
-                    if pid != nil { return true }
-                    waiters.append(continuation)
-                    return false
+        /// Returns once `set` has been called; throws `CancellationError` if the
+        /// waiting task is cancelled first, which is how `race` releases it when
+        /// the launch never happens.
+        func waitForLaunch() async throws {
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    let now: Bool = lock.withLock {
+                        if pid != nil || Task.isCancelled { return true }
+                        waiter = continuation
+                        return false
+                    }
+                    if now { continuation.resume() }
                 }
-                if now { continuation.resume() }
+            } onCancel: {
+                let resume: CheckedContinuation<Void, Never>? = lock.withLock {
+                    defer { waiter = nil }
+                    return waiter
+                }
+                resume?.resume()
             }
+            try Task.checkCancellation()
         }
     }
 

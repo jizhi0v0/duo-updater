@@ -212,20 +212,64 @@ import Foundation
         }
     }
 
-    /// The timeout counts from the shell's launch. The wait before the spawn (2 s,
-    /// injected) is longer than the timeout (0.5 s); a clock started at the call
+    /// The timeout counts from the shell's launch. The wait before the spawn (8 s,
+    /// injected) is longer than the timeout (5 s); a clock started at the call
     /// would give up before the shell existed — returning nil with no pid to kill,
-    /// and leaving the shell to start unwatched.
+    /// and leaving the shell to start unwatched. The 5 s after launch cover a real
+    /// `zsh -l -i` and the task hops around it on a loaded 3-core runner.
     ///
-    /// Mutation: drop `await launched.waitForLaunch()` from `race` → nil.
+    /// Mutation: drop `try await launched.waitForLaunch()` from `race` → nil.
     @Test func theTimeoutCountsFromTheShellsLaunch() async throws {
         let home = try Self.fixtureHome(zshrc: "export HOMEBREW_NO_AUTO_UPDATE=1")
         defer { try? FileManager.default.removeItem(at: home) }
         let environment = Self.fixtureEnvironment(home: home)
         let variables = await LoginShellEnvironment.resolveHomebrewVariables(
-            shell: "/bin/zsh", environment: environment, timeout: 0.5,
-            beforeSpawn: { try? await Task.sleep(for: .seconds(2)) })
+            shell: "/bin/zsh", environment: environment, timeout: 5,
+            beforeSpawn: { try? await Task.sleep(for: .seconds(8)) })
         #expect(variables?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+    }
+
+    /// A shell that cannot start (a `pw_shell` naming one that is not installed)
+    /// makes the runner win the race, and the timer that was waiting for a launch
+    /// is released, not left parked for the life of the process. Not a timing
+    /// test: the timeout is ten minutes, so the timer can only end by being
+    /// released; the 60 s bound only turns a regression into a failure instead of
+    /// a hang.
+    ///
+    /// Mutations: drop `timer.cancel()` in `race`, or drop the resume in
+    /// `waitForLaunch`'s cancellation handler → the timer never exits.
+    @Test func aShellThatCannotStartLeavesNoTimerBehind() async {
+        let exited = Flag()
+        let variables = await LoginShellEnvironment.resolveHomebrewVariables(
+            shell: "/nonexistent/ZZFixture-shell", environment: [:], timeout: 600,
+            timerExited: { exited.set() })
+        #expect(variables == nil)
+        let released = await Self.within(seconds: 60) { await exited.wait() }
+        #expect(released, "the launch timer is still parked")
+    }
+
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var isSet = false
+        private var waiter: CheckedContinuation<Void, Never>?
+        func set() {
+            let c: CheckedContinuation<Void, Never>? = lock.withLock {
+                isSet = true
+                defer { waiter = nil }
+                return waiter
+            }
+            c?.resume()
+        }
+        func wait() async {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                let now: Bool = lock.withLock {
+                    if isSet { return true }
+                    waiter = c
+                    return false
+                }
+                if now { c.resume() }
+            }
+        }
     }
 
     private final class ResultBox: @unchecked Sendable {

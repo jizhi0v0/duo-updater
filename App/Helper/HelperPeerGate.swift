@@ -104,8 +104,16 @@ extension NSXPCListener: HelperPeerListener {
 ///   `aConnectionRequirementStopsWhatTheListenerLetThrough` would also go red if the
 ///   second call were silently ignored. Not covered there: a Mach-service listener,
 ///   a root daemon, a separately signed peer, the exec race.
-/// - **macOS 14 / 15:** see the results recorded below (PR #591's temporary
-///   workflow); nothing else has run there.
+/// - **macOS 15.7.9 (24G830, image macos-15-arm64 20260907.0337, Xcode 16.4) and
+///   macOS 14.8.9 (23J631, image macos-14-arm64 20260831.0302, Xcode 15.4),
+///   2026-09-13, Actions run 34753854027 (a throwaway workflow on PR #591, removed
+///   before merge):** `InProcessDoubleRequirement.swift`, all PASS on both —
+///   a) listener never-matching: ping failed (4097), delegate 0, invoked 0;
+///   b) listener + connection matching: replied, delegate 1, invoked 1, no trap;
+///   c) listener matching, connection never-matching: failed (4097), delegate 1,
+///   invoked 0. Same limits as macOS 26: anonymous listener, self-connection, not
+///   root, not a Mach service, no separately signed peer. Nothing else has run on
+///   14 or 15.
 ///
 /// ## Fail-closed invariants (each has a test in `HelperPeerGateTests`)
 ///

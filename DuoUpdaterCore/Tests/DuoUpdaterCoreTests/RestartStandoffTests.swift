@@ -25,6 +25,24 @@ struct RestartStandoffTests {
             onDiskShortVersion: "26.9.11", onDiskBuildVersion: "769") == .proceed)
     }
 
+    /// Tailscale, 2026-09-13: an installer parked on the quit, running as root and
+    /// staged under /var/root, so there is no staged build to compare. A quit is
+    /// exactly what applied it over a vendor pkg install that day. Nothing to agree
+    /// on holds back, same bias as the rest of this type; a readable staged build
+    /// is the stronger evidence and still decides on its own.
+    ///
+    /// Mutations: ignore `armedWithUnreadableStaging` (first goes to `.proceed`);
+    /// check it before `staged` (second goes to `.holdBackVersionUnknown`).
+    @Test func anArmedInstallerWithUnreadableStagingHoldsBack() {
+        #expect(RestartStandoff.decide(
+            staged: nil, onDiskShortVersion: "1.102.4", onDiskBuildVersion: "101.102.4",
+            armedWithUnreadableStaging: true) == .holdBackVersionUnknown)
+        #expect(RestartStandoff.decide(
+            staged: staged("1.102.4", "101.102.4"),
+            onDiskShortVersion: "1.102.4", onDiskBuildVersion: "101.102.4",
+            armedWithUnreadableStaging: true) == .proceed)
+    }
+
     /// Regression, ChatGPT 2026-08-22: we installed 26.818.41705, Sparkle had
     /// 26.818.41509 staged since 14:53, and our restart handed it the quit it was
     /// waiting for. Note the staged build is OLDER — a check phrased as "is an

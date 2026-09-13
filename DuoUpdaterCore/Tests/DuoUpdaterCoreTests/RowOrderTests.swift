@@ -32,11 +32,12 @@ struct RowOrderTests {
         _ list: [UpdateResult],
         needsRestart: Set<String> = [],
         staged: [String: StagedSelfUpdate] = [:],
+        armed: Set<String> = [],
         pinned: [String: Int] = [:]
     ) -> [String] {
         RowOrder.sorted(
             list, needsRestart: needsRestart, stagedSelfUpdates: staged,
-            pinnedOrder: pinned
+            armedSelfInstallers: armed, pinnedOrder: pinned
         ).map(\.app.name)
     }
 
@@ -75,6 +76,22 @@ struct RowOrderTests {
 
         #expect(sorted(rows, staged: ["/Applications/Zulu.app": staged("2.0")])
             == ["Zulu", "Alpha"])
+    }
+
+    /// An installer parked on the quit with its staged build unreadable shows
+    /// Relaunch while an update is on offer, so it sorts with the other Relaunch
+    /// rows — seen on the mini 2026-09-13, where Tailscale's version-less Relaunch
+    /// stayed in its alphabetical slot among the updates. Without an update the
+    /// row shows no Relaunch (`RowAction.state`) and must not jump either.
+    ///
+    /// Mutations: leave `armedSelfInstallers` out of `relaunchable` (first goes
+    /// red); drop its `row.hasUpdate` condition (second goes red).
+    @Test func anArmedInstallerRanksWithTheRestartTierOnlyWithAnUpdate() {
+        let rows = [row("Alpha", latest: "2.0"), row("Zulu", latest: "2.0")]
+        #expect(sorted(rows, armed: ["/Applications/Zulu.app"]) == ["Zulu", "Alpha"])
+
+        let current = [row("Alpha"), row("Zulu")]
+        #expect(sorted(current, armed: ["/Applications/Zulu.app"]) == ["Alpha", "Zulu"])
     }
 
     /// …but a staged build that TRAILS the latest is an ordinary pending update:

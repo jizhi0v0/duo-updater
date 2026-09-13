@@ -454,8 +454,13 @@ public actor InstallCoordinator {
     ///
     /// The scratch directory is removed on every exit — including an apply
     /// failure and a cancellation landing between the two phases, which is why
-    /// the `defer` is here and not at the call sites.
-    private func fetchThenSwap(
+    /// the removal is here and not at the call sites.
+    ///
+    /// It holds the archive and whatever was unpacked or reconstructed from it —
+    /// a whole app bundle — so it is removed on Dispatch, after the apply phase
+    /// returns or throws, rather than in a `defer`, which cannot await.
+    /// Internal for `FetchThenSwapCleanupTests`.
+    func fetchThenSwap(
         _ result: UpdateResult,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
@@ -470,7 +475,22 @@ public actor InstallCoordinator {
             return try await download(result, progress)
         }
         await releaseAfterDownload()
-        defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
+        let applied: Result<Outcome, any Error>
+        do {
+            applied = .success(try await swap(result, downloaded, label: label, progress: progress, apply: apply))
+        } catch {
+            applied = .failure(error)
+        }
+        await removeItemOffCooperativePool(at: downloaded.workDir)
+        return try applied.get()
+    }
+
+    /// `fetchThenSwap` from the download onwards: wait for the apply permit, apply.
+    private func swap(
+        _ result: UpdateResult, _ downloaded: DownloadedUpdate, label: String,
+        progress: @Sendable @escaping (InstallStage) -> Void,
+        apply: @Sendable (UpdateResult, DownloadedUpdate, @Sendable @escaping (InstallStage) -> Void) async throws -> Void
+    ) async throws -> Outcome {
         Log.install.debug(
             "\(label, privacy: .public): downloaded \(downloaded.bytesDownloaded, privacy: .public) bytes, waiting for the apply permit")
 

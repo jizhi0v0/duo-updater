@@ -1364,11 +1364,6 @@ public struct VendorProbeSource: UpdateSource {
         }
     }
 
-    /// Download a (small) zip and read one property-list entry's string value —
-    /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
-    /// only cheap version surface is a stub-installer archive whose bundled app's
-    /// Info.plist tracks the latest client version. Every failure degrades the
-    /// probe to "unknown" rather than guessing; the `Result` says which one.
     /// `unzip -p <archive> <entry>`: the entry's bytes, or the failure.
     ///
     /// Awaited, not parked: this runs on every check and every `duo verify`.
@@ -1396,6 +1391,11 @@ public struct VendorProbeSource: UpdateSource {
         return .success(extracted.standardOutput)
     }
 
+    /// Download a (small) zip and read one property-list entry's string value —
+    /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
+    /// only cheap version surface is a stub-installer archive whose bundled app's
+    /// Info.plist tracks the latest client version. Every failure degrades the
+    /// probe to "unknown" rather than guessing; the `Result` says which one.
     private func zipEntryPlistValue(
         url: URL, entry: String, key: String
     ) async -> Result<String, ProbeFailure> {
@@ -1422,6 +1422,10 @@ public struct VendorProbeSource: UpdateSource {
             .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
         do { try data.write(to: tmp) }
         catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
+        // A synchronous removal in a `defer` on purpose, unlike the bundle-sized
+        // ones elsewhere: this is one file of a stub installer's size (it was
+        // downloaded into memory just above), so unlinking it costs nothing a hop
+        // would save.
         defer { try? FileManager.default.removeItem(at: tmp) }
 
         let plistData: Data

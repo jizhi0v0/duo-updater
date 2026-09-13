@@ -607,6 +607,9 @@ public actor PackageInstaller {
             .appendingPathComponent("duo-pkg-dest-\(UUID().uuidString)", isDirectory: true)
         guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
         else { return [] }
+        // Synchronous on purpose, unlike the bundle-sized removals elsewhere: the
+        // scratch holds only the `PackageInfo` and `Bom` members `xar` extracted
+        // below, never the payload.
         defer { try? fm.removeItem(at: scratch) }
 
         var out: Set<String> = []

@@ -418,6 +418,44 @@ class OffPool(unittest.TestCase):
         self.assertEqual(
             co.main(self.root, roots=["Sources"], minimum=200), 1)
 
+    def every_spelling_but(self, *left_out):
+        """One synchronous function calling each BLOCKING spelling not left out."""
+        body = "\n".join(f"        x{call}" for call in co.BLOCKING if call not in left_out)
+        self.write(f"    func f() {{\n{body}\n    }}\n")
+
+    # Mutation: a total-count floor instead of a per-spelling one → one spelling
+    # can match nothing while the others carry the count.
+    def test_one_spelling_that_matches_nothing_fails(self):
+        self.every_spelling_but("SecStaticCodeCheckValidity")
+        self.assertEqual(co.main(self.root, roots=["Sources"], minimum=1, retired={}), 1)
+
+    def test_every_spelling_matching_passes(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(self.root, roots=["Sources"], minimum=1, retired={}), 0)
+
+    # Mutation: RETIRED not consulted → a spelling whose last call is gone fails.
+    def test_a_retired_spelling_may_match_nothing(self):
+        self.every_spelling_but("waitUntilExit()")
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit()": "fixture"}), 0)
+
+    # Mutation: no revival check → RETIRED becomes a standing pass for a spelling
+    # that is back in use.
+    def test_a_retired_spelling_that_matches_again_fails(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit()": "fixture"}), 1)
+
+    # Mutation: RETIRED keys not checked against BLOCKING → a misspelt retirement
+    # silently retires nothing.
+    def test_a_retired_spelling_not_in_blocking_fails(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit ()": "typo"}), 1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

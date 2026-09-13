@@ -90,6 +90,18 @@ BLOCKING = [
     ".run(key:",
 ]
 
+# BLOCKING spellings with no call left in these roots, each with why. They stay in
+# BLOCKING so a reintroduction is still judged; they are only excused from the
+# presence check in `main`, which otherwise fails for a spelling that matches
+# nothing — the sign of a rename that left it inspecting nothing. A retired
+# spelling that matches again fails too: it is not retired.
+RETIRED = {
+    "waitUntilExit()": "every child process is launched through `ChildProcess`, "
+                       "which awaits its exit on kqueue",
+    ".wait()": "the last unbounded `DispatchGroup`/`DispatchSemaphore` waits were "
+               "child-process pipe drains, gone with `ChildProcess`",
+}
+
 # A child process launched without `ChildProcess`. Refused in every scope — see
 # "Child processes" above. The spellings: `Process()` (spaces allowed),
 # `Process.init(`, the class conveniences `Process.run(` and
@@ -291,6 +303,7 @@ def scan(path):
 def review(root, roots=ROOTS):
     missing = [r for r in roots if not (root / r).is_dir()]
     scanned, calls, offences, dead = 0, 0, [], []
+    per_call = {call: 0 for call in BLOCKING}
     for r in roots:
         base = root / r
         if not base.is_dir():
@@ -316,6 +329,7 @@ def review(root, roots=ROOTS):
                 launch = call == LAUNCH_CALL
                 if not launch:
                     calls += 1
+                    per_call[call] += 1
                 marker = next(((n, c) for n, c in comments if MARKER in c), None)
                 if verdict != ASYNC and not launch:
                     continue
@@ -329,10 +343,10 @@ def review(root, roots=ROOTS):
                 if line_number not in used:
                     dead.append((rel, line_number))
     return {"missing": missing, "scanned": scanned, "calls": calls,
-            "offences": offences, "dead": dead}
+            "per_call": per_call, "offences": offences, "dead": dead}
 
 
-def main(root=None, roots=ROOTS, minimum=200, minimum_calls=5):
+def main(root=None, roots=ROOTS, minimum=200, retired=None):
     root = root or pathlib.Path(__file__).resolve().parent.parent
     found = review(root, roots=roots)
 
@@ -344,19 +358,31 @@ def main(root=None, roots=ROOTS, minimum=200, minimum_calls=5):
     # Two floors, for the two ways this becomes a check that inspects nothing:
     # the roots moving, and the call spellings going out of date (a rename of
     # `SecStaticCodeCheckValidity` would leave every root in place and every file
-    # scanned). The call floor was 20 while ~40 `waitUntilExit`/pipe reads were
-    # in these roots; moving them to `ChildProcess` left 8 blocking calls (one
-    # `SecStaticCodeCheckValidity`, four `.run(key:`, two `.wait(timeout:`, one
-    # file-handle `readDataToEndOfFile`), so it is 5 now. `Process()` launches
-    # are not counted: the aim is that there are none.
+    # scanned). The second is per spelling, not a total: a total of 5 still
+    # passed with the single `SecStaticCodeCheckValidity` call renamed away, and
+    # that is the #351 call. `Process()` launches are not counted: the aim is
+    # that there are none.
     if found["scanned"] < minimum:
         print(f"✗ only {found['scanned']} Swift files scanned across "
               f"{len(roots)} roots — too few to be a real run.", file=sys.stderr)
         return 1
-    if found["calls"] < minimum_calls:
-        print(f"✗ only {found['calls']} blocking calls found; this repository "
-              f"has far more.\n  Check the spellings in BLOCKING before "
-              f"believing a green run.", file=sys.stderr)
+    retired = RETIRED if retired is None else retired
+    per_call = found["per_call"]
+    unknown = [call for call in retired if call not in per_call]
+    absent = [call for call, n in per_call.items() if n == 0 and call not in retired]
+    revived = [call for call in retired if per_call.get(call, 0) > 0]
+    if unknown or absent or revived:
+        for call in unknown:
+            print(f"✗ `{call}` is in RETIRED but not in BLOCKING — fix the spelling",
+                  file=sys.stderr)
+        for call in absent:
+            print(f"✗ `{call}` matches no call in {', '.join(roots)}.\n"
+                  f"  If the API was renamed, fix the spelling in BLOCKING; if the "
+                  f"last call really is gone, move it to RETIRED with the reason.",
+                  file=sys.stderr)
+        for call in revived:
+            print(f"✗ `{call}` is RETIRED but matches {per_call[call]} call(s) "
+                  f"again — take it out of RETIRED", file=sys.stderr)
         return 1
 
     offences, dead = found["offences"], found["dead"]

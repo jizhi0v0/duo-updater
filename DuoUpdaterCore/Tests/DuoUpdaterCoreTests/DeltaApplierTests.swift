@@ -79,7 +79,7 @@ struct DeltaApplierTests {
     }
 
     /// Garbage in, error out — never a half-written bundle presented as an update.
-    @Test func aCorruptPatchFailsRatherThanProducingABundle() throws {
+    @Test func aCorruptPatchFailsRatherThanProducingABundle() async throws {
         guard let tool = DeltaApplier.toolURL() else {
             // No embedded tool in this build (plain `swift test` without the app
             // installed); the selection tests above still cover the logic.
@@ -97,8 +97,8 @@ struct DeltaApplierTests {
         try Data("not a patch".utf8).write(to: junk)
         let out = scratch.appendingPathComponent("New.app")
 
-        #expect(throws: (any Error).self) {
-            try DeltaApplier.apply(installedApp: fakeApp, patch: junk, destination: out)
+        await #expect(throws: (any Error).self) {
+            try await DeltaApplier.apply(installedApp: fakeApp, patch: junk, destination: out)
         }
         #expect(!FileManager.default.fileExists(atPath: out.path))
     }

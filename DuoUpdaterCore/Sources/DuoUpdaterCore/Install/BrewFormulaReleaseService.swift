@@ -165,16 +165,18 @@ public actor BrewFormulaReleaseService {
 
     // MARK: - brew info (local)
 
-    /// `Sendable` because `brewInfoOffActor` resumes a continuation with it from a
-    /// Dispatch thread — it crosses a concurrency domain, it isn't decoration.
+    /// `Sendable` because `brewInfoOffActor` is a nonisolated `async` function that
+    /// hands it back to this actor — it crosses a concurrency domain, it isn't
+    /// decoration.
     private struct Info: Sendable { let homepage: URL?; let stableURL: String? }
 
-    /// Runs `brewInfo` on a Dispatch thread, so the ~0.5s subprocess never occupies
-    /// this actor. The hop is load-bearing: `brewInfo` is already effectively
-    /// non-isolated (it's `static`), but that alone changes nothing — a *synchronous*
-    /// call has no ability to switch executors (SE-0338), so it runs to completion on
-    /// whatever executor calls it. Called synchronously from `compute`, that executor
-    /// is this actor, and the actor stays occupied for the whole subprocess.
+    /// Runs `brew info` so the ~0.5s subprocess never occupies this actor. It is
+    /// `async` and awaits the child through `ChildProcess`, so `compute` suspends
+    /// here and the actor is free for the whole subprocess. That suspension is
+    /// load-bearing: a *synchronous* call has no ability to switch executors
+    /// (SE-0338), so a `brewInfo` called synchronously from `compute` ran to
+    /// completion on this actor, and the actor stayed occupied throughout.
+
     ///
     /// That serialized every client behind every other. With a GitHub token configured
     /// `prewarmFormulaReleases` calls `release(...)` for each uncached outdated formula
@@ -185,6 +187,11 @@ public actor BrewFormulaReleaseService {
     /// `cached(...)` hop queued behind the whole blocking chain. #112's parser
     /// generation invalidates every entry once after an upgrade, which is exactly when
     /// N is largest (11 of 23 outdated formulae on the author's machine, ~7s).
+    ///
+    /// Before `ChildProcess`, the only way to get that suspension around a
+    /// blocking `waitUntilExit()` was to hop it onto another thread, and the rest
+    /// of this comment is why that thread was Dispatch's — it still applies to
+    /// every blocking call that remains (see `offCooperativePool`).
     ///
     /// Dispatch, NOT `Task.detached`: a detached task still runs on the *cooperative*
     /// pool, which is width-capped near the core count and does not overcommit when one
@@ -207,40 +214,22 @@ public actor BrewFormulaReleaseService {
     /// looks perfectly healthy while `.utility` is fully saturated. An earlier revision
     /// of this comment shipped that ~0.01s figure and concluded, wrongly, that the
     /// vehicle didn't matter.
-    private static func brewInfoOffActor(name: String) async -> Info? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Info?, Never>) in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: Self.brewInfo(name: name))
-            }
-        }
-    }
-
+    ///
     /// Read `homepage` + `urls.stable.url` for one formula from `brew info
     /// --json=v2` — local, no network, authoritative for the installed formula.
-    private static func brewInfo(name: String) -> Info? {
+    /// stderr is discarded, as it was, and drained, so a long run of warnings
+    /// cannot wedge the stdout read. A read, so a cancelled lookup may kill it.
+    private static func brewInfoOffActor(name: String) async -> Info? {
         guard let brew = HomebrewInstaller.brewPath() else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brew)
-        // `--` terminates option parsing so a name can never be misread as a flag.
-        process.arguments = ["info", "--json=v2", "--formula", "--", name]
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
-        process.environment = env
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        // nullDevice, not `Pipe()`: an undrained stderr pipe deadlocks once its
-        // 64KB buffer fills — brew blocks writing (a long run of deprecation
-        // warnings or a Ruby backtrace is enough), we block forever in the
-        // `readDataToEndOfFile()` below waiting on stdout, which brew never
-        // reaches. Same failure shape, and same fix, as
-        // `BrewFormulaService.realExecutor`; this one was the last `Pipe()` left.
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0,
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        // `--` terminates option parsing so a name can never be misread as a flag.
+        guard let outcome = try? await ChildProcess.run(
+                brew, ["info", "--json=v2", "--formula", "--", name], environment: env,
+                standardError: .discard, onCancel: .terminateChild),
+              outcome.succeeded,
+              let root = try? JSONSerialization.jsonObject(with: outcome.standardOutput) as? [String: Any],
               let formula = (root["formulae"] as? [[String: Any]])?.first
         else { return nil }
         let homepage = (formula["homepage"] as? String).flatMap { URL(string: $0) }

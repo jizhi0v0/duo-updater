@@ -199,64 +199,64 @@ public actor InstallCoordinator {
         let fromStore = (route == .appStore)
         let path = app.path
         let bundleID = app.bundleID
-        // Dispatch, not `Task.detached`: a detached task still runs on the
-        // cooperative pool, and everything below blocks — `unreadableFiles` walks
-        // the bundle, `BackupStore.save` waits on `ditto`, and the input-method
-        // copy waits on another. Measured at 8.7s twice over for Word, which is
-        // 8.7s of a pool that is only as wide as the core count. See
-        // `offCooperativePool`.
-        return await offCooperativePool(qos: .userInitiated) { () -> BackupOutcome in
-            // Only *sealed* unreadable files stop a backup. Unsealed ones are the
-            // app's own runtime droppings; the copy skips them and still restores.
-            let unreadable = BackupManifest.unreadableFiles(in: path)
-            if let blocked = unreadable.sealed.first {
-                return .unreadable(path: path.appendingPathComponent(blocked).path)
-            }
-            do {
-                try BackupStore.save(
-                    appPath: path, key: key, version: version,
-                    buildVersion: buildVersion, bundleID: bundleID,
-                    fromPackageInstall: fromPackage, fromAppStore: fromStore)
-                // An input method's settings and learned dictionary live outside
-                // its bundle, so the bundle rollback point above cannot speak for
-                // them — and they are exactly what went missing when this app's
-                // one-click for WeType was withdrawn. Cloned, so it is close to
-                // free; deliberately AFTER the save, whose staging directory
-                // replaces the key directory wholesale. See
-                // `InputMethodDataBackup`.
-                //
-                // Not folded into `BackupOutcome`: this is not a reason to change
-                // what the user is told about the *bundle* rollback, and the
-                // outcome enum is switched over in both the app and the CLI.
-                if InPlaceSwap.usesContentsRotation(target: path) {
-                    let captured = InputMethodDataBackup.save(
-                        bundleName: path.deletingPathExtension().lastPathComponent,
-                        bundleID: bundleID, key: key)
-                    if captured.isEmpty {
-                        Log.install.error(
-                            "user data: captured nothing for \(path.lastPathComponent, privacy: .public) — a rollback will restore the bundle only")
-                    } else {
-                        // Leaf names, not full paths: these all live under the
-                        // user's home, and the leaf is what identifies the location
-                        // while the prefix is only their account name.
-                        Log.install.notice(
-                            "user data: snapshotted \(captured.count, privacy: .public) location(s) for \(path.lastPathComponent, privacy: .public): \(captured.map(\.original.lastPathComponent).joined(separator: ", "), privacy: .public)")
-                    }
+        // The bundle walk goes to Dispatch — not `Task.detached`, which still runs
+        // on the cooperative pool. It was one hop for everything below, measured at
+        // 8.7s twice over for Word, 8.7s of a pool only as wide as the core count.
+        // The two `ditto` copies inside no longer need it (`ChildProcess` awaits
+        // them without parking a thread), and `BackupStore.save` hops its own
+        // whole-bundle walks. See `offCooperativePool`.
+        // Only *sealed* unreadable files stop a backup. Unsealed ones are the
+        // app's own runtime droppings; the copy skips them and still restores.
+        let unreadable = await offCooperativePool(qos: .userInitiated) {
+            BackupManifest.unreadableFiles(in: path)
+        }
+        if let blocked = unreadable.sealed.first {
+            return .unreadable(path: path.appendingPathComponent(blocked).path)
+        }
+        do {
+            try await BackupStore.save(
+                appPath: path, key: key, version: version,
+                buildVersion: buildVersion, bundleID: bundleID,
+                fromPackageInstall: fromPackage, fromAppStore: fromStore)
+            // An input method's settings and learned dictionary live outside
+            // its bundle, so the bundle rollback point above cannot speak for
+            // them — and they are exactly what went missing when this app's
+            // one-click for WeType was withdrawn. Cloned, so it is close to
+            // free; deliberately AFTER the save, whose staging directory
+            // replaces the key directory wholesale. See
+            // `InputMethodDataBackup`.
+            //
+            // Not folded into `BackupOutcome`: this is not a reason to change
+            // what the user is told about the *bundle* rollback, and the
+            // outcome enum is switched over in both the app and the CLI.
+            if InPlaceSwap.usesContentsRotation(target: path) {
+                let captured = await InputMethodDataBackup.save(
+                    bundleName: path.deletingPathExtension().lastPathComponent,
+                    bundleID: bundleID, key: key)
+                if captured.isEmpty {
+                    Log.install.error(
+                        "user data: captured nothing for \(path.lastPathComponent, privacy: .public) — a rollback will restore the bundle only")
+                } else {
+                    // Leaf names, not full paths: these all live under the
+                    // user's home, and the leaf is what identifies the location
+                    // while the prefix is only their account name.
+                    Log.install.notice(
+                        "user data: snapshotted \(captured.count, privacy: .public) location(s) for \(path.lastPathComponent, privacy: .public): \(captured.map(\.original.lastPathComponent).joined(separator: ", "), privacy: .public)")
                 }
-                return unreadable.unsealed.isEmpty
-                    ? .saved
-                    : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
-            } catch {
-                // The identity of the error is the whole diagnosis, and collapsing
-                // every `BackupError` into a bare `.failed` threw it away: the log
-                // could say a backup failed but never which of the half-dozen
-                // throws in `save` fired, so a report could not be acted on without
-                // first reproducing it. Each of those sites now says what it saw;
-                // this records which one won.
-                Log.install.error(
-                    "backup: \(path.lastPathComponent, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
-                return .failed
             }
+            return unreadable.unsealed.isEmpty
+                ? .saved
+                : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
+        } catch {
+            // The identity of the error is the whole diagnosis, and collapsing
+            // every `BackupError` into a bare `.failed` threw it away: the log
+            // could say a backup failed but never which of the half-dozen
+            // throws in `save` fired, so a report could not be acted on without
+            // first reproducing it. Each of those sites now says what it saw;
+            // this records which one won.
+            Log.install.error(
+                "backup: \(path.lastPathComponent, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
+            return .failed
         }
     }
 

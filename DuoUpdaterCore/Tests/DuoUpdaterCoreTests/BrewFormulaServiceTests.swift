@@ -26,53 +26,62 @@ import Foundation
 
     // MARK: - Overlap (the core regression)
 
-    /// A synchronization gate a fake `Executor` calls into. `arrive()` blocks the
-    /// calling thread until a second caller has also arrived (or `timeout`
-    /// elapses), and records the highest number of callers that were ever inside
-    /// the gate at once. This is deliberately built on locks, not Swift
-    /// concurrency: the `Executor` closure is a plain synchronous function (it
-    /// can't `await`), and the whole point is to observe REAL thread-level
-    /// overlap of the two `brew` calls, not cooperative scheduling.
+    /// A synchronization gate a fake `Executor` calls into. `arrive()` suspends
+    /// until a second caller has also arrived (or `timeout` elapses), and records
+    /// the highest number of callers that were ever inside the gate at once.
+    ///
+    /// It suspends rather than blocking a thread. The `Executor` is `async` since
+    /// the real one moved to `ChildProcess`, so the fake awaits here the way the
+    /// real one awaits its child — which is also the property being measured: the
+    /// actor has to be free while one read waits for the second to start. (The
+    /// first version of this gate was built on `NSCondition`, back when the
+    /// executor was a synchronous function run on a Dispatch thread.)
     ///
     /// Per CLAUDE.md "并行套件里墙钟上界不成立": this asserts overlap happened
     /// (`observedMaxInFlight`), not how fast it happened. `timeout` only bounds
     /// how long a broken (serialized) run waits before giving up — it is not a
     /// performance assertion, so it is set generously (60s), not tightly.
-    ///
-    /// On the healthy path the second caller arrives almost immediately (both
-    /// `async let` child tasks start right away, and `arrive()` returns the
-    /// moment the second one calls in), so this test does not normally pay
-    /// anywhere near the full timeout. But a passing run CAN legitimately take
-    /// seconds to get there: the second child task still needs a cooperative-pool
-    /// thread before it can even reach its own call into the gate, and this repo
-    /// has measured 0.5-6.4s of pool-admission / Dispatch wait on a 3-core CI
-    /// runner when ~2550 tests are running concurrently in one process (see
-    /// CLAUDE.md "并行套件里墙钟上界不成立"). A short timeout would read that
-    /// scheduling delay as "never overlapped" and fail a correct implementation.
     final class TwoWayGate: @unchecked Sendable {
-        private let condition = NSCondition()
+        private let lock = NSLock()
         private var arrivedCount = 0
         private var inFlight = 0
         private var maxInFlight = 0
+        private var waiting: [Int: CheckedContinuation<Void, Never>] = [:]
 
-        func arrive(timeout: TimeInterval = 60) {
-            condition.lock()
-            inFlight += 1
-            maxInFlight = max(maxInFlight, inFlight)
-            arrivedCount += 1
-            condition.broadcast()
-            let deadline = Date().addingTimeInterval(timeout)
-            while arrivedCount < 2 {
-                if !condition.wait(until: deadline) { break }
+        func arrive(timeout: Duration = .seconds(60)) async {
+            let ticket: Int = lock.withLock {
+                inFlight += 1
+                maxInFlight = max(maxInFlight, inFlight)
+                arrivedCount += 1
+                return arrivedCount
             }
-            inFlight -= 1
-            condition.unlock()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    await withCheckedContinuation { continuation in
+                        let resumeNow: [CheckedContinuation<Void, Never>] = self.lock.withLock {
+                            guard self.arrivedCount < 2 else {
+                                defer { self.waiting = [:] }
+                                return Array(self.waiting.values) + [continuation]
+                            }
+                            self.waiting[ticket] = continuation
+                            return []
+                        }
+                        resumeNow.forEach { $0.resume() }
+                    }
+                }
+                group.addTask {
+                    try? await Task.sleep(for: timeout)
+                    let expired = self.lock.withLock { self.waiting.removeValue(forKey: ticket) }
+                    expired?.resume()
+                }
+                await group.next()
+                group.cancelAll()
+            }
+            lock.withLock { inFlight -= 1 }
         }
 
         var observedMaxInFlight: Int {
-            condition.lock()
-            defer { condition.unlock() }
-            return maxInFlight
+            lock.withLock { maxInFlight }
         }
     }
 
@@ -85,7 +94,7 @@ import Foundation
     @Test func installedLeavesReadsGenuinelyOverlap() async throws {
         let gate = TwoWayGate()
         let service = BrewFormulaService(executor: { arguments in
-            gate.arrive()
+            await gate.arrive()
             if arguments == ["leaves"] {
                 return (0, Self.leavesOutput())
             } else if arguments == ["list", "--formula", "--versions"] {

@@ -289,9 +289,9 @@ public actor AppStoreAXInstaller {
             // landing here only shows App Store's *cached* update set, so if the row isn't
             // present yet `waitForOfferButton` fires ⌘R to force a server re-fetch and
             // waits for it to surface (see there) before giving up with `.notInUpdatesList`.
-            try navigate("macappstore://showUpdatesPage")
+            try await navigate("macappstore://showUpdatesPage")
         } else {
-            try navigateToProductPage(trackID: trackID)
+            try await navigateToProductPage(trackID: trackID)
         }
 
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
@@ -428,7 +428,7 @@ public actor AppStoreAXInstaller {
     func locateOfferButtonForTesting(trackID: Int, names: AppNames) async throws -> Bool {
         let (store, didLaunch) = try await ensureAppStoreRunning()
         if didLaunch { try await Task.sleep(for: .seconds(1)) }
-        try navigateToProductPage(trackID: trackID)
+        try await navigateToProductPage(trackID: trackID)
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
         guard let offer = try await waitForOfferButton(
             in: axApp, names: names, viaUpdatesList: false, renavigateTrackID: trackID
@@ -446,7 +446,7 @@ public actor AppStoreAXInstaller {
     /// activation), and any failure just leaves the badge to self-heal on Apple's next
     /// check — exactly the prior behavior.
     private func refreshUpdatesBadge(pid: pid_t) async {
-        try? navigate("macappstore://showUpdatesPage")
+        try? await navigate("macappstore://showUpdatesPage")
         // Let the Updates view load before reloading it — reloading reissues the
         // server-side update check, which is what recomputes the count.
         try? await Task.sleep(for: .seconds(1))
@@ -529,16 +529,12 @@ public actor AppStoreAXInstaller {
             .runningApplications(withBundleIdentifier: "com.apple.AppStore").first {
             return (app, false)
         }
-        // Off the cooperative pool: `open` is quick but `waitUntilExit()` parks
-        // whatever thread it is called on, and this one belongs to a pool that
-        // does not overcommit. See `offCooperativePool`.
-        try await offCooperativePool {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            p.arguments = ["-g", "-b", "com.apple.AppStore"]  // -g background, -b by bundle id
-            try p.run()
-            p.waitUntilExit()
-        }
+        // Awaited, not parked — see `ChildProcess`. The exit status is not read,
+        // as before: `waitForAppStore` below is what decides whether it came up.
+        // `open` only asks LaunchServices, so a cancelled install may kill it.
+        _ = try await ChildProcess.run(
+            "/usr/bin/open", ["-g", "-b", "com.apple.AppStore"],  // -g background, -b by bundle id
+            standardOutput: .discard, standardError: .discard, onCancel: .terminateChild)
         return (try await waitForAppStore(), true)
     }
 
@@ -573,18 +569,24 @@ public actor AppStoreAXInstaller {
 
     // MARK: - Navigation
 
-    private func navigateToProductPage(trackID: Int) throws {
-        try navigate("macappstore://apps.apple.com/app/id\(trackID)")
+    private func navigateToProductPage(trackID: Int) async throws {
+        try await navigate("macappstore://apps.apple.com/app/id\(trackID)")
     }
 
     /// `open -g <url>` — navigate App Store in the background, never stealing focus.
-    private func navigate(_ urlString: String) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-g", urlString]
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw AXError.appStoreUnavailable }
+    ///
+    /// Async since it moved to `ChildProcess`. It used to be a synchronous
+    /// `waitUntilExit()` called straight from this actor's async methods, which
+    /// parked a cooperative thread for every navigation — a shape
+    /// `check_offpool.py` cannot see, because the wait sat inside a synchronous
+    /// function. stdout/stderr were inherited then; `open -g` prints nothing on
+    /// success, so they are discarded now. Killable on cancellation, like the
+    /// launch above.
+    private func navigate(_ urlString: String) async throws {
+        let outcome = try await ChildProcess.run(
+            "/usr/bin/open", ["-g", urlString],
+            standardOutput: .discard, standardError: .discard, onCancel: .terminateChild)
+        guard outcome.succeeded else { throw AXError.appStoreUnavailable }
     }
 
     private func waitForAppStore() async throws -> NSRunningApplication {
@@ -649,7 +651,7 @@ public actor AppStoreAXInstaller {
                     await popToUpdatesList(in: axApp)
                     reloadUpdatesPage(in: axApp)
                 } else if let trackID = renavigateTrackID {
-                    try? navigateToProductPage(trackID: trackID)
+                    try? await navigateToProductPage(trackID: trackID)
                 }
             }
             try await Task.sleep(for: .milliseconds(150))

@@ -149,14 +149,13 @@ import Foundation
         let status: Int32
     }
 
-    private static func sh(_ script: String, eofCap: Double = 5, within: Double = 60) async throws -> Ran? {
+    private static func sh(_ script: String, within: Double = 60) async throws -> Ran? {
         try await finishing(within: within) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = ["-c", script]
             let sink = Sink()
-            let text = try await StreamedLines.run(process, eofCap: eofCap, onOutput: sink.add)
-            return Ran(lines: sink.lines, text: text, status: process.terminationStatus)
+            let (outcome, text) = try await StreamedLines.run(
+                "/bin/sh", ["-c", script], environment: ProcessInfo.processInfo.environment,
+                onOutput: sink.add)
+            return Ran(lines: sink.lines, text: text, status: outcome.terminationStatus)
         }
     }
 
@@ -182,10 +181,12 @@ import Foundation
     }
 
     /// A background child inherits stdout and outlives the shell: no EOF until it
-    /// exits. The cap returns anyway, with what the shell printed. The child
-    /// outlives the watchdog, so a missing cap fails here rather than passing late.
+    /// exits. The run returns anyway once the shell has exited and what it printed
+    /// is drained (`ChildProcess` stops waiting for EOF at the exit). The child
+    /// outlives the watchdog, so a run that waited for EOF fails here rather than
+    /// passing late.
     @Test func aChildHoldingThePipeOpenDoesNotHangTheRun() async throws {
-        let r = try #require(try await Self.sh("sleep 60 & echo parent-done", eofCap: 0.2, within: 30))
+        let r = try #require(try await Self.sh("sleep 60 & echo parent-done", within: 30))
         #expect(r.lines == ["parent-done"])
     }
 }

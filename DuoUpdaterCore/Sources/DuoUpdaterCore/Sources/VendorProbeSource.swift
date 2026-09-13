@@ -1390,39 +1390,28 @@ public struct VendorProbeSource: UpdateSource {
 
         // `unzip` needs a seekable file (the zip's central directory lives at the
         // end), so stage the archive in a temp file and extract just the one entry
-        // to stdout. The entry is a small plist — well under the pipe buffer — so a
-        // read-then-wait can't deadlock.
+        // to stdout.
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
         do { try data.write(to: tmp) }
         catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        // Off the cooperative pool: `readDataToEndOfFile()` + `waitUntilExit()` park
-        // the calling thread, and this runs on every check and every `duo verify`.
-        // See `offCooperativePool`.
-        let extracted: (status: Int32, data: Data)
+        // Awaited, not parked: this runs on every check and every `duo verify`.
+        // A read of our own temp file, so a cancelled check may take `unzip` down
+        // with it. See `ChildProcess`.
+        let extracted: ChildProcess.Outcome
         do {
-            let archive = tmp
-            extracted = try await offCooperativePool { () -> (status: Int32, data: Data) in
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-                proc.arguments = ["-p", archive.path, entry]
-                let out = Pipe()
-                proc.standardOutput = out
-                proc.standardError = FileHandle.nullDevice
-                try proc.run()
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                proc.waitUntilExit()
-                return (proc.terminationStatus, data)
-            }
+            extracted = try await ChildProcess.run(
+                "/usr/bin/unzip", ["-p", tmp.path, entry],
+                standardError: .discard, onCancel: .terminateChild)
         } catch {
             return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
         }
-        let plistData = extracted.data
-        guard extracted.status == 0 else {
+        let plistData = extracted.standardOutput
+        guard extracted.terminationStatus == 0 else {
             return .failure(.archiveExtractionFailed(
-                "unzip exited \(extracted.status) extracting '\(entry)'"))
+                "unzip exited \(extracted.terminationStatus) extracting '\(entry)'"))
         }
         guard !plistData.isEmpty else {
             return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))

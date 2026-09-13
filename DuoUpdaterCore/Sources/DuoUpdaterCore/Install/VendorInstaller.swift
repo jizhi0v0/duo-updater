@@ -207,22 +207,16 @@ public actor VendorInstaller {
             // does both (45 of 45 patches signed), so its patch route ends up better
             // proven than this installer's full-archive path, which has no signature
             // to check at all.
-            // Off the cooperative pool for the same reason as the extract below:
-            // `reconstruct` ends in `BinaryDelta`, whose `waitUntilExit()` parks the
-            // calling thread for the whole reconstruction. See `offCooperativePool`.
-            let installed = result.app.path
-            let patchFile = download.archiveURL
-            let work = download.workDir
-            let key = result.app.sparkleEdPublicKey
-            newApp = try await offCooperativePool {
-                try DeltaApplier.reconstruct(
-                    installedApp: installed,
-                    patch: patch,
-                    patchFile: patchFile,
-                    workDir: work,
-                    edPublicKey: key,
-                    onStage: onStage)
-            }
+            // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
+            // waits without parking a thread and is not killed if this task is
+            // cancelled — the guarantee the `offCooperativePool` hop used to give.
+            newApp = try await DeltaApplier.reconstruct(
+                installedApp: result.app.path,
+                patch: patch,
+                patchFile: download.archiveURL,
+                workDir: download.workDir,
+                edPublicKey: result.app.sparkleEdPublicKey,
+                onStage: onStage)
         } else {
             // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
             if let expected = remote.expectedSHA512 {
@@ -232,13 +226,10 @@ public actor VendorInstaller {
 
             // 3. Unpack the .app.
             onStage(.extracting)
-            // Off the cooperative pool: `extractApp` shells out and blocks on
-            // `errDone.wait()` and `waitUntilExit()`. See `offCooperativePool`.
-            let archive = download.archiveURL
-            let work = download.workDir
-            newApp = try await offCooperativePool {
-                try ArchiveExtractor.extractApp(from: archive, workDir: work)
-            }
+            // Awaited in place: see `extractApp` for why it needs no hop and runs
+            // to completion.
+            newApp = try await ArchiveExtractor.extractApp(
+                from: download.archiveURL, workDir: download.workDir)
             // 3b. Some vendors ship an installer stub with the app inside it —
             // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
             // first proven the stub is the vendor's: the nested archive sits under
@@ -300,15 +291,8 @@ public actor VendorInstaller {
         // already unpacked and the payload it is unpacking now.
         let inner = workDir.appendingPathComponent("nested-payload", isDirectory: true)
         try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
-        // Off the cooperative pool, like the outer extraction: this reaches the
-        // same blocking `ArchiveExtractor.run`. The hop is here rather than at the
-        // call site because this method is actor-isolated and the containment
-        // checks above must keep running under that isolation.
-        let payload = nested
-        let dir = inner
-        return try await offCooperativePool {
-            try ArchiveExtractor.extractApp(from: payload, workDir: dir)
-        }
+        // Awaited, like the outer extraction — see `extractApp`.
+        return try await ArchiveExtractor.extractApp(from: nested, workDir: inner)
     }
 
     // MARK: - Checksum
@@ -345,17 +329,15 @@ public actor VendorInstaller {
     /// Validation, quarantine removal, atomic same-volume swap, and the privileged
     /// fallback all live in `InPlaceSwap`, shared with `SparkleInstaller`.
     private func installApp(_ newApp: URL, over target: URL) async throws {
-        // Off the cooperative pool, like the extract and the gates above: the swap
-        // shells out, and its privileged route parks the calling thread inside
-        // `osascript` for as long as the user takes to answer the administrator
-        // panel. See `offCooperativePool`.
+        // Awaited in place: the swap's child processes (including the privileged
+        // `osascript` that waits on the administrator panel) go through
+        // `ChildProcess`, and the swap runs to completion if this task is
+        // cancelled. See `InPlaceSwap.replace`.
         //
-        // The `SwapOutcome` is dropped on purpose (`@discardableResult` does not
-        // survive the generic hop, hence `_ =`): both cases mean the new version is
-        // live, and a cleanup failure's reason is logged by `replace` itself, in its
-        // `defer` — `aCleanupFailureReasonReachesTheInstallLog` reads it back.
-        _ = try await offCooperativePool {
-            try InPlaceSwap.replace(newApp: newApp, over: target)
-        }
+        // The `SwapOutcome` is dropped on purpose, and said so with `_ =`: both
+        // cases mean the new version is live, and a cleanup failure's reason is
+        // logged by `replace` itself, in its `defer` —
+        // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
+        _ = try await InPlaceSwap.replace(newApp: newApp, over: target)
     }
 }

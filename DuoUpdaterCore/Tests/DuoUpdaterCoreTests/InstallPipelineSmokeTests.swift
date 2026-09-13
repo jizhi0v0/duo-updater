@@ -133,7 +133,7 @@ private func verifyGates(
     }
 
     // 3. Extract
-    let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
+    let newApp = try await ArchiveExtractor.extractApp(from: archive, workDir: workDir)
     log("✓ extracted \(newApp.lastPathComponent)")
 
     // 3b. Gate 1b — same call production makes: a signature that only verifies

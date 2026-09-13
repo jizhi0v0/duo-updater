@@ -10,8 +10,9 @@ import Foundation
 ///   3. the `gh` CLI's stored login (`gh auth token`) — zero-config for the
 ///      many developers who already have GitHub CLI authenticated.
 public enum GitHubToken {
-    public static func resolve(explicit: String? = nil) -> String? {
-        preresolved(explicit: explicit) ?? ghCLIToken()
+    public static func resolve(explicit: String? = nil) async -> String? {
+        if let cheap = preresolved(explicit: explicit) { return cheap }
+        return await ghCLIToken()
     }
 
     /// Steps 1 and 2 alone — the ones that are two memory reads and cannot block.
@@ -19,8 +20,9 @@ public enum GitHubToken {
     ///
     /// Split out because the deadline an async caller puts around `resolve` is
     /// there for step 3 and only step 3, and spending it on the other two is not
-    /// free: the hop those callers make has to be ADMITTED to a Dispatch queue
-    /// first, and admission is not instant on a loaded machine. Measured on CI
+    /// free: the task those callers race has to be scheduled first (until
+    /// `ChildProcess`, it also had to be ADMITTED to a Dispatch queue), and neither
+    /// is instant on a loaded machine. Measured on CI
     /// (3-core runner, the full suite in parallel): a settings token that needs
     /// no subprocess at all lost a 2-second race to queue admission and came back
     /// nil, so the pane went anonymous with a valid token sitting in settings.
@@ -47,15 +49,14 @@ public enum GitHubToken {
     /// Ask the `gh` CLI for its stored token.
     ///
     /// Cheap only when it answers: `gh` can sit on a keychain prompt nobody is
-    /// looking at, and `run` waits for it with no deadline of its own. So this is
-    /// **blocking** work — every async caller must reach it through
-    /// `offCooperativePool` (both do, each with its own timeout race), never
-    /// directly and not via `Task.detached`, which still runs on the cooperative
-    /// pool. Callers should also resolve once per check run rather than per
+    /// looking at, and `run` waits for it with no deadline of its own. The wait no
+    /// longer parks a thread (see `ChildProcess`), but it can still be long — so
+    /// the async callers that must not stall race it against their own deadline
+    /// (both do), and callers should resolve once per check run rather than per
     /// request.
-    private static func ghCLIToken() -> String? {
+    private static func ghCLIToken() async -> String? {
         guard let gh = ghExecutablePath() else { return nil }
-        guard let out = run(gh, ["auth", "token"]) else { return nil }
+        guard let out = await run(gh, ["auth", "token"]) else { return nil }
         let token = out.trimmingCharacters(in: .whitespacesAndNewlines)
         return token.isEmpty ? nil : token
     }
@@ -74,13 +75,13 @@ public enum GitHubToken {
         case authenticated(username: String?)
     }
 
-    /// Inspect the local `gh` CLI: installed? logged in? as whom? Runs two cheap
-    /// subprocesses and parses `gh auth status`; call off the main thread.
-    public static func cliStatus() -> CLIStatus {
+    /// Inspect the local `gh` CLI: installed? logged in? as whom? Runs one
+    /// subprocess and parses `gh auth status`.
+    public static func cliStatus() async -> CLIStatus {
         guard let gh = ghExecutablePath() else { return .notInstalled }
         // `gh auth status` writes its human-readable report to stderr and exits
         // non-zero when no account is logged in.
-        let (output, ok) = runCapturingStderr(gh, ["auth", "status"])
+        let (output, ok) = await runCapturingStderr(gh, ["auth", "status"])
         guard ok else { return .notLoggedIn }
         return .authenticated(username: parseLogin(from: output))
     }
@@ -156,36 +157,24 @@ public enum GitHubToken {
     }
 
     /// Run `gh` capturing stdout; nil on launch failure or non-zero exit.
-    private static func run(_ executable: String, _ args: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = args
-        let out = Pipe()
-        process.standardOutput = out
-        // nullDevice, not an undrained `Pipe()`: nothing reads stderr here, and a
-        // pipe nobody drains deadlocks the pair below once the child fills its
-        // ~64KB buffer. Same reasoning as `BrewFormulaService.realExecutor`.
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(decoding: data, as: UTF8.self)
+    ///
+    /// stderr is discarded, as before, and drained, so it cannot fill and wedge
+    /// the stdout read. A read-only query: a caller that is cancelled takes `gh`
+    /// down with it.
+    private static func run(_ executable: String, _ args: [String]) async -> String? {
+        guard let outcome = try? await ChildProcess.run(
+            executable, args, standardError: .discard, onCancel: .terminateChild),
+              outcome.succeeded
+        else { return nil }
+        return String(decoding: outcome.standardOutput, as: UTF8.self)
     }
 
     /// Run `gh` capturing stderr (where `gh auth status` reports); returns the
     /// text plus whether the command exited zero.
-    private static func runCapturingStderr(_ executable: String, _ args: [String]) -> (String, Bool) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = args
-        let err = Pipe()
-        // nullDevice for the half we do not read, for the reason `run` above gives.
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = err
-        do { try process.run() } catch { return ("", false) }
-        let data = err.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return (String(decoding: data, as: UTF8.self), process.terminationStatus == 0)
+    private static func runCapturingStderr(_ executable: String, _ args: [String]) async -> (String, Bool) {
+        guard let outcome = try? await ChildProcess.run(
+            executable, args, standardOutput: .discard, onCancel: .terminateChild)
+        else { return ("", false) }
+        return (String(decoding: outcome.standardError, as: UTF8.self), outcome.succeeded)
     }
 }

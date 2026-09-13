@@ -174,7 +174,7 @@ public enum InputMethodDataBackup {
     ///
     /// Returns the locations actually stored.
     @discardableResult
-    public static func save(bundleName: String, bundleID: String?, key: String) -> [Location] {
+    public static func save(bundleName: String, bundleID: String?, key: String) async -> [Location] {
         let fm = FileManager.default
         let dir = BackupStore.root
             .appendingPathComponent(key, isDirectory: true)
@@ -223,7 +223,7 @@ public enum InputMethodDataBackup {
         var stored: [Location] = []
         for source in sources {
             let dest = staging.appendingPathComponent(source.storedName)
-            guard copyTree(from: source.original, to: dest) else {
+            guard await copyTree(from: source.original, to: dest) else {
                 Log.install.error(
                     "user data: could not copy \(source.original.lastPathComponent, privacy: .public) — this snapshot will not include it")
                 continue
@@ -268,7 +268,7 @@ public enum InputMethodDataBackup {
     /// Each item is exchanged atomically, and the snapshot is left in the store —
     /// a rollback must not consume the only copy of what it rolled back to.
     @discardableResult
-    public static func restore(forKey key: String) throws -> [Location] {
+    public static func restore(forKey key: String) async throws -> [Location] {
         let fm = FileManager.default
         let dir = BackupStore.root
             .appendingPathComponent(key, isDirectory: true)
@@ -290,7 +290,7 @@ public enum InputMethodDataBackup {
             else { continue }
             defer { try? fm.removeItem(at: scratch) }
             let staged = scratch.appendingPathComponent(entry.storedName)
-            guard copyTree(from: source, to: staged) else {
+            guard await copyTree(from: source, to: staged) else {
                 Log.install.error(
                     "user data: could not stage \(entry.storedName, privacy: .public) out of the store")
                 continue
@@ -319,15 +319,12 @@ public enum InputMethodDataBackup {
     /// it clones rather than duplicating blocks. On a filesystem that cannot clone
     /// this is a real copy and a real cost; it still happens, because a snapshot
     /// that silently did not exist is the failure this module was written to
-    /// prevent.
-    private static func copyTree(from source: URL, to dest: URL) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = [source.path, dest.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return false }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+    /// prevent. Not killed on cancellation, for the same reason.
+    private static func copyTree(from source: URL, to dest: URL) async -> Bool {
+        guard let outcome = try? await ChildProcess.run(
+            "/usr/bin/ditto", [source.path, dest.path],
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+        else { return false }
+        return outcome.succeeded
     }
 }

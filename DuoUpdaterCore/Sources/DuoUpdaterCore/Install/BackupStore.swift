@@ -183,7 +183,7 @@ public enum BackupStore {
         appPath: URL, key: String, version: String?, buildVersion: String? = nil,
         bundleID: String?,
         fromPackageInstall: Bool = false, fromAppStore: Bool = false
-    ) throws -> Backup {
+    ) async throws -> Backup {
         let fm = FileManager.default
         let dir = root.appendingPathComponent(key, isDirectory: true)
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
@@ -213,7 +213,7 @@ public enum BackupStore {
         // next attempt.
         let staging = root.appendingPathComponent(
             "\(stagingPrefix(key: key))-\(UUID().uuidString)", isDirectory: true)
-        sweepStagingLeftovers(in: root, key: key)
+        await sweepStagingLeftovers(in: root, key: key)
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
 
         let name = appPath.lastPathComponent
@@ -225,7 +225,15 @@ public enum BackupStore {
         // the app rewrites them — so the copy may skip them. A file the seal DOES
         // cover is payload, and a bundle without it is broken, so there is
         // nothing worth storing.
-        let unreadable = BackupManifest.unreadableFiles(in: appPath)
+        //
+        // Walking the bundle is blocking disk work, so it — and the other two
+        // whole-bundle walks below — goes to Dispatch. The `ditto`/`chflags` in
+        // between are awaited through `ChildProcess` and need no hop; until they
+        // were, this whole function ran inside one `offCooperativePool` hop in
+        // `InstallCoordinator.backUp`.
+        let unreadable = await offCooperativePool(qos: .userInitiated) {
+            BackupManifest.unreadableFiles(in: appPath)
+        }
         guard unreadable.sealed.isEmpty else {
             Log.install.error(
                 "backup: \(name, privacy: .public) has \(unreadable.sealed.count, privacy: .public) sealed file(s) we cannot read, first \(unreadable.sealed.first ?? "?", privacy: .public) — that is payload, so there is nothing worth storing")
@@ -237,7 +245,7 @@ public enum BackupStore {
         // code signature exactly — a plain copy can mangle them. It reports one
         // status for the whole run, so a non-zero exit is only acceptable once we
         // have confirmed the ONLY things it dropped are the ones we meant to drop.
-        let ditto = runDitto(from: appPath, to: staged)
+        let ditto = await runDitto(from: appPath, to: staged)
         if !ditto.ok {
             Log.install.error(
                 "backup: ditto exited \(ditto.status, privacy: .public) copying \(name, privacy: .public) — \(ditto.stderrTail, privacy: .public)")
@@ -251,8 +259,11 @@ public enum BackupStore {
                 try? fm.removeItem(at: staging)
                 throw BackupError.copyFailed(appPath.path)
             }
-            let unexpected = BackupManifest.unexpectedOmissions(
-                source: appPath, copy: staged, expected: unreadable.unsealed)
+            let omitted = unreadable.unsealed
+            let unexpected = await offCooperativePool(qos: .userInitiated) {
+                BackupManifest.unexpectedOmissions(
+                    source: appPath, copy: staged, expected: omitted)
+            }
             guard unexpected.isEmpty else {
                 Log.install.error(
                     "backup: copy of \(name, privacy: .public) lost \(unexpected.count, privacy: .public) file(s) it should have kept")
@@ -264,7 +275,7 @@ public enum BackupStore {
         // Our copy from here on, so it must not inherit a flag that would stop us
         // ever replacing or removing it — see `clearUserImmutableFlags`. Done before
         // the fingerprint so the manifest describes what is actually stored.
-        if !clearUserImmutableFlags(under: staged) {
+        if await !clearUserImmutableFlags(under: staged) {
             Log.install.error(
                 "backup: could not clear immutable flags on the copy of \(name, privacy: .public) — retention may not be able to replace it later")
         }
@@ -274,7 +285,9 @@ public enum BackupStore {
         // to be able to trust is that the bytes in the store are the ones that
         // came out of this copy, and hashing the source would certify something
         // we did not keep.
-        let manifest = BackupManifest.compute(for: staged)
+        let manifest = await offCooperativePool(qos: .userInitiated) {
+            BackupManifest.compute(for: staged)
+        }
         if manifest == nil {
             Log.install.error(
                 "backup: could not fingerprint \(name, privacy: .public) — restoring it will fall back to the signature gate")
@@ -307,7 +320,7 @@ public enum BackupStore {
                 // path where stripping failed — still carries it, and `replaceItemAt`
                 // cannot remove it. Clearing it here is what lets retention ever get
                 // past a single poisoned generation.
-                clearUserImmutableFlags(under: dir)
+                await clearUserImmutableFlags(under: dir)
                 _ = try fm.replaceItemAt(dir, withItemAt: staging)
             } else {
                 try fm.moveItem(at: staging, to: dir)
@@ -382,8 +395,11 @@ public enum BackupStore {
     /// backup survives the move that `InPlaceSwap` performs), then runs the same
     /// validated, atomic swap an install uses. The backup is left in place — a
     /// rollback shouldn't also destroy the only copy of the version it restored.
+    ///
+    /// Runs to completion if the calling task is cancelled: every child process
+    /// in it is `.runToCompletion`, and `InPlaceSwap.replace` is too.
     @discardableResult
-    public static func restore(forKey key: String, over target: URL) throws -> String? {
+    public static func restore(forKey key: String, over target: URL) async throws -> String? {
         guard let backup = backup(forKey: key) else {
             throw BackupError.noBackup(key)
         }
@@ -395,7 +411,7 @@ public enum BackupStore {
         defer { try? fm.removeItem(at: scratch) }
 
         let staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
-        let ditto = runDitto(from: backup.bundlePath, to: staged)
+        let ditto = await runDitto(from: backup.bundlePath, to: staged)
         guard ditto.ok else {
             Log.install.error(
                 "restore: ditto exited \(ditto.status, privacy: .public) copying the stored \(backup.bundlePath.lastPathComponent, privacy: .public) out of the backup store — \(ditto.stderrTail, privacy: .public)")
@@ -407,10 +423,21 @@ public enum BackupStore {
         // restore it — a rollback that knowingly installs a damaged bundle is worse
         // than leaving the (working) current app in place. See `integrityHolds` for
         // why this asks about our own copy rather than the vendor's signature.
-        guard integrityHolds(for: key, staged: staged) else {
+        //
+        // Off the cooperative pool: it hashes the whole staged bundle, and for a
+        // backup without a manifest it falls back to `SecStaticCodeCheckValidity`
+        // (the #351 call). See `offCooperativePool`. The recorded manifest is read
+        // HERE, before the hop: `root` honours the `rootOverride` task-local, and a
+        // Dispatch thread has no task-locals — read inside the hop, a test's
+        // scratch store silently became the real one and the tamper check passed
+        // a tampered copy (`tamperingWithTheStoredCopyIsRefused` went red).
+        let recorded = recordedManifest(for: key)
+        guard await offCooperativePool(qos: .userInitiated, {
+            integrityHolds(for: key, recorded: recorded, staged: staged)
+        }) else {
             throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
-        try InPlaceSwap.replace(newApp: staged, over: target)
+        try await InPlaceSwap.replace(newApp: staged, over: target)
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at
         // whatever the newer version made of it. Restore the snapshot taken with
@@ -419,7 +446,7 @@ public enum BackupStore {
         // an incomplete one that says so.
         if InPlaceSwap.usesContentsRotation(target: target) {
             do {
-                let restored = try InputMethodDataBackup.restore(forKey: key)
+                let restored = try await InputMethodDataBackup.restore(forKey: key)
                 // Said plainly because the files on disk are only half of it: a
                 // running input method holds its preferences and its mmkv/dictionary
                 // files open, so what it is using is not what was just restored
@@ -443,12 +470,9 @@ public enum BackupStore {
     /// apps which break their own seal by writing state inside their bundle
     /// (ToDesk, EasyConnect), so a faithful copy of what the user was running
     /// was rejected as "corrupted".
-    private static func integrityHolds(for key: String, staged: URL) -> Bool {
-        let metaURL = root.appendingPathComponent(key, isDirectory: true)
-            .appendingPathComponent("backup.json")
-        let recorded = (try? Data(contentsOf: metaURL))
-            .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }?.manifest
-
+    private static func integrityHolds(
+        for key: String, recorded: BackupManifest?, staged: URL
+    ) -> Bool {
         if let recorded {
             guard let current = BackupManifest.compute(for: staged) else {
                 Log.install.error(
@@ -469,6 +493,14 @@ public enum BackupStore {
             return false
         }
         return true
+    }
+
+    /// The manifest `save` recorded for `key`, if its sidecar has one.
+    private static func recordedManifest(for key: String) -> BackupManifest? {
+        let metaURL = root.appendingPathComponent(key, isDirectory: true)
+            .appendingPathComponent("backup.json")
+        return (try? Data(contentsOf: metaURL))
+            .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }?.manifest
     }
 
     /// True if the staged backup either validates cleanly or is simply unsigned;
@@ -696,16 +728,16 @@ public enum BackupStore {
     /// Only `uchg`. `schg` is the system-immutable flag and needs root to clear;
     /// nothing we store should carry one, and if something does, failing loudly
     /// later is better than pretending we can handle it here.
+    ///
+    /// Not killed on cancellation: it runs on a copy that is about to be stored,
+    /// replaced or deleted, and every one of those needs it to have finished.
     @discardableResult
-    private static func clearUserImmutableFlags(under url: URL) -> Bool {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/chflags")
-        p.arguments = ["-R", "nouchg", url.path]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return false }
-        p.waitUntilExit()
-        return p.terminationStatus == 0
+    private static func clearUserImmutableFlags(under url: URL) async -> Bool {
+        guard let outcome = try? await ChildProcess.run(
+            "/usr/bin/chflags", ["-R", "nouchg", url.path],
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+        else { return false }
+        return outcome.succeeded
     }
 
     /// The prefix every staging directory for `key` shares — the bundle copy's own
@@ -727,14 +759,14 @@ public enum BackupStore {
     ///
     /// Internal rather than private so `InputMethodDataBackupTests` can pin that
     /// the user-data snapshot's own name is one this reclaims.
-    static func sweepStagingLeftovers(in root: URL, key: String) {
+    static func sweepStagingLeftovers(in root: URL, key: String) async {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(atPath: root.path) else { return }
         for name in entries where name.hasPrefix(stagingPrefix(key: key)) {
             let leftover = root.appendingPathComponent(name)
             // Anything we copied may carry a `uchg` the source set; clear it before
             // trying, or a leftover written before this existed can never be swept.
-            clearUserImmutableFlags(under: leftover)
+            await clearUserImmutableFlags(under: leftover)
             do { try fm.removeItem(at: leftover) } catch {
                 Log.install.error(
                     "backup: leftover staging dir \(name, privacy: .public) would not clear — \(error.localizedDescription, privacy: .public); this backup uses a fresh one, but that directory is stranded until it is removed by hand")
@@ -742,31 +774,28 @@ public enum BackupStore {
         }
     }
 
-    private static func runDitto(from src: URL, to dst: URL) -> DittoOutcome {
-        let fm = FileManager.default
-        try? fm.removeItem(at: dst)
-        // stderr goes to a file rather than a `Pipe`: nothing drains a pipe while
-        // ditto runs, so a bundle noisy enough to fill the buffer would block it
-        // forever, turning a diagnostic into a hang.
-        let errURL = fm.temporaryDirectory.appendingPathComponent("duo-ditto-\(UUID().uuidString).err")
-        fm.createFile(atPath: errURL.path, contents: nil)
-        defer { try? fm.removeItem(at: errURL) }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        p.arguments = [src.path, dst.path]
-        p.standardOutput = FileHandle.nullDevice
-        let errHandle = try? FileHandle(forWritingTo: errURL)
-        p.standardError = errHandle ?? FileHandle.nullDevice
-        do { try p.run() } catch {
+    /// `ditto src dst`, with stderr's last few lines kept for the log.
+    ///
+    /// stderr used to go to a temporary file because nothing drained a `Pipe`
+    /// while `ditto` ran, and a bundle noisy enough to fill the buffer would have
+    /// blocked it forever. `ChildProcess` drains both pipes as the child writes, so
+    /// it is captured directly now. Runs to completion on cancellation: a half
+    /// copy is what `save` and `restore` both exist to avoid.
+    private static func runDitto(from src: URL, to dst: URL) async -> DittoOutcome {
+        try? FileManager.default.removeItem(at: dst)
+        let outcome: ChildProcess.Outcome
+        do {
+            outcome = try await ChildProcess.run(
+                "/usr/bin/ditto", [src.path, dst.path],
+                standardOutput: .discard, onCancel: .runToCompletion)
+        } catch {
             return DittoOutcome(ok: false, status: -1, stderrTail: "could not start ditto: \(error)")
         }
-        p.waitUntilExit()
-        try? errHandle?.close()
-        let text = (try? String(contentsOf: errURL, encoding: .utf8)) ?? ""
+        let text = String(data: outcome.standardError, encoding: .utf8) ?? ""
         let lines = text.split(separator: "\n")
         let tail = lines.suffix(4).joined(separator: " | ")
         return DittoOutcome(
-            ok: p.terminationStatus == 0, status: p.terminationStatus,
+            ok: outcome.terminationStatus == 0, status: outcome.terminationStatus,
             stderrTail: lines.count > 4 ? "(\(lines.count) lines) … \(tail)" : tail)
     }
 }

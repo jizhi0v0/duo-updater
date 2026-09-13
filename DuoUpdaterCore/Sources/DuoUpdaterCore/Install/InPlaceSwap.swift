@@ -54,7 +54,14 @@ public enum InPlaceSwap {
     /// Held across the administrator panel in `privilegedReplace`, so two
     /// installs running in parallel raise one panel after the other rather than
     /// two at once. Nothing else takes it, so it cannot deadlock.
-    private static let elevationPanel = NSLock()
+    ///
+    /// One apply permit of an `InstallPermits` is a FIFO lock whose waiters
+    /// suspend. It was an `NSLock` while the wait for `osascript` was a parked
+    /// thread anyway; a lock cannot be held across the `await` that replaced it,
+    /// and a second installer blocking a thread on it for as long as the first
+    /// user takes to answer would bring the parked thread straight back. Its
+    /// waiters are not woken by cancellation, which is what a swap wants.
+    private static let elevationPanel = InstallPermits(downloads: 0, applies: 1)
 
     /// Recover from a privileged swap (`privilegedReplace`) that was interrupted
     /// between its two renames: the installed app is then sitting at
@@ -290,10 +297,18 @@ public enum InPlaceSwap {
 
     /// Replace `target` with `newApp`. Tries a user-level atomic swap first; if the
     /// location needs admin rights, falls back to an authenticated copy.
+    ///
+    /// Runs to completion once started, even if the calling task is cancelled.
+    /// Nothing in here checks for cancellation, and each child process it starts
+    /// (`xattr`, `chmod`, the privileged `osascript`) is `.runToCompletion`, so a
+    /// cancel can neither stop the sequence between its renames nor kill the
+    /// shell that is performing them: the target ends up the old bundle or the new
+    /// one, never a mixture. That is what the `offCooperativePool` hop callers
+    /// used to make guaranteed, and they no longer make it.
     @discardableResult
-    static func replace(newApp: URL, over target: URL) throws -> SwapOutcome {
+    static func replace(newApp: URL, over target: URL) async throws -> SwapOutcome {
         try validateTarget(target)
-        stripQuarantine(newApp)
+        await stripQuarantine(newApp)
         // The single moment the user's disk actually changes. Logged at `.notice`
         // on both sides, because "the app was never replaced" — the state behind
         // an update that reports done and changes nothing — was previously
@@ -366,7 +381,7 @@ public enum InPlaceSwap {
         // see `usesContentsRotation`. Never elevated, and that is not a shortcut:
         // the elevated route cannot do this at all (see `rotateContents`).
         if usesContentsRotation(target: target) {
-            let outcome = try rotateContents(newApp: newApp, over: target)
+            let outcome = try await rotateContents(newApp: newApp, over: target)
             replaced = true
             if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
             return outcome
@@ -436,7 +451,7 @@ public enum InPlaceSwap {
             return .replaced
         }
 
-        let elevatedOutcome = try privilegedReplace(newApp: newApp, target: target)
+        let elevatedOutcome = try await privilegedReplace(newApp: newApp, target: target)
         replaced = true
         if case .replacedButCleanupFailed(let reason) = elevatedOutcome { cleanupFailure = reason }
         return elevatedOutcome
@@ -604,27 +619,27 @@ public enum InPlaceSwap {
     /// a dangling link or one pointing at a file outside the bundle it may not
     /// write, with nothing quarantined. Measured 2026-09-13: `-drs` clears the
     /// links and exits 0 on both of those, and still exits 1 on 0444 and `uchg`.
+    ///
+    /// Not killed on cancellation — see `replace`. The walk after a failed strip
+    /// visits every entry of the bundle, so it goes to Dispatch
+    /// (`offCooperativePool`); `xattr` itself is awaited through `ChildProcess`.
     @discardableResult
-    static func stripQuarantine(_ app: URL) -> QuarantineStripResult {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        p.arguments = ["-drs", "com.apple.quarantine", app.path]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
+    static func stripQuarantine(_ app: URL) async -> QuarantineStripResult {
         let result: QuarantineStripResult
         do {
-            try p.run()
-            p.waitUntilExit()
-            if p.terminationStatus == 0 {
+            let outcome = try await ChildProcess.run(
+                "/usr/bin/xattr", ["-drs", "com.apple.quarantine", app.path],
+                standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+            if outcome.terminationStatus == 0 {
                 result = QuarantineStripResult(exitStatus: 0, remaining: [])
             } else {
-                let scan = quarantineScan(in: app)
+                let scan = await offCooperativePool(qos: .userInitiated) { quarantineScan(in: app) }
                 result = QuarantineStripResult(
-                    exitStatus: p.terminationStatus, remaining: scan.quarantined,
+                    exitStatus: outcome.terminationStatus, remaining: scan.quarantined,
                     unreadable: scan.unreadable)
             }
         } catch {
-            let scan = quarantineScan(in: app)
+            let scan = await offCooperativePool(qos: .userInitiated) { quarantineScan(in: app) }
             result = QuarantineStripResult(
                 exitStatus: nil, remaining: scan.quarantined, unreadable: scan.unreadable)
         }
@@ -786,7 +801,7 @@ public enum InPlaceSwap {
     /// vendor's own installer restores `root:staff` the next time it runs. It is
     /// logged rather than left silent.
     @discardableResult
-    static func rotateContents(newApp: URL, over target: URL) throws -> SwapOutcome {
+    static func rotateContents(newApp: URL, over target: URL) async throws -> SwapOutcome {
         let fm = FileManager.default
         let liveContents = target.appendingPathComponent("Contents", isDirectory: true)
         let sourceContents = newApp.appendingPathComponent("Contents", isDirectory: true)
@@ -832,14 +847,13 @@ public enum InPlaceSwap {
         // tree needs write permission on every directory inside it.
         // `replaceItemAt` preserves the mode of the directory it replaces, but
         // only at that top level (measured).
+        // Not killed on cancellation — see `replace`. (stdout was inherited
+        // before; `chmod -R` prints nothing on it.)
         if let mode = directoryMode(at: liveContents), mode & 0o020 != 0 {
-            let chmod = Process()
-            chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
-            chmod.arguments = ["-R", "g+w", staged.path]
-            chmod.standardError = FileHandle.nullDevice
-            try? chmod.run()
-            chmod.waitUntilExit()
-            if chmod.terminationStatus != 0 {
+            let chmod = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "g+w", staged.path],
+                standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+            if chmod?.succeeded != true {
                 Log.install.error(
                     "rotate: could not carry the group-write bit onto the new Contents of \(target.lastPathComponent, privacy: .public) — its own updater may not be able to clean up after its next update")
             }
@@ -918,7 +932,7 @@ public enum InPlaceSwap {
         }
     }
 
-    private static func privilegedReplace(newApp: URL, target: URL) throws -> SwapOutcome {
+    private static func privilegedReplace(newApp: URL, target: URL) async throws -> SwapOutcome {
         // Read before anything moves. The shell's last clause —
         // `{ chown …; rm -rf old; }` — runs AFTER the two renames have put the new
         // bundle at `target`, so a failure there exits the chain non-zero with the
@@ -935,30 +949,22 @@ public enum InPlaceSwap {
         // swaps, and now that every root-owned bundle takes this path (28 apps in
         // `/Applications` on the development machine, 22 of them store-installed)
         // a batch can reach it twice at once — two system panels stacked over each
-        // other, neither saying which app it belongs to. Blocking here rather than
-        // making `replace` async is deliberate: the thread this parks was going to
-        // sit in `waitUntilExit` waiting on the same human anyway, so this moves
-        // the wait rather than adding one.
+        // other, neither saying which app it belongs to. The second swap suspends
+        // on `elevationPanel` for as long as the first user takes to answer; no
+        // thread waits with it. (Until `ChildProcess` this was an `NSLock` that
+        // parked whatever thread `replace` ran on, which is why every caller had
+        // to reach `replace` through `offCooperativePool`.)
         //
-        // ⚠️ It parks whatever thread `replace` was called on, for as long as the
-        // user takes to answer — so every async caller must reach `replace`
-        // through `offCooperativePool`, never directly. Both installers and the
-        // rollback path do. An earlier version of this comment said "the callers
-        // are synchronous"; they are `async` and always were, which is exactly the
-        // shape #351 measured killing the runtime.
-        elevationPanel.lock()
-        defer { elevationPanel.unlock() }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", appleScript]
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        try process.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
+        // `.runToCompletion`: once the shell is running, killing `osascript` could
+        // land between `mv tgt old` and `mv new tgt`. stdout was inherited before;
+        // the shell's commands print nothing on it.
+        let outcome = try await elevationPanel.withApplyPermit {
+            try await ChildProcess.run(
+                "/usr/bin/osascript", ["-e", appleScript],
+                standardOutput: .discard, onCancel: .runToCompletion)
+        }
+        guard outcome.terminationStatus == 0 else {
+            let msg = String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"
             // Dismissing the password panel is a decision, not a fault: nothing was
             // touched (the shell never ran), and the honest response is to stop
             // offering the one-click rather than to show a red failure the user

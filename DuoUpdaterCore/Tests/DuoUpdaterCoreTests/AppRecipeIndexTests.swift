@@ -18,6 +18,18 @@ struct AppRecipeIndexTests {
     /// The two files in `Recipes/` that are not a family.
     private static let infrastructure: Set<String> = ["AppRecipeSet.swift", "AppRecipeIndex.swift"]
 
+    /// Every kind of data an `AppRecipeSet` carries, declared once. (A list of
+    /// kinds, not of apps — it changes only when `AppRecipeSet` does.)
+    ///
+    /// Adding a label here means also adding the kind to `AppRecipeSet.bundleIDs`
+    /// and to `theRegistriesAreExactlyTheSumOfTheFamilies`: both enumerate the
+    /// kinds by hand, and a kind missing from either passes every other test here.
+    private static let recipeKinds: Set<String> = [
+        "probes", "changelogs", "githubRules", "appStoreCases",
+        "channelProofs", "githubChannelProofs", "bindingProofs",
+        "sparkleFeeds", "supersededFeeds", "changelogPages",
+    ]
+
     /// Mutation: give one family an entry for another family's bundle id (for
     /// example a `changelogPages` key naming an app that has its own file).
     /// Lowercased because that is how `ChangelogRecipeRegistry`, `ChangelogCatalog`
@@ -77,9 +89,23 @@ struct AppRecipeIndexTests {
                 Comment(rawValue: "not strictly ascending: \(outOfOrder.map { "\($0) ≥ \($1)" })"))
     }
 
+    /// Adding a kind to `AppRecipeSet` must be a decision, not an omission (same
+    /// idea as `channelAnchorSurfaceCoversEveryRecipeField`): `bundleIDs` and the
+    /// sum test below list the kinds by hand, so a new stored property would slip
+    /// past both. Mutation: add a stored property to `AppRecipeSet`, e.g.
+    /// `let extra: [String: URL] = [:]`.
+    @Test func everyStoredKindIsDeclared() throws {
+        let set = try #require(AppRecipeIndex.all.first)
+        let labels = Set(Mirror(reflecting: set).children.compactMap(\.label)).subtracting(["family"])
+        #expect(labels == Self.recipeKinds,
+                Comment(rawValue: "AppRecipeSet stored properties \(labels.sorted()) differ from recipeKinds \(Self.recipeKinds.sorted()): add the kind to recipeKinds, bundleIDs and the sum test"))
+    }
+
     /// Mutation: derive a registry from anything but the whole index — e.g.
-    /// `AppRecipeIndex.all.dropFirst().flatMap(\.probes)`, or a literal appended
-    /// to a derivation.
+    /// `AppRecipeIndex.all.dropLast().flatMap(\.probes)`, or a literal appended
+    /// to a derivation. (A dropped family only turns this red if it has entries
+    /// of that kind: the last family by slug has a probe, the first has none, so
+    /// `dropFirst()` on `probes` stays green.)
     @Test func theRegistriesAreExactlyTheSumOfTheFamilies() {
         let all = AppRecipeIndex.all
         func sum(_ count: (AppRecipeSet) -> Int) -> Int { all.reduce(0) { $0 + count($1) } }

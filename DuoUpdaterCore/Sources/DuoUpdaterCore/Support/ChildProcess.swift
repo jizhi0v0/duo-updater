@@ -36,7 +36,13 @@ internal import SystemPackage
 /// - **stdin is inherited** unless `standardInput` supplies bytes, which is
 ///   `Process`'s default too. When this process has no fd 0 at all
 ///   (`duo … <&-`), the child gets `/dev/null` instead — measured, that is what
-///   `Process` gave it; swift-subprocess would start it with no fd 0.
+///   `Process` gave it; swift-subprocess would start it with no fd 0. It is done
+///   by pointing THIS process's fd 0 at `/dev/null` (once, and it stays) and
+///   inheriting that. Handing the child its own `/dev/null` does not work while
+///   0 is a hole: swift-subprocess opens it, or a pipe end, at the lowest free
+///   descriptor — 0 — and its spawn file actions then close that descriptor in
+///   the child. Measured: that first version passed its tests and a child
+///   started under `<&-` still printed "/dev/fd/0: Bad file descriptor".
 /// - **The environment is inherited** unless `environment` is non-nil, in which
 ///   case it replaces the whole environment, as assigning `Process.environment`
 ///   did. Entries POSIX does not allow (a key containing `=` or NUL, or starting
@@ -243,10 +249,22 @@ public enum ChildProcess {
     }
 
     /// Bytes when given; otherwise our own fd 0 — unless we have none, when the
-    /// child gets `/dev/null`, as `Process` gave it.
+    /// child gets `/dev/null`, as `Process` gave it (see "stdin" above for how).
     static func standardInputSource(bytesGiven: Bool, standardInputIsOpen: Bool) -> StandardInputSource {
         if bytesGiven { return .bytes }
         return standardInputIsOpen ? .inherit : .devNull
+    }
+
+    /// Point `descriptor` at `/dev/null` if it is closed; leave it alone if it is
+    /// open. For fd 0 `open` itself lands there (the lowest free descriptor);
+    /// `dup2` covers any other number, and is skipped if something else took the
+    /// descriptor in the meantime rather than clobbering it.
+    static func fillWithDevNullIfClosed(_ descriptor: Int32) {
+        guard fcntl(descriptor, F_GETFD) == -1 else { return }
+        let opened = open("/dev/null", O_RDONLY)
+        guard opened >= 0, opened != descriptor else { return }
+        if fcntl(descriptor, F_GETFD) == -1 { dup2(opened, descriptor) }
+        close(opened)
     }
 
     /// The environment swift-subprocess will accept: POSIX-invalid entries removed.
@@ -385,7 +403,8 @@ public enum ChildProcess {
             case .inherit:
                 status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)
             case .devNull:
-                status = try await spawn(configuration, input: .none, sink: sink, started: started)
+                ChildProcess.fillWithDevNullIfClosed(STDIN_FILENO)
+                status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)
             }
 
             let code: Int32

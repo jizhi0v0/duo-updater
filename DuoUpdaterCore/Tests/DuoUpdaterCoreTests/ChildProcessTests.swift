@@ -364,15 +364,32 @@ import Testing
         #expect(ChildProcess.standardInputSource(bytesGiven: true, standardInputIsOpen: false) == .bytes)
     }
 
-    /// The `/dev/null` spelling actually spawns and reads as an empty stdin. (Not a
-    /// discriminating test on its own: the runner's own stdin may be `/dev/null`
-    /// too. The decision is pinned above.)
-    @Test func theDevNullSpellingSpawns() async throws {
-        let outcome = try await ChildProcess.run(
-            "/bin/sh", ["-c", "cat; test -c /dev/fd/0 && echo char-device"],
-            onCancel: .terminateChild, beforeSpawn: nil, standardInputIsOpen: { false })
-        #expect(outcome.succeeded)
-        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "char-device\n")
+    /// How the `/dev/null` is provided: a closed descriptor is pointed at it, an
+    /// open one is left alone. Exercised on a closed high descriptor, not on fd 0 —
+    /// closing this process's fd 0 would reach every test running beside it. That
+    /// fd 0 itself works end to end was measured with a separate probe run under
+    /// `<&-` (see the PR).
+    ///
+    /// Mutations: skip the `dup2` → the descriptor stays closed; drop both checks
+    /// that it is closed → the pipe below is replaced by `/dev/null`. (Dropping
+    /// only the first changes nothing observable: the re-check before `dup2`
+    /// still holds.)
+    @Test func aClosedDescriptorIsPointedAtDevNull() throws {
+        let closed = try #require((Int32(300)..<Int32(1000)).first { fcntl($0, F_GETFD) == -1 })
+        defer { close(closed) }
+        ChildProcess.fillWithDevNullIfClosed(closed)
+        var filled = stat(), devNull = stat()
+        #expect(fstat(closed, &filled) == 0)
+        #expect(stat("/dev/null", &devNull) == 0)
+        #expect(filled.st_rdev == devNull.st_rdev && (filled.st_mode & S_IFMT) == S_IFCHR)
+
+        var ends: [Int32] = [0, 0]
+        #expect(pipe(&ends) == 0)
+        defer { close(ends[0]); close(ends[1]) }
+        ChildProcess.fillWithDevNullIfClosed(ends[0])
+        var kept = stat()
+        #expect(fstat(ends[0], &kept) == 0)
+        #expect((kept.st_mode & S_IFMT) == S_IFIFO)
     }
 
     /// The deadline counts from launch. Here the wait before the spawn (6 s,

@@ -4,23 +4,68 @@ import DuoUpdaterCore
 /// Scanning and checking, shared by `duo list` and `duo check`.
 public enum Inventory {
 
+    /// Whether `duo` may read TestFlight's store at all: the menu-bar app's rule
+    /// (`AppListModel.performRefresh`'s `mayReadTestFlight`), detection on AND
+    /// Full Disk Access admitting another app's data.
+    ///
+    /// **Why not just try.** Without the grant the read cannot succeed, and trying
+    /// is not free: the app stopped attempting it because on macOS 27 a refused
+    /// read posts a "Data Access Blocked" notice (`TCCPreflight.admitsOtherAppsData`,
+    /// README). Measured 2026-09-13 on 27.0 with `duo list` started directly by
+    /// launchd: the attempt reached `tccd` as a
+    /// `kTCCServiceSystemPolicyAppDataDetailed` request attributed to
+    /// `com.duoupdater.cli` and was denied; a `stat` of the same path reached `tccd`
+    /// not at all. `.unknown` still reads, as it does for a refresh the user asked
+    /// for — a `duo` command is one.
+    ///
+    /// Pure, so the rule is testable; the live status is `fullDiskAccess` below.
+    static func readsTestFlight(
+        _ detection: TestFlightDetection, fullDiskAccess: @autoclosure () -> TCCAuthStatus
+    ) -> Bool {
+        detection.readsStore && TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess())
+    }
+
+    /// This process's Full Disk Access, asked once — lazily, so a run with
+    /// detection off never opens the probe's files.
+    ///
+    /// Once, not per read, because the scan and the checker each decide whether to
+    /// read the store, and they must decide the same way within a run (see
+    /// `testFlightStore`); a grant arriving between the two would otherwise tag
+    /// betas the checker then cannot answer. `duo check` also names this status as
+    /// the reason in its note, so the note and the decision cannot disagree either.
+    static let fullDiskAccess: TCCAuthStatus = TCCPreflight.fullDiskAccessStatus()
+
     /// TestFlight's store, or the sentinel that stands for "not read", according to
-    /// the user's setting. One function so the scan and the checker cannot disagree
+    /// `readsTestFlight`. One function so the scan and the checker cannot disagree
     /// about it within a single run — a scan that read it would tag wrapped
     /// iPhone/iPad betas as TestFlight rows (#456) that the checker then had no
     /// store to answer.
-    static func testFlightStore(_ settings: Settings) -> TestFlightInventory {
-        settings.testFlightDetection.readsStore
-            ? TestFlightInventory()
+    ///
+    /// `fullDiskAccess` and `open` are the live status and the live read, passed in
+    /// so a test can count opens: a sentinel and a refused read look identical from
+    /// outside (both `accessible == false`), so only the count tells them apart.
+    static func testFlightStore(
+        _ settings: Settings,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        open: () -> TestFlightInventory = { TestFlightInventory() }
+    ) -> TestFlightInventory {
+        readsTestFlight(settings.testFlightDetection, fullDiskAccess: fullDiskAccess())
+            ? open()
             : TestFlightInventory(macRows: [], accessible: false)
     }
 
     /// TestFlight's notifications, or the "not read" sentinel, by the same rule as
     /// `testFlightStore`. Separate because `duo check` needs to know, after the
-    /// check, whether each of the two reads got in (`Check.testFlightGap`).
-    static func testFlightAnnouncements(_ settings: Settings) -> TestFlightAnnouncements {
-        settings.testFlightDetection.readsStore
-            ? TestFlightAnnouncements()
+    /// check, whether each of the two reads got in (`Check.testFlightGap`). The app
+    /// does not read this one without the store either: it only ever qualifies
+    /// what the store says, and it sits in another app's container too.
+    static func testFlightAnnouncements(
+        _ settings: Settings,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        open: () -> TestFlightAnnouncements = { TestFlightAnnouncements() }
+    ) -> TestFlightAnnouncements {
+        readsTestFlight(settings.testFlightDetection, fullDiskAccess: fullDiskAccess())
+            ? open()
             : TestFlightAnnouncements(announcements: [], accessible: false)
     }
 
@@ -74,10 +119,17 @@ public enum Inventory {
     /// difference between `duo check` and the app is a bug rather than a
     /// configuration difference.
     ///
-    /// `testflight`/`toolbox`/`appStoreSignedIn` default to a fresh real read; the
-    /// pre-install re-check (`Install.apply`) passes in the TestFlight-free
-    /// sentinel and the single `ToolboxInventory` it built once for the whole
-    /// batch — see that function's doc comment (#404 review #8).
+    /// `testflight`/`toolbox` default to a fresh real read; the pre-install
+    /// re-check (`Install.apply`) passes in the TestFlight-free sentinel and the
+    /// single `ToolboxInventory` it built once for the whole batch — see that
+    /// function's doc comment (#404 review #8).
+    ///
+    /// App Store sign-in is read only when the TestFlight store was, as the app
+    /// does (`AppListModel`'s recheck: `testflight.accessible ? AppStoreSignIn…`).
+    /// It only ever refuses a TestFlight verdict, a store not read already gives
+    /// none, and `Accounts4.sqlite` is behind Full Disk Access too (measured
+    /// 2026-09-13: `EPERM` from a `launchctl submit` job). `appStoreSignIn` is the
+    /// read, passed in so a test can count it without touching the host's database.
     /// `testflight`/`announcements` default to nil rather than to a live read, so
     /// the read can be resolved from `settings` — a default argument is evaluated at
     /// the call site and cannot see the parameter it would have to consult. Passing
@@ -87,10 +139,11 @@ public enum Inventory {
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
         toolbox: ToolboxInventory = ToolboxInventory(),
-        appStoreSignedIn: Bool? = AppStoreSignIn.isSignedIn()
+        appStoreSignIn: () -> Bool? = { AppStoreSignIn.isSignedIn() }
     ) -> UpdateChecker {
         let testflight = testflight ?? testFlightStore(settings)
         let announcements = announcements ?? testFlightAnnouncements(settings)
+        let appStoreSignedIn = testflight.accessible ? appStoreSignIn() : nil
         return UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,

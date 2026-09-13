@@ -49,7 +49,9 @@ list / check options:
                       TestFlight and closes it again: nothing takes the foreground,
                       and a TestFlight you already have open is left alone. It may
                       make TestFlight queue its own automatic updates, exactly as
-                      opening TestFlight yourself would.
+                      opening TestFlight yourself would. Not started when this run
+                      could not read the result: TestFlight detection off, or no
+                      Full Disk Access — the menu-bar app's rule.
   --source <names>    Only apps answered by these sources, comma-separated:
                       sparkle, homebrew, vendor, github, "app store", toolbox,
                       testflight. `check` only — `list` asks no source, so it has

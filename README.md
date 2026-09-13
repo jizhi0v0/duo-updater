@@ -305,6 +305,13 @@ duo backups                  # list rollback points, or put one back
 `--include-hidden`; `duo ignore` / `duo skip` write the same preferences the app
 reads, so hiding something in one hides it in the other.
 
+TestFlight follows the app's rule too: without Full Disk Access `duo` does not
+attempt TestFlight's reads, and `duo check` says the betas were not checked
+instead of calling everything up to date. The grant that counts is the one on the
+process macOS holds responsible — from a terminal, usually the terminal app; for
+a launchd job that runs `duo` directly, `duo` itself, and for one that runs it
+through a script, the script's interpreter.
+
 Two things it deliberately refuses rather than half-doing:
 
 - **App Store updates.** That route needs either the privileged helper — whose

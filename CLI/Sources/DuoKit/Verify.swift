@@ -1305,11 +1305,19 @@ public enum Verify {
     /// reachable through TestFlight. It stays because it is the last guard around
     /// everything *else* `scan()` touches — other apps' containers, network
     /// volumes, a stalled automount.
+    ///
+    /// The TestFlight store is read by `Inventory.readsTestFlight`'s rule, like every
+    /// other `duo` scan. `AppScanner()`'s default reads it unconditionally, and this
+    /// sweep is scheduled from launchd, where a job measured 2026-09-13 had no Full
+    /// Disk Access to inherit; whether the scheduled sweep's own reads were refused
+    /// was not measured.
     static func installedVersions() async -> [String: InstalledVersion] {
         let proofs = ResolvedChannelStore.Snapshot()
+        let settings = Settings.load()
         let scanned = await BoundedScan.result(within: BoundedScan.timeout) {
             var out: [String: InstalledVersion] = [:]
-            for app in AppScanner().scan() {
+            // Inside the closure: the store's open is what the bound races.
+            for app in AppScanner(testflight: Inventory.testFlightStore(settings)).scan() {
                 guard let bundleID = app.bundleID else { continue }
                 // An app whose bundle cannot name its own channel scans as
                 // `.stable` no matter which train it is really on, so a copy of

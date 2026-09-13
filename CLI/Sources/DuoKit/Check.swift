@@ -93,6 +93,26 @@ public enum Check {
         }
     }
 
+    /// Why `--refresh-testflight` did not start TestFlight, or nil when it may.
+    ///
+    /// The app starts a sync only when it may read the store afterwards
+    /// (`AppListModel`: `intent.refreshesTestFlight, mayReadTestFlight`), and `duo`
+    /// takes the same rule, `Inventory.readsTestFlight`: a refresh this run cannot
+    /// read is an app launched for nothing, and the refresh itself reads the store
+    /// and the App Store sign-in before starting anything. Said, not silently
+    /// skipped — the flag asked for a launch, and the user is owed the reason
+    /// there was none.
+    static func refreshSkipped(
+        _ detection: TestFlightDetection, fullDiskAccess: @autoclosure () -> TCCAuthStatus
+    ) -> String? {
+        guard !Inventory.readsTestFlight(detection, fullDiskAccess: fullDiskAccess()) else { return nil }
+        return detection.readsStore
+            ? "duo: TestFlight was not started — without Full Disk Access, duo can't read"
+                + " what it would refresh"
+            : "duo: TestFlight was not started — detection is off, so nothing would read"
+                + " what it refreshed (Duo Updater ▸ Settings ▸ General)"
+    }
+
     /// A row worth acting on: an update the user has not hidden.
     static func isActionable(_ row: Row) -> Bool { row.hasUpdate && !row.hidden }
 
@@ -117,8 +137,13 @@ public enum Check {
         // version comparison, so a beta installed since the last sync would still
         // be read as something else until the next invocation.
         if options.refreshTestFlight {
-            let outcome = await TestFlightRefresh().run()
-            FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
+            if let skipped = refreshSkipped(
+                settings.testFlightDetection, fullDiskAccess: Inventory.fullDiskAccess) {
+                FileHandle.standardError.write(Data((skipped + "\n").utf8))
+            } else {
+                let outcome = await TestFlightRefresh().run()
+                FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
+            }
         }
         // nil when the scan was given up on: an empty list would read as a Mac
         // with nothing to update, and the run would end in "Everything is up to date."
@@ -159,7 +184,7 @@ public enum Check {
                 announcementsOpened: announcements.accessible,
                 announcementsExist: FileManager.default.fileExists(
                     atPath: TestFlightAnnouncements.defaultDatabaseURL.path),
-                fullDiskAccess: TCCPreflight.fullDiskAccessStatus(),
+                fullDiskAccess: Inventory.fullDiskAccess,
                 betasPresent: results.contains { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac },
                 sourcesAdmitTestFlight: admitsTestFlight(options.sources))
         } else {
@@ -235,6 +260,11 @@ public enum Check {
     /// the run printed "Everything is up to date." with nothing on stderr and exit 0.
     /// Reproduced 2026-09-13 on 27.0 from a `launchctl submit` job against a beta
     /// the same binary reported an update for from a terminal.
+    ///
+    /// Without Full Disk Access the store is no longer opened at all
+    /// (`Inventory.readsTestFlight`), so "did not open" now usually means "was not
+    /// attempted". The note says "can't read", which is true of both, and the
+    /// status it names is the one that decided (`Inventory.fullDiskAccess`).
     ///
     /// **Missing ≠ refused.** `accessible` is false for a store that is not there
     /// at all as well as for one that would not open, and a Mac that has never run

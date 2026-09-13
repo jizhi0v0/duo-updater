@@ -635,8 +635,7 @@ public enum Install {
         let recheckToolbox = ToolboxInventory()
         let recheckChecker = Inventory.checker(
             settings, testflight: recheckTestflight,
-            announcements: recheckAnnouncements, toolbox: recheckToolbox,
-            appStoreSignedIn: nil)
+            announcements: recheckAnnouncements, toolbox: recheckToolbox)
         // One counter per `RowOutcome`, and the only place that maps one to the
         // other (#445) — see `Tally.record`. Before this, `apply` kept five
         // separate `var`s and incremented one by hand next to each exit from

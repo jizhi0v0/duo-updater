@@ -318,10 +318,10 @@ extension View {
     ///
     /// ⚠️ **Not reproduced on the 27.0 RC (26A428), 2026-09-13** — in a standalone
     /// probe, not in this window: an opaque titled `NSWindow` hosting SwiftUI drew
-    /// both glass forms above with their content intact — linked against the 27.0
-    /// SDK in light and dark, key and not; against the 26.5 SDK, dark and not key
-    /// (the only 26.5 case run). The beta result is kept as
-    /// the reason this was written; it is no longer a description of the RC. A
+    /// both glass forms above with their content intact in exactly these runs:
+    /// 27.0 SDK dark not-key, dark key, light not-key, light key; 26.5 SDK dark
+    /// not-key. The beta result is kept as the reason this was written; it is no
+    /// longer a description of the RC. A
     /// revert still has to be judged on screenshots of the real Settings window.
     ///
     /// It's also the right call independently: Apple reserves Liquid Glass for

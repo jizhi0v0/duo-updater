@@ -789,7 +789,9 @@ public actor PackageInstaller {
             throw PackageError.noInstallablePackage
         }
         let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
-        try? FileManager.default.removeItem(at: dest)
+        // A leftover here can be a flat package of hundreds of megabytes or a
+        // bundle-format one, so its removal is off the pool.
+        await removeItemOffCooperativePool(at: dest)
         guard await run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
             throw PackageError.downloadFailed("Could not copy the installer package out of the disk image.")
         }

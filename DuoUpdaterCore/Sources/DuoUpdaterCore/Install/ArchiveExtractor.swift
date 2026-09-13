@@ -99,7 +99,8 @@ enum ArchiveExtractor {
         }
         // Copy the app out of the read-only mount into our work dir.
         let dest = workDir.appendingPathComponent(appInMount.lastPathComponent)
-        try? FileManager.default.removeItem(at: dest)
+        // A leftover here is a whole app bundle, so its removal is off the pool.
+        await removeItemOffCooperativePool(at: dest)
         let copy = try await run("/usr/bin/ditto", [appInMount.path, dest.path])
         guard copy.code == 0 else {
             throw ExtractError.toolFailed("ditto", copy.code, copy.err)

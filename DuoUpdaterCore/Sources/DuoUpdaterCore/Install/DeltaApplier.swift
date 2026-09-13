@@ -168,17 +168,24 @@ public enum DeltaApplier {
 
         if let key = edPublicKey, !key.isEmpty {
             onStage(.verifyingSignature)
-            let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
-            try SignatureVerifier.verifyEdSignature(
-                fileData: bytes,
-                signatureBase64: patch.edSignature,
-                publicKeyBase64: key)
+            // Reads and hashes the whole patch, and until this function became
+            // async all of it ran inside the callers' `offCooperativePool` hop —
+            // so the read and the check stay on Dispatch.
+            let signature = patch.edSignature
+            try await offCooperativePool {
+                let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
+                try SignatureVerifier.verifyEdSignature(
+                    fileData: bytes,
+                    signatureBase64: signature,
+                    publicKeyBase64: key)
+            }
         }
 
         onStage(.extracting)
         let destination = workDir
             .appendingPathComponent("patched-\(installedApp.lastPathComponent)")
-        try? FileManager.default.removeItem(at: destination)
+        // A leftover here is a whole reconstructed bundle.
+        await removeItemOffCooperativePool(at: destination)
         try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
         return destination
     }

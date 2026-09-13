@@ -124,6 +124,75 @@ import Testing
         }
     }
 
+    /// A snapshot that stores nothing still removes its staging directory.
+    ///
+    /// Mutation: drop the `removeOffPool(staging)` after `snapshot` in `save` → the
+    /// staging directory is left in the store.
+    @Test func aSnapshotThatStoresNothingLeavesNoStagingBehind() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
+                let key = "com.example.ime-Fixture"
+                try makeDirectory(root.appendingPathComponent(key))
+                let support = home.appendingPathComponent("Library/Application Support/Fixture")
+                try makeDirectory(support)
+                try Data("x".utf8).write(to: support.appendingPathComponent("words.db"))
+                // Unreadable, so `ditto` cannot copy it and nothing is stored.
+                try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: support.path)
+                defer {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o755], ofItemAtPath: support.path)
+                }
+
+                #expect(await InputMethodDataBackup.save(
+                    bundleName: "Fixture", bundleID: "com.example.ime", key: key).isEmpty)
+                let leftovers = try FileManager.default.contentsOfDirectory(atPath: root.path)
+                    .filter { $0.hasPrefix(BackupStore.stagingPrefix(key: key)) }
+                #expect(leftovers.isEmpty, "stranded: \(leftovers)")
+            }
+        }
+    }
+
+    /// Restore removes each entry's scratch copy whether it lands or cannot even
+    /// be staged.
+    ///
+    /// Mutation: drop the `removeOffPool(scratch)` after `restoreEntry` → a
+    /// `DuoUpdater-userdata-<key>-…` directory is left in the temp dir.
+    @Test func aRestoreLeavesNoScratchBehind() async throws {
+        try await withScratchHome { home in
+            try await withScratchBackupRoot { root in
+                let key = "com.example.ime-ZZFixture-\(UUID().uuidString)"
+                try makeDirectory(root.appendingPathComponent(key))
+                let support = home.appendingPathComponent("Library/Application Support/Fixture")
+                try makeDirectory(support)
+                try Data("original".utf8).write(to: support.appendingPathComponent("words.db"))
+                let captured = await InputMethodDataBackup.save(
+                    bundleName: "Fixture", bundleID: "com.example.ime", key: key)
+                let stored = try #require(captured.first)
+
+                func leftovers() throws -> [String] {
+                    try FileManager.default
+                        .contentsOfDirectory(atPath: FileManager.default.temporaryDirectory.path)
+                        .filter { $0.hasPrefix("DuoUpdater-userdata-\(key)-") }
+                }
+
+                #expect(try await InputMethodDataBackup.restore(forKey: key).count == 1)
+                #expect(try leftovers().isEmpty, "after a restore that landed")
+
+                // The stored copy made unreadable: staging it out of the store fails.
+                let storedCopy = root.appendingPathComponent(key)
+                    .appendingPathComponent("UserData")
+                    .appendingPathComponent(stored.storedName)
+                try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: storedCopy.path)
+                defer {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o755], ofItemAtPath: storedCopy.path)
+                }
+                #expect(try await InputMethodDataBackup.restore(forKey: key).isEmpty)
+                #expect(try leftovers().isEmpty, "after an entry that could not be staged")
+            }
+        }
+    }
+
     /// Never written on its own: a snapshot in a directory `BackupStore` does not
     /// know about would never be pruned, and would outlive the app it belongs to.
     @Test func nothingIsStoredWithoutABundleBackupToAttachTo() async throws {

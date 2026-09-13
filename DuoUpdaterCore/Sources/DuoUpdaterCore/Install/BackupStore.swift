@@ -237,7 +237,7 @@ public enum BackupStore {
         guard unreadable.sealed.isEmpty else {
             Log.install.error(
                 "backup: \(name, privacy: .public) has \(unreadable.sealed.count, privacy: .public) sealed file(s) we cannot read, first \(unreadable.sealed.first ?? "?", privacy: .public) — that is payload, so there is nothing worth storing")
-            try? fm.removeItem(at: staging)
+            await removeItemOffCooperativePool(at: staging)
             throw BackupError.payloadUnreadable(unreadable.sealed.first ?? appPath.path)
         }
 
@@ -256,7 +256,7 @@ public enum BackupStore {
             guard !unreadable.unsealed.isEmpty else {
                 Log.install.error(
                     "backup: nothing about \(name, privacy: .public) was expected to be skipped, so the copy failed for its own reason")
-                try? fm.removeItem(at: staging)
+                await removeItemOffCooperativePool(at: staging)
                 throw BackupError.copyFailed(appPath.path)
             }
             let omitted = unreadable.unsealed
@@ -267,7 +267,7 @@ public enum BackupStore {
             guard unexpected.isEmpty else {
                 Log.install.error(
                     "backup: copy of \(name, privacy: .public) lost \(unexpected.count, privacy: .public) file(s) it should have kept")
-                try? fm.removeItem(at: staging)
+                await removeItemOffCooperativePool(at: staging)
                 throw BackupError.copyFailed(appPath.path)
             }
         }
@@ -306,7 +306,7 @@ public enum BackupStore {
                                    options: .atomic)) != nil else {
             Log.install.error(
                 "backup: the copy of \(name, privacy: .public) is complete but its sidecar would not write — discarding it, since every read path keys off the sidecar")
-            try? fm.removeItem(at: staging)
+            await removeItemOffCooperativePool(at: staging)
             throw BackupError.copyFailed(appPath.path)
         }
 
@@ -352,7 +352,7 @@ public enum BackupStore {
             }
             Log.install.error(
                 "backup: \(name, privacy: .public) copied and fingerprinted, but swapping it into place failed — \(error.localizedDescription, privacy: .public)")
-            try? fm.removeItem(at: staging)
+            await removeItemOffCooperativePool(at: staging)
             throw BackupError.copyFailed(appPath.path)
         }
         let dest = dir.appendingPathComponent(name)
@@ -362,7 +362,9 @@ public enum BackupStore {
         // to that orphan), drop it so retention stays at one copy on disk instead
         // of leaking a whole stale bundle per migrated app.
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
-        if legacy != key { remove(forKey: legacy) }
+        if legacy != key {
+            await removeItemOffCooperativePool(at: root.appendingPathComponent(legacy, isDirectory: true))
+        }
         return Backup(
             key: key, version: version, buildVersion: buildVersion,
             bundlePath: dest, savedAt: savedAt,
@@ -419,10 +421,26 @@ public enum BackupStore {
         let fm = FileManager.default
         let scratch = fm.temporaryDirectory
             .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
-        try? fm.removeItem(at: scratch)
+        // Both removals of `scratch` can be deleting a whole bundle copy (a
+        // crashed earlier rollback's, or this one's when it stops short of the
+        // swap), so they go to Dispatch — and the second is not a `defer`, which
+        // cannot await.
+        await removeItemOffCooperativePool(at: scratch)
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: scratch) }
+        let outcome: Result<String?, any Error>
+        do {
+            outcome = .success(try await restore(backup, key: key, stagingIn: scratch, over: target))
+        } catch {
+            outcome = .failure(error)
+        }
+        await removeItemOffCooperativePool(at: scratch)
+        return try outcome.get()
+    }
 
+    /// `restore(forKey:over:)` from the point its scratch directory exists.
+    private static func restore(
+        _ backup: Backup, key: String, stagingIn scratch: URL, over target: URL
+    ) async throws -> String? {
         let staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
         let ditto = await runDitto(from: backup.bundlePath, to: staged)
         guard ditto.ok else {

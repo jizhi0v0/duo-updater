@@ -84,3 +84,15 @@ public func offCooperativePool<T: Sendable>(
         }
     }
 }
+
+/// `FileManager.removeItem(at:)` through `offCooperativePool`, best-effort like
+/// the `try?` spelling it stands in for. For a path that can hold a whole bundle
+/// copy or data directory, whose deletion is a long run of synchronous unlinks.
+///
+/// Resolve `url` before calling: a Dispatch thread has no task-locals, so a path
+/// built from `BackupStore.root` inside the hop would ignore a test's override.
+func removeItemOffCooperativePool(at url: URL) async {
+    await offCooperativePool(qos: .userInitiated) {
+        _ = try? FileManager.default.removeItem(at: url)
+    }
+}

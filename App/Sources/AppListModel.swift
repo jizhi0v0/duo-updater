@@ -2789,7 +2789,9 @@ final class AppListModel {
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         if prefs.pruneOrphanBackups {
-            await Task.detached(priority: .utility) { BackupStore.pruneOrphans() }.value
+            // Deletes whole bundle copies: Dispatch, not a detached task, which
+            // would still hold a cooperative thread for all of it.
+            _ = await offCooperativePool(qos: .utility) { BackupStore.pruneOrphans() }
         }
         await refreshBackupIndex()
         isChecking = false
@@ -5946,9 +5948,11 @@ final class AppListModel {
     /// Delete exactly the backups the user ticked, then re-read the index so the
     /// rows lose their rollback affordance and the total is honest again.
     func deleteBackups(keys: [String]) async {
-        await Task.detached(priority: .utility) {
+        // Deletes whole bundle copies: Dispatch, not a detached task, which would
+        // still hold a cooperative thread for all of it.
+        await offCooperativePool(qos: .utility) {
             for key in keys { BackupStore.remove(forKey: key) }
-        }.value
+        }
         Log.install.notice("backups: deleted \(keys.count, privacy: .public) on request")
         await refreshBackupIndex()
     }

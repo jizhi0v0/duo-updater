@@ -157,8 +157,11 @@ struct BackupStoreTests {
     /// `ditto` errors) must NOT destroy the existing rollback point, and must not leak
     /// a staging artifact into the backup listing. Retention=1 builds the new copy in
     /// a hidden staging dir and only swaps it in once complete.
+    ///
+    /// Mutation: drop the `removeOffPool(staging)` in the ditto-failed branch of
+    /// `save` → its staging directory is left in the store.
     @Test func failedRebackupKeepsPriorBackup() async throws {
-        try await withScratchRoot { _ in
+        try await withScratchRoot { root in
             let apps = FileManager.default.temporaryDirectory
                 .appendingPathComponent("apps-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
@@ -179,6 +182,11 @@ struct BackupStoreTests {
             #expect(marker(of: surviving.bundlePath) == "v1")
             // No leftover staging dir leaks into the listing.
             #expect(BackupStore.allBackups().count == 1)
+            // Nor stays on disk, where the listing (which skips hidden names)
+            // would never show it.
+            let leftovers = try FileManager.default.contentsOfDirectory(atPath: root.path)
+                .filter { $0.hasPrefix(BackupStore.stagingPrefix(key: "k")) }
+            #expect(leftovers.isEmpty, "stranded: \(leftovers)")
         }
     }
 
@@ -462,6 +470,33 @@ struct BackupStoreTests {
             await #expect(throws: BackupStore.BackupError.self) {
                 try await BackupStore.restore(forKey: key, over: app)
             }
+        }
+    }
+
+    /// A rollback's scratch copy goes whether the restore lands or is refused.
+    /// Removed after the call now rather than in a `defer`, so both exits are
+    /// pinned.
+    ///
+    /// Mutation: drop the `removeOffPool(scratch)` after the restore → the scratch
+    /// directory is left in the temp dir (the refused copy still in it).
+    @Test func aRestoreLeavesNoScratchCopyBehind() async throws {
+        try await withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let scratch = FileManager.default.temporaryDirectory
+                .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
+            let saved = try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            try await BackupStore.restore(forKey: key, over: app)
+            #expect(!FileManager.default.fileExists(atPath: scratch.path), "after a restore that landed")
+
+            try Data("tampered".utf8).write(
+                to: saved.bundlePath.appendingPathComponent("Contents/marker.txt"))
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.restore(forKey: key, over: app)
+            }
+            #expect(!FileManager.default.fileExists(atPath: scratch.path), "after a refused restore")
         }
     }
 

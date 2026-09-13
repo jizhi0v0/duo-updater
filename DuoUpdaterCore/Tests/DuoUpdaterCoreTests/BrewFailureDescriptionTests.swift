@@ -3,8 +3,9 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// What a failed `brew` run reports as its one-line description
-/// (`HomebrewInstaller.failureDescription`). Every surface renders it with
-/// `.lineLimit(1)`, so the first thing in it is all the user sees.
+/// (`HomebrewInstaller.failureDescription`). The popover and workbench rows render
+/// it with `.lineLimit(1)`, so the first thing in it is all they show; the tooltip,
+/// `duo install` and the install log show all of it.
 ///
 /// Each case goes through both `BrewError` enums, so a copy that stops calling the
 /// shared helper fails here rather than drifting back to the old tail on its own.
@@ -20,8 +21,8 @@ import Foundation
     /// The trust block's wording follows brew 7.0.0's `diagnostic.rb` template
     /// (tap names invented); the rest is the `brew upgrade --formula` output of a
     /// no-bottle formula on a machine with outdated Command Line Tools, observed
-    /// 2026-09-13. None of the trust block may be surfaced as the error, and
-    /// neither may brew's remediation after the `Error:` line.
+    /// 2026-09-13. None of the trust block may be surfaced as the error, and brew's
+    /// remediation after the `Error:` line must follow it, after ` — `.
     static let outdatedCLTWithTrustWarning = """
         Warning: The following taps are not trusted:
           zzfixture/untrusted

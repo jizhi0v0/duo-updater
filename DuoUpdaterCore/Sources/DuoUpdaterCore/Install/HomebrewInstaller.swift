@@ -24,8 +24,8 @@ public actor HomebrewInstaller {
     }
 
     /// The one-line description both `BrewError.failed` copies (this one and
-    /// `BrewFormulaService.BrewError`) report. Every surface renders it with
-    /// `.lineLimit(1)`, so what comes first is all the user sees.
+    /// `BrewFormulaService.BrewError`) report. The popover and workbench rows render
+    /// it with `.lineLimit(1)`, so there what comes first is all the user sees.
     ///
     /// brew's own `Error:` line leads when there is one. The last three lines used
     /// to lead, and brew puts its remediation after the error: a formula with no

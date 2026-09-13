@@ -34,15 +34,10 @@ internal import SystemPackage
 ///   (`uncaughtSignal` tells the two apart). Error strings built from it — "tar
 ///   failed (15)", "unzip exited 9" — read the same.
 /// - **stdin is inherited** unless `standardInput` supplies bytes, which is
-///   `Process`'s default too. When this process has no fd 0 at all
-///   (`duo … <&-`), the child gets `/dev/null` instead — measured, that is what
-///   `Process` gave it; swift-subprocess would start it with no fd 0. It is done
-///   by pointing THIS process's fd 0 at `/dev/null` (once, and it stays) and
-///   inheriting that. Handing the child its own `/dev/null` does not work while
-///   0 is a hole: swift-subprocess opens it, or a pipe end, at the lowest free
-///   descriptor — 0 — and its spawn file actions then close that descriptor in
-///   the child. Measured: that first version passed its tests and a child
-///   started under `<&-` still printed "/dev/fd/0: Bad file descriptor".
+///   `Process`'s default too. A process started with no fd 0 at all
+///   (`duo … <&-`) must call `ensureStandardInputIsOpen()` first thing, or its
+///   children start with no stdin — see there. `duo` does; the app does not
+///   need to. Nothing here fills it per spawn, because that races.
 /// - **The environment is inherited** unless `environment` is non-nil, in which
 ///   case it replaces the whole environment, as assigning `Process.environment`
 ///   did. Entries POSIX does not allow (a key containing `=` or NUL, or starting
@@ -134,7 +129,7 @@ public enum ChildProcess {
         public let terminateAfter: Duration
         public let killAfter: Duration
 
-        /// `terminateAfter` from the start of the call; `killAfter` on the same
+        /// `terminateAfter` from the child's launch; `killAfter` on the same
         /// scale, so the grace is the difference. It must not precede
         /// `terminateAfter`.
         public init(terminateAfter: Duration, killAfter: Duration) {
@@ -189,12 +184,29 @@ public enum ChildProcess {
             workingDirectory: workingDirectory, standardInput: standardInput,
             standardOutput: standardOutput, standardError: standardError,
             deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
-            onLaunch: onLaunch, beforeSpawn: nil, standardInputIsOpen: nil)
+            onLaunch: onLaunch, beforeSpawn: nil)
     }
 
-    /// Test seams: `beforeSpawn` runs after the deadline race has started and before
-    /// the spawn (so a test can make the pre-launch wait long); `standardInputIsOpen`
-    /// stands in for asking fd 0.
+    /// Point this process's fd 0 at `/dev/null` if it has none. Call it at process
+    /// start, before other threads exist.
+    ///
+    /// Without an fd 0 a child gets none either (swift-subprocess passes the hole
+    /// on), where a `Process` child got `/dev/null` — measured under `<&-`. And a
+    /// hole at 0 is worse than that: the next descriptor this process opens lands
+    /// on it, and when that is a spawn's own pipe end, swift-subprocess's file
+    /// actions close it in the child after setting up stdin. Filling it per spawn
+    /// was tried and races other threads' `open`/`pipe` for the same number.
+    ///
+    /// `duo` calls it first thing in `main.swift`. The app does not: a launched
+    /// app already has `/dev/null` as fd 0 from launchd (measured with `lsof` on
+    /// the running DuoUpdater and on Finder), and the earliest code the SwiftUI
+    /// `App` runs comes after `AppListModel`, which starts threads, is built.
+    public static func ensureStandardInputIsOpen() {
+        fillWithDevNullIfClosed(STDIN_FILENO)
+    }
+
+    /// Test seam: `beforeSpawn` runs after the deadline race has started and before
+    /// the spawn (so a test can make the pre-launch wait long).
     static func run(
         _ executablePath: String,
         _ arguments: [String] = [],
@@ -207,8 +219,7 @@ public enum ChildProcess {
         onCancel: Cancellation,
         onOutputChunk: (@Sendable (Data) -> Void)? = nil,
         onLaunch: (@Sendable (pid_t) -> Void)? = nil,
-        beforeSpawn: (@Sendable () async -> Void)?,
-        standardInputIsOpen: (@Sendable () -> Bool)?
+        beforeSpawn: (@Sendable () async -> Void)?
     ) async throws -> Outcome {
         let request = Request(
             executablePath: executablePath, arguments: arguments,
@@ -216,8 +227,7 @@ public enum ChildProcess {
             standardInput: standardInput, standardOutput: standardOutput,
             standardError: standardError, deadline: deadline,
             onOutputChunk: onOutputChunk, onLaunch: onLaunch,
-            beforeSpawn: beforeSpawn,
-            standardInputIsOpen: standardInputIsOpen ?? { fcntl(0, F_GETFD) != -1 })
+            beforeSpawn: beforeSpawn)
         switch onCancel {
         case .runToCompletion:
             // Unstructured on purpose: awaiting `.value` does not forward the
@@ -241,22 +251,9 @@ public enum ChildProcess {
 
     // MARK: - Implementation
 
-    /// Where the child's stdin comes from.
-    enum StandardInputSource: Equatable {
-        case bytes
-        case inherit
-        case devNull
-    }
-
-    /// Bytes when given; otherwise our own fd 0 — unless we have none, when the
-    /// child gets `/dev/null`, as `Process` gave it (see "stdin" above for how).
-    static func standardInputSource(bytesGiven: Bool, standardInputIsOpen: Bool) -> StandardInputSource {
-        if bytesGiven { return .bytes }
-        return standardInputIsOpen ? .inherit : .devNull
-    }
-
     /// Point `descriptor` at `/dev/null` if it is closed; leave it alone if it is
-    /// open. For fd 0 `open` itself lands there (the lowest free descriptor);
+    /// open. Not thread-safe with respect to other threads opening descriptors —
+    /// hence `ensureStandardInputIsOpen`'s "at process start". For fd 0 `open` itself lands there (the lowest free descriptor);
     /// `dup2` covers any other number, and is skipped if something else took the
     /// descriptor in the meantime rather than clobbering it.
     static func fillWithDevNullIfClosed(_ descriptor: Int32) {
@@ -265,6 +262,16 @@ public enum ChildProcess {
         guard opened >= 0, opened != descriptor else { return }
         if fcntl(descriptor, F_GETFD) == -1 { dup2(opened, descriptor) }
         close(opened)
+    }
+
+    private static let closedStandardInputReported = Flag()
+
+    /// Once per process: a spawn found fd 0 closed, so the child starts without
+    /// stdin. Reported rather than repaired — see `ensureStandardInputIsOpen`.
+    private static func reportClosedStandardInput(_ executablePath: String) {
+        guard closedStandardInputReported.setIfUnset() else { return }
+        Log.app.error(
+            "child process \((executablePath as NSString).lastPathComponent, privacy: .public): this process has no fd 0, so the child starts without stdin — ChildProcess.ensureStandardInputIsOpen() was not called at startup")
     }
 
     /// The environment swift-subprocess will accept: POSIX-invalid entries removed.
@@ -295,7 +302,6 @@ public enum ChildProcess {
         let onOutputChunk: (@Sendable (Data) -> Void)?
         let onLaunch: (@Sendable (pid_t) -> Void)?
         let beforeSpawn: (@Sendable () async -> Void)?
-        let standardInputIsOpen: @Sendable () -> Bool
 
         /// The steps swift-subprocess runs when the task driving the child is
         /// cancelled — by the deadline below, or (under `.terminateChild`) by the
@@ -395,15 +401,13 @@ public enum ChildProcess {
             }
             await beforeSpawn?()
 
+            if standardInput == nil, fcntl(STDIN_FILENO, F_GETFD) == -1 {
+                ChildProcess.reportClosedStandardInput(executablePath)
+            }
             let status: TerminationStatus
-            switch ChildProcess.standardInputSource(
-                bytesGiven: standardInput != nil, standardInputIsOpen: standardInputIsOpen()) {
-            case .bytes:
-                status = try await spawn(configuration, input: .data(standardInput!), sink: sink, started: started)
-            case .inherit:
-                status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)
-            case .devNull:
-                ChildProcess.fillWithDevNullIfClosed(STDIN_FILENO)
+            if let standardInput {
+                status = try await spawn(configuration, input: .data(standardInput), sink: sink, started: started)
+            } else {
                 status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)
             }
 
@@ -546,5 +550,12 @@ public enum ChildProcess {
         private var raised = false
         var value: Bool { lock.withLock { raised } }
         func set() { lock.withLock { raised = true } }
+        /// Raises it; true only for the call that did.
+        func setIfUnset() -> Bool {
+            lock.withLock {
+                defer { raised = true }
+                return !raised
+            }
+        }
     }
 }

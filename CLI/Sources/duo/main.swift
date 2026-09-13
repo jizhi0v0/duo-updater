@@ -2,6 +2,10 @@ import Foundation
 import DuoKit
 import DuoUpdaterCore
 
+// Before anything else, while this is the only thread: `duo … <&-` would
+// otherwise hand every child process no stdin at all. See the function.
+ChildProcess.ensureStandardInputIsOpen()
+
 // duo — the command line face of DuoUpdater.
 //
 // Links the real `DuoUpdaterCore`, so every command runs the same code the

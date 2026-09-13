@@ -164,8 +164,7 @@ public enum LoginShellEnvironment {
                 standardError: .discard,
                 onCancel: .runToCompletion,
                 onLaunch: { launched.set($0) },
-                beforeSpawn: beforeSpawn,
-                standardInputIsOpen: nil)
+                beforeSpawn: beforeSpawn)
         }
         guard case .finished(let outcome) = await race(
             runner, launched: launched, within: timeout, timerExited: timerExited) else {

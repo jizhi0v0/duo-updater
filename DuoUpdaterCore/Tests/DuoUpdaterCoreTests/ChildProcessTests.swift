@@ -354,21 +354,11 @@ import Testing
         #expect(result.dropped == ["1BAD", "A=B", "NUL\u{0}KEY", "VALUE_NUL"].sorted())
     }
 
-    /// With no fd 0 in this process (`duo … <&-`), the child gets `/dev/null`, as a
-    /// `Process` child did (measured); otherwise stdin is inherited, and bytes win.
-    ///
-    /// Mutation: return `.inherit` when stdin is not open → the second expectation.
-    @Test func aClosedStandardInputGivesTheChildDevNull() {
-        #expect(ChildProcess.standardInputSource(bytesGiven: false, standardInputIsOpen: true) == .inherit)
-        #expect(ChildProcess.standardInputSource(bytesGiven: false, standardInputIsOpen: false) == .devNull)
-        #expect(ChildProcess.standardInputSource(bytesGiven: true, standardInputIsOpen: false) == .bytes)
-    }
-
-    /// How the `/dev/null` is provided: a closed descriptor is pointed at it, an
-    /// open one is left alone. Exercised on a closed high descriptor, not on fd 0 —
-    /// closing this process's fd 0 would reach every test running beside it. That
-    /// fd 0 itself works end to end was measured with a separate probe run under
-    /// `<&-` (see the PR).
+    /// What `ensureStandardInputIsOpen` does to fd 0: a closed descriptor is pointed
+    /// at `/dev/null`, an open one is left alone. Exercised on a closed high
+    /// descriptor, not on fd 0 — closing this process's fd 0 would reach every test
+    /// running beside it. fd 0 end to end was measured with a separate probe run
+    /// under `<&-` (see the PR).
     ///
     /// Mutations: skip the `dup2` → the descriptor stays closed; drop both checks
     /// that it is closed → the pipe below is replaced by `/dev/null`. (Dropping
@@ -403,8 +393,7 @@ import Testing
             "/bin/sh", ["-c", "echo ran"],
             deadline: .init(terminateAfter: .seconds(3), killAfter: .seconds(4)),
             onCancel: .runToCompletion,
-            beforeSpawn: { try? await Task.sleep(for: .seconds(6)) },
-            standardInputIsOpen: nil)
+            beforeSpawn: { try? await Task.sleep(for: .seconds(6)) })
         #expect(!outcome.timedOut)
         #expect(outcome.succeeded)
         #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "ran\n")

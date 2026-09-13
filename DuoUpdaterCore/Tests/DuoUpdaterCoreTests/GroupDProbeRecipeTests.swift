@@ -7,7 +7,7 @@ import Foundation
 /// Apache/MirrorBrain listing of version folders, sorted ALPHABETICALLY by the
 /// server — never numerically — which is why every one of them requires
 /// `selectHighest` and why none of them carries an install spec (see the
-/// `// MARK: - 2026-08-16 group D` comment in `VendorProbeRecipe.swift` for the
+/// `// MARK: - 2026-08-16 group D` comment in `Recipes/com-operasoftware-Opera.swift` for the
 /// full reasoning). Fixtures below are trimmed excerpts of the real page bodies,
 /// captured 2026-08-16, keeping every line that matters to the assertions.
 struct GroupDProbeRecipeTests {

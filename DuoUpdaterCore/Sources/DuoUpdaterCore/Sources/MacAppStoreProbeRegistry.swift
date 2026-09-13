@@ -88,7 +88,7 @@ public struct MacAppStoreProbeCase: Sendable {
 /// fine; deriving the list from `AppScanner().scan()` would not be.
 ///
 /// Picked to cover every branch `resolve()` can take, confirmed live against
-/// the real endpoints on 2026-09-04 (see the per-case comments below) — and
+/// the real endpoints on 2026-09-04 (see the per-case comments in each app's `Recipes/<family>.swift`) — and
 /// picked for apps unlikely to vanish from the store or change distribution
 /// model, so this doesn't need re-curating every few months the way an
 /// arbitrary installed-app sample would.
@@ -110,54 +110,5 @@ public enum MacAppStoreProbeRegistry {
     /// the live set on the casing alone.
     public static let batchRecipeID = "appstore:batch"
 
-    public static let cases: [MacAppStoreProbeCase] = [
-        // Bear — Mac App Store–exclusive markdown notes app, continuously
-        // maintained since 2016, no reason to expect delisting. Native Mac
-        // listing (`mac-software`): exercises `nativeMacVersion` and the
-        // `trackViewUrl` zero-redirect path A2 added. Confirmed live
-        // 2026-09-04: lookup kind mac-software, trackViewUrl → 0 redirects,
-        // `?platform=mac` page carries a parseable `mostRecentVersion` shelf.
-        MacAppStoreProbeCase(
-            bundleID: "net.shinyfrog.bear", trackId: 1091189122,
-            expectedKind: "mac-software", route: .nativeMac),
-        // Things 3 — Mac App Store–exclusive task manager, shipping since
-        // 2017. A second `mac-software` case so one app's page having a bad
-        // minute doesn't take the whole route dark for a sweep. Confirmed
-        // live 2026-09-04, same shape as Bear.
-        MacAppStoreProbeCase(
-            bundleID: "com.culturedcode.ThingsMac", trackId: 904280696,
-            expectedKind: "mac-software", route: .nativeMac),
-        // WhatsApp — `kind == "software"` (an iOS listing), but its Mac build
-        // publishes on its own release line: the `?platform=mac` product
-        // page's `mostRecentVersion` shelf carries a DIFFERENT version than
-        // the plain lookup's `version` field (measured 2026-09-04, same
-        // minute: single lookup → 26.34.72, batched lookup → 26.34.74 —
-        // Apple's own storefront cache is internally inconsistent by a patch
-        // release, which is exactly why this sweep must never assert a
-        // version value, only that the shelf is THERE and parseable).
-        // Exercises `iosOnMacVersion`.
-        MacAppStoreProbeCase(
-            bundleID: "net.whatsapp.WhatsApp", trackId: 310633997,
-            expectedKind: "software", route: .iosOnMac),
-        // Discord — `kind == "software"`, installable on Apple Silicon Macs
-        // as the wrapped iOS binary. Exercises
-        // `remoteVersion(checkMacCompat: true)`, which reads
-        // `isIOSBinaryMacOSCompatible` and `appPlatforms` off the plain (non
-        // `?platform=mac`) product page. Confirmed live 2026-09-04: flag
-        // present. Re-measured 2026-09-12: flag false, `appPlatforms`
-        // `["phone", "pad"]`, and the page's Compatibility section names no
-        // Mac at all — a true negative, which is what keeps this case a
-        // useful probe of the `false` verdict.
-        //
-        // The 2026-09-04 note here used to explain the `false` as "Discord
-        // ships a native build now". That reading was wrong twice over: the
-        // App Store listing publishes no Mac binary (Discord's Mac app is a
-        // direct download, off-store), and had it been true the verdict would
-        // have been backwards — a native Mac build is precisely the shape that
-        // makes `isIOSBinaryMacOSCompatible == false` mean "supported", which
-        // is the bug `MacCompatibilityReading` exists to fix.
-        MacAppStoreProbeCase(
-            bundleID: "com.hammerandchisel.discord", trackId: 985746746,
-            expectedKind: "software", route: .wrappedIOS),
-    ]
+    public static let cases: [MacAppStoreProbeCase] = AppRecipeIndex.all.flatMap(\.appStoreCases)
 }

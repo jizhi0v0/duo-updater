@@ -12,7 +12,7 @@ import Foundation
 ///
 /// If you're changing what this file extracts (not just adding support for a new
 /// vendor's structured format) — including a `ChangelogRecipe` field edit in the
-/// registry (`ChangelogRecipe.swift`, e.g. `skipSections`) that changes what an
+/// registry (`Recipes/<family>.swift`, e.g. `skipSections`) that changes what an
 /// EXISTING cached version parses to, not just new releases — bump
 /// `Changelog.parserGeneration`; see its doc comment. A `Changelog` this produces
 /// can be written to `ChangelogDiskCache` and served, unre-parsed, to a user on a
@@ -1172,7 +1172,7 @@ public enum StructuredChangelogDecoder {
     /// (`notion.notion.site/What-s-New-Mac-Windows-…`), which carries actual build
     /// numbers (`v7.31.0`). Distinct from `www.notion.com/releases`, Notion's
     /// *product* announcement feed with no build numbers at all (see the
-    /// `notion.id` recipe comment in `ChangelogRecipe.swift`) — that page answers a
+    /// `notion.id` recipe comment in `Recipes/notion-id.swift`) — that page answers a
     /// different question and is kept as a separate, channel-agnostic recipe.
     ///
     /// Shape: `recordMap.block` is a MAP keyed by block id, each entry wrapped

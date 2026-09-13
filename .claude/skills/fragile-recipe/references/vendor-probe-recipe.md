@@ -166,8 +166,10 @@ build and the host is the vendor's own.
 
 ## Register + test
 
-Add the recipe to `VendorProbeRegistry.recipes` in `VendorProbeRecipe.swift`, with
-a comment naming where the version lives, the Team ID if it installs, and any
+Add the recipe to the `probes:` of the app's family file under
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` (and the family to
+`AppRecipeIndex.all` if it is new — `VendorProbeRegistry.recipes` is derived from
+that index), with a comment naming where the version lives, the Team ID if it installs, and any
 rollout/format gotcha (study the neighbors — they encode real quirks like Chrome's
 fractional rollout or VLC's ascending appcast).
 

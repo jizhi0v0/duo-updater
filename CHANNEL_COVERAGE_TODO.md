@@ -4,8 +4,9 @@
 
 > **重建 2026-06-04**（`channel-discovery` skill 试跑产出）。原文件被手动删除后从
 > **代码这个权威源头**重新生成。
-> - **§1 已覆盖** = 直接从 `VendorProbeRecipe.swift` / `GitHubReleasesSource.swift` /
->   `*Channel.swift` 提取，是当前真实状态（非记忆）。
+> - **§1 已覆盖** = 当时直接从 `VendorProbeRecipe.swift` / `GitHubReleasesSource.swift` /
+>   `*Channel.swift` 提取，是当时的真实状态（非记忆）。这些表现在在
+>   `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift`，重新提取用 §2c 第 1 步的命令。
 > - **§2 TODO / §3 死轨** = 结转自删除前的同日调查（2026-06-04 web 搜索 + 实测）；
 >   死轨是**已否决项，不要重新调查**（`channel-discovery` 安全规则 4）。
 >
@@ -100,7 +101,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   （`aid=359289&device_platform=mac&channel=capcutpc_0&version_code=9.99`，四个参数缺一
   就没有 `update_reminder`）。stable 读 `lastest_stable_url`、beta 读 `lastest_url`，
   版本从包名的 `CapCut_9_3_0_4490_capcutpc_0_…` 里按段抽再用 `.` 拼。
-- 三个坑记在 `VendorProbeRecipe.swift` 的注释里：`update_url` 是**按设备灰度**的选择
+- 三个坑记在 `Recipes/com-lemon-lvoverseas.swift` 的注释里：`update_url` 是**按设备灰度**的选择
   （本机缓存里是 stable、匿名请求里是 beta，两轨都不能读它）；`lastest_sync_url` 是同一
   对象里**第三个** `capcutpc_beta` 包且 build 更旧；`version_code` 会选灰度桶（实测
   `1.0.0` 落到旧桶、`10.0.0` 直接没有 `update_reminder`）。
@@ -273,10 +274,39 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 
 **方法**（复现用，别凭记忆重列一遍）：
 
-1. 已覆盖集从**代码**再生成，不信本账本 —— `python3` 配对 `VendorProbeRecipe.swift` /
-   `GitHubReleasesSource.swift` 里的 `bundleID:`→`channel:`，加 `*Channel.swift` 的
-   `bundleID`。结果：VendorProbe 116 个 id / 32 个带非 stable channel；GitHub 67 / 4；
-   ChannelBinding 12 个 app。
+1. 已覆盖集从**代码**再生成，不信本账本 —— 配对 `Recipes/*.swift` 里 `probes:` /
+   `githubRules:` 段内每个初始化器的 `bundleID:`→`channel:`，加 `*Channel.swift` 的
+   `bundleID`。2026-08-27 当时的结果：VendorProbe 116 个 id / 32 个带非 stable channel；
+   GitHub 67 / 4；ChannelBinding 12 个 app。（那时读的是 `VendorProbeRecipe.swift` /
+   `GitHubReleasesSource.swift` 里的字面量表；2026-09-14 recipe 按家族拆进
+   `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` 之后，照旧读那两个文件会**静默得到空集**。）
+   在仓库根目录跑：
+
+   ```sh
+   python3 - <<'EOF'
+   import glob, re
+   seen = {"probes": {}, "githubRules": {}}
+   for path in sorted(glob.glob("DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift")):
+       text = "".join(l for l in open(path) if not l.lstrip().startswith("//"))
+       for kind in seen:
+           m = re.search(r"^        " + kind + r": \[\n(.*?)^        \]", text, re.M | re.S)
+           if not m:
+               continue
+           for init in re.split(r"(?=^        [A-Za-z.]+\()", m.group(1), flags=re.M):
+               ids = re.findall(r'bundleID:\s*"([^"]+)"', init)
+               if len(ids) != 1:
+                   continue
+               ch = re.search(r"channel:\s*\.(\w+)", init)
+               seen[kind].setdefault(ids[0], set()).add(ch.group(1) if ch else "stable")
+   for kind, d in seen.items():
+       print(kind, len(d), "ids /", sum(1 for s in d.values() if s - {"stable"}), "with a non-stable channel")
+   EOF
+   ```
+
+   2026-09-14 跑出 `probes 133 ids / 33`、`githubRules 85 ids / 9`。它看不见 bundle id
+   来自常量或 helper 的条目（Alfred 的 `AlfredChannel.bundleID`、OrbStack 的
+   `orbStackRecipe`、CapCut 的 `capCutRecipe`、Windscribe 的两条轨道），同一天编译后的
+   registry 是 probes 136 / 37、githubRules 85 / 9 —— 差的正是这几条。
 2. 本机 138 个 app 逐个读 `Info.plist` 取 bundle id，减去已覆盖 → 121 个候选池。
 3. Homebrew **全量** cask API（7712 条）里找 `@beta|@nightly|@dev|@canary|@preview|
    @insiders|@alpha|@rc|@snapshot` 变体（129 个 base），与本机安装交集 → 16 个。

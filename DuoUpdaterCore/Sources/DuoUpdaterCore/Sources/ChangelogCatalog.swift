@@ -17,52 +17,8 @@ import Foundation
 /// update through brew (because it self-updates) can still show its release notes.
 public enum ChangelogCatalog {
     /// bundleID (lowercased) → changelog page.
-    static let pages: [String: URL] = [
-        // Ghostty — auto_updates cask, no Sparkle feed; official release notes.
-        "com.mitchellh.ghostty": URL(string: "https://ghostty.org/docs/install/release-notes")!,
-        // Ollama — auto_updates cask, Electron app; GitHub releases.
-        "com.electron.ollama": URL(string: "https://github.com/ollama/ollama/releases")!,
-        // CodexBar — plain Homebrew cask (no inline notes); GitHub releases.
-        "com.steipete.codexbar": URL(string: "https://github.com/steipete/CodexBar/releases")!,
-        // OpenUsage — resolves through the generic Sparkle source, but not one of
-        // its 51 appcast items carries a `<description>` or a
-        // `sparkle:releaseNotesLink`, so the app had no notes at all. The vendor
-        // writes them on the GitHub releases instead (v0.7.10's body is ~10k
-        // chars). Web fallback rather than a `ChangelogRecipe`: the release page
-        // is the same content the maintainer publishes, and nothing here needs a
-        // per-version parse.
-        "com.robinebers.openusage": URL(string: "https://github.com/robinebers/openusage/releases")!,
-        // Helium — moved from the GitHub source to its own Sparkle feed
-        // (`SparkleFeedCatalog`) for the beta train and the delta patches. That
-        // trade costs the notes: the GitHub release body was carrying them, and
-        // the vendor's appcast has no `<description>` and no
-        // `sparkle:releaseNotesLink` on any of its 9 items. Without this entry
-        // the move would have silently emptied the notes pane, so the fallback
-        // points back at the releases the body lives on.
-        "net.imput.helium": URL(string: "https://github.com/imputnet/helium-macos/releases")!,
-        // Surge Mac — official release-notes page; the public changelog site is
-        // JS-backed, so we point the fallback web view at the vendor page itself.
-        "com.nssurge.surge-mac": URL(string: "https://nssurge.com/support/mac/release-notes")!,
-        // ChatWise — the live structured notes come from the releases JSON, but
-        // we still want an explicit fallback page when the lazy fetch/parser
-        // misses or the update check hasn't populated a remote changelog URL yet.
-        "app.chatwise": URL(string: "https://chatwise.app/changelog")!,
-        // Longbridge Desktop — the structured recipe follows the exact version
-        // page. Keep the English release-notes index as a web fallback while an
-        // update result or a freshly added recipe has not populated yet.
-        "com.longbridge.app.desktop": URL(string: "https://longbridge.com/desktop/release-notes/")!,
-        // WhatsApp — iOS-on-Mac (kind=software); MAS source scrapes the Mac page
-        // for version comparison, but `remote` may be nil at render time if the
-        // check hasn't finished. This catalog entry ensures the Mac App Store page
-        // always shows as changelog fallback regardless of check timing.
-        // `?platform=mac` redirects correctly regardless of storefront region.
-        // Key MUST be lowercase — `url(forBundleID:)` lowercases its argument
-        // before the lookup, so a mixed-case key here is simply unreachable. This
-        // one was `net.whatsapp.WhatsApp` and never resolved; `keysAreLowercased`
-        // now guards the whole table.
-        "net.whatsapp.whatsapp": URL(string: "https://apps.apple.com/app/id310633997?platform=mac")!,
-
-    ]
+    static let pages: [String: URL] =
+        AppRecipeIndex.merged(\.changelogPages, into: "ChangelogCatalog.pages")
 
     /// The curated changelog page for an app, if we have one. Case-insensitive on
     /// bundleID — ids are conventionally lowercase but not guaranteed, and we'd

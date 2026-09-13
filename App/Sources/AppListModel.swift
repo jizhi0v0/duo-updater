@@ -4133,7 +4133,7 @@ final class AppListModel {
             // re-ran the source, so a row that still offers the same update while
             // the bytes on disk never moved means the download did not carry the
             // release it was supposed to — a first-match asset pattern once did
-            // exactly that for Docker (see `VendorProbeRecipe.swift`'s account of
+            // exactly that for Docker (see `Recipes/com-docker-docker.swift`'s account of
             // that incident); this code logged "install done" for it regardless.
             //
             // Deliberately narrow, because a false "it didn't work" is its own kind

@@ -7,7 +7,7 @@ import Foundation
 /// This asserts that table against the registry it describes.
 ///
 /// **Why this cannot be a script.** The obvious version greps
-/// `bundleID: "…"` out of `VendorProbeRecipe.swift`, and it is wrong: a good
+/// `bundleID: "…"` out of the recipe files (`Recipes/*.swift`), and it is wrong: a good
 /// number of recipes are built by factory functions (`workBuddyRecipe(bundleID:
 /// host:…)`, and others like it) whose call sites a regex looking for
 /// `VendorProbeRecipe(` never sees. Measured 2026-08-30, that shortcut reported

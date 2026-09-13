@@ -5,7 +5,7 @@ import Foundation
 /// 百度网盘's probe, exercised against the vendor's real `?do=client` body.
 ///
 /// The recipe is looked up from the registry rather than restated here, so a
-/// pattern edited in `VendorProbeRecipe.swift` is what these assertions run.
+/// pattern edited in `Recipes/com-baidu-BaiduNetdisk-mac.swift` is what these assertions run.
 ///
 /// The hazard this suite exists for is ORDERING: the endpoint answers with one
 /// object per Baidu product line, keys in ALPHABETICAL order, and

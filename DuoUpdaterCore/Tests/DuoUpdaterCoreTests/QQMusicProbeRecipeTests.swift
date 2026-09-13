@@ -6,7 +6,7 @@ import Foundation
 /// `y.qq.com/download/download.js` body.
 ///
 /// Both recipes are looked up from the registries rather than restated here, so a
-/// pattern edited in `VendorProbeRecipe.swift` / `ChangelogRecipe.swift` is what
+/// pattern edited in `Recipes/com-tencent-QQMusicMac.swift` is what
 /// these assertions run.
 ///
 /// The hazard this suite exists for is the DUPLICATE Mac object: the file carries

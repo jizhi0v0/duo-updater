@@ -164,5 +164,12 @@ Vendor probe (same `Sources/` dir):
 - `VendorProbeSource.swift` — the runtime that runs recipes (don't usually touch)
 - tests live alongside the other `*Tests.swift` for probes
 
-Adding a recipe almost always means editing exactly one file: the registry that
-holds the recipe table, plus its fixture test.
+Recipes themselves (`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/`):
+- `<family>.swift` — one file per app family (its primary bundle id, dots as
+  dashes — the `docs/app-audits/` slug), holding that app's entries of every kind
+- `AppRecipeIndex.swift` — the one list of families, sorted by slug; every
+  registry above is derived from it
+
+Adding a recipe almost always means editing exactly one file: the family's file
+under `Recipes/` (and a line in `AppRecipeIndex.all` if the family is new), plus
+its fixture test.

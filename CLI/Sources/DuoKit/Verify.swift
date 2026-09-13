@@ -1334,10 +1334,8 @@ public enum Verify {
         }
         guard let scanned else {
             FileHandle.standardError.write(Data("""
-                ⚠︎ the local app scan did not finish within \(BoundedScan.timeout) — continuing \
-                without the installed-copy cross-check.
-                  Usually means a privacy prompt nobody can answer (TestFlight's \
-                database is behind the app-data gate).\n
+                ⚠︎ \(BoundedScan.gaveUpMessage(after: BoundedScan.timeout)) — continuing \
+                without the installed-copy cross-check.\n
                 """.utf8))
             return [:]
         }

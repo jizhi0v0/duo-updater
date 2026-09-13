@@ -37,11 +37,8 @@ public enum Inventory {
         timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
     ) async -> [InstalledApp] {
         guard let scanned = await BoundedScan.result(within: timeout, body) else {
-            FileHandle.standardError.write(Data("""
-                duo: the app scan did not finish within \(timeout). This is almost always \
-                the TestFlight database waiting on an "access data from other apps" \
-                prompt — grant it once in System Settings ▸ Privacy & Security.\n
-                """.utf8))
+            FileHandle.standardError.write(Data(
+                "duo: \(BoundedScan.gaveUpMessage(after: timeout)).\n".utf8))
             return []
         }
         return scanned

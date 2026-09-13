@@ -100,8 +100,9 @@ private let installed = [
 }
 
 /// The scan's timeout is the only thing standing between `duo list/check/install/
-/// restart/backups/doctor/ignore` and a permission wall nobody can answer: the
-/// `open()` behind macOS's app-data gate never returns on a headless runner.
+/// restart/backups/doctor/ignore` and a read that never returns. It was written
+/// for the `open()` behind macOS's app-data gate, which never returned on a
+/// headless runner; see `BoundedScan` for why that is no longer the known cause.
 ///
 /// ⚠️ Written as a real wedge — a scan that never returns — because the shape of
 /// the bug was that the timeout PRINTED on time and the command hung anyway.

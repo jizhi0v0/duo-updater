@@ -72,14 +72,13 @@ extension NSXPCListener: HelperPeerListener {
 /// are the ones `audit_token_to_euid/egid` produced before, from the same field, in
 /// the same callback (the one place Computest's CVE-2023-32405 write-up calls the
 /// connection token safe: nothing else has arrived on the connection yet).
-/// NOT observed on macOS 14–26; the requirement check itself runs in
-/// `DuoUpdaterAppTests` on whatever macOS CI uses.
+/// The disassembly and the launchd probe are macOS 27 only; see "Coverage by OS"
+/// below for what has run where.
 ///
 /// ## Second layer: the same requirement on every accepted connection
 ///
-/// The listener-level behaviour above was observed on macOS 27 only; CI (macOS
-/// 26.6) runs only the in-process cases in `HelperPeerGateTests`, and macOS 14/15
-/// are unobserved. So the delegate ALSO sets the requirement on each connection it
+/// The listener-level behaviour above was observed with a Mach service on macOS 27
+/// only. So the delegate ALSO sets the requirement on each connection it
 /// accepts (`NSXPCConnection.setCodeSigningRequirement`, macOS 13) before resuming
 /// it. That layer is checked per message: in the probe's `conn-bad` /
 /// `conn-bad-burst` scenarios (per-connection requirement only, none on the
@@ -89,18 +88,38 @@ extension NSXPCListener: HelperPeerListener {
 /// `aConnectionRequirementStopsWhatTheListenerLetThrough` waits for that close.
 /// Setting both was clean in the probe's `both-good` scenario (a matching peer
 /// served, no XPC API-misuse trap): on macOS 27 the listener requirement lives on
-/// the listener connection and this one on the peer connection. Not observed below
-/// macOS 27 — if an older libxpc treated it as a second set on one connection, it
-/// would trap: the helper fails closed by crashing, not by accepting.
+/// the listener connection and this one on the peer connection. If some libxpc
+/// treated it as a second set on one connection it would trap (a genuine double set
+/// on one connection does raise SIGTRAP on macOS 27, measured with the probe below):
+/// the helper would fail closed by crashing, not by accepting.
+///
+/// ## Coverage by OS
+///
+/// - **macOS 27 (26A428), 2026-09-13, this machine:** launchd probe (Mach service,
+///   separately signed peers, exec race), disassembly, `HelperPeerGateTests`,
+///   `scripts/xpc-peer-probe/InProcessDoubleRequirement.swift` (a/b/c all PASS).
+/// - **macOS 26 (runner image macos-26-arm64 20260907.0351), CI run 34752901721,
+///   head 520a56bc:** app tests 47/47 (all `HelperPeerGateTests` among them), in-process — listener plus
+///   per-connection requirement on one connection, with anonymous listeners.
+///   `aConnectionRequirementStopsWhatTheListenerLetThrough` would also go red if the
+///   second call were silently ignored. Not covered there: a Mach-service listener,
+///   a root daemon, a separately signed peer, the exec race.
+/// - **macOS 14 / 15:** see the results recorded below (PR #591's temporary
+///   workflow); nothing else has run there.
 ///
 /// ## Fail-closed invariants (each has a test in `HelperPeerGateTests`)
 ///
 /// - No requirement (our own team unreadable, or not a well-formed team id) ⇒
 ///   nothing is installed on the listener and **every** connection is rejected here.
-/// - The gate only answers for the listener it installed the requirement on. The
-///   delegate can't ask a listener whether it carries a requirement, so being
-///   attached to any other listener rejects everything instead of silently
-///   accepting unchecked peers.
+/// - The gate only answers for the listener its seam declared at install time
+///   (`HelperPeerListener.xpcListener`); in production that is the `NSXPCListener`
+///   the requirement was set on, itself. The delegate can't ask a listener whether
+///   it carries a requirement, so being attached to any other listener rejects
+///   everything instead of silently accepting unchecked peers. This does NOT prove
+///   the declared listener really got the requirement — a seam can declare one it
+///   never configured, and `RequirementSwappingListener` in the tests is exactly
+///   that. What closes that gap is the second layer: every connection the gate
+///   accepts carries the gate's own requirement, whatever the listener had.
 /// - Connections rejected before the delegate never reach `connectionOpened`, so
 ///   they can't keep the daemon alive (`IdleExit`).
 final class HelperPeerGate: NSObject, NSXPCListenerDelegate {
@@ -146,7 +165,11 @@ final class HelperPeerGate: NSObject, NSXPCListenerDelegate {
                         exportedObject: @escaping @Sendable (HelperClientIdentity) -> AnyObject,
                         connectionOpened: @escaping @Sendable () -> Void,
                         connectionClosed: @escaping @Sendable () -> Void) -> HelperPeerGate {
-        install(on: listener, requirement: requirement(team: team), interface: interface,
+        let requirement = requirement(team: team)
+        if requirement == nil {
+            NSLog("duo-helper: \(OwnTeamIdentifier.missingRequirementReason(team: team)) — every connection will be rejected")
+        }
+        return install(on: listener, requirement: requirement, interface: interface,
                 exportedObject: exportedObject,
                 connectionOpened: connectionOpened, connectionClosed: connectionClosed)
     }
@@ -172,9 +195,9 @@ final class HelperPeerGate: NSObject, NSXPCListenerDelegate {
         if let requirement {
             listener.setConnectionCodeSigningRequirement(requirement)
             gate.installation = Installation(listener: listener.xpcListener, requirement: requirement)
-        } else {
-            NSLog("duo-helper: own team identifier unavailable — every connection will be rejected")
         }
+        // No `else` log here: `install(on:team:)` says WHY there is no requirement,
+        // which is the part worth reading.
         listener.delegate = gate
         listener.resume()
         return gate
@@ -187,7 +210,7 @@ final class HelperPeerGate: NSObject, NSXPCListenerDelegate {
         // this process sees; libxpc drops the others without calling us.
         guard let installation, let installedOn = installation.listener,
               installedOn === listener else {
-            NSLog("duo-helper: rejected connection — no client requirement is installed on this listener (own team unreadable, or not the listener this gate installed)")
+            NSLog("duo-helper: rejected connection — no client requirement is installed on this listener (no usable team — see the launch log — or not the listener this gate was installed on)")
             return false
         }
         guard let identity = Self.identity(uid: conn.effectiveUserIdentifier,

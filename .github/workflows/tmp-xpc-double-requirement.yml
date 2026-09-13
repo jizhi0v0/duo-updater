@@ -1,0 +1,46 @@
+# TEMPORARY — lives only on claude/helper-xpc-public-peer-check (PR #591) and is
+# deleted in the next commit, before merge. Runs the in-process double-requirement
+# probe on macOS versions nobody has a machine for. GitHub-hosted, no secrets,
+# read-only, actions pinned by SHA (same rules as ci.yml).
+name: tmp-xpc-double-requirement
+
+on:
+  pull_request:
+  push:
+    branches: [claude/helper-xpc-public-peer-check]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Toolchain and OS
+        run: |
+          xcodebuild -version
+          swiftc --version
+          sw_vers
+          uname -m
+
+      - name: Build probe
+        run: swiftc -O scripts/xpc-peer-probe/InProcessDoubleRequirement.swift -o "$RUNNER_TEMP/probe"
+
+      - name: Run probe
+        run: |
+          set +e
+          "$RUNNER_TEMP/probe"
+          status=$?
+          echo "probe exit status: $status"
+          if [ "$status" -gt 128 ]; then
+            echo "probe parent killed by signal $((status - 128))"
+          fi
+          exit "$status"

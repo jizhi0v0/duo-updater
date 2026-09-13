@@ -9,7 +9,8 @@ enum HelperConfig {
     static let plistName = "com.duoupdater.helper.plist"
     /// The helper must be Apple-anchored, our helper bundle id, and signed by the
     /// **same team that signed this app** — the mirror of the check the helper runs
-    /// on us. nil when our own team can't be read (unsigned/ad-hoc); the connection
+    /// on us. nil when our own team can't be read (unsigned/ad-hoc) or isn't a
+    /// well-formed Team ID; the connection
     /// is then left unpinned-and-unusable rather than pinned to nothing. See
     /// `OwnTeamIdentifier`.
     static let helperRequirement =
@@ -407,8 +408,8 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         let c = NSXPCConnection(machServiceName: HelperConfig.machServiceName, options: .privileged)
         c.remoteObjectInterface = NSXPCInterface(with: MASHelperProtocol.self)
         guard let requirement = HelperConfig.helperRequirement else {
-            // We can't read our own team, so we can't state who the helper must be.
-            // Hand back an invalidated connection: every call on it fails, which is
+            // We can't read our own team (or it isn't a well-formed Team ID), so we
+            // can't state who the helper must be. Hand back an invalidated connection: every call on it fails, which is
             // the correct outcome — talking to an unpinned root daemon is worse than
             // not talking to one.
             //
@@ -416,7 +417,8 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             // `OwnTeamIdentifier.current` is resolved once per process, so this can
             // never start succeeding later. Leaving it uncached keeps `cachedConnection`
             // meaning "a usable connection" rather than holding a dead one.
-            log.error("helper: own team identifier unavailable — refusing to connect unpinned")
+            let reason = OwnTeamIdentifier.missingRequirementReason(team: OwnTeamIdentifier.current)
+            log.error("helper: \(reason, privacy: .public) — refusing to connect unpinned")
             c.invalidate()
             return c
         }

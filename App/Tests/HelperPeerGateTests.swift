@@ -263,6 +263,17 @@ struct HelperPeerGateTests {
         #expect(HelperPeerGate.clientBundleIdentifier == "com.duoupdater.app")
     }
 
+    /// The two ways to have no requirement need different fixes, so the log must
+    /// tell them apart.
+    ///
+    /// Mutation: make `missingRequirementReason` always return the "unavailable"
+    /// text → the malformed-team expectation fails.
+    @Test func noTeamAndAMalformedTeamAreLoggedDifferently() {
+        #expect(OwnTeamIdentifier.missingRequirementReason(team: nil) == "own team identifier unavailable")
+        #expect(OwnTeamIdentifier.missingRequirementReason(team: "zz\"fixture")
+                == "own team identifier is not a well-formed Team ID (ten A-Z0-9 characters)")
+    }
+
     // MARK: identity
 
     /// A uid no account can hold: `(uid_t)-1` is the "no change" sentinel of
@@ -293,7 +304,19 @@ struct HelperPeerGateTests {
     ///
     /// Mutation: delete the `matchesClaim` guard in `installMASApp` → the mismatching
     /// request also reaches "invalid log path".
-    @Test func installMASAppRefusesAClaimThatDiffersFromItsConnection() async {
+    @Test func installMASAppRefusesAClaimThatDiffersFromItsConnection() async throws {
+        // Tripwire: this case must never run where `HelperService` could find a real
+        // `mas`. Today the bundle is hostless — `Bundle.main` is `xctest`, and there
+        // is no `Contents/Resources/mas` beside it. Should a TEST_HOST ever make the
+        // app the main bundle, fail here instead of calling into a service that one
+        // guard reordering away would run `mas` as whoever runs the tests.
+        try #require(Bundle.main.bundleIdentifier != "com.duoupdater.app")
+        let masBesideMain = URL(fileURLWithPath: try #require(Bundle.main.executablePath))
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/mas").path
+        try #require(!FileManager.default.isExecutableFile(atPath: masBesideMain))
+
         let service = HelperService(clientIdentity: Self.fixtureIdentity)
         let logPath = "/ZZFixture-not-a-temp-dir/duo-mas-1.log"
         let matching = await Self.install(service, uid: 4242, logPath: logPath)

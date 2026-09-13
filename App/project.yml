@@ -62,8 +62,10 @@ targets:
       - path: Sources/RequestCoverageHonesty.swift
       # The root helper's XPC peer gate and its request-identity check. Foundation
       # + Security only. HelperService is compiled so the identity guard in
-      # installMASApp is executed; tests stop it at the lexical log-path check,
-      # before anything is opened or launched. main.swift's top-level code stays out.
+      # installMASApp is executed. Safe today: every test call stops at the identity
+      # or lexical log-path check, and bundledMASPath finds no `mas` beside xctest;
+      # the test also has a tripwire that fails if a TEST_HOST ever changes that.
+      # main.swift's top-level code stays out.
       - path: Helper/HelperPeerGate.swift
       - path: Helper/HelperService.swift
       - path: Shared/OwnTeamIdentifier.swift

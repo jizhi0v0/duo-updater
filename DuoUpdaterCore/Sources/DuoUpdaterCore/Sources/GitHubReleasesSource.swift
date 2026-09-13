@@ -102,7 +102,7 @@ public struct GitHubReleaseRule: Sendable {
     /// history (`versionPattern`, and for `.installedMajorLineOrNewestStable`,
     /// the ceiling logic in `lineAnchoredCeiling` — its depth requirement is NOT
     /// "first match" and must be measured separately) — see the per-rule
-    /// comments in `GitHubReleaseRegistry.rules` for what was measured and when.
+    /// comments on each family's `githubRules:` in `Recipes/<family>.swift` for what was measured and when.
     public let listPageSize: Int
     /// Regex applied to a release's `tag_name`; capture group 1 is the version
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).

@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Adding a recipe is a debugging task — use the probe harness in the tests to
 /// confirm a vendor's link is stable and actually carries a parseable version
-/// before adding it to `VendorProbeRegistry.recipes`.
+/// before adding it to the family's `probes:` in `Recipes/<family>.swift`.
 /// The archive format a vendor ships its installer in. Drives how
 /// `VendorInstaller` unpacks the downloaded file before the signature gate.
 public enum VendorInstallerKind: Sendable, Hashable {
@@ -1064,7 +1064,7 @@ public struct VendorProbeRecipe: Sendable {
 /// false "update available", which this source must never produce; leaving an app
 /// out simply means it stays "unknown", which is the correct, honest default.
 ///
-/// Every recipe in `Recipes/` (listed by `AppRecipeIndex`) was verified by probing the live endpoint and confirming
+/// Every vendor probe recipe (the `probes:` of each family in `Recipes/`) was verified by probing the live endpoint and confirming
 /// it yields the app's current version (≥ the installed copy). Endpoints are
 /// arm64-flavored where the vendor splits by architecture — fine for Apple
 /// Silicon; an Intel build would need its own URLs.

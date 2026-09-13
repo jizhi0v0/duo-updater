@@ -195,6 +195,10 @@ SWIFT_ROOTS = [
     "CLI/Sources", "CLI/Tests",
 ]
 RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
+# The two files in `Recipes/` that are not a family, the same set
+# `AppRecipeIndexTests.infrastructure` names. A pointer in one of them has no
+# family to be wrong about, and counting them would overstate the family total.
+RECIPES_INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
 
 # One line by convention (README.md). Anything after the anchor is prose, so a
 # trailing period or backtick does not change what is being pointed at.
@@ -242,7 +246,8 @@ def check_history_pointers(problems):
                 path = os.path.join(dirpath, name)
                 rel = os.path.relpath(path, ROOT)
                 scanned += 1
-                in_recipes = os.path.dirname(path) == recipes_dir
+                in_recipes = (os.path.dirname(path) == recipes_dir
+                              and name not in RECIPES_INFRASTRUCTURE)
                 families += in_recipes
                 with open(path, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()

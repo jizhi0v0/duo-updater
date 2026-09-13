@@ -64,6 +64,42 @@ import Testing
         #expect(InPlaceSwap.quarantineStripLogLine(result, app: app.lastPathComponent) == nil)
     }
 
+    /// Symlinks, in both directions. A link carrying its own xattr (what
+    /// `ditto -x -k` of a quarantined zip leaves) must be cleared, not survive an
+    /// exit 0; a dangling link must not fail the strip and log an error over a
+    /// bundle with nothing left in it. Mutation: drop `-s` from the `xattr`
+    /// arguments — the link keeps its xattr under exit 0 and the dangling link
+    /// exits 1, and this goes red.
+    @Test func symlinksAreStrippedNotFollowed() throws {
+        let scratch = try scratch()
+        defer { cleanUp(scratch) }
+        let app = try fixtureBundle(in: scratch)
+        let fm = FileManager.default
+        let link = "Contents/Library/LaunchAgents/current.plist"
+        let dangling = "Contents/Resources/dangling"
+        try fm.createSymbolicLink(
+            atPath: app.appendingPathComponent(link).path,
+            withDestinationPath: "com.zzfixture.agent.plist")
+        let missing = scratch.appendingPathComponent("ZZFixture-missing-target").path
+        #expect(!fm.fileExists(atPath: missing))
+        try fm.createSymbolicLink(
+            atPath: app.appendingPathComponent(dangling).path, withDestinationPath: missing)
+        for path in [link, dangling] {
+            let full = app.appendingPathComponent(path).path
+            let rc = Self.value.withCString {
+                setxattr(full, Self.name, $0, strlen($0), 0, XATTR_NOFOLLOW)
+            }
+            try #require(rc == 0, "could not quarantine \(path)")
+        }
+
+        let result = InPlaceSwap.stripQuarantine(app)
+
+        #expect(result == .init(exitStatus: 0, remaining: []))
+        #expect(!isQuarantined(app.appendingPathComponent(link)))
+        #expect(!isQuarantined(app.appendingPathComponent(dangling)))
+        #expect(InPlaceSwap.quarantinedPaths(in: app).isEmpty)
+    }
+
     /// The line names the bundle root legibly and caps a long list rather than
     /// logging tens of thousands of paths.
     @Test func theLogLineCapsALongList() throws {

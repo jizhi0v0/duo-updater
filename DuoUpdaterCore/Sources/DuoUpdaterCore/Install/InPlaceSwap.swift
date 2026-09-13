@@ -592,11 +592,18 @@ public enum InPlaceSwap {
     /// Not escalated to a failure: nothing shows yet that an app swapped in this
     /// state is broken, and refusing a verified build over an xattr would be the
     /// worse trade.
+    ///
+    /// `-s` is load-bearing for the exit status to mean anything. Without it
+    /// `xattr` follows symlinks: it never clears a link's own xattr (which
+    /// `ditto -x -k` of a quarantined zip does set) yet exits 0, and it exits 1 on
+    /// a dangling link or one pointing at a file outside the bundle it may not
+    /// write, with nothing quarantined. Measured 2026-09-13: `-drs` clears the
+    /// links and exits 0 on both of those, and still exits 1 on 0444 and `uchg`.
     @discardableResult
     static func stripQuarantine(_ app: URL) -> QuarantineStripResult {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        p.arguments = ["-dr", "com.apple.quarantine", app.path]
+        p.arguments = ["-drs", "com.apple.quarantine", app.path]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         let result: QuarantineStripResult

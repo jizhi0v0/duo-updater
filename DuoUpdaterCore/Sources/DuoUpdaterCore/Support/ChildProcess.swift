@@ -34,10 +34,19 @@ internal import SystemPackage
 ///   (`uncaughtSignal` tells the two apart). Error strings built from it — "tar
 ///   failed (15)", "unzip exited 9" — read the same.
 /// - **stdin is inherited** unless `standardInput` supplies bytes, which is
-///   `Process`'s default too.
+///   `Process`'s default too. When this process has no fd 0 at all
+///   (`duo … <&-`), the child gets `/dev/null` instead — measured, that is what
+///   `Process` gave it; swift-subprocess would start it with no fd 0.
 /// - **The environment is inherited** unless `environment` is non-nil, in which
 ///   case it replaces the whole environment, as assigning `Process.environment`
-///   did.
+///   did. Entries POSIX does not allow (a key containing `=` or NUL, or starting
+///   with a digit; a value containing NUL) are dropped and their KEYS logged:
+///   `Process` passed them through, while swift-subprocess refuses to spawn at
+///   all, so one odd variable in a user's shell would otherwise fail every `brew`.
+/// - **The child gets its own process group**, as `Process` gave it. Measured: a
+///   `Process` child's pgid is its own pid; a swift-subprocess child shares ours by
+///   default and so dies with us on a terminal Ctrl-C — `ditto`, `BinaryDelta`,
+///   the swap's `osascript` included.
 ///
 /// ## What it does differently
 ///
@@ -49,16 +58,22 @@ internal import SystemPackage
 /// ## Deadline
 ///
 /// `Deadline(terminateAfter:killAfter:)` is the ladder the old call sites built
-/// from two `DispatchWorkItem`s: SIGTERM once `terminateAfter` has passed, then
-/// SIGKILL if the child is still there `killAfter - terminateAfter` later.
-/// `timedOut` reports that the deadline fired before the child exited.
+/// from two `DispatchWorkItem`s armed right after `Process.run()`: SIGTERM once
+/// `terminateAfter` has passed since the child LAUNCHED, then SIGKILL if it is
+/// still there `killAfter - terminateAfter` later (the grace runs from when SIGTERM
+/// is sent). `timedOut` reports that the deadline fired before the child exited.
 ///
-/// Not quite the same clock as the work items, which were armed right after
-/// `Process.run()`: `terminateAfter` starts when this call starts, so it also
-/// covers getting the spawn scheduled, and the grace runs from when SIGTERM is
-/// actually sent. On a saturated pool the child therefore gets somewhat less than
-/// `terminateAfter` of its own time. Every deadline in this repository is far
-/// above its tool's normal run, so this is margin, not a limit anyone meets.
+/// The clock starts at launch, not at this call, because the wait before launch
+/// is not the child's: swift-subprocess performs every `posix_spawn` in this
+/// process on ONE shared worker thread, so a spawn queues behind every other.
+/// There is deliberately no guard on that pre-launch wait: there is no child to
+/// signal yet, so a timer could only abandon the call, and the old sites had
+/// no such bound either.
+///
+/// That single spawn thread is also a risk this type does not measure: an `exec`
+/// that is slow to return would hold up every other spawn in the process. Not
+/// measured — an attempt used a quarantined binary, which put a Gatekeeper dialog
+/// on the user's screen, and was abandoned.
 ///
 /// ## Cancellation — chosen per call, never defaulted
 ///
@@ -163,12 +178,40 @@ public enum ChildProcess {
         onOutputChunk: (@Sendable (Data) -> Void)? = nil,
         onLaunch: (@Sendable (pid_t) -> Void)? = nil
     ) async throws -> Outcome {
+        try await run(
+            executablePath, arguments, environment: environment,
+            workingDirectory: workingDirectory, standardInput: standardInput,
+            standardOutput: standardOutput, standardError: standardError,
+            deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
+            onLaunch: onLaunch, beforeSpawn: nil, standardInputIsOpen: nil)
+    }
+
+    /// Test seams: `beforeSpawn` runs after the deadline race has started and before
+    /// the spawn (so a test can make the pre-launch wait long); `standardInputIsOpen`
+    /// stands in for asking fd 0.
+    static func run(
+        _ executablePath: String,
+        _ arguments: [String] = [],
+        environment: [String: String]? = nil,
+        workingDirectory: URL? = nil,
+        standardInput: Data? = nil,
+        standardOutput: OutputPolicy = .capture,
+        standardError: ErrorPolicy = .capture,
+        deadline: Deadline? = nil,
+        onCancel: Cancellation,
+        onOutputChunk: (@Sendable (Data) -> Void)? = nil,
+        onLaunch: (@Sendable (pid_t) -> Void)? = nil,
+        beforeSpawn: (@Sendable () async -> Void)?,
+        standardInputIsOpen: (@Sendable () -> Bool)?
+    ) async throws -> Outcome {
         let request = Request(
             executablePath: executablePath, arguments: arguments,
             environment: environment, workingDirectory: workingDirectory,
             standardInput: standardInput, standardOutput: standardOutput,
             standardError: standardError, deadline: deadline,
-            onOutputChunk: onOutputChunk, onLaunch: onLaunch)
+            onOutputChunk: onOutputChunk, onLaunch: onLaunch,
+            beforeSpawn: beforeSpawn,
+            standardInputIsOpen: standardInputIsOpen ?? { fcntl(0, F_GETFD) != -1 })
         switch onCancel {
         case .runToCompletion:
             // Unstructured on purpose: awaiting `.value` does not forward the
@@ -192,6 +235,36 @@ public enum ChildProcess {
 
     // MARK: - Implementation
 
+    /// Where the child's stdin comes from.
+    enum StandardInputSource: Equatable {
+        case bytes
+        case inherit
+        case devNull
+    }
+
+    /// Bytes when given; otherwise our own fd 0 — unless we have none, when the
+    /// child gets `/dev/null`, as `Process` gave it.
+    static func standardInputSource(bytesGiven: Bool, standardInputIsOpen: Bool) -> StandardInputSource {
+        if bytesGiven { return .bytes }
+        return standardInputIsOpen ? .inherit : .devNull
+    }
+
+    /// The environment swift-subprocess will accept: POSIX-invalid entries removed.
+    /// Returns what is left and the keys that were dropped.
+    static func spawnableEnvironment(_ environment: [String: String]) -> (kept: [String: String], dropped: [String]) {
+        var kept: [String: String] = [:]
+        var dropped: [String] = []
+        for (key, value) in environment {
+            let keyBytes = key.utf8
+            let invalid = keyBytes.isEmpty
+                || keyBytes.contains(UInt8(ascii: "=")) || keyBytes.contains(0)
+                || (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(keyBytes.first!)
+                || value.utf8.contains(0)
+            if invalid { dropped.append(key) } else { kept[key] = value }
+        }
+        return (kept, dropped.sorted())
+    }
+
     private struct Request: Sendable {
         let executablePath: String
         let arguments: [String]
@@ -203,6 +276,8 @@ public enum ChildProcess {
         let deadline: Deadline?
         let onOutputChunk: (@Sendable (Data) -> Void)?
         let onLaunch: (@Sendable (pid_t) -> Void)?
+        let beforeSpawn: (@Sendable () async -> Void)?
+        let standardInputIsOpen: @Sendable () -> Bool
 
         /// The steps swift-subprocess runs when the task driving the child is
         /// cancelled — by the deadline below, or (under `.terminateChild`) by the
@@ -220,14 +295,20 @@ public enum ChildProcess {
         }
 
         func raceDeadline(teardownOnCancel steps: [TeardownStep]) async throws -> Outcome {
-            guard let deadline else { return try await launch(teardown: steps, timedOut: { false }) }
+            guard let deadline else {
+                return try await launch(teardown: steps, launched: nil, timedOut: { false })
+            }
             let fired = Flag()
+            let launched = LaunchSignal()
             return try await withThrowingTaskGroup(of: Event.self) { group in
                 group.addTask {
-                    .finished(try await launch(teardown: steps, timedOut: { fired.value }))
+                    .finished(try await launch(
+                        teardown: steps, launched: launched, timedOut: { fired.value }))
                 }
                 group.addTask {
                     do {
+                        // From launch, not from here: see "Deadline".
+                        try await launched.wait()
                         try await Task.sleep(for: deadline.terminateAfter)
                         return .deadlinePassed
                     } catch {
@@ -255,14 +336,25 @@ public enum ChildProcess {
         }
 
         private func launch(
-            teardown steps: [TeardownStep], timedOut: @escaping @Sendable () -> Bool
+            teardown steps: [TeardownStep], launched: LaunchSignal?,
+            timedOut: @escaping @Sendable () -> Bool
         ) async throws -> Outcome {
             var options = PlatformOptions()
             options.teardownSequence = steps
+            // Its own group (pgid = its pid), as `Process` gave it: a terminal's
+            // Ctrl-C goes to our foreground group and must not reach a `ditto` or an
+            // `osascript` halfway through a swap. Teardown signals the pid alone, so
+            // nothing else changes.
+            options.processGroupID = 0
             let env: Subprocess.Environment
             if let environment {
+                let spawnable = ChildProcess.spawnableEnvironment(environment)
+                if !spawnable.dropped.isEmpty {
+                    Log.app.error(
+                        "child process \((executablePath as NSString).lastPathComponent, privacy: .public): dropped environment entries POSIX does not allow, keys: \(spawnable.dropped.joined(separator: ", "), privacy: .public)")
+                }
                 var custom: [Subprocess.Environment.Key: String] = [:]
-                for (key, value) in environment {
+                for (key, value) in spawnable.kept {
                     if let key = Subprocess.Environment.Key(rawValue: key) { custom[key] = value }
                 }
                 env = .custom(custom)
@@ -278,46 +370,22 @@ public enum ChildProcess {
             let sink = Sink(keepOutput: standardOutput == .capture,
                             keepError: standardError == .capture,
                             onOutputChunk: onOutputChunk)
+            let onLaunch = self.onLaunch
+            let started: @Sendable (pid_t) -> Void = { pid in
+                onLaunch?(pid)
+                launched?.fire()
+            }
+            await beforeSpawn?()
 
             let status: TerminationStatus
-            // Four spellings of one call: swift-subprocess's input and error types are
-            // static, and the choices here are inherit-or-bytes for stdin and
-            // separate-or-merged for stderr.
-            switch (standardInput, standardError) {
-            case (nil, .mergeIntoOutput):
-                status = try await Subprocess.run(
-                    configuration, input: .currentStandardInput,
-                    output: .sequence, error: .combinedWithOutput
-                ) { execution in
-                    onLaunch?(execution.processIdentifier.value)
-                    try await sink.drain(output: execution.standardOutput, error: nil)
-                }.terminationStatus
-            case (nil, _):
-                status = try await Subprocess.run(
-                    configuration, input: .currentStandardInput,
-                    output: .sequence, error: .sequence
-                ) { execution in
-                    onLaunch?(execution.processIdentifier.value)
-                    try await sink.drain(
-                        output: execution.standardOutput, error: execution.standardError)
-                }.terminationStatus
-            case (let bytes?, .mergeIntoOutput):
-                status = try await Subprocess.run(
-                    configuration, input: .data(bytes),
-                    output: .sequence, error: .combinedWithOutput
-                ) { execution in
-                    onLaunch?(execution.processIdentifier.value)
-                    try await sink.drain(output: execution.standardOutput, error: nil)
-                }.terminationStatus
-            case (let bytes?, _):
-                status = try await Subprocess.run(
-                    configuration, input: .data(bytes),
-                    output: .sequence, error: .sequence
-                ) { execution in
-                    onLaunch?(execution.processIdentifier.value)
-                    try await sink.drain(
-                        output: execution.standardOutput, error: execution.standardError)
-                }.terminationStatus
+            switch ChildProcess.standardInputSource(
+                bytesGiven: standardInput != nil, standardInputIsOpen: standardInputIsOpen()) {
+            case .bytes:
+                status = try await spawn(configuration, input: .data(standardInput!), sink: sink, started: started)
+            case .inherit:
+                status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)
+            case .devNull:
+                status = try await spawn(configuration, input: .none, sink: sink, started: started)
             }
 
             let code: Int32
@@ -329,6 +397,66 @@ public enum ChildProcess {
             return Outcome(
                 terminationStatus: code, uncaughtSignal: signaled, timedOut: timedOut(),
                 standardOutput: sink.output, standardError: sink.error)
+        }
+
+        /// Two spellings of one call: swift-subprocess's error type is static, and
+        /// stderr is either its own pipe or merged into stdout's.
+        private func spawn<Input: InputProtocol>(
+            _ configuration: Configuration, input: Input, sink: Sink,
+            started: @escaping @Sendable (pid_t) -> Void
+        ) async throws -> TerminationStatus {
+            if standardError == .mergeIntoOutput {
+                return try await Subprocess.run(
+                    configuration, input: input, output: .sequence, error: .combinedWithOutput
+                ) { execution in
+                    started(execution.processIdentifier.value)
+                    try await sink.drain(output: execution.standardOutput, error: nil)
+                }.terminationStatus
+            }
+            return try await Subprocess.run(
+                configuration, input: input, output: .sequence, error: .sequence
+            ) { execution in
+                started(execution.processIdentifier.value)
+                try await sink.drain(output: execution.standardOutput, error: execution.standardError)
+            }.terminationStatus
+        }
+    }
+
+    /// Fires once, when the child has launched; `wait` returns then, or throws
+    /// `CancellationError` if the waiting task is cancelled first (a launch that
+    /// throws ends the race, which cancels the waiter).
+    private final class LaunchSignal: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+        private var waiter: CheckedContinuation<Void, Never>?
+
+        func fire() {
+            let resume: CheckedContinuation<Void, Never>? = lock.withLock {
+                fired = true
+                defer { waiter = nil }
+                return waiter
+            }
+            resume?.resume()
+        }
+
+        func wait() async throws {
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    let now: Bool = lock.withLock {
+                        if fired || Task.isCancelled { return true }
+                        waiter = continuation
+                        return false
+                    }
+                    if now { continuation.resume() }
+                }
+            } onCancel: {
+                let resume: CheckedContinuation<Void, Never>? = lock.withLock {
+                    defer { waiter = nil }
+                    return waiter
+                }
+                resume?.resume()
+            }
+            try Task.checkCancellation()
         }
     }
 

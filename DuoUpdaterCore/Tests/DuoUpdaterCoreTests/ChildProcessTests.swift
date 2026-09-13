@@ -180,9 +180,10 @@ import Testing
     /// script gives up on its own after ~30 s and exits 7, so an implementation
     /// that never escalates produces a wrong outcome rather than a hang.
     ///
-    /// 8 s before SIGTERM is margin, not a measurement: the deadline starts when
-    /// the call does, and on a 3-core runner with the whole suite in flight the
-    /// spawn itself can wait seconds. SIGTERM must land after `trap` has run.
+    /// 8 s before SIGTERM is margin, not a measurement: the deadline now starts at
+    /// launch, so a spawn queued behind others no longer eats into it, but `sh`
+    /// still has to start and run `trap` before SIGTERM lands, on a 3-core runner
+    /// with the whole suite in flight.
     ///
     /// Mutations: (a) drop `group.cancelAll()` on `.deadlinePassed` → exits 7,
     /// not signaled; (b) drop the `timedOut` flag (`fired.set()`) → `timedOut`
@@ -292,6 +293,148 @@ import Testing
         task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    /// A task already cancelled never spawns under `.terminateChild` — observed
+    /// through `onLaunch`, which swift-subprocess calls for every child it starts,
+    /// cancelled or not.
+    ///
+    /// Mutation: drop the leading `Task.checkCancellation()` in `run` → the child
+    /// is spawned (and then torn down), `onLaunch` fires once.
+    @Test func anAlreadyCancelledTaskNeverSpawns() async throws {
+        let launches = Counter()
+        let task = Task { () async throws -> ChildProcess.Outcome in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await ChildProcess.run(
+                "/bin/sh", ["-c", "sleep 5"], onCancel: .terminateChild,
+                onLaunch: { _ in launches.increment() })
+        }
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(launches.value == 0)
+    }
+
+    // MARK: - Round 1 of review: process group, environment, stdin, deadline clock
+
+    /// The child is the leader of its own process group, as a `Process` child was
+    /// (measured), so a terminal's Ctrl-C to our group does not reach it.
+    ///
+    /// Mutation: drop `options.processGroupID = 0` → the child's pgid is ours.
+    @Test func theChildLeadsItsOwnProcessGroup() async throws {
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "echo $$; ps -o pgid= -p $$"], onCancel: .terminateChild)
+        let fields = String(decoding: outcome.standardOutput, as: UTF8.self)
+            .split(whereSeparator: \.isWhitespace).compactMap { pid_t($0) }
+        #expect(fields.count == 2)
+        #expect(fields.first == fields.last, "the child's pgid is its own pid")
+        #expect(fields.last != getpgrp(), "the child is not in our group")
+    }
+
+    /// Keys POSIX does not allow are dropped rather than failing the spawn — a
+    /// `Process` passed them through, swift-subprocess refuses to spawn.
+    ///
+    /// Mutation: skip `spawnableEnvironment` (pass the dictionary straight
+    /// through) → `run` throws `spawnFailed`.
+    @Test func invalidEnvironmentEntriesAreDroppedNotFatal() async throws {
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "printf '[%s]' \"$ZZ_FIXTURE_GOOD\""],
+            environment: ["1BAD": "digit", "A=B": "equals", "ZZ_FIXTURE_GOOD": "kept"],
+            onCancel: .terminateChild)
+        #expect(outcome.succeeded)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "[kept]")
+    }
+
+    /// The rule itself, including the value half. Mutation: stop checking for a
+    /// leading digit → `1BAD` is kept.
+    @Test func theEnvironmentFilterNamesWhatItDrops() {
+        let result = ChildProcess.spawnableEnvironment([
+            "1BAD": "x", "A=B": "x", "NUL\u{0}KEY": "x", "VALUE_NUL": "a\u{0}b",
+            "GOOD": "x", "_ALSO_GOOD": "x",
+        ])
+        #expect(result.kept == ["GOOD": "x", "_ALSO_GOOD": "x"])
+        #expect(result.dropped == ["1BAD", "A=B", "NUL\u{0}KEY", "VALUE_NUL"].sorted())
+    }
+
+    /// With no fd 0 in this process (`duo … <&-`), the child gets `/dev/null`, as a
+    /// `Process` child did (measured); otherwise stdin is inherited, and bytes win.
+    ///
+    /// Mutation: return `.inherit` when stdin is not open → the second expectation.
+    @Test func aClosedStandardInputGivesTheChildDevNull() {
+        #expect(ChildProcess.standardInputSource(bytesGiven: false, standardInputIsOpen: true) == .inherit)
+        #expect(ChildProcess.standardInputSource(bytesGiven: false, standardInputIsOpen: false) == .devNull)
+        #expect(ChildProcess.standardInputSource(bytesGiven: true, standardInputIsOpen: false) == .bytes)
+    }
+
+    /// The `/dev/null` spelling actually spawns and reads as an empty stdin. (Not a
+    /// discriminating test on its own: the runner's own stdin may be `/dev/null`
+    /// too. The decision is pinned above.)
+    @Test func theDevNullSpellingSpawns() async throws {
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "cat; test -c /dev/fd/0 && echo char-device"],
+            onCancel: .terminateChild, beforeSpawn: nil, standardInputIsOpen: { false })
+        #expect(outcome.succeeded)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "char-device\n")
+    }
+
+    /// The deadline counts from launch. Here the wait before the spawn (6 s,
+    /// injected) is longer than `terminateAfter` (3 s) and the child itself is
+    /// instant, so a clock started at the call would kill it before it ran.
+    ///
+    /// Mutation: drop `try await launched.wait()` in `raceDeadline` → the deadline
+    /// fires during the pre-launch wait, the child is torn down, `timedOut`.
+    @Test func theDeadlineClockStartsAtLaunch() async throws {
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "echo ran"],
+            deadline: .init(terminateAfter: .seconds(3), killAfter: .seconds(4)),
+            onCancel: .runToCompletion,
+            beforeSpawn: { try? await Task.sleep(for: .seconds(6)) },
+            standardInputIsOpen: nil)
+        #expect(!outcome.timedOut)
+        #expect(outcome.succeeded)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "ran\n")
+    }
+
+    /// A launch that fails never starts the clock, and the race still ends: the
+    /// waiting half is cancelled rather than left suspended.
+    ///
+    /// Mutation: make `LaunchSignal.wait` ignore cancellation (no
+    /// `withTaskCancellationHandler`) → this call never returns; the 60 s watchdog
+    /// reports it.
+    @Test func aFailedLaunchWithADeadlineStillReturns() async {
+        let finished = await Self.within(seconds: 60) {
+            _ = try? await ChildProcess.run(
+                "/nonexistent/ZZFixture-no-such-tool",
+                deadline: .init(terminateAfter: .seconds(300), killAfter: .seconds(305)),
+                onCancel: .terminateChild)
+        }
+        #expect(finished)
+    }
+
+    /// True when `body` finished within `seconds`; abandons it otherwise.
+    private static func within(seconds: Double, _ body: @escaping @Sendable () async -> Void) async -> Bool {
+        final class Once: @unchecked Sendable {
+            let lock = NSLock()
+            var continuation: CheckedContinuation<Bool, Never>?
+            func resume(_ value: Bool) {
+                let c: CheckedContinuation<Bool, Never>? = lock.withLock {
+                    defer { continuation = nil }
+                    return continuation
+                }
+                c?.resume(returning: value)
+            }
+        }
+        let once = Once()
+        return await withCheckedContinuation { continuation in
+            once.lock.withLock { once.continuation = continuation }
+            Task { await body(); once.resume(true) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { once.resume(false) }
+        }
+    }
+
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        func increment() { lock.withLock { count += 1 } }
+        var value: Int { lock.withLock { count } }
     }
 
     // MARK: - Helpers

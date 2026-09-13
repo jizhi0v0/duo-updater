@@ -6,9 +6,10 @@ enum com_windscribe_client {
         probes: [
         // MARK: - 2026-09-07 Windscribe
 
+        // History: docs/app-audits/com-windscribe-client.md#历史与实测
         // Windscribe — VPN client (Qt, vendor's own updater; no Sparkle, no
         // electron-builder). `feed-discover` has nothing to find: the real bundle
-        // (extracted from the 2.24.12 dmg, see below) declares no `SUFeedURL` and
+        // (extracted from the 2.24.12 dmg, see History) declares no `SUFeedURL` and
         // ships no `app-update.yml`, and the cask (`windscribe`) is
         // `auto_updates true`, so `HomebrewCaskSource` defers. Without this recipe
         // the row is `.unknown`.
@@ -27,22 +28,7 @@ enum com_windscribe_client {
         // and more obvious endpoint. `CheckUpdate?platform=osx&beta=<n>` takes a
         // track number (0 release / 1 beta / 2 guinea pig, the same numbering as
         // the client's own `UPDATE_CHANNEL` enum) and answers with one artifact
-        // URL to read the version off. The problem is that on 2026-09-07 `beta=0`,
-        // `1`, `2` and `3` all returned BYTE-IDENTICAL bodies, so "the parameter
-        // selects the release track" and "the parameter is ignored" could not be
-        // told apart — the beta track (2.24.10) happened to sit behind stable
-        // (2.24.12), which makes every value's correct answer the same.
-        //
-        // That ambiguity is not academic, and its risky branch is the NORMAL state
-        // of this vendor. Counting the release dates in `/ChangeLogs?platform=osx`
-        // (149 macOS entries): over the last 819 days the newest PRERELEASE
-        // outranked the newest release on 618 of them — 75%, in 14 windows of
-        // 27–75 days. If the parameter is ignored, then throughout every one of
-        // those windows `CheckUpdate` names a `…_beta_universal.dmg` and a recipe
-        // reading that filename would report `versionPatternNoMatch` — the app
-        // `.unknown` and `duo verify` BROKEN, for weeks at a time, four times a
-        // day. (Measured, by making the pattern unsatisfiable against the real
-        // body: `✗ BROKEN … versionPatternNoMatch — no match in 395-byte body`.)
+        // URL to read the version off.
         //
         // `/ChangeLogs/summary` sidesteps the question instead of betting on it.
         // It states all three tracks as SEPARATELY NAMED fields, so the release
@@ -79,27 +65,15 @@ enum com_windscribe_client {
         // the same shape, and macOS is in the middle of it. A plain lazy `[\s\S]*?`
         // from `"platform": "osx"` would, the day the osx entry stops carrying
         // `release_full_version`, run on into the NEXT platform's copy of the key
-        // and report Windows' version as the Mac's. Measured on the real body with
-        // that field deleted from the osx entry: the bounded pattern matches
-        // nothing (correct), the unbounded one returns `2.24.12` — which is the
-        // right answer today ONLY because Windows and macOS ship in lockstep, so
-        // the bug would look like a pass. `publishedAtPattern` carries the same
-        // anchor for the same reason.
+        // and report Windows' version as the Mac's. `publishedAtPattern` carries
+        // the same anchor for the same reason.
         //
         // Costs 14 KB per scan against `CheckUpdate`'s 395 B. Bought with it: the
         // release date, which `CheckUpdate` does not state at all, so the Release
         // Log places this app exactly instead of on an estimated "≈" window.
         //
-        // NO ONE-CLICK, and this is a structural refusal rather than a TODO. This
-        // endpoint names no artifact, but `CheckUpdate` does and it resolves to
-        // `Windscribe_<version>_universal.dmg` — a dmg holding
-        // `WindscribeInstaller.app` (`com.windscribe.installer.macos`) and nothing
-        // else; the app itself lives inside it as
-        // `Contents/Resources/windscribe.tar.lzma`, which `ArchiveExtractor`
-        // cannot open (it dispatches on extension — `lzma` is not among
-        // dmg/zip/gz/bz2/xz/tar/tbz/tgz) and which unpacks to a bare `Contents/`
-        // with no `.app` wrapper for `firstApp` to find. Both are fixable; the
-        // third thing is not. An install is not a bundle swap here: it also writes
+        // NO ONE-CLICK, and this is a structural refusal rather than a TODO.
+        // An install is not a bundle swap here: it also writes
         // `/Library/LaunchDaemons/com.windscribe.helper.macos.plist`, a privileged
         // helper, a system extension, a login item and `/usr/local/bin/
         // windscribe-cli`. Swapping only the bundle would leave a VPN talking to a
@@ -111,37 +85,30 @@ enum com_windscribe_client {
         //
         // CROSS-CHANNEL, both directions, because only one of them is prevented.
         // A stable install can never be walked onto a prerelease: the release
-        // track is selected by key. The reverse is NOT prevented and is what
-        // actually happens — the three tracks share `com.windscribe.client`, a
-        // display name and an unsuffixed version string (proven by extracting both
-        // the 2.24.12 stable and the 2.24.10 beta bundles), so `detect()` has no
-        // signal and calls every copy stable. `channel-verify` on the real beta
-        // bundle reports `UPDATE 2.24.10 → 2.24.12` through the full production
-        // chain. That is accepted rather than overlooked: the version moves
-        // forward, Windscribe's own client on the Beta channel offers the same
-        // build (its API answers "this track or better"), and the install is
-        // manual — we hand the user the vendor's download page. It cannot be
-        // gated, either, since the gate would need the channel we cannot read.
-        //
-        // Verified 2026-09-07 against the real bundle, extracted from
-        // `Windscribe_2.24.12_universal.dmg` without installing: `com.windscribe.
-        // client`, `CFBundleShortVersionString` == `CFBundleVersion` == `2.24.12`
-        // (the plist template writes one value into both, so no `versionIsBuild`),
-        // universal (x86_64 + arm64), "Developer ID Application: Windscribe
-        // Limited (GYZJYS7XUG)".
+        // track is selected by key. The reverse is NOT prevented, by design: the
+        // three tracks share `com.windscribe.client`, a display name and an
+        // unsuffixed version string, so `detect()` has no signal, and
+        // `WindscribeChannel` answers nil for the Release preference — the
+        // default, which installing a beta dmg does not change. A prerelease
+        // build on that preference is therefore compared against the release
+        // track. That is accepted rather than overlooked: it is the vendor's own
+        // ladder (a client on Release is served the release track), the version
+        // only moves forward, and the install is manual — we hand the user the
+        // vendor's download page. A copy on the Beta or Guinea Pig preference is
+        // bound to its own track recipe below.
         //
         // EXPECTED WARNING, so nobody files an issue against a working recipe.
         // `duo verify` runs `RecipeSanity.remoteBehindInstalled` whenever it finds
         // an installed copy, and Windscribe's build numbers climb ACROSS tracks
         // inside a cycle (2.24.3/2.24.6 guinea pig → 2.24.8/2.24.10 beta →
-        // 2.24.12 release). A machine carrying a prerelease build is therefore
-        // routinely newer than the newest release-track build — measured, that
-        // state holds on 618 of the last 819 days — and this recipe, which reads
-        // the release track by design, then reads behind the installed copy and
-        // draws a warning, four times a day for weeks. That is one of the honest
-        // causes that check's own doc lists, not a fault here; it goes away once
-        // the channel recipes land and such a copy is compared against its own
-        // track.
+        // 2.24.12 release). `duo verify` files an installed copy under its
+        // resolved channel, so a copy on the Beta or Guinea Pig preference is
+        // compared against its own track. A prerelease build left on the Release
+        // preference is not: it is routinely newer than the newest release-track
+        // build, and this recipe, which reads the release track by design, then
+        // reads behind the installed copy and draws a warning, four times a day
+        // for weeks. That is one of the honest causes that check's own doc
+        // lists, not a fault here.
         //
         // The vendor states an OS floor per release (`min_version`, 13.0 today)
         // and it MOVES — across the 149 macOS entries in `/ChangeLogs?platform=osx`
@@ -181,10 +148,7 @@ enum com_windscribe_client {
         // `/ChangeLogs/summary`, which the stable recipe reads, cannot express
         // that: its three `*_full_version` fields live in one object behind a
         // single `"platform": "osx"` anchor, and a pattern that consumes the
-        // anchor matches exactly ONCE. Adding an alternation there looks like it
-        // works — today it returns 2.24.12, the right answer — and would keep
-        // returning the release track on the day a beta leads. Measured, not
-        // reasoned: `findall` over the real body returns one match.
+        // anchor matches exactly ONCE.
         //
         // `/ChangeLogs?platform=osx` states each release's track as its own
         // `"beta"` number (0 release / 1 beta / 2 guinea pig), so the track set
@@ -194,21 +158,8 @@ enum com_windscribe_client {
         // which is the wanted behaviour here and why the single-match guard
         // being skipped under `selectHighest` is fine rather than a hole.
         //
-        // Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
-        // 36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
-        // `release_date` 2026-09-02 — the same answer the stable recipe gives,
-        // because release currently leads. That is the 25% case. Replaying the
-        // feed by date is what tells the three apart, and the regression tests
-        // use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
-        // 2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
-        //
         // Costs 250 KB per fetch against the stable recipe's 14 KB. An APP pays
         // one of the three — the channel gate binds exactly one recipe to a copy.
-        // `duo verify` pays all three, because it walks the registry rather than
-        // the installed apps: about 500 KB more per sweep, measured as 153 → 155
-        // vendor probes and 141s → 156s. Worth stating both ways round; the first
-        // sentence alone would let someone size the nightly job's cost and be
-        // wrong by a wide margin.
         //
         // Detection only, exactly as stable is — the dmg is an installer stub and
         // the install writes a LaunchDaemon, a privileged helper and a system
@@ -286,11 +237,8 @@ enum com_windscribe_client {
         // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
         // releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
         // marks all 31 the same way — it has no idea which track a build is on.
-        // Cross-referenced against the vendor's own `beta` numbers, those 31 are
-        // 12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
-        // all (2.24.11 is one: built as stable, published as a GitHub prerelease,
-        // on no track). So a beta reader sees guinea pig entries too, and both
-        // readers see builds the vendor never announced.
+        // So a beta reader sees guinea pig entries too, and both readers see
+        // builds the vendor never announced.
         //
         // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
         // version comes from the vendor's feed and the notes come from GitHub,

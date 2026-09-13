@@ -734,3 +734,84 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
    仍然不是缺陷。
 
 6. 一键安装：**结构性拒绝**，理由见上，三条里第三条不可修。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-windscribe-client.swift — stable VendorProbe（`ChangeLogs/summary`）
+
+转引自 recipe 注释，未复测。
+
+The problem is that on 2026-09-07 `beta=0`,
+`1`, `2` and `3` all returned BYTE-IDENTICAL bodies, so "the parameter
+selects the release track" and "the parameter is ignored" could not be
+told apart — the beta track (2.24.10) happened to sit behind stable
+(2.24.12), which makes every value's correct answer the same.
+
+That ambiguity is not academic, and its risky branch is the NORMAL state
+of this vendor. Counting the release dates in `/ChangeLogs?platform=osx`
+(149 macOS entries): over the last 819 days the newest PRERELEASE
+outranked the newest release on 618 of them — 75%, in 14 windows of
+27–75 days. If the parameter is ignored, then throughout every one of
+those windows `CheckUpdate` names a `…_beta_universal.dmg` and a recipe
+reading that filename would report `versionPatternNoMatch` — the app
+`.unknown` and `duo verify` BROKEN, for weeks at a time, four times a
+day. (Measured, by making the pattern unsatisfiable against the real
+body: `✗ BROKEN … versionPatternNoMatch — no match in 395-byte body`.)
+
+Measured on the real body with
+that field deleted from the osx entry: the bounded pattern matches
+nothing (correct), the unbounded one returns `2.24.12` — which is the
+right answer today ONLY because Windows and macOS ship in lockstep, so
+the bug would look like a pass.
+
+This
+endpoint names no artifact, but `CheckUpdate` does and it resolves to
+`Windscribe_<version>_universal.dmg` — a dmg holding
+`WindscribeInstaller.app` (`com.windscribe.installer.macos`) and nothing
+else; the app itself lives inside it as
+`Contents/Resources/windscribe.tar.lzma`, which `ArchiveExtractor`
+cannot open (it dispatches on extension — `lzma` is not among
+dmg/zip/gz/bz2/xz/tar/tbz/tgz) and which unpacks to a bare `Contents/`
+with no `.app` wrapper for `firstApp` to find. Both are fixable; the
+third thing is not.
+
+Verified 2026-09-07 against the real bundle, extracted from
+`Windscribe_2.24.12_universal.dmg` without installing: `com.windscribe.
+client`, `CFBundleShortVersionString` == `CFBundleVersion` == `2.24.12`
+(the plist template writes one value into both, so no `versionIsBuild`),
+universal (x86_64 + arm64), "Developer ID Application: Windscribe
+Limited (GYZJYS7XUG)".
+
+### Recipes/com-windscribe-client.swift — beta / guinea pig VendorProbe（`ChangeLogs?platform=osx`，`windscribeTrackRecipe`）
+
+转引自 recipe 注释，未复测。
+
+Adding an alternation there looks like it
+works — today it returns 2.24.12, the right answer — and would keep
+returning the release track on the day a beta leads. Measured, not
+reasoned: `findall` over the real body returns one match.
+
+Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
+36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
+`release_date` 2026-09-02 — the same answer the stable recipe gives,
+because release currently leads. That is the 25% case. Replaying the
+feed by date is what tells the three apart, and the regression tests
+use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
+2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
+
+`duo verify` pays all three, because it walks the registry rather than
+the installed apps: about 500 KB more per sweep, measured as 153 → 155
+vendor probes and 141s → 156s. Worth stating both ways round; the first
+sentence alone would let someone size the nightly job's cost and be
+wrong by a wide margin.
+
+### Recipes/com-windscribe-client.swift — beta / guinea pig ChangelogRecipe（GitHub releases，`includesPromotedStable`）
+
+转引自 recipe 注释，未复测。
+
+Cross-referenced against the vendor's own `beta` numbers, those 31 are
+12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
+all (2.24.11 is one: built as stable, published as a GitHub prerelease,
+on no track).

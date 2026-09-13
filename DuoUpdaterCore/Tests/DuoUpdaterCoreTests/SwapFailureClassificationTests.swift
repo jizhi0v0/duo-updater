@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Testing
 @testable import DuoUpdaterCore
 
@@ -11,12 +12,14 @@ import Testing
 /// the bundle's identity before and after settles it, and `fileExists` cannot —
 /// after a successful replacement the path exists too.
 ///
-/// The decision is tested as a function, because nothing in this process can make
-/// `replaceItemAt` land-then-throw on demand; that integration path stays a manual
-/// check. The two identities it is fed are NOT assumed, though: the last two tests
-/// run the real exchange each path performs (a `Contents` rotation, and the
-/// elevated shell, whose cleanup is made to fail with a `uchg` file) and assert
-/// that the inodes it hands the classifier really do move. Every fixture path is
+/// The decision is tested as a function first, and then for real: a `uchg` file
+/// inside the item being displaced makes the exchange land and its cleanup fail on
+/// demand, in this process, without a password panel. The tests after the pure ones
+/// use that to run each path's real exchange — a `Contents` rotation, the elevated
+/// shell, `rotateContents` and the unprivileged `replace` — and assert both that
+/// the inodes handed to the classifier really move and that a landed swap comes
+/// back as a cleanup failure rather than a throw. Only the elevated route through
+/// `osascript` itself stays a manual check. Every fixture path is
 /// invented (`ZZFixture-…`) and lives in a fresh scratch directory, so no test here
 /// depends on what this machine has installed.
 @Suite struct SwapFailureClassificationTests {
@@ -212,6 +215,89 @@ import Testing
             Issue.record("expected a cleanup-failure outcome, got \(outcome)")
         }
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/new").path))
+    }
+
+    /// Every caller discards the `SwapOutcome` (both installers through
+    /// `offCooperativePool`, the rollback directly), so the log line `replace`
+    /// writes in its `defer` is the ONLY place the cleanup-failure reason goes —
+    /// the displaced bundle it could not delete, left in `/Applications`. This
+    /// reads that line back out of the unified log for this process, and checks it
+    /// carries the reason the outcome carried, not just that something was logged.
+    ///
+    /// The bundle name is unique per run because the other cleanup-failure tests
+    /// in this suite write the same shape of line from the same process.
+    ///
+    /// Everything that blocks runs inside ONE `offCooperativePool` hop: `replace`
+    /// and `chflags` wait on child processes, and each `getEntries` read was
+    /// measured at 2–8 s locally (opening the store is the cost). This is an `async`
+    /// test, so done inline all of that would park a cooperative thread — one of
+    /// three on the CI runner — which is the #351 shape. The retry pause is a
+    /// `Thread.sleep` for the same reason: it is on a Dispatch thread by then.
+    /// Assertions stay outside, on the values the hop hands back.
+    @Test func aCleanupFailureReasonReachesTheInstallLog() async throws {
+        let name = "ZZFixture-CleanupLog-\(UUID().uuidString).app"
+        let probe = try await offCooperativePool { [self] () throws -> CleanupLogProbe in
+            let fm = FileManager.default
+            let scratch = try scratch()
+            defer {
+                _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
+                try? fm.removeItem(at: scratch)
+            }
+            let target = scratch.appendingPathComponent(name)
+            let incoming = scratch.appendingPathComponent("ZZFixture-CleanupLogNew.app")
+            for (bundle, marker) in [(target, "old"), (incoming, "new")] {
+                try fm.createDirectory(
+                    at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+                try Data(marker.utf8).write(to: bundle.appendingPathComponent("Contents/\(marker)"))
+            }
+            let stubborn = target.appendingPathComponent("Contents/pinned")
+            try Data("pinned".utf8).write(to: stubborn)
+            let chflags = try shell("/usr/bin/chflags uchg '\(stubborn.path)'")
+
+            let store = try OSLogStore(scope: .currentProcessIdentifier)
+            let start = store.position(date: Date().addingTimeInterval(-1))
+            let outcome = try InPlaceSwap.replace(newApp: incoming, over: target)
+
+            let predicate = NSPredicate(
+                format: "subsystem == %@ AND category == %@", Log.subsystem, "install")
+            // Bounded retries, not a deadline: delivery into the store is
+            // asynchronous, and nothing here asserts on how long it took. It stops at
+            // the `defer`'s line whichever of its three shapes that is, so a
+            // regression that logs "swap done" instead fails on the first read rather
+            // than after every retry.
+            let completion = ["swap done: \(name)", "cleanup failed", "swap did NOT"]
+            var lines: [String] = []
+            for _ in 0..<20 {
+                lines = try store.getEntries(at: start, matching: predicate)
+                    .compactMap { ($0 as? OSLogEntryLog)?.composedMessage }
+                    .filter { $0.contains(name) }
+                if lines.contains(where: { line in completion.contains { line.contains($0) } }) {
+                    break
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            return CleanupLogProbe(chflagsStatus: chflags, outcome: outcome, lines: lines)
+        }
+
+        #expect(probe.chflagsStatus == 0)
+        guard case .replacedButCleanupFailed(let reason) = probe.outcome else {
+            Issue.record("fixture broken: expected a cleanup-failure outcome, got \(probe.outcome)")
+            return
+        }
+        #expect(!reason.isEmpty)
+        let lines = probe.lines
+        #expect(lines.contains { $0.contains("swap start: \(name)") },
+                "fixture broken: not even the swap-start line was read back — \(lines)")
+        #expect(lines.contains { $0.contains("cleanup failed") && $0.contains(reason) },
+                "the cleanup-failure reason never reached the install log — \(lines)")
+    }
+
+    /// What the off-pool half of `aCleanupFailureReasonReachesTheInstallLog` hands
+    /// back for the assertions.
+    private struct CleanupLogProbe: Sendable {
+        let chflagsStatus: Int32
+        let outcome: InPlaceSwap.SwapOutcome
+        let lines: [String]
     }
 
     // MARK: - Helpers

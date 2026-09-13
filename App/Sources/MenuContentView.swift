@@ -740,6 +740,26 @@ struct MenuContentView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+        } else if model.brewOutdatedFormulae.isEmpty && !model.brewUnchecked.isEmpty {
+            // Nothing outdated among what brew read — but some installed packages it
+            // wouldn't read at all (`BrewUncheckedPackage`). "Up to date" plus a green
+            // seal would be a claim about those too, so this replaces it. Same icon +
+            // two-line structure, so the row height doesn't change.
+            HStack(spacing: 8) {
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(model.brewUnchecked.count) brew packages not checked")
+                        .font(.caption).fontWeight(.medium)
+                    Text(brewUncheckedSummary)
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .help(brewUncheckedHelp)
         } else if model.brewOutdatedFormulae.isEmpty {
             // Checked, nothing outdated — the placeholder. Keeps the same icon +
             // two-line structure as the outdated row, with a green seal instead of an
@@ -769,6 +789,11 @@ struct MenuContentView: View {
                         .font(.caption).fontWeight(.medium)
                     if let error = model.brewUpgradeError {
                         Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
+                    } else if !model.brewUnchecked.isEmpty {
+                        // Count first: the name list truncates, the count mustn't.
+                        Text("\(model.brewUnchecked.count) not checked · \(brewFormulaSummary)")
+                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            .help(brewUncheckedHelp)
                     } else {
                         Text(brewFormulaSummary)
                             .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -792,6 +817,17 @@ struct MenuContentView: View {
         let names = model.brewOutdatedFormulae.prefix(4).map(\.name)
         let more = model.brewOutdatedFormulae.count > names.count ? "…" : ""
         return names.joined(separator: ", ") + more
+    }
+
+    /// "bun, sshpass…" — the first few packages brew wouldn't read from their tap.
+    private var brewUncheckedSummary: String {
+        let names = model.brewUnchecked.prefix(4).map(\.name)
+        let more = model.brewUnchecked.count > names.count ? "…" : ""
+        return names.joined(separator: ", ") + more
+    }
+
+    private var brewUncheckedHelp: String {
+        String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window.")
     }
 
     /// Subtitle for the up-to-date placeholder — the count of top-level formulae we

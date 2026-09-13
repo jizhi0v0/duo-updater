@@ -51,6 +51,67 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     public var hasUpdate: Bool { availableVersion != nil }
 }
 
+/// An installed package from a third-party tap that Homebrew did **not** evaluate
+/// against that tap — so no read in this service can say whether it's outdated.
+///
+/// Since Homebrew 6.0.0 brew refuses to load formulae/casks from taps the user
+/// hasn't trusted (https://docs.brew.sh/Tap-Trust), and its listing commands skip
+/// them without a word. Measured 2026-09-13 on Homebrew 7.0.0, tap `oven-sh/bun`
+/// untrusted, bun 1.3.14 installed, the tap at 1.4.2: `brew leaves`,
+/// `brew outdated --formula --json=v2` and `brew info --json=v2 --installed` all
+/// exited 0 with bun simply absent (`Formula.installed` rescues every load error),
+/// while `brew list --formula --full-name` still printed `oven-sh/bun/bun`.
+/// Casks fail differently (same day, an app-less fixture cask in an untrusted local
+/// tap, installed 1.0, tap at 2.0): `outdated --cask` omits it, but `info --installed`
+/// still lists it — loaded from the copy stored in the Caskroom at install time, with
+/// `tap: null` (every other installed cask had a tap), the INSTALLED version and
+/// `outdated: false`. `list --cask --full-name` loads the same copy, so it prints the
+/// bare token; only the Caskroom install receipt still names the tap.
+///
+/// Without this type both shapes read as "nothing to do": the formula has no row at
+/// all, the cask has no update.
+public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
+    public enum Reason: Sendable, Equatable {
+        /// `brew tap-info` reports the tap as not trusted.
+        case tapNotTrusted
+        /// Brew didn't read it from its tap for some other reason (the tap is
+        /// trusted or gone, the definition is broken…). Not narrowed further — we
+        /// only know brew's verdict, not its exception.
+        case unreadable
+    }
+
+    public var id: String { "\(kind.rawValue):\(fullName)" }
+    /// Tap-qualified: `oven-sh/bun/bun`. Bare only for a cask whose install receipt
+    /// names no tap.
+    public let fullName: String
+    public let kind: BrewOutdatedFormula.Kind
+    public let installedVersion: String
+    public let reason: Reason
+
+    public init(
+        fullName: String, kind: BrewOutdatedFormula.Kind,
+        installedVersion: String, reason: Reason
+    ) {
+        self.fullName = fullName
+        self.kind = kind
+        self.installedVersion = installedVersion
+        self.reason = reason
+    }
+
+    /// `bun` for `oven-sh/bun/bun`.
+    public var name: String { BrewFormulaService.shortName(fullName) }
+    /// `oven-sh/bun` for `oven-sh/bun/bun`; nil when `fullName` is bare.
+    public var tap: String? {
+        let parts = fullName.split(separator: "/")
+        return parts.count == 3 ? parts.prefix(2).joined(separator: "/") : nil
+    }
+
+    /// The command that grants trust to exactly this package — the narrowest grant,
+    /// which is what Homebrew's docs recommend. Shown for the user to run; this app
+    /// never runs it, trusting a tap is the user's security decision.
+    public var trustCommand: String { "brew trust --\(kind.rawValue) \(fullName)" }
+}
+
 /// Reads outdated Homebrew formulae and runs a formula-only `brew upgrade`.
 ///
 /// Detection reads the *local* tap (`brew outdated` does not auto-update), so the
@@ -77,18 +138,34 @@ public actor BrewFormulaService {
     /// underneath its own fixture. See CLAUDE.md "测试不能问宿主".
     typealias Executor = @Sendable ([String]) throws -> (status: Int32, stdout: Data)?
 
+    /// The tap a cask's Caskroom install receipt records (`source.tap`), or nil.
+    /// A seam for the same reason as `Executor`: the real one reads the disk.
+    typealias CaskReceiptTap = @Sendable (_ token: String) -> String?
+    /// `installsAnApp(caskToken:)`, injectable for the same reason.
+    typealias CaskInstallsAnApp = @Sendable (_ token: String) -> Bool
+
     private let executor: Executor
+    private let caskReceiptTap: CaskReceiptTap
+    private let caskInstallsAnApp: CaskInstallsAnApp
 
     public init() {
         self.executor = Self.realExecutor
+        self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
+        self.caskInstallsAnApp = { Self.installsAnApp(caskToken: $0) }
     }
 
     /// Test seam — not public, this is a harness detail. `BrewFormulaServiceTests`
     /// injects a fake executor to control timing and outcomes deterministically,
     /// instead of depending on Homebrew being installed and on real wall-clock
     /// subprocess latency.
-    init(executor: @escaping Executor) {
+    init(
+        executor: @escaping Executor,
+        caskReceiptTap: @escaping CaskReceiptTap = { _ in nil },
+        caskInstallsAnApp: @escaping CaskInstallsAnApp = { _ in false }
+    ) {
         self.executor = executor
+        self.caskReceiptTap = caskReceiptTap
+        self.caskInstallsAnApp = caskInstallsAnApp
     }
 
     public enum BrewError: LocalizedError {
@@ -175,7 +252,9 @@ public actor BrewFormulaService {
         return leaves.map { name in
             BrewInstalledFormula(
                 name: name,
-                installedVersion: versions[name] ?? "—",
+                // `leaves` prints a tap formula tap-qualified (`oven-sh/bun/bun`),
+                // `list --versions` keys it by rack name (`bun`).
+                installedVersion: versions[Self.shortName(name)] ?? "—",
                 availableVersion: nil)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -221,6 +300,147 @@ public actor BrewFormulaService {
         output.split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+    }
+
+    /// The last path component of a possibly tap-qualified name: `bun` for
+    /// `oven-sh/bun/bun`, `ripgrep` for `ripgrep`. That's the Cellar rack name.
+    static func shortName(_ name: String) -> String {
+        name.split(separator: "/").last.map(String.init) ?? name
+    }
+
+    /// Installed third-party-tap packages brew did not read from their tap — see
+    /// `BrewUncheckedPackage`. Includes dependencies as well as leaves: brew can't
+    /// tell which is which without loading the formula, and an unchecked dependency
+    /// is exactly as unchecked.
+    ///
+    /// The verdict is brew's own, not a re-implementation of its trust rules
+    /// (per-item trust, remote matching, `HOMEBREW_NO_REQUIRE_TAP_TRUST` all change
+    /// what loads). A formula counts when `brew list --formula --full-name` (read
+    /// from the keg's receipt, no loading) names it tap-qualified and
+    /// `brew info --json=v2 --installed` lacks it. A cask counts when `info` lists it
+    /// with `tap: null`, i.e. brew fell back to the Caskroom copy. `tap-info` and the
+    /// cask's install receipt only supply the label and the tap name.
+    ///
+    /// Fails closed: a failed `brew info` read (which `runReading` turns into "")
+    /// doesn't parse, and that yields [] — never "brew loaded none of them, so every
+    /// listed package is unchecked". A failed `list` read yields no candidates.
+    public func uncheckedPackages() async -> [BrewUncheckedPackage] {
+        async let formulaNames = runReading(["list", "--formula", "--full-name"])
+        async let installedInfo = runReading(["info", "--json=v2", "--installed"])
+        // Not `list --cask …` for anything: measured, `--versions` exits 1 outright
+        // ("Refusing to load cask … from untrusted tap") when any installed cask is
+        // untrusted, and `--full-name` prints such a cask bare.
+        async let versionList = runReading(["list", "--formula", "--versions"])
+
+        let candidates = Self.uncheckedCandidates(
+            formulaFullNames: Self.parseLines(await formulaNames),
+            installedInfo: Data(await installedInfo.utf8),
+            formulaVersions: Self.parseVersions(await versionList),
+            caskReceiptTap: caskReceiptTap,
+            caskInstallsAnApp: caskInstallsAnApp)
+        guard !candidates.isEmpty else { return [] }
+
+        // `--installed` rather than naming the taps: `tap-info` on a tap that no
+        // longer exists would fail the whole read and mislabel the others.
+        let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
+        return Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8)))
+    }
+
+    /// Pure core of `uncheckedPackages()`: every candidate carries `.unreadable`
+    /// until `label` looks at `tap-info`. `installedInfo` that doesn't parse → []
+    /// (fail closed).
+    static func uncheckedCandidates(
+        formulaFullNames: [String],
+        installedInfo: Data,
+        formulaVersions: [String: String],
+        caskReceiptTap: (String) -> String?,
+        caskInstallsAnApp: (String) -> Bool
+    ) -> [BrewUncheckedPackage] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let formulae = root["formulae"] as? [[String: Any]],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+
+        // Official formulae are listed bare (`ripgrep`); only tap-qualified ones can
+        // be from an untrusted tap. (A bare one missing from `info` failed to load
+        // for some other reason — not this type's business.)
+        //
+        // Matched by rack name, not full name: `list --full-name` takes the tap from
+        // the keg's receipt, but a formula that has since moved taps is loaded by
+        // bare name (`Formulary.from_keg` retries without the tap), so `info` says
+        // `foo` for a keg `list` calls `someuser/tap/foo` — checked, not unchecked.
+        // One rack per name, so a loaded rack name can't belong to a different keg.
+        let loadedRacks = Set(formulae.compactMap { $0["name"] as? String })
+        var out: [BrewUncheckedPackage] = []
+        for fullName in formulaFullNames
+        where fullName.split(separator: "/").count == 3 && !loadedRacks.contains(shortName(fullName)) {
+            out.append(BrewUncheckedPackage(
+                fullName: fullName, kind: .formula,
+                installedVersion: formulaVersions[shortName(fullName)] ?? "—",
+                reason: .unreadable))
+        }
+
+        // `tap` is set for a cask read from its tap or the API (`homebrew/cask`), and
+        // JSON null when brew fell back to the Caskroom copy. `NSNull` is what a
+        // present-but-null key decodes to; an absent key is not that signal.
+        //
+        // A cask that installs an app is skipped for the same reason `outdatedCasks()`
+        // skips it: the app has its own row, possibly checked by another source.
+        for cask in casks where cask["tap"] is NSNull {
+            guard let token = cask["token"] as? String, !caskInstallsAnApp(token) else { continue }
+            let fullName = caskReceiptTap(token).map { "\($0)/\(token)" } ?? token
+            out.append(BrewUncheckedPackage(
+                fullName: fullName, kind: .cask,
+                installedVersion: (cask["installed"] as? String) ?? "—",
+                reason: .unreadable))
+        }
+
+        return out.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    /// Names of installed taps `brew tap-info --json=v1` marks `"trusted": false`.
+    /// That field is tap-level only (`Trust.trusted_tap?`), which is fine here: it
+    /// only labels packages brew has already declined to read.
+    static func parseUntrustedTaps(_ data: Data) -> Set<String> {
+        guard let taps = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return [] }
+        return Set(taps.compactMap { t in
+            (t["trusted"] as? Bool) == false ? t["name"] as? String : nil
+        })
+    }
+
+    static func label(
+        _ candidates: [BrewUncheckedPackage], untrustedTaps: Set<String>
+    ) -> [BrewUncheckedPackage] {
+        candidates.map { p in
+            BrewUncheckedPackage(
+                fullName: p.fullName, kind: p.kind, installedVersion: p.installedVersion,
+                reason: p.tap.map(untrustedTaps.contains) == true ? .tapNotTrusted : .unreadable)
+        }
+    }
+
+    /// `source.tap` from `<Caskroom>/<token>/.metadata/INSTALL_RECEIPT.json`
+    /// (measured present on both an API-installed and a local-tap cask).
+    static func realCaskReceiptTap(
+        _ token: String,
+        caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths
+    ) -> String? {
+        for root in caskroomPaths {
+            let url = URL(fileURLWithPath: root)
+                .appendingPathComponent(token)
+                .appendingPathComponent(".metadata/INSTALL_RECEIPT.json")
+            guard
+                let data = try? Data(contentsOf: url),
+                let receipt = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let source = receipt["source"] as? [String: Any],
+                let tap = source["tap"] as? String, !tap.isEmpty
+            else { continue }
+            return tap
+        }
+        return nil
     }
 
     /// Run a read-only `brew` subcommand and return stdout, never triggering an

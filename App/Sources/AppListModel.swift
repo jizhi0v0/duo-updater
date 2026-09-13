@@ -706,6 +706,10 @@ final class AppListModel {
     /// Every top-level (`brew leaves`) formula, outdated or current — the workbench
     /// Brew tree's formula half, so it shows all you manage like the Apps tree does.
     private(set) var brewFormulae: [BrewInstalledFormula] = []
+    /// Installed third-party-tap formulae/casks brew wouldn't read from their tap
+    /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
+    /// and brew's own listings drop them silently — see `BrewUncheckedPackage`.
+    private(set) var brewUnchecked: [BrewUncheckedPackage] = []
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
     /// first paint for brew users, so the async `brew outdated` result lands in place
@@ -3073,6 +3077,7 @@ final class AppListModel {
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
             brewFormulae = []
+            brewUnchecked = []
             brewChecked = true
             return
         }
@@ -3088,6 +3093,9 @@ final class AppListModel {
         // (updates floating to the top). `brewChecked` flips only here, since until
         // outdated returns we don't actually know the update state.
         defer { brewChecked = true }
+        // Independent of `outdated()` — four local reads, started now so they
+        // overlap it rather than queueing behind it.
+        async let unchecked = brewFormulaService.uncheckedPackages()
         var outdated: [BrewOutdatedFormula]
         do {
             outdated = try await brewFormulaService.outdated()
@@ -3107,6 +3115,10 @@ final class AppListModel {
             Log.app.info("brew outdated: \(outdated.count, privacy: .public) formulae + \(casks.count, privacy: .public) app-less casks (\(casks.map(\.name).joined(separator: ", "), privacy: .public))")
         }
         brewOutdatedFormulae = outdated + casks
+        brewUnchecked = await unchecked
+        if !brewUnchecked.isEmpty {
+            Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
+        }
         prewarmFormulaReleases()
     }
 

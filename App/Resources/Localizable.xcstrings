@@ -2066,6 +2066,137 @@
         }
       }
     },
+    "%lld brew packages not checked": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Brew-Paket nicht geprüft"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Brew-Pakete nicht geprüft"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld brew package not checked"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld brew packages not checked"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld paquete de brew sin comprobar"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld paquetes de brew sin comprobar"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld paquet brew non vérifié"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld paquets brew non vérifiés"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "brew パッケージ %lld 件は未確認"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld пакет brew не проверен"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld пакета brew не проверены"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld пакетов brew не проверены"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld пакета brew не проверены"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 个 brew 软件包未检查"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld brew packages outdated": {
       "extractionState": "manual",
       "localizations": {
@@ -2930,6 +3061,47 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld not checked · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht geprüft: %lld · %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin comprobar: %lld · %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non vérifiés : %lld · %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未確認 %lld 件 · %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено: %lld · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个未检查 · %@"
           }
         }
       }
@@ -7615,6 +7787,47 @@
         }
       }
     },
+    "Copy “%@”": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ kopieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar «%@»"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier « %@ »"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」をコピー"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать «%@»"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制“%@”"
+          }
+        }
+      }
+    },
     "CotEditor: Duo Updater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.": {
       "extractionState": "manual",
       "localizations": {
@@ -10792,6 +11005,129 @@
           "stringUnit": {
             "state": "translated",
             "value": "授予…"
+          }
+        }
+      }
+    },
+    "Homebrew didn’t read %@ from its tap, so updates can’t be checked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat %@ nicht aus seinem Tap gelesen, daher können Updates nicht geprüft werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew no leyó %@ desde su tap, así que no se pueden comprobar las actualizaciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew n’a pas lu %@ depuis son tap, les mises à jour ne peuvent donc pas être vérifiées."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew が %@ を tap から読み込まなかったため、アップデートを確認できません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew не прочитал %@ из его tap, поэтому обновления проверить нельзя."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 没有从 tap 读取 %@，因此无法检查更新。"
+          }
+        }
+      }
+    },
+    "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat diese Pakete nicht aus ihren Taps gelesen – etwa weil einem Tap nicht vertraut wird –, daher können ihre Updates nicht geprüft werden. Sie stehen im Brew-Bereich des Duo Updater-Fensters."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew no leyó estos paquetes desde sus taps (por ejemplo, porque un tap no es de confianza), así que no se pueden comprobar sus actualizaciones. Aparecen en la sección Brew de la ventana de Duo Updater."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew n’a pas lu ces paquets depuis leurs taps (par exemple parce qu’un tap n’est pas approuvé), leurs mises à jour ne peuvent donc pas être vérifiées. Ils sont listés dans la section Brew de la fenêtre Duo Updater."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew がこれらのパッケージを tap から読み込まなかったため（tap が信頼されていない場合など）、アップデートを確認できません。Duo Updater ウインドウの Brew セクションに一覧があります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew не прочитал эти пакеты из их tap (например, потому что tap не отмечен как доверенный), поэтому их обновления проверить нельзя. Они перечислены в разделе Brew окна Duo Updater."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 没有从 tap 读取这些软件包（例如 tap 未被信任），因此无法检查它们的更新。它们列在 Duo Updater 窗口的 Brew 部分。"
+          }
+        }
+      }
+    },
+    "Homebrew won’t read %@ from its tap until you trust it, so updates can’t be checked. To trust it, run: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew liest %@ erst aus seinem Tap, wenn du ihm vertraust – bis dahin können Updates nicht geprüft werden. Zum Vertrauen ausführen: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew no leerá %@ desde su tap hasta que confíes en él, así que no se pueden comprobar las actualizaciones. Para confiar en él, ejecuta: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ne lira pas %@ depuis son tap tant que vous ne l’aurez pas approuvé : les mises à jour ne peuvent donc pas être vérifiées. Pour l’approuver, lancez : %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を信頼するまで Homebrew は tap から読み込まないため、アップデートを確認できません。信頼するには次を実行します: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew не будет читать %@ из его tap, пока вы не отметите его как доверенный, поэтому обновления проверить нельзя. Чтобы доверять ему, выполните: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在你信任 %@ 之前，Homebrew 不会从 tap 读取它，因此无法检查更新。要信任它，请运行：%@"
           }
         }
       }
@@ -14037,6 +14373,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "未发现更新"
+          }
+        }
+      }
+    },
+    "Not checked · Homebrew can’t read it": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht geprüft · Homebrew kann es nicht lesen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin comprobar · Homebrew no puede leerlo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non vérifié · Homebrew ne peut pas le lire"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未確認 · Homebrew が読み込めません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено · Homebrew не может прочитать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未检查 · Homebrew 无法读取"
+          }
+        }
+      }
+    },
+    "Not checked · tap not trusted": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht geprüft · Tap nicht vertraut"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin comprobar · tap sin confianza"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non vérifié · tap non approuvé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未確認 · tap が信頼されていません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено · tap не доверенный"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未检查 · tap 未被信任"
           }
         }
       }

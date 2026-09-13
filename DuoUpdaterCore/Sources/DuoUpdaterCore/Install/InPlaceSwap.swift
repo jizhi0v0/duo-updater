@@ -39,9 +39,13 @@ public struct AuthorizationDeclinedError: LocalizedError {
 ///      `.app` directory that is not a symlink. This runs *before* any destructive
 ///      action, so a malformed/empty/symlinked path can never reach the privileged
 ///      `rm -rf`.
-///   2. **Quarantine removal** — the freshly-downloaded bundle carries
-///      `com.apple.quarantine`; left in place, Gatekeeper may block or re-prompt on
-///      relaunch. We strip it only *after* the caller's signature gates pass.
+///   2. **Quarantine removal** — a bundle that arrives carrying
+///      `com.apple.quarantine` keeps it through the swap; left in place, Gatekeeper
+///      may block or re-prompt on relaunch, and on macOS 27 launchd will not
+///      bootstrap a quarantined plist file (see `stripQuarantine`). Our own downloads
+///      were measured carrying none (the #589 probe), so this matters for sources
+///      that were already quarantined. We strip it only *after* the caller's
+///      signature gates pass.
 ///   3. **Atomicity** — on a user-writable location we stage the new bundle beside
 ///      the target and `replaceItemAt` (an atomic same-volume exchange), so a
 ///      failure leaves the original app fully intact rather than trashed-then-gone.
@@ -550,16 +554,141 @@ public enum InPlaceSwap {
         }
     }
 
-    /// Best-effort recursive removal of the quarantine xattr. Failure is non-fatal:
-    /// worst case Gatekeeper re-prompts, which is no worse than not trying.
-    private static func stripQuarantine(_ app: URL) {
+    /// What `stripQuarantine` left behind.
+    struct QuarantineStripResult: Equatable {
+        /// `xattr`'s exit status, or nil when it could not be launched.
+        let exitStatus: Int32?
+        /// Paths relative to the bundle ("" is the bundle itself) that still carry
+        /// `com.apple.quarantine`, sorted. Only walked when `xattr` did not exit 0,
+        /// so a clean strip costs no second pass over a bundle that can hold tens
+        /// of thousands of files.
+        let remaining: [String]
+        /// Paths the walk could not read the xattr of (EACCES on a 000 file or
+        /// directory, say), so whether they — and, for a directory, anything inside
+        /// it — are still quarantined is unknown. Kept apart from `remaining` so
+        /// the log never reports them as cleared.
+        var unreadable: [String] = []
+    }
+
+    /// Best-effort recursive removal of the quarantine xattr. Still non-fatal —
+    /// the swap goes ahead — but no longer silent.
+    ///
+    /// `xattr -dr` cannot clear the attribute from a file it may not write: a
+    /// read-only file, a read-only directory, a `uchg` file. It prints one line per
+    /// such path and exits 1, and both used to go to /dev/null, so a partial strip
+    /// was indistinguishable from a complete one. (Measured 2026-09-13 on a fixture
+    /// bundle with a 0444 file, a 0555 directory and a `uchg` file: exit 1, those
+    /// three still quarantined, everything else cleared.)
+    ///
+    /// The old comment put the worst case at "Gatekeeper re-prompts". On macOS 27
+    /// it can be worse: launchd no longer loads a property list file that carries
+    /// `com.apple.quarantine` (release note 166415497). Measured 2026-09-13 on
+    /// 27.0 (26A428): `launchctl bootstrap gui/<uid>` of a plist carrying
+    /// `0181;…` fails with `5: Input/output error`, the same bytes without it load.
+    /// How far that reaches into a bundle is narrower than it sounds. An agent
+    /// registered with `SMAppService.agent(plistName:)` from a fixture whose
+    /// embedded plist (and, in a second fixture, every entry but the helper
+    /// binary) was quarantined registered as `enabled` and ran — smd submits the
+    /// job, launchd does not read the file. What stays exposed is an app that
+    /// copies its embedded plist out and bootstraps that copy: `cp`, `ditto` and
+    /// `FileManager.copyItem` all carried the xattr onto the copy (same day). So
+    /// what was left gets named in the log.
+    ///
+    /// Not escalated to a failure: nothing shows yet that an app swapped in this
+    /// state is broken, and refusing a verified build over an xattr would be the
+    /// worse trade.
+    ///
+    /// `-s` is load-bearing for the exit status to mean anything. Without it
+    /// `xattr` follows symlinks: it never clears a link's own xattr (which
+    /// `ditto -x -k` of a quarantined zip does set) yet exits 0, and it exits 1 on
+    /// a dangling link or one pointing at a file outside the bundle it may not
+    /// write, with nothing quarantined. Measured 2026-09-13: `-drs` clears the
+    /// links and exits 0 on both of those, and still exits 1 on 0444 and `uchg`.
+    @discardableResult
+    static func stripQuarantine(_ app: URL) -> QuarantineStripResult {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        p.arguments = ["-dr", "com.apple.quarantine", app.path]
+        p.arguments = ["-drs", "com.apple.quarantine", app.path]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
-        try? p.run()
-        p.waitUntilExit()
+        let result: QuarantineStripResult
+        do {
+            try p.run()
+            p.waitUntilExit()
+            if p.terminationStatus == 0 {
+                result = QuarantineStripResult(exitStatus: 0, remaining: [])
+            } else {
+                let scan = quarantineScan(in: app)
+                result = QuarantineStripResult(
+                    exitStatus: p.terminationStatus, remaining: scan.quarantined,
+                    unreadable: scan.unreadable)
+            }
+        } catch {
+            let scan = quarantineScan(in: app)
+            result = QuarantineStripResult(
+                exitStatus: nil, remaining: scan.quarantined, unreadable: scan.unreadable)
+        }
+        if let line = quarantineStripLogLine(result, app: app.lastPathComponent) {
+            Log.install.error("\(line, privacy: .public)")
+        }
+        return result
+    }
+
+    /// The log line for a strip that did not finish, or nil for one that did. Split
+    /// out so what the line says is testable without reading the unified log.
+    static func quarantineStripLogLine(_ result: QuarantineStripResult, app: String) -> String? {
+        guard result.exitStatus != 0 else { return nil }
+        let status = result.exitStatus.map { "exited \($0)" } ?? "could not be launched"
+        guard !result.remaining.isEmpty || !result.unreadable.isEmpty else {
+            return "strip quarantine: xattr \(status) for \(app), but nothing in it is still quarantined"
+        }
+        func listed(_ paths: [String]) -> String {
+            let shown = 20
+            let names = paths.prefix(shown).map { $0.isEmpty ? "." : $0 }
+            let more = paths.count > shown ? " (+\(paths.count - shown) more)" : ""
+            return names.joined(separator: ", ") + more
+        }
+        var parts: [String] = []
+        if !result.remaining.isEmpty {
+            parts.append("\(result.remaining.count) path(s) still carry com.apple.quarantine (on macOS 27 launchd will not bootstrap a quarantined plist file): \(listed(result.remaining))")
+        }
+        if !result.unreadable.isEmpty {
+            parts.append("\(result.unreadable.count) path(s) could not be read, so whether they (or anything inside them) are still quarantined is unknown: \(listed(result.unreadable))")
+        }
+        return "strip quarantine: xattr \(status) for \(app) — " + parts.joined(separator: "; ")
+    }
+
+    /// Every path under `bundle`, itself included, that carries
+    /// `com.apple.quarantine` on the entry itself (symlinks not followed), and
+    /// every path whose xattr could not be read at all.
+    ///
+    /// Only `ENOATTR` counts as "not quarantined". Any other `getxattr` failure is
+    /// an unknown, not a no: a 000 file answers EACCES whether or not it carries
+    /// the attribute, and an earlier version counted that as cleared, so the log
+    /// said "nothing in it is still quarantined" over a file `xattr` had just
+    /// failed on. The enumerator's own errors are not recorded separately:
+    /// measured 2026-09-13, every directory it could not open (000, 0300) had
+    /// already answered EACCES to `getxattr`, 000 and 0200 files likewise.
+    static func quarantineScan(in bundle: URL) -> (quarantined: [String], unreadable: [String]) {
+        var quarantined: [String] = []
+        var unreadable: [String] = []
+        let root = bundle.standardizedFileURL.path
+        func classify(_ path: String, as rel: String) {
+            if getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW) >= 0 {
+                quarantined.append(rel)
+            } else if errno != ENOATTR {
+                unreadable.append(rel)
+            }
+        }
+        classify(root, as: "")
+        let walker = FileManager.default.enumerator(
+            at: bundle, includingPropertiesForKeys: nil, options: [],
+            errorHandler: { _, _ in true })
+        while let url = walker?.nextObject() as? URL {
+            let path = url.standardizedFileURL.path
+            classify(path, as: path.hasPrefix(root + "/") ? String(path.dropFirst(root.count + 1)) : path)
+        }
+        return (quarantined.sorted(), unreadable.sorted())
     }
 
     // MARK: - Input methods: rotate Contents, keep the outer bundle

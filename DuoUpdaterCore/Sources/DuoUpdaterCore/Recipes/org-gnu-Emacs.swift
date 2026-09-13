@@ -4,8 +4,6 @@ enum org_gnu_Emacs {
     static let set = AppRecipeSet(
         family: "org-gnu-Emacs",
         probes: [
-        // MARK: - 2026-08-16 group B (Emacs, Tor Browser, Zotero)
-
         // Emacs for Mac OS X — the maintainer's own Atom feed, newest entry first.
         // `<title>Emacs Version 30.2-2</title>`.
         //

@@ -4,8 +4,6 @@ enum net_sourceforge_grandperspectiv {
     static let set = AppRecipeSet(
         family: "net-sourceforge-grandperspectiv",
         probes: [
-        // MARK: - 2026-08-16 group C (SourceForge)
-
         // GrandPerspective — Developer ID (Erwin Bonsma, 3Z75QZGN66), notarized,
         // stapled ticket; `spctl -a -t exec` accepts the mounted app. One-click
         // verified 2026-08-16 against the 3.7.2 dmg: `CFBundleIdentifier` and

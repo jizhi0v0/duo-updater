@@ -4,8 +4,6 @@ enum com_electron_wispr_flow {
     static let set = AppRecipeSet(
         family: "com-electron-wispr-flow",
         probes: [
-        // MARK: - 2026-08-17 AI desktop apps
-
         // Wispr Flow — official RELEASES.json, the same endpoint Homebrew uses.
         // `currentRelease` is authoritative and matches both version fields in the
         // mounted app. com.electron.wispr-flow, Team C9VQZ78H85, notarized; no

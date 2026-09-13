@@ -4,8 +4,6 @@ enum com_workbuddy_workbuddy_ai {
     static let set = AppRecipeSet(
         family: "com-workbuddy-workbuddy-ai",
         probes: [
-        // MARK: - 2026-08-27 WorkBuddy (Tencent)
-
         // WorkBuddy ships as TWO separate apps, not two channels of one. Tencent
         // runs an international site and a China site, each with its own bundle
         // id, its own app name, its own update host and its own release train:

@@ -55,8 +55,6 @@ enum com_anythingllm {
                 kind: .dmg)),
         ],
         changelogs: [
-        // MARK: - 2026-09-03 AnythingLLM / Chatbox
-
         // AnythingLLM — the desktop build's version source is the vendor CDN
         // (`cdn.anythingllm.com/latest/version.txt`), which is a bare version
         // string and carries no notes at all. The notes live in the project's

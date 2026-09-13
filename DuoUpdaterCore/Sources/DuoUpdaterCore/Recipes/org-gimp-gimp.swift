@@ -4,8 +4,6 @@ enum org_gimp_gimp {
     static let set = AppRecipeSet(
         family: "org-gimp-gimp",
         probes: [
-        // MARK: - 2026-08-16 group A (GIMP, Compass, Meld)
-
         // GIMP — the project's own `gimp_versions.json` (served from gimp.org,
         // status 200, 139419 bytes when checked 2026-08-16). `STABLE` is a single
         // release object (not an array of channels), so anchoring on the "STABLE"

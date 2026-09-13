@@ -257,7 +257,6 @@ enum com_lemon_lvoverseas {
             trackClosedPattern: ##""lastest_beta_number"\s*:\s*"""##),
         ],
         channelProofs: [
-        // MARK: Media
         // CapCut's two tracks share one bundle id, one app name and one endpoint —
         // the beta build does not even carry a channel word in the version
         // `ReleaseChannel.detect()` reads (`9.3.4531`). The artifact name is where

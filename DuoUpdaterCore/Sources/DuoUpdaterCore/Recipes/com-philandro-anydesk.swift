@@ -34,8 +34,6 @@ enum com_philandro_anydesk {
                 kind: .dmg)),
         ],
         changelogs: [
-        // MARK: - 2026-09-03 AnyDesk / Antigravity / Headlamp / Helium / Xcode
-
         // AnyDesk — the same plain-text changelog its `VendorProbeRecipe` already
         // reads for version detection. The vendor's HTML changelog
         // (`anydesk.com/en/changelog/mac-os`) answers 403 behind a Cloudflare

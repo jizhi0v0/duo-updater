@@ -69,7 +69,6 @@ enum com_microsoft_VSCode {
             maxEntries: 1),
         ],
         channelProofs: [
-        // MARK: Editors / IDEs
         ChannelProofKey("com.microsoft.VSCodeInsiders", .preview): .artifact(#"/download/insider/"#),
         ])
 }

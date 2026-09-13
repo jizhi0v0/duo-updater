@@ -4,8 +4,6 @@ enum com_google_GeminiMacOS {
     static let set = AppRecipeSet(
         family: "com-google-GeminiMacOS",
         probes: [
-        // MARK: - 2026-08-16 Google desktop apps
-
         // Gemini — Google's Omaha update service, which answers only a POST. The
         // published download URL carries no version (`.../release2/Gemini.dmg`,
         // unchanged across releases so far) and the download page answers a plain

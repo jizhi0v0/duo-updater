@@ -112,7 +112,6 @@ enum dev_warp_Warp_Stable {
             structuredFormat: .warpChannelVersions),
         ],
         channelProofs: [
-        // MARK: Everything else
         ChannelProofKey("dev.warp.Warp-Preview", .preview): .artifact(#"channel=preview"#),
         ])
 }

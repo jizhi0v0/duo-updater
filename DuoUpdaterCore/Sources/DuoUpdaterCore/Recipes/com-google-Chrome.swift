@@ -154,7 +154,6 @@ enum com_google_Chrome {
             minItemLength: 8),
         ],
         channelProofs: [
-        // MARK: Browsers
         ChannelProofKey("com.google.Chrome.beta", .beta): .artifact(#"/beta/googlechromebeta\.dmg"#),
         ChannelProofKey("com.google.Chrome.dev", .dev): .artifact(#"/dev/googlechromedev\.dmg"#),
         ChannelProofKey("com.google.Chrome.canary", .canary): .artifact(#"/canary/googlechromecanary\.dmg"#),

@@ -23,8 +23,6 @@ enum ai_opencode_desktop {
             itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
         ],
         githubRules: [
-        // MARK: - AI desktop clients (verified 2026-08-17)
-
         // OpenCode Desktop — the stable tag and the app's marketing/build versions
         // are the same bare numeric value after stripping `v`. The release carries
         // native arm64 and x64 dmgs; `installableAsset` selects the host-native one.

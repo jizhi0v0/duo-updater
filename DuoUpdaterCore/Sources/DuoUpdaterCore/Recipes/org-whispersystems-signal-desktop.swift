@@ -59,7 +59,6 @@ enum org_whispersystems_signal_desktop {
             channel: .beta),
         ],
         channelProofs: [
-        // MARK: Chat / messaging
         ChannelProofKey("org.whispersystems.signal-desktop-beta", .beta): .artifact(#"signal-desktop-beta-mac-"#),
         ])
 }

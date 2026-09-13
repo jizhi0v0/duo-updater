@@ -128,7 +128,7 @@ public enum Check {
     }
 
     public static func run(_ options: Options) async -> Int32 {
-        let settings = Settings.load()
+        let settings = await Settings.load()
         // Before the scan, not just before the check. `AppScanner` reads the
         // TestFlight store too — that is where a bundle gets tagged
         // `isTestFlightApp`, and for a wrapped iPhone/iPad app the store is the

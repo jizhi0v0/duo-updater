@@ -390,7 +390,7 @@ public enum Reconcile {
         }
     }
 
-    public static func run(_ options: Options) -> Int32 {
+    public static func run(_ options: Options) async -> Int32 {
         guard let data = try? Data(options.reportPath) else {
             die("cannot read report at \(options.reportPath.path)", code: 2)
         }
@@ -406,7 +406,7 @@ public enum Reconcile {
         // this the run dies at the first `gh issue create` with a bare exit 127
         // — after a full 46-second sweep, in a step whose name says "File and
         // close issues", pointing at everything except the actual cause.
-        if !options.dryRun, let missing = GitHub.unavailableReason() {
+        if !options.dryRun, let missing = await GitHub.unavailableReason() {
             die("""
                 cannot reach the GitHub CLI: \(missing)
 
@@ -438,7 +438,7 @@ public enum Reconcile {
                  it is an infrastructure failure wearing a costume. Filing one summary
                  issue instead; re-run once the network is known good.
             """)
-            return applySummary(creations.map(\.0), options: options)
+            return await applySummary(creations.map(\.0), options: options)
         }
 
         var failures = 0
@@ -460,7 +460,7 @@ public enum Reconcile {
                 continue
             }
             do {
-                try apply(action, to: &baseline, recipeID: finding.recipeID)
+                try await apply(action, to: &baseline, recipeID: finding.recipeID)
                 if let suggestion = suggestions[finding.recipeID],
                    suggestion.signature == finding.signature {
                     baseline.entries[finding.recipeID]?.triagedSignature = suggestion.signature
@@ -508,32 +508,32 @@ public enum Reconcile {
 
     private static func apply(
         _ action: IssueAction, to baseline: inout Baseline, recipeID: String
-    ) throws {
+    ) async throws {
         switch action {
         case .none:
             return
         case .create(let title, let body):
-            let number = try GitHub.createIssue(title: title, body: body, label: label)
+            let number = try await GitHub.createIssue(title: title, body: body, label: label)
             baseline.entries[recipeID]?.issueNumber = number
             baseline.entries[recipeID]?.closedAt = nil
             baseline.entries[recipeID]?.sweepsSinceComment = 0
             baseline.entries[recipeID]?.lastCommentedAt = Date()
         case .comment(let issue, let body):
-            try GitHub.comment(issue: issue, body: body)
+            try await GitHub.comment(issue: issue, body: body)
             baseline.entries[recipeID]?.sweepsSinceComment = 0
             baseline.entries[recipeID]?.lastCommentedAt = Date()
         case .close(let issue, let comment):
-            try GitHub.close(issue: issue, comment: comment)
+            try await GitHub.close(issue: issue, comment: comment)
             baseline.entries[recipeID]?.closedAt = Date()
         case .reopen(let issue, let comment):
-            try GitHub.reopen(issue: issue, comment: comment)
+            try await GitHub.reopen(issue: issue, comment: comment)
             baseline.entries[recipeID]?.closedAt = nil
             baseline.entries[recipeID]?.sweepsSinceComment = 0
             baseline.entries[recipeID]?.lastCommentedAt = Date()
         }
     }
 
-    private static func applySummary(_ findings: [Finding], options: Options) -> Int32 {
+    private static func applySummary(_ findings: [Finding], options: Options) async -> Int32 {
         let body = "<!-- duo-verify-id: sweep-anomaly -->\n\n"
             + "A single sweep found \(findings.count) recipes newly actionable, over the "
             + "cap of \(maxNewIssuesPerSweep). Individual issues were suppressed.\n\n"
@@ -546,7 +546,7 @@ public enum Reconcile {
             return 0
         }
         do {
-            _ = try GitHub.createIssue(
+            _ = try await GitHub.createIssue(
                 title: "Recipe sweep anomaly: \(findings.count) recipes actionable at once",
                 body: body, label: label)
             return 0

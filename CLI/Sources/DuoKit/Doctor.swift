@@ -41,7 +41,7 @@ public enum Doctor {
     }
 
     public static func run(json: Bool) async -> Int32 {
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let report = Report(
             executable: CommandLine.arguments[0],
             appManagement: String(describing: TCCPreflight.appManagementStatus()),
@@ -198,19 +198,13 @@ public enum Doctor {
     /// helper that is registered and running. (It did, on a machine where it
     /// was.)
     ///
-    /// `async` because `waitUntilExit()` blocks and `run` is reached from the
-    /// cooperative pool: the wait goes to Dispatch (see `offCooperativePool`).
+    /// `async` because `launchctl` is awaited through `ChildProcess`. A read, so
+    /// a cancelled caller may kill it.
     static func helperStatus() async -> String {
-        let registered = await offCooperativePool { () -> Bool in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            process.arguments = ["print", "system/com.duoupdater.helper"]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        }
+        let registered = (try? await ChildProcess.run(
+            "/bin/launchctl", ["print", "system/com.duoupdater.helper"],
+            standardOutput: .discard, standardError: .discard, onCancel: .terminateChild))?
+            .succeeded ?? false
         return registered
             ? "registered"
             : "not registered — approve it once in the menu-bar app; the CLI cannot register it"

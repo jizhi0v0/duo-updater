@@ -788,8 +788,10 @@ public enum Verify {
     ) async -> [Finding] {
         // All 13 rules share api.github.com, so host-grouping would serialize
         // them anyway. That is the correct behaviour — one shared rate limit.
+        var token = options.githubToken
+        if token == nil { token = await GitHubToken.resolve() }
         let source = GitHubReleasesSource(
-            token: options.githubToken ?? GitHubToken.resolve(),
+            token: token,
             validatorCache: GitHubConditionalCache.shared)
         var out: [Finding] = []
         for (index, rule) in rules.enumerated() {

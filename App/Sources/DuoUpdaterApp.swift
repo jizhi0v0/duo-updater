@@ -100,7 +100,7 @@ private struct MenuBarLabel: View {
             // (not `updateCount`) so a refresh's mid-flight `.unknown` rows don't
             // flicker the badge to zero and back.
             if model.badgeCount > 0 {
-                Image(systemName: "\(min(model.badgeCount, 50)).circle.fill")
+                MenuBarBadgeIcon.image(count: model.badgeCount)
             } else {
                 Image(systemName: "arrow.triangle.2.circlepath")
             }

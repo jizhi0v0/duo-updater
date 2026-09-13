@@ -754,12 +754,17 @@ struct MenuContentView: View {
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                BrewUncheckedMark(
+                    anyTapNotTrusted: model.brewUnchecked.contains { $0.reason == .tapNotTrusted },
+                    showInWindow: {
+                        // Target first, then open — the Changelog deep link's order.
+                        model.requestedWorkbenchBrewUnchecked = true
+                        openWindow(id: WorkbenchWindowView.windowID)
+                        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                    })
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .help(brewUncheckedHelp)
         } else if model.brewOutdatedFormulae.isEmpty {
             // Checked, nothing outdated — the placeholder. Keeps the same icon +
             // two-line structure as the outdated row, with a green seal instead of an
@@ -787,13 +792,11 @@ struct MenuContentView: View {
                     // install no app (CLIs, fonts), which have no per-app row.
                     Text("\(count) brew packages outdated")
                         .font(.caption).fontWeight(.medium)
+                    // Only the outdated names, even when some packages went unchecked:
+                    // "4 not checked · wget, fd" read as if wget and fd were the
+                    // unchecked ones. The unchecked list lives in the workbench.
                     if let error = model.brewUpgradeError {
                         Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
-                    } else if !model.brewUnchecked.isEmpty {
-                        // Count first: the name list truncates, the count mustn't.
-                        Text("\(model.brewUnchecked.count) not checked · \(brewFormulaSummary)")
-                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                            .help(brewUncheckedHelp)
                     } else {
                         Text(brewFormulaSummary)
                             .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -826,10 +829,6 @@ struct MenuContentView: View {
         return names.joined(separator: ", ") + more
     }
 
-    private var brewUncheckedHelp: String {
-        String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window.")
-    }
-
     /// Subtitle for the up-to-date placeholder — the count of top-level formulae we
     /// track, so the idle row still says something concrete. Falls back to a plain
     /// line when the leaf count isn't available yet.
@@ -837,6 +836,65 @@ struct MenuContentView: View {
         let n = model.brewFormulae.count
         guard n > 0 else { return String(localized: "All command-line formulae are current.") }
         return String(localized: "\(n) top-level formulae · all current")
+    }
+}
+
+/// The trailing mark on the Brew row when nothing is outdated but some packages
+/// went unchecked (`BrewUncheckedPackage`). An info mark rather than a warning:
+/// nothing failed, brew just declined to read them. Clicking explains why, like
+/// `StagedVersionUnknownMark`, and offers the workbench rows that name them.
+private struct BrewUncheckedMark: View {
+    /// Links Homebrew's tap-trust docs only when that is a reason in play: a
+    /// package brew can't read for another reason (tap gone, broken definition)
+    /// isn't fixed by trusting anything.
+    let anyTapNotTrusted: Bool
+    let showInWindow: () -> Void
+
+    private static let tapTrustDocs = URL(string: "https://docs.brew.sh/Tap-Trust")!
+
+    @State private var showTip = false
+
+    var body: some View {
+        Image(systemName: "info.circle")
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+            .onTapGesture { showTip = true }
+            .help(String(localized: "Not checked — click for why"))
+            .accessibilityLabel(String(localized: "Not checked — click for why"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showTip = true }
+            .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window."))
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if anyTapNotTrusted {
+                        // NSWorkspace rather than SwiftUI `openURL`, which errors -50
+                        // in this app's windows (see `AlcoveSettingsPage`).
+                        Button {
+                            NSWorkspace.shared.open(Self.tapTrustDocs)
+                            showTip = false
+                        } label: {
+                            Text(String(localized: "Homebrew docs: Tap Trust")).underline()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(Color.accentColor)
+                        .help(Self.tapTrustDocs.absoluteString)
+                    }
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Show in Window")) {
+                            showTip = false
+                            showInWindow()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .frame(width: 260, alignment: .leading)
+            }
     }
 }
 

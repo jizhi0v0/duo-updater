@@ -818,6 +818,10 @@ final class AppListModel {
     /// `WorkbenchWindowView` consumes and clears it on appear/change, selecting that
     /// app in the sidebar instead of defaulting to the first row.
     var requestedWorkbenchAppID: String?
+    /// The same kind of request for the Brew tree's unchecked packages — set by the
+    /// popover's "not checked" tip. `WorkbenchWindowView` consumes and clears it,
+    /// expanding the Brew tree and scrolling to and highlighting those rows.
+    var requestedWorkbenchBrewUnchecked = false
 
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
     /// time the source stack was built. Drives the aggregate rate-limit banner:

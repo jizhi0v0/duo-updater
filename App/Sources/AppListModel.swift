@@ -3090,7 +3090,15 @@ final class AppListModel {
         // every app before its update check lands. The `await` yields to the runloop,
         // so SwiftUI repaints with the list before phase 2 runs. Best-effort:
         // installedLeaves() returns [] on any brew hiccup.
-        brewFormulae = (try? await brewFormulaService.installedLeaves()) ?? []
+        //
+        // Only when the tree is empty. On a re-read (the workbench refreshes brew
+        // every time it becomes key) this paint replaced the badged, updates-first
+        // tree with a bare one until phase 2 landed: measured, an outdated formula
+        // dropped off the top of the list at +0.9s after focus and came back at
+        // +1.5s, on every focus. The previous tree stays up until the new one is
+        // complete.
+        let leaves = (try? await brewFormulaService.installedLeaves()) ?? []
+        if brewFormulae.isEmpty { brewFormulae = leaves }
 
         // Phase 2 — the slower `brew outdated` read: learn which leaves have an
         // upgrade, then re-stamp the already-shown list so badges appear in place
@@ -3110,7 +3118,7 @@ final class AppListModel {
         // Merge the formula badges into the tree BEFORE folding in casks: the tree
         // lists `brew leaves`, which casks are not, so a cask name could only ever
         // fail to match there.
-        brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: outdated)
+        brewFormulae = BrewFormulaService.merge(leaves, outdated: outdated)
         // App-less casks (CLIs, fonts) have no per-app row and no other home — see
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
         // formula count we already have.

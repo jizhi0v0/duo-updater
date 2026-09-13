@@ -280,6 +280,15 @@ struct WorkbenchWindowView: View {
             // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
             Task { await model.refreshLocal() }
+            // Brew too: `refreshLocal` doesn't read it, and nothing watches brew's
+            // files, so a `brew trust` / `upgrade` / `update` run in a terminal (the
+            // unchecked pane hands out the trust command to copy) stayed invisible
+            // until the window was reopened. Skipped while one of our own brew runs
+            // is going: each of those re-reads brew when it ends, and a read started
+            // mid-run could land after that one with the half-done state.
+            if !model.brewUpgrading, !model.homebrewUpdating, model.upgradingFormulae.isEmpty {
+                Task { await model.refreshBrewFormulae() }
+            }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
         // fresh. Skip ticks while hidden/minimized: refreshing for a window no one

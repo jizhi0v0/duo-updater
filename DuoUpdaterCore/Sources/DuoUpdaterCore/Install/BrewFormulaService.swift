@@ -676,6 +676,7 @@ public actor BrewFormulaService {
         env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
+
         // Lines, not chunks, and until the output ends, not just the exit — see
         // `StreamedLines`. Runs to completion if the caller is cancelled: this is
         // brew replacing what is installed, and a SIGKILL halfway is worse than

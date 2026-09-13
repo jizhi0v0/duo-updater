@@ -120,61 +120,101 @@ public enum LoginShellEnvironment {
     /// doesn't print the markers — the caller must treat that as "unknown", not as
     /// "the user set nothing".
     ///
-    /// Blocks (spawns and waits on a process): call through `offCooperativePool`.
-    ///
-    /// Output goes to a file, not a pipe. rc files routinely start background
-    /// helpers that inherit stdout; with a pipe, EOF would not arrive until those
-    /// exit, and a read waiting for it would outlive the shell.
-    public static func resolveHomebrewVariables(timeout: TimeInterval = 10) -> [String: String]? {
+    /// Awaited through `ChildProcess`. rc files routinely start background helpers
+    /// that inherit stdout; `ChildProcess` stops reading at the shell's exit rather
+    /// than waiting for those to close the pipe, which is what the output file this
+    /// used to write to was for.
+    public static func resolveHomebrewVariables(timeout: TimeInterval = 10) async -> [String: String]? {
         guard let shell = loginShellPath() else { return nil }
-        return resolveHomebrewVariables(shell: shell, environment: nil, timeout: timeout)
+        return await resolveHomebrewVariables(shell: shell, environment: nil, timeout: timeout)
     }
 
     /// Test seam: an explicit shell and environment (nil = inherit ours), so a test
     /// can point `HOME`/`ZDOTDIR` at fixture rc files instead of the host's.
+    ///
+    /// Runs to completion if the caller is cancelled, as the Dispatch hop it
+    /// replaced did; `timeout` is what bounds it. A cancellation teardown would
+    /// SIGKILL the shell alone and leave its rc's children running, which is the
+    /// leak the timeout branch below exists to avoid.
     static func resolveHomebrewVariables(
         shell: String, environment: [String: String]?, timeout: TimeInterval
-    ) -> [String: String]? {
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("duo-login-shell-env-\(UUID().uuidString)")
-        guard FileManager.default.createFile(atPath: outputURL.path, contents: nil),
-              let output = try? FileHandle(forWritingTo: outputURL)
-        else { return nil }
-        defer {
-            try? output.close()
-            try? FileManager.default.removeItem(at: outputURL)
+    ) async -> [String: String]? {
+        let launched = LaunchedPID()
+        let runner = Task {
+            try? await ChildProcess.run(
+                // `-l -i`: login + interactive, so both ~/.zprofile and ~/.zshrc (or
+                // the bash/fish equivalents) are read. The script is plain enough for
+                // sh, zsh, bash and fish alike.
+                shell,
+                ["-l", "-i", "-c",
+                 "printf '\\n\(beginMarker)\\n'; /usr/bin/env -0; printf '\\n\(endMarker)\\n'"],
+                environment: environment,
+                // Empty and closed, where it was /dev/null: either way the shell reads
+                // EOF and nothing waits on a terminal.
+                standardInput: Data(),
+                standardError: .discard,
+                onCancel: .runToCompletion,
+                onLaunch: { launched.set($0) })
         }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
-        // `-l -i`: login + interactive, so both ~/.zprofile and ~/.zshrc (or the
-        // bash/fish equivalents) are read. The script is plain enough for sh, zsh,
-        // bash and fish alike.
-        process.arguments = ["-l", "-i", "-c",
-                             "printf '\\n\(beginMarker)\\n'; /usr/bin/env -0; printf '\\n\(endMarker)\\n'"]
-        if let environment { process.environment = environment }
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-
-        let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        do { try process.run() } catch { return nil }
-        if exited.wait(timeout: .now() + timeout) == .timedOut {
-            // SIGKILL, not `terminate()`: an interactive zsh ignores SIGTERM, so the
+        guard case .finished(let outcome) = await race(runner, within: timeout) else {
+            // SIGKILL, not SIGTERM: an interactive zsh ignores SIGTERM, so the
             // shell — and whatever in the rc file it is stuck waiting on — would keep
             // running, one more for every check. The shell's descendants are collected
             // first, while they are still its children, since killing the shell
             // reparents them and leaves nothing to find them by. SIGSTOP first, so a
             // shell looping in its rc can't start a new child between the listing
-            // and the kill.
-            let pid = process.processIdentifier
-            kill(pid, SIGSTOP)
-            for victim in descendants(of: pid) + [pid] { kill(victim, SIGKILL) }
+            // and the kill. The pid cannot have been reused: `ChildProcess` has not
+            // reaped the shell yet.
+            if let pid = launched.value {
+                kill(pid, SIGSTOP)
+                for victim in descendants(of: pid) + [pid] { kill(victim, SIGKILL) }
+                _ = await runner.value
+            }
             return nil
         }
-        guard let data = try? Data(contentsOf: outputURL) else { return nil }
-        return parse(data)
+        guard let outcome else { return nil }
+        return parse(outcome.standardOutput)
+    }
+
+    private enum Race: Sendable {
+        case finished(ChildProcess.Outcome?)
+        case timedOut
+    }
+
+    /// `runner`'s value if it lands within `seconds`, else `.timedOut` — without
+    /// waiting for `runner`, which a task group would do.
+    private static func race(
+        _ runner: Task<ChildProcess.Outcome?, Never>, within seconds: TimeInterval
+    ) async -> Race {
+        let once = OnceRace()
+        return await withCheckedContinuation { continuation in
+            once.arm(continuation)
+            Task { once.resume(.finished(await runner.value)) }
+            Task {
+                try? await Task.sleep(for: .seconds(seconds))
+                once.resume(.timedOut)
+            }
+        }
+    }
+
+    private final class OnceRace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Race, Never>?
+        func arm(_ c: CheckedContinuation<Race, Never>) { lock.withLock { continuation = c } }
+        func resume(_ value: Race) {
+            let c: CheckedContinuation<Race, Never>? = lock.withLock {
+                defer { continuation = nil }
+                return continuation
+            }
+            c?.resume(returning: value)
+        }
+    }
+
+    private final class LaunchedPID: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pid: pid_t?
+        func set(_ value: pid_t) { lock.withLock { pid = value } }
+        var value: pid_t? { lock.withLock { pid } }
     }
 
     /// Every live descendant of `pid`, deepest first. Children that already detached
@@ -231,25 +271,20 @@ extension HomebrewConfig {
     /// and injecting our own would make every answer "disabled". `brew config`
     /// doesn't auto-update (it isn't in `setup-auto-update`'s command list).
     ///
-    /// Blocks: call through `offCooperativePool`.
-    public static func read(environment extra: [String: String]) -> HomebrewConfig? {
+    /// Awaited through `ChildProcess`; stderr discarded, as before, and drained.
+    /// Runs to completion if the caller is cancelled, like the hop it replaced: a
+    /// `nil` here reads as "config unreadable" and hides the row.
+    public static func read(environment extra: [String: String]) async -> HomebrewConfig? {
         guard let brew = HomebrewInstaller.brewPath() else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brew)
-        process.arguments = ["config"]
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
-        process.environment = env
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        // nullDevice, not Pipe(): see `BrewFormulaService.realExecutor`.
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return parse(String(decoding: data, as: UTF8.self))
+        guard let outcome = try? await ChildProcess.run(
+            brew, ["config"], environment: env,
+            standardError: .discard, onCancel: .runToCompletion),
+              outcome.succeeded
+        else { return nil }
+        return parse(String(decoding: outcome.standardOutput, as: UTF8.self))
     }
 }
 
@@ -316,15 +351,11 @@ public enum HomebrewSelfUpdateCheck {
         guard HomebrewInstaller.brewPath() != nil else { return .hidden }
         // Each hidden outcome is logged with its reason: a row that silently never
         // appears is otherwise indistinguishable from "Homebrew is up to date".
-        guard let shell = await offCooperativePool(qos: .utility, {
-            LoginShellEnvironment.resolveHomebrewVariables()
-        }) else {
+        guard let shell = await LoginShellEnvironment.resolveHomebrewVariables() else {
             Log.app.notice("brew self-update: hidden — login shell environment unreadable")
             return .hidden
         }
-        guard let config = await offCooperativePool(qos: .utility, {
-            HomebrewConfig.read(environment: shell)
-        }) else {
+        guard let config = await HomebrewConfig.read(environment: shell) else {
             Log.app.notice("brew self-update: hidden — `brew config` unreadable")
             return .hidden
         }

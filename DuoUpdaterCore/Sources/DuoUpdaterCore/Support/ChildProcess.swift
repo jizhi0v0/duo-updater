@@ -142,6 +142,11 @@ public enum ChildProcess {
     /// - Parameter onOutputChunk: called with each chunk of standard output as it
     ///   arrives, before the child has exited — for `brew`'s streamed log. With
     ///   `standardOutput: .capture` the chunks are also collected.
+    /// - Parameter onLaunch: called once with the child's pid, after the spawn and
+    ///   before anything is read. For a caller that must signal more than the
+    ///   child itself (`LoginShellEnvironment`'s process-tree kill); the pid stays
+    ///   the child's until this call returns, because the child is not reaped
+    ///   before then.
     /// - Throws: when the child cannot be launched (a missing executable, say), or
     ///   `CancellationError` under `.terminateChild`. A non-zero exit is an
     ///   `Outcome`, never a throw.
@@ -155,14 +160,15 @@ public enum ChildProcess {
         standardError: ErrorPolicy = .capture,
         deadline: Deadline? = nil,
         onCancel: Cancellation,
-        onOutputChunk: (@Sendable (Data) -> Void)? = nil
+        onOutputChunk: (@Sendable (Data) -> Void)? = nil,
+        onLaunch: (@Sendable (pid_t) -> Void)? = nil
     ) async throws -> Outcome {
         let request = Request(
             executablePath: executablePath, arguments: arguments,
             environment: environment, workingDirectory: workingDirectory,
             standardInput: standardInput, standardOutput: standardOutput,
             standardError: standardError, deadline: deadline,
-            onOutputChunk: onOutputChunk)
+            onOutputChunk: onOutputChunk, onLaunch: onLaunch)
         switch onCancel {
         case .runToCompletion:
             // Unstructured on purpose: awaiting `.value` does not forward the
@@ -196,6 +202,7 @@ public enum ChildProcess {
         let standardError: ErrorPolicy
         let deadline: Deadline?
         let onOutputChunk: (@Sendable (Data) -> Void)?
+        let onLaunch: (@Sendable (pid_t) -> Void)?
 
         /// The steps swift-subprocess runs when the task driving the child is
         /// cancelled — by the deadline below, or (under `.terminateChild`) by the
@@ -282,6 +289,7 @@ public enum ChildProcess {
                     configuration, input: .currentStandardInput,
                     output: .sequence, error: .combinedWithOutput
                 ) { execution in
+                    onLaunch?(execution.processIdentifier.value)
                     try await sink.drain(output: execution.standardOutput, error: nil)
                 }.terminationStatus
             case (nil, _):
@@ -289,6 +297,7 @@ public enum ChildProcess {
                     configuration, input: .currentStandardInput,
                     output: .sequence, error: .sequence
                 ) { execution in
+                    onLaunch?(execution.processIdentifier.value)
                     try await sink.drain(
                         output: execution.standardOutput, error: execution.standardError)
                 }.terminationStatus
@@ -297,6 +306,7 @@ public enum ChildProcess {
                     configuration, input: .data(bytes),
                     output: .sequence, error: .combinedWithOutput
                 ) { execution in
+                    onLaunch?(execution.processIdentifier.value)
                     try await sink.drain(output: execution.standardOutput, error: nil)
                 }.terminationStatus
             case (let bytes?, _):
@@ -304,6 +314,7 @@ public enum ChildProcess {
                     configuration, input: .data(bytes),
                     output: .sequence, error: .sequence
                 ) { execution in
+                    onLaunch?(execution.processIdentifier.value)
                     try await sink.drain(
                         output: execution.standardOutput, error: execution.standardError)
                 }.terminationStatus

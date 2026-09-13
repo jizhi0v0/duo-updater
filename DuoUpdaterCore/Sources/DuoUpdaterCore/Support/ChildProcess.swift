@@ -8,8 +8,9 @@ internal import SystemPackage
 
 /// Launch a child process and wait for it **without parking a thread**.
 ///
-/// Every subprocess in `DuoUpdaterCore`, `duo` and the menu-bar app goes through
-/// here. It replaces `Foundation.Process` + `waitUntilExit()` /
+/// Every child process that anything waits on in `DuoUpdaterCore`, `duo` and the
+/// menu-bar app goes through here (the privileged helper under `App/Helper` is
+/// its own synchronous daemon and does not). It replaces `Foundation.Process` + `waitUntilExit()` /
 /// `readDataToEndOfFile()`, whose waits each held a thread for the child's whole
 /// lifetime — on the cooperative pool that is the #351 failure (see
 /// `offCooperativePool`), and off it, one Dispatch thread per wait.
@@ -23,8 +24,8 @@ internal import SystemPackage
 /// ## What it preserves from the `Process` call sites it replaced
 ///
 /// - **Both pipes drain concurrently**, always. Neither can fill its ~64 KB buffer
-///   while we wait on the other — the deadlock three separate sites carried their
-///   own workaround for.
+///   while we wait on the other — the deadlock the old sites each worked around on
+///   their own, with a background drain, a `nullDevice` or a temporary file.
 /// - **No output limit.** The old sites read to EOF unbounded, so this does too:
 ///   swift-subprocess's `limit:` throws `outputLimitExceeded` rather than
 ///   truncating, which would have turned a verbose tool into a launch failure.
@@ -38,6 +39,13 @@ internal import SystemPackage
 ///   case it replaces the whole environment, as assigning `Process.environment`
 ///   did.
 ///
+/// ## What it does differently
+///
+/// The reads end when the child exits, even if a grandchild it left running still
+/// holds the pipe (swift-subprocess cancels them on `NOTE_EXIT`). A
+/// `readDataToEndOfFile()` waited for the grandchild: measured, `sh -c 'sleep 5 &
+/// echo hi'` returned after 5.08 s through `Process` and after 0.01 s here.
+///
 /// ## Deadline
 ///
 /// `Deadline(terminateAfter:killAfter:)` is the ladder the old call sites built
@@ -48,7 +56,7 @@ internal import SystemPackage
 ///
 /// ## Cancellation — chosen per call, never defaulted
 ///
-/// This is the one real behaviour change, so every call site has to spell it:
+/// This is the biggest behaviour change, so every call site has to spell it:
 ///
 /// - `.runToCompletion` — the child runs to its end even if the calling task is
 ///   cancelled, and the outcome is returned as if nothing happened. That is what

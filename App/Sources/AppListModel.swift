@@ -1478,15 +1478,12 @@ final class AppListModel {
         // can outlast the two seconds — which turns a token the user pasted into
         // "continuing without a token". See `GitHubToken.preresolved`.
         if let cheap = GitHubToken.preresolved(explicit: explicit) { return cheap }
-        // Only `gh auth token` is left. It shells out and blocks in
-        // `waitUntilExit()`, so it goes to Dispatch rather than to the cooperative
-        // pool a detached task shares (see `offCooperativePool`). The task wrapper
-        // stays: it is what `firstResult` races the deadline against, and all it
-        // does itself is await.
+        // Only `gh auth token` is left, awaited through `ChildProcess`. The detached
+        // task is what `firstResult` races the deadline against, and it is not
+        // cancelled when the deadline wins, so `gh` finishes into a discarded
+        // result — as it did when the wait was an uncancellable Dispatch hop.
         let loader = Task.detached(priority: .utility) {
-            await offCooperativePool(qos: .utility) {
-                GitHubToken.resolve(explicit: explicit)
-            }
+            await GitHubToken.resolve(explicit: explicit)
         }
         if let token = await firstResult(of: loader, within: timeout) {
             return token
@@ -5039,47 +5036,29 @@ final class AppListModel {
     /// relaunch a batch of apps during an install. Blocking `@MainActor` here
     /// froze the whole UI (spin report) and stranded the half-restarted app.
     nonisolated private static func runningBuildVersions() async -> [String: String] {
-        // Dispatch, not `Task.detached`: a detached task still runs on the
-        // cooperative pool, and the pair below (`readDataToEndOfFile()` +
-        // `waitUntilExit()`) parks whatever thread it lands on for as long as
-        // `coreservicesd` takes. See `offCooperativePool`.
-        await offCooperativePool(qos: .utility) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
-            process.arguments = ["list"]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            // nullDevice, not Pipe(): an undrained stderr pipe deadlocks once
-            // its 64KB buffer fills — lsappinfo blocks writing, we block in
-            // waitUntilExit(), forever.
-            process.standardError = FileHandle.nullDevice
-            do { try process.run() } catch { return [:] }
+        // Awaited through `ChildProcess`, so no thread waits for as long as
+        // `coreservicesd` takes. stderr is discarded, and drained, so it cannot
+        // fill and wedge the stdout read.
+        //
+        // Timeout backstop so a wedged lsappinfo can't hang us indefinitely:
+        // SIGTERM at 5 s, SIGKILL at 8 s if it's ignored. A read, so a cancelled
+        // caller may kill it; the answer is then the empty map, as for any
+        // failure to run it.
+        guard let outcome = try? await ChildProcess.run(
+            "/usr/bin/lsappinfo", ["list"],
+            standardError: .discard,
+            deadline: .init(terminateAfter: .seconds(5), killAfter: .seconds(8)),
+            onCancel: .terminateChild),
+              let text = String(data: outcome.standardOutput, encoding: .utf8)
+        else { return [:] }
 
-            // Timeout backstop so a wedged lsappinfo can't hang us indefinitely.
-            // SIGTERM first; if it's ignored (a wedged process can hold stdout's
-            // write end open, so the blocking read below would never return),
-            // escalate to SIGKILL, which the kernel can't refuse — that closes the
-            // pipe and unblocks the read for sure.
-            let pid = process.processIdentifier
-            let term = DispatchWorkItem { process.terminate() }
-            let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: term)
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: kill)
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            term.cancel()
-            kill.cancel()
-            guard let text = String(data: data, encoding: .utf8) else { return [:] }
-
-            // What the text MEANS — including skipping `(exited-with-subordinates)`
-            // tombstones LaunchServices keeps for an app whose own process quit but
-            // left a spawned helper/daemon running (#473) — is a pure function in
-            // Core (`LSAppInfoParser`), so it can be asserted against fixed text
-            // instead of a live process list. This closure only owns invoking the
-            // tool and its timeout/kill backstop.
-            return LSAppInfoParser.runningBuildVersions(from: text)
-        }
+        // What the text MEANS — including skipping `(exited-with-subordinates)`
+        // tombstones LaunchServices keeps for an app whose own process quit but
+        // left a spawned helper/daemon running (#473) — is a pure function in
+        // Core (`LSAppInfoParser`), so it can be asserted against fixed text
+        // instead of a live process list. This function only owns invoking the
+        // tool and its timeout/kill backstop.
+        return LSAppInfoParser.runningBuildVersions(from: text)
     }
 
     /// Take down a note one of the restart paths wrote — and only if it is still
@@ -6022,13 +6001,10 @@ final class AppListModel {
             return
         }
         do {
-            // Off the cooperative pool, not merely off this actor: the restore
-            // dittos the stored bundle out and then runs the same blocking
-            // `InPlaceSwap.replace` an install does, and a detached task still runs
-            // on the pool. See `offCooperativePool`.
-            let restored = try await offCooperativePool(qos: .userInitiated) { () -> String? in
-                try BackupStore.restore(forKey: key, over: target)
-            }
+            // Awaited, off this actor: `BackupStore.restore` is nonisolated, its
+            // `ditto` and swap go through `ChildProcess`, and it hops its own
+            // `SecStaticCode…` check. See `BackupStore.restore`.
+            let restored = try await BackupStore.restore(forKey: key, over: target)
             // The swap has landed; everything below is bookkeeping and needs no
             // exclusion, so hand the claim back rather than holding it through a
             // rescan (same reasoning as the apply permit in `performInstall`).

@@ -422,6 +422,30 @@ public actor BrewFormulaService {
         try await run(["upgrade", "--formula", name], onOutput: onOutput)
     }
 
+    /// Name of the formula a `brew upgrade` success line reports, or nil for any
+    /// other line. brew prints exactly one such line per formula it finishes
+    /// installing, so counting them tracks bulk progress.
+    ///
+    /// The line is `FormulaInstaller#summary`: `[<badge>  ]<keg>: <abv>[, built in …]`,
+    /// e.g. `🍺  /opt/homebrew/Cellar/xz/5.8.4: 96 files, 2.7MB`. The badge is
+    /// `HOMEBREW_INSTALL_BADGE` (any text) and is dropped under `HOMEBREW_NO_EMOJI`,
+    /// so the prefix is not the discriminator. What is: the keg path followed
+    /// directly by `: ` and a `Pathname#abv` size. Every other `abv` caller puts the
+    /// size in parentheses instead — `brew cleanup`'s
+    /// `Removing: <keg>... (96 files, 2.7MB)`, which follows a successful upgrade and
+    /// used to count the same formula a second time, `Would remove: <keg> (…)`, and
+    /// `Uninstalling <keg>... (…)`. (Homebrew 7.0.0 source; `abv` omits
+    /// `N files, ` when the keg has a single file.)
+    public static func pouredFormula(fromLine line: String) -> String? {
+        let ns = line as NSString
+        guard let match = pouredLinePattern.firstMatch(
+            in: line, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        return ns.substring(with: match.range(at: 1))
+    }
+
+    private static let pouredLinePattern = try! NSRegularExpression(
+        pattern: #"/Cellar/([^/\s]+)/[^/\s:]+: (?:[\d,]+ files, )?\d+(?:\.\d)?[KMG]?B(?:, built in .+)?\s*$"#)
+
     /// Shared streaming runner for the `brew upgrade …` variants above.
     private func run(
         _ arguments: [String],

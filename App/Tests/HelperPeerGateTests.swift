@@ -26,9 +26,9 @@ import Testing
 /// only by a manual step (listed in PR #591):
 ///
 /// - **`effectiveUserIdentifier` → `geteuid()`** (and the gid twin) in the delegate.
-///   Peer and listener are one process, so both give the same number. Manual: a
-///   client running as a different user than the helper (the helper is root, so
-///   any real install) must get its own uid in `SUDO_UID`, not 0.
+///   Peer and listener are one process, so both give the same number. Manual: in
+///   the real root helper this binds every client to uid 0, so `installMASApp`
+///   refuses the app's own uid — a successful App Store install rules it out.
 /// - **`install(on:team:…)`'s default `team:` changed** (to nil, or to a literal).
 ///   The ad-hoc test host has no team, so `OwnTeamIdentifier.current` is nil either
 ///   way. Manual: a real signed install must still serve the app (nil ⇒ every App

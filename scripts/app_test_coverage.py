@@ -37,7 +37,29 @@ import sys
 # and swift-testing emits a U+200B, so an anchored match dropped one real case
 # out of eight on a measured run.
 RAN = re.compile(r"Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
+
+# A log line the test process wrote to stderr (NSLog, or os_log echoed because
+# xcodebuild runs tests with OS_ACTIVITY_DT_MODE) can land INSIDE a swift-testing
+# record, splitting it across two lines:
+#
+#   ✔ Test aCopyTha2026-09-13 19:21:20.342690+0800 xctest[16059:13752262] [logging-persist] cannot open file …
+#   tBecameABetaReadsTheStore() passed after 0.007 seconds.
+#
+# Measured, not assumed: HelperPeerGateTests' code-signing checks make Security
+# and libxpc log, and the gate NSLogs its rejections; with that suite disabled
+# the same run printed no such lines at all. The split name matches nothing, so
+# a case that passed was reported as never run. Cutting each such log line out,
+# newline included, rejoins the record. The shape is strict — a timestamp with
+# microseconds and zone, then `name[pid:tid] ` — so a test's own output can't be
+# mistaken for it.
+SPLICED_LOG_LINE = re.compile(
+    r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+[+-]\d{4} [^\s\[]+\[\d+:[0-9a-fA-F]+\] [^\n]*\n"
+)
 FUNC = re.compile(r"\bfunc\s+([A-Za-z0-9_]+)\s*\(")
+
+
+def ran_cases(text: str) -> set[str]:
+    return set(RAN.findall(SPLICED_LOG_LINE.sub("", text)))
 
 
 def declared_cases(root: pathlib.Path) -> set[str]:
@@ -67,7 +89,7 @@ def main() -> int:
         print("0 0")
         print("")
         return 1
-    ran = set(RAN.findall(log.read_text(errors="replace")))
+    ran = ran_cases(log.read_text(errors="replace"))
     declared = declared_cases(tests)
     print(f"{len(declared)} {len(ran & declared)}")
     print(" ".join(sorted(declared - ran)))

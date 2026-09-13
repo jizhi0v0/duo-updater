@@ -20,6 +20,7 @@ test:
 	python3 scripts/test_publish_release.py
 	python3 scripts/test_check_prose_claims.py
 	python3 scripts/test_check_offpool.py
+	python3 scripts/test_check_swift_backdeploy.py
 	python3 scripts/test_claude_lag_probe.py
 	python3 scripts/test_app_test_coverage.py
 	cd DuoUpdaterCore && swift test

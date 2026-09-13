@@ -64,6 +64,12 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 say "Verifying every language landed in the product"
 "$REPO/scripts/verify-localizations.sh" "$BUILD_APP"
 
+# Every Mach-O in the bundle (app, helper, BinaryDelta, Sparkle's) against the
+# macOS 14 deployment target — a back-deployment library that is not embedded
+# launches here and fails in dyld on an older Mac. See the script.
+say "Verifying no Swift runtime library macOS 14 lacks is needed"
+python3 "$REPO/scripts/check_swift_backdeploy.py" "$BUILD_APP"
+
 
 say "Re-signing Sparkle helper tools"
 identity="$(codesign -dvv "$BUILD_APP" 2>&1 | sed -n 's/^Authority=//p' | head -n 1)"

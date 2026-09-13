@@ -947,17 +947,15 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
 
     // Unpack + the mandatory gate.
     log("· extracting")
-    // Off the cooperative pool, exactly as the installers do it (#351). This test
+    // Exactly as the installers do it (#351): the extraction is awaited (its
+    // tools go through `ChildProcess`, which parks no thread) and the
+    // `SecStaticCode…` gates below hop off the cooperative pool. This test
     // reaches `ArchiveExtractor` and `SignatureVerifier` DIRECTLY rather than
     // through an installer, so the fix in `VendorInstaller` does not cover it —
     // and it was this test that wedged three CI runs. A gate test that blocks the
     // pool would still hang while the code it exists to check no longer does,
     // which reads as the fix having failed.
-    let dir = workDir
-    let source = archive          // `archive` is a var; a Sendable closure needs a let
-    let newApp = try await offCooperativePool {
-        try ArchiveExtractor.extractApp(from: source, workDir: dir)
-    }
+    let newApp = try await ArchiveExtractor.extractApp(from: archive, workDir: workDir)
     log("· verifying signature")
     let installedPath = app.path
     let (installedTeam, downloadedTeam) = try await offCooperativePool {

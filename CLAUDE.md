@@ -501,22 +501,64 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
 
 - **从 async 里调这些,必须走 `offCooperativePool`**(`Support/OffPool.swift`):
   `SecStaticCode*` 全家(`verifyCodeSignature` / `teamIdentifier` / `signingIdentifier`)、
-  `Process.waitUntilExit()`、`DispatchGroup.wait()`、`DispatchSemaphore.wait()`、
-  `readDataToEndOfFile()` 配对的那种等待。`ArchiveExtractor.run` 一个函数里就有四个。
+  `DispatchGroup.wait()`、`DispatchSemaphore.wait()`、`BoundedBlockingWork.run`,
+  以及整包遍历/哈希这类长时间的同步磁盘活(`BackupManifest.compute`)。
+- **子进程一律走 `ChildProcess`(`Support/ChildProcess.swift`,swift-subprocess),
+  不要再写 `Process()`,也不要把它包进 hop。** 2026-09-13 起它替掉了全部
+  `waitUntilExit()` / `readDataToEndOfFile()`:等待走 kqueue,不停任何线程,两根管道并发排空,
+  `terminationStatus` 沿用 `Process` 的约定(退出码或信号号)。**`onCancel` 没有默认值,每个调用点
+  必须选**:会写东西的(解包、`hdiutil`、`BinaryDelta`、swap 里的 `xattr`/`chmod`/`osascript`、
+  备份的 `ditto`/`chflags`、`brew install`、pkg 闸门的 `pkgutil`/`xar`)用 `.runToCompletion`
+  ——旧的 hop 本来就不可取消,半个 swap / 没卸载的 DMG / 半个 delta 比跑完更糟。
+  `.terminateChild` 只留给**被取消之后没人再用这个结果**的读:目前只有 App Store 的 `open`
+  (取消会从安装流程里抛出去)和 `duo triage` 的 opencode(失败只记日志、不写建议)。
+  ⚠️ **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,一律 `.runToCompletion`——
+  `lsappinfo`(空表会清掉所有 Restart 徽标)、`brew` 的几个读(`refreshBrewFormulae` 从视图的
+  `.task` 里跑,popover 一关就被取消,然后把空结果写进 Brew 树)、`brew info`、`gh auth`
+  (token 会被缓存十分钟)、`mas outdated`、`launchctl print`、探针的 `unzip`(被杀会被归类成
+  recipe 故障)。这几条都是两轮复审抓到的,不是设计时想到的。
+  ⚠️ **swift-subprocess 用了 `Span`,而部署目标是 macOS 14。** Swift 6.2+ 的工具链靠链接
+  `@rpath/libswiftCompatibilitySpan.dylib` 回部署它,macOS 26 起系统自带、更老的系统没有。
+  这个分支上 `swift build` 出来的 Debug `duo` 就链接了它,在本机照跑不误;Release 的 app 和
+  `duo-cli`(Xcode 27 与 26.6 各量一遍)不链接。`scripts/check_swift_backdeploy.py` 挂在
+  `build-cli.sh` / `install.sh` / `notarize.sh` 的构建之后,哪天链接上了而没嵌进去就让构建失败。
+  没在 macOS 14 上实际启动过——这里没有那样的机器。
+  ⚠️ **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
+  拆掉 hop 之后,`replaceItemAt`(它会删掉被替换下来的整个 bundle)、整包遍历和删除又回到了
+  协作池上——对抗复审抓到的。现在这些各自进 `offCooperativePool`(删除走
+  `removeItemOffCooperativePool(at:)`),子进程在 hop 之间 `await`。第二轮复审又抓到一批漏掉的
+  删除:备份失败分支的 staging、`restore` 的 scratch、输入法快照、解包/delta 前清理旧产物。
+  其中几个原来写在 `defer` 里,而 `defer` 不能 `await`——所以改成把中间那段挪进辅助函数、
+  调用之后在每个出口删。
+  ⚠️ **`.runToCompletion` 只护住子进程,不护住你自己的代码**:编排代码里的 `Task.sleep`
+  在被取消的任务里会立刻返回(`ArchiveExtractor.detach` 的重试间隔为此放进了 detached task)。
+  ⚠️ **offCooperativePool 的闭包里没有 task-local。** 把一段读 `BackupStore.$rootOverride`
+  的代码挪进 hop,它就读到真实的备份库——`BackupStore.restore` 的完整性检查就这么把篡改过的
+  备份放了行,是篡改测试红了才发现的。先在 hop 外读好,再传进去。
 - **`Task.detached` 不是替代品**,它仍然跑在协作池上。这条 `BrewFormulaReleaseService`
   的注释早就写过,并且带着测量(23 路扇出,detached 让无关任务多停 0.95~1.07s,
   `DispatchQueue.global` 只多 0.02~0.06s,墙钟相同)——**Dispatch 在线程阻塞时会扩池**。
 - **一段连续的闸序列用一次 hop,不要每个闸一次。** 顺序是承重的(gate 5 必须在 5b 前),
-  多次 hop 就是多次意外打乱它的机会。
+  多次 hop 就是多次意外打乱它的机会。例外是闸序列里夹着要 `await` 的子进程
+  (`PackageInstaller.handOver`:闸门跑 `pkgutil`/`xar`,再算封条)——那就只能按语句顺序写成
+  几次 `await`,顺序由代码的先后保证,并在注释里写明为什么拆开。
 - ⚠️ **这不是 CI 专属问题。** `InstallPermits(applies: 2)` 意味着产品里就有两个并发 apply,
   启动时的 `recoverInterruptedSwapsOnce` 再加一个(2026-09-13 起 `recoverInterruptedSwaps` 自己
   把签名校验那段包进 `offCooperativePool`,以前是裸 `Task.detached`)。**CI 只是核数低到能撞上的地方。**
 - **有一道闸:`scripts/check_offpool.py`(挂在 `make test` 里)。** 它对每个阻塞调用往外找
   「决定线程归谁」的第一层作用域,落在 `async func` / `Task {}` / `Task.detached` 里且没被
   `offCooperativePool {` 包住的就报。豁免用 `offpool-lint:allow — <理由>`,理由必填,
-  不再匹配任何东西的豁免让构建失败(照抄 `check_prose_claims.py`)。
-  ⚠️ **它看不穿同步函数**:`InPlaceSwap.replace` 是同步的、里面有 `waitUntilExit`,
-  从 async 调它而不 hop 是合法的 Swift、闸也不报——它只管调用点自己是不是阻塞调用。
+  不再匹配任何东西的豁免让构建失败(照抄 `check_prose_claims.py`)。另外,**`Process()`
+  在任何作用域里都报**(同步函数、hop 里也报;`Process.run(`、`Process.init(`、`NSTask`、
+  `posix_spawn` 这些写法同样报,`let p: Process = .init()` 抓不到)——子进程该走 `ChildProcess`;唯一的豁免是
+  `DiagnosticsSettingsPage.relaunch` 那个不等待的 `open -n`。
+  防空过是**按写法**的:`BLOCKING` 里每个写法都得至少命中一处,最后一处调用没了就挪进 `RETIRED`
+  并写理由(再出现会报)。以前是「总数 ≥ 5」,把唯一那处 `SecStaticCodeCheckValidity` 改名改没了
+  还剩 8 处,照样绿。
+  ⚠️ **它看不穿同步函数**:阻塞调用写在同步函数里、从 async 调它而不 hop,是合法的 Swift、
+  闸也不报——它只管调用点自己是不是阻塞调用。`InPlaceSwap.replace` 曾经就是这样
+  (同步、里面有 `waitUntilExit`);它现在是 async,但同样的洞对 `SecStaticCode*` 包装和
+  `BoundedBlockingWork.run` 包装依然存在。
   2026-09-13 一次修的面:`InPlaceSwap.replace` 的三个调用方、`DeltaApplier`、备份、
   `PackageInstaller` 整个 actor、Spotify 的 `unzip`、`lsappinfo`、两处 osascript、
   `gh auth token` 的两个调用方、四处 CLI、十一处在 `Task.detached` 里构造

@@ -29,7 +29,9 @@ import Foundation
 /// (77,021 bytes) through the old handler, 8 runs, optimized build: 0 of 8
 /// complete, each stopped at 49,659 bytes. For `brew upgrade` the lost tail is the
 /// part that matters — the last `🍺` line, and the `Error:` lines
-/// `BrewError.failed` reports. Hence `end()` / `waitForEnd(atMost:)`.
+/// `BrewError.failed` reports. `run` now gets that from `ChildProcess`, which
+/// reads to EOF; `end()` / `waitForEnd(atMost:)` are what the `Process`-based
+/// first version used to wait for it, and nothing in production calls them now.
 final class StreamedLines: @unchecked Sendable {
     private let lock = NSLock()
     private var all = Data()
@@ -114,57 +116,36 @@ final class StreamedLines: @unchecked Sendable {
         return waiter != nil
     }
 
-    /// Run `process` with stdout and stderr on one pipe, handing each line to
-    /// `onOutput` as it arrives, and return everything it printed. Returns once the
-    /// process has exited AND its output has reached EOF (or `eofCap` seconds
-    /// after exit, whichever is first). The caller reads `terminationStatus`.
+    /// Run `executablePath` with stdout and stderr on one pipe, handing each line to
+    /// `onOutput` as it arrives, and return the outcome with everything it printed.
     ///
     /// The one runner for `BrewFormulaService` and `HomebrewInstaller`, which used
-    /// to carry identical copies of the handler this replaces.
+    /// to carry identical copies of the handler this replaces. It goes through
+    /// `ChildProcess`, which reads the pipe until EOF — or, when the process has
+    /// exited while something it left running still holds the pipe, until the
+    /// bytes already written are drained. That is the end of the output this type
+    /// is about: nothing is dropped because the exit came first. (The first
+    /// version, on `Process`, waited up to `eofCap` seconds after exit for a
+    /// straggler's EOF; `ChildProcess` stops at the drain instead.)
+    ///
+    /// `.runToCompletion`: both callers are brew changing what is installed.
     static func run(
-        _ process: Process,
-        eofCap: Double = 5,
+        _ executablePath: String,
+        _ arguments: [String],
+        environment: [String: String],
         onOutput: @Sendable @escaping (String) -> Void
-    ) async throws -> String {
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
+    ) async throws -> (outcome: ChildProcess.Outcome, text: String) {
         let collected = StreamedLines()
-        let handle = pipe.fileHandleForReading
-        handle.readabilityHandler = { fh in
-            let data = fh.availableData
-            guard !data.isEmpty else {
-                // EOF. Cleared here too: at EOF the handler is otherwise called
-                // again and again with nothing to read.
-                fh.readabilityHandler = nil
-                collected.end()
-                return
-            }
-            for line in collected.append(data) {
-                onOutput(line)
-            }
-        }
-
-        do {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                // Installed before `run()`, so an instant exit can't beat it.
-                process.terminationHandler = { _ in cont.resume() }
-                do {
-                    try process.run()
-                } catch {
-                    process.terminationHandler = nil
-                    cont.resume(throwing: error)
+        let outcome = try await ChildProcess.run(
+            executablePath, arguments, environment: environment,
+            standardOutput: .discard, standardError: .mergeIntoOutput,
+            onCancel: .runToCompletion,
+            onOutputChunk: { chunk in
+                for line in collected.append(chunk) {
+                    onOutput(line)
                 }
-            }
-        } catch {
-            handle.readabilityHandler = nil
-            throw error
-        }
-        // Exiting is not the end of the output — see the type's doc comment.
-        await collected.waitForEnd(atMost: eofCap)
-        handle.readabilityHandler = nil
+            })
         if let tail = collected.finish() { onOutput(tail) }
-        return collected.text
+        return (outcome, collected.text)
     }
 }

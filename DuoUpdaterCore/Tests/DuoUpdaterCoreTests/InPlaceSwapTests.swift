@@ -155,7 +155,7 @@ import Testing
     /// The one permission a rotation actually uses. Refused up front, with a
     /// sentence, rather than by a half-finished rename — and deliberately NOT by
     /// escalating, which is the move that cannot work here.
-    @Test func aRotationRefusesWhenTheBundleItselfIsNotWritable() throws {
+    @Test func aRotationRefusesWhenTheBundleItselfIsNotWritable() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
@@ -164,13 +164,13 @@ import Testing
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: target.path)
         defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path) }
 
-        #expect(throws: (any Error).self) {
-            try InPlaceSwap.rotateContents(newApp: incoming, over: target)
+        await #expect(throws: (any Error).self) {
+            try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
         }
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
     }
 
-    @Test func anUnprivilegedRotationExchangesContentsInPlace() throws {
+    @Test func anUnprivilegedRotationExchangesContentsInPlace() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
@@ -179,7 +179,7 @@ import Testing
         let outerBefore = try #require(
             (try fm.attributesOfItem(atPath: target.path))[.systemFileNumber] as? NSNumber)
 
-        try InPlaceSwap.rotateContents(newApp: incoming, over: target)
+        try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
 
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/new").path))
         #expect(!fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
@@ -198,7 +198,7 @@ import Testing
     /// Rotation replaces `Contents` and nothing else, so a bundle holding anything
     /// else at its top level would come out as new code beside the old copy's
     /// leftovers — a state no gate downstream looks at. Refuse instead.
-    @Test func aRotationRefusesABundleThatHoldsMoreThanContents() throws {
+    @Test func aRotationRefusesABundleThatHoldsMoreThanContents() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
@@ -207,8 +207,8 @@ import Testing
         try fm.createDirectory(
             at: target.appendingPathComponent("Extras"), withIntermediateDirectories: true)
 
-        #expect(throws: (any Error).self) {
-            try InPlaceSwap.rotateContents(newApp: incoming, over: target)
+        await #expect(throws: (any Error).self) {
+            try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
         }
         // And the refusal changed nothing.
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
@@ -218,7 +218,7 @@ import Testing
     /// Seeing one of their staging directories means that update is in flight, and
     /// rotating underneath it would race a process about to rename `Contents`
     /// itself.
-    @Test func aRotationRefusesWhileTheVendorsOwnUpdateIsInFlight() throws {
+    @Test func aRotationRefusesWhileTheVendorsOwnUpdateIsInFlight() async throws {
         let fm = FileManager.default
         for staging in [".Contents.update", "Contents_update"] {
             let root = try inputMethodsScratch()
@@ -234,8 +234,8 @@ import Testing
             // about the bundle's layout rather than about the update that is
             // actually running. A bare "it threw" cannot tell those apart.
             var reason = ""
-            #expect(throws: (any Error).self, "\(staging) means their updater is mid-exchange") {
-                do { try InPlaceSwap.rotateContents(newApp: incoming, over: target) }
+            await #expect(throws: (any Error).self, "\(staging) means their updater is mid-exchange") {
+                do { try await InPlaceSwap.rotateContents(newApp: incoming, over: target) }
                 catch { reason = error.localizedDescription; throw error }
             }
             #expect(reason.contains("still in flight"), "\(staging) → \(reason)")
@@ -248,7 +248,7 @@ import Testing
     /// and `Contents_backup` are what a FINISHED vendor update leaves behind — its
     /// own updater carries `cleanup old Contents failed:` for exactly that — so
     /// finding one means an update ran, not that one is running.
-    @Test func aRotationProceedsWhenOnlyTheVendorsLeftoversArePresent() throws {
+    @Test func aRotationProceedsWhenOnlyTheVendorsLeftoversArePresent() async throws {
         let fm = FileManager.default
         for leftover in [".Contents.old", ".Contents.abandoned", "Contents_backup"] {
             let root = try inputMethodsScratch()
@@ -259,7 +259,7 @@ import Testing
             try fm.createDirectory(
                 at: target.appendingPathComponent(leftover), withIntermediateDirectories: true)
 
-            try InPlaceSwap.rotateContents(newApp: incoming, over: target)
+            try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
             #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/new").path),
                     "\(leftover) is a leftover, not a reason to refuse forever")
         }

@@ -42,7 +42,7 @@ public enum Visibility {
                 "duo: name an app to \(options.action.rawValue)\n".utf8))
             return 2
         }
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let apps = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {

@@ -40,6 +40,32 @@ struct BrewFormulaReleaseServiceTests {
 
     // MARK: - Same generation: hit
 
+    /// `brew info` still answers when the lookup's task is cancelled: `release(for:)`
+    /// carries on and shows the result, and a killed `brew info` would read as "no
+    /// release notes". The "brew" is an invented script.
+    ///
+    /// Mutation: `.terminateChild` in `brewInfoOffActor` → nil.
+    @Test func aCancelledBrewInfoStillAnswers() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-brewinfo-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let brew = dir.appendingPathComponent("brew")
+        let json = #"{"formulae":[{"homepage":"https://zzfixture.invalid","urls":{"stable":{"url":"https://github.com/zzfixture/alpha/archive/refs/tags/v1.0.tar.gz"}}}]}"#
+        try Data("#!/bin/sh\nsleep 0.2\ncat <<'EOF'\n\(json)\nEOF\n".utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        let path = brew.path
+
+        let task = Task { () async -> BrewFormulaReleaseService.Info? in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await BrewFormulaReleaseService.brewInfoOffActor(name: "zzfixture-alpha", brewPath: { path })
+        }
+        let info = await task.value
+
+        #expect(info?.homepage == URL(string: "https://zzfixture.invalid"))
+        #expect(info?.stableURL == "https://github.com/zzfixture/alpha/archive/refs/tags/v1.0.tar.gz")
+    }
+
     @Test func sameGenerationEntryIsServed() async {
         await withScratchDirectory { dir in
             let service = BrewFormulaReleaseService(cacheDirectory: dir)

@@ -156,28 +156,120 @@ import Foundation
     /// actually produces parseable output, and an rc file that leaves a background
     /// child holding stdout doesn't stall the read.
     ///
-    /// Mutation: write output to a Pipe and read it to EOF → EOF waits for the
-    /// background `sleep 120`, so the call is still blocked when the 60 s deadline
-    /// passes and this fails. The deadline is not a performance bound (the real
-    /// call returns in well under a second); it only has to sit between "returns
-    /// normally" and "waits for the child", which are two orders of magnitude apart.
-    @Test func readsVariablesExportedByAFixtureZshrc() throws {
+    /// Not reading the background child's pipe to EOF is `ChildProcess`'s
+    /// behaviour now (it stops at the shell's exit), so the mutation that used to
+    /// be named here — read a pipe to EOF — has no place left to go. What is pinned
+    /// is that the call still returns with the shell's answer and not with the
+    /// `timeout`'s nil: mutation `timeout: 20` → an immediate timeout (race the
+    /// runner against `.seconds(0)`) → nil.
+    ///
+    /// The 60 s watchdog is not a performance bound (the real call returns in well
+    /// under a second); it only has to sit between "returns normally" and "waits
+    /// for the child", which are two orders of magnitude apart. It resumes a
+    /// continuation instead of cancelling anything, so it fires even if the call
+    /// under test never yields.
+    @Test func readsVariablesExportedByAFixtureZshrc() async throws {
+        // A per-run duration, so the background `sleep` this rc leaves behind can be
+        // found and killed afterwards instead of outliving the test for two minutes.
+        let marker = "120.\(Int.random(in: 100_000...999_999))"
         let home = try Self.fixtureHome(zshrc: """
             echo "rc banner"
             export HOMEBREW_NO_AUTO_UPDATE=1
-            sleep 120 &
+            sleep \(marker) &
             """)
         defer { try? FileManager.default.removeItem(at: home) }
         let environment = Self.fixtureEnvironment(home: home)
         let box = ResultBox()
-        let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            box.value = LoginShellEnvironment.resolveHomebrewVariables(
+        let finished = await Self.within(seconds: 60) {
+            box.value = await LoginShellEnvironment.resolveHomebrewVariables(
                 shell: "/bin/zsh", environment: environment, timeout: 20)
-            done.signal()
         }
-        #expect(done.wait(timeout: .now() + 60) == .success)
+        #expect(finished)
         #expect(box.value?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+        for pid in await Self.processes(matching: "sleep \(marker)") { kill(pid, SIGKILL) }
+    }
+
+    /// True when `body` finished within `seconds`. Resumes on whichever comes
+    /// first and abandons the other, so a `body` that never returns is a false,
+    /// not a stuck suite.
+    private static func within(seconds: Double, _ body: @escaping @Sendable () async -> Void) async -> Bool {
+        final class Once: @unchecked Sendable {
+            let lock = NSLock()
+            var continuation: CheckedContinuation<Bool, Never>?
+            func resume(_ value: Bool) {
+                let c: CheckedContinuation<Bool, Never>? = lock.withLock {
+                    defer { continuation = nil }
+                    return continuation
+                }
+                c?.resume(returning: value)
+            }
+        }
+        let once = Once()
+        return await withCheckedContinuation { continuation in
+            once.lock.withLock { once.continuation = continuation }
+            Task { await body(); once.resume(true) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { once.resume(false) }
+        }
+    }
+
+    /// The timeout counts from the shell's launch. The wait before the spawn (8 s,
+    /// injected) is longer than the timeout (5 s); a clock started at the call
+    /// would give up before the shell existed — returning nil with no pid to kill,
+    /// and leaving the shell to start unwatched. The 5 s after launch cover a real
+    /// `zsh -l -i` and the task hops around it on a loaded 3-core runner.
+    ///
+    /// Mutation: drop `try await launched.waitForLaunch()` from `race` → nil.
+    @Test func theTimeoutCountsFromTheShellsLaunch() async throws {
+        let home = try Self.fixtureHome(zshrc: "export HOMEBREW_NO_AUTO_UPDATE=1")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let environment = Self.fixtureEnvironment(home: home)
+        let variables = await LoginShellEnvironment.resolveHomebrewVariables(
+            shell: "/bin/zsh", environment: environment, timeout: 5,
+            beforeSpawn: { try? await Task.sleep(for: .seconds(8)) })
+        #expect(variables?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+    }
+
+    /// A shell that cannot start (a `pw_shell` naming one that is not installed)
+    /// makes the runner win the race, and the timer that was waiting for a launch
+    /// is released, not left parked for the life of the process. Not a timing
+    /// test: the timeout is ten minutes, so the timer can only end by being
+    /// released; the 60 s bound only turns a regression into a failure instead of
+    /// a hang.
+    ///
+    /// Mutations: drop `timer.cancel()` in `race`, or drop the resume in
+    /// `waitForLaunch`'s cancellation handler → the timer never exits.
+    @Test func aShellThatCannotStartLeavesNoTimerBehind() async {
+        let exited = Flag()
+        let variables = await LoginShellEnvironment.resolveHomebrewVariables(
+            shell: "/nonexistent/ZZFixture-shell", environment: [:], timeout: 600,
+            timerExited: { exited.set() })
+        #expect(variables == nil)
+        let released = await Self.within(seconds: 60) { await exited.wait() }
+        #expect(released, "the launch timer is still parked")
+    }
+
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var isSet = false
+        private var waiter: CheckedContinuation<Void, Never>?
+        func set() {
+            let c: CheckedContinuation<Void, Never>? = lock.withLock {
+                isSet = true
+                defer { waiter = nil }
+                return waiter
+            }
+            c?.resume()
+        }
+        func wait() async {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                let now: Bool = lock.withLock {
+                    if isSet { return true }
+                    waiter = c
+                    return false
+                }
+                if now { c.resume() }
+            }
+        }
     }
 
     private final class ResultBox: @unchecked Sendable {
@@ -203,36 +295,51 @@ import Foundation
     /// the shell alive and spawning new children. Why the two differ was not
     /// established; the loop is simply the shape observed to leak.
     ///
-    /// Mutations: `process.terminate()` → the loop keeps starting new `sleep`s;
-    /// kill only the shell → the current `sleep` is reparented and survives;
-    /// miscount `proc_listchildpids` → same as killing only the shell.
-    @Test func aShellThatHangsIsUnknownAndKilled() throws {
+    /// Mutations: SIGTERM instead of SIGSTOP + SIGKILL → the loop keeps starting
+    /// new `sleep`s; kill only the shell → the current `sleep` is reparented and
+    /// survives; miscount `proc_listchildpids` → same as killing only the shell;
+    /// `ChildProcess` never reports the pid (`onLaunch` not called) → the timeout,
+    /// which counts from launch, never starts: the call never returns and the 60 s
+    /// watchdog fails the test (the leaked shell is killed by parent pid below).
+    ///
+    /// Not timing-sensitive: the rc loops forever, so the only way to finish is
+    /// the timeout firing, and it starts only once the shell exists.
+    @Test func aShellThatHangsIsUnknownAndKilled() async throws {
         let marker = "30.\(Int.random(in: 100_000...999_999))"
         let home = try Self.fixtureHome(zshrc: "while :; do sleep \(marker); done")
         defer { try? FileManager.default.removeItem(at: home) }
-        let variables = LoginShellEnvironment.resolveHomebrewVariables(
-            shell: "/bin/zsh", environment: Self.fixtureEnvironment(home: home), timeout: 1)
-        #expect(variables == nil)
+        let environment = Self.fixtureEnvironment(home: home)
+        let box = ResultBox()
+        let returned = await Self.within(seconds: 60) {
+            box.value = await LoginShellEnvironment.resolveHomebrewVariables(
+                shell: "/bin/zsh", environment: environment, timeout: 1) ?? [:]
+        }
+        #expect(returned, "the call never returned")
+        #expect(box.value == [:], "a hung shell must read as unknown (nil)")
+        if !returned {
+            for pid in await Self.processes(matching: "sleep \(marker)") {
+                var info = proc_bsdinfo()
+                if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0 {
+                    kill(pid_t(info.pbi_ppid), SIGKILL)
+                }
+                kill(pid, SIGKILL)
+            }
+        }
         // SIGKILL delivery is asynchronous; allow it a moment before calling it a leak.
-        var survivors = Self.processes(matching: "sleep \(marker)")
+        var survivors = await Self.processes(matching: "sleep \(marker)")
         for _ in 0..<20 where !survivors.isEmpty {
-            Thread.sleep(forTimeInterval: 0.1)
-            survivors = Self.processes(matching: "sleep \(marker)")
+            try? await Task.sleep(for: .milliseconds(100))
+            survivors = await Self.processes(matching: "sleep \(marker)")
         }
         #expect(survivors.isEmpty, "leaked: \(survivors)")
         for pid in survivors { kill(pid, SIGKILL) }
     }
 
-    private static func processes(matching pattern: String) -> [pid_t] {
-        let pgrep = Process()
-        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        pgrep.arguments = ["-f", pattern]
-        let pipe = Pipe()
-        pgrep.standardOutput = pipe
-        guard (try? pgrep.run()) != nil else { return [] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        pgrep.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
+    private static func processes(matching pattern: String) async -> [pid_t] {
+        guard let pgrep = try? await ChildProcess.run(
+            "/usr/bin/pgrep", ["-f", pattern], onCancel: .terminateChild)
+        else { return [] }
+        return String(decoding: pgrep.standardOutput, as: UTF8.self)
             .split(whereSeparator: \.isNewline).compactMap { pid_t($0) }
     }
 

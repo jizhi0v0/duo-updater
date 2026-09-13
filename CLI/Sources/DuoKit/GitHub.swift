@@ -1,4 +1,5 @@
 import Foundation
+import DuoUpdaterCore
 
 /// The thinnest possible wrapper over the `gh` CLI.
 ///
@@ -15,77 +16,58 @@ enum GitHub {
 
     /// nil when `gh` is usable; otherwise why it isn't, phrased for someone
     /// reading a CI log.
-    static func unavailableReason() -> String? {
+    static func unavailableReason() async -> String? {
         do {
-            _ = try run(["--version"])
+            _ = try await run(["--version"])
             return nil
         } catch {
             return "\(error)"
         }
     }
 
+    /// `gh <arguments>`, found on `PATH` through `/usr/bin/env`, stdout returned
+    /// trimmed. A non-zero exit throws with gh's stderr.
+    ///
+    /// Both pipes drain concurrently (`ChildProcess` always does) — `gh` writes
+    /// progress, deprecation and auth notices to stderr, and reading stdout to
+    /// EOF first deadlocked as soon as those filled stderr's buffer.
+    ///
+    /// `.runToCompletion`: `gh issue create` torn down after the issue exists but
+    /// before its URL is read back would file an issue the baseline never
+    /// records, and the next sweep would file it again.
     @discardableResult
-    static func run(_ arguments: [String], stdin: String? = nil) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["gh"] + arguments
-
-        let output = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = output
-        process.standardError = errorPipe
-
-        let input = Pipe()
-        if stdin != nil { process.standardInput = input }
-
-        try process.run()
-        if let stdin {
-            input.fileHandleForWriting.write(Data(stdin.utf8))
-            try? input.fileHandleForWriting.close()
-        }
-        // Drain both pipes CONCURRENTLY. Reading stdout to EOF and only then
-        // stderr deadlocks as soon as the child fills stderr's ~64KB buffer while
-        // stdout is still open — `gh` writes progress, deprecation and auth notices
-        // there — because it blocks in `write()`, stdout never reaches EOF, and
-        // neither side moves. Same failure shape and same fix as
-        // `ArchiveExtractor.run`.
-        let errData = Locked(Data())
-        let drained = DispatchSemaphore(value: 0)
-        let errHandle = errorPipe.fileHandleForReading
-        DispatchQueue.global().async {
-            let data = errHandle.readDataToEndOfFile()
-            errData.withLock { $0 = data }
-            drained.signal()
-        }
-        let out = String(
-            decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        drained.wait()
-        let err = String(decoding: errData.withLock { $0 }, as: UTF8.self)
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
+    static func run(_ arguments: [String], stdin: String? = nil) async throws -> String {
+        let outcome = try await ChildProcess.run(
+            "/usr/bin/env", ["gh"] + arguments,
+            standardInput: stdin.map { Data($0.utf8) },
+            onCancel: .runToCompletion)
+        let err = String(decoding: outcome.standardError, as: UTF8.self)
+        guard outcome.terminationStatus == 0 else {
             throw Error(description: "gh \(arguments.first ?? "") failed "
-                + "(\(process.terminationStatus)): \(err.trimmingCharacters(in: .whitespacesAndNewlines))")
+                + "(\(outcome.terminationStatus)): \(err.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
-        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(decoding: outcome.standardOutput, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Bodies go through a temp file rather than argv: they contain newlines,
     /// backticks and captured vendor markup, and `gh issue create --body` on a
     /// multi-kilobyte string is a shell-quoting accident waiting to happen.
-    private static func withBodyFile<T>(_ body: String, _ work: (URL) throws -> T) throws -> T {
+    private static func withBodyFile<T>(
+        _ body: String, _ work: (URL) async throws -> T
+    ) async throws -> T {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-issue-\(UUID().uuidString).md")
         try Data(body.utf8).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
-        return try work(url)
+        return try await work(url)
     }
 
     /// Returns the new issue's number.
-    static func createIssue(title: String, body: String, label: String) throws -> Int {
-        ensureLabel(label)
-        let url = try withBodyFile(body) { file in
-            try run(["issue", "create", "--title", title, "--body-file", file.path,
+    static func createIssue(title: String, body: String, label: String) async throws -> Int {
+        await ensureLabel(label)
+        let url = try await withBodyFile(body) { file in
+            try await run(["issue", "create", "--title", title, "--body-file", file.path,
                      "--label", label])
         }
         // `gh issue create` prints the issue URL; the number is its last path
@@ -96,26 +78,26 @@ enum GitHub {
         return number
     }
 
-    static func comment(issue: Int, body: String) throws {
-        try withBodyFile(body) { file in
-            try run(["issue", "comment", "\(issue)", "--body-file", file.path])
+    static func comment(issue: Int, body: String) async throws {
+        try await withBodyFile(body) { file in
+            try await run(["issue", "comment", "\(issue)", "--body-file", file.path])
         }
     }
 
-    static func close(issue: Int, comment: String) throws {
-        try run(["issue", "close", "\(issue)", "--comment", comment])
+    static func close(issue: Int, comment: String) async throws {
+        try await run(["issue", "close", "\(issue)", "--comment", comment])
     }
 
-    static func reopen(issue: Int, comment: String) throws {
-        try run(["issue", "reopen", "\(issue)"])
-        try self.comment(issue: issue, body: comment)
+    static func reopen(issue: Int, comment: String) async throws {
+        try await run(["issue", "reopen", "\(issue)"])
+        try await self.comment(issue: issue, body: comment)
     }
 
     /// Create the label if it isn't there yet. Failure is fine — the usual cause
     /// is that it already exists, and a missing label must never be the reason a
     /// breakage goes unreported.
-    private static func ensureLabel(_ name: String) {
-        _ = try? run(["label", "create", name,
+    private static func ensureLabel(_ name: String) async {
+        _ = try? await run(["label", "create", name,
                       "--description", "A detection or changelog recipe stopped working",
                       "--color", "B60205"])
     }

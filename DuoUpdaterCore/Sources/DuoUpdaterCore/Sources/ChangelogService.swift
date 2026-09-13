@@ -473,14 +473,14 @@ public enum ChangelogService {
         } else {
             // Only `gh auth token` is left, and it runs to completion with no
             // timeout of its own — so this half is resolved *outside* the lock,
-            // off the cooperative pool, and with a deadline. A wedged credential
+            // and with a deadline. A wedged credential
             // helper (a keychain prompt nobody answers) would otherwise pin the
             // lock forever and pile the whole changelog prewarm fan-out up behind
             // it. `AppListModel.resolveGitHubToken` learned this already — "don't
             // let a wedged `gh auth token` hold the whole refresh hostage
             // forever" — and the lesson belongs here too.
             let loader = Task.detached(priority: .utility) {
-                await offCooperativePool(qos: .utility) { GitHubToken.resolve(explicit: explicit) }
+                await GitHubToken.resolve(explicit: explicit)
             }
             guard let answered = await firstResult(of: loader, within: timeout) else {
                 // Timed out: deliberately *not* cached. Caching would extend one
@@ -504,9 +504,10 @@ public enum ChangelogService {
     }
 
     /// The value of `task` if it lands within `timeout`, else nil. The task is a
-    /// detached one on purpose (see the call site) so its blocking `waitUntilExit`
-    /// never occupies a cooperative-pool thread; cancelling the group cannot stop
-    /// it, and doesn't need to — it finishes into a discarded result.
+    /// detached one on purpose (see the call site): cancelling the group does not
+    /// reach it, so a deadline that wins leaves `gh` to finish into a discarded
+    /// result rather than killing it — which is what it did when the wait was a
+    /// Dispatch thread that could not be cancelled either.
     private static func firstResult<T: Sendable>(
         of task: Task<T, Never>, within timeout: Duration
     ) async -> T? {

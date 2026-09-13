@@ -55,7 +55,7 @@ public enum Backups {
     }
 
     static func list(json: Bool) async -> Int32 {
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let installed = await Inventory.scanIfFinished(settings)
         // After an abandoned scan no backup can be matched to its app, so each is
         // listed by its key — which `rows` otherwise reserves for a backup nothing
@@ -151,7 +151,7 @@ public enum Backups {
     // MARK: - Restore
 
     static func restore(_ query: String, assumeYes: Bool, json: Bool) async -> Int32 {
-        let settings = Settings.load()
+        let settings = await Settings.load()
         let installed = await Inventory.scanIfFinished(settings)
         let app: InstalledApp
         switch resolveTarget(query: query, installed: installed) {
@@ -225,14 +225,10 @@ public enum Backups {
     /// `Install.run`'s shape.
     private static func performRestore(app: InstalledApp, key: String, json: Bool) async -> Int32 {
         do {
-            // Off the cooperative pool, not merely off this task: the restore
-            // dittos the stored bundle out and then runs the blocking
-            // `InPlaceSwap.replace`, and a detached task still runs on the pool.
-            // See `offCooperativePool`.
-            let path = app.path
-            let restored = try await offCooperativePool(qos: .userInitiated) { () -> String? in
-                try BackupStore.restore(forKey: key, over: path)
-            }
+            // Awaited in place: the restore's `ditto` and swap go through
+            // `ChildProcess`, and it hops its own `SecStaticCode…` check. See
+            // `BackupStore.restore`.
+            let restored = try await BackupStore.restore(forKey: key, over: app.path)
             if json {
                 emitRestoreJSON(app: app.name, key: key, restoredVersion: restored)
             } else {

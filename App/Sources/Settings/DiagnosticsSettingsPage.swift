@@ -154,6 +154,8 @@ struct DiagnosticsSettingsPage: View {
     /// myself" handoff. `open -n` launches a new copy that outlives our exit, so a
     /// permission granted via the drag panel takes effect without the user hunting
     /// for the app in Finder.
+    ///
+    /// offpool-lint:allow — nothing waits on this `open -n`: the app terminates right after launching it, so there is no wait for `ChildProcess` to take over.
     private static func relaunch() {
         let bundleURL = Bundle.main.bundleURL
         let task = Process()

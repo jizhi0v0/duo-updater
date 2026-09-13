@@ -71,7 +71,7 @@ public struct Settings: Sendable {
             .flatMap(TestFlightDetection.init(rawValue:)) ?? .off
     }
 
-    public static func load() -> Settings {
+    public static func load() async -> Settings {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
 
         let strategy = defaults.string(forKey: UpdateSettings.appStoreUpdateStrategyKey)
@@ -79,6 +79,10 @@ public struct Settings: Sendable {
         let vendorPolicy = defaults.string(forKey: UpdateSettings.vendorInstallPolicyKey)
             .flatMap(VendorInstallPolicy.init(rawValue:)) ?? UpdateSettings.vendorInstallPolicyDefault
 
+        // Same ladder as the app: the token the user entered, else the
+        // environment, else whatever `gh` is logged in as.
+        let githubToken = await GitHubToken.resolve(
+            explicit: Keychain.string(account: "github-token"))
         let licenseKey = Keychain.string(account: "alcove-license-key") ?? ""
         let instanceID = Keychain.string(account: "alcove-instance-id") ?? ""
 
@@ -102,10 +106,7 @@ public struct Settings: Sendable {
             // the right reading for that: read nothing until somebody has said to.
             testFlightDetection: testFlightDetection(from: defaults),
             keepBackups: defaults.object(forKey: "KeepBackups") as? Bool ?? true,
-            // Same ladder as the app: the token the user entered, else the
-            // environment, else whatever `gh` is logged in as.
-            githubToken: GitHubToken.resolve(
-                explicit: Keychain.string(account: "github-token")),
+            githubToken: githubToken,
             alcove: licenseKey.isEmpty || instanceID.isEmpty
                 ? nil
                 : AlcoveUpdateSource.Credentials(

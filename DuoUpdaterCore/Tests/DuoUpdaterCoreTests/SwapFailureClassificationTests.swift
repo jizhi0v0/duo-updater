@@ -159,7 +159,7 @@ import Testing
     ///
     /// `rotateContents` must therefore RETURN rather than throw: the input method on
     /// disk is the new build, and the caller has to go on to re-check it.
-    @Test func aRotationWhoseCleanupFailsReportsSuccessWithAWarning() throws {
+    @Test func aRotationWhoseCleanupFailsReportsSuccessWithAWarning() async throws {
         let fm = FileManager.default
         let scratch = try scratch()
         defer {
@@ -177,7 +177,7 @@ import Testing
         try Data("pinned".utf8).write(to: stubborn)
         #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
 
-        let outcome = try InPlaceSwap.rotateContents(newApp: incoming, over: target)
+        let outcome = try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
 
         #expect(outcome != .replaced)
         if case .replacedButCleanupFailed = outcome {} else {
@@ -191,7 +191,7 @@ import Testing
     /// path — the finding's original shape. Before this, the 513 went to
     /// `isAppManagementDenial`, the row said "macOS blocked the update: … App
     /// Management permission", and the app on disk was already the new version.
-    @Test func anUnprivilegedSwapWhoseCleanupFailsReportsSuccessWithAWarning() throws {
+    @Test func anUnprivilegedSwapWhoseCleanupFailsReportsSuccessWithAWarning() async throws {
         let fm = FileManager.default
         let scratch = try scratch()
         defer {
@@ -209,7 +209,7 @@ import Testing
         try Data("pinned".utf8).write(to: stubborn)
         #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
 
-        let outcome = try InPlaceSwap.replace(newApp: incoming, over: target)
+        let outcome = try await InPlaceSwap.replace(newApp: incoming, over: target)
 
         if case .replacedButCleanupFailed = outcome {} else {
             Issue.record("expected a cleanup-failure outcome, got \(outcome)")
@@ -217,8 +217,8 @@ import Testing
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/new").path))
     }
 
-    /// Every caller discards the `SwapOutcome` (both installers through
-    /// `offCooperativePool`, the rollback directly), so the log line `replace`
+    /// Every caller discards the `SwapOutcome` (both installers and the rollback),
+    /// so the log line `replace`
     /// writes in its `defer` is the ONLY place the cleanup-failure reason goes —
     /// the displaced bundle it could not delete, left in `/Applications`. This
     /// reads that line back out of the unified log for this process, and checks it
@@ -227,22 +227,20 @@ import Testing
     /// The bundle name is unique per run because the other cleanup-failure tests
     /// in this suite write the same shape of line from the same process.
     ///
-    /// Everything that blocks runs inside ONE `offCooperativePool` hop: `replace`
-    /// and `chflags` wait on child processes, and each `getEntries` read was
+    /// The blocking halves run in `offCooperativePool` hops: the fixture's
+    /// `chflags` (the test's own `shell` helper), and the `OSLogStore` reads, each
     /// measured at 2–8 s locally (opening the store is the cost). This is an `async`
-    /// test, so done inline all of that would park a cooperative thread — one of
-    /// three on the CI runner — which is the #351 shape. The retry pause is a
+    /// test, so done inline those would park a cooperative thread — one of three on
+    /// the CI runner — which is the #351 shape. The retry pause is a
     /// `Thread.sleep` for the same reason: it is on a Dispatch thread by then.
-    /// Assertions stay outside, on the values the hop hands back.
+    /// `replace` itself is awaited between the two: its child processes go through
+    /// `ChildProcess` and need no hop. Assertions stay outside, on the values the
+    /// hops hand back.
     @Test func aCleanupFailureReasonReachesTheInstallLog() async throws {
         let name = "ZZFixture-CleanupLog-\(UUID().uuidString).app"
-        let probe = try await offCooperativePool { [self] () throws -> CleanupLogProbe in
+        let fixture = try await offCooperativePool { [self] () throws -> CleanupLogFixture in
             let fm = FileManager.default
             let scratch = try scratch()
-            defer {
-                _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
-                try? fm.removeItem(at: scratch)
-            }
             let target = scratch.appendingPathComponent(name)
             let incoming = scratch.appendingPathComponent("ZZFixture-CleanupLogNew.app")
             for (bundle, marker) in [(target, "old"), (incoming, "new")] {
@@ -253,11 +251,20 @@ import Testing
             let stubborn = target.appendingPathComponent("Contents/pinned")
             try Data("pinned".utf8).write(to: stubborn)
             let chflags = try shell("/usr/bin/chflags uchg '\(stubborn.path)'")
+            return CleanupLogFixture(
+                scratch: scratch, target: target, incoming: incoming, chflagsStatus: chflags)
+        }
+        defer {
+            _ = try? shell("/usr/bin/chflags -R nouchg '\(fixture.scratch.path)'")
+            try? FileManager.default.removeItem(at: fixture.scratch)
+        }
 
+        let start = Date().addingTimeInterval(-1)
+        let outcome = try await InPlaceSwap.replace(newApp: fixture.incoming, over: fixture.target)
+
+        let lines = try await offCooperativePool { () throws -> [String] in
             let store = try OSLogStore(scope: .currentProcessIdentifier)
-            let start = store.position(date: Date().addingTimeInterval(-1))
-            let outcome = try InPlaceSwap.replace(newApp: incoming, over: target)
-
+            let position = store.position(date: start)
             let predicate = NSPredicate(
                 format: "subsystem == %@ AND category == %@", Log.subsystem, "install")
             // Bounded retries, not a deadline: delivery into the store is
@@ -268,7 +275,7 @@ import Testing
             let completion = ["swap done: \(name)", "cleanup failed", "swap did NOT"]
             var lines: [String] = []
             for _ in 0..<20 {
-                lines = try store.getEntries(at: start, matching: predicate)
+                lines = try store.getEntries(at: position, matching: predicate)
                     .compactMap { ($0 as? OSLogEntryLog)?.composedMessage }
                     .filter { $0.contains(name) }
                 if lines.contains(where: { line in completion.contains { line.contains($0) } }) {
@@ -276,28 +283,28 @@ import Testing
                 }
                 Thread.sleep(forTimeInterval: 0.1)
             }
-            return CleanupLogProbe(chflagsStatus: chflags, outcome: outcome, lines: lines)
+            return lines
         }
 
-        #expect(probe.chflagsStatus == 0)
-        guard case .replacedButCleanupFailed(let reason) = probe.outcome else {
-            Issue.record("fixture broken: expected a cleanup-failure outcome, got \(probe.outcome)")
+        #expect(fixture.chflagsStatus == 0)
+        guard case .replacedButCleanupFailed(let reason) = outcome else {
+            Issue.record("fixture broken: expected a cleanup-failure outcome, got \(outcome)")
             return
         }
         #expect(!reason.isEmpty)
-        let lines = probe.lines
         #expect(lines.contains { $0.contains("swap start: \(name)") },
                 "fixture broken: not even the swap-start line was read back — \(lines)")
         #expect(lines.contains { $0.contains("cleanup failed") && $0.contains(reason) },
                 "the cleanup-failure reason never reached the install log — \(lines)")
     }
 
-    /// What the off-pool half of `aCleanupFailureReasonReachesTheInstallLog` hands
-    /// back for the assertions.
-    private struct CleanupLogProbe: Sendable {
+    /// What the fixture hop of `aCleanupFailureReasonReachesTheInstallLog` hands
+    /// back.
+    private struct CleanupLogFixture: Sendable {
+        let scratch: URL
+        let target: URL
+        let incoming: URL
         let chflagsStatus: Int32
-        let outcome: InPlaceSwap.SwapOutcome
-        let lines: [String]
     }
 
     // MARK: - Helpers

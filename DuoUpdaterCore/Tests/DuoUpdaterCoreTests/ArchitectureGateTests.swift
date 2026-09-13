@@ -738,7 +738,7 @@ struct ArchitectureDowngradeWiringTests {
         defer { try? FileManager.default.removeItem(at: scratch) }
         guard let fixture = try Self.makeDowngradeFixture(in: scratch) else { return }
 
-        let newApp = try ArchiveExtractor.extractApp(
+        let newApp = try await ArchiveExtractor.extractApp(
             from: fixture.download.archiveURL, workDir: scratch)
 
         do {

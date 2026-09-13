@@ -15,8 +15,10 @@ import PackageDescription
 // check shipped its first draft flagging six recipes, five of which were
 // behaving correctly.
 //
-// No external dependencies, matching the core package's deliberate stance —
-// argument parsing is hand-rolled in `ArgParser.swift`.
+// No external dependencies of its own — argument parsing is hand-rolled in
+// `ArgParser.swift`. It does inherit the core package's one: swift-subprocess
+// (and swift-system under it), which every child process goes through — see
+// `ChildProcess` in the core package.
 let package = Package(
     name: "duo",
     platforms: [.macOS(.v14)],

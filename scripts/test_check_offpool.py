@@ -54,9 +54,10 @@ HOPPED = """\
     }
 """
 
-# A synchronous helper. Out of this check's reach on purpose — whether its
-# callers hop is a call-graph question — so it must NOT be reported, or the
-# check turns into an exemption list over every `Process` wrapper in the repo.
+# A synchronous helper. Its WAIT is out of this check's reach on purpose —
+# whether its callers hop is a call-graph question — so the wait must not be
+# reported. Its `Process()` is, since `ChildProcess` replaced every launch; see
+# `test_a_launch_in_a_synchronous_helper_is_refused`.
 SYNCHRONOUS = """\
     private static func run(_ launchPath: String) -> Int32 {
         let p = Process()
@@ -224,13 +225,19 @@ class OffPool(unittest.TestCase):
     def review(self):
         return co.review(self.root, roots=["Sources"])
 
+    # The wait half alone. The fixtures above are the pre-`ChildProcess` shapes,
+    # so most of them also construct a `Process()`, which is its own offence now
+    # (see the launch tests below); the tests about WHERE a wait parks a thread
+    # read only the waits.
+    def waits(self):
+        return [o for o in self.review()["offences"] if o[2] != "launch"]
+
     # Mutation: drop `Task` from the frames that count as async. The App layer's
     # two worst sites were both detached tasks, and `OffPool.swift` says in so
     # many words that a detached task is not an alternative.
     def test_a_detached_task_is_not_a_hop(self):
         self.write(DETACHED)
-        found = self.review()
-        self.assertEqual(len(found["offences"]), 2, found)
+        self.assertEqual(len(self.waits()), 2, self.review())
 
     # Mutation: judge the brace's own line instead of the accumulated
     # declaration. Every wrapped `async` signature then reads as synchronous and
@@ -295,11 +302,11 @@ class OffPool(unittest.TestCase):
 
     def test_a_hopped_call_passes(self):
         self.write(HOPPED)
-        self.assertEqual(self.review()["offences"], [])
+        self.assertEqual(self.waits(), [])
 
     def test_a_synchronous_helper_is_not_reported(self):
         self.write(SYNCHRONOUS)
-        self.assertEqual(self.review()["offences"], [])
+        self.assertEqual(self.waits(), [])
 
     # Mutation: count braces per line rather than walking them in order. Both
     # halves of this fixture are ordinary Swift, and either miscount moves the
@@ -307,8 +314,7 @@ class OffPool(unittest.TestCase):
     # every function after it in the file.
     def test_brace_arithmetic_survives_one_line_bodies_and_else(self):
         self.write(BRACE_ARITHMETIC)
-        found = self.review()
-        self.assertEqual(len(found["offences"]), 1, found)
+        self.assertEqual(len(self.waits()), 1, self.review())
 
     def test_an_exemption_needs_a_reason(self):
         self.write("    /// offpool-lint:allow\n" + DETACHED)
@@ -329,6 +335,72 @@ class OffPool(unittest.TestCase):
                    "    func f() {}\n")
         self.assertEqual(len(self.review()["dead"]), 1)
 
+    # --- `Process()` launches, refused in every scope ---------------------
+
+    # Mutation: judge a launch by its scope like a wait (drop `not launch` from
+    # the verdict filter in `review`). A `Process()` in a synchronous helper is
+    # then invisible again — the exact shape `InPlaceSwap.replace` hid in.
+    def test_a_launch_in_a_synchronous_helper_is_refused(self):
+        self.write(SYNCHRONOUS)
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"], self.review())
+
+    # A hop does not make it acceptable either: the wait inside is legal for
+    # the offpool rule, the launch is not.
+    def test_a_launch_inside_a_hop_is_refused(self):
+        self.write(HOPPED)
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"], self.review())
+
+    # Mutation: match the bare word `Process(` — then `ChildProcess.run(`,
+    # `ProcessInfo()` and `ProcessInstallLock()` are all launches.
+    def test_lookalike_names_are_not_launches(self):
+        self.write("""\
+    func f() async {
+        let a = try await ChildProcess.run("/bin/echo", onCancel: .terminateChild)
+        let b = ProcessInfo.processInfo
+        let c = ProcessInstallLock(url: url)
+        let d = ChildProcess()
+    }
+""")
+        self.assertEqual(self.review()["offences"], [], self.review())
+
+    # A launch that waits for nothing is exempted the ordinary way, and the
+    # exemption counts as used — so it is not reported stale either.
+    def test_an_exempted_launch_passes_and_its_exemption_is_live(self):
+        self.write("    /// offpool-lint:allow — fixture: nothing waits on it\n" + SYNCHRONOUS)
+        found = self.review()
+        self.assertEqual(found["offences"], [], found)
+        self.assertEqual(found["dead"], [], found)
+
+    # Mutation: narrow `LAUNCH` back to the literal `Process()`. Every other way
+    # to start a child without `ChildProcess` then passes.
+    def test_every_launch_spelling_is_refused(self):
+        spellings = [
+            "let a = Process ( )",
+            "let b = Foundation.Process()",
+            "let c = Process.init()",
+            "let d = try Process.run(url, arguments: [])",
+            "let e = Process.launchedProcess(launchPath: path, arguments: [])",
+            "let f = NSTask()",
+            "posix_spawn(&pid, path, nil, nil, argv, environ)",
+        ]
+        self.write("    func f() {\n" + "".join(
+            f"        {line}\n" for line in spellings) + "    }\n")
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"] * len(spellings), self.review())
+
+    # A commented-out launch is not code.
+    def test_a_launch_in_a_comment_is_not_code(self):
+        self.write("""\
+    func f() {
+        // let p = Process()
+        /* let q = Process() */
+        let s = "Process()"
+    }
+""")
+        self.assertEqual(self.review()["offences"], [], self.review())
+
     # Both emptiness floors, because a check that inspects nothing prints the
     # same ✓ as one that inspects everything.
     def test_a_missing_root_fails(self):
@@ -345,6 +417,44 @@ class OffPool(unittest.TestCase):
             self.write("func f() {}\n", name=f"F{index}.swift")
         self.assertEqual(
             co.main(self.root, roots=["Sources"], minimum=200), 1)
+
+    def every_spelling_but(self, *left_out):
+        """One synchronous function calling each BLOCKING spelling not left out."""
+        body = "\n".join(f"        x{call}" for call in co.BLOCKING if call not in left_out)
+        self.write(f"    func f() {{\n{body}\n    }}\n")
+
+    # Mutation: a total-count floor instead of a per-spelling one → one spelling
+    # can match nothing while the others carry the count.
+    def test_one_spelling_that_matches_nothing_fails(self):
+        self.every_spelling_but("SecStaticCodeCheckValidity")
+        self.assertEqual(co.main(self.root, roots=["Sources"], minimum=1, retired={}), 1)
+
+    def test_every_spelling_matching_passes(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(self.root, roots=["Sources"], minimum=1, retired={}), 0)
+
+    # Mutation: RETIRED not consulted → a spelling whose last call is gone fails.
+    def test_a_retired_spelling_may_match_nothing(self):
+        self.every_spelling_but("waitUntilExit()")
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit()": "fixture"}), 0)
+
+    # Mutation: no revival check → RETIRED becomes a standing pass for a spelling
+    # that is back in use.
+    def test_a_retired_spelling_that_matches_again_fails(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit()": "fixture"}), 1)
+
+    # Mutation: RETIRED keys not checked against BLOCKING → a misspelt retirement
+    # silently retires nothing.
+    def test_a_retired_spelling_not_in_blocking_fails(self):
+        self.every_spelling_but()
+        self.assertEqual(co.main(
+            self.root, roots=["Sources"], minimum=1,
+            retired={"waitUntilExit ()": "typo"}), 1)
 
 
 if __name__ == "__main__":

@@ -90,6 +90,11 @@ say "Verifying signature identity"
 say "Verifying every language landed in the product"
 "$REPO/scripts/verify-localizations.sh" "$PRODUCT"
 
+# Same gate as the release build, so a toolchain change that starts linking a
+# back-deployment library shows up on the first local install, not at release.
+say "Verifying no Swift runtime library macOS 14 lacks is needed"
+python3 "$REPO/scripts/check_swift_backdeploy.py" "$PRODUCT"
+
 say "Quitting any running instance"
 osascript -e 'tell application "DuoUpdater" to quit' 2>/dev/null || true
 sleep 1

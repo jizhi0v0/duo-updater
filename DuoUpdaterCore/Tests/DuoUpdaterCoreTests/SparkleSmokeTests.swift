@@ -15,7 +15,7 @@ import Foundation
         MacAppStoreSource(),
         SparkleAppcastSource(),
         HomebrewCaskSource(),
-        GitHubReleasesSource(token: GitHubToken.resolve()),
+        GitHubReleasesSource(token: await GitHubToken.resolve()),
         VendorProbeSource()
     ])
     let results = await checker.check(apps)

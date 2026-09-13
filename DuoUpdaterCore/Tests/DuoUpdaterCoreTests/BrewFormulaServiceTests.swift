@@ -2,23 +2,21 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// `BrewFormulaService`'s three read paths (`outdated()`, `installedLeaves()` via
-/// `runReading`, `outdatedCasks()` via `runReading`) used to run the blocking
-/// `Process.run()` → `readDataToEndOfFile()` → `waitUntilExit()` sequence directly
-/// on the actor. That has two consequences pinned here:
+/// `BrewFormulaService`'s read paths (`outdated()`, and `installedLeaves()`,
+/// `outdatedCasks()`, `uncheckedPackages()` via `runReading`) await an `Executor`,
+/// which for real runs `brew` through `ChildProcess`. Pinned here:
 ///
-/// 1. It violates CLAUDE.md "别在协作池上做阻塞调用" — a synchronous call on the
-///    actor occupies one of the cooperative pool's few threads for the whole
-///    subprocess.
-/// 2. It defeated `installedLeaves()`'s `async let` pair: with no suspension point
-///    inside `runReading`, the actor could not even start the second read until the
-///    first one's subprocess had exited, so the two `brew` calls always ran
-///    serially despite the "run them concurrently" comment.
+/// 1. The reads do not hold the actor while `brew` runs — the `async let` pair in
+///    `installedLeaves()` genuinely overlaps. (They once ran a blocking
+///    `Process` sequence straight on the actor, and the pair ran serially.)
+/// 2. The real executor's cancellation policy: a cancelled refresh still gets
+///    real data, because `AppListModel` writes whatever the reads returned.
 ///
-/// All tests here go through the internal `init(executor:)` seam instead of a real
-/// `brew` subprocess, per CLAUDE.md "测试不能问宿主" — a fake executor answers "no
-/// brew" / "throws" / "nonzero exit" on cue, deterministically, without depending
-/// on whether Homebrew happens to be installed on whatever machine runs this.
+/// Most tests go through the internal `init(executor:)` seam with a fake executor,
+/// per CLAUDE.md "测试不能问宿主" — it answers "no brew" / "throws" / "nonzero exit"
+/// on cue, without depending on whether Homebrew is installed. The cancellation
+/// test uses the REAL executor (`executor(brewPath:)`) pointed at an invented
+/// script, for the same reason.
 ///
 /// Fixture formula/cask names are fictitious (`zzfixture-*`) — never a name that
 /// might really be installed — for the same reason.
@@ -26,53 +24,62 @@ import Foundation
 
     // MARK: - Overlap (the core regression)
 
-    /// A synchronization gate a fake `Executor` calls into. `arrive()` blocks the
-    /// calling thread until a second caller has also arrived (or `timeout`
-    /// elapses), and records the highest number of callers that were ever inside
-    /// the gate at once. This is deliberately built on locks, not Swift
-    /// concurrency: the `Executor` closure is a plain synchronous function (it
-    /// can't `await`), and the whole point is to observe REAL thread-level
-    /// overlap of the two `brew` calls, not cooperative scheduling.
+    /// A synchronization gate a fake `Executor` calls into. `arrive()` suspends
+    /// until a second caller has also arrived (or `timeout` elapses), and records
+    /// the highest number of callers that were ever inside the gate at once.
+    ///
+    /// It suspends rather than blocking a thread. The `Executor` is `async` since
+    /// the real one moved to `ChildProcess`, so the fake awaits here the way the
+    /// real one awaits its child — which is also the property being measured: the
+    /// actor has to be free while one read waits for the second to start. (The
+    /// first version of this gate was built on `NSCondition`, back when the
+    /// executor was a synchronous function run on a Dispatch thread.)
     ///
     /// Per CLAUDE.md "并行套件里墙钟上界不成立": this asserts overlap happened
     /// (`observedMaxInFlight`), not how fast it happened. `timeout` only bounds
     /// how long a broken (serialized) run waits before giving up — it is not a
     /// performance assertion, so it is set generously (60s), not tightly.
-    ///
-    /// On the healthy path the second caller arrives almost immediately (both
-    /// `async let` child tasks start right away, and `arrive()` returns the
-    /// moment the second one calls in), so this test does not normally pay
-    /// anywhere near the full timeout. But a passing run CAN legitimately take
-    /// seconds to get there: the second child task still needs a cooperative-pool
-    /// thread before it can even reach its own call into the gate, and this repo
-    /// has measured 0.5-6.4s of pool-admission / Dispatch wait on a 3-core CI
-    /// runner when ~2550 tests are running concurrently in one process (see
-    /// CLAUDE.md "并行套件里墙钟上界不成立"). A short timeout would read that
-    /// scheduling delay as "never overlapped" and fail a correct implementation.
     final class TwoWayGate: @unchecked Sendable {
-        private let condition = NSCondition()
+        private let lock = NSLock()
         private var arrivedCount = 0
         private var inFlight = 0
         private var maxInFlight = 0
+        private var waiting: [Int: CheckedContinuation<Void, Never>] = [:]
 
-        func arrive(timeout: TimeInterval = 60) {
-            condition.lock()
-            inFlight += 1
-            maxInFlight = max(maxInFlight, inFlight)
-            arrivedCount += 1
-            condition.broadcast()
-            let deadline = Date().addingTimeInterval(timeout)
-            while arrivedCount < 2 {
-                if !condition.wait(until: deadline) { break }
+        func arrive(timeout: Duration = .seconds(60)) async {
+            let ticket: Int = lock.withLock {
+                inFlight += 1
+                maxInFlight = max(maxInFlight, inFlight)
+                arrivedCount += 1
+                return arrivedCount
             }
-            inFlight -= 1
-            condition.unlock()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    await withCheckedContinuation { continuation in
+                        let resumeNow: [CheckedContinuation<Void, Never>] = self.lock.withLock {
+                            guard self.arrivedCount < 2 else {
+                                defer { self.waiting = [:] }
+                                return Array(self.waiting.values) + [continuation]
+                            }
+                            self.waiting[ticket] = continuation
+                            return []
+                        }
+                        resumeNow.forEach { $0.resume() }
+                    }
+                }
+                group.addTask {
+                    try? await Task.sleep(for: timeout)
+                    let expired = self.lock.withLock { self.waiting.removeValue(forKey: ticket) }
+                    expired?.resume()
+                }
+                await group.next()
+                group.cancelAll()
+            }
+            lock.withLock { inFlight -= 1 }
         }
 
         var observedMaxInFlight: Int {
-            condition.lock()
-            defer { condition.unlock() }
-            return maxInFlight
+            lock.withLock { maxInFlight }
         }
     }
 
@@ -85,7 +92,7 @@ import Foundation
     @Test func installedLeavesReadsGenuinelyOverlap() async throws {
         let gate = TwoWayGate()
         let service = BrewFormulaService(executor: { arguments in
-            gate.arrive()
+            await gate.arrive()
             if arguments == ["leaves"] {
                 return (0, Self.leavesOutput())
             } else if arguments == ["list", "--formula", "--versions"] {
@@ -106,6 +113,42 @@ import Foundation
         #expect(result.first { $0.name == "zzfixture-alpha" }?.installedVersion == "1.0.0")
         #expect(result.first { $0.name == "zzfixture-beta" }?.installedVersion == "2.0.0")
         #expect(result.allSatisfy { $0.availableVersion == nil })
+    }
+
+    // MARK: - Cancellation (the real executor)
+
+    /// A refresh whose task is cancelled — the popover closed — still reads real
+    /// data. `AppListModel.refreshBrewFormulae` does not stop when cancelled; it
+    /// writes what the reads returned, so a killed `brew` would replace the Brew
+    /// tree with an empty one. The "brew" here is an invented script.
+    ///
+    /// Mutation: `.terminateChild` in `executor(brewPath:)` → `installedLeaves()`
+    /// returns `[]`.
+    @Test func aCancelledRefreshStillReadsRealData() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-brew-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let brew = dir.appendingPathComponent("brew")
+        try Data("""
+            #!/bin/sh
+            case "$1" in
+              leaves) sleep 0.2; echo zzfixture-alpha ;;
+              list) sleep 0.2; echo 'zzfixture-alpha 1.2.3' ;;
+            esac
+            """.utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        let path = brew.path
+        let service = BrewFormulaService(executor: BrewFormulaService.executor(brewPath: { path }))
+
+        let task = Task { () async throws -> [BrewInstalledFormula] in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await service.installedLeaves()
+        }
+        let result = try await task.value
+
+        #expect(result.map(\.name) == ["zzfixture-alpha"])
+        #expect(result.first?.installedVersion == "1.2.3")
     }
 
     // MARK: - Behavior preserved: outdated()

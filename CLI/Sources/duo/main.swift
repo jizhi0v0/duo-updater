@@ -2,6 +2,10 @@ import Foundation
 import DuoKit
 import DuoUpdaterCore
 
+// Before anything else, while this is the only thread: `duo … <&-` would
+// otherwise hand every child process no stdin at all. See the function.
+ChildProcess.ensureStandardInputIsOpen()
+
 // duo — the command line face of DuoUpdater.
 //
 // Links the real `DuoUpdaterCore`, so every command runs the same code the
@@ -464,13 +468,9 @@ case "triage":
     if let cap = args.int("max-calls") { triage.maxCalls = max(0, cap) }
     if let budget = args.int("budget") { triage.budget = TimeInterval(budget) }
     triage.dryRun = args.has("dry-run")
-    // Off the cooperative pool: `Triage.run` is synchronous end to end and waits
-    // on `opencode` with a `Thread.sleep` poll plus a semaphore, which would park
-    // the thread this closure is awaited on. One hop for the whole command — see
-    // `offCooperativePool`.
     // Copied so the closure captures a value rather than the mutable local above.
     let triageOptions = triage
-    run = { await offCooperativePool { Triage.run(triageOptions) } }
+    run = { await Triage.run(triageOptions) }
 
 case "reconcile":
     guard let report = args.value("report"), let baseline = args.value("baseline") else {
@@ -481,9 +481,7 @@ case "reconcile":
         baselinePath: URL(fileURLWithPath: baseline),
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))
-    // Off the cooperative pool, like `triage` above: `Reconcile.run` is
-    // synchronous and every issue it files waits on a `gh` subprocess.
-    run = { await offCooperativePool { Reconcile.run(reconcile) } }
+    run = { await Reconcile.run(reconcile) }
 
 case "help":
     print(usage)

@@ -45,7 +45,7 @@ public actor PackageInstaller {
     ) async throws -> Void
     /// Test seam for the package gate. Production always uses `verifyOpenable`;
     /// tests can substitute a deterministic byte-level gate.
-    private let packageGate: (@Sendable (URL, URL) throws -> Void)?
+    private let packageGate: (@Sendable (URL, URL) async throws -> Void)?
 
     public init() {
         self.handOff = { url, finalIntegrityCheck in
@@ -62,7 +62,7 @@ public actor PackageInstaller {
 
     init(
         opener: @escaping @Sendable (URL) async -> Void,
-        packageGate: (@Sendable (URL, URL) throws -> Void)? = nil
+        packageGate: (@Sendable (URL, URL) async throws -> Void)? = nil
     ) {
         self.handOff = { url, finalIntegrityCheck in
             try finalIntegrityCheck()
@@ -191,11 +191,10 @@ public actor PackageInstaller {
         }
 
         onStage(.installing)
-        // Off the cooperative pool: the DMG route mounts with `hdiutil` and copies
-        // with `ditto`, both through a blocking `waitUntilExit()`.
-        let toOpen = try await offCooperativePool { [self] in
-            try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
-        }
+        // The DMG route mounts with `hdiutil` and copies with `ditto`, awaited
+        // through `ChildProcess` rather than parked on a thread.
+        let toOpen = try await resolveInstaller(
+            from: file, workDir: workDir, installedApp: installedApp)
         let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
             ? sourceFingerprint : nil
         try await handOver(
@@ -257,15 +256,15 @@ public actor PackageInstaller {
         // Preliminary gate: an ordinary bad package must not retire the valid
         // Installer window it was meant to replace.
         //
-        // Gate and seal go off the cooperative pool together, in ONE hop: the gate
-        // runs `pkgutil`/`xar`/`lsbom` and `SecStaticCode…` (the #351 call), the
-        // seal hashes the whole package — 375 MB for ToDesk — and the order between
-        // them is load-bearing, so it is not split across two hops. See
+        // Gate, then seal, and the order between them is load-bearing. They used to
+        // share ONE `offCooperativePool` hop so that nothing could come between
+        // them; they are two statements now because the gate's `pkgutil`/`xar`/
+        // `lsbom` are awaited through `ChildProcess` and cannot run inside a
+        // synchronous hop. The gate hops its own `SecStaticCode…` call (the #351
+        // call) and the seal hops its hashing — 375 MB for ToDesk. See
         // `offCooperativePool`.
-        let preliminarySeal = try await offCooperativePool { [self] () -> ContentSeal in
-            try applyPackageGate(toOpen, installedApp: installedApp)
-            return try Self.contentSeal(of: toOpen)
-        }
+        try await applyPackageGate(toOpen, installedApp: installedApp)
+        let preliminarySeal = try await offCooperativePool { try Self.contentSeal(of: toOpen) }
         let pinnedFingerprint = approvedFingerprint ?? preliminarySeal.fingerprint
         if approvedFingerprint != nil,
            preliminarySeal.fingerprint != pinnedFingerprint {
@@ -276,10 +275,8 @@ public actor PackageInstaller {
         // Final gate: `beforeOpen` is async, so the user-owned temp path may have
         // changed while it ran. Re-establish every signature/identity invariant
         // immediately before handing the path to Installer.
-        let finalSeal = try await offCooperativePool { [self] () -> ContentSeal in
-            try applyPackageGate(toOpen, installedApp: installedApp)
-            return try Self.contentSeal(of: toOpen)
-        }
+        try await applyPackageGate(toOpen, installedApp: installedApp)
+        let finalSeal = try await offCooperativePool { try Self.contentSeal(of: toOpen) }
         guard finalSeal.fingerprint == pinnedFingerprint else {
             throw PackageError.downloadFailed(
                 "The installer changed after verification. Nothing was opened.")
@@ -455,24 +452,24 @@ public actor PackageInstaller {
         }
     }
 
-    /// `nonisolated`, like the blocking helpers it reaches (`verifyOpenable`,
+    /// `nonisolated`, like the helpers it reaches (`verifyOpenable`,
     /// `packageSignature`, `runCapturingOutput`, `run`, `resolveInstaller`): all of
-    /// them read only `let` state, and they have to be callable from inside an
-    /// `offCooperativePool` hop, which by construction is not on this actor. The
+    /// them read only `let` state, and a `nonisolated async` function runs off
+    /// this actor, so the actor is free while their child processes run. The
     /// actor was never the thing ordering these anyway — `handOver` already
     /// suspends between its two gates, and `downloadAndOpen` awaits its download.
-    private nonisolated func applyPackageGate(_ package: URL, installedApp: URL) throws {
+    private nonisolated func applyPackageGate(_ package: URL, installedApp: URL) async throws {
         if let packageGate {
-            try packageGate(package, installedApp)
+            try await packageGate(package, installedApp)
         } else {
-            try verifyOpenable(package, installedApp: installedApp)
+            try await verifyOpenable(package, installedApp: installedApp)
         }
     }
 
     /// The fail-closed gate: only a signed `.pkg`/`.mpkg` whose Team ID matches the
     /// installed app may be handed to the system installer. Shared by the first
     /// open and every re-open.
-    private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL) throws {
+    private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL) async throws {
         // A `.pkg`/`.mpkg` runs install scripts (often with admin rights) the moment
         // the user confirms. The download's filename/extension is server-controlled
         // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
@@ -483,10 +480,14 @@ public actor PackageInstaller {
         guard ext == "pkg" || ext == "mpkg" else {
             throw PackageError.noInstallablePackage
         }
-        guard let installedTeam = try SignatureVerifier.teamIdentifier(at: installedApp) else {
+        // `SecStaticCode…` blocks, so it hops; the `pkgutil` and `xar` below are
+        // awaited. See `offCooperativePool`.
+        guard let installedTeam = try await offCooperativePool({
+            try SignatureVerifier.teamIdentifier(at: installedApp)
+        }) else {
             throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
         }
-        let signature = packageSignature(toOpen)
+        let signature = await packageSignature(toOpen)
         guard signature.isValid else {
             throw PackageError.unsignedPackage
         }
@@ -544,7 +545,7 @@ public actor PackageInstaller {
         // Note what this gate does NOT cover: `preinstall`/`postinstall` scripts run
         // as root whatever the declared destinations say. It narrows which package
         // may be handed over; it does not make an accepted one harmless.
-        let destinations = Self.declaredDestinations(toOpen)
+        let destinations = await Self.declaredDestinations(toOpen)
         guard !destinations.isEmpty else {
             throw PackageError.packageDestinationsUnreadable
         }
@@ -592,8 +593,8 @@ public actor PackageInstaller {
     /// and each `<bundle path=…>` is relative to it. Tailscale's package sets
     /// `install-location` to the app bundle itself and lists only the bundles
     /// *inside* it, so the root counts as a destination in its own right.
-    static func declaredDestinations(_ pkg: URL) -> Set<String> {
-        let listing = Self.runCapturing("/usr/bin/xar", ["-tf", pkg.path])
+    static func declaredDestinations(_ pkg: URL) async -> Set<String> {
+        let listing = await Self.runCapturing("/usr/bin/xar", ["-tf", pkg.path])
         guard listing.code == 0 else { return [] }
         let infos = listing.output
             .split(separator: "\n")
@@ -606,11 +607,14 @@ public actor PackageInstaller {
             .appendingPathComponent("duo-pkg-dest-\(UUID().uuidString)", isDirectory: true)
         guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
         else { return [] }
+        // Synchronous on purpose, unlike the bundle-sized removals elsewhere: the
+        // scratch holds only the `PackageInfo` and `Bom` members `xar` extracted
+        // below, never the payload.
         defer { try? fm.removeItem(at: scratch) }
 
         var out: Set<String> = []
         for name in infos {
-            guard Self.runCapturing(
+            guard await Self.runCapturing(
                 "/usr/bin/xar", ["-xf", pkg.path, name], cwd: scratch).code == 0,
                 let body = try? String(
                     contentsOf: scratch.appendingPathComponent(name), encoding: .utf8)
@@ -626,10 +630,10 @@ public actor PackageInstaller {
             let bom = (name as NSString).deletingLastPathComponent.isEmpty
                 ? "Bom"
                 : (name as NSString).deletingLastPathComponent + "/Bom"
-            guard Self.runCapturing(
+            guard await Self.runCapturing(
                 "/usr/bin/xar", ["-xf", pkg.path, bom], cwd: scratch).code == 0
             else { continue }
-            let listing = Self.runCapturing(
+            let listing = await Self.runCapturing(
                 "/usr/bin/lsbom", ["-s", scratch.appendingPathComponent(bom).path])
             guard listing.code == 0 else { continue }
             out.formUnion(Self.destinations(
@@ -734,39 +738,53 @@ public actor PackageInstaller {
     }
 
     /// `runCapturingOutput`, but usable from the static helpers above and able to
-    /// run in a working directory (`xar -xf` extracts relative to cwd).
+    /// run in a working directory (`xar -xf` extracts relative to cwd). stdout and
+    /// stderr share one pipe, as they did.
+    ///
+    /// `.runToCompletion`, like every child on this route, including the reads:
+    /// these answers feed a fail-closed gate, and a `xar` killed by a cancellation
+    /// would come back as "the package declares nothing" rather than as a
+    /// cancellation. They are short; there is nothing to save by killing them.
     private static func runCapturing(
         _ launchPath: String, _ args: [String], cwd: URL? = nil
-    ) -> (code: Int32, output: String) {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = args
-        if let cwd { p.currentDirectoryURL = cwd }
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        do { try p.run() } catch { return (-1, "") }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    ) async -> (code: Int32, output: String) {
+        guard let outcome = try? await ChildProcess.run(
+            launchPath, args, workingDirectory: cwd,
+            standardError: .mergeIntoOutput, onCancel: .runToCompletion)
+        else { return (-1, "") }
+        return (outcome.terminationStatus, String(decoding: outcome.standardOutput, as: UTF8.self))
     }
 
     /// Given a downloaded file, return the thing to hand to the system installer.
     /// For a `.dmg` we mount it, copy the contained `.pkg` out (so the installer
     /// keeps working after we unmount), and return that; otherwise we open the
     /// file itself (a bare `.pkg`, or the `.dmg`/folder as a fallback).
-    private nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) throws -> URL {
+    private nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) async throws -> URL {
         guard file.pathExtension.lowercased() == "dmg" else { return file }
 
         let mountPoint = workDir.appendingPathComponent("mnt")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
-        let attach = run("/usr/bin/hdiutil", [
+        let attach = await run("/usr/bin/hdiutil", [
             "attach", file.path, "-nobrowse", "-readonly", "-noverify",
             "-mountpoint", mountPoint.path
         ])
         guard attach == 0 else { throw PackageError.noInstallablePackage }
-        defer { _ = run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
+        // Detached on every path out, as the `defer` that used to sit here did —
+        // spelled out because a `defer` cannot await.
+        let copied: Result<URL, Error>
+        do {
+            copied = .success(try await copyPackage(
+                outOf: mountPoint, into: workDir, installedApp: installedApp))
+        } catch {
+            copied = .failure(error)
+        }
+        _ = await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
+        return try copied.get()
+    }
 
+    private nonisolated func copyPackage(
+        outOf mountPoint: URL, into workDir: URL, installedApp: URL
+    ) async throws -> URL {
         // Pass the installed app's name so a multi-pkg image is matched to *this*
         // product (see `preferredPackage`).
         let appName = installedApp.deletingPathExtension().lastPathComponent
@@ -774,8 +792,10 @@ public actor PackageInstaller {
             throw PackageError.noInstallablePackage
         }
         let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
-        try? FileManager.default.removeItem(at: dest)
-        guard run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
+        // A leftover here can be a flat package of hundreds of megabytes or a
+        // bundle-format one, so its removal is off the pool.
+        await removeItemOffCooperativePool(at: dest)
+        guard await run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
             throw PackageError.downloadFailed("Could not copy the installer package out of the disk image.")
         }
         return dest
@@ -849,8 +869,8 @@ public actor PackageInstaller {
 
     /// `pkgutil --check-signature` validates the package chain and prints the
     /// Developer ID Installer certificate, whose parenthesized OU is the Team ID.
-    private nonisolated func packageSignature(_ pkg: URL) -> (isValid: Bool, teamIdentifier: String?) {
-        let result = runCapturingOutput("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
+    private nonisolated func packageSignature(_ pkg: URL) async -> (isValid: Bool, teamIdentifier: String?) {
+        let result = await runCapturingOutput("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
         guard result.code == 0 else { return (false, nil) }
         return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
     }
@@ -918,33 +938,21 @@ public actor PackageInstaller {
         return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
     }
 
+    /// Exit status only; both streams are drained and dropped. Not killed on
+    /// cancellation — see `runCapturing` (and a mount left behind by a killed
+    /// `hdiutil detach` is exactly the leak this route must not have).
     @discardableResult
-    private nonisolated func run(_ launchPath: String, _ args: [String]) -> Int32 {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = args
-        // We use only the exit status, so discard output to /dev/null rather than to
-        // undrained `Pipe()`s — an unread pipe deadlocks once the child fills its
-        // ~64KB buffer (the child blocks on write(), we block in waitUntilExit()).
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return -1 }
-        p.waitUntilExit()
-        return p.terminationStatus
+    private nonisolated func run(_ launchPath: String, _ args: [String]) async -> Int32 {
+        guard let outcome = try? await ChildProcess.run(
+            launchPath, args,
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+        else { return -1 }
+        return outcome.terminationStatus
     }
 
     @discardableResult
-    private nonisolated func runCapturingOutput(_ launchPath: String, _ args: [String]) -> (code: Int32, output: String) {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = args
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        do { try p.run() } catch { return (-1, "") }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    private nonisolated func runCapturingOutput(_ launchPath: String, _ args: [String]) async -> (code: Int32, output: String) {
+        await Self.runCapturing(launchPath, args)
     }
 
     static func packageTeamIdentifier(fromPkgutilOutput output: String) -> String? {

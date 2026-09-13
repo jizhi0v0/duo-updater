@@ -45,13 +45,13 @@ public enum InputMethodDataBackup {
     /// spells out — Swift Testing runs suites in parallel, so a plain global would
     /// be visible to whatever else happened to be reading it.
     ///
-    /// The trade that comes with it: task locals are not inherited by
-    /// `Task.detached`, and the one production caller
-    /// (`InstallCoordinator.backUp`) runs inside one. So this seam reaches `save`
-    /// and `restore` called directly — which is how they are tested — and would
-    /// silently NOT reach a test that drove `backUp` instead. Such a test would
-    /// write to the real home; there isn't one, and this note is why there should
-    /// not be one without a different seam.
+    /// The trade that comes with it: task locals do not reach a `Task.detached`
+    /// or a Dispatch thread. Every read of `home` today is on the calling task —
+    /// `InstallCoordinator.backUp` awaits `save` directly, and the `offCooperativePool`
+    /// hops in this file only exchange and delete — so the seam reaches `save` and
+    /// `restore` whether a test calls them or drives `backUp`. A read of `home`
+    /// moved into a hop would silently use the real home instead;
+    /// `BackupStore.restore` reads its manifest before its hop for the same reason.
     @TaskLocal public static var homeOverride: URL?
 
     private static var home: URL {
@@ -174,7 +174,7 @@ public enum InputMethodDataBackup {
     ///
     /// Returns the locations actually stored.
     @discardableResult
-    public static func save(bundleName: String, bundleID: String?, key: String) -> [Location] {
+    public static func save(bundleName: String, bundleID: String?, key: String) async -> [Location] {
         let fm = FileManager.default
         let dir = BackupStore.root
             .appendingPathComponent(key, isDirectory: true)
@@ -196,7 +196,7 @@ public enum InputMethodDataBackup {
         //
         // The name has to START `.staging-<key>`, and that is load-bearing rather
         // than cosmetic: `BackupStore.sweepStagingLeftovers` is what reclaims a
-        // staging directory whose `defer` never ran, and it selects on exactly
+        // staging directory whose cleanup never ran, and it selects on exactly
         // that prefix. A name of our own (this read `.userdata-staging-<key>-…`
         // before) matches nothing it looks for, so a snapshot interrupted between
         // `createDirectory` and the swap below would be stranded PERMANENTLY —
@@ -218,12 +218,23 @@ public enum InputMethodDataBackup {
                 "user data: could not create a staging directory for \(key, privacy: .public)")
             return []
         }
-        defer { try? fm.removeItem(at: staging) }
+        // Whatever the snapshot did not swap into place is still in `staging` — up
+        // to a copy of the whole data directory — so it is removed on Dispatch, and
+        // after the call rather than in a `defer`, which cannot await.
+        let stored = await snapshot(sources, key: key, stagingIn: staging, into: dir)
+        await removeItemOffCooperativePool(at: staging)
+        return stored
+    }
 
+    /// `save` from the point its staging directory exists: copy, write the
+    /// manifest, swap into `dir`. Returns the locations stored.
+    private static func snapshot(
+        _ sources: [Location], key: String, stagingIn staging: URL, into dir: URL
+    ) async -> [Location] {
         var stored: [Location] = []
         for source in sources {
             let dest = staging.appendingPathComponent(source.storedName)
-            guard copyTree(from: source.original, to: dest) else {
+            guard await copyTree(from: source.original, to: dest) else {
                 Log.install.error(
                     "user data: could not copy \(source.original.lastPathComponent, privacy: .public) — this snapshot will not include it")
                 continue
@@ -245,15 +256,24 @@ public enum InputMethodDataBackup {
             return []
         }
 
-        do {
-            if fm.fileExists(atPath: dir.path) {
-                _ = try fm.replaceItemAt(dir, withItemAt: staging)
-            } else {
-                try fm.moveItem(at: staging, to: dir)
+        // `replaceItemAt` deletes the snapshot it displaces — a copy of the user's
+        // whole input-method data directory — so the exchange goes to Dispatch.
+        let failure: String? = await offCooperativePool(qos: .userInitiated) {
+            let fm = FileManager.default
+            do {
+                if fm.fileExists(atPath: dir.path) {
+                    _ = try fm.replaceItemAt(dir, withItemAt: staging)
+                } else {
+                    try fm.moveItem(at: staging, to: dir)
+                }
+                return nil
+            } catch {
+                return error.localizedDescription
             }
-        } catch {
+        }
+        if let failure {
             Log.install.error(
-                "user data: snapshot for \(key, privacy: .public) would not swap into place — \(error.localizedDescription, privacy: .public)")
+                "user data: snapshot for \(key, privacy: .public) would not swap into place — \(failure, privacy: .public)")
             return []
         }
         return stored
@@ -268,7 +288,7 @@ public enum InputMethodDataBackup {
     /// Each item is exchanged atomically, and the snapshot is left in the store —
     /// a rollback must not consume the only copy of what it rolled back to.
     @discardableResult
-    public static func restore(forKey key: String) throws -> [Location] {
+    public static func restore(forKey key: String) async throws -> [Location] {
         let fm = FileManager.default
         let dir = BackupStore.root
             .appendingPathComponent(key, isDirectory: true)
@@ -283,18 +303,36 @@ public enum InputMethodDataBackup {
             let target = URL(fileURLWithPath: entry.originalPath)
             guard fm.fileExists(atPath: source.path) else { continue }
             // Copy out of the store first: the exchange consumes what it is handed,
-            // and what it is handed must not be the stored snapshot itself.
+            // and what it is handed must not be the stored snapshot itself. The key
+            // is in the name so a leftover can be traced to its app.
             let scratch = fm.temporaryDirectory.appendingPathComponent(
-                "DuoUpdater-userdata-\(UUID().uuidString)", isDirectory: true)
+                "DuoUpdater-userdata-\(key)-\(UUID().uuidString)", isDirectory: true)
             guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
             else { continue }
-            defer { try? fm.removeItem(at: scratch) }
-            let staged = scratch.appendingPathComponent(entry.storedName)
-            guard copyTree(from: source, to: staged) else {
-                Log.install.error(
-                    "user data: could not stage \(entry.storedName, privacy: .public) out of the store")
-                continue
-            }
+            // A copy that did not get exchanged is still in `scratch`, so it is
+            // removed on Dispatch, after the call rather than in a `defer`.
+            let done = await restoreEntry(entry, from: source, to: target, stagingIn: scratch)
+            await removeItemOffCooperativePool(at: scratch)
+            if done { restored.append(Location(original: target, storedName: entry.storedName)) }
+        }
+        return restored
+    }
+
+    /// One manifest entry of `restore`: stage it out of the store into `scratch`,
+    /// then exchange it over `target`. True if it landed.
+    private static func restoreEntry(
+        _ entry: Manifest.Entry, from source: URL, to target: URL, stagingIn scratch: URL
+    ) async -> Bool {
+        let staged = scratch.appendingPathComponent(entry.storedName)
+        guard await copyTree(from: source, to: staged) else {
+            Log.install.error(
+                "user data: could not stage \(entry.storedName, privacy: .public) out of the store")
+            return false
+        }
+        // Off the cooperative pool: `replaceItemAt` deletes the live data it
+        // displaces, which can be a large directory.
+        let failure: String? = await offCooperativePool(qos: .userInitiated) {
+            let fm = FileManager.default
             do {
                 if fm.fileExists(atPath: target.path) {
                     _ = try fm.replaceItemAt(target, withItemAt: staged)
@@ -303,13 +341,17 @@ public enum InputMethodDataBackup {
                         at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try fm.moveItem(at: staged, to: target)
                 }
-                restored.append(Location(original: target, storedName: entry.storedName))
+                return nil
             } catch {
-                Log.install.error(
-                    "user data: could not restore \(entry.storedName, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                return error.localizedDescription
             }
         }
-        return restored
+        if let failure {
+            Log.install.error(
+                "user data: could not restore \(entry.storedName, privacy: .public) — \(failure, privacy: .public)")
+            return false
+        }
+        return true
     }
 
     // MARK: - Copying
@@ -319,15 +361,12 @@ public enum InputMethodDataBackup {
     /// it clones rather than duplicating blocks. On a filesystem that cannot clone
     /// this is a real copy and a real cost; it still happens, because a snapshot
     /// that silently did not exist is the failure this module was written to
-    /// prevent.
-    private static func copyTree(from source: URL, to dest: URL) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = [source.path, dest.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return false }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+    /// prevent. Not killed on cancellation, for the same reason.
+    private static func copyTree(from source: URL, to dest: URL) async -> Bool {
+        guard let outcome = try? await ChildProcess.run(
+            "/usr/bin/ditto", [source.path, dest.path],
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+        else { return false }
+        return outcome.succeeded
     }
 }

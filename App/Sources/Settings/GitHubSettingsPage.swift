@@ -43,9 +43,10 @@ struct GitHubSettingsPage: View {
         .onTapGesture { tokenFocused = false }
         .onAppear { editing = prefs.githubToken.isEmpty }
         .task {
-            // Off the main thread: `gh auth status` shells out twice.
+            // Off the main thread: `gh auth status` shells out. Detached so the
+            // view going away does not cancel it, as before.
             cliStatus = await Task.detached(priority: .userInitiated) {
-                GitHubToken.cliStatus()
+                await GitHubToken.cliStatus()
             }.value
         }
     }

@@ -164,32 +164,29 @@ final class PrivilegedHelperClient: ObservableObject {
     ///   dismissed the authorization panel, which is a decision, not a failure.
     @discardableResult
     func restartDaemon() async -> Bool {
-        // Off the main thread on purpose: the authorization panel stays up for as
-        // long as the user takes to answer it, and `waitUntilExit()` would hold the
-        // main thread for exactly that long — a frozen window behind the password
-        // prompt. Callers guard against a second press while this is in flight.
+        // The authorization panel stays up for as long as the user takes to answer
+        // it. The wait is awaited through `ChildProcess`, so neither the main
+        // thread nor any other is held for it — a synchronous `waitUntilExit()`
+        // here was a frozen window behind the password prompt. Callers guard
+        // against a second press while this is in flight.
         let label = HelperConfig.machServiceName
         // nil means it ran and succeeded; a string is why it didn't.
-        // Dispatch, not `Task.detached`: a detached task still runs on the
-        // cooperative pool, and the panel below parks the calling thread for as
-        // long as the user takes to answer it. See `offCooperativePool`.
-        let failure: String? = await offCooperativePool(qos: .userInitiated) { () -> String? in
-            let shell = "/bin/launchctl kickstart -k system/\(label)"
-            let script = "do shell script \"\(shell)\" with administrator privileges"
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
-            let errPipe = Pipe()
-            process.standardError = errPipe
-            do { try process.run() } catch {
-                return "could not run: \(error.localizedDescription)"
-            }
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                return String(data: errData, encoding: .utf8) ?? "unknown error"
-            }
-            return nil
+        let failure: String?
+        let shell = "/bin/launchctl kickstart -k system/\(label)"
+        let script = "do shell script \"\(shell)\" with administrator privileges"
+        do {
+            // Runs to completion if this task is cancelled, as the uncancellable
+            // hop it replaced did: a kickstart cut off halfway is a helper in an
+            // unknown state. stdout was inherited before; it carries only the
+            // shell's (empty) output.
+            let outcome = try await ChildProcess.run(
+                "/usr/bin/osascript", ["-e", script],
+                standardOutput: .discard, onCancel: .runToCompletion)
+            failure = outcome.terminationStatus == 0
+                ? nil
+                : String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"
+        } catch {
+            failure = "could not run: \(error.localizedDescription)"
         }
         if let message = failure {
             // Dismissing the panel lands here too, and is a decision rather than a

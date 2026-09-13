@@ -142,7 +142,7 @@ public enum Triage {
             : "\(seconds)-second"
     }
 
-    public static func run(_ options: TriageOptions) -> Int32 {
+    public static func run(_ options: TriageOptions) async -> Int32 {
         guard let data = try? Data(contentsOf: options.reportPath),
               let document = decodeReport(data) else {
             die("cannot read a verify report at \(options.reportPath.path)", code: 2)
@@ -162,7 +162,7 @@ public enum Triage {
         }
 
         let eligible = actionable.filter { eligibility($0, baseline: baseline) == nil }
-        if !options.dryRun, !eligible.isEmpty, let missing = unavailableReason() {
+        if !options.dryRun, !eligible.isEmpty, let missing = await unavailableReason() {
             FileHandle.standardError.write(Data("""
                 ⚠︎ cannot reach opencode: \(missing)
                   Skipping analysis; the findings themselves are unaffected and will still
@@ -190,7 +190,7 @@ public enum Triage {
                 skippedForTime += 1
                 continue
             }
-            switch ask(about: finding, options: options) {
+            switch await ask(about: finding, options: options) {
             case .success(let suggestion):
                 suggestions.append(suggestion)
                 print("  ✓ \(finding.recipeID): \(suggestion.verdict.rawValue) "
@@ -242,7 +242,7 @@ public enum Triage {
 
     static func ask(
         about finding: Finding, options: TriageOptions
-    ) -> Result<TriageSuggestion, Error> {
+    ) async -> Result<TriageSuggestion, Error> {
         let sandbox = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-triage-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: sandbox) }
@@ -268,7 +268,7 @@ public enum Triage {
             if let variant = options.variant { arguments += ["--variant", variant] }
             arguments.append(prompt(for: finding))
 
-            let output = try shell(arguments, cwd: sandbox, timeout: callTimeout)
+            let output = try await shell(arguments, cwd: sandbox, timeout: callTimeout)
             let reply = try modelText(from: output)
             let parsed = try parse(reply)
             return .success(verify(parsed, for: finding, model: resolvedModel(options)))
@@ -426,63 +426,54 @@ public enum Triage {
     }
 
     /// nil when opencode is usable; otherwise why it isn't.
-    static func unavailableReason() -> String? {
+    static func unavailableReason() async -> String? {
         do {
-            _ = try shell(["opencode", "--version"],
-                          cwd: FileManager.default.temporaryDirectory, timeout: 30)
+            _ = try await shell(["opencode", "--version"],
+                                cwd: FileManager.default.temporaryDirectory, timeout: 30)
             return nil
         } catch {
             return "\(error)"
         }
     }
 
-    static func shell(_ arguments: [String], cwd: URL, timeout: TimeInterval) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = arguments
-        process.currentDirectoryURL = cwd
-        let output = Pipe()
-        let errors = Pipe()
-        process.standardOutput = output
-        process.standardError = errors
-        try process.run()
-
-        // Read on a background queue: opencode streams events, and a full pipe
-        // buffer would deadlock a wait-then-read. The semaphore is what makes
-        // the read *complete* — a fixed sleep after exit looked fine locally and
-        // silently returned an empty buffer on the slower runner, which arrived
-        // downstream as "the model produced no answer".
-        let collected = Locked(Data())
-        let drained = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            collected.withLock { $0.append(data) }
-            drained.signal()
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-        if process.isRunning {
-            process.terminate()
+    /// `arguments` through `/usr/bin/env` in `cwd`, stdout returned whole.
+    ///
+    /// opencode streams events, so both pipes are read as they fill — the old
+    /// version drained stdout on a background queue and a semaphore made the read
+    /// *complete* (a fixed sleep after exit looked fine locally and silently
+    /// returned an empty buffer on the slower runner, which arrived downstream as
+    /// "the model produced no answer"). `ChildProcess` returns only once both
+    /// pipes are at EOF or the child has exited, so that failure has no shape left
+    /// to take. stderr is drained too now; before, it was read only after exit,
+    /// so a model chatty enough to fill it would have wedged until the timeout.
+    ///
+    /// On the deadline: SIGTERM, as before, and now SIGKILL 5 s later — the old
+    /// loop sent SIGTERM and returned at once, leaving an opencode that ignored it
+    /// running behind the job. The error still reads "timed out after Ns".
+    /// A cancelled caller takes opencode down with it: `ask` turns the throw into a
+    /// failure that `run` logs and skips, and a suggestion is only ever written on
+    /// success, so nothing records a wrong answer. (Nothing in `duo` cancels it
+    /// today; a Ctrl-C ends the process.)
+    static func shell(_ arguments: [String], cwd: URL, timeout: TimeInterval) async throws -> String {
+        let seconds = Int64(timeout.rounded(.up))
+        let outcome = try await ChildProcess.run(
+            "/usr/bin/env", arguments, workingDirectory: cwd,
+            deadline: .init(terminateAfter: .seconds(seconds), killAfter: .seconds(seconds + 5)),
+            onCancel: .terminateChild)
+        if outcome.timedOut {
             throw TriageError("timed out after \(Int(timeout))s")
         }
-        // Wait for the pipe to actually close, not for a guess at how long that
-        // takes.
-        _ = drained.wait(timeout: .now() + 30)
         // A non-zero exit has to be reported as itself. Letting it fall through
         // to "produced no answer" is how a missing binary got described as a
         // model failure — the same mistake, twice, on the same runner's PATH.
-        guard process.terminationStatus == 0 else {
-            let message = String(
-                decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        guard outcome.terminationStatus == 0 else {
+            let message = String(decoding: outcome.standardError, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             throw TriageError(
-                "opencode exited \(process.terminationStatus)"
+                "opencode exited \(outcome.terminationStatus)"
                     + (message.isEmpty ? "" : ": \(message)"))
         }
-        return String(decoding: collected.withLock { $0 }, as: UTF8.self)
+        return String(decoding: outcome.standardOutput, as: UTF8.self)
     }
 
     private static func decodeReport(_ data: Data) -> Report.Document? {
@@ -498,16 +489,5 @@ public enum Triage {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(document).write(to: url, options: .atomic)
-    }
-}
-
-/// Minimal mutex, so the pipe reader and the waiter can share a buffer.
-final class Locked<Value>: @unchecked Sendable {
-    private var value: Value
-    private let lock = NSLock()
-    init(_ value: Value) { self.value = value }
-    func withLock<T>(_ body: (inout Value) -> T) -> T {
-        lock.lock(); defer { lock.unlock() }
-        return body(&value)
     }
 }

@@ -56,6 +56,12 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 say "Verifying signature identity"
 "$REPO/scripts/verify-signature.sh" "$PRODUCT" "$TEAM"
 
+# The deployment target is macOS 14, and `duo` is installed as a lone file: a
+# Swift back-deployment library it links (swift-subprocess brings in `Span`) has
+# nowhere to come from on an older OS. See the script.
+say "Verifying it needs no Swift runtime library macOS 14 lacks"
+python3 "$REPO/scripts/check_swift_backdeploy.py" "$PRODUCT"
+
 # Copy beside the destination, then rename over it -- never `cp` onto it. The
 # kernel caches a binary's signature per file and does not flush that cache when
 # the contents are rewritten in place, so a `cp` over a copy that is still

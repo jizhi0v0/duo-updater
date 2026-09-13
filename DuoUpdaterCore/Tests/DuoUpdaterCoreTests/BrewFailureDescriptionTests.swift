@@ -51,9 +51,11 @@ import Foundation
     /// Mutation: return the tail unconditionally (the pre-fix body) → both copies
     /// report `brew failed (1): Alternatively, manually download them from: …`.
     /// Mutation: one `BrewError` copy keeps its own tail → that copy's entry fails.
+    /// Mutation: return the error line alone → the remediation after ` — ` is gone,
+    /// from the tooltip, the CLI and the log alike.
     @Test func leadsWithTheErrorLineNotTheTrailingAdvice() {
         for description in Self.descriptions(code: 1, output: Self.outdatedCLTWithTrustWarning) {
-            #expect(description == "brew failed (1): Error: Your Command Line Tools are too outdated.")
+            #expect(description == "brew failed (1): Error: Your Command Line Tools are too outdated. — Alternatively, manually download them from:   https://developer.apple.com/download/all/. You should download the Command Line Tools for Xcode 27.0.")
         }
     }
 
@@ -69,7 +71,7 @@ import Foundation
             of: "Error: Your Command Line Tools",
             with: "\(esc)[31mError:\(esc)[0m Your Command Line Tools")
         for description in Self.descriptions(code: 1, output: output) {
-            #expect(description == "brew failed (1): Error: Your Command Line Tools are too outdated.")
+            #expect(description == "brew failed (1): Error: Your Command Line Tools are too outdated. — Alternatively, manually download them from:   https://developer.apple.com/download/all/. You should download the Command Line Tools for Xcode 27.0.")
         }
     }
 
@@ -89,6 +91,21 @@ import Foundation
         }
     }
 
+    /// The error is the last line, as brew's usual one-liners are: the tail after
+    /// it is empty, so nothing follows and the error is not printed twice.
+    /// Mutation: append the whole old tail instead of the lines after the error →
+    /// `brew failed (1): Error: … — ==> Upgrading … Error: …`.
+    @Test func anErrorOnTheLastLineIsNotRepeated() {
+        let output = """
+            ==> Upgrading zzfixture-alpha
+            Error: No available formula with the name "zzfixture-alpha".
+
+            """
+        for description in Self.descriptions(code: 1, output: output) {
+            #expect(description == #"brew failed (1): Error: No available formula with the name "zzfixture-alpha"."#)
+        }
+    }
+
     /// Several `Error:` lines: the first one, which is the cause; later ones are
     /// consequences.
     /// Mutation: `.last { … }` instead of `.first { … }` → the second error.
@@ -103,7 +120,7 @@ import Foundation
 
             """
         for description in Self.descriptions(code: 1, output: output) {
-            #expect(description == #"brew failed (1): Error: zzfixture-alpha: Failed to download resource "zzfixture-alpha--1.0""#)
+            #expect(description == #"brew failed (1): Error: zzfixture-alpha: Failed to download resource "zzfixture-alpha--1.0" — Error: Some upgrades failed: zzfixture-alpha If reporting this issue please do so at (not Homebrew/*):   https://zzfixture.invalid/issues"#)
         }
     }
 }

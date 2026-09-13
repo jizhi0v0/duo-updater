@@ -3197,7 +3197,7 @@ final class AppListModel {
                     // One 🍺 Cellar line per poured formula — count only the targeted
                     // ones, clamped so it never reads past the total. Casks don't emit
                     // a Cellar line, so they're counted separately below.
-                    if let name = Self.brewPouredFormula(from: line), targets.contains(name),
+                    if let name = BrewFormulaService.pouredFormula(fromLine: line), targets.contains(name),
                        let self, self.brewUpgradeDone < self.brewUpgradeTotal {
                         self.brewUpgradeDone += 1
                     }
@@ -3212,17 +3212,6 @@ final class AppListModel {
         } catch {
             brewUpgradeError = error.localizedDescription
         }
-    }
-
-    /// Name of the formula a `🍺  /…/Cellar/<name>/<version>: …` success line
-    /// reports, or nil for any other line. brew prints exactly one such line per
-    /// formula it finishes installing, so counting them tracks bulk progress.
-    nonisolated static func brewPouredFormula(from line: String) -> String? {
-        guard let range = line.range(of: "/Cellar/") else { return nil }
-        let after = line[range.upperBound...]
-        guard let slash = after.firstIndex(of: "/") else { return nil }
-        let name = String(after[..<slash])
-        return name.isEmpty ? nil : name
     }
 
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row

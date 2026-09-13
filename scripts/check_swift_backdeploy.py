@@ -27,6 +27,19 @@ A load command fails the check when it names
 Any other absolute run path does not count: a toolchain directory on the build
 machine is not on the user's.
 
+Only dependencies are judged — `LC_LOAD_DYLIB`, `LC_LOAD_WEAK_DYLIB`,
+`LC_REEXPORT_DYLIB`, `LC_LAZY_LOAD_DYLIB`, `LC_LOAD_UPWARD_DYLIB`, read from
+`otool -l`. Not `otool -L`: for a dylib its first line is the library's OWN
+install name (`LC_ID_DYLIB`), and the toolchain's Span shim names itself
+`/usr/lib/swift/libswiftCompatibilitySpan.dylib`, so a correctly embedded copy
+used to fail the check as "a shim at a fixed path".
+
+`@executable_path` is the directory of the Mach-O itself when it is an
+executable (a nested helper, `Updater.app`, an XPC service), and the bundle's
+`Contents/MacOS` for a library. Not modelled: a library loaded by a nested
+executable rather than the main one, whose `@executable_path` is that
+executable's. Nothing shipped here resolves a Swift library that way today.
+
 Not covered, said so rather than implied: a `/usr/lib/swift/` library that
 exists on the build machine's OS but not on macOS 14 (dyld would fail the same
 way). Nothing produces one today; a table of what each OS ships is the fix if
@@ -44,7 +57,10 @@ MACHO_MAGICS = {
     b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf",  # fat, fat64
 }
 OS_RUNTIME = "/usr/lib/swift"
-LOAD = re.compile(r"^\s+(\S.*?) \(compatibility version")
+DEPENDENCY_COMMANDS = {"LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB", "LC_REEXPORT_DYLIB",
+                       "LC_LAZY_LOAD_DYLIB", "LC_LOAD_UPWARD_DYLIB"}
+COMMAND = re.compile(r"^\s*cmd (LC_\w+)$")
+NAME = re.compile(r"^\s+name (.+?) \(offset \d+\)$")
 RPATH = re.compile(r"^\s+path (.+?) \(offset \d+\)$")
 
 
@@ -76,13 +92,31 @@ def otool(flag, binary):
 
 
 def load_paths(listing):
-    """Dependencies from `otool -L` output (a fat file lists each slice)."""
-    return sorted({m.group(1) for line in listing.splitlines() if (m := LOAD.match(line))})
+    """Dependencies from `otool -l` output: the dylib load commands' names, never
+    `LC_ID_DYLIB` (the library's own name)."""
+    found, command = set(), None
+    for line in listing.splitlines():
+        if (m := COMMAND.match(line)):
+            command = m.group(1)
+        elif command in DEPENDENCY_COMMANDS and (m := NAME.match(line)):
+            found.add(m.group(1))
+    return sorted(found)
 
 
 def run_paths(listing):
     """LC_RPATH entries from `otool -l` output."""
-    return [m.group(1) for line in listing.splitlines() if (m := RPATH.match(line))]
+    found, command = [], None
+    for line in listing.splitlines():
+        if (m := COMMAND.match(line)):
+            command = m.group(1)
+        elif command == "LC_RPATH" and (m := RPATH.match(line)):
+            found.append(m.group(1))
+    return found
+
+
+def is_executable(header):
+    """Whether `otool -hv` output describes an MH_EXECUTE file."""
+    return any(" EXECUTE " in f" {line} " for line in header.splitlines()[2:])
 
 
 def offences(binary, root, loads, rpaths, executable_dir):
@@ -128,8 +162,10 @@ def check(target):
     found, checked = [], 0
     for binary in binaries(target):
         checked += 1
-        for dep, why in offences(binary, root, load_paths(otool("-L", binary)),
-                                 run_paths(otool("-l", binary)), main_dir):
+        listing = otool("-l", binary)
+        executable_dir = binary.parent if is_executable(otool("-hv", binary)) else main_dir
+        for dep, why in offences(binary, root, load_paths(listing),
+                                 run_paths(listing), executable_dir):
             found.append((binary, dep, why))
     return checked, found
 

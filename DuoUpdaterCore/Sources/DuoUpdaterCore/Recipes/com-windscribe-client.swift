@@ -162,6 +162,61 @@ enum com_windscribe_client {
                 + #"(?:(?!"platform")[\s\S])*?"#
                 + #""release_date"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})""#,
             requestHeaders: ["Authorization": "Bearer 1234"]),
+
+        // Windscribe beta / guinea pig — the two tracks `WindscribeChannel`
+        // unlocks. Different endpoint from the stable recipe above, and the
+        // reason is the shape of the answer rather than taste.
+        //
+        // A LADDER, NOT PARALLEL TRAINS. The vendor's own page says a fix "will
+        // be released in the Guinea Pig channel first" and that staying on
+        // Release is how you see fewest bugs; the feed shows the same thing, with
+        // the build number climbing ACROSS tracks inside one cycle (2.24.3 and
+        // 2.24.6 guinea pig → 2.24.8 and 2.24.10 beta → 2.24.12 release). So a
+        // user on level N is served the newest build from tracks 0…N — reading
+        // only their own track would tell someone on the beta line that the beta
+        // track's 2.24.10 is the newest thing there is while release 2.24.12 sits
+        // above it, and would offer a guinea pig user a version OLDER than the
+        // one they are running.
+        //
+        // `/ChangeLogs/summary`, which the stable recipe reads, cannot express
+        // that: its three `*_full_version` fields live in one object behind a
+        // single `"platform": "osx"` anchor, and a pattern that consumes the
+        // anchor matches exactly ONCE. Adding an alternation there looks like it
+        // works — today it returns 2.24.12, the right answer — and would keep
+        // returning the release track on the day a beta leads. Measured, not
+        // reasoned: `findall` over the real body returns one match.
+        //
+        // `/ChangeLogs?platform=osx` states each release's track as its own
+        // `"beta"` number (0 release / 1 beta / 2 guinea pig), so the track set
+        // is a character class and `selectHighest` does the max across entries.
+        // `entryStartPattern` is what keeps a version and its date inside ONE
+        // entry; it also switches selection to "highest among matching entries",
+        // which is the wanted behaviour here and why the single-match guard
+        // being skipped under `selectHighest` is fine rather than a hole.
+        //
+        // Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
+        // 36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
+        // `release_date` 2026-09-02 — the same answer the stable recipe gives,
+        // because release currently leads. That is the 25% case. Replaying the
+        // feed by date is what tells the three apart, and the regression tests
+        // use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
+        // 2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
+        //
+        // Costs 250 KB per fetch against the stable recipe's 14 KB. An APP pays
+        // one of the three — the channel gate binds exactly one recipe to a copy.
+        // `duo verify` pays all three, because it walks the registry rather than
+        // the installed apps: about 500 KB more per sweep, measured as 153 → 155
+        // vendor probes and 141s → 156s. Worth stating both ways round; the first
+        // sentence alone would let someone size the nightly job's cost and be
+        // wrong by a wide margin.
+        //
+        // Detection only, exactly as stable is — the dmg is an installer stub and
+        // the install writes a LaunchDaemon, a privileged helper and a system
+        // extension. Because there is no install spec,
+        // `RecipeSanity.crossChannelArtifact` returns early and no
+        // `ChannelProofRegistry` entry is required; that is a consequence of the
+        // refusal above, so anyone adding one-click here inherits the proof
+        // obligation with it.
         ] + [ReleaseChannel.beta, .guineaPig].compactMap(windscribeTrackRecipe),
         changelogs: [
         // Windscribe — the version comes from the vendor's own API (see
@@ -213,6 +268,49 @@ enum com_windscribe_client {
             maxEntries: 20,
             channel: .stable,
             structuredFormat: .gitHubReleases),
+
+        // The same feed for the two prerelease tracks, with
+        // `includesPromotedStable` — which is the ladder, expressed in a field
+        // that already existed. `decodeGitHubReleases` shows non-stable channels
+        // the prereleases PLUS the releases that graduated, and "the newest build
+        // from tracks 0…N" is exactly that: a beta copy is offered whichever of
+        // the beta and release lines is newer, so the pane has to be able to hold
+        // both or it omits the very entry the row offers.
+        //
+        // Without these two, `recipe(forBundleID:channel:)` walks past the exact
+        // match it cannot find and lands on the `.stable` recipe above rather than
+        // on nil, so a beta copy got a list filtered to release builds —
+        // containing the offered version only while release leads, about a quarter
+        // of each cycle.
+        //
+        // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
+        // releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
+        // marks all 31 the same way — it has no idea which track a build is on.
+        // Cross-referenced against the vendor's own `beta` numbers, those 31 are
+        // 12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
+        // all (2.24.11 is one: built as stable, published as a GitHub prerelease,
+        // on no track). So a beta reader sees guinea pig entries too, and both
+        // readers see builds the vendor never announced.
+        //
+        // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
+        // version comes from the vendor's feed and the notes come from GitHub,
+        // and those two do not hold the same set of releases: of the 70 versions
+        // the vendor has listed since 2024, three have no GitHub release at all
+        // (2.21.1 guinea pig, 2.20.6 beta, 2.15.9 release). Each was the newest
+        // on its track for a while, so in those windows the row offers a version
+        // this pane cannot show — the same shape as before, at roughly 4% instead
+        // of the ~75% it does fix. Worth knowing before reading an occasionally
+        // empty-looking pane as a parser bug. The proper fix removes this too,
+        // since the vendor's feed is by construction the set the probe reads.
+        //
+        // Shipped anyway because the failure it replaces is worse — a pane that
+        // omits the release being offered three quarters of the time — and
+        // because the precise fix is a different endpoint, not a better pattern:
+        // the vendor's
+        // `ChangeLogs?platform=osx` states each entry's track, but it 403s
+        // without an `Authorization` header that `ChangelogRecipe` has no field
+        // for, and its notes are markdown escaped inside a JSON string, which
+        // wants its own `structuredFormat` rather than a regex. See the audit.
         ] + [ReleaseChannel.beta, .guineaPig].map { channel in
             ChangelogRecipe(
                 bundleID: "com.windscribe.client",

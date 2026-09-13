@@ -34,26 +34,6 @@ enum com_philandro_anydesk {
                 kind: .dmg)),
         ],
         changelogs: [
-        // Deliberately NOT covered, both checked 2026-09-03 against the real
-        // bytes rather than assumed:
-        //
-        //   * **ChatGPT Classic** (`com.openai.chat`). Its Sparkle appcast has a
-        //     `<description>`, so it LOOKS like a changelog source — the content
-        //     is vendor marketing, not release notes: "&#8220;Install Update&#8221;
-        //     to keep using ChatGPT Classic", then "[Recommended] Or, try the new
-        //     ChatGPT app" with a link to the replacement product. One `<item>`,
-        //     no per-version history, and the same copy would render under every
-        //     future build. Rendering that as "what is new" is worse than the
-        //     web-view fallback, which at least shows it as the vendor's page.
-        //   * **Microsoft 365 Copilot** (`com.microsoft.m365copilot`).
-        //     `learn.microsoft.com/en-us/microsoft-365-copilot/release-notes` is
-        //     organised by DATE and then by PRODUCT (Excel, Word, Outlook,
-        //     PowerPoint, OneNote, Viva Insights, …) for the whole Microsoft 365
-        //     Copilot service. The string `1.2608` — the build our probe reads
-        //     out of the pkg filename — appears ZERO times on the page, so no
-        //     version-keyed recipe can bind, and a date-keyed one would show
-        //     Excel and Outlook features under the Copilot app's row.
-
         // MARK: - 2026-09-03 AnyDesk / Antigravity / Headlamp / Helium / Xcode
 
         // AnyDesk — the same plain-text changelog its `VendorProbeRecipe` already

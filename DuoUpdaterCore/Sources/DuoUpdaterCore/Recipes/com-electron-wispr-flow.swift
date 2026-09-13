@@ -4,10 +4,6 @@ enum com_electron_wispr_flow {
     static let set = AppRecipeSet(
         family: "com-electron-wispr-flow",
         probes: [
-        // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
-        // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`
-        // retargets that feed to the release/beta appcast per the user's choice.)
-
         // MARK: - 2026-08-17 AI desktop apps
 
         // Wispr Flow — official RELEASES.json, the same endpoint Homebrew uses.

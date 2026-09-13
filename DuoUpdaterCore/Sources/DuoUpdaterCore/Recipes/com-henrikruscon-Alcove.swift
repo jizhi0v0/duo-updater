@@ -61,6 +61,14 @@ enum com_henrikruscon_Alcove {
             // Release Log an exact time instead of an estimated "≈" window, even
             // without a license key.
             publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#),
+
+        // Alcove — handled by `AlcoveUpdateSource` (licensed api.tryalcove.com), with
+        // a public `update.tryalcove.com` VendorProbeRecipe as the no-credential
+        // fallback. The `henrikruscon/alcove-releases` mirror this rule used to read
+        // LAGS the real release (2026-06-14: stuck at 1.7.2 while the vendor served
+        // 1.7.3) — but so does every public surface, including update.tryalcove.com
+        // (2026-06-17: still 1.7.3 while the licensed channel already had 1.7.4). Only
+        // the licensed channel is authoritative; see `AlcoveUpdateSource`.
         ],
         changelogs: [
         // Alcove — its own changelog API. Public and unauthenticated, unlike the
@@ -78,5 +86,25 @@ enum com_henrikruscon_Alcove {
             mode: .json,
             maxEntries: 30,
             structuredFormat: .alcoveChangelog),
+
+        // (No Alcove recipe. It parsed the `body` of update.tryalcove.com, which the
+        // vendor retired outright — NXDOMAIN. Its replacement as the public version
+        // surface, download.tryalcove.com/latest, carries only version/build/date/
+        // assets and no release notes of any kind.
+        //
+        // www.tryalcove.com/changelog IS a real page (an earlier note here said the
+        // site served the same SPA shell on every path; that is no longer true), but
+        // it carries the notes in the wrong shape: it server-renders version numbers
+        // and dates while leaving each entry's body an empty placeholder, with the
+        // actual `features[]`/`fixes[]` arrays inlined in a content-hashed, minified
+        // route chunk (`/assets/ChangelogPage-<hash>.js`). Parsing it would mean a
+        // two-hop fetch, rediscovering the hash on every run because it changes on
+        // every site deploy, and anchoring patterns on minifier output — three
+        // fragilities stacked. The VendorProbe's `changelogURL` points at that page
+        // instead, so the workbench embeds it in a WebView and renders it correctly.
+        //
+        // Licensed users get full structured notes from `AlcoveUpdateSource`, which
+        // reads the `sections` array on the authenticated api.tryalcove.com endpoint.
+        // Re-add a recipe here only if Alcove publishes notes in a parseable form.)
         ])
 }

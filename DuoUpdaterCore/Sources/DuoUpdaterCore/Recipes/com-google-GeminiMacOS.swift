@@ -4,13 +4,6 @@ enum com_google_GeminiMacOS {
     static let set = AppRecipeSet(
         family: "com-google-GeminiMacOS",
         probes: [
-        // TRAE is deliberately absent here. Its official manifest exposes only
-        // the packaging line `2.3.61406`, while the exact dmg at that manifest URL
-        // reports CFBundleShortVersionString/CFBundleVersion `3.5.81`. The embedded
-        // product.json ties the two together (`tronBuildVersion` / `appVersion`),
-        // but the network response never publishes `appVersion`; neither string can
-        // safely be compared to the installed Info.plist. See the persisted audit.
-
         // MARK: - 2026-08-16 Google desktop apps
 
         // Gemini — Google's Omaha update service, which answers only a POST. The

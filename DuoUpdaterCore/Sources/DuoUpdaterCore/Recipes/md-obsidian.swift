@@ -31,19 +31,6 @@ enum md_obsidian {
                 kind: .dmg)),
         ],
         changelogs: [
-        // Notion's OTHER changelog, deliberately not registered: www.notion.com/
-        // releases is the *product* announcement feed (feature launches like "Plan
-        // Mode"), server-rendered and scrapeable, but carrying no build number at
-        // all — the old recipe used each post's title as the `version`, which never
-        // matched the build on the row. That mismatch is what the recipe above
-        // fixes, so the two must not both claim to be this app's release notes.
-        //
-        // The scrape pattern is not kept here as commented-out code; it is in git
-        // (3603c3c^ and earlier), and `notionProductAnnouncementsRecipe()` in the
-        // tests still builds it, so its regression coverage survives. If those
-        // product announcements are ever wanted, they should come back as a
-        // separate, clearly-labelled source — not as a second recipe for this id.
-
         // Obsidian — obsidian.md/changelog is one server-rendered page listing
         // every release newest-first, with BOTH Mobile and Desktop posts. Each
         // block is a sticky header anchor + a notes column. We key on the header

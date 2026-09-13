@@ -69,5 +69,17 @@ enum com_openai_chat {
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
             downloadURL: URL(string: "https://chatgpt.com/download/")),
+
+        // Deliberately NOT covered by a ChangelogRecipe, checked 2026-09-03 against the real
+        // bytes rather than assumed:
+        //
+        //   * **ChatGPT Classic** (`com.openai.chat`). Its Sparkle appcast has a
+        //     `<description>`, so it LOOKS like a changelog source — the content
+        //     is vendor marketing, not release notes: "&#8220;Install Update&#8221;
+        //     to keep using ChatGPT Classic", then "[Recommended] Or, try the new
+        //     ChatGPT app" with a link to the replacement product. One `<item>`,
+        //     no per-version history, and the same copy would render under every
+        //     future build. Rendering that as "what is new" is worse than the
+        //     web-view fallback, which at least shows it as the vendor's page.
         ])
 }

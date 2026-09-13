@@ -1502,7 +1502,27 @@ public struct GitHubReleasesSource: UpdateSource {
 /// The verified bundleID → GitHub repo table. Every entry was confirmed against
 /// the live Releases API to yield the app's current version.
 public enum GitHubReleaseRegistry {
-        // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
+    // Deliberately NOT covered — WezTerm (`com.github.wez.wezterm`). Its
+    // Info.plist reports a placeholder `0.1.0` for every build while releases are
+    // tagged by timestamp (`20240203-110809-5046fc22`). There is no pair of
+    // strings to compare, so any rule here would either be silent or permanently
+    // claim an update.
+
+    // Deliberately NOT covered — Maestro (`com.maestro.app`). The repo's recent
+    // releases are all `cli-<ver>` (the CLI, now at 2.x) while the desktop app's
+    // last `v<ver>` tag is 0.17.3 and no longer appears in the newest 60
+    // releases. `/releases/latest` today resolves to `cli-2.8.0`, so a rule keyed
+    // on this repo would report the CLI's version as the app's. Revisit if the
+    // desktop app resumes its own release train.
+
+    // Deliberately NOT covered — ungoogled-chromium. Its builds carry the SAME
+    // bundle id as upstream Chromium (`org.chromium.Chromium`) and a version
+    // string in the same shape, so a rule keyed on that id would offer
+    // ungoogled builds to a plain Chromium install (and vice versa) with nothing
+    // in the version to tell the two trains apart. Revisit only with a signal
+    // that distinguishes the builds on disk.
+
+    // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
     // ships an EMPTY `CFBundleShortVersionString` and puts 1.1.3 in
     // `CFBundleVersion` alone. `AppScanner` drops any bundle with no marketing
     // version — that guard is what keeps helper bundles (URL handlers, login

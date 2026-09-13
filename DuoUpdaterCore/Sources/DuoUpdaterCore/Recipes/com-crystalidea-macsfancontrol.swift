@@ -4,14 +4,6 @@ enum com_crystalidea_macsfancontrol {
     static let set = AppRecipeSet(
         family: "com-crystalidea-macsfancontrol",
         githubRules: [
-        // Alcove — handled by `AlcoveUpdateSource` (licensed api.tryalcove.com), with
-        // a public `update.tryalcove.com` VendorProbeRecipe as the no-credential
-        // fallback. The `henrikruscon/alcove-releases` mirror this rule used to read
-        // LAGS the real release (2026-06-14: stuck at 1.7.2 while the vendor served
-        // 1.7.3) — but so does every public surface, including update.tryalcove.com
-        // (2026-06-17: still 1.7.3 while the licensed channel already had 1.7.4). Only
-        // the licensed channel is authoritative; see `AlcoveUpdateSource`.
-
         // Macs Fan Control — tags carry a `v` prefix (stripped by the pattern).
         // One-click installs `macsfancontrol.zip`, which wraps `Macs Fan Control.app`:
         // verified 2026-06-06 it's a notarized Developer ID build (Team ACC5R6RH47,

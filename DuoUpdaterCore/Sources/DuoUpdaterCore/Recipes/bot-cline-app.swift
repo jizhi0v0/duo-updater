@@ -4,61 +4,6 @@ enum bot_cline_app {
     static let set = AppRecipeSet(
         family: "bot-cline-app",
         probes: [
-        // Windscribe beta / guinea pig — the two tracks `WindscribeChannel`
-        // unlocks. Different endpoint from the stable recipe above, and the
-        // reason is the shape of the answer rather than taste.
-        //
-        // A LADDER, NOT PARALLEL TRAINS. The vendor's own page says a fix "will
-        // be released in the Guinea Pig channel first" and that staying on
-        // Release is how you see fewest bugs; the feed shows the same thing, with
-        // the build number climbing ACROSS tracks inside one cycle (2.24.3 and
-        // 2.24.6 guinea pig → 2.24.8 and 2.24.10 beta → 2.24.12 release). So a
-        // user on level N is served the newest build from tracks 0…N — reading
-        // only their own track would tell someone on the beta line that the beta
-        // track's 2.24.10 is the newest thing there is while release 2.24.12 sits
-        // above it, and would offer a guinea pig user a version OLDER than the
-        // one they are running.
-        //
-        // `/ChangeLogs/summary`, which the stable recipe reads, cannot express
-        // that: its three `*_full_version` fields live in one object behind a
-        // single `"platform": "osx"` anchor, and a pattern that consumes the
-        // anchor matches exactly ONCE. Adding an alternation there looks like it
-        // works — today it returns 2.24.12, the right answer — and would keep
-        // returning the release track on the day a beta leads. Measured, not
-        // reasoned: `findall` over the real body returns one match.
-        //
-        // `/ChangeLogs?platform=osx` states each release's track as its own
-        // `"beta"` number (0 release / 1 beta / 2 guinea pig), so the track set
-        // is a character class and `selectHighest` does the max across entries.
-        // `entryStartPattern` is what keeps a version and its date inside ONE
-        // entry; it also switches selection to "highest among matching entries",
-        // which is the wanted behaviour here and why the single-match guard
-        // being skipped under `selectHighest` is fine rather than a hole.
-        //
-        // Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
-        // 36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
-        // `release_date` 2026-09-02 — the same answer the stable recipe gives,
-        // because release currently leads. That is the 25% case. Replaying the
-        // feed by date is what tells the three apart, and the regression tests
-        // use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
-        // 2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
-        //
-        // Costs 250 KB per fetch against the stable recipe's 14 KB. An APP pays
-        // one of the three — the channel gate binds exactly one recipe to a copy.
-        // `duo verify` pays all three, because it walks the registry rather than
-        // the installed apps: about 500 KB more per sweep, measured as 153 → 155
-        // vendor probes and 141s → 156s. Worth stating both ways round; the first
-        // sentence alone would let someone size the nightly job's cost and be
-        // wrong by a wide margin.
-        //
-        // Detection only, exactly as stable is — the dmg is an installer stub and
-        // the install writes a LaunchDaemon, a privileged helper and a system
-        // extension. Because there is no install spec,
-        // `RecipeSanity.crossChannelArtifact` returns early and no
-        // `ChannelProofRegistry` entry is required; that is a consequence of the
-        // refusal above, so anyone adding one-click here inherits the proof
-        // obligation with it.
-
         // MARK: - 2026-09-12 Cline Desktop
 
         // Cline — Tauri (`tauri-plugin-updater 2.10.1`), not Electron and not

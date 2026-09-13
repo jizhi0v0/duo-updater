@@ -4,6 +4,14 @@ enum org_qbittorrent_qBittorrent {
     static let set = AppRecipeSet(
         family: "org-qbittorrent-qBittorrent",
         githubRules: [
+        // qBittorrent is NOT a VendorProbe recipe — it moved to a GitHub release rule (see
+        // `GitHubReleasesSource`). Upstream publishes the same macOS dmg on both
+        // SourceForge and GitHub Releases, and GitHub is the better read: no WAF
+        // to work around (`VendorProbeRegistry.sourceForgeMacRecipe` sends a UA override),
+        // and the tag is the release itself rather than a "best release" guess.
+        // It stays detection-only either way — that is a property of upstream's
+        // signature, not of the endpoint.
+
         // qBittorrent — DETECTION ONLY, and this is upstream's own signature, not
         // a property of where we read from: the macOS dmg on GitHub is the SAME
         // artifact SourceForge serves, signed `Authority=qbittorrent macos` with

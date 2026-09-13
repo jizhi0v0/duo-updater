@@ -4,14 +4,6 @@ enum com_longbridge_app_desktop {
     static let set = AppRecipeSet(
         family: "com-longbridge-app-desktop",
         probes: [
-        // qBittorrent is NOT here — it moved to a GitHub release rule (see
-        // `GitHubReleasesSource`). Upstream publishes the same macOS dmg on both
-        // SourceForge and GitHub Releases, and GitHub is the better read: no WAF
-        // to work around (this file's SourceForge recipes need a UA override),
-        // and the tag is the release itself rather than a "best release" guess.
-        // It stays detection-only either way — that is a property of upstream's
-        // signature, not of the endpoint.
-
         // MARK: - 2026-08-25 Longbridge Desktop
 
         // Longbridge Desktop — the vendor's compact stable JSON is the same

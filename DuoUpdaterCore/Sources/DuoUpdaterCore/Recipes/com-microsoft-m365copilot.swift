@@ -38,5 +38,17 @@ enum com_microsoft_m365copilot {
                 urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=2325438")!),
                 kind: .pkg),
             followRedirects: false),
+
+        // Deliberately NOT covered by a ChangelogRecipe, checked 2026-09-03 against the real
+        // bytes rather than assumed:
+        //
+        //   * **Microsoft 365 Copilot** (`com.microsoft.m365copilot`).
+        //     `learn.microsoft.com/en-us/microsoft-365-copilot/release-notes` is
+        //     organised by DATE and then by PRODUCT (Excel, Word, Outlook,
+        //     PowerPoint, OneNote, Viva Insights, …) for the whole Microsoft 365
+        //     Copilot service. The string `1.2608` — the build our probe reads
+        //     out of the pkg filename — appears ZERO times on the page, so no
+        //     version-keyed recipe can bind, and a date-keyed one would show
+        //     Excel and Outlook features under the Copilot app's row.
         ])
 }

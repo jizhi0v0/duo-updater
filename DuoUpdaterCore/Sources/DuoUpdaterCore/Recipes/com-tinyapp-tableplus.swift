@@ -21,6 +21,19 @@ enum com_tinyapp_tableplus {
             itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#]),
         ],
         bindingProofs: [
+        // TablePlus is the sharpest case in the population and the only
+        // header-keyed one. Stable and beta share ONE feed URL; the server decides
+        // which builds to return from a request header, and the VALUE is
+        // load-bearing — the app sends the literal `true` and the server treats
+        // `1`/`yes` as stable (`TablePlusChannel`). So the anchor covers the value,
+        // not just the field name, which is why `ResolvedChannel.anchorLines`
+        // renders a header as one `key: value` line instead of two.
+        //
+        // Right-anchored, because without the `$` it also accepted `trueX` — a
+        // value this comment's own model of the server says would be treated as
+        // stable. Case is NOT pinned: the shared matcher runs case-insensitively
+        // for every proof, so this asserts the token and its boundary, not the
+        // letter case.
         ChannelProofKey("com.tinyapp.tableplus", .beta):
             .recipeAnchor(#"X-Tiny-Beta-Update:\s*true\s*$"#, in: ["feedHTTPHeaders"]),
         ])

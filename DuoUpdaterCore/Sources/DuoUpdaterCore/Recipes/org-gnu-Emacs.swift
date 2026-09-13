@@ -4,15 +4,6 @@ enum org_gnu_Emacs {
     static let set = AppRecipeSet(
         family: "org-gnu-Emacs",
         probes: [
-        // Deliberately NOT covered — Android File Transfer
-        // (`com.google.android.mtpviewer`). `…/mtp/current/AndroidFileTransfer.dmg`
-        // does 302 to a versioned path, but the number there is `5071136` while the
-        // shipped bundle reports `1.0.12` (build `1.0.507.1136`) — the redirect
-        // squashes the build's last two segments together. Neither string can be
-        // compared with the other, so a recipe would report a permanent update.
-        // (Homebrew's cask uses 5071136 as its own bookkeeping version, which is
-        // what makes this look workable from the outside.)
-
         // MARK: - 2026-08-16 group B (Emacs, Tor Browser, Zotero)
 
         // Emacs for Mac OS X — the maintainer's own Atom feed, newest entry first.

@@ -1117,6 +1117,21 @@ public enum VendorProbeRegistry {
         recipes.contains { $0.bundleID == bundleID && $0.buildLineage != nil }
     }
 
+    // TRAE is deliberately absent here. Its official manifest exposes only
+    // the packaging line `2.3.61406`, while the exact dmg at that manifest URL
+    // reports CFBundleShortVersionString/CFBundleVersion `3.5.81`. The embedded
+    // product.json ties the two together (`tronBuildVersion` / `appVersion`),
+    // but the network response never publishes `appVersion`; neither string can
+    // safely be compared to the installed Info.plist. See the persisted audit.
+
+    // Deliberately NOT covered — Android File Transfer
+    // (`com.google.android.mtpviewer`). `…/mtp/current/AndroidFileTransfer.dmg`
+    // does 302 to a versioned path, but the number there is `5071136` while the
+    // shipped bundle reports `1.0.12` (build `1.0.507.1136`) — the redirect
+    // squashes the build's last two segments together. Neither string can be
+    // compared with the other, so a recipe would report a permanent update.
+    // (Homebrew's cask uses 5071136 as its own bookkeeping version, which is
+    // what makes this look workable from the outside.)
     public static let recipes: [VendorProbeRecipe] = AppRecipeIndex.all.flatMap(\.probes)
 
     /// The `"beta"` numbers a user on `channel` accepts, since the ladder means

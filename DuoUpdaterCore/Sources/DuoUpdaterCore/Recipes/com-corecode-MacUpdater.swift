@@ -25,24 +25,6 @@ enum com_corecode_MacUpdater {
                 kind: .dmg)),
         ],
         changelogs: [
-        // TablePro — deliberately NO recipe. The app ships a Sparkle feed
-        // (`SUFeedURL` = raw.githubusercontent.com/TableProApp/TablePro/main/
-        // appcast.xml) whose every `<item>` carries the full release notes inline
-        // in `<description>` (21 KB of `<h3>` + `<ul><li>` for 0.67.0, 137 items
-        // deep), so `SparkleAppcastSource` already hands the pane a changelog we
-        // fetched for the version check anyway — a recipe here would only preempt
-        // it (recipe beats `structuredChangelog`/`releaseNotesHTML` in the
-        // workbench) and cost a second request.
-        //
-        // The recipe this replaces scraped docs.tablepro.app and broke TWICE on
-        // pure vendor churn: once when Mintlify swapped the label element to a
-        // `<button>` (2026-08-09, fixed by moving to the `.md` twin), then again
-        // when TablePro flipped the `<Update>` attributes to `label="v0.67.0"
-        // description="August 21, 2026"` — the reverse of what the `.md` pattern
-        // required, and now the same order Claude's Mintlify page uses. Two breaks
-        // in two weeks on a source we did not need is why this is gone rather than
-        // re-patched.
-
         // MacUpdater — corecode.io/macupdater/history3.html is a single static
         // page of every release newest-first (no hydration). 3.5.0 is the final
         // release (the product is discontinued), so the page is effectively

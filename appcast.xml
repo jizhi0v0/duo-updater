@@ -17,6 +17,37 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.94</title>
+            <pubDate>Mon, 14 Sep 2026 01:00:22 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.94</link>
+            <sparkle:version>103</sparkle:version>
+            <sparkle:shortVersionString>0.3.94</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from Duo Updater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.
+
+**Apps that need an administrator password to update themselves are no longer updated twice.** When an app like Tailscale had already downloaded its own update and was waiting for a restart, Duo Updater couldn't see it and still offered Update, which could collide with the app's own installer. The row now offers Relaunch instead, and Update All leaves it alone.
+
+**The Homebrew section can now update Homebrew itself.** When a new Homebrew release is out, a row at the top offers to run `brew update` for you. It stays hidden if you've set `HOMEBREW_NO_AUTO_UPDATE`.
+
+**A failed Homebrew upgrade now shows brew's actual error.** The row used to show the advice brew prints after the error, or nothing at all, so a message like "your Command Line Tools are too outdated" never reached you. Upgrading several packages at once also no longer reports finishing before it has.
+
+**The menu bar icon counts past 50.** With more than 50 updates waiting, it used to stay at 50.
+
+**Release notes: Claude's are grouped into New, Improved and Fixed, the way Claude itself shows them; Mac Mouse Fix's appear as text instead of an embedded page; and Homebrew's own app now has notes.**
+
+**`duo check` no longer says "Everything is up to date." when it couldn't actually check.** It now says so when it couldn't read TestFlight or when the app scan was abandoned.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater-0.3.94-macos.zip" length="13696117" type="application/octet-stream" sparkle:edSignature="awml3W9R0G66mhHYh7lYPqZtaciP4dB3rBJuZuBl6tcMeeAf8rkiwJX8uo/jYqNrG5Sz6050iCzmhsifOQ9dCA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater103-102.delta" sparkle:deltaFrom="102" length="1651302" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wcEr9DAwxJxHeB9kevkcv+CBYYNPiBOIoSxwCbJiP9Q7QYGKbzoBDxbGMwf3QHE2nCJbvkmCEmPvCD5Ke7AGDw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater103-101.delta" sparkle:deltaFrom="101" length="2209062" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="GjJSzPXTxNYtvEwagH6awnLtBCay4cFGqUCJ1f0csvsBEzzbS+o88GPtbXbJZXo7RXsnAS2s9mbcbmKiJruZBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater103-100.delta" sparkle:deltaFrom="100" length="2239798" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="c0gllD61rxI7gAR3WcO6RwUbehTgRYNds6Fl8Z6xfLp1Hkxr2GDhjI2clm8McOYJUVqwqQozm8lOoWZaBU/EBA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater103-99.delta" sparkle:deltaFrom="99" length="2232478" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="09NLzyXNRFtJU508eVelMtMxWx527tTYNrZs2Z5JJbAhmW3QcxjSfHEoposmg/jvjtRO+hyK1UwxkvBTNGrhDw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.94/DuoUpdater103-98.delta" sparkle:deltaFrom="98" length="3206486" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Vo1bLxvu2LJZO0wdSmw/14FQdohKhOPHcbshKKGP8XgJJx34u7ujWR09hLO2sMhQElrXRiN2QUR1PI7YrniLDw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.93</title>
             <pubDate>Sun, 13 Sep 2026 08:57:52 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.93</link>
@@ -24,48 +55,6 @@
             <sparkle:shortVersionString>0.3.93</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Release notes now show up in your own language when an app publishes them in several.** Some apps ship their notes translated alongside each release; Duo Updater used to take whichever translation the app happened to list first or last, so one app's notes read in German for everyone and another's changed language from one release to the next.
-
-**Apps that added a Mac version no longer show as "not supported on this Mac."** An iPhone or iPad app you run on Apple silicon was mistakenly flagged the moment its developer shipped a real Mac build — the one change that makes the update more available, not less.
-
-**An App Store app you also beta-test is no longer mistaken for a TestFlight build.** When a developer promoted a beta unchanged, the two carried the same build number and your purchased copy was handed to TestFlight — so the App Store could never offer it an update.
-
-**An App Store update that needs a newer macOS than you're running now says so.** Before, the row offered to install it anyway and the App Store refused at the last step, with nothing on screen explaining why.
-
-**The Requests window now shows how far back its log actually reaches, and marks date ranges it can't fully cover.** Before, picking "Last 30 days" on a log that only went back a few hours looked exactly like picking "Last 24 hours," with nothing on screen explaining why.
-
-**You choose how much Duo Updater does about TestFlight betas, in Settings → General.** *When I refresh* reads what TestFlight already knows and asks it for a fresh answer when you press Refresh; *Keep it fresh* also lets Duo Updater ask on its own, so a beta TestFlight installed in the background no longer sits as a question mark until you refresh, and a build waiting for you no longer goes unnoticed behind an "up to date"; *Off* reads nothing and says so on those rows instead of guessing. Macs that already had Full Disk Access start at *When I refresh*, everyone else at *Off*.
-
-**Opening TestFlight yourself is now enough for Duo Updater to notice what it installed.** A beta you installed through TestFlight used to sit as a question mark until the next refresh — and on macOS 27, where TestFlight's "Ready to Test" notice no longer arrives for apps you already have, that could be hours.
-
-**Cline now gets updates, on both its release and beta builds, and shows its release notes.** Until now it sat with a question mark instead of a version — it ships no update feed of the kind Duo Updater could read, and there is no Homebrew package for it. Duo Updater now asks the same address Cline's own updater asks, so the update offered is the one Cline would have installed itself, and the beta build stays on the beta track.
-
-**Release notes that group changes under headings like Added and Fixed now keep those headings.** Before, every group was merged into one flat list, so you couldn't tell which changes were new features and which were bug fixes.
-
-**Mac Mouse Fix now offers its beta releases if you've turned on "Get Beta Versions" in its own General settings.** Before, Duo Updater could only see Mac Mouse Fix's regular releases, so a beta build sat unnoticed until the next regular version shipped.
-
-**Apps whose build number is a plain counter no longer hide their own patch releases.** For an app reporting a version like 12.10 with build 282987, a 12.10.1 release used to read as "already up to date".
-
-**A new build of an app that keeps the same version name is announced again.** Once one build had been announced, every later build under that name arrived silently — the row lit up, the badge counted it, but no banner ever came.
-
-**"Update All" now counts only apps that were actually updated.** An app that opens Apple's Installer for you to finish used to be counted as done while its window was still open, so "2 apps were updated" could mean nothing had changed yet.
-
-**An update that landed but left a leftover behind is now reported as installed, not as "grant App Management."** The new version was already running while the row sent you to System Settings.
-
-**Stopping "Update All" now stops the download in progress.** Before, a multi-gigabyte transfer kept going to the end, retrying up to five times, and only then noticed it had been cancelled.
-
-**Release notes are no longer mixed up between two apps that share one changelog page, and stay current after an update for apps whose notes live on per-version pages.** Antigravity and Antigravity IDE could show each other's notes for a quarter of an hour; Thunderbird, WeChat, Opera and a few others kept showing the previous version's notes for a while after updating.
-
-**Searching the app list ignores accents, as the Settings search already did.** Typing "cafe" now finds "Café".
-
-**The Diagnostics page lists a health line per release channel.** A broken beta or preview rule used to be hidden behind its healthy stable sibling.
-
-**A GitHub "forbidden" answer is no longer reported as a rate limit.** A repository that went private or a token missing a scope used to nudge you toward adding a token that would not have helped.
-
-**Relaunch is no longer offered for a self-updating app whose waiting build is older than the one running.**
-
-**Under the hood.** Installs, backups and package checks no longer tie up the threads the rest of the app runs on, so the menu stays responsive while one is in progress; the menu also stays smooth while a large download is in progress; the Release Log counts every release a vendor ships under one version name; a rollback backup is refused rather than stored when it would be missing the app's own executable; the first launch on a fresh Mac no longer logs spurious database errors; `duo verify` and `duo reconcile` now report a changelog whose entries collapsed and an installer address that has been failing for days; a stalled `duo` command gives up on its scan after twenty seconds instead of hanging.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.93/DuoUpdater-0.3.93-macos.zip" length="13115046" type="application/octet-stream" sparkle:edSignature="Pu0sIxdXyRjF+nYsfQKkJXBDgDKSNOERjLo6o703yW93pom8DILbysAdQYeqc7GPJh1lvtqI3BRBOjtPYdXPDg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.93/DuoUpdater102-101.delta" sparkle:deltaFrom="101" length="1450202" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="VlmwYJNdlkqwMOQ6K80UaeUBFaOqoeaEt4+9f9QRuxIPIFgX7/I2honU0HXnp9tHgZjvGTlJ4Ky1BLyqiBnfBg=="/>
@@ -124,23 +113,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-96.delta" sparkle:deltaFrom="96" length="1174142" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="yTC/UQJ+pyyVaFd6Hv+mw0dRk+cjHt+5OX4hYh52lF9YEhI/syotTBxl5vl9/7cZLXCxa4oUR253MXwKj8JsAg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-95.delta" sparkle:deltaFrom="95" length="1220154" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="dMwbLE1luXwXQ+UtGz1Mv3CD5hw26Jx7OkfJmfubjdFjW847dDxePENnlqkPbg5l72E82FYHzbMHWAdOv7KnCg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.90/DuoUpdater99-94.delta" sparkle:deltaFrom="94" length="1215706" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tlQ7k6z1rjkc0AAT3ndCgrFkDaOsVEQx5VzWGsBqPdB4+lbMPad6a68K5BirhatVDrQBttVHhoNas8IQyyt2CA=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.89</title>
-            <pubDate>Tue, 08 Sep 2026 22:45:56 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.89</link>
-            <sparkle:version>98</sparkle:version>
-            <sparkle:shortVersionString>0.3.89</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater-0.3.89-macos.zip" length="12775790" type="application/octet-stream" sparkle:edSignature="5K6m7uOpYiO70Svt5UTJsiy8HHQLmZqqTZDzdBiT5BdQf06CgWYLAjahjAX75qRTDm0D8OovMHbg2wDWyV8OCg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-97.delta" sparkle:deltaFrom="97" length="506078" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="uBl6lBzrvhuoneo6V9rYWfdNxpwwHKSHg5/SyvXnEpo8hDIjEDNnl6fzoAcHvTHvmvgdNYZQdK6I5ETLGOyZAA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-96.delta" sparkle:deltaFrom="96" length="1878522" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BYZ5Mvp8IRRpO8BsP+aRWQKCYMM1TAfJrdCl339OWBdLNdK839ipKSEv0YfsB4bSCCz4llUKqtCS3LTswiRzAg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-95.delta" sparkle:deltaFrom="95" length="1924802" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="3UpOXAwcyqP5NwWXbRxTkOn9mhjBrzXzLEqTxHjbmdJizCOjmy3+ofkK9JlLLjNpqMnUblwWuMcEn/IYvN7mBw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-94.delta" sparkle:deltaFrom="94" length="1925842" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="EuE4W/Pex7a553Yze0q2zC3LkcVTozFTPc0Xd/H7QsHoYegh74m5iXhLwiXLqNQGmuY29LadN7Uay55yggnpDA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.89/DuoUpdater98-93.delta" sparkle:deltaFrom="93" length="956614" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LA2ZKZGPeS7gkXeb29eV5nxEoKwWATAn2ZSoWcehQJ3ncfa3B7EtvsNEwPtl29yvjTRUBY7nXayQsXSrHv6zDA=="/>
             </sparkle:deltas>
         </item>
     </channel>

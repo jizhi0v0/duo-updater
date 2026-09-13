@@ -61,6 +61,24 @@ extension ChangelogRecipe: VerifySelectable {}
 extension MacAppStoreProbeCase: VerifySelectable {}
 extension SparkleFeedCatalog.VerificationCase: VerifySelectable {}
 
+/// A registry entry the Homebrew cross-check can speak for: it needs the channel
+/// as well as the app, and takes both off the entry so no call site can pair a
+/// rule with the wrong channel (#559).
+protocol BrewCrossChecked: VerifySelectable {
+    var channel: ReleaseChannel { get }
+}
+
+extension VendorProbeRecipe: BrewCrossChecked {}
+extension GitHubReleaseRule: BrewCrossChecked {}
+
+/// The three cask fields the cross-check reads. `CaskEntry` has no public
+/// initializer, so tests hand these in instead.
+struct CaskFacts: Sendable {
+    let token: String
+    let version: String
+    let autoUpdates: Bool
+}
+
 public enum Verify {
 
     public static func run(_ options: VerifyOptions) async -> Int32 {
@@ -421,7 +439,7 @@ public enum Verify {
                             .compactMap { $0 }
                 })
             if let version = finding.version,
-               let complaint = await brewComplaint(bundleID: recipe.bundleID, version: version) {
+               let complaint = await brewComplaint(for: recipe, version: version) {
                 finding = finding.adding(warning: complaint)
             }
             if let note = await rolloutTrackComplaint(recipe, source: source) {
@@ -795,8 +813,7 @@ public enum Verify {
             // publish date, which is exactly what the phantom check needs.
             if let version = finding.version,
                let complaint = await brewComplaint(
-                   bundleID: rule.bundleID, version: version,
-                   publishedAt: outcome.remote?.publishedAt) {
+                   for: rule, version: version, publishedAt: outcome.remote?.publishedAt) {
                 finding = finding.adding(warning: complaint)
             }
             for complaint in Self.endpointComplaints(audit.observations) {
@@ -946,9 +963,13 @@ public enum Verify {
     /// This is the only cross-check that works on a CI runner, where no apps are
     /// installed and `remoteBehindInstalled` has nothing to compare against.
     static func brewComplaint(
-        bundleID: String, version: String, publishedAt: Date? = nil, now: Date = Date()
+        for recipe: some BrewCrossChecked, version: String,
+        publishedAt: Date? = nil, now: Date = Date(),
+        casks lookup: @Sendable (String) async -> [CaskFacts] = liveCasks
     ) async -> String? {
-        guard let cask = try? await HomebrewCaskCatalog.shared.entry(forBundleID: bundleID),
+        let casks = await lookup(recipe.bundleID)
+        guard let pick = caskIndex(for: recipe.channel, amongTokens: casks.map(\.token)),
+              case let cask = casks[pick],
               !cask.autoUpdates  // an auto-updating cask's version is decorative
         else { return nil }
 
@@ -964,6 +985,32 @@ public enum Verify {
         return phantomVersionComplaint(
             caskToken: cask.token, caskVersion: cask.version, version: version,
             publishedAt: publishedAt, now: now)
+    }
+
+    /// Every cask the live catalog lists for a bundle id; none when it can't load.
+    @Sendable static func liveCasks(bundleID: String) async -> [CaskFacts] {
+        let entries = (try? await HomebrewCaskCatalog.shared.entries(forBundleID: bundleID)) ?? []
+        return entries.map { CaskFacts(token: $0.token, version: $0.version, autoUpdates: $0.autoUpdates) }
+    }
+
+    /// Which of a bundle's casks speaks for this channel — by position in `tokens`.
+    ///
+    /// Stable takes the first, as the bundle-id index always has. A non-stable
+    /// channel takes only a cask named for it (`utm@beta` for `.beta`) and nothing
+    /// otherwise: the catalog is in token order, so the first cask is the
+    /// unsuffixed one (`utm` before `utm@beta`), and a beta rule measured
+    /// against it reads "the beta is ahead of stable" — the normal state of a beta
+    /// — as a phantom release. That is #559: `utm` sat at 4.7.5 while the beta rule
+    /// read 5.0.5, which `utm@beta` also shipped.
+    ///
+    /// Both directions go, not just the phantom one. "The stable cask is a whole
+    /// release ahead, so the probe is stuck" is no sounder across channels: an ESR
+    /// sits a major behind stable on purpose (`thunderbird` 155 against ESR 140 in
+    /// the same catalog). So a non-stable recipe with no cask of its own — CapCut's
+    /// beta beside the plain `capcut` — is not cross-checked at all.
+    static func caskIndex(for channel: ReleaseChannel, amongTokens tokens: [String]) -> Int? {
+        guard channel != .stable else { return tokens.isEmpty ? nil : 0 }
+        return tokens.firstIndex { $0.hasSuffix("@\(channel.rawValue)") }
     }
 
     /// How long a version we report may sit ahead of Homebrew before the gap

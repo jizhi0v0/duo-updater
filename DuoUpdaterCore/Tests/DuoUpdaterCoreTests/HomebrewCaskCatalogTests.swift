@@ -49,7 +49,7 @@ struct HomebrewCaskCatalogTests {
             autoUpdates: false, isPkg: false)
         let index = CaskIndex(
             byAppFilename: ["fixture.app": entry],
-            byBundleID: ["com.example.fixture": entry])
+            allByBundleID: ["com.example.fixture": [entry]])
         let before = DelayedFailureProtocol.counter.count
         let catalog = HomebrewCaskCatalog(
             session: Self.failingSession(),

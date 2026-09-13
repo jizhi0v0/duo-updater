@@ -266,6 +266,22 @@ public struct Baseline: Codable, Sendable {
         try encoder.encode(self).write(to: url, options: .atomic)
     }
 
+    /// Whether this finding's version is a hash ordered by a `BuildLineage` rather
+    /// than by `VersionComparator`.
+    ///
+    /// A changelog finding has to be asked by app, not by recipe id: its id is
+    /// `changelog:<bundle>:…`, which no probe recipe carries, so the recipe-id
+    /// question answered "no" for super.engineering's changelog and every other
+    /// sweep reported a forward step as going BACKWARDS (#579, `6148a7a2 →
+    /// e9cb6e92`, adjacent entries in the vendor's own `changelog.json`). Its
+    /// entries are titled with the same hashes the probe reads.
+    static func ordersByLineage(_ finding: Finding) -> Bool {
+        switch finding.registry {
+        case .changelog: return VendorProbeRegistry.ordersByLineage(bundleID: finding.bundleID)
+        default: return VendorProbeRegistry.ordersByLineage(recipeID: finding.recipeID)
+        }
+    }
+
     /// Compare this run against what we knew, returning every complaint to
     /// attach — then fold the run into the baseline.
     ///
@@ -290,7 +306,7 @@ public struct Baseline: Codable, Sendable {
             // show (see `BuildLineage`); asking `VersionComparator` here would
             // report every other release as a regression.
             if let previous = entry.lastGoodVersion, previous != version,
-               !VendorProbeRegistry.ordersByLineage(recipeID: finding.recipeID),
+               !Self.ordersByLineage(finding),
                VersionComparator.isNewer(previous, than: version) {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "

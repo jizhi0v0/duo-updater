@@ -115,6 +115,10 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
 复核时二者已分别更新到 `4.7.5` 和 `5.0.5`。`utm@beta` 若未被 Homebrew 文件名索引直接
 接管，会回落到上述 GitHub exact-release 分轨；不会依据 cask 名之外的猜测跨渠道。
 
+`duo verify` 的 Homebrew 交叉校验同样按渠道取 cask：beta rule 只和 `utm@beta` 比。两个 cask
+都在 `uninstall: quit:` 里声明 `com.utmapp.UTM`，按 bundle id 取第一个拿到的是 `utm`，于是
+beta 5.0.5 对 stable 4.7.5 被报成「macOS 上可能不存在的幽灵版本」（#559）。
+
 ## Changelog
 
 - 来源：`https://api.github.com/repos/utmapp/UTM/releases?per_page=40`

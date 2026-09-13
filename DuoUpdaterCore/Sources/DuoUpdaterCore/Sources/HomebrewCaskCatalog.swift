@@ -17,7 +17,18 @@ public struct CaskEntry: Sendable {
 /// install via `pkg` and so declare no `.app` artifact, e.g. AweSun).
 struct CaskIndex: Sendable {
     let byAppFilename: [String: CaskEntry]
+    /// Every cask declaring each bundle id, in catalog order.
+    let allByBundleID: [String: [CaskEntry]]
+    /// The first of those — for a bundle shipped as `utm` and `utm@beta`, the
+    /// stable one. Derived rather than passed in, so a hand-built index cannot
+    /// answer the two bundle-id lookups differently.
     let byBundleID: [String: CaskEntry]
+
+    init(byAppFilename: [String: CaskEntry], allByBundleID: [String: [CaskEntry]]) {
+        self.byAppFilename = byAppFilename
+        self.allByBundleID = allByBundleID
+        self.byBundleID = allByBundleID.compactMapValues(\.first)
+    }
 }
 
 /// Loads the full Homebrew Cask catalog from formulae.brew.sh once and indexes
@@ -88,6 +99,13 @@ public actor HomebrewCaskCatalog {
     /// Fallback lookup by bundle identifier, for casks with no `.app` artifact.
     public func entry(forBundleID bundleID: String) async throws -> CaskEntry? {
         try await loadedIndex().byBundleID[bundleID.lowercased()]
+    }
+
+    /// Every cask declaring this bundle id, in catalog order. For a caller that
+    /// must pick among a bundle's channel casks (`utm` / `utm@beta`) instead of
+    /// taking whichever sorts first.
+    public func entries(forBundleID bundleID: String) async throws -> [CaskEntry] {
+        try await loadedIndex().allByBundleID[bundleID.lowercased()] ?? []
     }
 
     private func loadedIndex() async throws -> CaskIndex {
@@ -163,7 +181,7 @@ public actor HomebrewCaskCatalog {
         }
 
         var byApp: [String: CaskEntry] = [:]
-        var byBundle: [String: CaskEntry] = [:]
+        var allByBundle: [String: [CaskEntry]] = [:]
         for cask in casks {
             guard
                 let token = cask["token"] as? String,
@@ -186,10 +204,11 @@ public actor HomebrewCaskCatalog {
             }
             for bundleID in bundleIDs(in: cask["artifacts"]) {
                 let key = bundleID.lowercased()
-                byBundle[key] = byBundle[key] ?? entry
+                // First writer is the bundle-id lookup's answer; see `CaskIndex`.
+                allByBundle[key, default: []].append(entry)
             }
         }
-        return CaskIndex(byAppFilename: byApp, byBundleID: byBundle)
+        return CaskIndex(byAppFilename: byApp, allByBundleID: allByBundle)
     }
 
     /// Extract the `.app` filenames from a cask's `artifacts` array. Each app

@@ -316,6 +316,14 @@ extension View {
     /// has nothing to sample behind an opaque window. (A transparent panel —
     /// `isOpaque = false`, clear background — is the case where it does work.)
     ///
+    /// ⚠️ **Not reproduced on the 27.0 RC (26A428), 2026-09-13** — in a standalone
+    /// probe, not in this window: an opaque titled `NSWindow` hosting SwiftUI drew
+    /// both glass forms above with their content intact in exactly these runs:
+    /// 27.0 SDK dark not-key, dark key, light not-key, light key; 26.5 SDK dark
+    /// not-key. The beta result is kept as the reason this was written; it is no
+    /// longer a description of the RC. A
+    /// revert still has to be judged on screenshots of the real Settings window.
+    ///
     /// It's also the right call independently: Apple reserves Liquid Glass for
     /// floating/navigation layers, and System Settings uses material for grouped
     /// content. Glass stays where it works: `.glassProminent` buttons.
@@ -350,7 +358,9 @@ extension View {
     /// but the same opaque-window bug as `settingsCardBackground()`: on macOS 27.0
     /// beta (26A5378n) `.buttonStyle(.glass)` swallows the label and leaves an empty
     /// grey capsule. `.glassProminent` is unaffected. Revert both together once the
-    /// platform composites glass correctly in opaque windows.
+    /// platform composites glass correctly in opaque windows — the same RC probe
+    /// noted on `settingsCardBackground()` drew `.glass` with its label, so that
+    /// condition may already hold; confirm it on this window before reverting.
     @ViewBuilder
     func settingsGlassButton(prominent: Bool = false) -> some View {
         if #available(macOS 26.0, *), prominent {

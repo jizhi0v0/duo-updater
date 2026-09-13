@@ -173,6 +173,42 @@ struct RowActionStateTests {
         #expect(state == .relaunchToApplyStaged(to: "2.0"))
     }
 
+    /// An installer parked on the app's quit whose staged build could not be read
+    /// (a Sparkle install running as root stages under /var/root) is the same
+    /// collision with no version to name: Relaunch, not our Update, and not a bare
+    /// restart. A readable staged build still names its version.
+    ///
+    /// Only while an update is on offer: an up-to-date row with an installer armed
+    /// is not counted by `needsAction`, so it is not in the popover's list or the
+    /// badge — a Relaunch there would show in the workbench alone. (The restart it
+    /// would otherwise offer is held back by `RestartStandoff` instead.)
+    ///
+    /// Mutations: delete the `hasArmedSelfInstaller` rung (first expectation goes
+    /// to `.updateAvailable`); drop its `hasUpdate` condition (second and third);
+    /// move it above `stagedRelaunchTarget` (fourth loses its version); move it
+    /// above `isIgnored` (fifth).
+    @Test("an armed installer with unreadable staging offers Relaunch without a version")
+    func armedUnreadableStagingOffersRelaunch() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            hasArmedSelfInstaller: true)) == .relaunchToApplyStaged(to: nil))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .upToDate,
+            hasArmedSelfInstaller: true)) == .upToDate(channel: .none))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .upToDate,
+            hasArmedSelfInstaller: true,
+            needsRestart: true)) == .restartToApply)
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            stagedRelaunchTarget: "2.0",
+            hasArmedSelfInstaller: true)) == .relaunchToApplyStaged(to: "2.0"))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            isIgnored: true,
+            hasArmedSelfInstaller: true)) == .ignored)
+    }
+
     /// Restart is answered before the status switch so it stays steady across a
     /// refresh's transient `.unknown`, and only when there is nothing newer to
     /// install — a row with an update shows Update instead.

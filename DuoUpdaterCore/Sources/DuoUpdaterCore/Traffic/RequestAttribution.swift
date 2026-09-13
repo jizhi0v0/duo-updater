@@ -36,6 +36,17 @@ public enum RequestAttribution {
         isolation: isolated (any Actor)? = #isolation,
         operation body: () async throws -> T
     ) async rethrows -> T {
+        // Swift 6.4 deprecates the `isolation:` overload in favour of a
+        // `nonisolated(nonsending)` one, which runs its operation on whatever
+        // executor calls it — here, `isolation`, so the contract above holds. The
+        // wrapper closure is what selects it: passing `body` straight through
+        // still resolves to the deprecated overload, because `body` is not typed
+        // `nonisolated(nonsending)`. CI and the release build are on Swift 6.3,
+        // whose `_Concurrency` has no such overload, hence the `#if`.
+        #if compiler(>=6.4)
+        try await $appID.withValue(appID) { () async throws -> T in try await body() }
+        #else
         try await $appID.withValue(appID, operation: body, isolation: isolation)
+        #endif
     }
 }

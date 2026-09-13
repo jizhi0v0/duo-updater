@@ -224,6 +224,12 @@ struct RowFactsAssemblyTests {
         let relaunching = facts(RowStateTables(relaunching: [id]))
         #expect(relaunching.isRelaunching)
         #expect(!relaunching.justUpdated && !relaunching.needsRestart)
+        #expect(!relaunching.hasArmedSelfInstaller)
+
+        let armed = facts(RowStateTables(armedSelfInstallers: [id]))
+        #expect(armed.hasArmedSelfInstaller)
+        #expect(!armed.isRelaunching && !armed.needsRestart && !armed.justUpdated)
+        #expect(armed.stagedRelaunchTarget == nil)
         #expect(relaunching.awaitingQuitConfirm == nil && relaunching.installStage == nil)
 
         let restart = facts(RowStateTables(needsRestart: [id]))
@@ -261,12 +267,14 @@ struct RowFactsAssemblyTests {
         let byBundleID = RowStateTables(
             installing: ["com.example.app": .queued],
             needsRestart: ["com.example.app"],
+            armedSelfInstallers: ["com.example.app"],
             relaunching: ["com.example.app"],
             justUpdated: ["com.example.app"])
         let f = facts(byBundleID)
 
         #expect(f.installStage == nil)
         #expect(!f.needsRestart && !f.isRelaunching && !f.justUpdated)
+        #expect(!f.hasArmedSelfInstaller)
     }
 
     /// The five facts that come from somewhere other than a table. The fixture

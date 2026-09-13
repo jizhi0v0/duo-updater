@@ -263,6 +263,15 @@ public enum Install {
             return .refuse("its own updater has \(result.stagedRelaunchLine(staged).to) staged for the next quit "
                 + "— installing now would be undone (quit it to apply)", nil)
         }
+        // Same, with the staged build unreadable — typically an installer running
+        // as root that staged under /var/root. See
+        // `sparkleInstallerArmedWithUnreadableStaging`.
+        if UpdatePolicy.armedInstallerBlocksInstall(
+            result,
+            armed: SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(for: result.app)) {
+            return .refuse("its own updater has an update staged for the next quit "
+                + "— installing now would collide with it (quit it to apply)", nil)
+        }
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
             let megabytes = Double(inFlight.bytes) / 1_000_000
             return .refuse(String(

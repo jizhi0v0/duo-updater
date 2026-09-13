@@ -176,10 +176,14 @@ struct WorkbenchRowAction: View {
                 .help("You skipped this version — right-click to un-skip")
 
         case .relaunchToApplyStaged(let target):
+            // `target` is nil when the staged build could not be read — see
+            // `RowActionState.relaunchToApplyStaged`.
             Button("Relaunch") { actions.relaunchStaged() }
                 .buttonStyle(.bordered)
                 .tint(.orange)
-                .help("\(result.app.name) already downloaded \(target) — relaunch to apply it")
+                .help(target.map { target in
+                    String(localized: "\(result.app.name) already downloaded \(target) — relaunch to apply it")
+                } ?? String(localized: "\(result.app.name) already downloaded an update — relaunch to apply it"))
 
         case .restartToApply:
             Button("Relaunch") { actions.restart() }

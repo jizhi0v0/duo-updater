@@ -740,6 +740,26 @@ struct MenuContentView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+        } else if model.brewOutdatedFormulae.isEmpty && !model.brewUnchecked.isEmpty {
+            // Nothing outdated among what brew read — but some installed packages it
+            // wouldn't read at all (`BrewUncheckedPackage`). "Up to date" plus a green
+            // seal would be a claim about those too, so this replaces it. Same icon +
+            // two-line structure, so the row height doesn't change.
+            HStack(spacing: 8) {
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(model.brewUnchecked.count) brew packages not checked")
+                        .font(.caption).fontWeight(.medium)
+                    Text(brewUncheckedSummary)
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .help(brewUncheckedHelp)
         } else if model.brewOutdatedFormulae.isEmpty {
             // Checked, nothing outdated — the placeholder. Keeps the same icon +
             // two-line structure as the outdated row, with a green seal instead of an
@@ -769,6 +789,11 @@ struct MenuContentView: View {
                         .font(.caption).fontWeight(.medium)
                     if let error = model.brewUpgradeError {
                         Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
+                    } else if !model.brewUnchecked.isEmpty {
+                        // Count first: the name list truncates, the count mustn't.
+                        Text("\(model.brewUnchecked.count) not checked · \(brewFormulaSummary)")
+                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            .help(brewUncheckedHelp)
                     } else {
                         Text(brewFormulaSummary)
                             .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -794,6 +819,17 @@ struct MenuContentView: View {
         return names.joined(separator: ", ") + more
     }
 
+    /// "bun, sshpass…" — the first few packages brew wouldn't read from their tap.
+    private var brewUncheckedSummary: String {
+        let names = model.brewUnchecked.prefix(4).map(\.name)
+        let more = model.brewUnchecked.count > names.count ? "…" : ""
+        return names.joined(separator: ", ") + more
+    }
+
+    private var brewUncheckedHelp: String {
+        String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window.")
+    }
+
     /// Subtitle for the up-to-date placeholder — the count of top-level formulae we
     /// track, so the idle row still says something concrete. Falls back to a plain
     /// line when the leaf count isn't available yet.
@@ -801,6 +837,42 @@ struct MenuContentView: View {
         let n = model.brewFormulae.count
         guard n > 0 else { return String(localized: "All command-line formulae are current.") }
         return String(localized: "\(n) top-level formulae · all current")
+    }
+}
+
+/// The "?" that stands in for the target version when an app has staged its own
+/// update where we cannot read it (`RowVersionLine.stagedRelaunchVersionUnknown`).
+/// Clicking it explains why; a tooltip alone only reaches people who already
+/// suspect the "?" means something. A tap rather than a Button, like
+/// `FullDiskAccessMark`. Shared by the popover row and the workbench detail header.
+struct StagedVersionUnknownMark: View {
+    let appName: String
+
+    @State private var showTip = false
+
+    var body: some View {
+        Text(verbatim: "?")
+            .fontWeight(.semibold)
+            .foregroundStyle(.tint)
+            .contentShape(Rectangle())
+            .onTapGesture { showTip = true }
+            .help(String(localized: "Version unknown — click for why"))
+            .accessibilityLabel(String(localized: "Version unknown — click for why"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showTip = true }
+            .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                Text(String(localized: "\(appName) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    // The anchor sits in a one-line, scale-to-fit version line, and
+                    // popover content inherits that environment: without resetting
+                    // both, the explanation renders as a single truncated line.
+                    .lineLimit(nil)
+                    .minimumScaleFactor(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .frame(width: 260, alignment: .leading)
+            }
     }
 }
 
@@ -1240,6 +1312,17 @@ private struct AppRow: View {
             // build that trails the latest isn't shown as Relaunch; it goes through
             // the normal updateAvailable line/Update button below.)
             stagedVersionLine(staged)
+        case .stagedRelaunchVersionUnknown:
+            // Relaunch applies an update the app staged where we cannot read it —
+            // so no target version, only a question mark that explains itself on click.
+            HStack(spacing: 4) {
+                Text(result.installedDisplay ?? "?")
+                Image(systemName: "arrow.right").font(.caption2)
+                StagedVersionUnknownMark(appName: result.app.name)
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         case .restart(let from):
             // Update All has landed the new bundle but intentionally postpones its
             // process-version sweep/restarts until every installer is finished; a

@@ -283,7 +283,12 @@ public actor SparkleInstaller {
         // shells out, and its privileged route parks the calling thread inside
         // `osascript` for as long as the user takes to answer the administrator
         // panel. See `offCooperativePool`.
-        try await offCooperativePool {
+        //
+        // The `SwapOutcome` is dropped on purpose (`@discardableResult` does not
+        // survive the generic hop, hence `_ =`): both cases mean the new version is
+        // live, and a cleanup failure's reason is logged by `replace` itself, in its
+        // `defer` — `aCleanupFailureReasonReachesTheInstallLog` reads it back.
+        _ = try await offCooperativePool {
             try InPlaceSwap.replace(newApp: newApp, over: target)
         }
     }

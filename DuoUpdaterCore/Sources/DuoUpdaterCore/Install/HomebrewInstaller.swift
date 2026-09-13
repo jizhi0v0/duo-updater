@@ -18,10 +18,40 @@ public actor HomebrewInstaller {
             case .brewNotFound:
                 return "Homebrew isn’t installed (no brew found in the usual locations)."
             case .failed(let code, let output):
-                let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
-                return "brew failed (\(code)): \(tail)"
+                return HomebrewInstaller.failureDescription(code: code, output: output)
             }
         }
+    }
+
+    /// The one-line description both `BrewError.failed` copies (this one and
+    /// `BrewFormulaService.BrewError`) report. Every surface renders it with
+    /// `.lineLimit(1)`, so what comes first is all the user sees.
+    ///
+    /// brew's own `Error:` line leads when there is one. The last three lines used
+    /// to lead, and brew puts its remediation after the error: a formula with no
+    /// bottle on a machine with outdated Command Line Tools surfaced as
+    /// `brew failed (1): Alternatively, manually download them from: …`, with
+    /// `Error: Your Command Line Tools are too outdated.` eight lines up.
+    /// The first `Error:` line, not the last: brew reports the cause first.
+    ///
+    /// ANSI escapes are stripped before the prefix check, not after: with
+    /// `HOMEBREW_COLOR` set (it reaches `brew update` from the user's shell
+    /// environment) brew writes `ESC[31mError:ESC[0m …`, which does not start with
+    /// `Error:` until the escapes are gone.
+    ///
+    /// Without an `Error:` line this is exactly the old tail. The full output stays
+    /// in the `output` payload; nothing reads it from the description.
+    static func failureDescription(code: Int32, output: String) -> String {
+        let errorLine = output
+            .split(whereSeparator: \.isNewline)
+            .lazy
+            .map { MASInstaller.stripANSI(String($0)) }
+            .first { $0.hasPrefix("Error:") }
+        if let errorLine {
+            return "brew failed (\(code)): \(errorLine.trimmingCharacters(in: .whitespaces))"
+        }
+        let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
+        return "brew failed (\(code)): \(tail)"
     }
 
     /// Run `brew install --cask --force <token>`, streaming output lines.

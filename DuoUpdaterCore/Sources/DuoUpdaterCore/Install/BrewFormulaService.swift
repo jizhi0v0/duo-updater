@@ -178,8 +178,7 @@ public actor BrewFormulaService {
             case .brewNotFound:
                 return "Homebrew isn’t installed (no brew found in the usual locations)."
             case .failed(let code, let output):
-                let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
-                return "brew failed (\(code)): \(tail)"
+                return HomebrewInstaller.failureDescription(code: code, output: output)
             }
         }
     }

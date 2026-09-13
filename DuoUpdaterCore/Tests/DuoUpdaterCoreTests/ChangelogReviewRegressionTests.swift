@@ -213,6 +213,28 @@ private let hbuilderXCodeSpanFixture = #"""
     }
 }
 
+/// `feedPagePattern` replaces the page, so every other way of choosing the page
+/// is dead beside it: `pageURL` never reads `sourceTemplate`, the two-stage fetch
+/// would treat the feed-resolved page as an index, a structured decoder was
+/// written for a different document, and the page is fetched with GET. None of
+/// those fails at compile time. The pattern must also be anchored at both ends and
+/// require `https`: `acceptedFeedPage` matches the whole string anyway, but an
+/// unanchored pattern in the registry reads as a looser guard than it is.
+@Test func feedPagePatternExcludesTheOtherSourceModes() {
+    let recipes = ChangelogRecipeRegistry.recipes.filter { $0.feedPagePattern != nil }
+    #expect(!recipes.isEmpty, "no feedPagePattern recipe left — this check would pass vacuously")
+    for recipe in recipes {
+        let pattern = recipe.feedPagePattern ?? ""
+        #expect(recipe.sourceTemplate == nil, "\(recipe.bundleID): sourceTemplate is dead beside feedPagePattern")
+        #expect(recipe.indexLinkPattern == nil, "\(recipe.bundleID): indexLinkPattern is dead beside feedPagePattern")
+        #expect(recipe.structuredFormat == nil, "\(recipe.bundleID): feedPagePattern is regex-path only")
+        #expect(recipe.httpMethod == .get, "\(recipe.bundleID): a feed-resolved page is fetched with GET")
+        #expect((try? NSRegularExpression(pattern: pattern)) != nil, "\(recipe.bundleID): pattern does not compile")
+        #expect(pattern.hasPrefix("^https://") && pattern.hasSuffix("$"),
+                "\(recipe.bundleID): feedPagePattern must be anchored and https-only")
+    }
+}
+
 /// `skipSections` is read only where the notes go through `GitHubMarkdownParser` —
 /// the two GitHub release formats. On any other recipe it is not an error, it is
 /// *nothing*: the field is set, the headings stay, and the only symptom is

@@ -136,8 +136,16 @@ public enum LoginShellEnvironment {
     /// replaced did; `timeout` is what bounds it. A cancellation teardown would
     /// SIGKILL the shell alone and leave its rc's children running, which is the
     /// leak the timeout branch below exists to avoid.
+    ///
+    /// `timeout` counts from the shell's launch, as it did when the wait started
+    /// after `Process.run()` returned: every spawn in this process goes through
+    /// swift-subprocess's one worker thread, so a clock started at the call could
+    /// expire before the shell existed, return nil without a pid to kill, and leave
+    /// the shell to start afterwards with nobody watching it. `beforeSpawn` is a
+    /// test seam for that wait.
     static func resolveHomebrewVariables(
-        shell: String, environment: [String: String]?, timeout: TimeInterval
+        shell: String, environment: [String: String]?, timeout: TimeInterval,
+        beforeSpawn: (@Sendable () async -> Void)? = nil
     ) async -> [String: String]? {
         let launched = LaunchedPID()
         let runner = Task {
@@ -154,9 +162,11 @@ public enum LoginShellEnvironment {
                 standardInput: Data(),
                 standardError: .discard,
                 onCancel: .runToCompletion,
-                onLaunch: { launched.set($0) })
+                onLaunch: { launched.set($0) },
+                beforeSpawn: beforeSpawn,
+                standardInputIsOpen: nil)
         }
-        guard case .finished(let outcome) = await race(runner, within: timeout) else {
+        guard case .finished(let outcome) = await race(runner, launched: launched, within: timeout) else {
             // SIGKILL, not SIGTERM: an interactive zsh ignores SIGTERM, so the
             // shell — and whatever in the rc file it is stuck waiting on — would keep
             // running, one more for every check. The shell's descendants are collected
@@ -165,6 +175,7 @@ public enum LoginShellEnvironment {
             // shell looping in its rc can't start a new child between the listing
             // and the kill. The pid cannot have been reused: `ChildProcess` has not
             // reaped the shell yet.
+            // The race only times out after a launch, so the pid is there.
             if let pid = launched.value {
                 kill(pid, SIGSTOP)
                 for victim in descendants(of: pid) + [pid] { kill(victim, SIGKILL) }
@@ -181,16 +192,19 @@ public enum LoginShellEnvironment {
         case timedOut
     }
 
-    /// `runner`'s value if it lands within `seconds`, else `.timedOut` — without
-    /// waiting for `runner`, which a task group would do.
+    /// `runner`'s value if it lands within `seconds` of the shell's launch, else
+    /// `.timedOut` — without waiting for `runner`, which a task group would do. A
+    /// runner that finishes without ever launching (the spawn failed) wins the race.
     private static func race(
-        _ runner: Task<ChildProcess.Outcome?, Never>, within seconds: TimeInterval
+        _ runner: Task<ChildProcess.Outcome?, Never>, launched: LaunchedPID,
+        within seconds: TimeInterval
     ) async -> Race {
         let once = OnceRace()
         return await withCheckedContinuation { continuation in
             once.arm(continuation)
             Task { once.resume(.finished(await runner.value)) }
             Task {
+                await launched.waitForLaunch()
                 try? await Task.sleep(for: .seconds(seconds))
                 once.resume(.timedOut)
             }
@@ -213,8 +227,32 @@ public enum LoginShellEnvironment {
     private final class LaunchedPID: @unchecked Sendable {
         private let lock = NSLock()
         private var pid: pid_t?
-        func set(_ value: pid_t) { lock.withLock { pid = value } }
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func set(_ value: pid_t) {
+            let resume: [CheckedContinuation<Void, Never>] = lock.withLock {
+                pid = value
+                defer { waiters = [] }
+                return waiters
+            }
+            resume.forEach { $0.resume() }
+        }
+
         var value: pid_t? { lock.withLock { pid } }
+
+        /// Returns once `set` has been called. A launch that never happens leaves
+        /// this suspended; the race it belongs to is then won by the runner, and
+        /// the suspended timer task is abandoned with it.
+        func waitForLaunch() async {
+            await withCheckedContinuation { continuation in
+                let now: Bool = lock.withLock {
+                    if pid != nil { return true }
+                    waiters.append(continuation)
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
     }
 
     /// Every live descendant of `pid`, deepest first. Children that already detached

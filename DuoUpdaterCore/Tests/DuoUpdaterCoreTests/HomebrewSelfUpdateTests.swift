@@ -169,10 +169,13 @@ import Foundation
     /// continuation instead of cancelling anything, so it fires even if the call
     /// under test never yields.
     @Test func readsVariablesExportedByAFixtureZshrc() async throws {
+        // A per-run duration, so the background `sleep` this rc leaves behind can be
+        // found and killed afterwards instead of outliving the test for two minutes.
+        let marker = "120.\(Int.random(in: 100_000...999_999))"
         let home = try Self.fixtureHome(zshrc: """
             echo "rc banner"
             export HOMEBREW_NO_AUTO_UPDATE=1
-            sleep 120 &
+            sleep \(marker) &
             """)
         defer { try? FileManager.default.removeItem(at: home) }
         let environment = Self.fixtureEnvironment(home: home)
@@ -183,6 +186,7 @@ import Foundation
         }
         #expect(finished)
         #expect(box.value?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+        for pid in await Self.processes(matching: "sleep \(marker)") { kill(pid, SIGKILL) }
     }
 
     /// True when `body` finished within `seconds`. Resumes on whichever comes
@@ -206,6 +210,22 @@ import Foundation
             Task { await body(); once.resume(true) }
             DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { once.resume(false) }
         }
+    }
+
+    /// The timeout counts from the shell's launch. The wait before the spawn (2 s,
+    /// injected) is longer than the timeout (0.5 s); a clock started at the call
+    /// would give up before the shell existed — returning nil with no pid to kill,
+    /// and leaving the shell to start unwatched.
+    ///
+    /// Mutation: drop `await launched.waitForLaunch()` from `race` → nil.
+    @Test func theTimeoutCountsFromTheShellsLaunch() async throws {
+        let home = try Self.fixtureHome(zshrc: "export HOMEBREW_NO_AUTO_UPDATE=1")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let environment = Self.fixtureEnvironment(home: home)
+        let variables = await LoginShellEnvironment.resolveHomebrewVariables(
+            shell: "/bin/zsh", environment: environment, timeout: 0.5,
+            beforeSpawn: { try? await Task.sleep(for: .seconds(2)) })
+        #expect(variables?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
     }
 
     private final class ResultBox: @unchecked Sendable {
@@ -234,16 +254,33 @@ import Foundation
     /// Mutations: SIGTERM instead of SIGSTOP + SIGKILL → the loop keeps starting
     /// new `sleep`s; kill only the shell → the current `sleep` is reparented and
     /// survives; miscount `proc_listchildpids` → same as killing only the shell;
-    /// `ChildProcess` never reports the pid (`onLaunch` not called) → nothing is
-    /// killed, and the call still returns nil at the timeout, so the survivors are
-    /// what fails.
+    /// `ChildProcess` never reports the pid (`onLaunch` not called) → the timeout,
+    /// which counts from launch, never starts: the call never returns and the 60 s
+    /// watchdog fails the test (the leaked shell is killed by parent pid below).
+    ///
+    /// Not timing-sensitive: the rc loops forever, so the only way to finish is
+    /// the timeout firing, and it starts only once the shell exists.
     @Test func aShellThatHangsIsUnknownAndKilled() async throws {
         let marker = "30.\(Int.random(in: 100_000...999_999))"
         let home = try Self.fixtureHome(zshrc: "while :; do sleep \(marker); done")
         defer { try? FileManager.default.removeItem(at: home) }
-        let variables = await LoginShellEnvironment.resolveHomebrewVariables(
-            shell: "/bin/zsh", environment: Self.fixtureEnvironment(home: home), timeout: 1)
-        #expect(variables == nil)
+        let environment = Self.fixtureEnvironment(home: home)
+        let box = ResultBox()
+        let returned = await Self.within(seconds: 60) {
+            box.value = await LoginShellEnvironment.resolveHomebrewVariables(
+                shell: "/bin/zsh", environment: environment, timeout: 1) ?? [:]
+        }
+        #expect(returned, "the call never returned")
+        #expect(box.value == [:], "a hung shell must read as unknown (nil)")
+        if !returned {
+            for pid in await Self.processes(matching: "sleep \(marker)") {
+                var info = proc_bsdinfo()
+                if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0 {
+                    kill(pid_t(info.pbi_ppid), SIGKILL)
+                }
+                kill(pid, SIGKILL)
+            }
+        }
         // SIGKILL delivery is asynchronous; allow it a moment before calling it a leak.
         var survivors = await Self.processes(matching: "sleep \(marker)")
         for _ in 0..<20 where !survivors.isEmpty {

@@ -2,6 +2,50 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.93
+
+**Las notas de versión ahora aparecen en tu idioma cuando una app las publica en varios.** Algunas apps publican sus notas traducidas junto a cada versión; Duo Updater tomaba la traducción que la app listara primero o última, así que las notas de una app se leían en alemán para todo el mundo y las de otra cambiaban de idioma de una versión a la siguiente.
+
+**Las apps que han añadido una versión para Mac ya no aparecen como «No es compatible con este Mac».** Una app de iPhone o iPad que ejecutas en Apple silicon quedaba marcada por error justo cuando su desarrollador publicaba una compilación nativa para Mac, es decir, el único cambio que hace la actualización más accesible, no menos.
+
+**Una app de la App Store que además pruebas en beta ya no se confunde con una compilación de TestFlight.** Cuando un desarrollador promocionaba una beta sin cambios, ambas llevaban el mismo número de compilación y tu copia comprada quedaba en manos de TestFlight, de modo que la App Store nunca podía ofrecerle una actualización.
+
+**Una actualización de la App Store que necesita un macOS más nuevo del que tienes ahora lo dice.** Antes, la fila se ofrecía a instalarla igualmente y la App Store la rechazaba en el último paso, sin nada en pantalla que explicara por qué.
+
+**La ventana de «Solicitudes» ahora muestra hasta dónde llega realmente su registro y señala los periodos que no puede cubrir por completo.** Antes, elegir «Últimos 30 días» en un registro que solo llegaba a unas pocas horas atrás se veía exactamente igual que elegir «Últimas 24 horas», sin nada en pantalla que explicara por qué.
+
+**Tú decides cuánto hace Duo Updater con las betas de TestFlight, en Ajustes → General.** «Al actualizar» lee lo que TestFlight ya sabe y le pide una respuesta nueva cuando pulsas el botón para actualizar la lista; «Mantener al día» además deja que Duo Updater pregunte por su cuenta, de modo que una beta de TestFlight instalada en segundo plano ya no se queda como un signo de interrogación hasta que actualices, y una compilación que te espera ya no pasa desapercibida detrás de un «actualizado»; «Desactivado» no lee nada y lo dice en esas filas en lugar de adivinar. Los Mac que ya tenían acceso total al disco empiezan en «Al actualizar», y el resto en «Desactivado».
+
+**Abrir TestFlight tú mismo ya basta para que Duo Updater se entere de lo que ha instalado.** Una beta que instalabas desde TestFlight se quedaba como un signo de interrogación hasta la siguiente actualización de la lista, y en macOS 27, donde el aviso «Listo para probar» de TestFlight ya no llega para las apps que ya tienes, eso podía ser cuestión de horas.
+
+**Cline ya recibe actualizaciones, tanto en su versión estable como en la beta, y muestra sus notas de versión.** Hasta ahora se quedaba con un signo de interrogación en lugar de una versión: no publica ningún canal de actualizaciones de los que Duo Updater sabe leer, y no existe un paquete de Homebrew para él. Duo Updater ahora consulta la misma dirección que consulta el propio actualizador de Cline, así que la actualización que se te ofrece es la que Cline habría instalado por su cuenta, y la compilación beta se mantiene en la vía beta.
+
+**Las notas de versión que agrupan los cambios bajo encabezados como «Añadido» y «Corregido» ahora conservan esos encabezados.** Antes, todos los grupos se fundían en una sola lista plana, así que no podías distinguir qué cambios eran novedades y cuáles corrección de errores.
+
+**Mac Mouse Fix ahora ofrece sus versiones beta si has activado «Get Beta Versions» en sus propios ajustes generales.** Antes, Duo Updater solo podía ver las versiones normales de Mac Mouse Fix, así que una compilación beta pasaba desapercibida hasta que salía la siguiente versión normal.
+
+**Las apps cuyo número de compilación es un simple contador ya no ocultan sus propias versiones de mantenimiento.** En una app que informaba de una versión como 12.10 con la compilación 282987, una versión 12.10.1 se leía como «ya está actualizada».
+
+**Una nueva compilación de una app que conserva el mismo nombre de versión se vuelve a anunciar.** Una vez anunciada una compilación, todas las posteriores con ese mismo nombre llegaban en silencio: la fila se encendía y el distintivo la contaba, pero nunca llegaba ningún aviso.
+
+**«Actualizar todo» ahora solo cuenta las apps que realmente se actualizaron.** Una app que abre el Instalador de Apple para que termines tú se contaba como hecha mientras su ventana seguía abierta, así que «se han actualizado 2 apps» podía significar que aún no había cambiado nada.
+
+**Una actualización que llegó a su destino pero dejó un resto detrás ahora se informa como instalada, y no como «concede Gestión de apps».** La nueva versión ya estaba en marcha mientras la fila te enviaba a Ajustes del Sistema.
+
+**Detener «Actualizar todo» ahora detiene también la descarga en curso.** Antes, una transferencia de varios gigabytes seguía hasta el final, reintentándolo hasta cinco veces, y solo entonces se daba cuenta de que se había cancelado.
+
+**Las notas de versión ya no se mezclan entre dos apps que comparten una misma página de cambios, y se mantienen al día tras una actualización en las apps cuyas notas viven en páginas por versión.** Antigravity y Antigravity IDE podían mostrar cada una las notas de la otra durante un cuarto de hora; Thunderbird, WeChat, Opera y algunas más seguían mostrando las notas de la versión anterior un rato después de actualizar.
+
+**La búsqueda en la lista de apps ignora los acentos, como ya hacía la búsqueda de Ajustes.** Escribir «cafe» ahora encuentra «Café».
+
+**La página de «Diagnóstico» muestra una línea de estado por cada canal de versiones.** Una regla de beta o de vista previa averiada quedaba oculta detrás de su hermana estable, que sí funcionaba.
+
+**Una respuesta «prohibido» de GitHub ya no se informa como un límite de peticiones.** Un repositorio que pasó a ser privado o un token al que le falta un permiso te empujaban a añadir un token que no habría servido de nada.
+
+**«Reabrir» ya no se ofrece en una app que se actualiza sola cuando la compilación en espera es más antigua que la que está en marcha.**
+
+**Por dentro.** Las instalaciones, las copias de seguridad y las comprobaciones de paquetes ya no ocupan los hilos con los que funciona el resto de la app, así que el menú sigue respondiendo mientras una está en curso; el menú también se mantiene fluido mientras hay una descarga grande en marcha; el «Registro de versiones» cuenta todas las publicaciones que un proveedor lanza bajo un mismo nombre de versión; una copia de seguridad para revertir se rechaza en lugar de guardarse cuando le faltaría el propio ejecutable de la app; el primer arranque en un Mac recién estrenado ya no registra errores espurios de base de datos; `duo verify` y `duo reconcile` ahora informan de un historial de cambios cuyas entradas se han venido abajo y de una dirección de instalación que lleva días fallando; un comando `duo` atascado abandona su escaneo a los veinte segundos en vez de quedarse colgado.
+
 ## 0.3.92
 
 **Algunas apps que se actualizan solas ya no parecen estar al día cuando hay una versión más nueva.** En las apps cuya información de actualización está detrás de un servidor de descargas que tarda en refrescarse, Duo Updater podía seguir viendo una versión anterior durante días después de una publicación.

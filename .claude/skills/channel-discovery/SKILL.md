@@ -60,8 +60,7 @@ recall.
 **1a. What we ALREADY cover (to subtract, not re-investigate):**
 ```bash
 # Channels already wired — skip these
-grep -n "channel:" DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift
-grep -n "channel:" DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+grep -rn "channel:" DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/   # probes + GitHub rules + changelogs, one file per family
 ls DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/*Channel*.swift   # ChannelBinding resolvers
 # Already-investigated verdicts (A/B/C/D, incl. the ✗ dead-ends — DON'T redo these)
 sed -n '/^## /p' CHANNEL_COVERAGE_TODO.md 2>/dev/null || echo "(ledger missing — rebuild §1 from code below; it's the only authoritative source)"
@@ -178,6 +177,6 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
 - `CHANNEL_COVERAGE_TODO.md` — the breadth ledger this skill refreshes (A/B/C/D)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + `detect()` signal hierarchy
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Fork/Surge/TablePlus/DuoPaste/OrbStack/CleanShot)
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` / `GitHubReleasesSource.swift` — covered channels to subtract
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` — one file per app family; its `channel:` lines are the covered channels to subtract
 - `.claude/skills/app-audit/SKILL.md` — the depth skill this one feeds (Pattern A/B/C/D defined there in full)
 - `application-test/` — `channel-verify`, the on-machine proof `/app-audit` runs

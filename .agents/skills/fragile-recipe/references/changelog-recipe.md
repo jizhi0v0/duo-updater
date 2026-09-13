@@ -217,7 +217,10 @@ release and the detail parse yields sane entries — the same Python snippet, wi
 
 ## Register + test
 
-Add the recipe to `ChangelogRecipeRegistry.recipes` in `ChangelogRecipe.swift`.
+Add the recipe to the `changelogs:` of the app's family file under
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/`, and the family to
+`AppRecipeIndex.all` if it is new. `ChangelogRecipeRegistry.recipes` is derived
+from that index.
 
 Add a test to `ChangelogExtractorTests.swift` with an **inline fixture** (a trimmed
 copy of the real markup, including at least one HTML entity to prove decoding) and

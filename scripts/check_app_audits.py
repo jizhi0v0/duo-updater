@@ -131,12 +131,15 @@ def registry_bundle_ids():
     reverse-DNS shape is a good heuristic, registry membership is a fact.
     """
     ids = set()
-    src = "DuoUpdaterCore/Sources/DuoUpdaterCore/Sources"
-    for name in os.listdir(src):
-        if not name.endswith(".swift"):
-            continue
-        text = open(os.path.join(src, name), encoding="utf-8").read()
-        ids.update(re.findall(r'bundleID:\s*"([^"]+)"', text))
+    # The registry entries live in `Recipes/`, one file per app family. `Sources/`
+    # is still read so a `bundleID:` written next to a registry is not missed.
+    for src in ("DuoUpdaterCore/Sources/DuoUpdaterCore/Sources",
+                "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"):
+        for name in os.listdir(src):
+            if not name.endswith(".swift"):
+                continue
+            text = open(os.path.join(src, name), encoding="utf-8").read()
+            ids.update(re.findall(r'bundleID:\s*"([^"]+)"', text))
     return {i.replace(".", "-").lower() for i in ids}
 
 

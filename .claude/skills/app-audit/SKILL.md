@@ -833,9 +833,9 @@ suggestions. Use this decision table:
 |---------|--------|-----|
 | Needs VendorProbe recipe | → `/fragile-recipe <app>` (VendorProbe path) | Pass the endpoint URL, version pattern, and channel from the audit |
 | Needs ChangelogRecipe | → `/fragile-recipe <app>` (Changelog path) | Pass the changelog URL and markup structure from the audit |
-| Needs GitHubReleaseRule | → Edit `GitHubReleasesSource.swift` directly | Add rule to the `rules` array with owner/repo/pattern/channel |
+| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
-| Needs channel added to existing probe | → Edit `VendorProbeRecipe.swift` | Duplicate the stable recipe, change channel + endpoint |
+| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` § C | Document the reason; no code change |
 | Already fully covered | → Write/update audit doc only | No code change needed |
 
@@ -973,9 +973,10 @@ Verification harness:
 Core (read as needed):
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + detect()
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` — per-app preference resolvers
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` — probe registry
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift` — GitHub rules
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` — changelog registry
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` — one app family's probes, GitHub rules, changelog recipes and channel proofs (`AppRecipeIndex.swift` lists the families)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` — probe struct + `VendorProbeRegistry` (derived)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift` — GitHub rule struct + `GitHubReleaseRegistry` (derived)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` — changelog recipe struct + `ChangelogRecipeRegistry` (derived)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SparkleAppcastSource.swift` — Sparkle channel filtering
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/UpdateChecker.swift` — source priority chain
 - `CHANNEL_COVERAGE_TODO.md` — channel gap analysis

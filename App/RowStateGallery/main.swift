@@ -324,6 +324,12 @@ private let tooltipDifferentiatedPairs: Set<Set<String>> = [
     // Same button, same claim, third tooltip — the popover's quit-to-finish row.
     ["popover/01-awaiting-quit-confirm", "popover/10-relaunch-to-apply-staged"],
     ["popover/01-awaiting-quit-confirm", "popover/11-restart-to-apply"],
+    // 10's button with the staged version unknown — the tooltip is all that differs.
+    ["popover/10-relaunch-to-apply-staged", "popover/45-relaunch-to-apply-staged-version-unknown"],
+    ["workbench/10-relaunch-to-apply-staged", "workbench/45-relaunch-to-apply-staged-version-unknown"],
+    ["popover/11-restart-to-apply", "popover/45-relaunch-to-apply-staged-version-unknown"],
+    ["workbench/11-restart-to-apply", "workbench/45-relaunch-to-apply-staged-version-unknown"],
+    ["popover/01-awaiting-quit-confirm", "popover/45-relaunch-to-apply-staged-version-unknown"],
     // "Both a bordered Update: … the tooltip is what separates them."
     ["popover/13-update-installer", "popover/19-update-app-store"],
     ["workbench/13-update-installer", "workbench/19-update-app-store"],

@@ -60,10 +60,14 @@ targets:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
       - path: Sources/RequestCoverageHonesty.swift
-      # The root helper's XPC peer gate. Foundation + Security only; the rest of
-      # the helper (main.swift's top-level code, the `mas` runner) stays out.
+      # The root helper's XPC peer gate and its request-identity check. Foundation
+      # + Security only. HelperService is compiled so the identity guard in
+      # installMASApp is executed; tests stop it at the lexical log-path check,
+      # before anything is opened or launched. main.swift's top-level code stays out.
       - path: Helper/HelperPeerGate.swift
+      - path: Helper/HelperService.swift
       - path: Shared/OwnTeamIdentifier.swift
+      - path: Shared/MASHelperProtocol.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

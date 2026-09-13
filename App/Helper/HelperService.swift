@@ -25,8 +25,7 @@ final class HelperService: NSObject, MASHelperProtocol {
         let identity = clientIdentity
         Self.workQueue.async {
             guard adamID > 0 else { reply(-1, "invalid adamID"); return }
-            guard uid == Int(identity.uid), gid == Int(identity.gid),
-                  userName == identity.userName else {
+            guard identity.matchesClaim(uid: uid, gid: gid, userName: userName) else {
                 reply(-1, "client identity did not match its XPC connection"); return
             }
             // logPath is a path the *client* chose that root will redirect onto, so

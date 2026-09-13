@@ -27,10 +27,21 @@ ROOT="$(git rev-parse --show-toplevel)" && cd "$ROOT"
 T="$(mktemp -d)"
 UIDN="$(id -u)"
 LABELS=()
+# A listener left SIGSTOPped (something died between STOP and CONT) would ignore
+# bootout's SIGTERM until resumed; resume it first so bootout can end it normally.
+resume_stopped() {
+  if [ -s "$T/stopped.pids" ]; then
+    while read -r p; do [ -n "$p" ] && kill -CONT "$p" 2>/dev/null || true; done < "$T/stopped.pids"
+    : > "$T/stopped.pids"
+    return 1
+  fi
+}
 cleanup() {
+  [ -d "$T" ] && { resume_stopped || true; }
   for l in "${LABELS[@]:-}"; do
     [ -n "$l" ] && launchctl bootout "gui/$UIDN/$l" >/dev/null 2>&1 || true
   done
+  rm -rf "$T"
 }
 trap cleanup EXIT
 
@@ -69,6 +80,16 @@ PY
   echo
   echo "=== $name  (listener mode=$mode, requirement=${req:-<none>})"
   "$@" "$label" 2>&1 | sed 's/^/  peer| /' || true
+  # The peer runs in a pipeline subshell, so a harness failure inside it can't
+  # abort the script directly; it leaves this file instead. Without it an unforced
+  # run would still print a normal-looking SUMMARY.
+  if ! resume_stopped; then
+    echo "a listener was still SIGSTOPped when the peer finished (resumed now)" >> "$T/FATAL"
+  fi
+  if [ -e "$T/FATAL" ]; then
+    echo "PROBE FATAL in $name: $(cat "$T/FATAL")" >&2
+    exit 1
+  fi
   sleep 1
   launchctl bootout "gui/$UIDN/$label" >/dev/null 2>&1 || true
   sed 's/^[0-9.]* /  lsnr| /' "$log"
@@ -93,13 +114,26 @@ peer_exec() { local bad="$1" good="$2" count="$3"; local svc="$4"
 peer_exec_stopped() { local bad="$1" good="$2" count="$3" log="$4"; local svc="$5"
   "$good" "$svc" warmup 1 >/dev/null   # starts the on-demand listener
   local lpid; lpid="$(sed -n 's/.* LISTENING .* pid=\([0-9]*\)$/\1/p' "$log")"
+  if [ -z "$lpid" ]; then
+    echo "no listener pid in $log — the race would run unforced" > "$T/FATAL"
+    return 1
+  fi
   echo "PROBE stopping listener pid=$lpid"
+  echo "$lpid" >> "$T/stopped.pids"
   kill -STOP "$lpid"
+  local stat; stat="$(ps -o stat= -p "$lpid" 2>/dev/null || true)"
+  case "$stat" in
+    *T*) ;;
+    *) echo "listener pid=$lpid not stopped after SIGSTOP (stat='$stat') — the race would run unforced" > "$T/FATAL"
+       kill -CONT "$lpid" 2>/dev/null || true
+       return 1 ;;
+  esac
   "$bad" "$svc" bad "$count" exec "$good" "$svc" good-after-exec 1 &
   local ppid=$!
   sleep 2
   echo "PROBE resuming listener pid=$lpid"
   kill -CONT "$lpid"
+  : > "$T/stopped.pids"
   wait "$ppid" || true
 }
 

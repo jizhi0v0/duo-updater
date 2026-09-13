@@ -2,29 +2,47 @@ import Foundation
 import Security
 import Testing
 
-/// The root helper's XPC peer gate (`App/Helper/HelperPeerGate.swift`).
+/// The root helper's XPC peer gate (`App/Helper/HelperPeerGate.swift`) and its
+/// request-identity check (`HelperService.installMASApp`).
 ///
 /// ## What these run against, and what they can't
 ///
 /// Real XPC, in one process: an `NSXPCListener.anonymous()` with the gate installed,
 /// and a client connection to its endpoint from the same test process. The
-/// requirement check is libxpc's, on the listener connection, evaluated against
-/// the connection request's sender — here the test process itself. So "a peer
-/// that doesn't match" means a requirement this process doesn't satisfy, and "a
-/// peer that does" means this process's own designated requirement, read at run
-/// time. Neither depends on how the host signed `xctest` (it is ad-hoc on both
-/// Xcode 26.6 and 27, which is exactly why `anchor apple` can't serve as the
-/// "matching" requirement here).
+/// requirement checks are libxpc's, evaluated against the sender of the connection
+/// request / each message — here the test process itself. So "a peer that doesn't
+/// match" means a requirement this process doesn't satisfy, and "a peer that does"
+/// means this process's own designated requirement, read at run time. Neither
+/// depends on how the host signed `xctest` (ad-hoc on both Xcode 26.6 and 27, which
+/// is exactly why `anchor apple` can't serve as the "matching" requirement here).
 ///
-/// Cross-process behaviour — a separately signed peer, a launchd Mach service,
-/// the exec race — needs launchd agents and is NOT in `make test`; run
-/// `scripts/xpc-peer-probe/run.sh`. One consequence, named rather than hidden: a
-/// mutation that swaps the requirement for a *weaker* one this process still fails
-/// (e.g. `anchor apple`) is not caught by the real-XPC cases; it is caught by
-/// `installPassesTheRequirementVerbatimBeforeDelegateAndResume`, which records
-/// what reaches the listener.
+/// Cross-process behaviour — a separately signed peer, a launchd Mach service, the
+/// exec race — needs launchd agents and is NOT in `make test`; run
+/// `scripts/xpc-peer-probe/run.sh`.
 ///
-/// Every case names the mutation it was seen to fail under.
+/// ## Known mutations no case here catches
+///
+/// Named so nobody mistakes the green run for coverage of them. Each is covered
+/// only by a manual step (listed in PR #591):
+///
+/// - **`effectiveUserIdentifier` → `geteuid()`** (and the gid twin) in the delegate.
+///   Peer and listener are one process, so both give the same number. Manual: a
+///   client running as a different user than the helper (the helper is root, so
+///   any real install) must get its own uid in `SUDO_UID`, not 0.
+/// - **`install(on:team:…)`'s default `team:` changed** (to nil, or to a literal).
+///   The ad-hoc test host has no team, so `OwnTeamIdentifier.current` is nil either
+///   way. Manual: a real signed install must still serve the app (nil ⇒ every App
+///   Store install fails) and refuse a forged client.
+/// - **`main.swift` dropping the gate** (`_ = HelperPeerGate.install(…)`): the
+///   listener holds its delegate weakly, so the gate is deallocated and the listener
+///   is left with no delegate (what it then does with connections was not measured).
+///   main.swift's top-level code is not compiled here. Manual: a real install must
+///   serve the app, and a forged client must still be refused.
+/// - **Weaker requirement the test process also fails** (e.g. `anchor apple`) in the
+///   real-XPC cases — caught instead by the recorder in
+///   `installPassesTheRequirementVerbatimBeforeDelegateAndResume`.
+///
+/// Every other case names the mutation it was seen to fail under.
 @Suite(.timeLimit(.minutes(1)))
 struct HelperPeerGateTests {
 
@@ -35,9 +53,11 @@ struct HelperPeerGateTests {
 
     // MARK: real XPC
 
+    /// The listener layer: the delegate is never even consulted.
+    ///
     /// Mutation: delete `listener.setConnectionCodeSigningRequirement(requirement)`
-    /// in `install` — the delegate then accepts, `exportedObjectsMade` and
-    /// `invocations` become 1, and the call replies.
+    /// in `install` — the per-connection layer still keeps the call from running,
+    /// but the delegate is consulted, so `exportedObjectsMade` and `opened` become 1.
     @Test func aPeerFailingTheRequirementNeverReachesTheExportedObject() async throws {
         let rec = Recorder()
         let listener = NSXPCListener.anonymous()
@@ -56,12 +76,45 @@ struct HelperPeerGateTests {
         #expect(rec.snapshot.opened == 0)
     }
 
+    /// The per-connection layer on its own: the real listener carries a requirement
+    /// this process MEETS (put there by `RequirementSwappingListener`), while the
+    /// gate's own requirement — the one it sets on each accepted connection — is
+    /// `neverMatching`. Not vacuous against the listener layer: it asserts the
+    /// delegate DID accept (`exportedObjectsMade == 1`, `opened == 1`), so the only
+    /// thing left to stop the call is the per-connection requirement. And the
+    /// accepted-then-rejected connection must still be released (`closed == 1`),
+    /// or it would hold `IdleExit` open.
+    ///
+    /// Mutation: delete `conn.setCodeSigningRequirement(installation.requirement)`
+    /// → the call replies and `invocations` becomes 1.
+    @Test func aConnectionRequirementStopsWhatTheListenerLetThrough() async throws {
+        let rec = Recorder()
+        let real = NSXPCListener.anonymous()
+        let swapping = RequirementSwappingListener(wrapping: real,
+                                                   listenerRequirement: try Self.ownDesignatedRequirement())
+        let gate = HelperPeerGate.install(on: swapping, requirement: Self.neverMatching,
+                                          interface: Self.interface,
+                                          exportedObject: rec.makeExported,
+                                          connectionOpened: rec.opened,
+                                          connectionClosed: rec.closed)
+        let (outcome, client) = await Self.callKeepingConnection(real.endpoint)
+        #expect(outcome == .failed)
+        await rec.waitForClose { client.invalidate() }
+        withExtendedLifetime(gate) {}
+        real.invalidate()
+
+        #expect(rec.snapshot.exportedObjectsMade == 1)
+        #expect(rec.snapshot.opened == 1)
+        #expect(rec.snapshot.invocations == 0)
+        #expect(rec.snapshot.closed == 1)
+    }
+
     /// The harness's positive control, and the identity binding.
     ///
     /// Mutations: `HelperClientIdentity(uid: 0, …)` in `identity(uid:gid:)` → the
     /// uid assertion fails; drop `conn.invalidationHandler = connectionClosed` →
     /// the closed count stays 0 and the suite time limit fails the case; replace the
-    /// requirement installed by `install` with `neverMatching` → no reply.
+    /// requirement installed by `install` with `"anchor apple"` → no reply.
     @Test func aPeerMeetingTheRequirementIsServedAsItsOwnUser() async throws {
         let rec = Recorder()
         let listener = NSXPCListener.anonymous()
@@ -89,10 +142,10 @@ struct HelperPeerGateTests {
     /// No team ⇒ no requirement ⇒ reject everyone, including a peer that would
     /// have matched anything.
     ///
-    /// Mutation: move `gate.installedOn = listener` out of the `if let requirement`
-    /// branch (so the nil-team path accepts) → this process is served.
-    /// Mutation: move `connectionOpened()` above the `installedOn` guard → `opened`
-    /// becomes 1 for a rejected peer.
+    /// Mutation: in the delegate, enforce the guard only `if let installation`
+    /// (accept when nothing was installed) → this process is served.
+    /// Mutation: move `connectionOpened()` above the `installation` guard →
+    /// `opened` becomes 1 for a rejected peer.
     @Test func withoutATeamEveryPeerIsRejected() async throws {
         let rec = Recorder()
         let listener = NSXPCListener.anonymous()
@@ -114,8 +167,8 @@ struct HelperPeerGateTests {
     /// The delegate can't see whether a listener carries a requirement, so a gate
     /// attached to any listener other than the one it installed on must refuse.
     ///
-    /// Mutation: delete the `installedOn === listener` comparison (keep only
-    /// `guard let installedOn`) → the unguarded listener serves this process.
+    /// Mutation: drop `installedOn === listener` from the guard → the unguarded
+    /// listener serves this process (its own requirement matches us).
     @Test func aGateAttachedToAnotherListenerRejects() async throws {
         let rec = Recorder()
         let guarded = NSXPCListener.anonymous()
@@ -152,36 +205,111 @@ struct HelperPeerGateTests {
         #expect(spy.delegate === gate)
     }
 
-    /// The production call site passes no requirement, so the default decides.
-    /// Written so it holds whether or not this test process has a team.
+    /// The production entry point, with a team: what reaches the listener is the
+    /// client requirement for THAT team, character for character.
     ///
-    /// Mutation: change the default to `requirement: String? = "anchor apple"` →
-    /// the recorded requirement differs from `clientRequirement`.
-    @Test func installDefaultsToTheClientRequirement() {
+    /// Mutation: in `install(on:team:…)`, pass
+    /// `OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.cli", team: team)`
+    /// instead of `requirement(team: team)` → the recorded requirement differs.
+    @Test func installForATeamInstallsTheAppRequirementForThatTeam() {
         let spy = SpyListener()
-        let gate = HelperPeerGate.install(on: spy, interface: Self.interface,
+        let gate = HelperPeerGate.install(on: spy, team: "ZZFIXTURE0", interface: Self.interface,
                                           exportedObject: { _ in NSObject() },
                                           connectionOpened: {}, connectionClosed: {})
         withExtendedLifetime(gate) {}
-        let expected = HelperPeerGate.clientRequirement.map { ["requirement:" + $0] } ?? []
-        #expect(spy.events == expected + ["delegate", "resume"])
+        #expect(spy.events == ["requirement:" + Self.appRequirementForFixtureTeam, "delegate", "resume"])
     }
 
-    /// The exact string, pinned. The team clause is the load-bearing one.
+    // MARK: the requirement string
+
+    static let appRequirementForFixtureTeam =
+        "anchor apple generic and identifier \"com.duoupdater.app\" and certificate leaf[subject.OU] = \"ZZFIXTURE0\""
+
+    /// The exact string, pinned for an invented team. The bundle id and the team
+    /// clause are the load-bearing parts: a different id would admit another binary
+    /// of the same team (the `duo` CLI, the helper itself) as a root client.
     ///
-    /// Mutations: in `OwnTeamIdentifier.requirement(bundleIdentifier:team:)`, return
-    /// `"anchor apple"`, or drop the `certificate leaf[subject.OU]` clause, or drop
-    /// `!team.isEmpty` → a case below fails. In `HelperPeerGate`, change
-    /// `clientBundleIdentifier`, or define `clientRequirement` as `"anchor apple"`
-    /// → the second or last expectation fails.
-    @Test func theClientRequirementIsTheSameStringAsBefore() {
-        #expect(OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app", team: "ZZFIXTURE0")
-                == "anchor apple generic and identifier \"com.duoupdater.app\" and certificate leaf[subject.OU] = \"ZZFIXTURE0\"")
+    /// Mutations: in `HelperPeerGate.requirement(team:)`, use bundle id
+    /// `"com.duoupdater.cli"`; in `OwnTeamIdentifier`, return `"anchor apple"` or drop
+    /// the `certificate leaf[subject.OU]` clause → the first expectation fails.
+    @Test func theClientRequirementIsPinnedForATeam() {
+        #expect(HelperPeerGate.requirement(team: "ZZFIXTURE0") == Self.appRequirementForFixtureTeam)
+        #expect(HelperPeerGate.requirement(team: nil) == nil)
+    }
+
+    /// A team is spliced between quotes, and a malformed requirement crashes the
+    /// helper at launch, so anything but ten `A-Z0-9` characters yields nil.
+    ///
+    /// Mutations: drop `team.utf8.count == 10` → the short and long cases fail;
+    /// drop the character-set check → the quote, lowercase and space cases fail.
+    @Test(arguments: [
+        "",                      // empty
+        "ZZFIXTURE",             // 9
+        "ZZFIXTURE00",           // 11
+        "ZZFIXTURE\"",           // 10, with a quote that would close the string
+        "zzfixture0",            // 10, lowercase
+        "ZZFIX TURE",            // 10, with a space
+        "ZZFIXTUR\" or \"",      // injection-shaped
+    ])
+    func aMalformedTeamYieldsNoRequirement(_ team: String) {
+        #expect(OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app", team: team) == nil)
+    }
+
+    /// The fixture team used throughout is itself well-formed, so the cases above
+    /// aren't passing on a fixture the validation would have rejected anyway.
+    @Test func theFixtureTeamIsWellFormed() {
+        #expect("ZZFIXTURE0".utf8.count == 10)
+        #expect(OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app", team: "ZZFIXTURE0") != nil)
         #expect(HelperPeerGate.clientBundleIdentifier == "com.duoupdater.app")
-        #expect(OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app", team: nil) == nil)
-        #expect(OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app", team: "") == nil)
-        #expect(HelperPeerGate.clientRequirement
-                == OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.app"))
+    }
+
+    // MARK: identity
+
+    /// A uid no account can hold: `(uid_t)-1` is the "no change" sentinel of
+    /// `setreuid`/`chown`, so no passwd entry exists for it on any host.
+    ///
+    /// Mutation: in `identity(uid:gid:)`, fall back to a name
+    /// (`accountName(for: uid) ?? "unknown"`) → an identity is returned.
+    @Test func aUidWithNoAccountHasNoIdentity() {
+        #expect(HelperPeerGate.identity(uid: uid_t.max, gid: 0) == nil)
+    }
+
+    static let fixtureIdentity = HelperClientIdentity(uid: 4242, gid: 4343, userName: "zzfixture")
+
+    /// Mutations: drop any one of the three clauses of `matchesClaim` → the case for
+    /// that field fails.
+    @Test func aClaimMustMatchTheConnectionOnEveryField() {
+        let id = Self.fixtureIdentity
+        #expect(id.matchesClaim(uid: 4242, gid: 4343, userName: "zzfixture"))
+        #expect(!id.matchesClaim(uid: 0, gid: 4343, userName: "zzfixture"))
+        #expect(!id.matchesClaim(uid: 4242, gid: 0, userName: "zzfixture"))
+        #expect(!id.matchesClaim(uid: 4242, gid: 4343, userName: "root"))
+    }
+
+    /// The call site in `installMASApp`. Both requests stop before anything touches
+    /// the disk or starts a process: the matching one at the lexical log-path check
+    /// (an invented, non-temporary directory), which proves it got PAST the identity
+    /// check; the mismatching one at the identity check.
+    ///
+    /// Mutation: delete the `matchesClaim` guard in `installMASApp` → the mismatching
+    /// request also reaches "invalid log path".
+    @Test func installMASAppRefusesAClaimThatDiffersFromItsConnection() async {
+        let service = HelperService(clientIdentity: Self.fixtureIdentity)
+        let logPath = "/ZZFixture-not-a-temp-dir/duo-mas-1.log"
+        let matching = await Self.install(service, uid: 4242, logPath: logPath)
+        let mismatching = await Self.install(service, uid: 0, logPath: logPath)
+        #expect(matching.status == -1)
+        #expect(matching.message == "invalid log path")
+        #expect(mismatching.status == -1)
+        #expect(mismatching.message == "client identity did not match its XPC connection")
+    }
+
+    static func install(_ service: HelperService, uid: Int, logPath: String) async -> (status: Int32, message: String?) {
+        await withCheckedContinuation { cont in
+            service.installMASApp(adamID: 1, uid: uid, gid: 4343, userName: "zzfixture", logPath: logPath) {
+                cont.resume(returning: ($0, $1))
+            }
+        }
     }
 
     // MARK: fixtures
@@ -298,6 +426,7 @@ private final class Recorder: @unchecked Sendable {
     }
 }
 
+/// Records what `install` does to a listener; serves no connections.
 private final class SpyListener: HelperPeerListener {
     var events: [String] = []
     weak var delegate: NSXPCListenerDelegate? {
@@ -307,4 +436,27 @@ private final class SpyListener: HelperPeerListener {
         events.append("requirement:" + requirement)
     }
     func resume() { events.append("resume") }
+    var xpcListener: NSXPCListener? { nil }
+}
+
+/// A real listener that receives `listenerRequirement` instead of whatever the
+/// gate asks for, so the gate's own requirement only acts per connection.
+/// (`NSXPCListener.anonymous()` can't be subclassed to do this: called on a
+/// subclass it still returns a plain `NSXPCListener`.)
+private final class RequirementSwappingListener: HelperPeerListener {
+    let wrapped: NSXPCListener
+    let listenerRequirement: String
+    init(wrapping wrapped: NSXPCListener, listenerRequirement: String) {
+        self.wrapped = wrapped
+        self.listenerRequirement = listenerRequirement
+    }
+    func setConnectionCodeSigningRequirement(_ requirement: String) {
+        wrapped.setConnectionCodeSigningRequirement(listenerRequirement)
+    }
+    var delegate: NSXPCListenerDelegate? {
+        get { wrapped.delegate }
+        set { wrapped.delegate = newValue }
+    }
+    func resume() { wrapped.resume() }
+    var xpcListener: NSXPCListener? { wrapped }
 }

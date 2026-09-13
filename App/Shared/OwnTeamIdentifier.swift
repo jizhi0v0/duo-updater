@@ -72,8 +72,19 @@ enum OwnTeamIdentifier {
 
     /// The same string for an explicit team, so a test can pin its exact shape
     /// without depending on how (or whether) the test process is signed.
+    ///
+    /// nil unless `team` is exactly ten characters of `A-Z0-9`. The team is spliced
+    /// between quotes in a requirement string, and a malformed requirement makes
+    /// `setConnectionCodeSigningRequirement` raise — a crash at helper launch —
+    /// where refusing is the fail-closed answer. Apple documents a Team ID as ten
+    /// alphanumeric characters (developer.apple.com/help/glossary/team-id says
+    /// "10-character", DTS in forums thread 767608 says "10 alphanumeric"); that it
+    /// is also UPPERCASE is observed, not documented. Were a real team ever
+    /// lowercase, both peers would refuse to pin — closed, not open.
     static func requirement(bundleIdentifier: String, team: String?) -> String? {
-        guard let team, !team.isEmpty else { return nil }
+        guard let team, team.utf8.count == 10,
+              team.utf8.allSatisfy({ (0x41...0x5A).contains($0) || (0x30...0x39).contains($0) })
+        else { return nil }
         return "anchor apple generic and identifier \"\(bundleIdentifier)\" "
             + "and certificate leaf[subject.OU] = \"\(team)\""
     }

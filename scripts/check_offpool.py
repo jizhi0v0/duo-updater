@@ -18,6 +18,18 @@ the process silent for the rest of the job). `offCooperativePool` is the fix, an
 Before this check there was no gate at all: `grep offCooperativePool App/Sources
 CLI/Sources` answered zero while eleven call paths were blocking on the pool.
 
+## Child processes: no `Process()` at all
+
+Every child process now goes through `ChildProcess` (swift-subprocess), which
+waits on kqueue and parks no thread, so `waitUntilExit()` and
+`readDataToEndOfFile()` on a pipe have nothing left to do in these roots. The
+old shape could still come back one function call away from an `async` body —
+the limit described below — so this check also refuses the construction itself:
+`Process()` anywhere in the scanned roots, in any scope, synchronous or not. That
+is the one spelling a reintroduced blocking wait cannot avoid. A launch that
+genuinely waits for nothing (`DiagnosticsSettingsPage.relaunch`'s `open -n`)
+carries an exemption with its reason, like any other.
+
 ## What it checks, and what it cannot
 
 For each blocking call it finds, it walks out through the enclosing braces to the
@@ -27,11 +39,13 @@ first scope that decides who the caller's thread belongs to:
   * an `async func`, a `Task { }` or a `Task.detached { }` — a violation;
   * a plain synchronous `func` — NOT reported.
 
-That last one is the honest limit: `InPlaceSwap.replace` is synchronous and was
+That last one is the honest limit: `InPlaceSwap.replace` was synchronous and was
 reached from two `async` callers for months, which no amount of looking at its
-own body can reveal. Answering it needs a call graph. So this gate catches the
+own body could reveal. Answering it needs a call graph. So this gate catches the
 shape at the point where it is visible — the blocking call written directly in
-async-reachable code — and the rule for everything else stays a rule.
+async-reachable code — and the rule for everything else stays a rule. (For child
+processes specifically, the `Process()` refusal above closes the hole by
+refusing the launch wherever it is written.)
 
 Two consequences of that limit, both real and both already paid for here:
 
@@ -75,6 +89,11 @@ BLOCKING = [
     ".wait(timeout:",
     ".run(key:",
 ]
+
+# `Foundation.Process` constructed directly. Refused in every scope — see "Child
+# processes" above. The look-behind keeps `ChildProcess(` and friends out.
+LAUNCH = re.compile(r"(?<![\w])Process\(\)")
+LAUNCH_CALL = "Process()"
 
 MARKER = "offpool-lint:allow"
 REASON = re.compile(re.escape(MARKER) + r"\s*[—-]\s*(\S.*)")
@@ -230,7 +249,8 @@ def scan(path):
         else:
             declaration = ""
         hits = sorted(
-            (text.index(call), call) for call in BLOCKING if call in text)
+            [(text.index(call), call) for call in BLOCKING if call in text]
+            + [(m.start(), LAUNCH_CALL) for m in LAUNCH.finditer(text)])
         # `await x.wait()` is an async wait, not a parked thread. Dismissed on the
         # line's own evidence because the alternative — leaving `.wait()` out of
         # BLOCKING — loses the semaphore and group waits CLAUDE.md names.
@@ -286,12 +306,14 @@ def review(root, roots=ROOTS):
             # single thing this half exists to prevent.
             used = set()
             for number, call, verdict, comments in scan(path):
-                calls += 1
+                launch = call == LAUNCH_CALL
+                if not launch:
+                    calls += 1
                 marker = next(((n, c) for n, c in comments if MARKER in c), None)
-                if verdict != ASYNC:
+                if verdict != ASYNC and not launch:
                     continue
                 if marker is None:
-                    offences.append((rel, number, "blocking", call))
+                    offences.append((rel, number, "launch" if launch else "blocking", call))
                 elif not REASON.search(marker[1]):
                     offences.append((rel, number, "no-reason", call))
                 else:
@@ -303,7 +325,7 @@ def review(root, roots=ROOTS):
             "offences": offences, "dead": dead}
 
 
-def main(root=None, roots=ROOTS, minimum=200, minimum_calls=20):
+def main(root=None, roots=ROOTS, minimum=200, minimum_calls=5):
     root = root or pathlib.Path(__file__).resolve().parent.parent
     found = review(root, roots=roots)
 
@@ -314,7 +336,12 @@ def main(root=None, roots=ROOTS, minimum=200, minimum_calls=20):
         return 1
     # Two floors, for the two ways this becomes a check that inspects nothing:
     # the roots moving, and the call spellings going out of date (a rename of
-    # `waitUntilExit` would leave every root in place and every file scanned).
+    # `SecStaticCodeCheckValidity` would leave every root in place and every file
+    # scanned). The call floor was 20 while ~40 `waitUntilExit`/pipe reads were
+    # in these roots; moving them to `ChildProcess` left 8 blocking calls (one
+    # `SecStaticCodeCheckValidity`, four `.run(key:`, two `.wait(timeout:`, one
+    # file-handle `readDataToEndOfFile`), so it is 5 now. `Process()` launches
+    # are not counted: the aim is that there are none.
     if found["scanned"] < minimum:
         print(f"✗ only {found['scanned']} Swift files scanned across "
               f"{len(roots)} roots — too few to be a real run.", file=sys.stderr)
@@ -336,6 +363,11 @@ def main(root=None, roots=ROOTS, minimum=200, minimum_calls=20):
             print(f"✗ {rel}:{line}: `{call}` is exempted by a bare `{MARKER}` "
                   f"— the reason is not optional, write `{MARKER} — <why>`",
                   file=sys.stderr)
+        elif kind == "launch":
+            print(f"✗ {rel}:{line}: `Process()` launches a child outside "
+                  f"`ChildProcess`, whose waits park no thread — use "
+                  f"`ChildProcess.run` (and choose its `onCancel`)",
+                  file=sys.stderr)
         else:
             print(f"✗ {rel}:{line}: `{call}` parks a cooperative thread — it is "
                   f"inside an async function or a Task, not inside an "
@@ -344,9 +376,12 @@ def main(root=None, roots=ROOTS, minimum=200, minimum_calls=20):
         print(f"✗ {rel}:{line}: `{MARKER}` here no longer exempts anything — "
               "delete it, or it silently exempts whatever is written next",
               file=sys.stderr)
-    print(f"\n{len(offences)} blocking call(s), {len(dead)} stale "
-          "exemption(s).\nWrap the whole contiguous blocking sequence in one\n"
+    launches = sum(1 for _, _, kind, _ in offences if kind == "launch")
+    print(f"\n{len(offences) - launches} blocking call(s), {launches} "
+          f"`Process()` launch(es), {len(dead)} stale exemption(s).\n"
+          "Wrap the whole contiguous blocking sequence in one\n"
           "    try await offCooperativePool { … }\n"
+          "launch child processes with `ChildProcess.run`,\n"
           f"or, if it genuinely cannot block, add `{MARKER} — <why>` to the "
           "enclosing function's comment.", file=sys.stderr)
     return 1

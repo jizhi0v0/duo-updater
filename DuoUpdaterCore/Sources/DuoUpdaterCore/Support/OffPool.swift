@@ -34,6 +34,13 @@ import Foundation
 /// `scripts/run-with-hang-report.sh` bounds the suite from outside the process
 /// and prints stacks either way.
 ///
+/// ## Not for child processes
+///
+/// A child process's wait used to be the commonest thing hopped through here
+/// (`waitUntilExit()`, `readDataToEndOfFile()` on its pipes). It is not any more:
+/// `ChildProcess` awaits the child on kqueue and parks no thread, so there is
+/// nothing to hop. `scripts/check_offpool.py` refuses a bare `Process()`.
+///
 /// ## Not cancellable
 ///
 /// `withCheckedThrowingContinuation` plus a Dispatch hop cannot be cancelled: the
@@ -44,8 +51,10 @@ import Foundation
 /// ## Public, and two of it
 ///
 /// Public because the blocking calls are not all in this package: the menu-bar
-/// app (`lsappinfo`, the helper's `osascript`) and `duo` (its whole synchronous
-/// subcommands) reach the same pool through the same async entry points.
+/// app's scan (`AppScanner.scan()` with its TestFlight read) reaches the same
+/// pool through the same async entry points. (The app's `lsappinfo` and
+/// `osascript`, and `duo`'s synchronous subcommands, used to as well, until they
+/// moved to `ChildProcess`.)
 ///
 /// The second, non-throwing overload exists so a caller whose own signature
 /// cannot throw does not have to write `(try? await …) ?? fallback` around work

@@ -224,13 +224,19 @@ class OffPool(unittest.TestCase):
     def review(self):
         return co.review(self.root, roots=["Sources"])
 
+    # The wait half alone. The fixtures above are the pre-`ChildProcess` shapes,
+    # so most of them also construct a `Process()`, which is its own offence now
+    # (see the launch tests below); the tests about WHERE a wait parks a thread
+    # read only the waits.
+    def waits(self):
+        return [o for o in self.review()["offences"] if o[2] != "launch"]
+
     # Mutation: drop `Task` from the frames that count as async. The App layer's
     # two worst sites were both detached tasks, and `OffPool.swift` says in so
     # many words that a detached task is not an alternative.
     def test_a_detached_task_is_not_a_hop(self):
         self.write(DETACHED)
-        found = self.review()
-        self.assertEqual(len(found["offences"]), 2, found)
+        self.assertEqual(len(self.waits()), 2, self.review())
 
     # Mutation: judge the brace's own line instead of the accumulated
     # declaration. Every wrapped `async` signature then reads as synchronous and
@@ -295,11 +301,11 @@ class OffPool(unittest.TestCase):
 
     def test_a_hopped_call_passes(self):
         self.write(HOPPED)
-        self.assertEqual(self.review()["offences"], [])
+        self.assertEqual(self.waits(), [])
 
     def test_a_synchronous_helper_is_not_reported(self):
         self.write(SYNCHRONOUS)
-        self.assertEqual(self.review()["offences"], [])
+        self.assertEqual(self.waits(), [])
 
     # Mutation: count braces per line rather than walking them in order. Both
     # halves of this fixture are ordinary Swift, and either miscount moves the
@@ -307,8 +313,7 @@ class OffPool(unittest.TestCase):
     # every function after it in the file.
     def test_brace_arithmetic_survives_one_line_bodies_and_else(self):
         self.write(BRACE_ARITHMETIC)
-        found = self.review()
-        self.assertEqual(len(found["offences"]), 1, found)
+        self.assertEqual(len(self.waits()), 1, self.review())
 
     def test_an_exemption_needs_a_reason(self):
         self.write("    /// offpool-lint:allow\n" + DETACHED)
@@ -328,6 +333,55 @@ class OffPool(unittest.TestCase):
         self.write("    /// offpool-lint:allow — fixture\n"
                    "    func f() {}\n")
         self.assertEqual(len(self.review()["dead"]), 1)
+
+    # --- `Process()` launches, refused in every scope ---------------------
+
+    # Mutation: judge a launch by its scope like a wait (drop `not launch` from
+    # the verdict filter in `review`). A `Process()` in a synchronous helper is
+    # then invisible again — the exact shape `InPlaceSwap.replace` hid in.
+    def test_a_launch_in_a_synchronous_helper_is_refused(self):
+        self.write(SYNCHRONOUS)
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"], self.review())
+
+    # A hop does not make it acceptable either: the wait inside is legal for
+    # the offpool rule, the launch is not.
+    def test_a_launch_inside_a_hop_is_refused(self):
+        self.write(HOPPED)
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"], self.review())
+
+    # Mutation: match the bare word `Process(` — then `ChildProcess.run(`,
+    # `ProcessInfo()` and `ProcessInstallLock()` are all launches.
+    def test_lookalike_names_are_not_launches(self):
+        self.write("""\
+    func f() async {
+        let a = try await ChildProcess.run("/bin/echo", onCancel: .terminateChild)
+        let b = ProcessInfo.processInfo
+        let c = ProcessInstallLock(url: url)
+        let d = ChildProcess()
+    }
+""")
+        self.assertEqual(self.review()["offences"], [], self.review())
+
+    # A launch that waits for nothing is exempted the ordinary way, and the
+    # exemption counts as used — so it is not reported stale either.
+    def test_an_exempted_launch_passes_and_its_exemption_is_live(self):
+        self.write("    /// offpool-lint:allow — fixture: nothing waits on it\n" + SYNCHRONOUS)
+        found = self.review()
+        self.assertEqual(found["offences"], [], found)
+        self.assertEqual(found["dead"], [], found)
+
+    # A commented-out launch is not code.
+    def test_a_launch_in_a_comment_is_not_code(self):
+        self.write("""\
+    func f() {
+        // let p = Process()
+        /* let q = Process() */
+        let s = "Process()"
+    }
+""")
+        self.assertEqual(self.review()["offences"], [], self.review())
 
     # Both emptiness floors, because a check that inspects nothing prints the
     # same ✓ as one that inspects everything.

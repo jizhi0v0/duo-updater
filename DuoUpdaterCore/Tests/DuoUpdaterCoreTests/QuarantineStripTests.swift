@@ -1,0 +1,141 @@
+import Foundation
+import Testing
+@testable import DuoUpdaterCore
+
+/// `InPlaceSwap.stripQuarantine` against a real, invented bundle. The first
+/// version ran `xattr -dr` with stderr to /dev/null and ignored the exit status,
+/// so a strip that left the attribute on read-only and `uchg` files looked
+/// exactly like one that cleared it — and on macOS 27 a quarantined launchd plist
+/// is one launchd will not load.
+@Suite struct QuarantineStripTests {
+
+    private static let name = "com.apple.quarantine"
+    private static let value = "0083;66e00000;ZZFixture;"
+
+    /// Mutation: treat every `xattr` exit as success (skip the walk when the
+    /// status is non-zero) — `exitStatus`/`remaining` come back as a clean strip
+    /// and this goes red. Reverting to the original fire-and-forget version does
+    /// the same.
+    @Test func aPartialStripReportsWhatIsStillQuarantined() throws {
+        let scratch = try scratch()
+        defer { cleanUp(scratch) }
+        let app = try fixtureBundle(in: scratch)
+
+        let plist = "Contents/Library/LaunchAgents/com.zzfixture.agent.plist"
+        let locked = "Contents/Resources/locked"
+        let sealed = "Contents/Resources/sealed"
+        #expect(chmod(app.appendingPathComponent(plist).path, 0o444) == 0)
+        #expect(chflags(app.appendingPathComponent(locked).path, UInt32(UF_IMMUTABLE)) == 0)
+        #expect(chmod(app.appendingPathComponent(sealed).path, 0o555) == 0)
+
+        let result = InPlaceSwap.stripQuarantine(app)
+
+        #expect(result.exitStatus != 0)
+        #expect(result.exitStatus != nil)
+        #expect(result.remaining == [plist, locked, sealed])
+        // What the disk says, independently of the walk the result came from.
+        #expect(isQuarantined(app.appendingPathComponent(plist)))
+        #expect(isQuarantined(app.appendingPathComponent(locked)))
+        #expect(isQuarantined(app.appendingPathComponent(sealed)))
+        // Inside a read-only directory is not the same as read-only: this one clears.
+        #expect(!isQuarantined(app.appendingPathComponent(sealed + "/inner")))
+        #expect(!isQuarantined(app))
+        #expect(!isQuarantined(app.appendingPathComponent("Contents/MacOS/ZZFixture")))
+
+        let line = try #require(
+            InPlaceSwap.quarantineStripLogLine(result, app: app.lastPathComponent))
+        #expect(line.contains(plist))
+        #expect(line.contains(locked))
+        #expect(line.contains(sealed))
+    }
+
+    /// The negative control: a writable tree is fully cleared, reported as such,
+    /// and logs nothing. Mutation: drop `-r` from the `xattr` arguments — the
+    /// nested files stay quarantined and this goes red.
+    @Test func aCompleteStripReportsNothing() throws {
+        let scratch = try scratch()
+        defer { cleanUp(scratch) }
+        let app = try fixtureBundle(in: scratch)
+
+        let result = InPlaceSwap.stripQuarantine(app)
+
+        #expect(result == .init(exitStatus: 0, remaining: []))
+        #expect(InPlaceSwap.quarantinedPaths(in: app).isEmpty)
+        #expect(InPlaceSwap.quarantineStripLogLine(result, app: app.lastPathComponent) == nil)
+    }
+
+    /// The line names the bundle root legibly and caps a long list rather than
+    /// logging tens of thousands of paths.
+    @Test func theLogLineCapsALongList() throws {
+        let remaining = [""] + (1...30).map { "Contents/Resources/f\($0)" }
+        let line = try #require(InPlaceSwap.quarantineStripLogLine(
+            .init(exitStatus: 1, remaining: remaining), app: "ZZFixture.app"))
+        #expect(line.contains("31 path(s)"))
+        #expect(line.contains(": ., Contents/Resources/f1,"))
+        #expect(line.contains("(+11 more)"))
+        #expect(line.contains("f19"))
+        #expect(!line.contains("f20"))
+
+        let notLaunched = try #require(InPlaceSwap.quarantineStripLogLine(
+            .init(exitStatus: nil, remaining: ["Contents"]), app: "ZZFixture.app"))
+        #expect(notLaunched.contains("could not be launched"))
+    }
+
+    // MARK: - Helpers
+
+    /// A quarantined `ZZFixture-Quarantine.app` with a nested executable, an
+    /// embedded LaunchAgent plist and a few resources — every entry quarantined, the
+    /// way extracting a quarantined archive leaves it.
+    private func fixtureBundle(in scratch: URL) throws -> URL {
+        let fm = FileManager.default
+        let app = scratch.appendingPathComponent("ZZFixture-Quarantine.app")
+        #expect(!fm.fileExists(atPath: app.path))
+        for dir in [
+            "Contents/MacOS", "Contents/Library/LaunchAgents", "Contents/Resources/sealed",
+        ] {
+            try fm.createDirectory(
+                at: app.appendingPathComponent(dir), withIntermediateDirectories: true)
+        }
+        for file in [
+            "Contents/MacOS/ZZFixture",
+            "Contents/Library/LaunchAgents/com.zzfixture.agent.plist",
+            "Contents/Resources/locked",
+            "Contents/Resources/sealed/inner",
+        ] {
+            try Data(file.utf8).write(to: app.appendingPathComponent(file))
+        }
+        var paths = [app.path]
+        let walker = fm.enumerator(atPath: app.path)
+        while let rel = walker?.nextObject() as? String { paths.append(app.path + "/" + rel) }
+        for path in paths {
+            let rc = Self.value.withCString {
+                setxattr(path, Self.name, $0, strlen($0), 0, XATTR_NOFOLLOW)
+            }
+            try #require(rc == 0, "could not quarantine \(path)")
+        }
+        try #require(InPlaceSwap.quarantinedPaths(in: app).count == paths.count)
+        return app
+    }
+
+    private func isQuarantined(_ url: URL) -> Bool {
+        getxattr(url.path, Self.name, nil, 0, 0, XATTR_NOFOLLOW) >= 0
+    }
+
+    private func scratch() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoQuarantineStripTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// `uchg`, 0444 and 0555 would otherwise make the scratch directory undeletable.
+    private func cleanUp(_ scratch: URL) {
+        let walker = FileManager.default.enumerator(atPath: scratch.path)
+        while let rel = walker?.nextObject() as? String {
+            let path = scratch.path + "/" + rel
+            _ = chflags(path, 0)
+            _ = chmod(path, 0o755)
+        }
+        try? FileManager.default.removeItem(at: scratch)
+    }
+}

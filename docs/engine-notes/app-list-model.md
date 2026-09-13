@@ -196,6 +196,187 @@ produced has not drifted.
 
 ---
 
+**§4** (below) is the fourth slice: the check round — `refresh` /
+`performRefresh`, the TestFlight sync helpers around it
+(`recheckTestFlightRows`, `startAutomaticTestFlightSync`), the two memos the
+round's rows are judged against (`elevationRequiredPaths`, `runtimeKeys`), and
+the network-free rescan trio (`refreshLocal` / `performLocalRescan` /
+`refreshRow`). This is the file's most-revised stretch — ten commits between
+June and September 2026 each left a dated measurement or a "used to" in it —
+so unlike §1–§3 it is several short items rather than one story. The current contract (single-flight
+with a follow-up for the intent that owes one, the scan published before the
+network check, `roundBaseline` and `CheckRoundWriteBack` for rows that move
+under a round, one sync for the whole app) stays next to the code.
+
+Each item names the commit it was checked against. Every number below is a
+one-time measurement on the development machine, quoted from that commit or
+from the comment it introduced, and **not re-measured for this pass
+(2026-09-14)** unless the item says otherwise. What *was* re-checked for every
+item is that the code still has the shape the measurement justified.
+
+## §4.1 Why `refreshTask` is cleared inside the task, not after `await task.value` (0.1.8)
+
+`refresh(intent:)` is single-flight: a caller that finds a refresh in flight
+awaits it, then — if its own intent does more than the running one
+(`RefreshIntent.owesFollowUp`) — runs one pass of its own by calling `refresh`
+again. That recursion is safe only because the owning task clears
+`refreshTask` **inside itself**, before `task.value` resolves for anyone
+awaiting it.
+
+Commit `5c50f4e5` ("Release 0.1.8: fix main-thread livelock (ANR) in refresh
+coalescing", 2026-06-23) is where that moved. Before it, `refreshTask` was
+cleared *after* `await task.value`, out in `refresh`. A user-present caller
+that had coalesced onto a scheduled refresh resumed from its await before that
+clear ran, found `refreshTask` still set to the just-finished task, took the
+follow-up branch against it, and recursed — forever, on the main thread. The
+commit records the fault as latent since `115801f` (pre-0.1.4) and confirmed
+by `sample(1)`: 1490 of 1508 main-thread samples at the recursion line, 0
+after the fix. The API was `refresh(allowTestFlight:)` then; the branch is the
+same one `needFollowUp` guards today.
+
+## §4.2 Why the button's sync waits for the round's read of the store (#518)
+
+Launching TestFlight rebuilds its store, and for a few seconds the tester
+query answers for nobody. Sampled through a refresh on 2026-09-11 (commit
+`d44f65c8`, "Start TestFlight's sync only after the refresh has read its
+store"): every beta reported as tested, then none from about +1.2 s, then all
+again by about +6.9 s. Before that commit the round's own read of the store
+raced the window the sync it had just started was opening, and when the read
+lost, every beta row read "not testing" and showed a question mark until the
+post-sync re-check, about fourteen seconds later. PR #518 is the authoritative
+account, with the sampler log (a TestFlight pid appearing 0.2 s after the
+refresh started, tester rows hitting 0 at +1.2 s).
+
+The same window is why `startAutomaticTestFlightSync` lets a round in flight
+publish before repairing the rows (commit `f2f027e5`, #543): a repair that
+restores a row to exactly the round's baseline value is not a difference
+`CheckRoundWriteBack.publishing(changedSince:)` will protect.
+
+Two other retellings exist and were left alone: `armTestFlightStoreWatch`
+(same file, the background-scheduler section, not this slice) and
+`TestFlightStoreWatch.reacts`'s doc comment in Core, which carries its own
+2026-09-12 measurement of the same effect (installed rows 6 → 0 → 7 across
+one-second samples). Both cite #518 and repeat its "~6.9s" figure — two
+copies of one number, each next to the code that depends on it; they were
+left because each is documenting its own guard, not the round.
+
+## §4.3 The 3.4 s a permission flip used to wait (#503)
+
+`recheckTestFlightRows` waits for a round in flight only when that round began
+on the other side of the Full Disk Access change — one that began after it
+reads the new state itself. Before that distinction, the re-check waited on
+any round in flight. Measured once, on the first grant of a launch where
+opening the menu had started a round: the rows changed 3.4 s after the grant
+instead of at once. Quoted from the comment commit `fd43fbaa` ("Refresh
+TestFlight in an instance we own, and read it only with Full Disk Access",
+#503, 2026-09-11) introduced; the commit message itself records the grant
+reaching the reads "within a second" on macOS 26.6 but not this number.
+
+## §4.4 What a user-present refresh restarts, and the two times the scheduled tick did too
+
+Two caches are dropped only when the user asked (`RefreshIntent
+.restartsChangelogs`), and each was once dropped by the wrong caller:
+
+- **The release notes, hourly (#228).** Until commit `a084b4aa` (2026-09-02)
+  `performRefresh` invalidated `ChangelogCache`, cleared `changelogState` and
+  cancelled every in-flight load near its top, under a comment scoping that to
+  a manual refresh — but it is also the body of the scheduled check, three
+  hops down from `backgroundRefresh`. So an hourly tick defeated the notes'
+  TTL and, with the Release Notes pane open, blinked what the user was reading
+  to a spinner. The distinction was a `Bool` named for one of its consequences
+  (`allowTestFlight`); it became `RefreshIntent`, in Core, with each
+  consequence a named, tested property. The one thing the wholesale reset had
+  been doing right — retrying `.failed` prewarms — is what the tick still does.
+- **The App Store page cache, in both directions on one day.** Commit
+  `63f841da` (2026-09-05) found `AppStorePageCache.invalidateAll` wired into
+  `recheckMany` only, so the Check for Updates button could not reach past an
+  hour-old product page; commit `a7a003fe` (same day) found that having it on
+  `recheckMany` at all wiped every other App Store row's page on a single
+  row's recheck. The full wipe now hangs off `restartsChangelogs` alone and
+  the per-row path invalidates just its own rows. Both incidents, with the
+  measurement, are `app-store-page-cache.md` §4 — that doc is the home, this
+  bullet is only the index entry.
+
+## §4.5 Why the elevation set and the runtime keys are memoized against `results` alone
+
+`policyEnvironment` is rebuilt by every `isRunning` / `canAutoInstall` /
+`requiresInstaller` query, and the workbench sidebar asks at least one of
+those per row. Anything inside it that touches the filesystem is therefore
+paid once per row per repaint, on the main actor. Two commits, five days
+apart, are why `elevationRequiredPaths` is a bare memo invalidated only by
+`results.didSet`; `runtimeKeys` came later (`986edbcc`, #571, 2026-09-13) and
+copies that shape by construction, which is why its own doc comment defers to
+the elevation memo's rather than repeating the argument:
+
+- **`1440da71` (2026-08-16), the memo.** The elevation gate had landed the same
+  day (`95283bf0`, "the row remembers a declined admin prompt"), building the
+  set of paths that need an administrator prompt with an `access(2)`-class
+  check per app, per query. The comment it replaced recorded: 0.86 ms to build
+  the set once for that machine's 121 apps, so a single list pass spent ~105 ms
+  in the filesystem on the main actor — arrow-key scrubbing crawled, scrolling
+  dropped frames. The fix memoized the set, keyed on the app paths it was
+  computed from.
+- **`0fee3c45` (2026-08-21), dropping the key.** The key could never miss:
+  `results.didSet` already cleared the memo, and `results` holds value types,
+  so any change to any app — including the path move to a differently
+  permissioned location the key was written to catch — is a write that clears
+  it. And it was not free: `URL.path` bridges to `NSURL` (~58 µs a call
+  there), so one arrow-key press through 124 apps cost 124 × 124 trips through
+  `-[NSURL path]` — 6% of the main thread in a profile of the sidebar under a
+  held arrow key. With the key gone, holding the down arrow took the
+  row-building closure from 1440 samples to 377, and the per-step mean from
+  65 ms to 56 ms (p90 116 ms → 66 ms). The commit also notes what this did
+  *not* fix: a step still cost ~50 ms against a 30 ms key repeat, because a
+  selection change re-laid-out the whole window.
+
+"121 apps" and "124 apps" above are one-time counts of the development
+machine's installed apps on those two days, quoted from the commit and the
+comment it replaced, not a tracked metric and not re-derived for this pass —
+the shape `scripts/check_prose_claims.py` exists to keep out of code
+comments, which is part of why the numbers live here and not there. A third
+copy of the 124 × 124 figure is `CHANGELOG.md`'s user-facing note for that
+release ("fifteen thousand redundant lookups"), left alone: it is release
+prose, not a design record.
+
+Not re-verified this pass: any of the timings. What was re-checked: both
+memos are still `@ObservationIgnored`, both are still cleared by
+`results.didSet` and nothing else, and `elevationRequiredPaths`'s doc comment
+— which until this pass still described the keyed version `0fee3c45` removed
+("cached against the app paths the set was computed from … that moves its
+path, which changes the key") — now describes the bare memo. That was a
+(c)-class claim in this issue's terms: no longer true, rewritten rather than
+moved.
+
+## §4.6 Why `refreshLocal` says which guard closed
+
+Commit `23e6f48a` (2026-08-08) fixed three things surfaced by three identical
+DuoPaste rows; the one that lives here is the third. `refreshLocal`'s four
+guards had discarded every watcher event and backstop tick without a word,
+which made "the list didn't update" indistinguishable from "the watcher never
+fired" — and that ambiguity is what made the second of the three, a silently
+dead FSEvents stream, take a live-log session to diagnose. The guard now logs
+which condition closed it, at debug level. The dead-stream incident itself (an
+instance that ran 90 minutes with an idle main thread and no wedged work, and
+not one event from either watched root) has its authoritative home in
+`App/Sources/AppDirectoryWatcher.swift`'s own doc comment, which also owns the
+mitigation — rebuild the stream on a timer and on wake — and is not repeated
+here.
+
+## §4.7 The store snapshot that was taken per app
+
+Commit `32a25021` (2026-09-03): the cold-start branch of `performRefresh`
+built a `ResolvedChannelStore.Snapshot` inside its `map`, so the one paint
+whose whole point is appearing instantly did one file open and decode per
+installed app, on the main actor — against the explicit warning on the type,
+and unlike the three sibling call sites added alongside it. Found by the fifth
+review of that branch, not by a measurement. The snapshot is taken once now,
+before `mergeScanned`, and the ignored rows take their own read after the
+check has flushed (so a proof established in that same round is visible to
+them) — that second read is the `provenNow` line, and its "read after the
+check, not before" comment is the current contract, not history.
+
+---
+
 Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has no dedicated test for
 the host-gate release point itself (it's exercised indirectly by
 `AppListModel`'s own concurrency, which the app-layer test target does not
@@ -224,3 +405,17 @@ test file's own `/// The regression behind issue #74, as a sequence.` comment
 fixture rather than to be a design record; left as is, per this directory's
 own guidance that a test's incident retelling documents the test, not the
 class.
+
+Same absence for §4, with the same reason: nothing constructs `AppListModel`
+to run a round, so the single-flight/follow-up recursion (§4.1), the
+sync-after-read ordering (§4.2) and the memo invalidation (§4.5) have no test
+of their own. What IS tested is every pure decision the round delegates to
+Core: `RefreshIntentTests.swift` (which intent restarts the notes, reads
+TestFlight, owes a follow-up — the §4.1 recursion's termination condition
+`owesFollowUp` included), `CheckRoundWriteBackTests.swift` (rows that moved
+under a round survive its publish), `TestFlightSyncPolicyTests.swift` (when a
+round earns an automatic sync), `TestFlightStoreWatchTests.swift` (the
+watcher's three refusals), and, in the app-layer target,
+`App/Tests/ScanRowAssemblyTests.swift` (`roundPlan` and the cold-start
+`unchecked` rows §4.7 is about — `CLAUDE.md`'s "App 层的测试 target" section
+says which mutation each of its cases pins).

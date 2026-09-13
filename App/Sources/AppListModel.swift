@@ -2076,10 +2076,9 @@ final class AppListModel {
         // Only this path ever assigns `refreshTask`; coalescing callers above just
         // await it. Clear ownership *inside* the task — before `task.value` resolves
         // — so a user-present caller that coalesced onto a scheduled refresh resumes
-        // to find `refreshTask` already nil. Clearing it *after* `await task.value`
-        // (out here) left a window where that caller re-entered the follow-up branch
-        // above against the same just-finished scheduled task and recursed on
-        // `refresh(intent: .userPresent)` forever — a main-thread livelock (ANR).
+        // to find `refreshTask` already nil. Clearing it out here, after the await,
+        // let that caller recurse on the follow-up branch above forever — the 0.1.8
+        // ANR, `docs/engine-notes/app-list-model.md` §4.1.
         let task = Task {
             await self.performRefresh(intent: intent)
             self.refreshTask = nil
@@ -2177,9 +2176,8 @@ final class AppListModel {
     /// put that answer over anything done first. A round that began after the
     /// change, or has not yet asked, reads the new state itself, and its write-back
     /// keeps rows that moved under it (`CheckRoundWriteBack`) — so waiting on it
-    /// only held the answer back by a whole networked check. Measured 2026-09-11 on
-    /// the first grant of a launch, where opening the menu started such a round:
-    /// the rows changed 3.4s after the grant instead of at once.
+    /// only held the answer back by a whole networked check (measured once,
+    /// `docs/engine-notes/app-list-model.md` §4.3).
     private func recheckTestFlightRows() async {
         guard !testFlightRecheckRunning else {
             testFlightRecheckOwed = true
@@ -2344,10 +2342,11 @@ final class AppListModel {
             guard outcome.storeChanged else { return }
             // Let any round in flight publish FIRST. Launching TestFlight rebuilds
             // its store, and for a few seconds the tester query answers nothing
-            // (#518: 89 → 0 → 89 over about 6.9s). A round that read the store inside
-            // that window is carrying "not testing this beta" for every row and has no
-            // post-sync re-check of its own, since the gate above kept it from
-            // starting one. Repairing before it publishes loses the repair:
+            // (#518; `docs/engine-notes/app-list-model.md` §4.2). A round that read
+            // the store inside that window is carrying "not testing this beta" for
+            // every row and has no post-sync re-check of its own, since the gate
+            // above kept it from starting one. Repairing before it publishes loses
+            // the repair:
             // `CheckRoundWriteBack.publishing(changedSince:)` protects rows that
             // differ from the round's baseline, and a repair that restores a row to
             // exactly its baseline value is not a difference.
@@ -2458,8 +2457,8 @@ final class AppListModel {
         // entries the network had confirmed (`changelogRevalidated`): that memo
         // described states that no longer exist, and a disk hit painted after the
         // user asked for fresh notes owes its confirmation again. The scheduled
-        // tick does none of that — until #228 it did, hourly, and the workbench pane
-        // the user was reading blinked to a spinner and reloaded — it drops only
+        // tick does none of that (it did once, hourly — #228,
+        // `docs/engine-notes/app-list-model.md` §4.4); it drops only
         // `.failed` entries, so a prewarm that lost the network gets retried on the
         // next tick (nothing else retries one: `prewarmChangelogs` skips keys with a
         // state, and the pane renders `.failed` as the web fallback without asking
@@ -2469,11 +2468,10 @@ final class AppListModel {
             await ChangelogCache.shared.invalidateAll()
             changelogRevalidated = []
             // Same gate, same reason: the user asked, so give them a live answer.
-            // Wiring this only into `recheckMany` — which is the post-install and
-            // per-row path — left the top-level Check for Updates button unable
-            // to get past an hour-old App Store page, which is exactly the case
-            // the cache's own doc comment says must not happen. `.scheduled`
-            // never reaches here, so the periodic sweep still keeps its cache.
+            // `.scheduled` never reaches here, so the periodic sweep keeps its
+            // cache. The full wipe belongs on THIS path only: the per-row recheck
+            // invalidates just its own rows. Both ways of getting that wrong have
+            // happened — `docs/engine-notes/app-store-page-cache.md` §4.
             await AppStorePageCache.shared.invalidateAll()
         }
         for (key, state) in changelogState
@@ -2515,13 +2513,11 @@ final class AppListModel {
         //
         // But it does not start TestFlight until the read above has returned.
         // Starting TestFlight rebuilds that store, and for a few seconds it names no
-        // beta as being tested — measured 2026-09-11 by sampling the tester query
-        // through a refresh: all of them, then none from about +1.2s, then all again
-        // by about +6.9s. This round's read used to race that window, and when it
-        // lost, every beta read "not testing" and showed "can't tell" until the
-        // re-check after the sync, some fourteen seconds later. Bounded like the
-        // round's own wait on that read, so a read that never returns cannot hold
-        // the sync, and with it the round, hostage.
+        // beta as being tested; a read that lands in that window says "not testing"
+        // for every beta (#518 — `docs/engine-notes/app-list-model.md` §4.2 has the
+        // measurement, and what the race looked like before this wait). Bounded
+        // like the round's own wait on that read, so a read that never returns
+        // cannot hold the sync, and with it the round, hostage.
         //
         // One sync at a time for the whole app, not one per round. An automatic sync
         // outlives the round that started it (it is deliberately not awaited), so a
@@ -2593,8 +2589,8 @@ final class AppListModel {
         // Cold start has no prior row to carry, but the store still knows what was
         // proven about these copies, so a Beta row is a Beta row from the first
         // paint rather than only after the first check lands. `Snapshot` is one
-        // file read for the whole list — that is what it exists for, and the
-        // first draft of this had it inside the loop, i.e. once per installed app.
+        // file read for the whole list — take it once, out here, never per app
+        // (`docs/engine-notes/app-list-model.md` §4.7 records the draft that did).
         let proofs = ResolvedChannelStore.Snapshot()
         results = results.isEmpty
             ? ScanRowAssembly.unchecked(found, proofs: proofs)
@@ -2777,12 +2773,12 @@ final class AppListModel {
         // into the persistent release timeline.
         await recordReleaseTimeline(for: checked)
         // Reconcile the running set once per completed round. The live monitor is
-        // KVO on `runningApplications` and is measured to be prompt and complete
-        // (issue #247), but this round just spent minutes on the network, and every
-        // verdict below reads `isRunning` — `computeRestartInfo` decides which rows
-        // say "Relaunch", `defersToSelfUpdater` decides whether an app is handed to
-        // its own updater. A floor under the live path costs one snapshot and a
-        // memoized resolve (0.095 ms warm) per round.
+        // KVO on `runningApplications` (`docs/engine-notes/app-list-model.md` §2),
+        // but this round just spent minutes on the network, and every verdict below
+        // reads `isRunning` — `computeRestartInfo` decides which rows say
+        // "Relaunch", `defersToSelfUpdater` decides whether an app is handed to its
+        // own updater. A floor under the live path costs one snapshot and a
+        // memoized resolve per round (`RunningBundlePathCache` has the numbers).
         //
         // Through the full handler, not a bare `refreshRunningApps()`. A bare
         // refresh would *absorb* whatever the live path missed — the set would
@@ -2871,16 +2867,11 @@ final class AppListModel {
     /// One `access(2)`-class check per app is cheap in isolation and ruinous at
     /// this call site: `policyEnvironment` is built fresh by every `isRunning` /
     /// `canAutoInstall` / `requiresInstaller` query, and the sidebar asks at least
-    /// one of those PER ROW. Measured on this machine with 121 apps: 0.86 ms to
-    /// build the set once, so a single list pass spent ~105 ms in the filesystem
-    /// on the main actor — arrow-key scrubbing crawled and scrolling dropped
-    /// frames. (Regression from `95283bf`, which added the elevation gate.)
-    ///
-    /// Cached against the app paths the set was computed from, so it is rebuilt
-    /// exactly when the list changes — including the case the old comment worried
-    /// about, an app moving between `~/Applications` and a root-owned location:
-    /// that moves its path, which changes the key. What it no longer does is
-    /// recompute for a repaint that changed nothing.
+    /// one of those PER ROW — so this must never reach the filesystem on a read
+    /// that changed nothing. Memoized in `elevationPathsCache`, invalidated by
+    /// `results.didSet` alone (that memo's doc says why nothing else is needed).
+    /// The unmemoized version, the keyed version that replaced it, and the
+    /// profiles behind both changes: `docs/engine-notes/app-list-model.md` §4.5.
     private var elevationRequiredPaths: Set<String> {
         if let cache = elevationPathsCache { return cache }
         let value = InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
@@ -2892,18 +2883,13 @@ final class AppListModel {
     /// which is sufficient: the memo can only survive a stretch in which `results`
     /// was never written, and `results` holds value types, so any change to an app
     /// — including a path moving between `~/Applications` and a root-owned
-    /// location — is a write that clears this.
+    /// location — is a write that clears this. Do not add a key of the app paths
+    /// "to be safe": it cannot miss, and building it per read is itself what a
+    /// profile found (`docs/engine-notes/app-list-model.md` §4.5).
     ///
-    /// It used to also carry the app paths as a key and compare them on every read.
-    /// That check could never fail (`didSet` had already cleared the memo in the
-    /// only case it guarded against) and it was not free: building the key meant
-    /// `URL.path` per app, which bridges to `NSURL`, and `policyEnvironment` is
-    /// rebuilt by every `isRunning` query — one per row. Scrubbing the workbench
-    /// sidebar with the arrow keys spent ~6% of the main thread in `-[NSURL path]`
-    /// alone, 124 apps x 124 rows of it per keypress. Reading it must not invalidate
-    /// a view, which is what `@ObservationIgnored` buys: `@Observable` instruments
-    /// `private` stored properties too, so an un-ignored memo makes every `didSet`
-    /// clear invalidate the views that read it.
+    /// Reading it must not invalidate a view, which is what `@ObservationIgnored`
+    /// buys: `@Observable` instruments `private` stored properties too, so an
+    /// un-ignored memo makes every `didSet` clear invalidate the views that read it.
     @ObservationIgnored private var elevationPathsCache: Set<String>?
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
@@ -2982,11 +2968,10 @@ final class AppListModel {
         // an active spinner. Installs key by id and finish fine, but the visible
         // row shouldn't shuffle mid-install. (`installAll` calls `performLocalRescan`
         // directly in its post-batch sweep — installs done, nothing to churn.)
-        // Say WHY when we skip. These four guards silently swallowed every FS-watcher
-        // event and backstop tick, which made "the list didn't update" indistinguishable
-        // from "the watcher never fired" — the exact ambiguity that made a dead FSEvents
-        // stream take a live-log session to diagnose. Debug level: one line per skipped
-        // rescan, off unless someone is looking.
+        // Say WHY when we skip: silent guards make "the list didn't update"
+        // indistinguishable from "the watcher never fired" (the dead-stream
+        // incident, `docs/engine-notes/app-list-model.md` §4.6). Debug level: one
+        // line per skipped rescan, off unless someone is looking.
         guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else {
             let reason = results.isEmpty ? "no results yet"
                 : isChecking ? "a check is running"
@@ -3007,11 +2992,10 @@ final class AppListModel {
     private func performLocalRescan() async {
         localRescanDeferred = false
         // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
-        // off KVO on `runningApplications`, which is measured to catch what the
-        // launch/terminate notifications miss (issue #247) — but a rescan re-reads
-        // everything else from disk anyway, and this set is one snapshot plus a
-        // memoized resolve (0.095 ms warm). Keeping it is a floor under the live
-        // path, not a substitute for it.
+        // off KVO on `runningApplications` (`docs/engine-notes/app-list-model.md`
+        // §2) — but a rescan re-reads everything else from disk anyway, and this
+        // set is one snapshot plus a memoized resolve (`RunningBundlePathCache`).
+        // Keeping it is a floor under the live path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
         // The scanner's default reads TestFlight's store — not when that read

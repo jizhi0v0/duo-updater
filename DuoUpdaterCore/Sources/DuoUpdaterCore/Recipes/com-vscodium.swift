@@ -89,7 +89,7 @@ enum com_vscodium {
         // Anchored to the tag segment on purpose. A bare `-insider` would be
         // satisfied by `VSCodium/vscodium-insiders` in the path of EVERY url this
         // rule can ever resolve, which is the same fact the stable branch of
-        // `crossChannelArtifact(rule:remote:)` below refuses to check on — read
+        // `crossChannelArtifact(rule:remote:)` in `ChannelArtifactProof.swift` refuses to check on — read
         // there it prevents a false accusation, read here it would have been a
         // permanent false acquittal, and the proof could not have failed for any
         // input. Live releases could not show this: every real tag in that repo

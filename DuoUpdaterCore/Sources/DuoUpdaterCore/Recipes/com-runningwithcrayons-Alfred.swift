@@ -31,7 +31,8 @@ enum com_runningwithcrayons_Alfred {
         // Alfred 5 — Sparkle PLIST appcast (not RSS). Alfred has no Info.plist
         // SUFeedURL (the feed is configured in Alfred's own Preferences), so it
         // reaches us here rather than via SparkleAppcastSource — same situation as
-        // the Codex/OrbStack neighbors. The manifest is a single-release plist: the
+        // the Codex and OrbStack recipes (`Recipes/com-openai-codex.swift`,
+        // `Recipes/dev-kdrag0n-MacVirt.swift`). The manifest is a single-release plist: the
         // top-level <key>version</key><string> is the latest build (5.7.3),
         // unambiguous vs the descending "## Alfred X.Y.Z" history inside
         // changelogdata. One release listed → first match is correct.

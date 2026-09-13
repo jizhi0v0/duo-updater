@@ -139,7 +139,7 @@ enum uk_whatcable_whatcable {
         // matches each field through its own branch (`^true$` the Bool,
         // `-beta\\\.` the REGEX SOURCE — the extra escaping is there because the
         // text being matched is itself a regex, so the backslash in `-beta\\.` has
-        // to be matched literally; the t3code anchor above does the same thing to
+        // to be matched literally; the t3code anchor (`Recipes/com-t3tools-t3code.swift`) does the same thing to
         // that pattern's brackets); neither branch can satisfy the other field.
         //
         // A first draft anchored `usePrereleases` alone and claimed it was "the
@@ -149,7 +149,7 @@ enum uk_whatcable_whatcable {
         // (`com.insomnia.app`, `com.bitwarden.desktop`, `com.microsoft.Headlamp`),
         // so on its own it says nothing about which train this rule is on.
         //
-        // Be honest about the reach, as UTM's anchor below is: this cannot see a
+        // Be honest about the reach, as UTM's anchor (`Recipes/com-utmapp-UTM.swift`) is: this cannot see a
         // vendor who launches an identically-named third train, and it says
         // nothing about which release was chosen — the `.recipeAnchor` branch of
         // `crossChannelArtifact` never looks at the resolved artifact. It is a

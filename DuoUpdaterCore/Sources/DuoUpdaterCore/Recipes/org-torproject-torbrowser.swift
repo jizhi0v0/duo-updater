@@ -13,7 +13,7 @@ enum org_torproject_torbrowser {
         // Verified against the real install, not assumed: mounting the 15.0.19 dmg
         // gives CFBundleShortVersionString exactly `15.0.19` — same three-segment
         // scheme as the feed, no build/marketing mismatch to work around (unlike
-        // Emacs above). org.torproject.torbrowser, Team MADPSAYN6T (The Tor
+        // Emacs, `Recipes/org-gnu-Emacs.swift`). org.torproject.torbrowser, Team MADPSAYN6T (The Tor
         // Project, Inc), notarized Developer ID, ticket stapled. `"binary"` is the
         // exact dmg URL for this version, so the install spec reads it straight
         // from the same response rather than templating one.

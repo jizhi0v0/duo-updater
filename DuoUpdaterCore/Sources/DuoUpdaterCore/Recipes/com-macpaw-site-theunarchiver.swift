@@ -5,7 +5,8 @@ enum com_macpaw_site_theunarchiver {
         family: "com-macpaw-site-theunarchiver",
         probes: [
         // The Unarchiver (MacPaw) — DevMate Sparkle appcast. Like the Codex/Alfred
-        // neighbors it carries no Info.plist SUFeedURL (DevMate configures the feed
+        // recipes (`Recipes/com-openai-codex.swift`, `Recipes/com-runningwithcrayons-Alfred.swift`)
+        // it carries no Info.plist SUFeedURL (DevMate configures the feed
         // internally), so it reaches us here. The version is the
         // `sparkle:shortVersionString` ATTRIBUTE on each <enclosure> (NOT an
         // element); the feed is descending (newest item first), so first match is

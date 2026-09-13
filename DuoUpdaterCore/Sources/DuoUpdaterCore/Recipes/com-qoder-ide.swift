@@ -32,7 +32,7 @@ enum com_qoder_ide {
         // machine's own commit would make one response shape mean two things —
         // "you are current" on a Mac that has it, "the endpoint is broken" in a
         // sweep that has no install — which is exactly how a check goes quietly
-        // dead (the trap the Mozilla AUS recipes above document at length).
+        // dead (the trap the Mozilla AUS recipes (`Recipes/org-mozilla-firefox.swift`) document at length).
         // `latest` is the token this repo's own VS Code recipes already use in
         // that slot, and Qoder answers it with the newest build: every user and
         // every sweep then sends the identical request, an answer is always

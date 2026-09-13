@@ -7,7 +7,7 @@ enum com_jetbrains_toolbox {
         // JetBrains Toolbox — uses the 4-component `build`, which matches the
         // app's CFBundleShortVersionString (e.g. 3.4.3.81140). The same releases
         // JSON carries the aarch64 dmg under `downloads.macM1`, so we install in
-        // place — same shape as the IntelliJ recipes above. No inline sha256 (the
+        // place — same shape as the IntelliJ recipes (`Recipes/com-jetbrains-intellij.swift`). No inline sha256 (the
         // API gives only a `checksumLink`), so we lean on the mandatory Team ID
         // gate: the dmg is notarized under 2ZEFAR8TH3 (JetBrains s.r.o.). The
         // `[^}]*?` lazily skips within the `macM1` object to its `link`; `macM1`'s
@@ -31,7 +31,7 @@ enum com_jetbrains_toolbox {
         // API the download site itself uses returns the full history as JSON. The
         // `TBA` product code is the Toolbox App; each element of the TBA array has
         // `version` ("3.7.2"), `date`, and a `whatsnew` HTML string. Structured
-        // decode, same reason and same decoder as IntelliJ IDEA above (shared
+        // decode, same reason and same decoder as IntelliJ IDEA (`Recipes/com-jetbrains-intellij.swift`; shared
         // endpoint shape, JSON-escaped HTML the regex path used to scrape as text).
         // Toolbox's `whatsnew` is CUMULATIVE — each release concatenates its own
         // `<li>` bullets with the full prior minor release's `<h3>`/`<h4>` + `<p>`

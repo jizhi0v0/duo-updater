@@ -7,7 +7,7 @@ enum net_pornel_ImageOptim {
         // ImageOptim — Sparkle appcast carrying only the latest release
         // (descending, single item). Version in sparkle:shortVersionString.
         //
-        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender above.
+        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender (`Recipes/com-surteesstudios-Bartender.swift`).
         // Measured on the real 1.9.3 bundle (2026-08-31): it declares
         // `SUFeedURL = https://imageoptim.com/appcast.xml`, this exact address, so
         // Sparkle answers first and this row only keeps the endpoint in the sweep.

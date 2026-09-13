@@ -256,7 +256,7 @@ enum com_windscribe_client {
         // filtered to `prerelease: false` only, while the row beside it offered a
         // prerelease build (2.24.10, say). The pane would show 2.24.12 / 2.23.11 /
         // 2.22.10 and omit the exact entry being offered — the failure
-        // `includesPromotedStable` exists for; see CotEditor above.
+        // `includesPromotedStable` exists for; see CotEditor (`Recipes/com-coteditor-CotEditor.swift`).
         // Windscribe's tracks are a ladder (level N is served the newest build from
         // tracks 0…N), which is why those recipes set `includesPromotedStable`; the
         // precise fix remains the vendor's own `ChangeLogs?platform=osx` and its

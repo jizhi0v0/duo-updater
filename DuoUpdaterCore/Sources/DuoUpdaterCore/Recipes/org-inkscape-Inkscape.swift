@@ -25,7 +25,7 @@ enum org_inkscape_Inkscape {
         // Verified 2026-08-16 by mounting the 1.4.4 dmg: `Inkscape.app`,
         // org.inkscape.Inkscape, CFBundleShortVersionString `1.4.4` — same scheme
         // the redirect publishes — Team SW3D6BB6A6 (Rene de Hesselle, who also
-        // signs Meld above), notarized Developer ID, spctl accepted. arm64-only
+        // signs Meld, `Recipes/org-gnome-Meld.swift`), notarized Developer ID, spctl accepted. arm64-only
         // artifact, so an Intel Mac is refused by the runnable-arch gate rather
         // than handed a build it can't run.
         VendorProbeRecipe(

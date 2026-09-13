@@ -20,7 +20,7 @@ enum com_bitwarden_desktop {
         // 2026-09-04: same 7, `desktop-v2026.6.0`→`desktop-v2026.5.0` and three
         // other pairs), so the desktop tag sits well inside a page of 10 today
         // — chosen over the observed 7 to leave margin rather than trim to the
-        // minimum, per the same logic as every other rule below — but a long
+        // minimum, per the same logic as every other rule in `GitHubReleaseRegistry` — but a long
         // burst of web/cli/browser releases would still push it off the page,
         // and the rule would then resolve nothing, which surfaces as the row
         // going quiet rather than as an error.

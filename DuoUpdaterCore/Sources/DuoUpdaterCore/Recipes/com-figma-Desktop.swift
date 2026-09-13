@@ -93,7 +93,7 @@ enum com_figma_Desktop {
         // `date` truncates the ISO timestamp to just its date portion (`[^T]+` before
         // the literal `T`) — the same convention already used for the GitHub-releases
         // recipes (Ollama, RustDesk) reading `<relative-time datetime="…">`, and the
-        // prevailing `YYYY-MM-DD` shape most recipes in this file use.
+        // prevailing `YYYY-MM-DD` shape most recipes in `ChangelogRecipeRegistry` use.
         //
         // Trade-off (accepted, not a regression): `content` is a one-sentence
         // summary, not the fuller multi-paragraph prose the HTML page rendered for

@@ -24,7 +24,7 @@ enum com_coteditor_CotEditor {
         // sit inside the newest 8 releases.
         //
         // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
-        // Yaak's pair above, and the difference is in the rules, not in taste.
+        // Yaak's pair (`Recipes/app-yaak-desktop.swift`), and the difference is in the rules, not in taste.
         // Yaak's beta rule cannot resolve a stable artifact, so a promoted entry
         // there would describe a build that channel never offers. CotEditor's beta
         // rule can and must — its train runs in cycles and a copy has to be able
@@ -136,7 +136,7 @@ enum com_coteditor_CotEditor {
         // rule). So an `.artifact` proof is not available — the tag segment is the
         // only place either train names itself, and a pattern anchored to `-beta`
         // would fire on exactly that legitimate resolution. Same reasoning as
-        // WhatCable's entry above — but NOT the same anchor, and the difference is
+        // WhatCable's entry (`Recipes/uk-whatcable-whatcable.swift`) — but NOT the same anchor, and the difference is
         // load-bearing: WhatCable's is `-beta\.`, which matches the escaped dot in
         // its own `-beta\.[0-9]+` pattern. CotEditor's cycle opens with an
         // unnumbered `7.1.0-beta`, so its pattern reads `-beta(?:` — `-beta`

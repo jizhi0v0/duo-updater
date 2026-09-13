@@ -9,7 +9,7 @@ enum com_vivaldi_Vivaldi {
         // channel gate routes it automatically. `sparkle:shortVersionString` carries
         // the marketing version (e.g. "8.1.4063.3"), and here it equals the bundle's
         // CFBundleShortVersionString exactly — no scheme mismatch to work around,
-        // unlike the Brave feeds above.
+        // unlike the Brave feeds (`Recipes/com-brave-Browser.swift`).
         //
         // One-click verified 2026-08-09 on 8.2.4126.4: the enclosure is a universal
         // `.tar.xz` holding `Vivaldi Snapshot.app`, bundle id

@@ -10,7 +10,7 @@ enum net_ankiweb_anki {
         // version — no phantom update.
         //
         // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern for
-        // the same reason as Goose above: `-mac-apple` carries no token that
+        // the same reason as Goose (`Recipes/com-electron-goose.swift`): `-mac-apple` carries no token that
         // `installableAsset` recognises as an architecture, so pinning it alone would
         // read as arch-neutral and hand an Intel Mac the Apple-silicon build. With
         // both matched, `intel` selects the x86_64 dmg on an Intel Mac and the

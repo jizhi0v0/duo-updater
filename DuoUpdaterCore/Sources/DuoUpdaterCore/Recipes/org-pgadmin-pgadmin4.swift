@@ -11,7 +11,7 @@ enum org_pgadmin_pgadmin4 {
         // the releases; `snapshots/` in particular is a trap left alone deliberately
         // (dev builds, not what a stable-channel install should ever be pointed at).
         // The mac artifact is one level deeper (`v9.17/macos/pgadmin4-9.17-arm64.dmg`),
-        // which is what makes this the same shape as LibreOffice above.
+        // which is what makes this the same shape as LibreOffice (`Recipes/org-libreoffice-script.swift`).
         //
         // Verified 2026-08-16 by mounting `pgadmin4-9.17-arm64.dmg`: `pgAdmin 4.app`,
         // CFBundleShortVersionString exactly `"9.17"` (matches the probe 1:1, no

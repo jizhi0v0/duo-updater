@@ -37,7 +37,7 @@ enum org_libreoffice_script {
         // (at worst) equal, never triggers a phantom update. The only blind spot is
         // a pure 4th-component hotfix under an unchanged 3-segment folder, which
         // this index can't see at all — same acceptable direction as OneDrive's
-        // first-three-components recipe above.
+        // first-three-components recipe (`Recipes/com-microsoft-OneDrive.swift`).
         VendorProbeRecipe(
             bundleID: "org.libreoffice.script",
             url: URL(string: "https://download.documentfoundation.org/libreoffice/stable/")!,

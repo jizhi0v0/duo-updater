@@ -50,7 +50,7 @@ enum com_lemon_lvoverseas {
         // (when CapCut reaches 10.x, or if the vendor narrows the range) removes
         // the key and the pattern matches nothing, which `duo verify` reports.
         // Same "pin an impossible version to turn a should-I-update service into a
-        // what-is-latest one" move as WorkBuddy's `version=0.0.0` above, aimed the
+        // what-is-latest one" move as WorkBuddy's `version=0.0.0` (`VendorProbeRegistry.workBuddyRecipe`), aimed the
         // other way because CapCut's buckets run the other way.
         //
         // What pinning `version_code` COSTS, stated because it is not obvious:

@@ -5,7 +5,7 @@ enum com_sublimemerge {
         family: "com-sublimemerge",
         probes: [
         // Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
-        // (no usable API; mirrors the Sublime Text 4 recipe above — same vendor,
+        // (no usable API; mirrors the Sublime Text 4 recipe in `Recipes/com-sublimetext-4.swift` — same vendor,
         // same page shape). The /download page's latest marker
         // `<p class="latest"><i>Version:</i> Build 2125</p>` precedes the descending
         // history, so the anchored "Build NNNN" is newest. CRITICAL: capture the

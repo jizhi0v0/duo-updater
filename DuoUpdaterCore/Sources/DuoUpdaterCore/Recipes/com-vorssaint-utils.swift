@@ -67,7 +67,7 @@ enum com_vorssaint_utils {
         // Vorssaint beta names its channel in the tag, and the single asset per
         // release carries it too (`Vorssaint-3.3.3-beta.3.dmg`). Anchored on the
         // tag segment of the download path rather than a bare `-beta`, for the
-        // reason spelled out on VSCodium above: neither the owner
+        // reason spelled out on VSCodium (`Recipes/com-vscodium.swift`): neither the owner
         // (`vorssaint`, `vorssaintapp` before the 2026-09-05 rename) nor the repo
         // (`vorssaint-utils`) contains the token
         // today, but a proof that could be satisfied by a fixed part of every URL

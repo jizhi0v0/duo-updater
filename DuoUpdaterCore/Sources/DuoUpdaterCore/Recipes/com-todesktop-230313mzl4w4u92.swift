@@ -24,7 +24,7 @@ enum com_todesktop_230313mzl4w4u92 {
         // Cursor — the changelog is organised as dated POSTS, not versions: nothing
         // on the page carries a "3.16.17" anywhere, so the date takes the version
         // column and the post's headline becomes the entry title (same shape as
-        // Codex above). Structure per post:
+        // Codex, `Recipes/com-openai-codex.swift`). Structure per post:
         //   <a href="/changelog/08-13-26"><time dateTime="2026-08-13T…">Aug 13, 2026</time></a>
         //   … <h1 class="type-lg" id="…"><a href="/changelog/08-13-26">Title</a></h1>
         //   … <div class="prose prose--block"><p>…</p><ul><li>…</li></ul></div>

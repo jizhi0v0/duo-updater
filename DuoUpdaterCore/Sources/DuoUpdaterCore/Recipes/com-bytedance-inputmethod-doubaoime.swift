@@ -108,7 +108,7 @@ enum com_bytedance_inputmethod_doubaoime {
         //
         // `change_log` is one string of `- `-prefixed lines joined by escaped `\n`,
         // so the item pattern splits on those. NOTE the tail alternative is `|$)`,
-        // NOT the `|\\n?$)` used by the ChatWise recipe above: `\\n?` means "a literal
+        // NOT the `|\\n?$)` used by the ChatWise recipe (`Recipes/app-chatwise.swift`): `\\n?` means "a literal
         // backslash, optionally followed by n", which requires the body to END in a
         // backslash and therefore drops the last bullet. Verified against the real
         // 2026-08-21 response: 6 bullets in, 6 out.

@@ -39,7 +39,7 @@ enum com_microsoft_edgemac {
         // Security and the release schedule for "Edge Dev channel release notes".
         // Microsoft stopped publishing Dev channel notes; pointing the button at
         // Beta's or Stable's page would show a Dev user another train's changes,
-        // which is worse than showing none (same call as Thunderbird Daily below).
+        // which is worse than showing none (same call as Thunderbird Daily, `Recipes/org-mozilla-thunderbird.swift`).
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,

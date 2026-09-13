@@ -26,7 +26,7 @@ enum com_qoder_app {
         // shows the other two still hold; only a pattern that gives up the first
         // TWO reads "1.0".
         //
-        // ⚠️ Same coupling caveat as the IDE above: the install pattern's
+        // ⚠️ Same coupling caveat as the IDE (`Recipes/com-qoder-ide.swift`): the install pattern's
         // `[0-9.]+` path segment is not required to equal the `version` this
         // reports, and `versionTemplate` is not used for the same reason.
         //

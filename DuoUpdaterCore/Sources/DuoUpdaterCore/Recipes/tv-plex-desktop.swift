@@ -22,7 +22,7 @@ enum tv_plex_desktop {
             bundleID: "tv.plex.desktop",
             url: URL(string: "https://plex.tv/api/downloads/6.json")!,
             mode: .responseBody,
-            // NOT widened to a variable segment count like its neighbours. The feed's
+            // NOT widened to a variable segment count like several other probes' patterns. The feed's
             // value is `1.115.0.426-4e960a1d` and this pattern has no closing
             // delimiter, so the capture is bounded only by how many segments it
             // asks for: three yields the marketing version, four would silently

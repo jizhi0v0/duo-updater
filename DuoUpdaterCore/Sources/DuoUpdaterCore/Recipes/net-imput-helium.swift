@@ -35,7 +35,7 @@ enum net_imput_helium {
         // prerelease one `\\n`. A pattern that knows only the first does not fail
         // on the second — it yields an entry with no changes, which is invisible.
         //
-        // `"prerelease":false` for the same reason as Headlamp above, and it is not
+        // `"prerelease":false` for the same reason as Headlamp (`Recipes/com-microsoft-Headlamp.swift`), and it is not
         // theoretical here: the vendor tags a build as prerelease for a day or two
         // before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
         // would show notes for a version this app is not being offered. 33 entries

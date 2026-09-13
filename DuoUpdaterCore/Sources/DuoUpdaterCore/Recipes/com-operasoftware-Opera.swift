@@ -51,7 +51,7 @@ enum com_operasoftware_Opera {
             changelogURL: URL(string: "https://blogs.opera.com/desktop/"),
             selectHighest: true,
             versionIsBuild: true,
-            // ONE-CLICK via `.versionTemplate` — see LibreOffice below for why the
+            // ONE-CLICK via `.versionTemplate` — see LibreOffice (`Recipes/org-libreoffice-script.swift`) for why the
             // template must fill the RESOLVED version and not a first-match regex
             // on this alphabetically-sorted index.
             //

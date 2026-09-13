@@ -9,7 +9,7 @@ enum com_anthropic_claudefordesktop {
         // genuinely has two answers and which leads flips during a ramp:
         //
         //   1. the public GA redirect below — what claude.ai/download serves;
-        //   2. the Squirrel rollout endpoint above — what THIS machine's own
+        //   2. the Squirrel rollout endpoint below — what THIS machine's own
         //      updater acts on, keyed by its device id.
         //
         // Neither alone is right. GA alone goes blind for the whole ramp: on

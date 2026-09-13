@@ -8,7 +8,7 @@ enum dev_warp_Warp_Stable {
         // with the channel name in its suffix (`…preview_01`), so a per-channel
         // pattern is unambiguous. Channels ship as separate bundle ids
         // (`dev.warp.Warp-Preview`, …) — the Stable build is the existing
-        // `dev.warp.Warp-Stable` recipe above. Both capture groups matter: the app
+        // `dev.warp.Warp-Stable` recipe below. Both capture groups matter: the app
         // reports the feed's `v<stamp>.<channel>_NN` as `<stamp>.NN`, so the
         // counter is joined back on (see `VendorProbeRecipe.version(of:in:)`).
         // Confirmed against real bundles on all three tracks in

@@ -89,7 +89,7 @@ enum com_github_GitHubClient {
             channel: .beta),
         ],
         githubChannelProofs: [
-        // Likewise `GitHub.Desktop-arm64.zip`:
+        // Likewise, as for Zed Preview (`Recipes/dev-zed-Zed.swift`), `GitHub.Desktop-arm64.zip`:
         // `…/download/release-3.6.5-beta1/GitHub.Desktop-arm64.zip`.
         ChannelProofKey("com.github.GitHubClient", .beta):
             .artifact(#"/download/release-[0-9.]+-beta[0-9]+/"#),

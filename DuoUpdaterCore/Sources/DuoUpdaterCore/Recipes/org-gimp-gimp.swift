@@ -21,7 +21,7 @@ enum org_gimp_gimp {
         // the filename's major.minor and the filename itself. The published
         // `sha512`/`sha256` fields are HEX, not the base64 SHA-512 `checksumPattern`
         // verifies, so no checksum is wired — the Team-ID signature gate is the
-        // only defense, same tradeoff as Gemini above.
+        // only defense, same tradeoff as Gemini (`Recipes/com-google-GeminiMacOS.swift`).
         // Installed-bundle identity confirmed 2026-08-16: `org.gimp.gimp`,
         // notarized Developer ID, Team T25BQ8HSJF (GNOME Foundation) — `spctl`
         // accepted as "Notarized Developer ID".

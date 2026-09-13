@@ -6,7 +6,7 @@ enum com_microsoft_onenote_mac {
         probes: [
         // Microsoft OneNote — Office suite, unified version. MAU-managed, and read
         // from the MAU manifest rather than the suite fwlink, the same way Outlook
-        // is below.
+        // is in `Recipes/com-microsoft-Outlook.swift`.
         //
         // It used to use the suite fwlink (linkid=525133), on the reasoning that
         // there is no dedicated OneNote fwlink and the suite reports the same

@@ -49,7 +49,7 @@ enum com_termius_dmg_mac {
         //
         // checksumPattern is safe here — unlike Signal Beta, whose CDN staples
         // the dmg AFTER electron-builder computed the feed's sha512 (see the
-        // comment on Signal's recipe above), Termius Beta's declared
+        // comment on Signal's recipe in `Recipes/org-whispersystems-signal-desktop.swift`), Termius Beta's declared
         // `sha512` for "Termius Beta.dmg" was independently verified
         // 2026-08-27 to equal `shasum -a 512 | base64` of the downloaded file,
         // byte for byte.

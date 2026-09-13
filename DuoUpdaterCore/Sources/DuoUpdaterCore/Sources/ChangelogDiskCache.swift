@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// On-disk, cross-launch cache of parsed changelogs, keyed by app + channel +
@@ -42,10 +43,20 @@ public actor ChangelogDiskCache {
         public let bundleID: String
         public let channel: String
         public let version: String
-        public init(bundleID: String, channel: String, version: String) {
+        /// The feed-resolved page the notes were parsed from, for a
+        /// `ChangelogRecipe.feedPagePattern` recipe; nil for every other recipe,
+        /// whose file name is unchanged by this field.
+        ///
+        /// Such a page depends on the reader's language as well as the version
+        /// (#557). Without it here, a reader who switched language would be
+        /// served the old language's notes from disk on every launch, because
+        /// released notes are treated as immutable and never expire.
+        public let page: URL?
+        public init(bundleID: String, channel: String, version: String, page: URL? = nil) {
             self.bundleID = bundleID
             self.channel = channel
             self.version = version
+            self.page = page
         }
     }
 
@@ -144,8 +155,15 @@ public actor ChangelogDiskCache {
     }
 
     private func fileURL(for key: Key) -> URL {
+        // A digest, not the sanitized URL: a URL can outrun a file name's length
+        // limit, and sanitizing is lossy (`/` and `?` both become `_`), so two
+        // pages could share a name.
+        let page = key.page.map {
+            "__" + SHA256.hash(data: Data($0.absoluteString.utf8))
+                .prefix(8).map { String(format: "%02x", $0) }.joined()
+        } ?? ""
         let name = prefixToken(bundleID: key.bundleID, channel: key.channel)
-            + sanitize(key.version) + ".json"
+            + sanitize(key.version) + page + ".json"
         return directory.appendingPathComponent(name)
     }
 

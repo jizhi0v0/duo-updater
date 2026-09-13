@@ -23,11 +23,11 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `ChangelogRecipe.init` currently takes **26** parameters. Beyond the ones below it
+> `ChangelogRecipe.init` currently takes **27** parameters. Beyond the ones below it
 > also carries `channel`, `includesPromotedStable`, `sourceTemplate`, `newestLast`,
 > `imagePattern`, `headingPattern`, `minimumAppVersion`, `belowAppVersion`,
-> `structuredFormat`, `httpMethod`, `requestBody`, `skipSections`, `tagPattern` and
-> `acknowledgedStaleEntry`. Read
+> `structuredFormat`, `httpMethod`, `requestBody`, `skipSections`, `tagPattern`,
+> `acknowledgedStaleEntry` and `feedPagePattern`. Read
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` before
 > concluding the registry can't express something.
 
@@ -159,6 +159,31 @@ the real index (vendors put newest first, but verify).
 When the vendor has no index, fall back to a version-pinned `source` and note in
 the comment that the URL needs bumping when a new version ships (as the older Warp
 / Ghostty entries did before they moved to indexes).
+
+## Feed-resolved pages — `feedPagePattern` (link-only Sparkle feeds)
+
+When a Sparkle appcast inlines no notes and each item links its own page instead
+(`<sparkle:releaseNotesLink>`, often once per `xml:lang`), the right page is the one
+the update check already resolved: `RemoteVersion.changelogURL`, localized for this
+reader by `SparkleAppcastParser.preferredVariant`. Don't template a `{lang}` into
+`sourceTemplate`. That would be a second language decision, and it could disagree
+with the parser's.
+
+- `feedPagePattern` is an **anchored** (`^https://…$`) regex the resolved URL must
+  match in full. A link anywhere else is not this recipe's page, so the recipe is
+  not offered and the pane embeds that page as before. It is also not offered when
+  the check has not answered.
+- `source` is the **appcast**. Only `duo verify` reads it: with no update result,
+  it resolves the newest item's link itself using the production parser.
+- It can't be combined with `sourceTemplate`, `indexLinkPattern` or `structuredFormat`
+  (`ChangelogReviewRegressionTests` enforces this).
+- Each page is one version, so `maxEntries: 1`, and the disk cache is keyed on the
+  page as well as the version. See Mac Mouse Fix's recipe and
+  `MacMouseFixChangelogRecipeTests`.
+
+Validate on **every** link both feeds publish, not just the head. All of them must
+match the pattern, and each page's version must equal its item's
+`sparkle:shortVersionString`.
 
 ## Validating against the real page (do this before landing)
 

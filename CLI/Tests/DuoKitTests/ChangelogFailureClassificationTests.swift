@@ -20,8 +20,12 @@ import Foundation
         return recipe
     }
 
+    /// Not a `feedPagePattern` recipe either: with no detail URL that one is
+    /// reported as `noFeedPage`, not as its entry pattern failing.
     private func oneStageRecipe() throws -> ChangelogRecipe {
-        try #require(ChangelogRecipeRegistry.recipes.first { $0.indexLinkPattern == nil })
+        try #require(ChangelogRecipeRegistry.recipes.first {
+            $0.indexLinkPattern == nil && $0.feedPagePattern == nil
+        })
     }
 
     private func diagnostic(
@@ -98,6 +102,56 @@ import Foundation
         #expect(result.kind == "noDetailLink")
         #expect(result.pattern == recipe.indexLinkPattern)
         #expect(result.pattern != recipe.entryPattern)
+    }
+
+    /// A feed-page recipe whose appcast answered but linked no page it accepts
+    /// never ran its entry pattern, so the page pattern is the one quoted — a
+    /// vendor that moved its notes shows up here. Mutation: remove the
+    /// `noFeedPage` branch and this reads as `noEntriesExtracted`.
+    @Test func aFeedWithNoAcceptedPageBlamesThePagePattern() throws {
+        let recipe = try #require(
+            ChangelogRecipeRegistry.recipes.first { $0.feedPagePattern != nil },
+            "the registry no longer has a feedPagePattern recipe to test against")
+        let result = Verify.classifyChangelogFailure(
+            diagnostic(recipe: recipe, detailURL: nil),
+            recipe: recipe, host: "raw.githubusercontent.com")
+
+        #expect(result.status == .broken)
+        #expect(result.kind == "noFeedPage")
+        #expect(result.pattern == recipe.feedPagePattern)
+    }
+
+    /// The page was fetched and parsed to nothing, so the message must name the
+    /// host the entry pattern ran on, not the appcast's. Mutation: name `host`
+    /// again and this reads "fetched raw.githubusercontent.com fine".
+    @Test func aFeedPageThatParsesToNothingNamesThePageHost() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipes.first { $0.feedPagePattern != nil })
+        let result = Verify.classifyChangelogFailure(
+            diagnostic(recipe: recipe, detailURL: URL(string: "https://raw.githack.com/zz/de.html")!),
+            recipe: recipe, host: "raw.githubusercontent.com")
+
+        #expect(result.kind == "noEntriesExtracted")
+        #expect(result.detail.contains("raw.githack.com"))
+        #expect(!result.detail.contains("raw.githubusercontent.com"))
+    }
+
+    /// A dead notes host must be filed under its own name: the infra-streak issue
+    /// tells the reader to `dig` this host. Mutation: `failingHost` returns `host`
+    /// unconditionally and the first expectation names the appcast host.
+    @Test func aFailedReleasePageIsFiledUnderItsOwnHost() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipes.first { $0.feedPagePattern != nil })
+        let page = URL(string: "https://raw.githack.com/zz/de.html")!
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, detailURL: page, detailFetchFailed: true),
+            host: "raw.githubusercontent.com") == "raw.githack.com")
+        // The page was fetched; only the pattern failed. Stage one is still the
+        // request to name when stage one is what failed.
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, detailURL: page),
+            host: "raw.githubusercontent.com") == "raw.githubusercontent.com")
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, fetchFailed: true, httpStatus: nil),
+            host: "raw.githubusercontent.com") == "raw.githubusercontent.com")
     }
 
     /// The genuine pattern failure still reports as one, quoting the entry

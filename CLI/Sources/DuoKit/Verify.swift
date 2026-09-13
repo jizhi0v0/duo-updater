@@ -348,6 +348,23 @@ public enum Verify {
     /// never run. HBuilderX Alpha spent a sweep flagged that way on 2026-08-16
     /// (elapsed 15131 ms, exactly the fetch timeout) while its pattern still
     /// matched the page perfectly.
+    /// The host a failed changelog finding is filed against: the release page's
+    /// when that second request is what failed, else `host` (`recipe.source`'s).
+    ///
+    /// `Reconcile` turns a streak of `.infra` findings into an issue telling the
+    /// reader to `dig` `endpointHost`. A feed-page recipe's appcast and notes page
+    /// live on different hosts (Mac Mouse Fix: raw.githubusercontent.com and
+    /// raw.githack.com), so filing a dead notes host under the appcast's would
+    /// send that check to a host that is fine.
+    static func failingHost(
+        _ diagnostic: ChangelogService.ChangelogDiagnostic, host: String
+    ) -> String {
+        guard diagnostic.detailFetchFailed, let detailHost = diagnostic.detailURL?.host else {
+            return host
+        }
+        return detailHost
+    }
+
     static func classifyChangelogFailure(
         _ diagnostic: ChangelogService.ChangelogDiagnostic,
         recipe: ChangelogRecipe,
@@ -376,14 +393,27 @@ public enum Verify {
                     (code >= 500 || code == 429) ? .infra : .broken,
                     nil)
         }
+        // The appcast answered but offered no page this recipe accepts: its newest
+        // usable item links nowhere, or somewhere `feedPagePattern` does not
+        // cover. The second is the vendor moving its notes, and the entry pattern
+        // never ran, so it is the page pattern that gets quoted.
+        if diagnostic.detailURL == nil, let feedPagePattern = recipe.feedPagePattern {
+            return ("noFeedPage",
+                    "fetched the appcast on \(host) fine, but its newest item links no "
+                        + "notes page the recipe's page pattern accepts",
+                    .broken, feedPagePattern)
+        }
         // The index answered but held no link: the INDEX pattern is the broken one.
         if diagnostic.detailURL == nil, let indexPattern = recipe.indexLinkPattern {
             return ("noDetailLink",
                     "fetched \(host) fine, but the index pattern found no release link",
                     .broken, indexPattern)
         }
+        // Named after the page the pattern ran on. For a two-stage or feed-page
+        // recipe that is `detailURL`, and `host` is the index or appcast host,
+        // which never saw the entry pattern.
         return ("noEntriesExtracted",
-                "fetched \(host) fine, but the entry pattern matched nothing",
+                "fetched \(diagnostic.detailURL?.host ?? host) fine, but the entry pattern matched nothing",
                 .broken, recipe.entryPattern)
     }
 
@@ -897,7 +927,10 @@ public enum Verify {
                     endpointHost: host)
             }
             let started = Date()
-            let diagnostic = await ChangelogService.loadDiagnostic(recipe, version: version)
+            // No update result here, so a `feedPagePattern` recipe resolves its
+            // page from its own appcast inside `loadDiagnostic`.
+            let diagnostic = await ChangelogService.loadDiagnostic(
+                recipe, version: version, feedPage: nil)
             let elapsed = Int(Date().timeIntervalSince(started) * 1000)
 
             guard let changelog = diagnostic.changelog,
@@ -907,7 +940,8 @@ public enum Verify {
                     recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
                     channel: recipe.channel?.rawValue ?? "-", status: failure.status,
                     failureKind: failure.kind, failureDetail: failure.detail,
-                    endpointHost: host, pattern: failure.pattern, elapsedMs: elapsed,
+                    endpointHost: failingHost(diagnostic, host: host),
+                    pattern: failure.pattern, elapsedMs: elapsed,
                     bodySample: diagnostic.bodySample)
             }
 

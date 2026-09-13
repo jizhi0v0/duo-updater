@@ -25,6 +25,10 @@ struct ChangelogCacheKey: Hashable {
     let bundleID: String
     let channel: ReleaseChannel
     let version: String?
+    /// `ChangelogRecipeSelection.feedPage(for:recipe:)`: nil for every recipe with
+    /// a fixed source. A feed-resolved page carries the reader's language, so the
+    /// same version can be two different sets of notes (#557).
+    let feedPage: URL?
 }
 
 /// Owns the scanned app list, their update status, and in-flight installs.
@@ -1772,8 +1776,10 @@ final class AppListModel {
         guard let bundleID = result.app.bundleID,
               let recipe = applicableRecipe(for: result) else { return }
         let targetVersion = changelogTargetVersion(for: result)
+        let feedPage = ChangelogRecipeSelection.feedPage(for: result, recipe: recipe)
         let key = ChangelogCacheKey(
-            bundleID: bundleID, channel: result.effectiveReleaseChannel, version: targetVersion)
+            bundleID: bundleID, channel: result.effectiveReleaseChannel, version: targetVersion,
+            feedPage: feedPage)
         // A `.loaded` that was only ever painted from the disk cache is not done:
         // it still owes one network read, because the entry filed under this
         // version's key may have been fetched before the vendor published that
@@ -1797,7 +1803,8 @@ final class AppListModel {
         // cached value is correct to show outright; the revalidation just catches a
         // post-publish edit and keeps the very latest list current.
         changelogTasks[key] = Task { [weak self] in
-            if let cached = await ChangelogService.diskCached(recipe, version: targetVersion) {
+            if let cached = await ChangelogService.diskCached(
+                recipe, version: targetVersion, feedPage: feedPage) {
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogState[key] = .loaded(cached)
@@ -1805,7 +1812,7 @@ final class AppListModel {
             // Attributed like a check is: release notes are fetched *for* an
             // app, and the log's app column is the only thing that says which.
             let fresh = await RequestAttribution.withApp(result.app.id) {
-                await ChangelogService.load(recipe, version: targetVersion)
+                await ChangelogService.load(recipe, version: targetVersion, feedPage: feedPage)
             }
             // A concurrent invalidate (app updated on disk) cancels this task and
             // clears the key; bail rather than resurrect stale notes or clobber the
@@ -1831,12 +1838,13 @@ final class AppListModel {
 
     private func changelogKey(for result: UpdateResult) -> ChangelogCacheKey? {
         guard let bundleID = result.app.bundleID,
-              applicableRecipe(for: result) != nil
+              let recipe = applicableRecipe(for: result)
         else { return nil }
         return ChangelogCacheKey(
             bundleID: bundleID,
             channel: result.effectiveReleaseChannel,
-            version: changelogTargetVersion(for: result))
+            version: changelogTargetVersion(for: result),
+            feedPage: ChangelogRecipeSelection.feedPage(for: result, recipe: recipe))
     }
 
     /// Drop one app's cached changelog across both layers — the session-wide
@@ -1889,9 +1897,11 @@ final class AppListModel {
             // Don't clobber an entry that's already loaded, loading, or being viewed.
             if changelogState[key] != nil { continue }
             let targetVersion = changelogTargetVersion(for: result)
+            let feedPage = key.feedPage
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
-                var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)
+                var changelog = await ChangelogService.diskCached(
+                    recipe, version: targetVersion, feedPage: feedPage)
                 var fetched = false
                 if changelog == nil {
                     // Cap concurrent network prewarms: a cold cache would otherwise
@@ -1899,7 +1909,8 @@ final class AppListModel {
                     // skip the gate; only genuine network fetches queue through it.
                     await Self.prewarmNetworkGate.wait()
                     changelog = await RequestAttribution.withApp(result.app.id) {
-                        await ChangelogService.load(recipe, version: targetVersion)
+                        await ChangelogService.load(
+                            recipe, version: targetVersion, feedPage: feedPage)
                     }
                     await Self.prewarmNetworkGate.signal()
                     fetched = changelog != nil

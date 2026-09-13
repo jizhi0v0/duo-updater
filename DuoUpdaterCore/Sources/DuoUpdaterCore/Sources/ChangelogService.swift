@@ -30,27 +30,40 @@ public enum ChangelogService {
     /// `recipe.source`) so the detail window opens instantly on repeat visits.
     /// Concurrent callers for the same recipe are coalesced onto one network
     /// fetch. Cache is cleared on manual refresh — see ``AppListModel/refresh()``.
+    ///
+    /// `feedPage` is `ChangelogRecipeSelection.feedPage(for:recipe:)`, and has no
+    /// default on purpose: a caller that omits it compiles, and every
+    /// `feedPagePattern` recipe it loads silently returns nil. For any other
+    /// recipe it is ignored.
     public static func load(
-        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
+        _ recipe: ChangelogRecipe, version: String? = nil, feedPage: URL?,
+        session: URLSession = .updates
     ) async -> Changelog? {
-        // The page to fetch: the per-version URL when the recipe is templated and a
-        // version is supplied, otherwise the fixed `source`. Cache on THIS resolved
-        // URL so different versions never serve each other's notes.
-        let resolved = recipe.resolvedSource(forVersion: version)
+        // The page to fetch: the feed-resolved page for a `feedPagePattern`
+        // recipe, the per-version URL when the recipe is templated and a version
+        // is supplied, otherwise the fixed `source`. Cache on THIS resolved URL so
+        // different versions — and, for a feed page, different languages — never
+        // serve each other's notes.
+        //
+        // Nil only for a feed-page recipe with no accepted page, which
+        // `ChangelogRecipeSelection` never offers. Not a recipe failure, so no
+        // health is recorded for it.
+        guard let resolved = recipe.pageURL(forVersion: version, feedPage: feedPage)
+        else { return nil }
         // Delegate to the cache's fetch-through helper, which handles hit, miss,
         // and concurrent-miss coalescing in one place. The key carries the recipe's
         // identity as well as the page, so recipes that share one endpoint (Warp's
         // three channels; Antigravity's two products) never serve each other's
         // notes out of a shared slot.
         let cacheURL = cacheKeyURL(for: recipe, resolved: resolved)
-        let diskCacheKey = diskKey(for: recipe, version: version)
+        let diskCacheKey = diskKey(for: recipe, version: version, feedPage: feedPage)
         return await ChangelogCache.shared.load(for: cacheURL) {
             Log.source.debug(
                 "changelog cache miss: \(resolved.host ?? "?", privacy: .public)")
             let parsed = await fetchAndParse(recipe, resolved: resolved, session: session)
             // Recipe health is recorded here, inside the cache-miss closure, so an
             // in-memory hit doesn't re-assert an outcome it never re-tested.
-            await recordHealth(recipe, parsed: parsed)
+            await recordHealth(recipe, parsed: parsed, fetched: resolved)
             // Persist to the cross-launch disk cache, keyed by version (immutable
             // notes), so the next launch paints instantly and the periodic pre-warm
             // can skip the network for versions we already hold. This lives INSIDE the
@@ -70,9 +83,11 @@ public enum ChangelogService {
     /// that has been broken for weeks keep reporting success without a single
     /// request leaving the machine.
     public static func loadUncached(
-        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
+        _ recipe: ChangelogRecipe, version: String? = nil, feedPage: URL?,
+        session: URLSession = .updates
     ) async -> Changelog? {
-        await loadDiagnostic(recipe, version: version, session: session).changelog
+        await loadDiagnostic(recipe, version: version, feedPage: feedPage, session: session)
+            .changelog
     }
 
     /// What a changelog load actually did, for a verifier that has to decide
@@ -95,6 +110,10 @@ public enum ChangelogService {
         /// For a two-stage recipe (`indexLinkPattern`), the per-release page the
         /// index pointed at — the request the patterns actually run against. Nil
         /// for a one-stage recipe, and nil when the index yielded no link.
+        ///
+        /// A `feedPagePattern` recipe with no page handed in is two-stage the same
+        /// way: `resolvedURL` is its appcast, and this is the notes link the
+        /// feed's newest usable item carries, when the recipe accepts it.
         public let detailURL: URL?
         /// True when that second request failed outright. Without this a stalled
         /// or moved detail page is indistinguishable from a pattern that stopped
@@ -122,17 +141,23 @@ public enum ChangelogService {
         }
     }
 
+    /// `feedPage` as for `load`. A sweep has no update result and passes nil, and
+    /// a `feedPagePattern` recipe then resolves its page from its own appcast.
     public static func loadDiagnostic(
-        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
+        _ recipe: ChangelogRecipe, version: String? = nil, feedPage: URL?,
+        session: URLSession = .updates
     ) async -> ChangelogDiagnostic {
-        let resolved = recipe.resolvedSource(forVersion: version)
+        // Nil only for a feed-page recipe that was handed no page: stage one is
+        // then its appcast (`source`), and stage two the page that feed links.
+        let handedPage = recipe.pageURL(forVersion: version, feedPage: feedPage)
+        let resolved = handedPage ?? recipe.source
         // Fetch the entry page directly so a transport/status failure is
         // distinguishable; `fetchAndParse` collapses both into nil. Pass the
         // recipe through so a POST recipe (Notion) sends its body on this,
         // its ONLY request — there is no second stage for a structured recipe.
         let fetched = await fetch(resolved, recipe: recipe, session: session)
         guard fetched.body != nil else {
-            await recordHealth(recipe, parsed: nil)
+            await recordHealth(recipe, parsed: nil, fetched: resolved)
             return ChangelogDiagnostic(
                 changelog: nil, resolvedURL: resolved, httpStatus: fetched.status,
                 fetchFailed: true, bodySample: nil)
@@ -142,7 +167,19 @@ public enum ChangelogService {
         let indexBody = fetched.body ?? ""
         var detailURL: URL?
         var detailFetch: (body: String?, status: Int?) = (indexBody, fetched.status)
-        if recipe.structuredFormat == nil, let linkPattern = recipe.indexLinkPattern {
+        if handedPage == nil {
+            // The page the production parser picks from this feed, in this
+            // host's language. A link the recipe does not accept is reported as
+            // no page at all: fetching it would parse a page the patterns were
+            // never written for, and the app would not fetch it either.
+            detailURL = recipe.acceptedFeedPage(SparkleAppcastSource.probeReleaseNotesLink(
+                in: Data(indexBody.utf8), feedURL: resolved, bundleID: recipe.bundleID))
+            if let detailURL {
+                detailFetch = await fetch(detailURL, session: session)
+            } else {
+                detailFetch = (nil, nil)
+            }
+        } else if recipe.structuredFormat == nil, let linkPattern = recipe.indexLinkPattern {
             detailURL = firstLink(in: indexBody, pattern: linkPattern, base: resolved)
             if let detailURL {
                 detailFetch = await fetch(detailURL, session: session)
@@ -153,7 +190,7 @@ public enum ChangelogService {
             }
         }
         let parsed = parse(recipe, body: detailFetch.body)
-        await recordHealth(recipe, parsed: parsed)
+        await recordHealth(recipe, parsed: parsed, fetched: detailURL ?? resolved)
         return ChangelogDiagnostic(
             changelog: parsed, resolvedURL: resolved, httpStatus: fetched.status,
             // The body is returned even when parsing succeeded. "Extracted
@@ -200,14 +237,20 @@ public enum ChangelogService {
     /// recorded nothing at all: a vendor restyling their release-notes page made
     /// `extract` return nil, the UI quietly fell back to embedding the raw page
     /// in a web view, and no diagnostic anywhere said the recipe had died.
-    private static func recordHealth(_ recipe: ChangelogRecipe, parsed: Changelog?) async {
+    ///
+    /// `fetched` names the host in the miss: `recipe.source` is not the page for
+    /// a `feedPagePattern` recipe (it is an appcast on a different host), so
+    /// reading it here would blame a host that was never asked for the notes.
+    private static func recordHealth(
+        _ recipe: ChangelogRecipe, parsed: Changelog?, fetched: URL
+    ) async {
         let id = recipe.recipeID
         if parsed != nil {
             await RecipeHealth.shared.recordSuccess(id: id, source: "Changelog")
         } else {
             await RecipeHealth.shared.recordMiss(
                 id: id, source: "Changelog",
-                detail: "fetched \(recipe.source.host ?? "?") but extracted no entries")
+                detail: "fetched \(fetched.host ?? "?") but extracted no entries")
         }
     }
 
@@ -237,9 +280,10 @@ public enum ChangelogService {
     /// the stale-while-revalidate network load. nil when nothing is cached (or no
     /// version is known to key on).
     public static func diskCached(
-        _ recipe: ChangelogRecipe, version: String?
+        _ recipe: ChangelogRecipe, version: String?, feedPage: URL?
     ) async -> Changelog? {
-        guard let key = diskKey(for: recipe, version: version) else { return nil }
+        guard let key = diskKey(for: recipe, version: version, feedPage: feedPage)
+        else { return nil }
         return await ChangelogDiskCache.shared.get(for: key)
     }
 
@@ -278,14 +322,26 @@ public enum ChangelogService {
     /// The disk-cache key for a recipe+version, or nil when no version is known
     /// (the disk layer is keyed by the immutable per-version notes, so a versionless
     /// load can't be cached there — it still uses the in-memory cache).
+    ///
+    /// A `feedPagePattern` recipe is also keyed on its page, which carries the
+    /// reader's language (see `ChangelogDiskCache.Key.page`), and has no key at
+    /// all without an accepted page. Every other recipe's key is unchanged.
     static func diskKey(
-        for recipe: ChangelogRecipe, version: String?
+        for recipe: ChangelogRecipe, version: String?, feedPage: URL?
     ) -> ChangelogDiskCache.Key? {
         guard let version, !version.isEmpty else { return nil }
+        let page: URL?
+        if recipe.feedPagePattern != nil {
+            guard let accepted = recipe.acceptedFeedPage(feedPage) else { return nil }
+            page = accepted
+        } else {
+            page = nil
+        }
         return ChangelogDiskCache.Key(
             bundleID: recipe.bundleID,
             channel: recipe.channel?.rawValue ?? "default",
-            version: version)
+            version: version,
+            page: page)
     }
 
     /// The page the entry/item patterns run against, given the already-resolved
@@ -549,6 +605,9 @@ public enum ChangelogService {
     /// `version` reaches the LOOKUP as well as the load: an app can fork its notes
     /// across two pages that share a bundle id and a channel, and then the version
     /// is the only thing that says which page describes this build (Raycast v1/v2).
+    ///
+    /// Always nil for a `feedPagePattern` recipe: with only a bundle id there is
+    /// no update result to take the page from.
     public static func load(
         forBundleID bundleID: String?,
         channel: ReleaseChannel? = nil,
@@ -558,6 +617,6 @@ public enum ChangelogService {
         guard let recipe = ChangelogRecipeRegistry.recipe(
             forBundleID: bundleID, channel: channel, version: version)
         else { return nil }
-        return await load(recipe, version: version, session: session)
+        return await load(recipe, version: version, feedPage: nil, session: session)
     }
 }

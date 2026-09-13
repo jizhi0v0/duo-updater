@@ -149,6 +149,33 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// changelog page directly (the common case).
     public let indexLinkPattern: String?
 
+    /// When non-nil, the page to parse is not in the registry at all: it is the
+    /// URL the update source already resolved, `RemoteVersion.changelogURL`, and
+    /// this is an anchored regex that URL must match before it is fetched.
+    ///
+    /// For a feed that inlines nothing and links out per item and per language —
+    /// Mac Mouse Fix's appcast carries one `<sparkle:releaseNotesLink xml:lang>`
+    /// per language on every item. `SparkleAppcastParser.preferredVariant` has
+    /// already picked this reader's language and this version's page, so a
+    /// `{lang}` token in `sourceTemplate` would be a second, hand-maintained
+    /// language decision beside that one, free to disagree with it (#557).
+    ///
+    /// A pattern rather than a flag, because the URL is written by whichever
+    /// source answered, and `entryPattern` is written against one vendor's page.
+    /// A link somewhere else is not this recipe's page; the recipe then does
+    /// nothing and the pane embeds that page as it would with no recipe.
+    /// `ChangelogURLPolicy` is applied too (see `acceptedFeedPage(_:)`), so this
+    /// path cannot fetch a URL the web view would refuse to open.
+    ///
+    /// With no accepted URL the recipe is inert: `ChangelogRecipeSelection`
+    /// does not offer it. `source` is then read only by `duo verify`, which has
+    /// no update result: it must be the appcast the page is resolved from, and
+    /// `ChangelogService.loadDiagnostic` reads that feed with the production
+    /// parser to find the page. Mutually exclusive with `sourceTemplate`,
+    /// `indexLinkPattern` and `structuredFormat`, which
+    /// `ChangelogReviewRegressionTests` enforces.
+    public let feedPagePattern: String?
+
     /// The release channel this recipe targets, or nil for a channel-agnostic
     /// recipe (the common case — most apps have one changelog regardless of
     /// channel). This matters only when **several channels share one bundle id**
@@ -529,7 +556,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         requestBody: Data? = nil,
         skipSections: [String] = [],
         tagPattern: String? = nil,
-        acknowledgedStaleEntry: String? = nil
+        acknowledgedStaleEntry: String? = nil,
+        feedPagePattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -557,6 +585,35 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.skipSections = skipSections
         self.tagPattern = tagPattern
         self.acknowledgedStaleEntry = acknowledgedStaleEntry
+        self.feedPagePattern = feedPagePattern
+    }
+
+    /// `url` when this recipe reads the feed-resolved page and `url` is that page:
+    /// it matches `feedPagePattern` in full and passes `ChangelogURLPolicy`. Nil
+    /// for every other input, including every recipe with no `feedPagePattern`.
+    ///
+    /// Whole-string match on `absoluteString`, not `firstMatch` anywhere in it:
+    /// a registry pattern that forgot its anchors must not accept
+    /// `https://elsewhere.example/?u=https://raw.githack.com/…`.
+    public func acceptedFeedPage(_ url: URL?) -> URL? {
+        guard let feedPagePattern, let url, ChangelogURLPolicy.isDisplayable(url),
+              let regex = try? NSRegularExpression(pattern: feedPagePattern)
+        else { return nil }
+        let string = url.absoluteString
+        let whole = NSRange(string.startIndex..., in: string)
+        guard let match = regex.firstMatch(in: string, options: [.anchored], range: whole),
+              match.range == whole
+        else { return nil }
+        return url
+    }
+
+    /// The page `ChangelogService` fetches: the accepted feed-resolved page for a
+    /// `feedPagePattern` recipe (nil when there is none — never `source`, which
+    /// for such a recipe is an appcast, not a page), else
+    /// `resolvedSource(forVersion:)`.
+    public func pageURL(forVersion version: String?, feedPage: URL?) -> URL? {
+        guard feedPagePattern != nil else { return resolvedSource(forVersion: version) }
+        return acceptedFeedPage(feedPage)
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -675,6 +732,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         tagPattern = try c.decodeIfPresent(String.self, forKey: .tagPattern)
         acknowledgedStaleEntry = try c.decodeIfPresent(
             String.self, forKey: .acknowledgedStaleEntry)
+        feedPagePattern = try c.decodeIfPresent(String.self, forKey: .feedPagePattern)
     }
 }
 
@@ -2526,6 +2584,47 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 1,
             channel: .stable,
             sourceTemplate: "https://wiki.inkscape.org/wiki/Release_notes/{version}"),
+
+        // Mac Mouse Fix — both appcasts (stable and `appcast-pre.xml`) inline no
+        // notes; every item links one pandoc-rendered page per language,
+        // `…/update-notes-html/<version>/<lang>.html`, 12 languages and no `en`.
+        // So the page is whatever the feed resolved for this reader
+        // (`feedPagePattern`, #557); `source` is the stable appcast, read only by
+        // `duo verify` to resolve a page of its own.
+        //
+        // Measured 2026-09-13 against both live feeds: all 360 links match the
+        // page pattern. Of the 63 linked pages fetched (every version's `de`,
+        // plus all 12 languages of 3.0.8, 3.1.0 Beta 1 and 2.0.0), all 63 extract
+        // one entry whose `<title>` equals that item's
+        // `sparkle:shortVersionString` (`3.1.0 Beta 1` included). The 31 unlinked
+        // `en` pages were fetched too and all extract with no notice text.
+        // Checked independently in Python.
+        //
+        //   * A translated page opens with a "translated by AI" notice
+        //     (`<p><strong>ℹ️ …`) ending at the first `<hr />`, and the body
+        //     starts after it. Keyed on the notice, not on the first `<hr />`:
+        //     `en.html` is published but has no notice (and no feed links it
+        //     today), and its first `<hr />` is the one before the "previous
+        //     release" footer. Skipping to it left 16 of the 31 English pages
+        //     with only that footer as their notes.
+        //   * Sub-bullets are nested `<ul>`; the item pattern stops at the next
+        //     `<li>`/`<ul>`, so a parent and its first child stay two lines
+        //     rather than one merged line. 60 of the 63 pages use lists.
+        //   * The other three (2.1.0, 3.0.0 Beta 2 and Beta 3) are prose only,
+        //     and fall through to `<p>`.
+        ChangelogRecipe(
+            bundleID: "com.nuebling.mac-mouse-fix",
+            source: URL(string: "https://raw.githubusercontent.com/noah-nuebling/mac-mouse-fix/update-feed/appcast.xml")!,
+            entryPattern:
+                #"<title>(?<version>[^<]+)</title>.*?<body>\s*(?:<p><strong>\x{2139}.*?<hr\s*/?>)?(?<body>.*)</body>"#,
+            itemPatterns: [
+                #"<li>(?<item>.*?)(?=<li>|</li>|<ul>|<ol>)"#,
+                #"<p>(?<item>.*?)</p>"#,
+            ],
+            maxEntries: 1,
+            headingPattern: #"<h[2-4][^>]*>(?<heading>.*?)</h[2-4]>"#,
+            feedPagePattern:
+                #"^https://raw\.githack\.com/noah-nuebling/mac-mouse-fix/update-feed/docs/update-notes-html/[^/?#]+/[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)*\.html$"#),
 
         ChangelogRecipe(
             bundleID: "com.operasoftware.Opera",

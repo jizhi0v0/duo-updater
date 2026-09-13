@@ -135,6 +135,25 @@ import Foundation
         #expect(!result.detail.contains("raw.githubusercontent.com"))
     }
 
+    /// A dead notes host must be filed under its own name: the infra-streak issue
+    /// tells the reader to `dig` this host. Mutation: `failingHost` returns `host`
+    /// unconditionally and the first expectation names the appcast host.
+    @Test func aFailedReleasePageIsFiledUnderItsOwnHost() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipes.first { $0.feedPagePattern != nil })
+        let page = URL(string: "https://raw.githack.com/zz/de.html")!
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, detailURL: page, detailFetchFailed: true),
+            host: "raw.githubusercontent.com") == "raw.githack.com")
+        // The page was fetched; only the pattern failed. Stage one is still the
+        // request to name when stage one is what failed.
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, detailURL: page),
+            host: "raw.githubusercontent.com") == "raw.githubusercontent.com")
+        #expect(Verify.failingHost(
+            diagnostic(recipe: recipe, fetchFailed: true, httpStatus: nil),
+            host: "raw.githubusercontent.com") == "raw.githubusercontent.com")
+    }
+
     /// The genuine pattern failure still reports as one, quoting the entry
     /// pattern — the fix must not make every failure look like a network blip.
     @Test func aRestyledPageStillBlamesTheEntryPattern() throws {

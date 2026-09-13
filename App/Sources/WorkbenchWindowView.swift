@@ -771,7 +771,9 @@ private struct WorkbenchSidebarRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         case .stagedRelaunchVersionUnknown:
-            // Same fact as the popover's line: no readable target, so a "?".
+            // Same fact as the popover's line: no readable target, so a "?". Hover
+            // only here: a click on a sidebar row selects it, and the detail header
+            // it opens carries the clickable `StagedVersionUnknownMark`.
             Text(verbatim: "\(result.installedDisplay ?? "?") → ?")
                 .font(.caption)
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
@@ -1167,10 +1169,12 @@ private struct DetailHeader: View {
                 .font(.callout).foregroundStyle(.tint)
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .stagedRelaunchVersionUnknown:
-            Text(verbatim: "\(result.installedDisplay ?? "?")  →  ?")
-                .font(.callout).foregroundStyle(.tint)
-                .lineLimit(1).minimumScaleFactor(0.75)
-                .help(String(localized: "\(result.app.name) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
+            HStack(spacing: 0) {
+                Text(verbatim: "\(result.installedDisplay ?? "?")  →  ")
+                StagedVersionUnknownMark(appName: result.app.name)
+            }
+            .font(.callout).foregroundStyle(.tint)
+            .lineLimit(1).minimumScaleFactor(0.75)
         case .restart(let from):
             let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
             Text("\(line.from)  →  \(line.to)")

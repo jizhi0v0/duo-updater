@@ -309,35 +309,19 @@ public enum SelfUpdaterStaging {
         parkedInstallerBundleURLs: [URL]? = nil,
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
-        guard let bundleID = app.bundleID else { return nil }
-        let caches = cachesDirectory
-            ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-        guard let caches else { return nil }
-        let sparkleRoot = caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+        guard let bundleID = app.bundleID,
+              let sparkleRoot = sparkleCacheRoot(
+                for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
+        else { return nil }
 
         // Cheapest discriminator first: no parked installer, nothing to avoid.
-        //
-        // Two locations, because Sparkle picks between them. `SUInstallerLauncher.m`
-        // does `BOOL rootUser = (geteuid() == 0)` and then
-        // `BOOL copyProgressTool = !rootUser` — so the usual case, including an
-        // install that needs administrator authorisation (that one is
-        // `inSystemDomain && !rootUser`), copies the agent into this app's staging
-        // cache. Only a launcher already running as euid 0 skips the copy and
-        // launches the agent out of the host bundle's own framework.
-        //
-        // That second case is rare, and accepting it is cheap. It is worth the two
-        // lines because this gate fails OPEN — no parked installer found means
-        // `.proceed` — so a location we cannot see is not a missing warning, it is
-        // the overwrite bug back again.
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        let homes = [sparkleRoot, app.path].map { normalizedPath($0) + "/" }
-        guard parked.contains(where: { installer in
-            let path = normalizedPath(installer)
-            return homes.contains(where: path.hasPrefix)
-        }) else { return nil }
+        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked)
+        else { return nil }
 
+        // Where the installer stages is the cache of the user it RUNS AS, which is
+        // not always this one — see `sparkleInstallerArmedWithUnreadableStaging`.
+        // This walk can only ever see a same-user install.
         let root = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
 
         // The directory itself survives every install — it is empty when nothing
@@ -362,6 +346,100 @@ public enum SelfUpdaterStaging {
                 stagedBundlePath: url)
         }
         return nil
+    }
+
+    /// An installer is parked on this Sparkle app's next quit, but no staged copy
+    /// of it can be read from this user's cache. The row must still offer Relaunch
+    /// rather than our own Update, and our install must still stand down — it is
+    /// the same collision `sparkleStagedBundle` exists for, with the version unknown.
+    ///
+    /// **Why the staged build can be unreadable.** Sparkle's `Autoupdate` stages
+    /// into `SPULocalCacheDirectory cachePathForBundleIdentifier:` + `Installation`,
+    /// and that cache is `NSCachesDirectory` in the user domain of the process
+    /// doing it (`AppInstaller.m`, `SPULocalCacheDirectory.m`). When the app's
+    /// bundle needs administrator authorisation to replace — a root-owned bundle,
+    /// as a `.pkg` install leaves it — `SUInstallerLauncher.m` submits the
+    /// installer to the system domain, so it runs as root and stages under
+    /// `/var/root/Library/Caches/<bundleID>/`, which this user cannot list.
+    /// The launcher itself runs as this user, so its progress agent is still
+    /// somewhere `hasParkedSparkleInstaller` accepts — which of its two places
+    /// depends on the Sparkle version (see there) — and the parked-installer
+    /// evidence is intact while the staging walk finds nothing.
+    ///
+    /// Observed 2026-09-13 on a mac mini, Tailscale 1.102.3 → 1.102.4 (bundle
+    /// `root:wheel`, Sparkle 2.8.0): `Autoupdate` running as root, the `Updater` agent as the
+    /// user under `~/Library/Caches/io.tailscale.ipn.macsys/…/Launcher/`, no
+    /// `Installation/` in that cache, and the staged `Tailscale.app` found with
+    /// `sudo` under `/var/root/…/Installation/`. Quitting the app — which the
+    /// vendor `.pkg`'s own preinstall does — let root's `Autoupdate` swap its copy
+    /// in mid-install: PackageKit logged `st_ino mismatch (possible TOCTOU swap)`
+    /// for 156 files and wrote the pkg's nested bundles into Sparkle's bundle.
+    ///
+    /// Also true, and wanted, for a same-user install whose staging is not an
+    /// `.app` (a package update) or has not finished unpacking: an installer is
+    /// parked either way, and either way ours would race it. Deliberately `false`
+    /// when a readable staged build exists, older or newer: that case already
+    /// carries a version and belongs to `staged(for:)` / `sparkleStagedBundle`.
+    public static func sparkleInstallerArmedWithUnreadableStaging(
+        for app: InstalledApp,
+        cachesDirectory: URL? = nil,
+        parkedInstallerBundleURLs: [URL]? = nil,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        // Same admission as `staged(for:)`'s Sparkle branch.
+        guard !app.hasSelfUpdater, app.hasSparkleUpdater,
+              app.bundleID != spotifyBundleID,
+              let sparkleRoot = sparkleCacheRoot(
+                for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
+        else { return false }
+        let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
+        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked)
+        else { return false }
+        return sparkleStagedBundle(
+            for: app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
+    }
+
+    /// `<Caches>/<bundleID>/org.sparkle-project.Sparkle`, in this user's domain.
+    private static func sparkleCacheRoot(
+        for app: InstalledApp, cachesDirectory: URL?, fileManager: FileManager
+    ) -> URL? {
+        guard let bundleID = app.bundleID,
+              let caches = cachesDirectory
+                ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else { return nil }
+        return caches
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+    }
+
+    /// Whether one of `parked` is waiting on THIS app's quit.
+    ///
+    /// Two locations, because where Sparkle runs its progress agent from has
+    /// changed across releases (`InstallerLauncher/SUInstallerLauncher.m`, read at
+    /// each tag on 2026-09-13):
+    ///
+    ///   - **≤ 2.9.5**: always copied into `<Caches>/<bundleID>/…/Launcher/<random>/`,
+    ///     including for an install needing administrator authorisation (whose
+    ///     INSTALLER then runs as root). Observed on Tailscale's Sparkle 2.8.0.
+    ///   - **2.9.6**: `BOOL copyProgressTool = !rootUser`, `rootUser` being the
+    ///     LAUNCHER's own euid — copied as above unless the launcher is already
+    ///     root, in which case it runs out of the host bundle's framework.
+    ///   - **2.10.0-beta.1 on**: no copy; the agent runs out of the host bundle's
+    ///     `Sparkle.framework` every time.
+    ///
+    /// So the in-bundle location is the only one from 2.10 on, not a rare case.
+    /// Both are accepted, and must be: this gate fails OPEN — no parked installer
+    /// found means `.proceed` — so a location we cannot see is not a missing
+    /// warning, it is the overwrite bug back again.
+    private static func hasParkedSparkleInstaller(
+        for app: InstalledApp, sparkleRoot: URL, parked: [URL]
+    ) -> Bool {
+        let homes = [sparkleRoot, app.path].map { normalizedPath($0) + "/" }
+        return parked.contains(where: { installer in
+            let path = normalizedPath(installer)
+            return homes.contains(where: path.hasPrefix)
+        })
     }
 
     /// The bundle identities a parked Sparkle installer can run under. Its own

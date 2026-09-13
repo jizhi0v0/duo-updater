@@ -661,19 +661,39 @@ public enum UpdatePolicy {
             result.app.versionSide, as: staged.versionSide,
             buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)
         ) { return nil }
-        // Nothing to protect on routes we do not swap ourselves — Homebrew, the App
-        // Store and Toolbox hand the install to something that owns the bundle, so a
-        // stale staging directory belonging to a different mechanism must not block
-        // them.
+        return routeCollidesWithSelfUpdater(result) ? staged : nil
+    }
+
+    /// Whether an installer parked on this app's quit, whose staged build could not
+    /// be read, makes installing pointless right now.
+    ///
+    /// The version-less sibling of `stagedBlocksInstall`, for
+    /// `SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging`. It has no
+    /// "already applied" escape because it has nothing to compare, and needs none:
+    /// that one exists for staging directories Sparkle has not swept yet, while
+    /// this signal is a live parked installer, whose agent exits after the
+    /// installer does.
+    public static func armedInstallerBlocksInstall(
+        _ result: UpdateResult,
+        armed: Bool
+    ) -> Bool {
+        armed && routeCollidesWithSelfUpdater(result)
+    }
+
+    /// Nothing to protect on routes we do not swap ourselves — Homebrew, the App
+    /// Store and Toolbox hand the install to something that owns the bundle, so a
+    /// stale staging directory belonging to a different mechanism must not block
+    /// them.
+    private static func routeCollidesWithSelfUpdater(_ result: UpdateResult) -> Bool {
         switch result.remote?.sourceName {
-        case "Vendor", "GitHub", "Sparkle", "Electron": return staged
+        case "Vendor", "GitHub", "Sparkle", "Electron": return true
         // Electron belongs on the protected side, not the excluded one: an
         // electron-builder app's own self-updater (electron-updater / Squirrel
         // .Mac, see `defersToSelfUpdater`) parks its staged build the same way
         // Sparkle's ShipIt does, so a stale staging directory here is exactly
         // the collision this function exists to catch, not a leftover from a
         // mechanism we don't swap ourselves.
-        default:                            return nil
+        default:                            return false
         }
     }
 

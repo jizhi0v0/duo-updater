@@ -388,73 +388,93 @@ public enum InPlaceSwap {
         }
 
         if !elevated {
-            let fm = FileManager.default
-            let parent = target.deletingLastPathComponent()
-            // Stage the new bundle beside the target (same volume), then atomically
-            // exchange it in. `replaceItemAt` renames on success and leaves the
-            // original untouched on failure — no window where the app is missing.
-            let staged = parent.appendingPathComponent(".duoupdater-staged-\(target.lastPathComponent)")
-            try? fm.removeItem(at: staged)
-            try fm.moveItem(at: newApp, to: staged)
-            do {
-                _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
-            } catch {
-                // What actually went wrong, before it is folded into one of two
-                // user-facing shapes. Both of those describe a cause rather than
-                // report the error, so without this line a misclassification is
-                // indistinguishable from the real thing — which is how a ToDesk
-                // restore that had already landed came out as "grant App
-                // Management", with `duo doctor` saying it was granted all along.
-                let ns = error as NSError
-                Log.install.error(
-                    "swap: replaceItemAt threw for \(target.lastPathComponent, privacy: .public) — \(ns.domain, privacy: .public) \(ns.code, privacy: .public): \(ns.localizedDescription, privacy: .public)")
-                if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
-                    Log.install.error(
-                        "swap: underlying \(underlying.domain, privacy: .public) \(underlying.code, privacy: .public): \(underlying.localizedDescription, privacy: .public)")
-                }
-                // A staged sibling we cannot clear is left in `/Applications` for
-                // good — root-owned after a package install, and `try?` said
-                // nothing about it. `recoverInterruptedSwaps` sweeps unprivileged
-                // and cannot remove it either, so name it here or nobody learns.
-                if fm.fileExists(atPath: staged.path) {
-                    do { try fm.removeItem(at: staged) } catch {
-                        Log.install.error(
-                            "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
-                    }
-                }
-                // Which of the two opposite things just happened. `replaceItemAt`
-                // can land the new bundle and then throw while removing the one it
-                // displaced, and both user-facing shapes below describe a CAUSE for
-                // an update that did not happen — so classifying first is what
-                // stops a landed install from being reported as a missing
-                // permission (the ToDesk restore of 2026-08-26: 513 both times).
-                // The cleanup failure is still said out loud, in the `defer`.
-                let site = Self.classifySwapFailure(
-                    targetExists: fm.fileExists(atPath: identityTarget.path),
-                    identityBefore: identityBefore,
-                    identityAfter: inode(of: identityTarget))
-                if site == .replacedThenCleanupFailed {
-                    replaced = true
-                    cleanupFailure = error.localizedDescription
-                    return .replacedButCleanupFailed(error.localizedDescription)
-                }
-                // `/Applications` is group-writable for admins, so we took the
-                // user-level path — but replacing *another app's* bundle is gated
-                // by App Management on macOS 13+. That denial surfaces as EPERM;
-                // hand it to the UI as a recoverable, typed error.
-                if isAppManagementDenial(error) {
-                    throw AppManagementRequiredError(targetPath: target.path)
-                }
-                throw SwapError.notReplaceable(error.localizedDescription)
+            // Off the cooperative pool: the exchange is synchronous disk work, and
+            // `replaceItemAt` deletes the bundle it displaces — a whole app, which
+            // for a large one is seconds of I/O. The hop it used to sit in (every
+            // caller reached `replace` through `offCooperativePool`) is gone now
+            // that the child processes around it are awaited, so this segment
+            // takes its own. See `offCooperativePool`.
+            let outcome = try await offCooperativePool(qos: .userInitiated) {
+                try exchangeUnprivileged(
+                    newApp: newApp, over: target,
+                    identityTarget: identityTarget, identityBefore: identityBefore)
             }
             replaced = true
-            return .replaced
+            if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
+            return outcome
         }
 
         let elevatedOutcome = try await privilegedReplace(newApp: newApp, target: target)
         replaced = true
         if case .replacedButCleanupFailed(let reason) = elevatedOutcome { cleanupFailure = reason }
         return elevatedOutcome
+    }
+
+    /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,
+    /// synchronous so it can run in one `offCooperativePool` hop. Returns
+    /// `.replaced`, or `.replacedButCleanupFailed` when the exchange landed and its
+    /// cleanup threw; throws when the bundle on disk is unchanged.
+    private static func exchangeUnprivileged(
+        newApp: URL, over target: URL, identityTarget: URL, identityBefore: UInt64?
+    ) throws -> SwapOutcome {
+        let fm = FileManager.default
+        let parent = target.deletingLastPathComponent()
+        // Stage the new bundle beside the target (same volume), then atomically
+        // exchange it in. `replaceItemAt` renames on success and leaves the
+        // original untouched on failure — no window where the app is missing.
+        let staged = parent.appendingPathComponent(".duoupdater-staged-\(target.lastPathComponent)")
+        try? fm.removeItem(at: staged)
+        try fm.moveItem(at: newApp, to: staged)
+        do {
+            _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
+        } catch {
+            // What actually went wrong, before it is folded into one of two
+            // user-facing shapes. Both of those describe a cause rather than
+            // report the error, so without this line a misclassification is
+            // indistinguishable from the real thing — which is how a ToDesk
+            // restore that had already landed came out as "grant App
+            // Management", with `duo doctor` saying it was granted all along.
+            let ns = error as NSError
+            Log.install.error(
+                "swap: replaceItemAt threw for \(target.lastPathComponent, privacy: .public) — \(ns.domain, privacy: .public) \(ns.code, privacy: .public): \(ns.localizedDescription, privacy: .public)")
+            if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+                Log.install.error(
+                    "swap: underlying \(underlying.domain, privacy: .public) \(underlying.code, privacy: .public): \(underlying.localizedDescription, privacy: .public)")
+            }
+            // A staged sibling we cannot clear is left in `/Applications` for
+            // good — root-owned after a package install, and `try?` said
+            // nothing about it. `recoverInterruptedSwaps` sweeps unprivileged
+            // and cannot remove it either, so name it here or nobody learns.
+            if fm.fileExists(atPath: staged.path) {
+                do { try fm.removeItem(at: staged) } catch {
+                    Log.install.error(
+                        "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            // Which of the two opposite things just happened. `replaceItemAt`
+            // can land the new bundle and then throw while removing the one it
+            // displaced, and both user-facing shapes below describe a CAUSE for
+            // an update that did not happen — so classifying first is what
+            // stops a landed install from being reported as a missing
+            // permission (the ToDesk restore of 2026-08-26: 513 both times).
+            // The cleanup failure is still said out loud, in the `defer`.
+            let site = Self.classifySwapFailure(
+                targetExists: fm.fileExists(atPath: identityTarget.path),
+                identityBefore: identityBefore,
+                identityAfter: inode(of: identityTarget))
+            if site == .replacedThenCleanupFailed {
+                return .replacedButCleanupFailed(error.localizedDescription)
+            }
+            // `/Applications` is group-writable for admins, so we took the
+            // user-level path — but replacing *another app's* bundle is gated
+            // by App Management on macOS 13+. That denial surfaces as EPERM;
+            // hand it to the UI as a recoverable, typed error.
+            if isAppManagementDenial(error) {
+                throw AppManagementRequiredError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(error.localizedDescription)
+        }
+        return .replaced
     }
 
     /// Whether replacing `target` has to go through the administrator prompt.
@@ -802,8 +822,42 @@ public enum InPlaceSwap {
     /// logged rather than left silent.
     @discardableResult
     static func rotateContents(newApp: URL, over target: URL) async throws -> SwapOutcome {
-        let fm = FileManager.default
+        // Both halves around the `chmod` are synchronous disk work and go to
+        // Dispatch: staging can be a copy (the download's `Contents` may sit on
+        // another volume) and the exchange deletes the `Contents` it displaces.
+        // They used to share the caller's `offCooperativePool` hop; the `chmod`
+        // between them is awaited now. See `offCooperativePool`.
+        let staged = try await offCooperativePool(qos: .userInitiated) {
+            try stageRotation(newApp: newApp, over: target)
+        }
         let liveContents = target.appendingPathComponent("Contents", isDirectory: true)
+        // Carry the live install's group-write posture onto the replacement, for
+        // the reason `modePreservationCommands` gives: the vendor's own updater
+        // has to be able to delete the `Contents` it displaces, and unlinking a
+        // tree needs write permission on every directory inside it.
+        // `replaceItemAt` preserves the mode of the directory it replaces, but
+        // only at that top level (measured).
+        // Not killed on cancellation — see `replace`. (stdout was inherited
+        // before; `chmod -R` prints nothing on it.)
+        if let mode = directoryMode(at: liveContents), mode & 0o020 != 0 {
+            let chmod = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "g+w", staged.path],
+                standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+            if chmod?.succeeded != true {
+                Log.install.error(
+                    "rotate: could not carry the group-write bit onto the new Contents of \(target.lastPathComponent, privacy: .public) — its own updater may not be able to clean up after its next update")
+            }
+        }
+
+        return try await offCooperativePool(qos: .userInitiated) {
+            try finishRotation(staged: staged, over: target)
+        }
+    }
+
+    /// `rotateContents`' first half: the refusals, then `newApp/Contents` moved to
+    /// the staging name inside `target`. Returns the staged directory.
+    private static func stageRotation(newApp: URL, over target: URL) throws -> URL {
+        let fm = FileManager.default
         let sourceContents = newApp.appendingPathComponent("Contents", isDirectory: true)
 
         // Rotation replaces `Contents` and nothing else. A bundle that keeps
@@ -841,24 +895,13 @@ public enum InPlaceSwap {
             }
             throw SwapError.notReplaceable(error.localizedDescription)
         }
-        // Carry the live install's group-write posture onto the replacement, for
-        // the reason `modePreservationCommands` gives: the vendor's own updater
-        // has to be able to delete the `Contents` it displaces, and unlinking a
-        // tree needs write permission on every directory inside it.
-        // `replaceItemAt` preserves the mode of the directory it replaces, but
-        // only at that top level (measured).
-        // Not killed on cancellation — see `replace`. (stdout was inherited
-        // before; `chmod -R` prints nothing on it.)
-        if let mode = directoryMode(at: liveContents), mode & 0o020 != 0 {
-            let chmod = try? await ChildProcess.run(
-                "/bin/chmod", ["-R", "g+w", staged.path],
-                standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
-            if chmod?.succeeded != true {
-                Log.install.error(
-                    "rotate: could not carry the group-write bit onto the new Contents of \(target.lastPathComponent, privacy: .public) — its own updater may not be able to clean up after its next update")
-            }
-        }
+        return staged
+    }
 
+    /// `rotateContents`' second half: the exchange and its classification.
+    private static func finishRotation(staged: URL, over target: URL) throws -> SwapOutcome {
+        let fm = FileManager.default
+        let liveContents = target.appendingPathComponent("Contents", isDirectory: true)
         let ownerBefore = (try? fm.attributesOfItem(atPath: liveContents.path))?[.ownerAccountName]
             as? String
         // The identity of the thing this exchange replaces — `Contents`, not the

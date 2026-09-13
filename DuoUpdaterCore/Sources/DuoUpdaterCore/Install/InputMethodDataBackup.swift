@@ -245,15 +245,24 @@ public enum InputMethodDataBackup {
             return []
         }
 
-        do {
-            if fm.fileExists(atPath: dir.path) {
-                _ = try fm.replaceItemAt(dir, withItemAt: staging)
-            } else {
-                try fm.moveItem(at: staging, to: dir)
+        // `replaceItemAt` deletes the snapshot it displaces — a copy of the user's
+        // whole input-method data directory — so the exchange goes to Dispatch.
+        let failure: String? = await offCooperativePool(qos: .userInitiated) {
+            let fm = FileManager.default
+            do {
+                if fm.fileExists(atPath: dir.path) {
+                    _ = try fm.replaceItemAt(dir, withItemAt: staging)
+                } else {
+                    try fm.moveItem(at: staging, to: dir)
+                }
+                return nil
+            } catch {
+                return error.localizedDescription
             }
-        } catch {
+        }
+        if let failure {
             Log.install.error(
-                "user data: snapshot for \(key, privacy: .public) would not swap into place — \(error.localizedDescription, privacy: .public)")
+                "user data: snapshot for \(key, privacy: .public) would not swap into place — \(failure, privacy: .public)")
             return []
         }
         return stored
@@ -295,18 +304,28 @@ public enum InputMethodDataBackup {
                     "user data: could not stage \(entry.storedName, privacy: .public) out of the store")
                 continue
             }
-            do {
-                if fm.fileExists(atPath: target.path) {
-                    _ = try fm.replaceItemAt(target, withItemAt: staged)
-                } else {
-                    try fm.createDirectory(
-                        at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try fm.moveItem(at: staged, to: target)
+            // Off the cooperative pool: `replaceItemAt` deletes the live data it
+            // displaces, which can be a large directory.
+            let failure: String? = await offCooperativePool(qos: .userInitiated) {
+                let fm = FileManager.default
+                do {
+                    if fm.fileExists(atPath: target.path) {
+                        _ = try fm.replaceItemAt(target, withItemAt: staged)
+                    } else {
+                        try fm.createDirectory(
+                            at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try fm.moveItem(at: staged, to: target)
+                    }
+                    return nil
+                } catch {
+                    return error.localizedDescription
                 }
-                restored.append(Location(original: target, storedName: entry.storedName))
-            } catch {
+            }
+            if let failure {
                 Log.install.error(
-                    "user data: could not restore \(entry.storedName, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                    "user data: could not restore \(entry.storedName, privacy: .public) — \(failure, privacy: .public)")
+            } else {
+                restored.append(Location(original: target, storedName: entry.storedName))
             }
         }
         return restored

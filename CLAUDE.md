@@ -510,7 +510,12 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   必须选**:会写东西的(解包、`hdiutil`、`BinaryDelta`、swap 里的 `xattr`/`chmod`/`osascript`、
   备份的 `ditto`/`chflags`、`brew install`、pkg 闸门的 `pkgutil`/`xar`)用 `.runToCompletion`
   ——旧的 hop 本来就不可取消,半个 swap / 没卸载的 DMG / 半个 delta 比跑完更糟;只读查询
-  (`lsappinfo`、`gh auth`、`brew info`、`mas outdated`)用 `.terminateChild`。
+  (`gh auth`、`brew info`、`mas outdated`、探针的 `unzip`)用 `.terminateChild`。
+  ⚠️ **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,也要 `.runToCompletion`。
+  `lsappinfo` 就是:被取消的重启复查拿到空表会清掉所有 Restart 徽标(对抗复审抓到)。
+  ⚠️ **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
+  拆掉 hop 之后,`replaceItemAt`(它会删掉被替换下来的整个 bundle)、整包遍历和删除又回到了
+  协作池上——对抗复审抓到的。现在这些各自进 `offCooperativePool`,子进程在 hop 之间 `await`。
   ⚠️ **`.runToCompletion` 只护住子进程,不护住你自己的代码**:编排代码里的 `Task.sleep`
   在被取消的任务里会立刻返回(`ArchiveExtractor.detach` 的重试间隔为此放进了 detached task)。
   ⚠️ **offCooperativePool 的闭包里没有 task-local。** 把一段读 `BackupStore.$rootOverride`
@@ -530,7 +535,8 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   「决定线程归谁」的第一层作用域,落在 `async func` / `Task {}` / `Task.detached` 里且没被
   `offCooperativePool {` 包住的就报。豁免用 `offpool-lint:allow — <理由>`,理由必填,
   不再匹配任何东西的豁免让构建失败(照抄 `check_prose_claims.py`)。另外,**`Process()`
-  在任何作用域里都报**(同步函数、hop 里也报)——子进程该走 `ChildProcess`;唯一的豁免是
+  在任何作用域里都报**(同步函数、hop 里也报;`Process.run(`、`Process.init(`、`NSTask`、
+  `posix_spawn` 这些写法同样报,`let p: Process = .init()` 抓不到)——子进程该走 `ChildProcess`;唯一的豁免是
   `DiagnosticsSettingsPage.relaunch` 那个不等待的 `open -n`。
   ⚠️ **它看不穿同步函数**:阻塞调用写在同步函数里、从 async 调它而不 hop,是合法的 Swift、
   闸也不报——它只管调用点自己是不是阻塞调用。`InPlaceSwap.replace` 曾经就是这样

@@ -90,9 +90,16 @@ BLOCKING = [
     ".run(key:",
 ]
 
-# `Foundation.Process` constructed directly. Refused in every scope — see "Child
-# processes" above. The look-behind keeps `ChildProcess(` and friends out.
-LAUNCH = re.compile(r"(?<![\w])Process\(\)")
+# A child process launched without `ChildProcess`. Refused in every scope — see
+# "Child processes" above. The spellings: `Process()` (spaces allowed),
+# `Process.init(`, the class conveniences `Process.run(` and
+# `Process.launchedProcess(`, the old `NSTask`, and `posix_spawn`/`posix_spawnp`.
+# The look-behind keeps `ChildProcess(`, `ProcessInfo` and friends out. Known
+# miss, recorded rather than chased: an inferred `let p: Process = .init()`.
+LAUNCH = re.compile(
+    r"(?<![\w.])(?:Foundation\.)?"
+    r"(?:Process\s*\(\s*\)|Process\s*\.\s*(?:init|run|launchedProcess)\s*\("
+    r"|NSTask\b|posix_spawnp?\s*\()")
 LAUNCH_CALL = "Process()"
 
 MARKER = "offpool-lint:allow"

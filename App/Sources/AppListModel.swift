@@ -5041,14 +5041,20 @@ final class AppListModel {
         // fill and wedge the stdout read.
         //
         // Timeout backstop so a wedged lsappinfo can't hang us indefinitely:
-        // SIGTERM at 5 s, SIGKILL at 8 s if it's ignored. A read, so a cancelled
-        // caller may kill it; the answer is then the empty map, as for any
-        // failure to run it.
+        // SIGTERM at 5 s, SIGKILL at 8 s if it's ignored.
+        //
+        // Runs to completion if the caller is cancelled, though it is only a read.
+        // `restartRecheckTask` is cancelled by the next launch/quit event, and the
+        // cancelled pass carries on with whatever this returns: an empty map would
+        // clear every Restart badge and write the marketing-version history
+        // without the running builds, and the replacement pass then returns early
+        // on the emptied set. The Dispatch hop this replaced could not be
+        // cancelled, so the old pass always wrote real data.
         guard let outcome = try? await ChildProcess.run(
             "/usr/bin/lsappinfo", ["list"],
             standardError: .discard,
             deadline: .init(terminateAfter: .seconds(5), killAfter: .seconds(8)),
-            onCancel: .terminateChild),
+            onCancel: .runToCompletion),
               let text = String(data: outcome.standardOutput, encoding: .utf8)
         else { return [:] }
 

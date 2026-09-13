@@ -313,19 +313,32 @@ public enum BackupStore {
         // New backup is complete in `staging`; now replace the old one atomically (a
         // same-volume rename, so the swap window is a single near-instant operation
         // rather than the multi-second copy above).
-        do {
-            if fm.fileExists(atPath: dir.path) {
-                // The copy being superseded has to be deletable for the exchange to
-                // finish. One written before we started stripping `uchg` — or by any
-                // path where stripping failed — still carries it, and `replaceItemAt`
-                // cannot remove it. Clearing it here is what lets retention ever get
-                // past a single poisoned generation.
-                await clearUserImmutableFlags(under: dir)
-                _ = try fm.replaceItemAt(dir, withItemAt: staging)
-            } else {
-                try fm.moveItem(at: staging, to: dir)
+        let superseding = fm.fileExists(atPath: dir.path)
+        if superseding {
+            // The copy being superseded has to be deletable for the exchange to
+            // finish. One written before we started stripping `uchg` — or by any
+            // path where stripping failed — still carries it, and `replaceItemAt`
+            // cannot remove it. Clearing it here is what lets retention ever get
+            // past a single poisoned generation.
+            await clearUserImmutableFlags(under: dir)
+        }
+        // The exchange itself is near-instant, but `replaceItemAt` then deletes the
+        // generation it displaced — a whole app bundle — so it goes to Dispatch.
+        // Only the exchange: `backup(forKey:)` in the failure branch reads `root`,
+        // which honours a task-local a Dispatch thread does not have.
+        let exchangeError: (any Error)? = await offCooperativePool(qos: .userInitiated) {
+            do {
+                if superseding {
+                    _ = try FileManager.default.replaceItemAt(dir, withItemAt: staging)
+                } else {
+                    try FileManager.default.moveItem(at: staging, to: dir)
+                }
+                return nil
+            } catch {
+                return error
             }
-        } catch {
+        }
+        if let error = exchangeError {
             // `replaceItemAt` can put the new item in place and *then* fail removing
             // the one it displaced. Reporting that as a failed backup is worse than
             // wrong: it tells the user there is no rollback point while a complete,
@@ -767,9 +780,19 @@ public enum BackupStore {
             // Anything we copied may carry a `uchg` the source set; clear it before
             // trying, or a leftover written before this existed can never be swept.
             await clearUserImmutableFlags(under: leftover)
-            do { try fm.removeItem(at: leftover) } catch {
+            // A leftover is a partial bundle copy or a user-data snapshot, so
+            // deleting it is real disk work: off the cooperative pool.
+            let failure: String? = await offCooperativePool(qos: .userInitiated) {
+                do {
+                    try FileManager.default.removeItem(at: leftover)
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }
+            if let failure {
                 Log.install.error(
-                    "backup: leftover staging dir \(name, privacy: .public) would not clear — \(error.localizedDescription, privacy: .public); this backup uses a fresh one, but that directory is stranded until it is removed by hand")
+                    "backup: leftover staging dir \(name, privacy: .public) would not clear — \(failure, privacy: .public); this backup uses a fresh one, but that directory is stranded until it is removed by hand")
             }
         }
     }

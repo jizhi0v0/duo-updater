@@ -180,6 +180,10 @@ import Testing
     /// script gives up on its own after ~30 s and exits 7, so an implementation
     /// that never escalates produces a wrong outcome rather than a hang.
     ///
+    /// 8 s before SIGTERM is margin, not a measurement: the deadline starts when
+    /// the call does, and on a 3-core runner with the whole suite in flight the
+    /// spawn itself can wait seconds. SIGTERM must land after `trap` has run.
+    ///
     /// Mutations: (a) drop `group.cancelAll()` on `.deadlinePassed` → exits 7,
     /// not signaled; (b) drop the `timedOut` flag (`fired.set()`) → `timedOut`
     /// false.
@@ -195,7 +199,7 @@ import Testing
             """)
         let outcome = try await ChildProcess.run(
             "/bin/sh", [script.path],
-            deadline: .init(terminateAfter: .seconds(2), killAfter: .seconds(3)),
+            deadline: .init(terminateAfter: .seconds(8), killAfter: .seconds(9)),
             onCancel: .runToCompletion)
         #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "trapped\n")
         #expect(outcome.timedOut)
@@ -217,7 +221,7 @@ import Testing
             """)
         let outcome = try await ChildProcess.run(
             "/bin/sh", [script.path],
-            deadline: .init(terminateAfter: .seconds(2), killAfter: .seconds(20)),
+            deadline: .init(terminateAfter: .seconds(8), killAfter: .seconds(20)),
             onCancel: .runToCompletion)
         #expect(outcome.timedOut)
         #expect(!outcome.uncaughtSignal)

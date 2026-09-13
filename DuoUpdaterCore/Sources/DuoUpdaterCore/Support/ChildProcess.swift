@@ -49,10 +49,16 @@ internal import SystemPackage
 /// ## Deadline
 ///
 /// `Deadline(terminateAfter:killAfter:)` is the ladder the old call sites built
-/// from two `DispatchWorkItem`s: SIGTERM once `terminateAfter` has passed since
-/// launch, SIGKILL at `killAfter` if the child is still there. Both are measured
-/// from launch, like the work items were. `timedOut` reports that the deadline
-/// fired before the child exited.
+/// from two `DispatchWorkItem`s: SIGTERM once `terminateAfter` has passed, then
+/// SIGKILL if the child is still there `killAfter - terminateAfter` later.
+/// `timedOut` reports that the deadline fired before the child exited.
+///
+/// Not quite the same clock as the work items, which were armed right after
+/// `Process.run()`: `terminateAfter` starts when this call starts, so it also
+/// covers getting the spawn scheduled, and the grace runs from when SIGTERM is
+/// actually sent. On a saturated pool the child therefore gets somewhat less than
+/// `terminateAfter` of its own time. Every deadline in this repository is far
+/// above its tool's normal run, so this is margin, not a limit anyone meets.
 ///
 /// ## Cancellation — chosen per call, never defaulted
 ///
@@ -68,8 +74,16 @@ internal import SystemPackage
 ///   this directly but is not back-deployed, and this ships to macOS 14.)
 /// - `.terminateChild` — cancelling the calling task tears the child down (the
 ///   deadline's ladder if there is one, otherwise SIGKILL straight away) and this
-///   throws `CancellationError`. For read-only queries, where nobody is left to
-///   want the answer.
+///   throws `CancellationError`; a task already cancelled does not spawn at all.
+///   For read-only queries, where nobody is left to want the answer.
+///
+/// ## Two things it does not protect against
+///
+/// - **SIGPIPE in this process.** Bytes given as `standardInput` are written with
+///   `write(2)`; a child that exits without reading them raises SIGPIPE here, and
+///   nothing in this repository ignores it. No call site passes bytes today.
+/// - **A failed pipe read.** swift-subprocess answers an error thrown while
+///   reading by tearing the child down, `.runToCompletion` or not.
 public enum ChildProcess {
 
     /// What happens to the child's standard output.
@@ -99,7 +113,8 @@ public enum ChildProcess {
         public let terminateAfter: Duration
         public let killAfter: Duration
 
-        /// Both measured from launch. `killAfter` must not precede
+        /// `terminateAfter` from the start of the call; `killAfter` on the same
+        /// scale, so the grace is the difference. It must not precede
         /// `terminateAfter`.
         public init(terminateAfter: Duration, killAfter: Duration) {
             precondition(killAfter >= terminateAfter, "SIGKILL cannot precede SIGTERM")
@@ -158,6 +173,11 @@ public enum ChildProcess {
                 try await request.raceDeadline(teardownOnCancel: request.ladder)
             }.value
         case .terminateChild:
+            // A task that is already cancelled never spawns. Without this the child
+            // is launched and then SIGKILLed a few task hops later, and a quick one
+            // can finish first — which made "this site must not be torn down" tests
+            // pass or fail by a race instead of by the policy.
+            try Task.checkCancellation()
             let outcome = try await request.raceDeadline(teardownOnCancel: request.ladder)
             try Task.checkCancellation()
             return outcome

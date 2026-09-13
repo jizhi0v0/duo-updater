@@ -9,9 +9,11 @@ import Testing
 /// Every child on this path is `.runToCompletion`, because the old
 /// `offCooperativePool` hop could not be cancelled and a half-done write is worse
 /// than a finished one. Each test here runs the operation in a task that is
-/// cancelled BEFORE it starts, which is the harshest version: every child is
-/// launched into an already-cancelled task, so a site that picked `.terminateChild`
-/// is torn down (or never finishes) with certainty rather than by a race.
+/// cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
+/// already-cancelled task, so a site that picked it throws `CancellationError`
+/// before its tool ever runs — the mutations below fail by that, not by whether a
+/// SIGKILL happened to beat a millisecond `chmod`. (Before `ChildProcess` had that
+/// check, two of these depended on exactly that race.)
 ///
 /// Each names the mutation that turns it red.
 @Suite struct InstallChildProcessTests {

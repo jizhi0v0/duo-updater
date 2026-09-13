@@ -54,9 +54,10 @@ HOPPED = """\
     }
 """
 
-# A synchronous helper. Out of this check's reach on purpose — whether its
-# callers hop is a call-graph question — so it must NOT be reported, or the
-# check turns into an exemption list over every `Process` wrapper in the repo.
+# A synchronous helper. Its WAIT is out of this check's reach on purpose —
+# whether its callers hop is a call-graph question — so the wait must not be
+# reported. Its `Process()` is, since `ChildProcess` replaced every launch; see
+# `test_a_launch_in_a_synchronous_helper_is_refused`.
 SYNCHRONOUS = """\
     private static func run(_ launchPath: String) -> Int32 {
         let p = Process()
@@ -371,6 +372,23 @@ class OffPool(unittest.TestCase):
         found = self.review()
         self.assertEqual(found["offences"], [], found)
         self.assertEqual(found["dead"], [], found)
+
+    # Mutation: narrow `LAUNCH` back to the literal `Process()`. Every other way
+    # to start a child without `ChildProcess` then passes.
+    def test_every_launch_spelling_is_refused(self):
+        spellings = [
+            "let a = Process ( )",
+            "let b = Foundation.Process()",
+            "let c = Process.init()",
+            "let d = try Process.run(url, arguments: [])",
+            "let e = Process.launchedProcess(launchPath: path, arguments: [])",
+            "let f = NSTask()",
+            "posix_spawn(&pid, path, nil, nil, argv, environ)",
+        ]
+        self.write("    func f() {\n" + "".join(
+            f"        {line}\n" for line in spellings) + "    }\n")
+        kinds = [o[2] for o in self.review()["offences"]]
+        self.assertEqual(kinds, ["launch"] * len(spellings), self.review())
 
     # A commented-out launch is not code.
     def test_a_launch_in_a_comment_is_not_code(self):

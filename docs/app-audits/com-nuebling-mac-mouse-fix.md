@@ -1,6 +1,6 @@
 # Mac Mouse Fix
 
-> 审计日期 2026-09-12 · 模式 INVESTIGATE→接入 · 结论：**stable/beta 两 channel，ChannelBinding，Sparkle feed-swap；无 ChangelogRecipe（两条 feed 都用 `<sparkle:releaseNotesLink>`，已被 #553 覆盖）**
+> 审计日期 2026-09-12 · 模式 INVESTIGATE→接入 · 结论：**stable/beta 两 channel，ChannelBinding，Sparkle feed-swap；ChangelogRecipe 从 feed 已解析出的说明页起步（`feedPagePattern`，#557）**
 
 ## 基本信息
 - Bundle ID: `com.nuebling.mac-mouse-fix`（两 channel **共用**）
@@ -47,8 +47,11 @@
 - `UpdateChecker.evaluate` 优先走 build 号分支：两侧都带 `sparkle:version` 时，`24830` 对已装 `24310` 用 `VersionComparator.isNewer` 判定为更新，上面的降级保护不会推翻这个结论——于是 beta 会被正确报价。这不是这一对版本号运气好：Mac Mouse Fix **自己的** Sparkle 代理（`App/Update/CoolSUComparator.m`）解决同一个歧义用的是同一个思路——先把版本串砍到只剩开头的数字和点号再比较（所以 `"3.1.0"` 和 `"3.1.0 Beta 1"` 比较结果是相等），相等时再用 build 号断胜负。两处独立实现都依赖同一个事实：这里的 `CFBundleVersion` 是真实的、单调递增的 build 号。
 
 ## Changelog
-- 无 ChangelogRecipe。两条 feed 都用 `<sparkle:releaseNotesLink>`（按语言给一条链接），这个形状已经被 #553 处理，不需要新东西。
-- Recipe 状态: 不需要
+- 两条 feed 都不内联说明，每个条目按语言给一条 `<sparkle:releaseNotesLink>`（12 种语言，没有 `en`）。#553 让 `RemoteVersion.changelogURL` 选中读者语言的那一页，但那只决定 **web view 打开哪一页**；原生面板要的是解析出来的 `Changelog`，这需要 recipe，而 recipe 以前只能从登记表里的字面 URL 起步。原先这里写的「已被 #553 覆盖、不需要新东西」说漏了这一半。
+- 现在的 recipe 用 `feedPagePattern` 从 `changelogURL` 起步（#557）：链接必须整串匹配 `raw.githack.com/noah-nuebling/mac-mouse-fix/update-feed/docs/update-notes-html/<版本>/<语言>.html`，否则 recipe 不生效，照旧走 web view。`source` 是 stable appcast，只给 `duo verify` 自己解析出一页用。
+- 页面形状（2026-09-13 实测，Python 独立复算）：两条 feed 共 360 条链接全部匹配；抓了 63 页（每个版本的 `de`，外加 3.0.8 / 3.1.0 Beta 1 / 2.0.0 的全部 12 种语言），63 页都抽出 1 个条目，`<title>` 与该条目的 `sparkle:shortVersionString` 逐字相同（含 `3.1.0 Beta 1`）。翻译页开头有一段「AI 翻译」提示（`<p><strong>ℹ️ …`），到第一个 `<hr />` 为止，body 从那之后开始。跳过的依据是这段提示本身，不是「第一个 `<hr />`」：`en.html` 也发布了（feed 没链接它），它没有提示，唯一的 `<hr />` 在「看看上一版」页脚前面，按第一个 `<hr />` 跳会让 31 页英文里 16 页只剩那句页脚（2026-09-13 实测，复审抓到）。60 页是 `<ul>` 列表（子项是嵌套 `<ul>`），2.1.0、3.0.0 Beta 2、Beta 3 三页只有段落，走 `<p>` 兜底。
+- 已知限制：每页只有一个版本，所以面板只有一个条目，没有多版本栏。英文读者看到的是德语（feed 没列 `en`，Sparkle 自己的更新器也一样），和 web view 时代相同。英文原文其实就是 GitHub Releases 的正文，但那条路只有英文，没走。
+- Recipe 状态: 2026-09-13 新增（`feedPagePattern`）
 
 ## 增量更新（delta / binary patch）
 

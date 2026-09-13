@@ -4,6 +4,8 @@ enum net_ankiweb_anki {
     static let set = AppRecipeSet(
         family: "net-ankiweb-anki",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Anki — tags are date-shaped with a zero-padded month (`26.08.1`) while the
         // app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
         // compares digit runs numerically, so 08 == 8 and the two read as the same

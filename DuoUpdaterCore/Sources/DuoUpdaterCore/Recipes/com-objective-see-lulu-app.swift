@@ -4,6 +4,8 @@ enum com_objective_see_lulu_app {
     static let set = AppRecipeSet(
         family: "com-objective-see-lulu-app",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // LuLu — Objective-See's firewall. One universal dmg per release,
         // `LuLu_<ver>.dmg`. One-click: com.objective-see.lulu.app, Team VBG97UB4TA,
         // notarized.

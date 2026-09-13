@@ -4,6 +4,8 @@ enum org_upscayl_Upscayl {
     static let set = AppRecipeSet(
         family: "org-upscayl-Upscayl",
         githubRules: [
+        // Shared rationale for 2026-08-16, second pass: Recipes/io-rancherdesktop-app.swift.
+
         // Upscayl — org.upscayl.Upscayl, Team W2T4W74X87, notarized. (Homebrew's
         // cask says `org.upscayl.app`; the mounted bundle says otherwise, and the
         // bundle wins.) One universal dmg, no per-architecture asset — the name

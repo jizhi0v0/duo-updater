@@ -4,6 +4,8 @@ enum org_keepassxc_keepassxc {
     static let set = AppRecipeSet(
         family: "org-keepassxc-keepassxc",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // KeePassXC — arm64 and x86_64 dmgs ship together; pin arm64. Patch respins
         // append a revision to the FILENAME but not the tag (`KeePassXC-2.7.11-1-
         // arm64.dmg` under tag `2.7.11`), so the version part of the pattern stays

@@ -4,6 +4,8 @@ enum org_mozilla_thunderbird {
     static let set = AppRecipeSet(
         family: "org-mozilla-thunderbird",
         probes: [
+        // Shared rationale for Mozilla pre-release channels: Recipes/org-mozilla-firefox.swift.
+
         // Thunderbird — same Mozilla `product-details` mechanism for Release and
         // ESR; Beta and Daily go to `aus.thunderbird.net` for the same reason the
         // Firefox pre-release channels do (see that block). Channel routing
@@ -169,6 +171,7 @@ enum org_mozilla_thunderbird {
             sourceTemplate: "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"),
         ],
         channelProofs: [
+        // Shared rationale for Mozilla (channel proofs): Recipes/org-mozilla-firefox.swift.
         ChannelProofKey("org.mozilla.thunderbirdbeta", .beta): .artifact(#"/thunderbird/releases/[0-9.]+b[0-9]+/"#),
         ChannelProofKey("org.mozilla.thunderbird", .esr): .artifact(#"/thunderbird/releases/[0-9.]+esr/"#),
         ChannelProofKey("org.mozilla.thunderbird-daily", .nightly): .artifact(#"/thunderbird/nightly/"#),

@@ -4,6 +4,8 @@ enum net_sourceforge_sqlitebrowser {
     static let set = AppRecipeSet(
         family: "net-sourceforge-sqlitebrowser",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // DB Browser for SQLite — the repo also publishes rolling `nightly` and
         // `continuous` prereleases, both excluded by `/releases/latest`. The release
         // carries Windows/Linux artifacts too, so the pattern anchors the single

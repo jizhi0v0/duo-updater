@@ -4,6 +4,8 @@ enum com_electron_kontena_lens {
     static let set = AppRecipeSet(
         family: "com-electron-kontena-lens",
         probes: [
+        // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
+
         // Lens — electron-builder feed. The version carries a literal `-latest`
         // suffix (`2026.6.260931-latest`) and so does the shipped bundle's own
         // `CFBundleShortVersionString`, verified on the mounted dmg

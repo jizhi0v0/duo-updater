@@ -4,6 +4,8 @@ enum com_theron_UnnaturalScrollWheels {
     static let set = AppRecipeSet(
         family: "com-theron-UnnaturalScrollWheels",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // UnnaturalScrollWheels — bare tags, one dmg per release.
         // One-click: com.theron.UnnaturalScrollWheels, Team VH8UL6UKQL, notarized.
         GitHubReleaseRule(

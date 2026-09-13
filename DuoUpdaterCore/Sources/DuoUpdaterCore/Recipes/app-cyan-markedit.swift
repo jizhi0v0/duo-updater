@@ -4,6 +4,8 @@ enum app_cyan_markedit {
     static let set = AppRecipeSet(
         family: "app-cyan-markedit",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // MarkEdit — takes the UNIVERSAL dmg (`MarkEdit-<ver>.dmg`), not the
         // `-apple-silicon` one beside it. Verified with `file`: the plain dmg is a
         // universal binary (x86_64 + arm64) while `-apple-silicon` is a single arm64

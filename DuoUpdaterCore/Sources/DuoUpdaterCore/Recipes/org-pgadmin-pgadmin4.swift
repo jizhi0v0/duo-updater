@@ -4,6 +4,8 @@ enum org_pgadmin_pgadmin4 {
     static let set = AppRecipeSet(
         family: "org-pgadmin-pgadmin4",
         probes: [
+        // Shared rationale for 2026-08-16 group D (directory indexes): Recipes/com-operasoftware-Opera.swift.
+
         // pgAdmin4 — `ftp.postgresql.org/pub/pgadmin/pgadmin4/` lists both version
         // folders (`v9.17/`) and non-version siblings (`apt/`, `autoupdate/`,
         // `snapshots/`, `yum/`, `README`) — none of the siblings carry a digit

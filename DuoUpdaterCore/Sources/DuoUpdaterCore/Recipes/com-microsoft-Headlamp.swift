@@ -72,6 +72,8 @@ enum com_microsoft_Headlamp {
             maxEntries: 20),
         ],
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Headlamp — the repo interleaves `headlamp-helm-<ver>` and
         // `headlamp-plugin-<ver>` tags with the app's own `v<ver>`, and those chart
         // releases can be published after the app's, which would make GitHub's

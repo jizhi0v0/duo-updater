@@ -4,6 +4,8 @@ enum org_godotengine_godot {
     static let set = AppRecipeSet(
         family: "org-godotengine-godot",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Godot — tags are `4.7.1-stable` (and `4.7-stable` for a .0 release), which
         // the default pattern reduces to what the app reports. The release is a wall
         // of platform artifacts; the pattern must exclude `…_mono_macos.universal.zip`,

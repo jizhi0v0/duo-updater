@@ -4,6 +4,8 @@ enum com_puremac_app {
     static let set = AppRecipeSet(
         family: "com-puremac-app",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // PureMac — a dmg and a zip of the same build ship together; take the dmg.
         // One-click: com.puremac.app, Team H3WXHVTP97, notarized.
         //

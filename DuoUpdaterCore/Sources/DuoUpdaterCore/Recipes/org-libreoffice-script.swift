@@ -4,6 +4,8 @@ enum org_libreoffice_script {
     static let set = AppRecipeSet(
         family: "org-libreoffice-script",
         probes: [
+        // Shared rationale for 2026-08-16 group D (directory indexes): Recipes/com-operasoftware-Opera.swift.
+
         // LibreOffice — `download.documentfoundation.org/libreoffice/stable/` is a
         // MirrorBrain index of version folders (`26.2.5/`). `href="X.Y.Z/"` matches
         // only version folders; the page carries no other dotted-numeric hrefs.

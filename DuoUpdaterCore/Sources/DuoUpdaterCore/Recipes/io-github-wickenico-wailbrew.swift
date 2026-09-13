@@ -4,6 +4,8 @@ enum io_github_wickenico_wailbrew {
     static let set = AppRecipeSet(
         family: "io-github-wickenico-wailbrew",
         githubRules: [
+        // Shared rationale for 2026-08-16, second pass: Recipes/io-rancherdesktop-app.swift.
+
         // WailBrew — io.github.wickenico.wailbrew, Team 2MC8SWF35Z, notarized.
         // The cask's zap block lists two candidate ids (a rename left `dev.wailbrew`
         // behind); the shipped Info.plist settles it. Note the asset is a zip whose

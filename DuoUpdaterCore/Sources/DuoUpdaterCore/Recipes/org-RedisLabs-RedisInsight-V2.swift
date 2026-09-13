@@ -4,6 +4,8 @@ enum org_RedisLabs_RedisInsight_V2 {
     static let set = AppRecipeSet(
         family: "org-RedisLabs-RedisInsight-V2",
         githubRules: [
+        // Shared rationale for 2026-08-16, second pass: Recipes/io-rancherdesktop-app.swift.
+
         // RedisInsight — org.RedisLabs.RedisInsight-V2, Team UUK47G4BAZ, notarized.
         // Tagged WITHOUT a leading `v` (`3.8.0`). Reached here from the vendor
         // pile: its S3 host does publish an electron-builder manifest, but only

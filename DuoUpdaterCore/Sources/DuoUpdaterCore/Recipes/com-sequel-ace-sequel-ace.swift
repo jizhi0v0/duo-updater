@@ -4,6 +4,8 @@ enum com_sequel_ace_sequel_ace {
     static let set = AppRecipeSet(
         family: "com-sequel-ace-sequel-ace",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Sequel Ace — tags are `production/5.4.0-20109` (marketing version plus the
         // build number); the default pattern's first match is the marketing version,
         // which is what the app reports. `beta/…` tags and some respun `production/…`

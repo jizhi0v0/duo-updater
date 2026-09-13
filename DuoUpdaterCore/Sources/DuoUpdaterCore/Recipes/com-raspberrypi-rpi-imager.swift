@@ -4,6 +4,8 @@ enum com_raspberrypi_rpi_imager {
     static let set = AppRecipeSet(
         family: "com-raspberrypi-rpi-imager",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Raspberry Pi Imager — the ONE app here whose own
         // `CFBundleShortVersionString` keeps the `v` (`v2.0.11`), so the pattern
         // captures the `v` too; stripping it (the default) would leave every

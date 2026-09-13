@@ -44,6 +44,8 @@ enum com_utmapp_UTM {
             structuredFormat: .gitHubReleases),
         ],
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // UTM — virtualiser. Stable and Beta share EVERYTHING visible locally:
         // bundle id, app name, plain numeric marketing/build versions, Team ID,
         // and the literal `UTM.dmg` asset name. The tag is plain numeric too

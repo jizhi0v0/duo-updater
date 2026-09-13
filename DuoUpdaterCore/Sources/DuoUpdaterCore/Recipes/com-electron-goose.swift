@@ -4,6 +4,8 @@ enum com_electron_goose {
     static let set = AppRecipeSet(
         family: "com-electron-goose",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Goose (aaif-goose/goose) — the `goose-*-apple-darwin.tar.gz` assets beside
         // the app are the CLI and `goose-source-*.zip` is a source drop, so the app is
         // anchored by literal name. BOTH macOS builds are matched: `Goose.zip` is

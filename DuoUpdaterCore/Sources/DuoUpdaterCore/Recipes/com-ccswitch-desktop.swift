@@ -10,8 +10,10 @@ enum com_ccswitch_desktop {
         // against this registry, then triaged by DOWNLOADING each real artifact,
         // mounting it read-only and reading its Info.plist + `codesign`/`spctl`.
         // (The sweep's raw evidence lives outside the repo — `docs/` is gitignored —
-        // so each rule below carries its own findings inline instead of citing it.)
-        // Every rule below therefore states a bundle id, Team ID and notarization
+        // so each rule in the batch — this file's and the 43 whose files carry a
+        // `Shared rationale for 2026-08-16 coverage batch` line — carries its own
+        // findings inline instead of citing it.)
+        // Every rule in the batch therefore states a bundle id, Team ID and notarization
         // status read off the very asset its `installAssetPattern` selects — not off
         // the vendor's download page. Apps that turned out to ship a usable
         // `SUFeedURL` are deliberately absent: `SparkleAppcastSource` already covers

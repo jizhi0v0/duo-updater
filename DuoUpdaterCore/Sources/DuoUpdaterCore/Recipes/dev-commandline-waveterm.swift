@@ -7,6 +7,9 @@ enum dev_commandline_waveterm {
         // MARK: - 2026-08-16 vendor batch
         //
         // Mainstream Homebrew casks with no Sparkle feed of their own. Every line
+        // (this file, `Recipes/com-electron-kontena-lens.swift`, Termius stable in
+        // `Recipes/com-termius-dmg-mac.swift`, `Recipes/com-unity3d-unityhub.swift`,
+        // `Recipes/com-bjango-istatmenus.swift`, `Recipes/org-inkscape-Inkscape.swift`)
         // states what was read off the artifact the install spec actually
         // resolves to, on a mounted/expanded copy of the real download — bundle
         // id, `CFBundleShortVersionString` and `codesign`/`spctl` — because the

@@ -4,6 +4,8 @@ enum org_localsend_localsendApp {
     static let set = AppRecipeSet(
         family: "org-localsend-localsendApp",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
         // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand
         // (`support/scripts/compile_mac_dmg.sh`, one maintainer, Developer ID +

@@ -6,7 +6,9 @@ enum com_operasoftware_Opera {
         probes: [
         // MARK: - 2026-08-16 group D (directory indexes)
         //
-        // All three below are the same shape: a vendor's plain Apache/MirrorBrain
+        // All three — Opera (this file), LibreOffice (`Recipes/org-libreoffice-script.swift`)
+        // and pgAdmin (`Recipes/org-pgadmin-pgadmin4.swift`) — are the same shape: a
+        // vendor's plain Apache/MirrorBrain
         // directory listing of version folders, sorted ALPHABETICALLY (not
         // numerically) by every one of these servers — confirmed for Opera by
         // diffing the default listing against an explicit `?C=N;O=A` (name,
@@ -24,7 +26,7 @@ enum com_operasoftware_Opera {
         // `bodyTemplate`) or last (`bodyPatternLast`) — so none of it can be made
         // to agree with `selectHighest`'s numeric max safely. All three are
         // therefore detection-only, even though every one of them mounts to a
-        // genuine, notarized, Developer-ID-signed app (verified below) — the
+        // genuine, notarized, Developer-ID-signed app (verified in each recipe's own comment) — the
         // blocker is this URL-construction gap, not the artifact.
 
         // Opera — `get.geo.opera.com` is Opera's own CDN mirror index, one folder

@@ -4,6 +4,8 @@ enum io_ganeshrvel_openmtp {
     static let set = AppRecipeSet(
         family: "io-ganeshrvel-openmtp",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // OpenMTP — Android file transfer. arm64/x64 dmgs and zips of the same build
         // ship together; pin the arm64 dmg.
         // One-click: io.ganeshrvel.openmtp, Team 6UR4H85SA2, notarized.

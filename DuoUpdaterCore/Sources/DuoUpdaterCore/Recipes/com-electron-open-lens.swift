@@ -4,6 +4,8 @@ enum com_electron_open_lens {
     static let set = AppRecipeSet(
         family: "com-electron-open-lens",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // OpenLens — the build number after the dash IS part of the installed
         // version (`6.5.2-366`), so the pattern captures it; the default would stop
         // at 6.5.2 and read every release as a downgrade. arm64 dmg out of the four

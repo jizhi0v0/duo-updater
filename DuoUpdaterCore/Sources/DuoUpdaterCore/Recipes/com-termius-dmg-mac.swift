@@ -4,6 +4,8 @@ enum com_termius_dmg_mac {
     static let set = AppRecipeSet(
         family: "com-termius-dmg-mac",
         probes: [
+        // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
+
         // Termius — electron-builder feed, one per architecture. The artifacts
         // are unversioned (`Termius.dmg`), so the install URL is fixed and the
         // version comes from the feed. Verified 2026-08-16 on the arm64 dmg:

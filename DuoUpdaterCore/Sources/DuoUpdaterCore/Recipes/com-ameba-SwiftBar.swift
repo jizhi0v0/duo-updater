@@ -4,6 +4,8 @@ enum com_ameba_SwiftBar {
     static let set = AppRecipeSet(
         family: "com-ameba-SwiftBar",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // SwiftBar — the newest release is often a beta prerelease (`v2.1.2-beta-3`),
         // so `/releases/latest` is what pins the rule to stable. The asset carries
         // the build number (`SwiftBar.v2.1.1.b597.zip`) that the tag doesn't, so the

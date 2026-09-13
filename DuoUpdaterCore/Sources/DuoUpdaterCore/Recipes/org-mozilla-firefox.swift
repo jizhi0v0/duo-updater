@@ -66,7 +66,9 @@ enum org_mozilla_firefox {
         //     FF nightly     20260829211045    TB beta 20260826184332
         //     TB daily       20260829100815
         //
-        // So these five recipes are `versionIsBuild` in the `.vendor` namespace —
+        // So these five recipes (Firefox beta, Developer Edition and Nightly in this
+        // file; Thunderbird beta and Daily in `Recipes/org-mozilla-thunderbird.swift`)
+        // are `versionIsBuild` in the `.vendor` namespace —
         // compared against `InstalledApp.vendorBuildVersion`, never against
         // `CFBundleVersion` — with `displayVersion` carrying Mozilla's own human
         // string ("155.0 Beta 5") for the row.
@@ -109,7 +111,7 @@ enum org_mozilla_firefox {
         // of the app already does; Nightly's `displayVersion` is `157.0a1`
         // already, so it uses that attribute directly.
         //
-        // The anchors below are set so the answer can never be a copy of the
+        // The five recipes' anchors are set so the answer can never be a copy of the
         // question: `RecipeSanity` warns when an extracted version appears
         // verbatim in the request URL, which is exactly the shape a pattern
         // matching the URL instead of the body would take. Nightly is anchored at

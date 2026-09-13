@@ -4,6 +4,8 @@ enum com_pais_handy {
     static let set = AppRecipeSet(
         family: "com-pais-handy",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Handy — aarch64 and x64 dmgs ship together; pin aarch64.
         // One-click: com.pais.handy, Team UWFLB4GC25, notarized.
         GitHubReleaseRule(

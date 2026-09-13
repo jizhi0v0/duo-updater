@@ -6,9 +6,12 @@ enum io_rancherdesktop_app {
         githubRules: [
         // MARK: - 2026-08-16, second pass
         //
-        // These five reached the earlier sweep's "unclassified" pile only because
+        // These five — this file, `Recipes/com-kangfenmao-CherryStudio.swift`,
+        // `Recipes/org-RedisLabs-RedisInsight-V2.swift`, `Recipes/org-upscayl-Upscayl.swift`
+        // and `Recipes/io-github-wickenico-wailbrew.swift` — reached the earlier sweep's
+        // "unclassified" pile only because
         // their artifact was too big to download that day — nothing about them is
-        // hard. Each line below again states what was read off the very asset the
+        // hard. Each of their rules again states what was read off the very asset the
         // pattern selects, on a mounted copy of the real download.
 
         // Rancher Desktop — io.rancherdesktop.app, Team 2Q6FHJR3H3, notarized.

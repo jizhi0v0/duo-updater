@@ -4,6 +4,8 @@ enum org_inkscape_Inkscape {
     static let set = AppRecipeSet(
         family: "org-inkscape-Inkscape",
         probes: [
+        // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
+
         // Inkscape — `/release/` 302s to `/release/inkscape-1.4.4/`, a clean
         // version signal.
         //

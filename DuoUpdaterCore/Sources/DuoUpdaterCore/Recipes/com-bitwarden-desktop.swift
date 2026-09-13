@@ -4,6 +4,8 @@ enum com_bitwarden_desktop {
     static let set = AppRecipeSet(
         family: "com-bitwarden-desktop",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Bitwarden — the ONLY rule here that can't read `/releases/latest`: the
         // monorepo tags every client, and the newest release is usually `web-…` or
         // `cli-…`, not the desktop app (on 2026-08-16 `/releases/latest` was

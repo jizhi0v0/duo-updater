@@ -4,6 +4,8 @@ enum com_bjango_istatmenus {
     static let set = AppRecipeSet(
         family: "com-bjango-istatmenus",
         probes: [
+        // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
+
         // iStat Menus — a "latest" link that 302s straight to the versioned zip
         // (`…/versions/iStatMenus7.30.zip`), so the redirect target is both the
         // version signal and the download. Verified 2026-08-16: the zip holds

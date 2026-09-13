@@ -4,6 +4,8 @@ enum co_palokaj_battery {
     static let set = AppRecipeSet(
         family: "co-palokaj-battery",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // battery — CLI-plus-menu-bar battery limiter. Recent releases ship an
         // arm64 dmg and zip; pin the dmg.
         // One-click: co.palokaj.battery, Team CAWM399GFD, notarized.

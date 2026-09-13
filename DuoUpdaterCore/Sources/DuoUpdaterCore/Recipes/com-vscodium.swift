@@ -4,6 +4,8 @@ enum com_vscodium {
     static let set = AppRecipeSet(
         family: "com-vscodium",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // VSCodium — VS Code without the Microsoft build. Tags are bare
         // `1.126.04524` (the trailing group is VSCodium's own build stamp and IS
         // part of the installed CFBundleShortVersionString, so the default pattern's

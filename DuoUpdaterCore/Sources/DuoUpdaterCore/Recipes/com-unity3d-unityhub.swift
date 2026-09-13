@@ -4,6 +4,8 @@ enum com_unity3d_unityhub {
     static let set = AppRecipeSet(
         family: "com-unity3d-unityhub",
         probes: [
+        // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
+
         // Unity Hub — electron-builder feed. Despite the "Setup" in the asset
         // name this zip is NOT a stub installer: it expands to `Unity Hub.app`
         // itself (com.unity3d.unityhub, 3.20.1, Team 9QW8UQUTAA, notarized),

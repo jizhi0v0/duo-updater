@@ -4,6 +4,8 @@ enum net_kovidgoyal_kitty {
     static let set = AppRecipeSet(
         family: "net-kovidgoyal-kitty",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // kitty — terminal. The repo carries a rolling `nightly` prerelease tag, so
         // again `/releases/latest` (not the list) is what keeps a stable install on
         // stable. One dmg per release, `kitty-<ver>.dmg`, universal.

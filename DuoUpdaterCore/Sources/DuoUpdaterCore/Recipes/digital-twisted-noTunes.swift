@@ -4,6 +4,8 @@ enum digital_twisted_noTunes {
     static let set = AppRecipeSet(
         family: "digital-twisted-noTunes",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // noTunes — tags are `vX.Y` (two components), which the default pattern
         // handles. One-click: digital.twisted.noTunes, Team JP6WW46Y42, notarized.
         //

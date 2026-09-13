@@ -4,6 +4,8 @@ enum com_qoder_app {
     static let set = AppRecipeSet(
         family: "com-qoder-app",
         probes: [
+        // Shared rationale for Qoder (2026-09-06): Recipes/com-qoder-ide.swift.
+
         // Qoder (the app) — the vendor publishes a 1.4 KB `manifest.json` beside
         // the artifacts for its own installer to read: a top-level `version` plus
         // one entry per platform with a sha256. Unconditional, tiny, and JSON, so

@@ -4,6 +4,8 @@ enum io_podmandesktop_PodmanDesktop {
     static let set = AppRecipeSet(
         family: "io-podmandesktop-PodmanDesktop",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+
         // Podman Desktop — the release also carries `podman-desktop-airgap-<ver>-
         // arm64.dmg`, a 1.1 GB bundle-everything build. The `^podman-desktop-<ver>-`
         // anchor keeps the airgap variant out; without it a substring match would

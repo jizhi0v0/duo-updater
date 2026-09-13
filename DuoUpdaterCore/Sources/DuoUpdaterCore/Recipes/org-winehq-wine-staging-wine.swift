@@ -4,6 +4,9 @@ enum org_winehq_wine_staging_wine {
     static let set = AppRecipeSet(
         family: "org-winehq-wine-staging-wine",
         githubRules: [
+        // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
+        // Shared rationale for Detection-only: Recipes/org-alacritty.swift.
+
         // Wine (staging) — Gcenx's macOS builds are unsigned, and ship as `.tar.xz`,
         // which the installer doesn't unpack. Detection only. Each release tags one
         // upstream version and carries BOTH a `wine-devel-` and a `wine-staging-`

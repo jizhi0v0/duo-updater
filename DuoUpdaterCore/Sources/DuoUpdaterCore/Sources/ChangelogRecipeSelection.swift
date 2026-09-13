@@ -4,10 +4,27 @@ import Foundation
 /// update lookup has not answered or has failed.
 public enum ChangelogRecipeSelection {
     public static func recipe(for result: UpdateResult) -> ChangelogRecipe? {
-        guard !result.app.isMASApp, result.remote?.appStore == nil else { return nil }
-        return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
-            version: targetVersion(for: result))
+        guard !result.app.isMASApp, result.remote?.appStore == nil,
+              let recipe = ChangelogRecipeRegistry.recipe(
+                forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
+                version: targetVersion(for: result))
+        else { return nil }
+        // A recipe that starts from the feed-resolved page has nothing to parse
+        // without one — no answer yet, a failed check, or a link that is not
+        // this recipe's page. Offering it anyway would make the model own a load
+        // that can only fail; not offering it leaves the pane on the same
+        // fallback chain as an app with no recipe (#557).
+        if recipe.feedPagePattern != nil, feedPage(for: result, recipe: recipe) == nil {
+            return nil
+        }
+        return recipe
+    }
+
+    /// The feed-resolved page `recipe` starts from, or nil — always nil for a
+    /// recipe with a fixed source. Lookup, fetching and both caches must use the
+    /// same one, for the same reason they share `targetVersion`.
+    public static func feedPage(for result: UpdateResult, recipe: ChangelogRecipe) -> URL? {
+        recipe.acceptedFeedPage(result.remote?.changelogURL)
     }
 
     /// Lookup, fetching and caching must all use the same version window.

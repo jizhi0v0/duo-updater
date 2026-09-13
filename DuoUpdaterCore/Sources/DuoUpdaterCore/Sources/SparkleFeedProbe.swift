@@ -97,8 +97,40 @@ public extension SparkleAppcastSource {
 
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
         let osVersion = Self.numericSystemVersion()
-        let usable = Self.usableItems(
-            for: Self.probeApp(bundleID: bundleID, feedURL: feedURL),
+        let usable = Self.probeUsableItems(
+            items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion)
+        let head = usable.first
+        return .success(SparkleFeedReading(
+            itemCount: items.count,
+            usableCount: usable.count,
+            headShortVersion: head?.shortVersionString,
+            headBuildVersion: head?.version,
+            headEnclosure: head?.enclosureURL,
+            itemsDeclaringMaximumSystemVersion:
+                items.filter { $0.maximumSystemVersion?.isEmpty == false }.count,
+            osVersion: osVersion,
+            byteCount: data.count))
+    }
+
+    /// The notes link a fresh default-channel install would be shown for this
+    /// appcast body: the newest usable item's `releaseNotesLink`, localized by
+    /// the production parser exactly as the live check localizes it.
+    ///
+    /// For `duo verify`'s read of a `ChangelogRecipe.feedPagePattern` recipe,
+    /// which has no update result to take the page from. Same stand-in install
+    /// and pinned architecture as `readFeed`, for the reasons given there.
+    static func probeReleaseNotesLink(in data: Data, feedURL: URL, bundleID: String) -> URL? {
+        probeUsableItems(
+            SparkleAppcastParser.parse(data, relativeTo: feedURL),
+            feedURL: feedURL, bundleID: bundleID, osVersion: numericSystemVersion()
+        ).first?.releaseNotesLink
+    }
+
+    private static func probeUsableItems(
+        _ items: [SparkleAppcastItem], feedURL: URL, bundleID: String, osVersion: String
+    ) -> [SparkleAppcastItem] {
+        usableItems(
+            for: probeApp(bundleID: bundleID, feedURL: feedURL),
             from: items, osVersion: osVersion,
             // Pinned, not taken from the host. `usableItems` defaults these to
             // `HostArch.current` and `HostArch.canRunIntelBuilds`, and the
@@ -114,17 +146,6 @@ public extension SparkleAppcastSource {
             // item is one a Mac with Rosetta installs fine; calling that feed
             // broken would be reporting a per-machine fact as a vendor one.
             hostArch: .arm64, allowingIntelTranslation: true)
-        let head = usable.first
-        return .success(SparkleFeedReading(
-            itemCount: items.count,
-            usableCount: usable.count,
-            headShortVersion: head?.shortVersionString,
-            headBuildVersion: head?.version,
-            headEnclosure: head?.enclosureURL,
-            itemsDeclaringMaximumSystemVersion:
-                items.filter { $0.maximumSystemVersion?.isEmpty == false }.count,
-            osVersion: osVersion,
-            byteCount: data.count))
     }
 
     /// The stand-in the filters are evaluated for. Deliberately versionless and

@@ -149,6 +149,33 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// changelog page directly (the common case).
     public let indexLinkPattern: String?
 
+    /// When non-nil, the page to parse is not in the registry at all: it is the
+    /// URL the update source already resolved, `RemoteVersion.changelogURL`, and
+    /// this is an anchored regex that URL must match before it is fetched.
+    ///
+    /// For a feed that inlines nothing and links out per item and per language —
+    /// Mac Mouse Fix's appcast carries one `<sparkle:releaseNotesLink xml:lang>`
+    /// per language on every item. `SparkleAppcastParser.preferredVariant` has
+    /// already picked this reader's language and this version's page, so a
+    /// `{lang}` token in `sourceTemplate` would be a second, hand-maintained
+    /// language decision beside that one, free to disagree with it (#557).
+    ///
+    /// A pattern rather than a flag, because the URL is written by whichever
+    /// source answered, and `entryPattern` is written against one vendor's page.
+    /// A link somewhere else is not this recipe's page; the recipe then does
+    /// nothing and the pane embeds that page as it would with no recipe.
+    /// `ChangelogURLPolicy` is applied too (see `acceptedFeedPage(_:)`), so this
+    /// path cannot fetch a URL the web view would refuse to open.
+    ///
+    /// With no accepted URL the recipe is inert: `ChangelogRecipeSelection`
+    /// does not offer it. `source` is then read only by `duo verify`, which has
+    /// no update result: it must be the appcast the page is resolved from, and
+    /// `ChangelogService.loadDiagnostic` reads that feed with the production
+    /// parser to find the page. Mutually exclusive with `sourceTemplate`,
+    /// `indexLinkPattern` and `structuredFormat`, which
+    /// `ChangelogReviewRegressionTests` enforces.
+    public let feedPagePattern: String?
+
     /// The release channel this recipe targets, or nil for a channel-agnostic
     /// recipe (the common case — most apps have one changelog regardless of
     /// channel). This matters only when **several channels share one bundle id**
@@ -529,7 +556,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         requestBody: Data? = nil,
         skipSections: [String] = [],
         tagPattern: String? = nil,
-        acknowledgedStaleEntry: String? = nil
+        acknowledgedStaleEntry: String? = nil,
+        feedPagePattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -557,6 +585,35 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.skipSections = skipSections
         self.tagPattern = tagPattern
         self.acknowledgedStaleEntry = acknowledgedStaleEntry
+        self.feedPagePattern = feedPagePattern
+    }
+
+    /// `url` when this recipe reads the feed-resolved page and `url` is that page:
+    /// it matches `feedPagePattern` in full and passes `ChangelogURLPolicy`. Nil
+    /// for every other input, including every recipe with no `feedPagePattern`.
+    ///
+    /// Whole-string match on `absoluteString`, not `firstMatch` anywhere in it:
+    /// a registry pattern that forgot its anchors must not accept
+    /// `https://elsewhere.example/?u=https://raw.githack.com/…`.
+    public func acceptedFeedPage(_ url: URL?) -> URL? {
+        guard let feedPagePattern, let url, ChangelogURLPolicy.isDisplayable(url),
+              let regex = try? NSRegularExpression(pattern: feedPagePattern)
+        else { return nil }
+        let string = url.absoluteString
+        let whole = NSRange(string.startIndex..., in: string)
+        guard let match = regex.firstMatch(in: string, options: [.anchored], range: whole),
+              match.range == whole
+        else { return nil }
+        return url
+    }
+
+    /// The page `ChangelogService` fetches: the accepted feed-resolved page for a
+    /// `feedPagePattern` recipe (nil when there is none — never `source`, which
+    /// for such a recipe is an appcast, not a page), else
+    /// `resolvedSource(forVersion:)`.
+    public func pageURL(forVersion version: String?, feedPage: URL?) -> URL? {
+        guard feedPagePattern != nil else { return resolvedSource(forVersion: version) }
+        return acceptedFeedPage(feedPage)
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -675,6 +732,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         tagPattern = try c.decodeIfPresent(String.self, forKey: .tagPattern)
         acknowledgedStaleEntry = try c.decodeIfPresent(
             String.self, forKey: .acknowledgedStaleEntry)
+        feedPagePattern = try c.decodeIfPresent(String.self, forKey: .feedPagePattern)
     }
 }
 

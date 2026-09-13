@@ -613,13 +613,6 @@ parameters held fixed:
     1.0.0 · 2.0.0 · 5.9.0                                      → beta 9.3.5-beta1
     9 · 10.0.0 · 99.9.9 · 9.999.999 · (absent) · "x"           → no update_reminder
 ```
-The stable field was 9.3.0 for every value that answered at all, so only
-the beta recipe is exposed to this.
-
-Note what that evidence IS: `cfg.diff_url=%s` / `cfg.diff_md5=%s` are LOG
-FORMAT STRINGS in `updatecontroller.cpp` — CapCut printing its own
-`ReminderUpdateCfg` fields — not fields seen in a response. They prove
-the client can apply a patch, not that the server sends one.
 
 It costs nothing today, and this is checked in a way that does not depend
 on guessing the schema (probed 2026-08-27 at `version_code` 9.2.0, 9.3.0,
@@ -628,8 +621,7 @@ contain a dot, so the binary's `diff_update.enable` means a top-level
 `diff_update` object — and that key is absent; a brute-force scan of the
 whole raw body finds no diff/delta/patch key that concerns app updates
 (the hits are draft sizes, material templates, network dispatch); and
-there is no `.delta`/`.patch`/`.diff` URL in the body at all. The vendor
-ships everyone the full package right now.
+there is no `.delta`/`.patch`/`.diff` URL in the body at all.
 
 (`update_reminder` was never the place to look, which is worth recording
 because the first version of this comment said it was: not one of the
@@ -651,9 +643,6 @@ none has been examined.)
 So consuming it would be plumbing, not new machinery: what is missing is
 a way to take a patch URL from a JSON field instead of from an appcast's
 `<sparkle:deltas>`, which is all `VendorAppcastDeltas` knows how to read.
-The real blocker is the pinned `version_code` above — a from→to mapping
-cannot match a version nobody runs — and un-pinning it needs a way to put
-the installed version on the wire, which no recipe field offers today.
 
 The reason recorded here on 2026-08-27 — "the endpoint returns no
 `update_reminder` at all for `capcutpc_beta`" — **is no longer true**,
@@ -663,6 +652,8 @@ token is now inert rather than harmful. Left as `capcutpc_0` because it
 is the value with the longer measured history, not because the old
 hazard still exists; anyone changing it should re-measure rather than
 trust either version of this paragraph.
+
+复测 2026-09-14（2026-09-13T23:16Z）：同一 URL（`version_code=9.99`）分别带 `channel=capcutpc_0` 与 `channel=capcutpc_beta` 各 GET 一次，均 HTTP 200，两份 `update_reminder` 各 26 个字段、逐字段相同；当时 `lastest_stable_url` 是 `…CapCut_9_4_1_4574_capcutpc_0_creatortool.dmg`，`lastest_url` 是 `…CapCut_9_5_5-beta1_4583_capcutpc_beta_creatortool.dmg`，`lastest_beta_number` 是 `"1"`。代码里「token 目前无效」一句以此为据。
 
 One-click: enabled on BOTH tracks, and every gate was checked against the
 real artifacts rather than assumed (2026-08-27, both dmgs downloaded and

@@ -760,12 +760,6 @@ reading that filename would report `versionPatternNoMatch` — the app
 day. (Measured, by making the pattern unsatisfiable against the real
 body: `✗ BROKEN … versionPatternNoMatch — no match in 395-byte body`.)
 
-Measured on the real body with
-that field deleted from the osx entry: the bounded pattern matches
-nothing (correct), the unbounded one returns `2.24.12` — which is the
-right answer today ONLY because Windows and macOS ship in lockstep, so
-the bug would look like a pass.
-
 This
 endpoint names no artifact, but `CheckUpdate` does and it resolves to
 `Windscribe_<version>_universal.dmg` — a dmg holding
@@ -788,24 +782,16 @@ Limited (GYZJYS7XUG)".
 
 转引自 recipe 注释，未复测。
 
-Adding an alternation there looks like it
-works — today it returns 2.24.12, the right answer — and would keep
-returning the release track on the day a beta leads. Measured, not
+Measured, not
 reasoned: `findall` over the real body returns one match.
 
 Simulated on the real 250 KB body (2026-09-07): 149 entries sliced,
 36 matching for beta and 97 for guinea pig, both resolving 2.24.12 with
 `release_date` 2026-09-02 — the same answer the stable recipe gives,
-because release currently leads. That is the 25% case. Replaying the
-feed by date is what tells the three apart, and the regression tests
-use those dates: on 2026-08-01 the three answer 2.23.11 / 2.23.11 /
-2.24.6, and on 2026-08-12 they answer 2.23.11 / 2.24.8 / 2.24.8.
+because release currently leads. That is the 25% case.
 
-`duo verify` pays all three, because it walks the registry rather than
-the installed apps: about 500 KB more per sweep, measured as 153 → 155
-vendor probes and 141s → 156s. Worth stating both ways round; the first
-sentence alone would let someone size the nightly job's cost and be
-wrong by a wide margin.
+about 500 KB more per sweep, measured as 153 → 155
+vendor probes and 141s → 156s.
 
 ### Recipes/com-windscribe-client.swift — beta / guinea pig ChangelogRecipe（GitHub releases，`includesPromotedStable`）
 

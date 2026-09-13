@@ -38,7 +38,9 @@ enum com_lemon_lvoverseas {
         //
         // TRAP, `version_code`: it is required (dropping it, or sending a value the
         // vendor can't parse, removes `update_reminder` from the response entirely)
-        // AND it selects a rollout bucket. `9.99` is pinned for both because it
+        // AND it selects a rollout bucket (History has the measured buckets).
+        // The stable field was 9.3.0 for every value that answered at all, so only
+        // the beta recipe is exposed to this. `9.99` is pinned for both because it
         // sits above every 9.x build the vendor has published — so it stays in the
         // newest bucket rather than ageing into the legacy one, a failure that
         // would be SILENT (so is the vendor rolling every bucket back at once,
@@ -59,17 +61,31 @@ enum com_lemon_lvoverseas {
         // match a patch mapping — this recipe is structurally cut off from the
         // delta route, not merely unlucky.
         //
+        // Note what that evidence IS: `cfg.diff_url=%s` / `cfg.diff_md5=%s` are LOG
+        // FORMAT STRINGS in `updatecontroller.cpp` — CapCut printing its own
+        // `ReminderUpdateCfg` fields — not fields seen in a response. They prove
+        // the client can apply a patch, not that the server sends one.
+        //
+        // The pin costs nothing today: the vendor ships everyone the full package right
+        // now (History has how that was checked). The real blocker is the pinned
+        // `version_code` above — a from→to mapping
+        // cannot match a version nobody runs — and un-pinning it needs a way to put
+        // the installed version on the wire, which no recipe field offers today.
+        //
         // Two components, not three, is also load-bearing: `RecipeSanity` complains
         // when an extracted version appears verbatim in the request URL (the tell
         // for a pattern that matched the query instead of the body). `9.3.0` would
-        // trip that the moment stable is 9.3.0 — which it is today. CapCut versions
+        // trip that whenever stable is 9.3.0, as it was when this was written. CapCut versions
         // are always three-segment, so a two-segment `version_code` can never
         // collide with an answer.
         //
-        // TRAP, `channel`: `capcutpc_beta` is a REAL CapCut channel token, and
-        // both recipes deliberately send `capcutpc_0` instead. The channel a
-        // recipe serves is decided by which `lastest_*` key it reads, not by this
-        // parameter.
+        // `channel`: `capcutpc_beta` is a REAL CapCut channel token, and both
+        // recipes send `capcutpc_0` instead. The channel a recipe serves is
+        // decided by which `lastest_*` key it reads, not by this parameter. The
+        // token is currently inert — both values answer with the same
+        // `update_reminder` (History has the measurements) — so `capcutpc_0` is
+        // kept for its longer measured history, not because `capcutpc_beta` is
+        // known to be harmful. Re-measure before changing it.
         //
         // Version scheme: the `lastest_*_version` integers are nibble-packed
         // (590592 = 0x090300 = 9.3.0), which no regex can decode, so the version is
@@ -121,6 +137,11 @@ enum com_lemon_lvoverseas {
         // published under `lastest_stable_url` then matches NOTHING and degrades to
         // unknown, instead of being reported as a stable release.
         //
+        // One-click: enabled on BOTH tracks. Each dmg holds `CapCut.app` and an
+        // `/Applications` symlink and nothing else — no pkg, no
+        // `LaunchDaemons`/`LaunchAgents`/`PrivilegedHelperTools` — so the bundle
+        // swap IS the whole update (History has how each gate was checked).
+        //
         // No `checksumPattern`: the vendor publishes `lastest_stable_url_md5` /
         // `lastest_url_md5`, and `checksumPattern` consumes a base64 SHA-512. An
         // MD5 cannot be fed to it, so the Team-ID gate is the guard here.
@@ -160,8 +181,8 @@ enum com_lemon_lvoverseas {
         // and a store-entitlement-destroying swap in the other.
         //
         // No `changelogURL`: `update_reminder` does carry release notes, but the
-        // same generic sentence for all three tracks ("Fixed some known issues…").
-        // The honest "no release notes" state beats an unrelated page.
+        // same generic sentence for all three tracks ("Fixed some known issues…"),
+        // and capcut.com publishes no desktop release-notes page. The honest "no release notes" state beats an unrelated page.
         capCutRecipe(
             channel: .stable, urlKey: "lastest_stable_url",
             packageToken: "capcutpc_0", patchSegment: #"[0-9]+"#,
@@ -174,7 +195,8 @@ enum com_lemon_lvoverseas {
         // `lastest_beta_number` is the vendor saying so in their own data: "4"
         // while beta4 was current (2026-08-27), empty once 9.4.0 shipped and no
         // beta replaced it (2026-09-04, with `lastest_url` == `lastest_stable_url`
-        // == the 9.4.0 stable dmg).
+        // == the 9.4.0 stable dmg). Without this the row went red, with a Retry
+        // that could not work until ByteDance opened the next beta.
         //
         // Anchored to the key so it cannot be satisfied by an empty string
         // anywhere else in a ~436 KB body.

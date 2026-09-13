@@ -16,16 +16,22 @@ public enum RowOrder {
     ///     `UpdatePolicy.actionableStaged` here, once per row rather than once
     ///     per comparison — the version this replaced called it from inside the
     ///     comparator, so it ran O(n log n) times per sort.
+    ///   - armedSelfInstallers: ids with an installer parked on the quit whose
+    ///     staged build is unreadable. Ranked with the staged tier on the same
+    ///     condition `RowAction.state` offers them Relaunch — an update on offer —
+    ///     so a Relaunch row sits where every other Relaunch row does.
     ///   - pinnedOrder: the frozen slot of each row that existed when the order
     ///     was frozen. Empty when the order is live.
     public static func sorted(
         _ list: [UpdateResult],
         needsRestart: Set<String>,
         stagedSelfUpdates: [String: StagedSelfUpdate],
+        armedSelfInstallers: Set<String>,
         pinnedOrder: [String: Int]
     ) -> [UpdateResult] {
         let relaunchable = Set(list.compactMap { row in
             UpdatePolicy.actionableStaged(row, staged: stagedSelfUpdates[row.id]) != nil
+                || (armedSelfInstallers.contains(row.id) && row.hasUpdate)
                 ? row.id : nil
         })
 

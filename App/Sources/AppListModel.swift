@@ -137,6 +137,13 @@ final class AppListModel {
     /// of offering our own Update, which would re-download and collide with the
     /// pending swap. Keyed by id → the staged update's details.
     private(set) var pendingSelfUpdate: [String: StagedSelfUpdate] = [:]
+    /// App ids with a Sparkle installer parked on their quit whose staged build
+    /// this user cannot read — typically an installer running as root that staged
+    /// under `/var/root`, but also a staged package or an unpack still in progress
+    /// (see `sparkleInstallerArmedWithUnreadableStaging`). Same Relaunch, same
+    /// stand-down as `pendingSelfUpdate`, with no version to name. Written only by
+    /// `computeSelfUpdateStaging`.
+    private(set) var armedSelfInstallers: Set<String> = []
     /// Installer packages already downloaded and handed to the system installer,
     /// keyed by row id. While one is present and still matches the version on offer,
     /// the row shows "Install" (re-open the local package) rather than "Update"
@@ -457,6 +464,8 @@ final class AppListModel {
     func versionLineState(for result: UpdateResult) -> RowVersionLineState {
         RowVersionLine.state(
             staged: actionableStaged(result),
+            // Same condition as the `hasArmedSelfInstaller` rung in `RowAction.state`.
+            armedWithUnknownVersion: armedSelfInstallers.contains(result.id) && result.hasUpdate,
             pendingBatchRestartMarketing: pendingBatchRestart[result.id],
             restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
             downgradeVersion: downgradeNote(result))
@@ -542,11 +551,11 @@ final class AppListModel {
             route: self.rowRoute(for: result)))
     }
 
-    /// The per-row tables as Core wants them. Seven copies of a
+    /// The per-row tables as Core wants them. Eight copies of a
     /// copy-on-write collection: retains, no allocation.
     ///
     /// `.live` rather than the plain initialiser, which defaults every table:
-    /// this is the one place completeness matters, so an eighth table has to
+    /// this is the one place completeness matters, so a ninth table has to
     /// break here rather than go quiet. Same rule as `RowActions.live`.
     private var rowStateTables: RowStateTables {
         RowStateTables.live(
@@ -554,6 +563,7 @@ final class AppListModel {
             needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,
             pendingSelfUpdate: pendingSelfUpdate,
+            armedSelfInstallers: armedSelfInstallers,
             relaunching: relaunching,
             awaitingQuitConfirm: awaitingQuitConfirm,
             justUpdated: justUpdated)
@@ -3652,6 +3662,23 @@ final class AppListModel {
             return .notInstalled
         }
 
+        // Same collision with the version unknown: an installer is parked on this
+        // app's quit, and what it staged cannot be read (typically root staging
+        // under /var/root). Measured
+        // on Tailscale 2026-09-13: its vendor .pkg's preinstall quits the app, the
+        // parked installer swaps its own copy in mid-install, and PackageKit writes
+        // into that bundle. See `sparkleInstallerArmedWithUnreadableStaging`.
+        if UpdatePolicy.armedInstallerBlocksInstall(
+            result,
+            armed: SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(for: result.app)) {
+            Log.install.info("install yielded to armed self-updater: \(result.app.name, privacy: .public) has an installer parked on its quit (staged build unreadable)")
+            let note = String(localized: "\(result.app.name) has already downloaded an update and will apply it when you quit it — installing now would collide with it.")
+            installNotes[id] = note
+            inFlightNotes[id] = note
+            installing[id] = nil
+            return .notInstalled
+        }
+
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
             Log.install.info("install yielded to in-flight self-update: \(result.app.name, privacy: .public) (\(inFlight.bytes, privacy: .public) bytes staged in \(inFlight.directory.lastPathComponent, privacy: .public))")
             let note = String(localized: "\(result.app.name) is downloading this update itself — left it to finish rather than fetching the same bytes twice.")
@@ -4438,19 +4465,27 @@ final class AppListModel {
     /// actor.
     private func computeSelfUpdateStaging() async {
         let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
-        let staged = await Task.detached(priority: .utility) {
+        let (staged, armed) = await Task.detached(priority: .utility) {
             // Asked once for the whole sweep rather than per app: the answer is a
             // single global list either way, and `mayHaveStaging` admits every
             // Sparkle app on the machine.
             let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
             var map: [String: StagedSelfUpdate] = [:]
+            var armed: Set<String> = []
             for app in apps {
                 if let s = SelfUpdaterStaging.staged(
                     for: app, parkedInstallerBundleURLs: parked) { map[app.id] = s }
+                if SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                    for: app, parkedInstallerBundleURLs: parked) { armed.insert(app.id) }
             }
-            return map
+            return (map, armed)
         }.value
         pendingSelfUpdate = staged
+        armedSelfInstallers = armed
+        if !armed.isEmpty {
+            let names = results.filter { armed.contains($0.id) }.map(\.app.name).joined(separator: ", ")
+            Log.app.info("self-update armed, staging unreadable (relaunch pending): \(names, privacy: .public)")
+        }
         // Drop armed staged-swap hand-offs whose staging is gone or now points at a
         // different version: each such marker is bound to the exact build it was
         // armed for, and must not outlive it. (A hand-off already relaying removed
@@ -4507,7 +4542,7 @@ final class AppListModel {
                 .map { "\($0.app.name)→\(pendingSelfUpdate[$0.id]!.version)" }.joined(separator: ", ")
             Log.app.info("self-update staged (relaunch pending): \(names, privacy: .public)")
         }
-        // Move any actionable-staged row into the actionable tier (rank 0).
+        // Move any actionable-staged or armed row into the actionable tier (rank 0).
         results = sorted(results)
         // Announce whatever is newly staged. Nothing here re-announces a build the
         // user has already been told about, so running this every pass is quiet.
@@ -4698,6 +4733,14 @@ final class AppListModel {
     /// either time. Saying it on the row is the fix.
     func stagedPackageNote(for result: UpdateResult) -> String? {
         guard let staged = stagedPackage(for: result) else { return nil }
+        // Not under a Relaunch. The app's own updater has an update parked on its
+        // quit, the row offers Relaunch rather than Install, and a line telling the
+        // user to press Install points at a button that is not there — one that
+        // would collide with that updater if it were. Reachable on a pkg-route app
+        // whose Sparkle installs as root (Tailscale): a package we downloaded and
+        // the user cancelled, then the app arms its own update. Asked only once a
+        // package is known to exist, so the ladder runs for those rows alone.
+        if case .relaunchToApplyStaged = rowState(for: result) { return nil }
         return String(localized: "\(staged.version) is downloaded — Install re-opens it in macOS’s installer, nothing is downloaded again.")
     }
 
@@ -5017,22 +5060,43 @@ final class AppListModel {
         // a staged build that differs from what is on disk is a problem; matching
         // builds make whoever writes second harmless. The `hasSparkleUpdater`
         // guard keeps every other app off the filesystem work entirely.
+        // One LaunchServices query for both readings below.
+        let parked = result.app.hasSparkleUpdater
+            ? SelfUpdaterStaging.liveParkedSparkleInstallers() : []
         let staged = result.app.hasSparkleUpdater
-            ? SelfUpdaterStaging.sparkleStagedBundle(for: result.app) : nil
+            ? SelfUpdaterStaging.sparkleStagedBundle(
+                for: result.app, parkedInstallerBundleURLs: parked) : nil
+        // Parked, but staged where we cannot read — the root-installer case. With
+        // no version to agree on, the standoff holds back (its bias, and the
+        // collision measured on Tailscale is exactly a quit landing on it).
+        let armed = staged == nil && result.app.hasSparkleUpdater
+            && SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: result.app, parkedInstallerBundleURLs: parked)
         // Both fields off the same read of the bundle as it stands NOW. The batch
         // path calls this with a `result` snapshotted before any install ran, so
         // anything taken from `result.app` here is a version or two behind.
         let onDisk = Self.readBundleVersions(result.app.path)
-        if case .holdBack(let stagedVersion) = RestartStandoff.decide(
+        let heldBackNote: String?
+        switch RestartStandoff.decide(
             staged: staged,
             onDiskShortVersion: onDisk.short,
-            onDiskBuildVersion: onDisk.build) {
+            onDiskBuildVersion: onDisk.build,
+            armedWithUnreadableStaging: armed) {
+        case .proceed:
+            heldBackNote = nil
+        case .holdBack(let stagedVersion):
             Log.app.notice(
                 "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
             // Deliberately says "the version on disk" rather than "the version
             // just installed": this is also reached from the Restart button on a
             // row that updated itself, where we installed nothing.
-            let note = String(localized: "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit \(result.app.name) yourself when you're ready to take theirs.")
+            heldBackNote = String(localized: "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit \(result.app.name) yourself when you're ready to take theirs.")
+        case .holdBackVersionUnknown:
+            Log.app.notice(
+                "restart held back: \(result.app.name, privacy: .public) — its own updater has an update staged (version unreadable) and is waiting for the quit")
+            heldBackNote = String(localized: "\(result.app.name) has its own update downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit \(result.app.name) yourself when you're ready to take theirs.")
+        }
+        if let note = heldBackNote {
             installNotes[result.id] = note
             restartHoldBackNotes[result.id] = note
             // Deliberately NOT registered in `inFlightNotes`. A row offering a
@@ -5210,6 +5274,11 @@ final class AppListModel {
                             || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
                         armedAt: Date())
                     Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) → \(staged.version, privacy: .public) (relaunch if it quits and the swap lands)")
+                } else {
+                    // `.stagedSwap` is bound to a version, and an installer whose
+                    // staging we cannot read gives none. Its own quit still applies
+                    // the update; nobody reopens the app afterwards.
+                    Log.app.info("relaunch-handoff: not armed for \(result.app.name, privacy: .public) — staged version unknown")
                 }
                 break
             }
@@ -6038,6 +6107,10 @@ final class AppListModel {
                 && (canAutoInstall(result) || requiresInstaller(result))
                 && !defersToSelfUpdater(result)
                 && !result.isMajorUpgrade
+                // The row offers Relaunch, not Update (`RowAction.state`), and
+                // `runInstall` would refuse it after queueing it anyway. The
+                // versioned staged case is already out via `canAutoInstall`.
+                && !armedSelfInstallers.contains(result.id)
                 && installing[result.id] == nil
         }
     }
@@ -7417,7 +7490,8 @@ final class AppListModel {
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
         RowOrder.sorted(
             list, needsRestart: needsRestart,
-            stagedSelfUpdates: pendingSelfUpdate, pinnedOrder: pinnedOrder)
+            stagedSelfUpdates: pendingSelfUpdate,
+            armedSelfInstallers: armedSelfInstallers, pinnedOrder: pinnedOrder)
     }
 
 

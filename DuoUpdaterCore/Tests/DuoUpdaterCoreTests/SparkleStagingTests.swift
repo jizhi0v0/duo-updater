@@ -338,11 +338,12 @@ struct SparkleStagingTests {
     }
 
     /// Sparkle launches its progress agent out of the HOST BUNDLE's framework
-    /// rather than the staging cache when the installer runs as root
-    /// (`SUInstallerLauncher.m`: `BOOL copyProgressTool = !rootUser`). Accepting
-    /// only the cache location silently disabled the standoff for every
-    /// privileged install — and because this gate fails open, that is the
-    /// overwrite bug back again rather than a missing warning.
+    /// rather than the staging cache when the launcher runs as root in 2.9.6
+    /// (`SUInstallerLauncher.m`: `BOOL copyProgressTool = !rootUser`), and every
+    /// time from 2.10.0-beta.1 on, which dropped the copy. Accepting only the
+    /// cache location silently disabled the standoff for those — and because this
+    /// gate fails open, that is the overwrite bug back again rather than a missing
+    /// warning. See `hasParkedSparkleInstaller` for the per-version detail.
     @Test func anInstallerParkedInsideTheAppsOwnFrameworkIsEvidence() throws {
         try withScratch { root in
             let caches = root.appendingPathComponent("Caches")
@@ -512,6 +513,138 @@ struct SparkleStagingTests {
                     sourceName: "Sparkle"),
                 status: .updateAvailable(latest: "1.0"))
             #expect(UpdatePolicy.actionableStaged(caughtUp, staged: staged) != nil)
+        }
+    }
+
+    // MARK: - An armed installer whose staging cannot be read
+
+    /// Tailscale's shape, observed 2026-09-13: the bundle is root-owned, so
+    /// Sparkle's installer ran as root and staged under `/var/root`. This user's
+    /// cache holds only the `Launcher/` agent — no `Installation/` at all. The
+    /// versioned detector finds the installer and then nothing to read; this is
+    /// the signal for that.
+    ///
+    /// Mutation: drop the `sparkleStagedBundle(...) == nil` clause (the readable
+    /// case below goes red); drop the parked-installer guard (the leftover case
+    /// goes red).
+    @Test func anArmedInstallerWithNothingReadableIsReported() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.102.3", build: "101.102.3")
+            let app = sparkleApp(at: installed, short: "1.102.3", build: "101.102.3")
+            let parked = [parkedInstaller(in: caches)]
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked) == nil)
+            #expect(SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked))
+        }
+    }
+
+    /// Sparkle 2.10.0-beta.1 stopped copying the agent: it runs out of the host
+    /// bundle's own framework. Same verdict from there.
+    ///
+    /// Mutation: drop `app.path` from `hasParkedSparkleInstaller`'s homes.
+    @Test func anArmedInstallerWhoseAgentRunsFromTheAppBundleIsReported() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+            let inBundle = installed
+                .appendingPathComponent("Contents/Frameworks/Sparkle.framework")
+                .appendingPathComponent("Versions/B/Updater.app")
+
+            #expect(SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: sparkleApp(at: installed, short: "1.0", build: "1"),
+                cachesDirectory: caches, parkedInstallerBundleURLs: [inBundle]))
+        }
+    }
+
+    /// A readable staged build — newer OR older than disk — already carries a
+    /// version and belongs to `staged(for:)`. Reporting it here too would give the
+    /// row two answers for one installer.
+    @Test func aReadableStagedBuildIsNotReportedAsUnreadable() throws {
+        for (short, build) in [("26.9.11", "769"), ("26.9.1", "700")] {
+            try withScratch { root in
+                let caches = root.appendingPathComponent("Caches")
+                _ = try stage(in: caches, short: short, build: build)
+                let installed = root.appendingPathComponent("Sparkly.app")
+                try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+                let app = sparkleApp(at: installed, short: "26.9.9", build: "765")
+                let parked = [parkedInstaller(in: caches)]
+
+                #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                    for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked) != nil)
+                #expect(!SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                    for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked),
+                    "staged \(short) is readable")
+            }
+        }
+    }
+
+    /// No parked installer means nothing applies on quit, whatever the cache
+    /// holds or lacks — the same evidence rule as `aLeftoverWithNoParkedInstallerIsIgnored`,
+    /// and it matters more here: a false positive replaces Update with a Relaunch
+    /// that has nothing to relaunch into.
+    @Test func withoutAParkedInstallerNothingIsArmed() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+            let app = sparkleApp(at: installed, short: "1.0", build: "1")
+            let elsewhere = caches.appendingPathComponent("com.other.app")
+                .appendingPathComponent("org.sparkle-project.Sparkle")
+                .appendingPathComponent("Launcher").appendingPathComponent("x")
+                .appendingPathComponent("Updater.app")
+
+            #expect(!SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: []))
+            #expect(!SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: [elsewhere]))
+        }
+    }
+
+    /// Admission mirrors `staged(for:)`'s Sparkle branch: only an app that embeds
+    /// Sparkle. Every Sparkle app's agent shares one location pattern keyed by
+    /// bundle id, so without this a non-Sparkle app sharing an id-shaped cache
+    /// could be reported.
+    ///
+    /// Mutation: drop `app.hasSparkleUpdater` from the guard.
+    @Test func anAppWithoutSparkleIsNeverArmed() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+            let plain = InstalledApp(
+                name: "Sparkly", bundleID: bundleID, shortVersion: "1.0", buildVersion: "1",
+                path: installed, isMASApp: false, sparkleFeedURL: nil,
+                hasSelfUpdater: false, hasSparkleUpdater: false)
+
+            #expect(!SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: plain, cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]))
+        }
+    }
+
+    /// A package update stages a `.pkg`, not an `.app`, so a same-user install can
+    /// also leave nothing the versioned walk reads. An installer is parked either
+    /// way and ours would race it, so this reports it — documented on the function.
+    @Test func aParkedPackageUpdateCountsAsArmed() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let dir = caches.appendingPathComponent(bundleID)
+                .appendingPathComponent("org.sparkle-project.Sparkle")
+                .appendingPathComponent("Installation").appendingPathComponent("S61bE6QMb")
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try Data("pkg".utf8).write(to: dir.appendingPathComponent("Sparkly-2.0.pkg"))
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+
+            #expect(SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: sparkleApp(at: installed, short: "1.0", build: "1"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]))
         }
     }
 }

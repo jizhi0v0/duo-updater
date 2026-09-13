@@ -53,6 +53,10 @@ public enum RestartStandoff {
         /// Another installer holds a different build. Quitting would apply it
         /// over ours, so don't — the restart is the user's to make once they know.
         case holdBack(stagedVersion: String)
+        /// An installer is parked on the quit but what it staged cannot be read
+        /// (`SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging`). No
+        /// field to agree on, so by the bias below this holds back too.
+        case holdBackVersionUnknown
     }
 
     /// `staged` is what the app's own updater will install on quit (nil if
@@ -77,12 +81,18 @@ public enum RestartStandoff {
     /// readable and matches is proof enough even if its marketing string is
     /// missing, and vice versa. Requiring both would hold back on every app whose
     /// staged copy omits `CFBundleVersion`.
+    ///
+    /// `armedWithUnreadableStaging` is consulted only when `staged` is nil: a
+    /// readable staged build is the stronger evidence and is compared as above.
     public static func decide(
         staged: StagedSelfUpdate?,
         onDiskShortVersion: String?,
-        onDiskBuildVersion: String?
+        onDiskBuildVersion: String?,
+        armedWithUnreadableStaging: Bool = false
     ) -> Decision {
-        guard let staged else { return .proceed }
+        guard let staged else {
+            return armedWithUnreadableStaging ? .holdBackVersionUnknown : .proceed
+        }
 
         // Only pairs where BOTH sides carry a value can be compared; a field
         // missing on either side proves nothing either way. That rule lives in

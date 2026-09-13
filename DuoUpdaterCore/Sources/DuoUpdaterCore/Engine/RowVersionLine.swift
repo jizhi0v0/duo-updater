@@ -10,6 +10,13 @@ import Foundation
 public enum RowVersionLineState: Sendable, Equatable {
     /// The app's own updater has the current release staged for a relaunch.
     case stagedRelaunch(StagedSelfUpdate)
+    /// The app's own updater has an update parked on its quit, but what it staged
+    /// cannot be read (`SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging`
+    /// — typically a root install staging under /var/root). The line names no
+    /// target: the version our check found need not be the one a Relaunch applies
+    /// (the feed can move after staging, or the app's track can change), so
+    /// drawing it there would claim something nobody observed.
+    case stagedRelaunchVersionUnknown
     /// A landed update is waiting for the running process to restart.
     case restart(from: VersionSide)
     /// The vendor's advertised release trails what is installed; no action wins.
@@ -25,13 +32,19 @@ public enum RowVersionLine {
     /// the process is stale. `pendingBatchRestartMarketing` is separate because a
     /// batch deliberately defers that detector until all installs finish, while it
     /// already knows the pre-install marketing version.
+    ///
+    /// `armedWithUnknownVersion` must be the same condition the action ladder
+    /// offers the version-less Relaunch on (an armed installer AND an update on
+    /// offer), so the line explains the button beside it.
     public static func state(
         staged: StagedSelfUpdate?,
+        armedWithUnknownVersion: Bool,
         pendingBatchRestartMarketing: String?,
         restartFrom: VersionSide?,
         downgradeVersion: String?
     ) -> RowVersionLineState {
         if let staged { return .stagedRelaunch(staged) }
+        if armedWithUnknownVersion { return .stagedRelaunchVersionUnknown }
         if let from = pendingBatchRestartMarketing {
             return .restart(from: VersionSide(marketing: from))
         }

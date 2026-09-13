@@ -48,7 +48,15 @@ public enum RowActionState: Sendable, Equatable {
     /// the user current — offering Relaunch there sends them to a stale version and
     /// calls it done. `AppListModel.actionableStaged` applies this; raw
     /// `pendingSelfUpdate` does not.
-    case relaunchToApplyStaged(to: String)
+    ///
+    /// `to` is nil when an installer is parked on the app's quit but its staged
+    /// build could not be read — a Sparkle install running as root stages under
+    /// `/var/root` (`SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging`).
+    /// Relaunch is still the right offer, and `relaunchStagedUpdate` does not need
+    /// the version: it waits for the disk to move past what was installed. The
+    /// precondition above cannot be checked there, which is the cost of not
+    /// knowing; the alternative, our Update, collides with that installer.
+    case relaunchToApplyStaged(to: String?)
     /// The bundle on disk is newer than the running process.
     case restartToApply
     /// A newer version is available and actionable. The route says how.
@@ -362,6 +370,9 @@ public struct RowStateTables: Sendable {
     public var needsRestart: Set<String>
     public var pendingBatchRestart: [String: String]
     public var pendingSelfUpdate: [String: StagedSelfUpdate]
+    /// Rows whose app has an installer parked on its quit with no readable staged
+    /// build — `SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging`.
+    public var armedSelfInstallers: Set<String>
     public var relaunching: Set<String>
     public var awaitingQuitConfirm: [String: String]
     public var justUpdated: Set<String>
@@ -371,6 +382,7 @@ public struct RowStateTables: Sendable {
         needsRestart: Set<String> = [],
         pendingBatchRestart: [String: String] = [:],
         pendingSelfUpdate: [String: StagedSelfUpdate] = [:],
+        armedSelfInstallers: Set<String> = [],
         relaunching: Set<String> = [],
         awaitingQuitConfirm: [String: String] = [:],
         justUpdated: Set<String> = []
@@ -379,6 +391,7 @@ public struct RowStateTables: Sendable {
         self.needsRestart = needsRestart
         self.pendingBatchRestart = pendingBatchRestart
         self.pendingSelfUpdate = pendingSelfUpdate
+        self.armedSelfInstallers = armedSelfInstallers
         self.relaunching = relaunching
         self.awaitingQuitConfirm = awaitingQuitConfirm
         self.justUpdated = justUpdated
@@ -390,7 +403,7 @@ public struct RowStateTables: Sendable {
     /// at a time on purpose, which is exactly the shape CLAUDE.md records for
     /// `RowActions`: nine closures with empty defaults meant a forgotten one
     /// compiled and shipped a dead button. Here there is one production caller,
-    /// so adding an eighth table and forgetting to wire it would compile, render
+    /// so adding another table and forgetting to wire it would compile, render
     /// a plausible row, and be caught by nothing — not the gallery (which never
     /// goes through `assemble`), not `RowActionStateTests` (which builds facts
     /// directly), not the assembly suite (which populates partially by design).
@@ -402,6 +415,7 @@ public struct RowStateTables: Sendable {
         needsRestart: Set<String>,
         pendingBatchRestart: [String: String],
         pendingSelfUpdate: [String: StagedSelfUpdate],
+        armedSelfInstallers: Set<String>,
         relaunching: Set<String>,
         awaitingQuitConfirm: [String: String],
         justUpdated: Set<String>
@@ -409,7 +423,8 @@ public struct RowStateTables: Sendable {
         RowStateTables(
             installing: installing, needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,
-            pendingSelfUpdate: pendingSelfUpdate, relaunching: relaunching,
+            pendingSelfUpdate: pendingSelfUpdate,
+            armedSelfInstallers: armedSelfInstallers, relaunching: relaunching,
             awaitingQuitConfirm: awaitingQuitConfirm, justUpdated: justUpdated)
     }
 }
@@ -424,6 +439,11 @@ public struct RowActionFacts {
     public var isIgnored: Bool
     public var isVersionSkipped: Bool
     public var stagedRelaunchTarget: String?
+    /// An installer is parked on this app's quit but its staged build is
+    /// unreadable, so there is no `stagedRelaunchTarget` to give. Read only when
+    /// that is nil — a readable staged build names its version and wins — and only
+    /// while an update is on offer (see the rung in `RowAction.state`).
+    public var hasArmedSelfInstaller: Bool
     public var needsRestart: Bool
     /// `app.isMASApp` — read by the `.unknown` and `.upToDate` rungs to name the
     /// App Store as the source hint / kept channel, the same priority a view
@@ -454,6 +474,7 @@ public struct RowActionFacts {
         isIgnored: Bool = false,
         isVersionSkipped: Bool = false,
         stagedRelaunchTarget: String? = nil,
+        hasArmedSelfInstaller: Bool = false,
         needsRestart: Bool = false,
         isMASApp: Bool = false,
         isTestFlightApp: Bool = false,
@@ -469,6 +490,7 @@ public struct RowActionFacts {
         self.isIgnored = isIgnored
         self.isVersionSkipped = isVersionSkipped
         self.stagedRelaunchTarget = stagedRelaunchTarget
+        self.hasArmedSelfInstaller = hasArmedSelfInstaller
         self.needsRestart = needsRestart
         self.isMASApp = isMASApp
         self.isTestFlightApp = isTestFlightApp
@@ -493,6 +515,14 @@ public enum RowAction {
         if facts.isIgnored { return .ignored }
         if facts.hasUpdate && facts.isVersionSkipped { return .versionSkipped }
         if let target = facts.stagedRelaunchTarget { return .relaunchToApplyStaged(to: target) }
+        // Only with an update on offer. With nothing to version it, this rung has
+        // no other way to know the parked installer carries anything we would
+        // show — and `needsAction` (the popover's filter and the badge) counts a
+        // row through its update, so a Relaunch on an up-to-date row would appear
+        // in the workbench and nowhere else. It also retires the rung the moment a
+        // landed swap turns the row current, before the next staging sweep has
+        // noticed the installer is gone.
+        if facts.hasArmedSelfInstaller && facts.hasUpdate { return .relaunchToApplyStaged(to: nil) }
         // Restart is derived from disk-vs-running version, not the remote check, so
         // it is answered here rather than inside the status switch: that keeps the
         // button steady across a refresh's transient `.unknown`, instead of briefly
@@ -554,6 +584,7 @@ extension RowActionFacts {
             isIgnored: isIgnored,
             isVersionSkipped: isVersionSkipped,
             stagedRelaunchTarget: staged.map { result.stagedRelaunchLine($0).to },
+            hasArmedSelfInstaller: tables.armedSelfInstallers.contains(result.id),
             needsRestart: tables.needsRestart.contains(result.id),
             isMASApp: result.app.isMASApp,
             isTestFlightApp: result.app.isTestFlightApp,

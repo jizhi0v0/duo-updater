@@ -71,6 +71,26 @@ struct StagedBlocksInstallTests {
         }
     }
 
+    /// The version-less gate: an installer parked on the quit whose staging we
+    /// cannot read. Same routes as the versioned one — measured on Tailscale
+    /// (Vendor route) 2026-09-13, where the vendor pkg's preinstall quit the app
+    /// and root's parked `Autoupdate` swapped its copy in mid-install.
+    ///
+    /// Mutations: return `armed` alone (Homebrew line goes red); return
+    /// `routeCollidesWithSelfUpdater` alone (the not-armed line goes red).
+    @Test func anArmedInstallerBlocksOnlyRoutesWeSwapOurselves() {
+        for source in ["Vendor", "GitHub", "Sparkle", "Electron"] {
+            #expect(UpdatePolicy.armedInstallerBlocksInstall(result(source: source), armed: true),
+                    "\(source) should be blocked")
+            #expect(!UpdatePolicy.armedInstallerBlocksInstall(result(source: source), armed: false),
+                    "\(source) should not be blocked when nothing is armed")
+        }
+        for source in ["Homebrew", "App Store", "Toolbox"] {
+            #expect(!UpdatePolicy.armedInstallerBlocksInstall(result(source: source), armed: true),
+                    "\(source) should not be blocked")
+        }
+    }
+
     /// `actionableStaged` and this must not be confused. The former gates the
     /// **Relaunch** affordance and answers "would a relaunch get me current?" —
     /// comparing the staged build against the feed's latest, not against what is

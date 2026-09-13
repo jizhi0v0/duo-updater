@@ -24815,6 +24815,252 @@
           }
         }
       }
+    },
+    "%@ already downloaded an update — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat bereits ein Update heruntergeladen – neu starten, um es anzuwenden (kein erneuter Download nötig; bei einer großen App kann der Austausch & Neustart eine Minute dauern)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó una actualización; reabre para aplicarla (sin descarga adicional; en apps grandes el intercambio y la reapertura pueden tardar un minuto)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé une mise à jour — relancez pour l'appliquer (pas de nouveau téléchargement ; pour une grande application, l'échange et la réouverture peuvent prendre une minute)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでにアップデートをダウンロード済みです — 再起動して適用してください（追加のダウンロードは不要です。大きなアプリは入れ替えと再起動に1分ほどかかる場合があります）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загрузило обновление — перезапустите, чтобы применить (без повторной загрузки; для крупного приложения замена и открытие могут занять минуту)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已下载更新 — 重新启动以应用（无需再次下载；大型应用替换并重新打开可能需要一分钟）"
+          }
+        }
+      }
+    },
+    "%@ already downloaded an update — relaunch to apply it": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat bereits ein Update heruntergeladen – neu starten, um es anzuwenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó una actualización; reabre para aplicarla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé une mise à jour — relancez pour l'appliquer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでにアップデートをダウンロード済みです — 再起動して適用してください"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загрузило обновление — перезапустите, чтобы применить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已下载更新 — 重新启动以应用"
+          }
+        }
+      }
+    },
+    "%@ has already downloaded an update and will apply it when you quit it — installing now would collide with it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat bereits ein Update heruntergeladen und installiert es beim Beenden – eine Installation jetzt würde damit kollidieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó una actualización y la instalará cuando lo cierres: instalar ahora chocaría con ella."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé une mise à jour et l’installera à sa fermeture — installer maintenant entrerait en conflit avec elle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでにアップデートをダウンロード済みで、終了時に適用します。今インストールするとそれと衝突します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загрузил обновление и установит его при выходе — установка сейчас столкнётся с ним."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已经下载好更新，会在你退出它时安装 —— 现在装会和它冲突。"
+          }
+        }
+      }
+    },
+    "%@ has its own update downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit %@ yourself when you're ready to take theirs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat ein eigenes Update heruntergeladen und wartet darauf, dass die App beendet wird. Ein Neustart von hier aus würde dieses über die Version installieren, die jetzt auf der Festplatte liegt – deshalb wurde nicht neu gestartet. Beende %@ selbst, wenn du deren Update übernehmen möchtest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya ha descargado su propia actualización y espera a que la app se cierre. Reabrir desde aquí instalaría esa por encima de la versión que hay ahora en el disco, así que no se reabrió: cierra %@ tú cuando quieras aceptar la suya."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a téléchargé sa propre mise à jour et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quitte %@ toi-même quand tu veux prendre la leur."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は自前の更新をダウンロード済みで、アプリの終了を待っています。ここから再起動すると、現在ディスクにあるバージョンの上にそれが上書きされるため、再起動はしていません。相手側の更新を適用したくなったら、%@ を自分で終了してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже скачало собственное обновление и ждёт, когда приложение будет закрыто. Перезапуск отсюда установил бы его поверх версии, которая сейчас на диске, поэтому перезапуск не выполнен — закройте %@ сами, когда захотите принять их обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已经下载好它自己的更新，正等着这个 app 退出。从这里重新启动会把那份更新覆盖到当前磁盘上的版本，所以没有重新启动 —— 想用它们那份的时候，请自己退出 %@。"
+          }
+        }
+      }
+    },
+    "%@ has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat bereits selbst ein Update heruntergeladen, aber welche Version, lässt sich von hier aus nicht lesen – meist, weil es mit Administratorrechten installiert. Neu starten, um es anzuwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó una actualización por su cuenta, pero desde aquí no se puede leer qué versión es; normalmente porque se instala con permisos de administrador. Reabre para aplicarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé une mise à jour lui-même, mais sa version ne peut pas être lue d’ici — généralement parce qu’il s’installe avec des droits d’administrateur. Relancez pour l’appliquer."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでに自分でアップデートをダウンロード済みですが、どのバージョンかはここから読み取れません（通常は管理者権限でインストールするためです）。再起動して適用してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже само загрузило обновление, но какую версию — отсюда прочитать нельзя: обычно потому, что оно устанавливается с правами администратора. Перезапустите, чтобы применить."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已自行下载了更新，但从这里读不到是哪个版本 —— 通常是因为它以管理员权限安装。重新启动以应用。"
+          }
+        }
+      }
+    },
+    "Version unknown — click for why": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version unbekannt – klicken für den Grund"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versión desconocida: haz clic para saber por qué"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version inconnue — cliquez pour savoir pourquoi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バージョン不明。クリックすると理由を表示します"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Версия неизвестна — нажмите, чтобы узнать почему"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本未知——点按查看原因"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

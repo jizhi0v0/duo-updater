@@ -247,6 +247,10 @@ enum RowStateGalleryCases {
         ("44-needs-newer-macos-hint-explanation",
          .updateAvailable(.appStore(managedHere: false, gate: .needsNewerMacOS(minimum: "99.0"))),
          storeNeedsNewerMacOS),
+        // 10's state with the staged build unreadable: a Sparkle installer parked
+        // on the quit that ran as root and staged under /var/root. Same button by
+        // design; only the tooltip cannot name a version.
+        ("45-relaunch-to-apply-staged-version-unknown", .relaunchToApplyStaged(to: nil), app),
     ]
 
     /// Which reason each TestFlight-unbounded case is drawn with, on BOTH surfaces
@@ -329,6 +333,14 @@ enum RowStateGalleryCases {
         // draws 01 `.borderedProminent`, so it collides with neither there.
         ["popover/01-awaiting-quit-confirm", "popover/10-relaunch-to-apply-staged"],
         ["popover/01-awaiting-quit-confirm", "popover/11-restart-to-apply"],
+        // And a fourth: 45 is 10 with the staged version unknown, so it is 10's
+        // button with a tooltip that cannot name the version — and therefore also
+        // collides with everything 10 collides with.
+        ["popover/10-relaunch-to-apply-staged", "popover/45-relaunch-to-apply-staged-version-unknown"],
+        ["workbench/10-relaunch-to-apply-staged", "workbench/45-relaunch-to-apply-staged-version-unknown"],
+        ["popover/11-restart-to-apply", "popover/45-relaunch-to-apply-staged-version-unknown"],
+        ["workbench/11-restart-to-apply", "workbench/45-relaunch-to-apply-staged-version-unknown"],
+        ["popover/01-awaiting-quit-confirm", "popover/45-relaunch-to-apply-staged-version-unknown"],
         // Both a bordered "Update": the pkg route downloads an installer, the App
         // Store route hands off to the store. Same word because the store uses it
         // too; the tooltip is what separates them.

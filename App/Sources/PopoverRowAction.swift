@@ -303,14 +303,19 @@ struct PopoverRowAction: View {
     /// `relaunchStagedUpdate`, which quits the app and lets *its own* ShipIt do the
     /// swap+relaunch (reopening it ourselves makes ShipIt abort). No extra download
     /// — the bytes are already staged on disk.
-    private func relaunchToUpdateButton(_ target: String) -> some View {
+    ///
+    /// `target` is nil when the staged build could not be read (a Sparkle install
+    /// running as root) — same button, same action, the tooltip just cannot name it.
+    private func relaunchToUpdateButton(_ target: String?) -> some View {
         Button("Relaunch") { actions.relaunchStaged() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
-            .help("\(result.app.name) already downloaded \(target) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
+            .help(target.map { target in
+                String(localized: "\(result.app.name) already downloaded \(target) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
+            } ?? String(localized: "\(result.app.name) already downloaded an update — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)"))
     }
 
     /// An incremental App Store update is downloaded but the app is running, so the

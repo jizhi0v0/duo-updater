@@ -233,4 +233,45 @@ import Foundation
         #expect(result.first?.name == "zzfixture-cli")
         #expect(result.first?.kind == .cask)
     }
+
+    // MARK: - pouredFormula(fromLine:) — the bulk-upgrade progress counter
+
+    /// Measured 2026-09-13, Homebrew 7.0.0: one `brew upgrade --formula xz` printed
+    /// both of these. The first is the success summary; the second is the
+    /// `brew cleanup` that runs afterwards removing the old keg. Matching any line
+    /// that contains `/Cellar/<name>/` counted xz twice, and because the counter is
+    /// clamped to the total a bulk run read n/n before it had finished.
+    /// (Pure string parsing — the real paths here never reach the filesystem.)
+    @Test func aSuccessfulUpgradeCountsOnceDespiteTheCleanupLine() {
+        let output = [
+            "🍺  /opt/homebrew/Cellar/xz/5.8.4: 96 files, 2.7MB",
+            "Removing: /opt/homebrew/Cellar/xz/5.8.3... (96 files, 2.7MB)",
+        ]
+        #expect(output.compactMap(BrewFormulaService.pouredFormula(fromLine:)) == ["xz"])
+    }
+
+    /// Other brew lines that carry a keg path and a size, none of them a success.
+    @Test(arguments: [
+        "Removing: /opt/homebrew/Cellar/zzfixture-alpha/1.0... (96 files, 2.7MB)",
+        "Would remove: /opt/homebrew/Cellar/zzfixture-alpha/1.0 (96 files, 2.7MB)",
+        "Uninstalling /opt/homebrew/Cellar/zzfixture-alpha/1.0... (96 files, 2.7MB)",
+        "Linking /opt/homebrew/Cellar/zzfixture-alpha/1.0... 12 symlinks created.",
+    ])
+    func nonSuccessCellarLinesAreNotCounted(line: String) {
+        #expect(BrewFormulaService.pouredFormula(fromLine: line) == nil)
+    }
+
+    /// The badge is `HOMEBREW_INSTALL_BADGE` (any text) and absent under
+    /// `HOMEBREW_NO_EMOJI`, so the success line must be recognized without it; a
+    /// single-file keg's `abv` has no `N files, ` part; a source build appends
+    /// `, built in …`.
+    @Test(arguments: [
+        ("🍺  /opt/homebrew/Cellar/zzfixture-alpha/1.0: 96 files, 2.7MB", "zzfixture-alpha"),
+        ("/opt/homebrew/Cellar/zzfixture-alpha/1.0: 96 files, 2.7MB", "zzfixture-alpha"),
+        ("DONE  /usr/local/Cellar/zzfixture-beta@3/3.1_1: 3,123 files, 65MB, built in 2 minutes 3 seconds", "zzfixture-beta@3"),
+        ("🍺  /opt/homebrew/Cellar/zzfixture-gamma/0.2: 512B", "zzfixture-gamma"),
+    ])
+    func successLinesAreRecognizedWhateverTheBadge(line: String, name: String) {
+        #expect(BrewFormulaService.pouredFormula(fromLine: line) == name)
+    }
 }

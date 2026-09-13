@@ -63,6 +63,8 @@ public enum StructuredChangelogDecoder {
             return decodeAppleDeveloperReleaseNotes(body, maxEntries: maxEntries)
         case .superconductorChangelog:
             return decodeSuperconductor(body, maxEntries: maxEntries)
+        case .claudeDesktopChangelog:
+            return decodeClaudeDesktop(body, maxEntries: maxEntries)
         }
     }
 
@@ -388,6 +390,93 @@ public enum StructuredChangelogDecoder {
             guard !items.isEmpty else { continue }
             entries.append(.init(
                 version: String(commit.prefix(8)), date: isoDay(release.date), items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - Claude Desktop (claude.com/docs/cowork/changelog.md)
+
+    /// The in-app "What's new" is what the user compares us against, so this
+    /// reproduces its grouping rather than the docs page's. That modal reads an
+    /// array baked into claude.ai's JS bundle where every note is
+    /// `{surface, kind, text}`; read out of the bundle cached on this Mac
+    /// 2026-09-13, it
+    ///   - keeps only `general` + `code` in the Code tab (`general` + `cowork` in
+    ///     the Cowork tab; `3p` never), and drops a release left with nothing;
+    ///   - renders `kind` in the fixed order feat → improvement → fix, headed
+    ///     "New" / "Improved" / "Fixed".
+    /// We show the Code tab's view.
+    ///
+    /// The docs `.md` carries the same notes grouped by surface
+    /// (`**General**` / `**Code**` / …) with no `kind`. `kind` is recovered from
+    /// the note's first word: `Added` → New, `Fixed` → Fixed, anything else
+    /// (`Changed`, `Improved`, `Updated`, `Removed`, …) → Improved. Checked
+    /// against that bundle, every non-3P note in it (433, 72 releases) comes out
+    /// with its real `kind`; the only exception in the whole array is a 3P note
+    /// starting `Published` filed as feat — 3P is dropped here anyway. This is an
+    /// inference from the vendor's writing convention, not a field: a future
+    /// "Introduced …" would land under Improved.
+    ///
+    /// Order within a group is the `.md`'s, which lists each surface's notes
+    /// alphabetically — the modal keeps authoring order, so the same lines can
+    /// appear in a different order. Only the surface order (General before Code)
+    /// carries over.
+    ///
+    /// Blocks whose label is not a `v<version>` (a "Known issue: …" announcement)
+    /// are skipped, as are "No user-facing changes." placeholders. Items stay the
+    /// text as written — plain, like the regex recipe this replaced.
+    static func decodeClaudeDesktop(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let blockRegex = try? NSRegularExpression(
+            pattern: #"<Update label="v([^"]+)" description="([^"]*)">(.*?)</Update>"#,
+            options: [.dotMatchesLineSeparators])
+        else { return nil }
+
+        let shownSurfaces: Set<String> = ["general", "code"]
+        let kinds = ["New", "Improved", "Fixed"]
+        func kind(of note: String) -> String {
+            let first = note.prefix { !$0.isWhitespace }
+            return first == "Added" ? "New" : first == "Fixed" ? "Fixed" : "Improved"
+        }
+
+        var entries: [Changelog.Entry] = []
+        let ns = body as NSString
+        for match in blockRegex.matches(in: body, range: NSRange(location: 0, length: ns.length)) {
+            let version = ns.substring(with: match.range(at: 1))
+                .trimmingCharacters(in: .whitespaces)
+            guard !version.isEmpty else { continue }
+            let date = ns.substring(with: match.range(at: 2))
+                .trimmingCharacters(in: .whitespaces)
+
+            var grouped: [String: [String]] = [:]
+            var surface: String?
+            for rawLine in ns.substring(with: match.range(at: 3))
+                .split(whereSeparator: { $0.isNewline }) {
+                let line = rawLine.trimmingCharacters(in: .whitespaces)
+                if line.count > 4, line.hasPrefix("**"), line.hasSuffix("**") {
+                    surface = line.dropFirst(2).dropLast(2).lowercased()
+                    continue
+                }
+                guard let surface, shownSurfaces.contains(surface),
+                      line.hasPrefix("* ")
+                else { continue }
+                let note = line.dropFirst(2).trimmingCharacters(in: .whitespaces)
+                guard !note.isEmpty, note != "No user-facing changes." else { continue }
+                grouped[kind(of: note), default: []].append(note)
+            }
+
+            var items: [String] = []
+            var content: [Changelog.Entry.Block] = []
+            for heading in kinds {
+                guard let notes = grouped[heading], !notes.isEmpty else { continue }
+                items.append(contentsOf: notes)
+                content.append(.heading(heading))
+                content.append(contentsOf: notes.map(Changelog.Entry.Block.note))
+            }
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version, date: date.isEmpty ? nil : date,
+                items: items, content: content))
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)

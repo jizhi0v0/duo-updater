@@ -73,8 +73,11 @@ import Foundation
     /// `ChangelogEntityDecodingTests` (a double-escaped entity, which used to
     /// decode differently from launch to launch) and
     /// `typelessDecodeSplitsCRLFBodiesIntoSeparateNotes`.
+    ///
+    /// 5 (Claude Desktop's `.claudeDesktopChangelog`) moves neither fixture: it is
+    /// one app's recipe. Pinned by `ClaudeDesktopChangelogTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 4)
+        #expect(Changelog.parserGeneration == 5)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

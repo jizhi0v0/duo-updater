@@ -82,7 +82,11 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   reading the cache happened to catch is now wrong half the time. Typeless's
     ///   decoder also splits CRLF bodies correctly, so an entry cached from one kept
     ///   only its first note.
-    public static let parserGeneration = 4
+    /// - 5: Claude Desktop moved from a regex recipe to `.claudeDesktopChangelog`,
+    ///   which keeps only General + Code and groups them under New / Improved / Fixed
+    ///   headings the way the in-app "What's new" does. Notes already cached were one
+    ///   unheaded list that also carried Cowork and "No user-facing changes." lines.
+    public static let parserGeneration = 5
 
     public let entries: [Entry]
 

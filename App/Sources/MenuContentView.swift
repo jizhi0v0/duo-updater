@@ -1240,6 +1240,18 @@ private struct AppRow: View {
             // build that trails the latest isn't shown as Relaunch; it goes through
             // the normal updateAvailable line/Update button below.)
             stagedVersionLine(staged)
+        case .stagedRelaunchVersionUnknown:
+            // Relaunch applies an update the app staged where we cannot read it —
+            // so no target version, only a question mark, and the reason on hover.
+            HStack(spacing: 4) {
+                Text(result.installedDisplay ?? "?")
+                Image(systemName: "arrow.right").font(.caption2)
+                Text(verbatim: "?").fontWeight(.semibold).foregroundStyle(.tint)
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .help(String(localized: "\(result.app.name) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
         case .restart(let from):
             // Update All has landed the new bundle but intentionally postpones its
             // process-version sweep/restarts until every installer is finished; a

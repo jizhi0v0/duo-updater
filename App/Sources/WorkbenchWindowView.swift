@@ -770,6 +770,14 @@ private struct WorkbenchSidebarRow: View {
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+        case .stagedRelaunchVersionUnknown:
+            // Same fact as the popover's line: no readable target, so a "?".
+            Text(verbatim: "\(result.installedDisplay ?? "?") → ?")
+                .font(.caption)
+                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .help(String(localized: "\(result.app.name) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
         case .restart(let from):
             // Self-updated on disk: show running version → the version on disk, so
             // "Relaunch" reads as a real change. Formatted as a pair by
@@ -1158,6 +1166,11 @@ private struct DetailHeader: View {
             Text("\(line.from)  →  \(line.to)")
                 .font(.callout).foregroundStyle(.tint)
                 .lineLimit(1).minimumScaleFactor(0.75)
+        case .stagedRelaunchVersionUnknown:
+            Text(verbatim: "\(result.installedDisplay ?? "?")  →  ?")
+                .font(.callout).foregroundStyle(.tint)
+                .lineLimit(1).minimumScaleFactor(0.75)
+                .help(String(localized: "\(result.app.name) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
         case .restart(let from):
             let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
             Text("\(line.from)  →  \(line.to)")

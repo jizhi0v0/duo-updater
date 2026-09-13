@@ -24979,6 +24979,47 @@
           }
         }
       }
+    },
+    "%@ has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat bereits selbst ein Update heruntergeladen, aber welche Version, lässt sich von hier aus nicht lesen – meist, weil es mit Administratorrechten installiert. Neu starten, um es anzuwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó una actualización por su cuenta, pero desde aquí no se puede leer qué versión es; normalmente porque se instala con permisos de administrador. Reabre para aplicarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé une mise à jour lui-même, mais sa version ne peut pas être lue d’ici — généralement parce qu’il s’installe avec des droits d’administrateur. Relancez pour l’appliquer."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでに自分でアップデートをダウンロード済みですが、どのバージョンかはここから読み取れません（通常は管理者権限でインストールするためです）。再起動して適用してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже само загрузило обновление, но какую версию — отсюда прочитать нельзя: обычно потому, что оно устанавливается с правами администратора. Перезапустите, чтобы применить."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已自行下载了更新，但从这里读不到是哪个版本 —— 通常是因为它以管理员权限安装。重新启动以应用。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

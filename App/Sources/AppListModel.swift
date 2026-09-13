@@ -464,6 +464,8 @@ final class AppListModel {
     func versionLineState(for result: UpdateResult) -> RowVersionLineState {
         RowVersionLine.state(
             staged: actionableStaged(result),
+            // Same condition as the `hasArmedSelfInstaller` rung in `RowAction.state`.
+            armedWithUnknownVersion: armedSelfInstallers.contains(result.id) && result.hasUpdate,
             pendingBatchRestartMarketing: pendingBatchRestart[result.id],
             restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
             downgradeVersion: downgradeNote(result))

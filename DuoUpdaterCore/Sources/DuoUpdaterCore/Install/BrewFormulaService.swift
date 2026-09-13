@@ -465,38 +465,11 @@ public actor BrewFormulaService {
         env["NONINTERACTIVE"] = "1"
         process.environment = env
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        let collected = OutputBox()
-        let handle = pipe.fileHandleForReading
-        handle.readabilityHandler = { fh in
-            let data = fh.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            collected.append(text)
-            for line in text.split(separator: "\n") {
-                onOutput(String(line))
-            }
-        }
-
-        try process.run()
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in cont.resume() }
-        }
-        handle.readabilityHandler = nil
+        // Lines, not chunks, and until EOF, not exit — see `StreamedLines`.
+        let output = try await StreamedLines.run(process, onOutput: onOutput)
 
         guard process.terminationStatus == 0 else {
-            throw BrewError.failed(code: process.terminationStatus, output: collected.text)
+            throw BrewError.failed(code: process.terminationStatus, output: output)
         }
-    }
-
-    /// Thread-safe accumulator for output streamed off a background readability
-    /// handler (same pattern as `HomebrewInstaller`).
-    private final class OutputBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var buffer = ""
-        func append(_ s: String) { lock.lock(); buffer += s; lock.unlock() }
-        var text: String { lock.lock(); defer { lock.unlock() }; return buffer }
     }
 }

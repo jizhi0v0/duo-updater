@@ -2,6 +2,50 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.93
+
+**Les notes de version s'affichent désormais dans ta langue quand une app les publie en plusieurs langues.** Certaines apps traduisent leurs notes à chaque publication ; Duo Updater retenait celle que l'app citait en premier ou en dernier, si bien que les notes d'une app s'affichaient en allemand pour tout le monde et que celles d'une autre changeaient de langue d'une version à l'autre.
+
+**Les apps qui ont ajouté une version Mac ne sont plus marquées « Non pris en charge sur ce Mac ».** Une app iPhone ou iPad que tu utilises sur Apple silicon était signalée à tort dès l'instant où son développeur publiait une véritable version Mac — le seul changement qui rend la mise à jour plus accessible, pas moins.
+
+**Une app de l'App Store que tu testes aussi en bêta n'est plus prise pour une version TestFlight.** Quand un développeur promouvait une bêta telle quelle, les deux portaient le même numéro de build et ta copie achetée était confiée à TestFlight — l'App Store ne pouvait donc jamais lui proposer de mise à jour.
+
+**Une mise à jour de l'App Store qui exige un macOS plus récent que le tien le dit désormais.** Avant, la rangée proposait quand même de l'installer et l'App Store refusait à la dernière étape, sans rien afficher pour expliquer pourquoi.
+
+**La fenêtre « Requêtes » indique désormais jusqu'où remonte réellement son journal, et signale les périodes qu'elle ne peut pas couvrir entièrement.** Avant, choisir « 30 derniers jours » sur un journal qui ne remontait qu'à quelques heures donnait exactement le même résultat que « Dernières 24 heures », sans rien à l'écran pour expliquer pourquoi.
+
+**Tu choisis ce que Duo Updater fait des bêtas TestFlight, dans Réglages → Général.** « À l'actualisation » lit ce que TestFlight sait déjà et lui demande une réponse fraîche quand tu appuies sur le bouton d'actualisation ; « Garder à jour » laisse en plus Duo Updater demander de lui-même, si bien qu'une bêta TestFlight installée en arrière-plan ne reste plus un point d'interrogation jusqu'à ta prochaine actualisation, et qu'un build qui t'attend ne passe plus inaperçu derrière un « à jour » ; « Désactivé » ne lit rien et l'indique sur ces rangées au lieu de deviner. Les Mac qui avaient déjà l'accès complet au disque démarrent sur « À l'actualisation », les autres sur « Désactivé ».
+
+**Ouvrir TestFlight toi-même suffit désormais à ce que Duo Updater remarque ce qu'il a installé.** Une bêta que tu installais via TestFlight restait un point d'interrogation jusqu'à l'actualisation suivante — et sur macOS 27, où l'avis « Prêt à tester » de TestFlight n'arrive plus pour les apps que tu as déjà, cela pouvait durer des heures.
+
+**Cline reçoit désormais ses mises à jour, sur sa version stable comme sur sa bêta, et affiche ses notes de version.** Jusqu'ici, sa rangée affichait un point d'interrogation au lieu d'une version : il ne publie aucun flux de mise à jour que Duo Updater sache lire, et il n'existe pas de paquet Homebrew pour lui. Duo Updater interroge maintenant la même adresse que l'outil de mise à jour de Cline, si bien que la mise à jour proposée est celle que Cline aurait installée lui-même, et la bêta reste sur la piste bêta.
+
+**Les notes de version qui regroupent les changements sous des titres comme « Added » ou « Fixed » conservent désormais ces titres.** Avant, tous les groupes étaient fondus en une seule liste, impossible de distinguer les nouveautés des corrections de bugs.
+
+**Mac Mouse Fix propose désormais ses bêtas si tu as activé « Get Beta Versions » dans ses propres réglages Général.** Avant, Duo Updater ne voyait que les versions ordinaires de Mac Mouse Fix, et une bêta passait inaperçue jusqu'à la publication de la version ordinaire suivante.
+
+**Les apps dont le numéro de build est un simple compteur ne masquent plus leurs propres versions correctives.** Pour une app annonçant une version comme 12.10 avec le build 282987, une version 12.10.1 se lisait comme « déjà à jour ».
+
+**Un nouveau build d'une app qui garde le même nom de version est de nouveau annoncé.** Une fois qu'un build avait été annoncé, tous les suivants portant ce nom arrivaient en silence — la rangée s'allumait, la pastille les comptait, mais aucune bannière n'arrivait jamais.
+
+**« Tout mettre à jour » ne compte plus que les apps réellement mises à jour.** Une app qui ouvre le programme d'installation d'Apple pour que tu termines était comptée comme faite alors que sa fenêtre était encore ouverte, si bien que « 2 apps ont été mises à jour » pouvait ne rien vouloir dire.
+
+**Une mise à jour qui a abouti mais a laissé un résidu est désormais signalée comme installée, et non par une demande de « Gestion des applications ».** La nouvelle version tournait déjà pendant que la rangée t'envoyait dans les Réglages Système.
+
+**Arrêter « Tout mettre à jour » arrête désormais le téléchargement en cours.** Avant, un transfert de plusieurs gigaoctets continuait jusqu'au bout, réessayait jusqu'à cinq fois, et ne s'apercevait qu'ensuite qu'il avait été annulé.
+
+**Les notes de version ne sont plus mélangées entre deux apps qui partagent une même page de changelog, et restent à jour après une mise à jour pour les apps dont les notes vivent sur une page par version.** Antigravity et Antigravity IDE pouvaient afficher les notes l'une de l'autre pendant un quart d'heure ; Thunderbird, WeChat, Opera et quelques autres continuaient un moment d'afficher les notes de la version précédente après la mise à jour.
+
+**La recherche dans la liste des apps ignore les accents, comme le faisait déjà la recherche des Réglages.** Taper « cafe » trouve maintenant « Café ».
+
+**La page « Diagnostic » affiche une ligne d'état par canal de publication.** Une règle bêta ou preview cassée se cachait jusqu'ici derrière sa voisine stable en bonne santé.
+
+**Une réponse « interdit » de GitHub n'est plus signalée comme une limite de requêtes.** Un dépôt devenu privé ou un jeton auquel il manque une autorisation t'incitait à ajouter un jeton qui n'aurait rien changé.
+
+**« Relancer » n'est plus proposé pour une app qui se met à jour elle-même quand le build en attente est plus ancien que celui qui tourne.**
+
+**Sous le capot.** Les installations, les sauvegardes et les vérifications de paquets ne monopolisent plus les ressources dont le reste de l'app a besoin : le menu reste réactif pendant l'une d'elles, et fluide pendant un gros téléchargement ; le « Journal des versions » compte toutes les publications qu'un éditeur livre sous un même nom de version ; une sauvegarde de restauration est refusée plutôt que conservée quand il lui manquerait l'exécutable de l'app ; le premier lancement sur un Mac neuf ne consigne plus d'erreurs de base de données sans objet ; `duo verify` et `duo reconcile` signalent désormais un changelog dont les entrées se sont effondrées et une adresse d'installation en échec depuis des jours ; une commande `duo` bloquée abandonne son analyse au bout de vingt secondes au lieu de rester suspendue.
+
 ## 0.3.92
 
 **Certaines apps qui se mettent à jour elles-mêmes ne semblent plus à jour alors qu'une version plus récente existe.** Pour les apps dont les informations de mise à jour se trouvent derrière un serveur de téléchargement lent à se rafraîchir, Duo Updater pouvait continuer à voir une version plus ancienne pendant des jours après une publication.

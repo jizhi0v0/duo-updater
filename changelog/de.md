@@ -2,6 +2,50 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.93
+
+**Versionshinweise erscheinen jetzt in deiner Sprache, wenn eine App sie in mehreren veröffentlicht.** Manche Apps liefern ihre Hinweise zu jeder Veröffentlichung übersetzt mit; Duo Updater nahm bisher einfach die Übersetzung, die die App zufällig zuerst oder zuletzt aufführte, sodass die Hinweise einer App für alle auf Deutsch erschienen und die einer anderen von Veröffentlichung zu Veröffentlichung die Sprache wechselten.
+
+**Apps, die eine Mac-Version nachgereicht haben, gelten nicht mehr als „Auf diesem Mac nicht unterstützt“.** Eine iPhone- oder iPad-App, die du auf Apple Silicon ausführst, wurde fälschlich genau in dem Moment so gekennzeichnet, in dem ihr Entwickler einen echten Mac-Build veröffentlichte — also durch die eine Änderung, die das Update verfügbarer macht statt weniger.
+
+**Eine App-Store-App, die du zugleich als Beta testest, wird nicht mehr für einen TestFlight-Build gehalten.** Gab ein Entwickler eine Beta unverändert frei, trugen beide dieselbe Build-Nummer, und deine gekaufte Kopie wurde TestFlight zugeordnet — der App Store konnte ihr also nie ein Update anbieten.
+
+**Ein App-Store-Update, das ein neueres macOS erfordert als das laufende, sagt das jetzt.** Bisher bot die Zeile die Installation trotzdem an, der App Store verweigerte sie im letzten Schritt, und nichts auf dem Bildschirm erklärte, warum.
+
+**Das Fenster „Anfragen“ zeigt jetzt, wie weit sein Protokoll tatsächlich zurückreicht, und kennzeichnet Zeiträume, die es nicht vollständig abdecken kann.** Bisher sah „Letzte 30 Tage“ bei einem Protokoll, das nur ein paar Stunden zurückreichte, genauso aus wie „Letzte 24 Stunden“, und nichts auf dem Bildschirm erklärte, warum.
+
+**Du entscheidest unter „Einstellungen“ → „Allgemein“, wie viel Duo Updater für TestFlight-Betas tut.** *Beim Aktualisieren* liest, was TestFlight ohnehin schon weiß, und fragt dort nach einer frischen Antwort, wenn du aktualisierst; *Aktuell halten* lässt Duo Updater auch von sich aus nachfragen, sodass eine im Hintergrund installierte TestFlight-Beta nicht mehr als Fragezeichen dasteht, bis du aktualisierst, und ein für dich bereitliegender Build nicht mehr hinter einem „aktuell“ übersehen wird; *Aus* liest nichts und sagt das in diesen Zeilen, statt zu raten. Macs mit bereits erteiltem Festplattenvollzugriff starten mit *Beim Aktualisieren*, alle anderen mit *Aus*.
+
+**Es genügt jetzt, TestFlight selbst zu öffnen, damit Duo Updater bemerkt, was dort installiert wurde.** Eine über TestFlight installierte Beta stand bisher als Fragezeichen da, bis du das nächste Mal aktualisiert hast — und unter macOS 27, wo TestFlights Hinweis „Ready to Test“ für bereits vorhandene Apps nicht mehr eintrifft, konnten das Stunden sein.
+
+**Cline bekommt jetzt Updates, sowohl für seine reguläre als auch für seine Beta-Version, und zeigt seine Versionshinweise.** Bisher stand in seiner Zeile ein Fragezeichen statt einer Version: Es liefert keinen Update-Feed aus, den Duo Updater lesen könnte, und ein Homebrew-Paket gibt es dafür nicht. Duo Updater fragt jetzt dieselbe Adresse ab wie Clines eigener Updater, sodass das angebotene Update genau das ist, das Cline selbst installiert hätte, und die Beta-Version bleibt auf der Beta-Linie.
+
+**Versionshinweise, die ihre Änderungen unter Überschriften wie „Added“ und „Fixed“ gruppieren, behalten diese Überschriften jetzt.** Bisher wurden alle Gruppen zu einer einzigen flachen Liste zusammengeführt, sodass nicht zu erkennen war, welche Änderungen neue Funktionen und welche Fehlerbehebungen waren.
+
+**Mac Mouse Fix bietet jetzt seine Beta-Veröffentlichungen an, wenn du in seinen eigenen Einstellungen unter „General“ die Option „Get Beta Versions“ eingeschaltet hast.** Bisher sah Duo Updater nur die regulären Veröffentlichungen von Mac Mouse Fix, sodass ein Beta-Build unbemerkt blieb, bis die nächste reguläre Version erschien.
+
+**Apps, deren Build-Nummer nur ein fortlaufender Zähler ist, verbergen ihre eigenen Korrekturversionen nicht mehr.** Bei einer App, die sich als Version 12.10 mit Build 282987 meldet, las sich eine Veröffentlichung 12.10.1 bisher als „bereits aktuell“.
+
+**Ein neuer Build einer App, die denselben Versionsnamen behält, wird wieder angekündigt.** War ein Build erst einmal angekündigt, kam jeder weitere unter diesem Namen still an — die Zeile leuchtete auf, die Zahl am Symbol zählte ihn mit, aber es erschien nie ein Banner.
+
+**„Alle aktualisieren“ zählt jetzt nur noch Apps, die tatsächlich aktualisiert wurden.** Eine App, die zum Abschluss Apples Installationsprogramm öffnet, galt bisher schon als erledigt, während dessen Fenster noch offen war — „2 Apps wurden aktualisiert“ konnte also bedeuten, dass sich noch gar nichts geändert hatte.
+
+**Ein Update, das angekommen ist, aber einen Rest hinterlassen hat, wird jetzt als installiert gemeldet statt mit der Aufforderung, „App-Verwaltung“ zu erteilen.** Die neue Version lief bereits, während die Zeile dich in die Systemeinstellungen schickte.
+
+**„Alle aktualisieren“ abzubrechen, bricht jetzt auch den laufenden Download ab.** Bisher lief eine mehrere Gigabyte große Übertragung bis zum Ende weiter, versuchte es bis zu fünfmal erneut und bemerkte erst dann, dass sie abgebrochen worden war.
+
+**Versionshinweise werden nicht mehr zwischen zwei Apps verwechselt, die sich eine Changelog-Seite teilen, und bleiben nach einem Update aktuell, wenn die Hinweise einer App auf einer eigenen Seite pro Version liegen.** Antigravity und Antigravity IDE konnten eine Viertelstunde lang die Hinweise der jeweils anderen zeigen; Thunderbird, WeChat, Opera und einige andere zeigten nach einem Update noch eine Weile die Hinweise der vorherigen Version.
+
+**Die Suche in der App-Liste ignoriert jetzt Akzente, so wie die Suche in den Einstellungen es schon tat.** Die Eingabe „cafe“ findet jetzt „Café“.
+
+**Die Seite „Diagnose“ führt jetzt eine Zustandszeile pro Release-Kanal auf.** Eine kaputte Beta- oder Preview-Regel blieb bisher hinter ihrem gesunden stabilen Gegenstück verborgen.
+
+**Eine „Forbidden“-Antwort von GitHub wird nicht mehr als Ratenbegrenzung gemeldet.** Bei einem Repository, das auf privat gestellt wurde, oder einem Token ohne die nötige Berechtigung wurdest du bisher dazu gedrängt, ein Token zu hinterlegen, das gar nicht geholfen hätte.
+
+**„Neu starten“ wird nicht mehr für eine sich selbst aktualisierende App angeboten, deren bereitliegender Build älter ist als der laufende.**
+
+**Unter der Haube.** Installationen, Sicherungen und Paketprüfungen belegen nicht mehr die Threads, auf denen der Rest der App läuft, sodass das Menü währenddessen bedienbar bleibt; auch während eines großen Downloads bleibt das Menü flüssig; das Release-Protokoll zählt jede Veröffentlichung mit, die ein Anbieter unter einem Versionsnamen herausgibt; eine Rollback-Kopie wird abgelehnt statt gespeichert, wenn darin das Programm der App selbst fehlen würde; der erste Start auf einem frischen Mac schreibt keine irreführenden Datenbankfehler mehr ins Protokoll; `duo verify` und `duo reconcile` melden jetzt auch ein Changelog, dessen Einträge in sich zusammengefallen sind, und eine Installationsadresse, die seit Tagen fehlschlägt; ein hängender `duo`-Befehl bricht seine Suche nach zwanzig Sekunden ab, statt stehen zu bleiben.
+
 ## 0.3.92
 
 **Manche Apps, die sich selbst aktualisieren, sehen nicht mehr aktuell aus, während schon eine neuere Version vorliegt.** Bei Apps, deren Update-Informationen hinter einem träge aktualisierten Download-Server liegen, konnte Duo Updater nach einer Veröffentlichung noch tagelang eine ältere Version sehen.

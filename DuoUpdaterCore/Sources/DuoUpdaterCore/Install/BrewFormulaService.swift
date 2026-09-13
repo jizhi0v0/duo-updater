@@ -422,9 +422,21 @@ public actor BrewFormulaService {
         try await run(["upgrade", "--formula", name], onOutput: onOutput)
     }
 
-    /// Shared streaming runner for the `brew upgrade …` variants above.
+    /// Update Homebrew itself (`brew update`), with the user's shell-exported
+    /// `HOMEBREW_*` variables (`HomebrewSelfUpdateCheck.Outcome.environment`) so it
+    /// updates the way their terminal would — e.g. to `main` rather than to a tag
+    /// when `HOMEBREW_DEVELOPER` is set only in their shell.
+    public func updateHomebrew(
+        environment: [String: String],
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        try await run(["update"], environment: environment, onOutput: onOutput)
+    }
+
+    /// Shared streaming runner for the `brew upgrade …` / `brew update` variants above.
     private func run(
         _ arguments: [String],
+        environment extra: [String: String] = [:],
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
         guard let brew = HomebrewInstaller.brewPath() else { throw BrewError.brewNotFound }
@@ -437,6 +449,7 @@ public actor BrewFormulaService {
         // refresh first is correct — it's what a terminal `brew upgrade` does, and
         // it ensures we land the genuine latest even if the pre-count was stale.
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
+        env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
         process.environment = env

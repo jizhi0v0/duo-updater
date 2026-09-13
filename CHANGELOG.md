@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.94
+
+**Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from Duo Updater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.
+
+**Apps that need an administrator password to update themselves are no longer updated twice.** When an app like Tailscale had already downloaded its own update and was waiting for a restart, Duo Updater couldn't see it and still offered Update, which could collide with the app's own installer. The row now offers Relaunch instead, and Update All leaves it alone.
+
+**The Homebrew section can now update Homebrew itself.** When a new Homebrew release is out, a row at the top offers to run `brew update` for you. It stays hidden if you've set `HOMEBREW_NO_AUTO_UPDATE`.
+
+**A failed Homebrew upgrade now shows brew's actual error.** The row used to show the advice brew prints after the error, or nothing at all, so a message like "your Command Line Tools are too outdated" never reached you. Upgrading several packages at once also no longer reports finishing before it has.
+
+**The menu bar icon counts past 50.** With more than 50 updates waiting, it used to stay at 50.
+
+**Release notes: Claude's are grouped into New, Improved and Fixed, the way Claude itself shows them; Mac Mouse Fix's appear as text instead of an embedded page; and Homebrew's own app now has notes.**
+
+**`duo check` no longer says "Everything is up to date." when it couldn't actually check.** It now says so when it couldn't read TestFlight or when the app scan was abandoned.
+
 ## 0.3.93
 
 **Release notes now show up in your own language when an app publishes them in several.** Some apps ship their notes translated alongside each release; Duo Updater used to take whichever translation the app happened to list first or last, so one app's notes read in German for everyone and another's changed language from one release to the next.

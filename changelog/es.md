@@ -2,6 +2,22 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.94
+
+**Los paquetes de Homebrew de taps en los que no confías vuelven a aparecer.** Desde Homebrew 6, brew omite en silencio los paquetes de taps sin confianza al listar lo instalado, así que desaparecían de Duo Updater sin explicación. Ahora aparecen como «Sin comprobar · tap sin confianza», con el comando `brew trust` listo para copiar, y en cuanto lo ejecutas (o una actualización) en Terminal, la ventana se pone al día al volver a ella.
+
+**Las apps que necesitan contraseña de administrador para actualizarse ya no se actualizan dos veces.** Cuando una app como Tailscale ya había descargado su propia actualización y esperaba un reinicio, Duo Updater no lo veía y seguía ofreciendo Actualizar, lo que podía chocar con el instalador de la propia app. Ahora la fila ofrece Reabrir, y Actualizar todo la deja en paz.
+
+**La sección de Homebrew ahora puede actualizar el propio Homebrew.** Cuando sale una nueva versión de Homebrew, una fila en la parte superior ofrece ejecutar `brew update` por ti. Si has definido `HOMEBREW_NO_AUTO_UPDATE`, no aparece.
+
+**Una actualización de Homebrew fallida ahora muestra el error real de brew.** Antes la fila mostraba el consejo que brew imprime después del error, o nada, así que un mensaje como «tus Command Line Tools están demasiado desactualizadas» nunca te llegaba. Además, actualizar varios paquetes a la vez ya no da por terminado el proceso antes de tiempo.
+
+**El icono de la barra de menús cuenta más allá de 50.** Con más de 50 actualizaciones pendientes, antes se quedaba en 50.
+
+**Notas de la versión: las de Claude se agrupan en New, Improved y Fixed, igual que en el propio Claude; las de Mac Mouse Fix se muestran como texto en lugar de una página incrustada; y la app oficial de Homebrew ya tiene notas.**
+
+**`duo check` ya no dice «Everything is up to date.» cuando en realidad no pudo comprobar.** Ahora avisa cuando no pudo leer TestFlight o cuando se abandonó el análisis de apps.
+
 ## 0.3.93
 
 **Las notas de versión ahora aparecen en tu idioma cuando una app las publica en varios.** Algunas apps publican sus notas traducidas junto a cada versión; Duo Updater tomaba la traducción que la app listara primero o última, así que las notas de una app se leían en alemán para todo el mundo y las de otra cambiaban de idioma de una versión a la siguiente.

@@ -50,7 +50,7 @@ import Foundation
 private func catalog(with entry: CaskEntry, appFilename: String) -> HomebrewCaskCatalog {
     HomebrewCaskCatalog(testIndex: CaskIndex(
         byAppFilename: [appFilename.lowercased(): entry],
-        byBundleID: [:]
+        allByBundleID: [:]
     ))
 }
 

@@ -56,13 +56,23 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 say "Verifying signature identity"
 "$REPO/scripts/verify-signature.sh" "$PRODUCT" "$TEAM"
 
-# Replace in place rather than rm-then-copy: a grant follows the path, and an
-# unlink briefly leaves that path empty. `cp` over the existing inode keeps the
-# entry the TCC record refers to.
+# Copy beside the destination, then rename over it -- never `cp` onto it. The
+# kernel caches a binary's signature per file and does not flush that cache when
+# the contents are rewritten in place, so a `cp` over a copy that is still
+# running leaves every later launch killed with "Code Signature Invalid" while
+# `codesign -v` calls the file valid; a new file clears it without a restart. Apple:
+# https://developer.apple.com/documentation/security/updating-mac-software
+# The rename also keeps the path from ever being empty, which is what an
+# rm-then-copy would get wrong: a grant follows the path. The system TCC.db
+# `access` table keys a grant by client path plus csreq and has no inode column
+# (schema read 2026-09-13). That a grant survives the rename is inferred from
+# that, not tested: there was no App Management grant on this path to test with.
 say "Installing to $DEST"
 mkdir -p "$LIBEXEC" "$BIN"
-cp -f "$PRODUCT" "$DEST"
-chmod 755 "$DEST"
+TMP="$(mktemp "$DEST.XXXXXX")"
+cp -f "$PRODUCT" "$TMP"
+chmod 755 "$TMP"
+mv -f "$TMP" "$DEST"
 ln -sf "$DEST" "$LINK"
 
 codesign --verify --strict "$DEST" 2>/dev/null \

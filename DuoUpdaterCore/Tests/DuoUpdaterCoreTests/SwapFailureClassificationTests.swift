@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Testing
 @testable import DuoUpdaterCore
 
@@ -212,6 +213,65 @@ import Testing
             Issue.record("expected a cleanup-failure outcome, got \(outcome)")
         }
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/new").path))
+    }
+
+    /// Every caller discards the `SwapOutcome` (both installers through
+    /// `offCooperativePool`, the rollback directly), so the log line `replace`
+    /// writes in its `defer` is the ONLY place the cleanup-failure reason goes —
+    /// the displaced bundle it could not delete, left in `/Applications`. This
+    /// reads that line back out of the unified log for this process, and checks it
+    /// carries the reason the outcome carried, not just that something was logged.
+    ///
+    /// The bundle name is unique per run because the other cleanup-failure tests
+    /// in this suite write the same shape of line from the same process.
+    @Test func aCleanupFailureReasonReachesTheInstallLog() async throws {
+        let fm = FileManager.default
+        let scratch = try scratch()
+        defer {
+            _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
+            try? fm.removeItem(at: scratch)
+        }
+        let name = "ZZFixture-CleanupLog-\(UUID().uuidString).app"
+        let target = scratch.appendingPathComponent(name)
+        let incoming = scratch.appendingPathComponent("ZZFixture-CleanupLogNew.app")
+        for (bundle, marker) in [(target, "old"), (incoming, "new")] {
+            try fm.createDirectory(
+                at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+            try Data(marker.utf8).write(to: bundle.appendingPathComponent("Contents/\(marker)"))
+        }
+        let stubborn = target.appendingPathComponent("Contents/pinned")
+        try Data("pinned".utf8).write(to: stubborn)
+        #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
+
+        let store = try OSLogStore(scope: .currentProcessIdentifier)
+        let start = store.position(date: Date().addingTimeInterval(-1))
+        let outcome = try InPlaceSwap.replace(newApp: incoming, over: target)
+        guard case .replacedButCleanupFailed(let reason) = outcome else {
+            Issue.record("fixture broken: expected a cleanup-failure outcome, got \(outcome)")
+            return
+        }
+        #expect(!reason.isEmpty)
+
+        let predicate = NSPredicate(
+            format: "subsystem == %@ AND category == %@", Log.subsystem, "install")
+        // Bounded retries, not a deadline: delivery into the store is asynchronous,
+        // and nothing here asserts on how long it took. It stops at the `defer`'s
+        // line whichever of its three shapes that is, so a regression that logs
+        // "swap done" instead fails on the first read rather than after every retry.
+        // (Each read measured at 2–8 s locally: opening the store is the cost.)
+        let completion = ["swap done: \(name)", "cleanup failed", "swap did NOT"]
+        var lines: [String] = []
+        for _ in 0..<20 {
+            lines = try store.getEntries(at: start, matching: predicate)
+                .compactMap { ($0 as? OSLogEntryLog)?.composedMessage }
+                .filter { $0.contains(name) }
+            if lines.contains(where: { line in completion.contains { line.contains($0) } }) { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        #expect(lines.contains { $0.contains("swap start: \(name)") },
+                "fixture broken: not even the swap-start line was read back — \(lines)")
+        #expect(lines.contains { $0.contains("cleanup failed") && $0.contains(reason) },
+                "the cleanup-failure reason never reached the install log — \(lines)")
     }
 
     // MARK: - Helpers

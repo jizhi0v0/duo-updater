@@ -17,8 +17,25 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   by mounting the dmg…"）、事故时间线、实测数字、否决方案和它的实验、"2026-xx 查过：没有
   changelog 页"。**（c）**：对照**当前代码**（不是对照日期）已经不成立的——改正或删掉，
   理由写进 PR，**不许当成真话搬进历史**。
-- **以句子为单位，不改写。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；
-  契约和实测缠在同一句、拆开就得改写的，整句留下。拆开处只补标点。
+- **以句子为单位。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；契约和实测
+  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面四条先于它：
+  - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
+    "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
+    时可以改（记账 diff 里逐条可见），历史里保留原段落全文；整句原样放回代码的，从历史里删掉，
+    一句话只住一处。
+  - **更正跟着它更正的说法走。** 注释写着"X 以前成立、现在不成立"时，在同一个 PR 里把代码里
+    （以及复述它的测试注释里）的旧说法改掉，不许只把更正搬走、把旧说法留下。反例：第一版把
+    CapCut「`capcutpc_beta` 的坑已不存在」那段搬进历史，代码和 `CapCutProbeRecipeTests` 里剩下的
+    却是 "TRAP" 和 "returns NOTHING here"。
+  - **"错改今天也能过"的警告留下。** Windscribe 的 "Adding an alternation there looks like it
+    works — today it returns 2.24.12"、"so the bug would look like a pass"。
+  - **（c）类改写是新断言。** 它要的证据和任何新断言一样：注释里点出让它成立的符号，PR 里给
+    file:line，并写明成立条件。反例：第一版 Windscribe 写"`duo verify` files an installed copy
+    under its resolved channel"，没写读不到偏好时（文件缺失、解不出、resolver 超时）那份拷贝仍按
+    stable 归档。
+- **搬完单独重读 Swift 文件。** 不看历史、只读留下的注释：每句仍为真（留下的 "today"、"which it
+  is today" 也要核——CapCut 那句 "stable is 9.3.0 — which it is today" 在重读时已经不成立），
+  没有悬空的 "see below"、"that"、"the question"。
 - **接收位置**：`docs/app-audits/<family>.md` 末尾的固定标题 `## 历史与实测`（逐字，
   `scripts/check_app_audits.py` 认这一整行）。`<family>` 是 recipe 文件名去掉 `.swift`，
   一个 family 一份——family 里另一个 app 有自己的审计时也一样，历史进 family 那份，
@@ -29,7 +46,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。
 - **机器状态**：本目录的 `MACHINE_STATE` 规则同样管搬过来的句子。描述"那台机器装了/没有什么"
   的句子改成针对那份拷贝的说法（"the machine measured on 2026-08-27 had …"），不加豁免。这是
-  唯一允许的改写，PR 里逐条列出。
+  历史正文里唯一允许的改写，PR 里逐条列出。
 - **代码里的回链**：恰好一行 `// History: docs/app-audits/<family>.md#历史与实测`，放在 family
   第一个注释块的开头，或它关心的那条 entry 正上方。
 - **还没有审计的 family**：新建仅含历史的文档——标题、一句"这不是审计，覆盖情况未审"、

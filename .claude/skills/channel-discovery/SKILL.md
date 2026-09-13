@@ -60,7 +60,9 @@ recall.
 **1a. What we ALREADY cover (to subtract, not re-investigate):**
 ```bash
 # Channels already wired — skip these
-grep -rn "channel:" DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/   # probes + GitHub rules + changelogs, one file per family
+# `channel:` lines of VendorProbe recipes and GitHub rules, one file per family under Recipes/
+# (skips the changelogs:/proof/catalog sections; helpers after the set are included)
+awk 'FNR==1{off=0} FILENAME ~ /AppRecipe(Set|Index)\.swift$/{nextfile} /^        (changelogs|appStoreCases|channelProofs|githubChannelProofs|bindingProofs|sparkleFeeds|supersededFeeds|changelogPages): \[$/{off=1} /^        (probes|githubRules): \[$/{off=0} /^    [^ ]/{off=0} !off && /channel:/{print FILENAME":"FNR": "$0}' DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift
 ls DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/*Channel*.swift   # ChannelBinding resolvers
 # Already-investigated verdicts (A/B/C/D, incl. the ✗ dead-ends — DON'T redo these)
 sed -n '/^## /p' CHANNEL_COVERAGE_TODO.md 2>/dev/null || echo "(ledger missing — rebuild §1 from code below; it's the only authoritative source)"

@@ -100,8 +100,9 @@ private let installed = [
 }
 
 /// The scan's timeout is the only thing standing between `duo list/check/install/
-/// restart/backups/doctor/ignore` and a permission wall nobody can answer: the
-/// `open()` behind macOS's app-data gate never returns on a headless runner.
+/// restart/backups/doctor/ignore` and a read that never returns. It was written
+/// for the `open()` behind macOS's app-data gate, which never returned on a
+/// headless runner; see `BoundedScan` for why that is no longer the known cause.
 ///
 /// ⚠️ Written as a real wedge — a scan that never returns — because the shape of
 /// the bug was that the timeout PRINTED on time and the command hung anyway.
@@ -119,24 +120,41 @@ private let installed = [
         defer { release.signal() }
 
         let started = Date()
-        let scanned = await Inventory.scan(timeout: .milliseconds(200)) {
+        let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
             release.wait()
             return []
         }
         let elapsed = Date().timeIntervalSince(started)
 
-        #expect(scanned.isEmpty)
+        #expect(scanned == nil)
         // Generous: the assertion is "it came back", not a wall-clock bound —
         // a 3-core runner is not a stopwatch. The unfixed code never returns at
         // all, so any finite time distinguishes it.
         #expect(elapsed < 20, "returned after \(elapsed)s — the timeout did not abandon the scan")
     }
 
+    /// Every command needs "gave up" apart from "found nothing": the first must not
+    /// be reported as an empty Mac (`AbandonedScanOutputTests`).
+    ///
+    /// Mutation: have `scanIfFinished(timeout:_:)` return `[]` on a timeout.
+    @Test func anAbandonedScanIsNilNotEmpty() async {
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let abandoned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
+            release.wait()
+            return []
+        }
+        #expect(abandoned == nil)
+
+        let empty = await Inventory.scanIfFinished(timeout: BoundedScan.timeout, detection: .off) { _ in [] }
+        #expect(empty?.isEmpty == true)
+    }
+
     /// …and the ordinary case still hands back what the scan found, rather than
     /// the empty list the timeout produces.
     @Test func aScanThatFinishesIsReturned() async {
-        let scanned = await Inventory.scan(timeout: BoundedScan.timeout) { installed }
-        #expect(scanned.map(\.name) == installed.map(\.name))
+        let scanned = await Inventory.scanIfFinished(timeout: BoundedScan.timeout, detection: .off) { _ in installed }
+        #expect(scanned?.map(\.name) == installed.map(\.name))
     }
 
     /// The sweep's copy of this primitive read only `components.seconds`, which

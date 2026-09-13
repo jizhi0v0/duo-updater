@@ -4,45 +4,152 @@ import DuoUpdaterCore
 /// Scanning and checking, shared by `duo list` and `duo check`.
 public enum Inventory {
 
+    /// Whether `duo` may read TestFlight's store at all: the menu-bar app's rule
+    /// (`AppListModel.performRefresh`'s `mayReadTestFlight`), detection on AND
+    /// Full Disk Access admitting another app's data.
+    ///
+    /// **Why not just try.** Without the grant the read cannot succeed, and trying
+    /// is not free: the app stopped attempting it because on macOS 27 a refused
+    /// read posts a "Data Access Blocked" notice (`TCCPreflight.admitsOtherAppsData`,
+    /// README). Measured 2026-09-13 on 27.0 with `duo list` started directly by
+    /// launchd: the attempt reached `tccd` as a
+    /// `kTCCServiceSystemPolicyAppDataDetailed` request attributed to
+    /// `com.duoupdater.cli` and was denied; a `stat` of the same path reached `tccd`
+    /// not at all. `.unknown` still reads, as it does for a refresh the user asked
+    /// for — a `duo` command is one.
+    ///
+    /// Pure, so the rule is testable; the live status is `fullDiskAccess` below.
+    static func readsTestFlight(
+        _ detection: TestFlightDetection, fullDiskAccess: @autoclosure () -> TCCAuthStatus
+    ) -> Bool {
+        detection.readsStore && TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess())
+    }
+
+    /// This process's Full Disk Access, asked once — lazily, so a run with
+    /// detection off never opens the probe's files.
+    ///
+    /// Once, not per read, because the scan and the checker each decide whether to
+    /// read the store, and they must decide the same way within a run (see
+    /// `testFlightStore`); a grant arriving between the two would otherwise tag
+    /// betas the checker then cannot answer. `duo check` also names this status as
+    /// the reason in its note, so the note and the decision cannot disagree either.
+    ///
+    /// **The probe has its own bound** (`fullDiskAccess(within:probe:)`). A probe
+    /// that never returns — one of `FullDiskAccessProbe`'s opens, or the preflight
+    /// SPI — would otherwise hang `duo` wherever this is first touched, bound or
+    /// no bound: outside the scan's bound it is simply unbounded, and inside it the
+    /// `static let`'s one-time lock makes every later access wait on the abandoned
+    /// thread. A timeout reads as not granted, so nothing reads TestFlight — and a
+    /// note then names Full Disk Access although the probe, not the grant, is what
+    /// failed. The wait is on the first caller's thread, bounded, not off the pool.
+    ///
+    /// Still never touch this inside a bounded closure: `boundedRead` decides on the
+    /// caller's thread and hands its body a `Bool`, and
+    /// `InventoryTestFlightReadTests` lists every file that names this property.
+    static let fullDiskAccess: TCCAuthStatus = fullDiskAccess(
+        within: .seconds(5), probe: { TCCPreflight.fullDiskAccessStatus() })
+
+    /// The bounded probe behind `fullDiskAccess`, with the probe passed in so a test
+    /// can stall it. Five seconds, as for the TestFlight store's own open: the
+    /// probe is a handful of local opens, so anything near that is a wall, not a
+    /// slow disk.
+    static func fullDiskAccess(
+        within timeout: Duration, probe: @escaping @Sendable () -> TCCAuthStatus
+    ) -> TCCAuthStatus {
+        BoundedScan.blockingResult(within: timeout, probe) ?? .notDetermined
+    }
+
     /// TestFlight's store, or the sentinel that stands for "not read", according to
-    /// the user's setting. One function so the scan and the checker cannot disagree
+    /// `readsTestFlight`. One function so the scan and the checker cannot disagree
     /// about it within a single run — a scan that read it would tag wrapped
     /// iPhone/iPad betas as TestFlight rows (#456) that the checker then had no
     /// store to answer.
-    static func testFlightStore(_ settings: Settings) -> TestFlightInventory {
-        settings.testFlightDetection.readsStore
-            ? TestFlightInventory()
-            : TestFlightInventory(macRows: [], accessible: false)
+    ///
+    /// Takes the decision rather than making it, so it can be called inside a bound
+    /// without consulting `fullDiskAccess` there. `open` is the live read, passed in
+    /// so a test can count opens: a sentinel and a refused read look identical from
+    /// outside (both `accessible == false`), so only the count tells them apart.
+    static func testFlightStore(
+        reads: Bool, open: () -> TestFlightInventory = { TestFlightInventory() }
+    ) -> TestFlightInventory {
+        reads ? open() : TestFlightInventory(macRows: [], accessible: false)
     }
 
-    public static func scan(_ settings: Settings) async -> [InstalledApp] {
+    /// TestFlight's notifications, or the "not read" sentinel, by the same rule as
+    /// `testFlightStore`. Separate because `duo check` needs to know, after the
+    /// check, whether each of the two reads got in (`Check.testFlightGap`). The app
+    /// does not read this one without the store either: it only ever qualifies
+    /// what the store says, and it sits in another app's container too.
+    static func testFlightAnnouncements(
+        reads: Bool, open: () -> TestFlightAnnouncements = { TestFlightAnnouncements() }
+    ) -> TestFlightAnnouncements {
+        reads ? open() : TestFlightAnnouncements(announcements: [], accessible: false)
+    }
+
+    /// Run `body` under `BoundedScan`'s bound, telling it whether this run reads
+    /// TestFlight — decided HERE, on the caller's thread, before the bound starts.
+    ///
+    /// `fullDiskAccess` is an autoclosure, and autoclosures cannot escape, so the
+    /// compiler refuses to evaluate it inside `body`: the decision cannot drift
+    /// into the thread the bound may abandon. That is not what stops a stalled
+    /// probe from hanging `duo` — the probe's own bound does (see `fullDiskAccess`).
+    /// Every bounded scan in `duo` goes through here; `InventoryTestFlightReadTests`
+    /// checks that nothing else calls `BoundedScan.result`.
+    static func boundedRead<T: Sendable>(
+        _ detection: TestFlightDetection,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        within timeout: Duration,
+        _ body: @escaping @Sendable (_ readsTestFlight: Bool) -> T
+    ) async -> T? {
+        let reads = readsTestFlight(detection, fullDiskAccess: fullDiskAccess())
+        return await BoundedScan.result(within: timeout) { body(reads) }
+    }
+
+    /// The installed apps, or nil when the scan was given up on.
+    ///
+    /// **Nil, never an empty list — and there is deliberately no `[]` spelling.**
+    /// There was one (`scan`, returning `[]` on a timeout), and every command that
+    /// took it turned "nothing was looked at" into a claim about the Mac:
+    /// `check` said "Everything is up to date.", `list` "No apps found.", a named
+    /// app "no installed app matches", `install --all` "Nothing to install.",
+    /// `doctor` "✓ every app can be copied", `backups list` filed every backup as
+    /// belonging to nothing installed. Removing it makes each caller decide what an
+    /// abandoned scan means for what it prints; `select` takes the optional for the
+    /// shared case.
+    static func scanIfFinished(_ settings: Settings) async -> [InstalledApp]? {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await scan(timeout: BoundedScan.timeout) {
+        return await scanIfFinished(
+            timeout: BoundedScan.timeout, detection: settings.testFlightDetection
+        ) { reads in
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
             // the timeout exists to race — so it has to be INSIDE this closure.
             // It used to be, invisibly: `AppScanner`'s `testflight:` default was
             // evaluated at the call site. Naming it explicitly one line further
             // out reads identically and quietly moves the one blocking call out
-            // from under the only thing bounding it.
+            // from under the only thing bounding it. Whether to open it is
+            // decided outside (`boundedRead`); only the open happens in here.
             AppScanner(
-                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan()
+                extraLocations: extraLocations, testflight: testFlightStore(reads: reads)).scan()
         }
     }
 
-    /// The bounded scan, with the scanner passed in so a test can wedge it.
-    /// `BoundedScan` holds the thread-and-timeout half and the reasons for it;
-    /// what belongs here is only what `duo` should say when the scan is given up
-    /// on, which is not what the sweep says about the same event.
-    static func scan(
-        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
-    ) async -> [InstalledApp] {
-        guard let scanned = await BoundedScan.result(within: timeout, body) else {
-            FileHandle.standardError.write(Data("""
-                duo: the app scan did not finish within \(timeout). This is almost always \
-                the TestFlight database waiting on an "access data from other apps" \
-                prompt — grant it once in System Settings ▸ Privacy & Security.\n
-                """.utf8))
-            return []
+    /// The bounded scan, with the scanner passed in so a test can wedge it; nil
+    /// when it was given up on. `BoundedScan` holds the thread-and-timeout half and
+    /// the reasons for it; what belongs here is only what `duo` should say when the
+    /// scan is given up on, which is not what the sweep says about the same event.
+    /// Everything after that line is the caller's, and "(see above)" in their
+    /// output points here.
+    static func scanIfFinished(
+        timeout: Duration, detection: TestFlightDetection,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        _ body: @escaping @Sendable (_ readsTestFlight: Bool) -> [InstalledApp]
+    ) async -> [InstalledApp]? {
+        guard let scanned = await boundedRead(
+            detection, fullDiskAccess: fullDiskAccess(), within: timeout, body
+        ) else {
+            FileHandle.standardError.write(Data(
+                "duo: \(BoundedScan.gaveUpMessage(after: timeout)).\n".utf8))
+            return nil
         }
         return scanned
     }
@@ -51,10 +158,17 @@ public enum Inventory {
     /// difference between `duo check` and the app is a bug rather than a
     /// configuration difference.
     ///
-    /// `testflight`/`toolbox`/`appStoreSignedIn` default to a fresh real read; the
-    /// pre-install re-check (`Install.apply`) passes in the TestFlight-free
-    /// sentinel and the single `ToolboxInventory` it built once for the whole
-    /// batch — see that function's doc comment (#404 review #8).
+    /// `testflight`/`toolbox` default to a fresh real read; the pre-install
+    /// re-check (`Install.apply`) passes in the TestFlight-free sentinel and the
+    /// single `ToolboxInventory` it built once for the whole batch — see that
+    /// function's doc comment (#404 review #8).
+    ///
+    /// App Store sign-in is read only when the TestFlight store was, as the app
+    /// does (`AppListModel`'s recheck: `testflight.accessible ? AppStoreSignIn…`).
+    /// It only ever refuses a TestFlight verdict, a store not read already gives
+    /// none, and `Accounts4.sqlite` is behind Full Disk Access too (measured
+    /// 2026-09-13: `EPERM` from a `launchctl submit` job). `appStoreSignIn` is the
+    /// read, passed in so a test can count it without touching the host's database.
     /// `testflight`/`announcements` default to nil rather than to a live read, so
     /// the read can be resolved from `settings` — a default argument is evaluated at
     /// the call site and cannot see the parameter it would have to consult. Passing
@@ -64,12 +178,12 @@ public enum Inventory {
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
         toolbox: ToolboxInventory = ToolboxInventory(),
-        appStoreSignedIn: Bool? = AppStoreSignIn.isSignedIn()
+        appStoreSignIn: () -> Bool? = { AppStoreSignIn.isSignedIn() }
     ) -> UpdateChecker {
-        let reads = settings.testFlightDetection.readsStore
-        let testflight = testflight ?? testFlightStore(settings)
-        let announcements = announcements
-            ?? (reads ? TestFlightAnnouncements() : TestFlightAnnouncements(announcements: [], accessible: false))
+        let reads = { readsTestFlight(settings.testFlightDetection, fullDiskAccess: Inventory.fullDiskAccess) }
+        let testflight = testflight ?? testFlightStore(reads: reads())
+        let announcements = announcements ?? testFlightAnnouncements(reads: reads())
+        let appStoreSignedIn = testflight.accessible ? appStoreSignIn() : nil
         return UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,
@@ -93,9 +207,19 @@ public enum Inventory {
     /// An ambiguous prefix is an error, never a guess: these arguments go on to
     /// name something we will replace on disk, and picking the "obvious" one of
     /// two Visual Studio Codes is how the wrong app gets overwritten.
+    ///
+    /// `apps` is nil when the scan was abandoned. Naming an app then fails without
+    /// claiming it is not installed — nothing was looked at, so duo cannot tell —
+    /// and naming none selects nothing, leaving the caller to say why its result is
+    /// empty.
     public static func select(
-        _ apps: [InstalledApp], matching queries: [String]
+        _ apps: [InstalledApp]?, matching queries: [String]
     ) -> Result<[InstalledApp], SelectionFailure> {
+        guard let apps else {
+            guard let query = queries.first else { return .success([]) }
+            return .failure(SelectionFailure(description:
+                "can't tell whether '\(query)' is installed: the app scan was abandoned (see above)"))
+        }
         guard !queries.isEmpty else { return .success(apps) }
         var selected: [InstalledApp] = []
         for query in queries {

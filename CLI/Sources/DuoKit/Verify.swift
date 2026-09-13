@@ -1305,11 +1305,22 @@ public enum Verify {
     /// reachable through TestFlight. It stays because it is the last guard around
     /// everything *else* `scan()` touches — other apps' containers, network
     /// volumes, a stalled automount.
+    ///
+    /// The TestFlight store is read by `Inventory.readsTestFlight`'s rule, like every
+    /// other `duo` scan. `AppScanner()`'s default reads it unconditionally, and this
+    /// sweep is scheduled from launchd, where a job measured 2026-09-13 had no Full
+    /// Disk Access to inherit; whether the scheduled sweep's own reads were refused
+    /// was not measured. Only the detection setting is read
+    /// (`Settings.loadTestFlightDetection`), never `Settings.load()`: that also reads
+    /// the Keychain and may run `gh`, unbounded, which this sweep never did before.
     static func installedVersions() async -> [String: InstalledVersion] {
         let proofs = ResolvedChannelStore.Snapshot()
-        let scanned = await BoundedScan.result(within: BoundedScan.timeout) {
+        let scanned = await Inventory.boundedRead(
+            Settings.loadTestFlightDetection(), within: BoundedScan.timeout
+        ) { reads in
             var out: [String: InstalledVersion] = [:]
-            for app in AppScanner().scan() {
+            // Inside the closure: the store's open is what the bound races.
+            for app in AppScanner(testflight: Inventory.testFlightStore(reads: reads)).scan() {
                 guard let bundleID = app.bundleID else { continue }
                 // An app whose bundle cannot name its own channel scans as
                 // `.stable` no matter which train it is really on, so a copy of
@@ -1334,10 +1345,8 @@ public enum Verify {
         }
         guard let scanned else {
             FileHandle.standardError.write(Data("""
-                ⚠︎ the local app scan did not finish within \(BoundedScan.timeout) — continuing \
-                without the installed-copy cross-check.
-                  Usually means a privacy prompt nobody can answer (TestFlight's \
-                database is behind the app-data gate).\n
+                ⚠︎ \(BoundedScan.gaveUpMessage(after: BoundedScan.timeout)) — continuing \
+                without the installed-copy cross-check.\n
                 """.utf8))
             return [:]
         }

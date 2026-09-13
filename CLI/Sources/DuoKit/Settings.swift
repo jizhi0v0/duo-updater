@@ -57,6 +57,20 @@ public struct Settings: Sendable {
     public var githubToken: String?
     public var alcove: AlcoveUpdateSource.Credentials?
 
+    /// The TestFlight detection setting alone, for a caller that needs nothing
+    /// else: `load()` also reads three Keychain items and may run `gh auth token`,
+    /// which has no deadline and can wait on a prompt nobody answers — a cost
+    /// `duo verify`'s sweep must not pay just to learn this one value.
+    public static func loadTestFlightDetection() -> TestFlightDetection {
+        testFlightDetection(from: UserDefaults(suiteName: suiteName) ?? .standard)
+    }
+
+    /// One reading of the key, shared by `load()` and `loadTestFlightDetection()`.
+    static func testFlightDetection(from defaults: UserDefaults) -> TestFlightDetection {
+        defaults.string(forKey: UpdateSettings.testFlightDetectionKey)
+            .flatMap(TestFlightDetection.init(rawValue:)) ?? .off
+    }
+
     public static func load() -> Settings {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
 
@@ -86,8 +100,7 @@ public struct Settings: Sendable {
             // No key means the menu-bar app has never started on this Mac, so no
             // choice has been recorded (it writes one on first launch). `.off` is
             // the right reading for that: read nothing until somebody has said to.
-            testFlightDetection: defaults.string(forKey: UpdateSettings.testFlightDetectionKey)
-                .flatMap(TestFlightDetection.init(rawValue:)) ?? .off,
+            testFlightDetection: testFlightDetection(from: defaults),
             keepBackups: defaults.object(forKey: "KeepBackups") as? Bool ?? true,
             // Same ladder as the app: the token the user entered, else the
             // environment, else whatever `gh` is logged in as.

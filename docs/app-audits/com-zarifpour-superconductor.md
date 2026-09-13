@@ -61,7 +61,8 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - **所以排序读厂商自己的发布史**：recipe 声明 `buildLineage` → `changelog.json`（按日期倒序，一个已发布
   构建一条；lineage pattern 同样只取前 8 位，627 条的 8 位前缀互不相同）。引擎在
   `UpdateChecker.evaluate`、降级提示（`UpdatePolicy.laggingRemoteVersion`）、`duo verify` 的
-  `RecipeSanity.remoteBehindInstalled` 和 baseline 的「version went BACKWARDS」里都按 lineage 位置判断；
+  `RecipeSanity.remoteBehindInstalled` 里都按 lineage 位置判断（baseline 的「version went BACKWARDS」
+  不是按 lineage 判，是关掉，见「已知问题」）；
   预装前复查（`PreInstallGate`）判断「复查是否倒退」时同样按 lineage。lineage 放不下的组合记为一次
   **失败的检查**（带 Retry），不猜 —— 不用 `.unknown`，因为它在 UI 上显示成「没有来源覆盖这个 app」。
   拿不到 / 解析不出 lineage 时 probe 直接失败（`buildLineageUnavailable` / `buildLineagePatternNoMatch`，
@@ -128,7 +129,9 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - `RelaunchProgress.hasLanded` 仍用比较器，但当前走不到：它只在 `SelfUpdaterStaging` 识别出暂存更新时
   调用，而它不识别这个 app 的更新器。
 - `duo verify` 的两道历史检查（baseline 的「version went BACKWARDS」、changelog 落后于检测版本）对这个
-  recipe 是**关掉**而不是换成 lineage 版：hash 之间比不出先后。`latest.json` 只有一条，`versionPattern`
+  app 是**关掉**而不是换成 lineage 版：hash 之间比不出先后。baseline 那道要对 probe 和 changelog
+  **两条** recipe 都关：#579 就是只按 probe 的 recipe id 关了，`changelog:` 那条照样按数字段比，
+  把相邻的 `6148a7a2 → e9cb6e92`（新的在后）报成倒退。`latest.json` 只有一条，`versionPattern`
   滑到旧条目的风险低；但同样的字段用在多条目 feed 上时会继承这个缺口。
 - `RecipeSanity` 的「version contains no digits」对 lineage recipe 不适用（`deadbeef` 是合法的 hash），已跳过。
 

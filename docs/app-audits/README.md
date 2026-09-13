@@ -4,6 +4,42 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 > `P` = VendorProbe, `G` = GitHub, `C` = Changelog, `B` = ChannelBinding, `S` = Sparkle(auto)
 
+## 从 recipe 注释迁出的历史
+
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` 的注释只留**当前契约**；
+带日期的验证记录、事故经过、实测、否决过的方案搬进该 family 的审计文档。步骤与
+[`docs/engine-notes/README.md`](../engine-notes/README.md) 的
+「Checklist for migrating a comment here」相同——(a)/(b)/(c) 三类、搬之前复核、
+留回链、grep 副本、跑检查——**照那份清单走**，这里只写 recipe 这边的约定。
+
+- **留下（a）**：pattern 为什么这样锚、版本方案的坑、为什么不跟重定向、某个字段是什么意思、
+  下一个改它的人不知道就会改坏的东西。**搬走（b）**：带日期的验证记录（"Verified 2026-08-09
+  by mounting the dmg…"）、事故时间线、实测数字、否决方案和它的实验、"2026-xx 查过：没有
+  changelog 页"。**（c）**：对照**当前代码**（不是对照日期）已经不成立的——改正或删掉，
+  理由写进 PR，**不许当成真话搬进历史**。
+- **以句子为单位，不改写。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；
+  契约和实测缠在同一句、拆开就得改写的，整句留下。拆开处只补标点。
+- **接收位置**：`docs/app-audits/<family>.md` 末尾的固定标题 `## 历史与实测`（逐字，
+  `scripts/check_app_audits.py` 认这一整行）。`<family>` 是 recipe 文件名去掉 `.swift`，
+  一个 family 一份——family 里另一个 app 有自己的审计时也一样，历史进 family 那份，
+  需要时再链过去。
+- **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`，
+  下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
+  结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
+  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。
+- **机器状态**：本目录的 `MACHINE_STATE` 规则同样管搬过来的句子。描述"那台机器装了/没有什么"
+  的句子改成针对那份拷贝的说法（"the machine measured on 2026-08-27 had …"），不加豁免。这是
+  唯一允许的改写，PR 里逐条列出。
+- **代码里的回链**：恰好一行 `// History: docs/app-audits/<family>.md#历史与实测`，放在 family
+  第一个注释块的开头，或它关心的那条 entry 正上方。
+- **还没有审计的 family**：新建仅含历史的文档——标题、一句"这不是审计，覆盖情况未审"、
+  `## 历史与实测`。登记在下面索引的「仅迁出历史（未审计）」一节，**永远不打勾**；日后真审计了
+  再挪到对应分类。
+- **检查**：`check_app_audits.py` 要求每个回链指向 git 跟踪的文件、文件里有那一行标题、
+  `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
+  指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
+  审计新增行数）要回答的。
+
 ---
 
 ## Multi-channel families (audit covers all channels)
@@ -208,6 +244,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Raycast**](com-raycast-macos.md) · `com.raycast.macos` — `CFBundleVersion = 0`，不可用作比较
 - [x] [**QQ音乐**](com-tencent-QQMusicMac.md) · `com.tencent.QQMusicMac`
 - [x] [**VSCodium Insiders**](com-vscodium-VSCodiumInsiders.md) · `com.vscodium.VSCodiumInsiders`
+
+## 仅迁出历史（未审计）
+
+从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」）。
+这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。
 
 ## 非 app 文档
 

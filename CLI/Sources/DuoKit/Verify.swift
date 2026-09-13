@@ -1002,6 +1002,12 @@ public enum Verify {
     /// against it reads "the beta is ahead of stable" — the normal state of a beta
     /// — as a phantom release. That is #559: `utm` sat at 4.7.5 while the beta rule
     /// read 5.0.5, which `utm@beta` also shipped.
+    ///
+    /// Both directions go, not just the phantom one. "The stable cask is a whole
+    /// release ahead, so the probe is stuck" is no sounder across channels: an ESR
+    /// sits a major behind stable on purpose (`thunderbird` 155 against ESR 140 in
+    /// the same catalog). So a non-stable recipe with no cask of its own — CapCut's
+    /// beta beside the plain `capcut` — is not cross-checked at all.
     static func caskIndex(for channel: ReleaseChannel, amongTokens tokens: [String]) -> Int? {
         guard channel != .stable else { return tokens.isEmpty ? nil : 0 }
         return tokens.firstIndex { $0.hasSuffix("@\(channel.rawValue)") }

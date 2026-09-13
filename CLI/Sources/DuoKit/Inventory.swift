@@ -15,9 +15,27 @@ public enum Inventory {
             : TestFlightInventory(macRows: [], accessible: false)
     }
 
+    /// TestFlight's notifications, or the "not read" sentinel, by the same rule as
+    /// `testFlightStore`. Separate because `duo check` needs to know, after the
+    /// check, whether each of the two reads got in (`Check.testFlightGap`).
+    static func testFlightAnnouncements(_ settings: Settings) -> TestFlightAnnouncements {
+        settings.testFlightDetection.readsStore
+            ? TestFlightAnnouncements()
+            : TestFlightAnnouncements(announcements: [], accessible: false)
+    }
+
     public static func scan(_ settings: Settings) async -> [InstalledApp] {
+        await scanIfFinished(settings) ?? []
+    }
+
+    /// `scan`, but nil when the scan was given up on rather than an empty list —
+    /// for `duo check`, which must not follow an abandoned scan with "Everything is
+    /// up to date." The other commands (install, restart, backups, doctor, ignore)
+    /// still take the empty list, and what each prints after it has not been
+    /// reviewed for the same claim.
+    static func scanIfFinished(_ settings: Settings) async -> [InstalledApp]? {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await scan(timeout: BoundedScan.timeout) {
+        return await scanIfFinished(timeout: BoundedScan.timeout) {
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
             // the timeout exists to race — so it has to be INSIDE this closure.
             // It used to be, invisibly: `AppScanner`'s `testflight:` default was
@@ -36,10 +54,18 @@ public enum Inventory {
     static func scan(
         timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
     ) async -> [InstalledApp] {
+        await scanIfFinished(timeout: timeout, body) ?? []
+    }
+
+    /// The bounded scan, nil when it was given up on. The message is printed here
+    /// either way, so both spellings of `scan` say the same thing about it.
+    static func scanIfFinished(
+        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
+    ) async -> [InstalledApp]? {
         guard let scanned = await BoundedScan.result(within: timeout, body) else {
             FileHandle.standardError.write(Data(
                 "duo: \(BoundedScan.gaveUpMessage(after: timeout)).\n".utf8))
-            return []
+            return nil
         }
         return scanned
     }
@@ -63,10 +89,8 @@ public enum Inventory {
         toolbox: ToolboxInventory = ToolboxInventory(),
         appStoreSignedIn: Bool? = AppStoreSignIn.isSignedIn()
     ) -> UpdateChecker {
-        let reads = settings.testFlightDetection.readsStore
         let testflight = testflight ?? testFlightStore(settings)
-        let announcements = announcements
-            ?? (reads ? TestFlightAnnouncements() : TestFlightAnnouncements(announcements: [], accessible: false))
+        let announcements = announcements ?? testFlightAnnouncements(settings)
         return UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,

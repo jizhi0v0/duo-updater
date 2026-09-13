@@ -120,7 +120,10 @@ public enum Check {
             let outcome = await TestFlightRefresh().run()
             FileHandle.standardError.write(Data((describe(outcome) + "\n").utf8))
         }
-        let apps = await Inventory.scan(settings)
+        // nil when the scan was given up on: an empty list would read as a Mac
+        // with nothing to update, and the run would end in "Everything is up to date."
+        let scanned = await Inventory.scanIfFinished(settings)
+        let apps = scanned ?? []
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {
         case .success(let matched): selected = matched
@@ -139,8 +142,26 @@ public enum Check {
             : selected
 
         let results: [UpdateResult]
+        var gap: TestFlightGap?
         if options.checkForUpdates {
-            results = await Inventory.checker(settings).check(checkable)
+            // Built here rather than inside `checker` so the run can say afterwards
+            // whether each read got in — the checker itself never reports it.
+            let testflight = Inventory.testFlightStore(settings)
+            let announcements = Inventory.testFlightAnnouncements(settings)
+            results = await Inventory.checker(
+                settings, testflight: testflight, announcements: announcements
+            ).check(checkable)
+            gap = testFlightGap(
+                readsStore: settings.testFlightDetection.readsStore,
+                storeOpened: testflight.accessible,
+                storeExists: FileManager.default.fileExists(
+                    atPath: TestFlightInventory.defaultDatabaseURL.path),
+                announcementsOpened: announcements.accessible,
+                announcementsExist: FileManager.default.fileExists(
+                    atPath: TestFlightAnnouncements.defaultDatabaseURL.path),
+                fullDiskAccess: TCCPreflight.fullDiskAccessStatus(),
+                betasPresent: results.contains { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac },
+                sourcesAdmitTestFlight: admitsTestFlight(options.sources))
         } else {
             results = selected.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
         }
@@ -181,48 +202,175 @@ public enum Check {
                     : nil))
         }
 
-        if options.json {
-            emitJSON(rows, command: options.checkForUpdates ? "check" : "list")
-        } else {
-            emitText(rows, checked: options.checkForUpdates)
+        return finish(
+            rows, command: options.checkForUpdates ? "check" : "list", json: options.json,
+            scanAbandoned: scanned == nil, testFlightGap: gap)
+    }
+
+    /// What this run could not read of TestFlight's side, among the apps it
+    /// checked. nil when nothing was missed, or when nothing it checked looks like
+    /// a beta.
+    enum TestFlightGap: Equatable {
+        /// The user turned detection off, so nothing was read.
+        case detectionOff
+        /// TestFlight's own store is on disk and did not open.
+        case storeUnread(fullDiskAccessMissing: Bool)
+        /// The store opened; TestFlight's notifications, the witness that refuses
+        /// an up-to-date verdict from a store TestFlight has not caught up, did not.
+        case announcementsUnread(fullDiskAccessMissing: Bool)
+
+        /// Whether a run that found no update may still say everything is current.
+        /// Detection off keeps the summary it always had: the user chose it, and
+        /// the note beneath says so.
+        var leavesVerdictsUnproven: Bool { self != .detectionOff }
+    }
+
+    /// Which of TestFlight's two reads this run went without, and whether missing
+    /// Full Disk Access is the known reason.
+    ///
+    /// **Why this exists.** With detection on and the reads refused — on macOS 27
+    /// another team's container is refused outright (release note 161835690), and
+    /// a `duo` started by launchd has no grant to inherit — a beta comes back
+    /// `testflight` with no version, is filtered out of the default listing, and
+    /// the run printed "Everything is up to date." with nothing on stderr and exit 0.
+    /// Reproduced 2026-09-13 on 27.0 from a `launchctl submit` job against a beta
+    /// the same binary reported an update for from a terminal.
+    ///
+    /// **Missing ≠ refused.** `accessible` is false for a store that is not there
+    /// at all as well as for one that would not open, and a Mac that has never run
+    /// TestFlight must not be told its betas were not checked. A refused container
+    /// still answers `stat` — measured in the same job: `stat` succeeded, `open`
+    /// returned `EPERM` — so existence tells the two apart; it is the same test the
+    /// readers themselves use for "missing".
+    ///
+    /// **The cause is Full Disk Access only when the app's own test says so**
+    /// (`TCCPreflight.admitsOtherAppsData`, which asks `FullDiskAccessProbe`). A
+    /// store that did not open with the grant in place — its open timed out, say —
+    /// is reported without a reason rather than with a plausible one.
+    ///
+    /// The trigger keeps the detection-off note's two predicates, for its reasons:
+    /// with the store unread, `isTestFlightApp` is whatever the receipt environment
+    /// said (`AppScanner.readApp`), and that misses two classes the store would have
+    /// caught: a wrapped iPhone/iPad bundle, which carries no receipt at all and is
+    /// recognized from the database alone, and a store copy whose installed build
+    /// the database also lists. Measured on one Mac: 8 rows answer as TestFlight
+    /// with detection on, 7 carry the tag with it off — and the missing one,
+    /// ScreenCam, is NOT wrapped (no `WrappedBundle`, a real `_MASReceipt`), so
+    /// `isiOSAppOnMac` does not recover it either while adding every wrapped App
+    /// Store app as a false positive. Between them the two predicates cover what is
+    /// visible without the read. A store copy on a beta track is invisible to both,
+    /// so on a Mac whose only beta is one of those no note appears — a miss, and a
+    /// smaller one than a confident wrong count. For the same reason the note
+    /// carries no count.
+    ///
+    /// **`--source` decides whether betas are in question at all.** A run filtered
+    /// to, say, `homebrew` never shows a TestFlight row, so a TestFlight gap is not
+    /// something it missed — telling it "not every app could be checked in full"
+    /// about apps it asked not to see is wrong. Only an unfiltered run, or one that
+    /// names `testflight`, has one. This applies to detection off too, whose note
+    /// used to print for any filter.
+    static func testFlightGap(
+        readsStore: Bool,
+        storeOpened: Bool, storeExists: Bool,
+        announcementsOpened: Bool, announcementsExist: Bool,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus,
+        betasPresent: Bool,
+        sourcesAdmitTestFlight: Bool
+    ) -> TestFlightGap? {
+        guard betasPresent, sourcesAdmitTestFlight else { return nil }
+        guard readsStore else { return .detectionOff }
+        let unread = storeExists && !storeOpened
+        // The notifications only ever refuse a verdict the store gave
+        // (`TestFlightAnnouncements.isBehind` needs the store's frontier), so
+        // without an open store there was nothing for them to witness.
+        let unwitnessed = storeOpened && announcementsExist && !announcementsOpened
+        guard unread || unwitnessed else { return nil }
+        let missing = !TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDiskAccess())
+        return unread
+            ? .storeUnread(fullDiskAccessMissing: missing)
+            : .announcementsUnread(fullDiskAccessMissing: missing)
+    }
+
+    /// Whether a `--source` filter can show a TestFlight row: no filter, or one
+    /// naming it. `ArgParser.list` has already lowercased the names.
+    static func admitsTestFlight(_ sources: Set<String>) -> Bool {
+        sources.isEmpty || sources.contains("testflight")
+    }
+
+    /// The stderr line for a gap. The Full Disk Access sentence is the app's own
+    /// (`RowActionViews`: "Without Full Disk Access, Duo Updater can't read the
+    /// builds TestFlight offers you, so it can't say whether this beta is current"),
+    /// with `duo` in it, because the two should explain one permission one way.
+    ///
+    /// Where to grant it names the terminal because that is what was measured:
+    /// the same `duo` binary read the store from a shell and was refused from
+    /// launchd, so from a shell the grant in effect was not duo's own
+    /// (`TCCPreflight.isResponsibleForItself` documents the same attribution).
+    static func note(_ gap: TestFlightGap) -> String {
+        let grant = "(System Settings ▸ Privacy & Security ▸ Full Disk Access;"
+            + " run from a terminal, it is the terminal app that needs it)"
+        switch gap {
+        case .detectionOff:
+            return "duo: TestFlight betas were not checked — detection is off"
+                + " (Duo Updater ▸ Settings ▸ General)."
+        case .storeUnread(fullDiskAccessMissing: true):
+            return "duo: TestFlight betas were not checked — without Full Disk Access,"
+                + " duo can't read the builds TestFlight offers you, so it can't say"
+                + " whether a beta is current \(grant)."
+        case .storeUnread(fullDiskAccessMissing: false):
+            return "duo: TestFlight betas were not checked — TestFlight's database"
+                + " could not be read, so duo can't say whether a beta is current."
+        case .announcementsUnread(fullDiskAccessMissing: true):
+            return "duo: a TestFlight beta shown as current may not be — without Full"
+                + " Disk Access, duo can't read TestFlight's notifications, which"
+                + " announce builds its database has not recorded yet \(grant)."
+        case .announcementsUnread(fullDiskAccessMissing: false):
+            return "duo: a TestFlight beta shown as current may not be — TestFlight's"
+                + " notifications could not be read, and they announce builds its"
+                + " database has not recorded yet."
         }
-        // Betas this run did not answer because TestFlight detection is off.
-        //
-        // Said out loud, because the alternative is "Everything is up to date."
-        // printed over apps nothing looked at — the confident wrong answer this
-        // setting exists to make avoidable, not something for it to hide behind. On
-        // stderr so it cannot corrupt the NDJSON on stdout, and in both modes:
-        // without `--all` these rows are filtered out of the JSON entirely, so a
-        // machine reader has no other way to know they were skipped. After the
-        // result rather than before it — a caveat read in that order, a
-        // contradiction in the other — which takes an explicit flush: stdout is
-        // fully buffered when it is a pipe, so without one the note lands first in
-        // `duo check | tee`, measured, while a terminal shows the intended order.
-        //
-        // ⚠️ **No count, deliberately — one cannot be got right from here.** With
-        // the store unread, `isTestFlightApp` is whatever the receipt environment
-        // said (`AppScanner.readApp`), and that misses two classes the store would
-        // have caught: a wrapped iPhone/iPad bundle, which carries no receipt at all
-        // and is recognized from the database alone, and a store copy whose
-        // installed build the database also lists. Measured on one Mac: 8 rows
-        // answer as TestFlight with detection on, 7 carry the tag with it off — and
-        // the missing one, ScreenCam, is NOT wrapped (no `WrappedBundle`, a real
-        // `_MASReceipt`), so `isiOSAppOnMac` does not recover it either while adding
-        // every wrapped App Store app as a false positive. A number here would be
-        // wrong in both directions; the sentence it appears in does not need one.
-        //
-        // The trigger keeps both predicates because between them they cover what is
-        // visible without the read. A store copy on a beta track is invisible to
-        // both, so on a Mac whose only beta is one of those this line does not
-        // appear — a miss, and a smaller one than a confident wrong count.
-        let affected = !settings.testFlightDetection.readsStore
-            && results.contains { $0.app.isTestFlightApp || $0.app.isiOSAppOnMac }
-        if options.checkForUpdates, affected {
+    }
+
+    /// Everything a run prints once its rows are decided, and its exit status —
+    /// the part of `run` that does not touch the machine, with the two streams
+    /// passed in so a test can read what a user would see.
+    ///
+    /// The note goes to stderr so it cannot corrupt the NDJSON on stdout, and in
+    /// both modes: without `--all` the affected rows are filtered out of the JSON
+    /// entirely, so a machine reader has no other way to know they were missed.
+    /// After the result rather than before it — a caveat read in that order, a
+    /// contradiction in the other — which takes an explicit flush in the real
+    /// stream: stdout is fully buffered when it is a pipe, so without one the note
+    /// lands first in `duo check | tee`, measured, while a terminal shows the
+    /// intended order.
+    ///
+    /// **Exit status is unchanged by a gap or an abandoned scan**: 1 when a row is
+    /// actionable, else 0. A new code for "incomplete" would break every
+    /// `duo check; [ $? -eq 1 ]` already written, and detection off — the other way
+    /// to miss betas — has exited 0 with a note since it existed. The stderr lines,
+    /// and a summary that no longer says everything is current, carry it instead.
+    ///
+    /// `scanAbandoned`: `Inventory.scanIfFinished` gave up, so no app was checked
+    /// and its own stderr line has already said why.
+    static func finish(
+        _ rows: [Row], command: String, json: Bool,
+        scanAbandoned: Bool, testFlightGap gap: TestFlightGap?,
+        out: (String) -> Void = { print($0) },
+        err: (String) -> Void = { line in
             fflush(stdout)
-            FileHandle.standardError.write(Data((
-                "duo: TestFlight betas were not checked — detection is off"
-                + " (Duo Updater ▸ Settings ▸ General).\n").utf8))
+            FileHandle.standardError.write(Data((line + "\n").utf8))
         }
+    ) -> Int32 {
+        let checked = command == "check"
+        if json {
+            emitJSON(rows, command: command)
+        } else {
+            let incomplete: Incomplete? = scanAbandoned
+                ? .scanAbandoned
+                : (gap?.leavesVerdictsUnproven == true ? .verdictsUnproven : nil)
+            emitText(rows, checked: checked, incomplete: incomplete, print: out)
+        }
+        if checked, let gap { err(note(gap)) }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
         // works. A hidden row is by definition not something to do.
         return rows.contains(where: isActionable) ? 1 : 0
@@ -281,9 +429,34 @@ public enum Check {
         for row in rows { NDJSON.row(row) }
     }
 
-    static func emitText(_ rows: [Row], checked: Bool) {
+    /// Why a check that found no update may not say everything is current.
+    enum Incomplete: Equatable {
+        /// The app scan was given up on, so nothing was checked.
+        case scanAbandoned
+        /// Some checked app could not be answered in full
+        /// (`TestFlightGap.leavesVerdictsUnproven`).
+        case verdictsUnproven
+    }
+
+    /// `incomplete`: an empty result is then "nothing found", not "everything is
+    /// current". `print` is the stream, for tests.
+    static func emitText(
+        _ rows: [Row], checked: Bool, incomplete: Incomplete? = nil,
+        print: (String) -> Void = { Swift.print($0) }
+    ) {
         guard !rows.isEmpty else {
-            print(checked ? "Everything is up to date." : "No apps found.")
+            guard checked else {
+                print("No apps found.")
+                return
+            }
+            switch incomplete {
+            case nil:
+                print("Everything is up to date.")
+            case .verdictsUnproven:
+                print("No updates found, but not every app could be checked in full (see below).")
+            case .scanAbandoned:
+                print("No apps were checked: the app scan was abandoned (see above).")
+            }
             return
         }
         let nameWidth = min(38, rows.map(\.name.count).max() ?? 10)

@@ -133,6 +133,23 @@ private let installed = [
         #expect(elapsed < 20, "returned after \(elapsed)s — the timeout did not abandon the scan")
     }
 
+    /// `duo check` needs "gave up" apart from "found nothing": the first must not
+    /// end in "Everything is up to date." (`Check.finish`).
+    ///
+    /// Mutation: have `scanIfFinished(timeout:_:)` return `[]` on a timeout.
+    @Test func anAbandonedScanIsNilNotEmpty() async {
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let abandoned = await Inventory.scanIfFinished(timeout: .milliseconds(200)) {
+            release.wait()
+            return []
+        }
+        #expect(abandoned == nil)
+
+        let empty = await Inventory.scanIfFinished(timeout: BoundedScan.timeout) { [] }
+        #expect(empty?.isEmpty == true)
+    }
+
     /// …and the ordinary case still hands back what the scan found, rather than
     /// the empty list the timeout produces.
     @Test func aScanThatFinishesIsReturned() async {

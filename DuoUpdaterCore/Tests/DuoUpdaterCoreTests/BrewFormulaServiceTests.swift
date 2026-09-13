@@ -2,23 +2,21 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// `BrewFormulaService`'s three read paths (`outdated()`, `installedLeaves()` via
-/// `runReading`, `outdatedCasks()` via `runReading`) used to run the blocking
-/// `Process.run()` → `readDataToEndOfFile()` → `waitUntilExit()` sequence directly
-/// on the actor. That has two consequences pinned here:
+/// `BrewFormulaService`'s read paths (`outdated()`, and `installedLeaves()`,
+/// `outdatedCasks()`, `uncheckedPackages()` via `runReading`) await an `Executor`,
+/// which for real runs `brew` through `ChildProcess`. Pinned here:
 ///
-/// 1. It violates CLAUDE.md "别在协作池上做阻塞调用" — a synchronous call on the
-///    actor occupies one of the cooperative pool's few threads for the whole
-///    subprocess.
-/// 2. It defeated `installedLeaves()`'s `async let` pair: with no suspension point
-///    inside `runReading`, the actor could not even start the second read until the
-///    first one's subprocess had exited, so the two `brew` calls always ran
-///    serially despite the "run them concurrently" comment.
+/// 1. The reads do not hold the actor while `brew` runs — the `async let` pair in
+///    `installedLeaves()` genuinely overlaps. (They once ran a blocking
+///    `Process` sequence straight on the actor, and the pair ran serially.)
+/// 2. The real executor's cancellation policy: a cancelled refresh still gets
+///    real data, because `AppListModel` writes whatever the reads returned.
 ///
-/// All tests here go through the internal `init(executor:)` seam instead of a real
-/// `brew` subprocess, per CLAUDE.md "测试不能问宿主" — a fake executor answers "no
-/// brew" / "throws" / "nonzero exit" on cue, deterministically, without depending
-/// on whether Homebrew happens to be installed on whatever machine runs this.
+/// Most tests go through the internal `init(executor:)` seam with a fake executor,
+/// per CLAUDE.md "测试不能问宿主" — it answers "no brew" / "throws" / "nonzero exit"
+/// on cue, without depending on whether Homebrew is installed. The cancellation
+/// test uses the REAL executor (`executor(brewPath:)`) pointed at an invented
+/// script, for the same reason.
 ///
 /// Fixture formula/cask names are fictitious (`zzfixture-*`) — never a name that
 /// might really be installed — for the same reason.
@@ -115,6 +113,42 @@ import Foundation
         #expect(result.first { $0.name == "zzfixture-alpha" }?.installedVersion == "1.0.0")
         #expect(result.first { $0.name == "zzfixture-beta" }?.installedVersion == "2.0.0")
         #expect(result.allSatisfy { $0.availableVersion == nil })
+    }
+
+    // MARK: - Cancellation (the real executor)
+
+    /// A refresh whose task is cancelled — the popover closed — still reads real
+    /// data. `AppListModel.refreshBrewFormulae` does not stop when cancelled; it
+    /// writes what the reads returned, so a killed `brew` would replace the Brew
+    /// tree with an empty one. The "brew" here is an invented script.
+    ///
+    /// Mutation: `.terminateChild` in `executor(brewPath:)` → `installedLeaves()`
+    /// returns `[]`.
+    @Test func aCancelledRefreshStillReadsRealData() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-brew-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let brew = dir.appendingPathComponent("brew")
+        try Data("""
+            #!/bin/sh
+            case "$1" in
+              leaves) sleep 0.2; echo zzfixture-alpha ;;
+              list) sleep 0.2; echo 'zzfixture-alpha 1.2.3' ;;
+            esac
+            """.utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        let path = brew.path
+        let service = BrewFormulaService(executor: BrewFormulaService.executor(brewPath: { path }))
+
+        let task = Task { () async throws -> [BrewInstalledFormula] in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await service.installedLeaves()
+        }
+        let result = try await task.value
+
+        #expect(result.map(\.name) == ["zzfixture-alpha"])
+        #expect(result.first?.installedVersion == "1.2.3")
     }
 
     // MARK: - Behavior preserved: outdated()

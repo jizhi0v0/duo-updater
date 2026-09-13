@@ -198,16 +198,22 @@ public enum Doctor {
     /// helper that is registered and running. (It did, on a machine where it
     /// was.)
     ///
-    /// `async` because `launchctl` is awaited through `ChildProcess`. A read, so
-    /// a cancelled caller may kill it.
+    /// `async` because `launchctl` is awaited through `ChildProcess`.
     static func helperStatus() async -> String {
-        let registered = (try? await ChildProcess.run(
-            "/bin/launchctl", ["print", "system/com.duoupdater.helper"],
-            standardOutput: .discard, standardError: .discard, onCancel: .terminateChild))?
-            .succeeded ?? false
+        let registered = await exitsZero("/bin/launchctl", ["print", "system/com.duoupdater.helper"])
         return registered
             ? "registered"
             : "not registered — approve it once in the menu-bar app; the CLI cannot register it"
+    }
+
+    /// Whether the command exits 0. Runs to completion if the caller is cancelled:
+    /// `doctor` prints the answer either way, and a killed `launchctl` would print
+    /// "not registered" for a helper that is.
+    static func exitsZero(_ executable: String, _ arguments: [String]) async -> Bool {
+        (try? await ChildProcess.run(
+            executable, arguments,
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion))?
+            .succeeded ?? false
     }
 
     static func installedAppPath() -> String? {

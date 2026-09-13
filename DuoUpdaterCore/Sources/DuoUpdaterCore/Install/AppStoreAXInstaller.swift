@@ -531,7 +531,9 @@ public actor AppStoreAXInstaller {
         }
         // Awaited, not parked — see `ChildProcess`. The exit status is not read,
         // as before: `waitForAppStore` below is what decides whether it came up.
-        // `open` only asks LaunchServices, so a cancelled install may kill it.
+        // Killable on cancellation: nothing uses its answer after a cancel. A
+        // cancelled `open` throws out of this function, and a flow that got past
+        // it would stop at its next `Task.sleep` anyway.
         _ = try await ChildProcess.run(
             "/usr/bin/open", ["-g", "-b", "com.apple.AppStore"],  // -g background, -b by bundle id
             standardOutput: .discard, standardError: .discard, onCancel: .terminateChild)
@@ -581,7 +583,9 @@ public actor AppStoreAXInstaller {
     /// `check_offpool.py` cannot see, because the wait sat inside a synchronous
     /// function. stdout/stderr were inherited then; `open -g` prints nothing on
     /// success, so they are discarded now. Killable on cancellation, like the
-    /// launch above.
+    /// launch above: `try navigate` throws the cancellation out of the install, and
+    /// the two `try? navigate` callers (the badge refresh and the re-navigation
+    /// nudge) are best-effort and sleep, cancellably, right after.
     private func navigate(_ urlString: String) async throws {
         let outcome = try await ChildProcess.run(
             "/usr/bin/open", ["-g", urlString],

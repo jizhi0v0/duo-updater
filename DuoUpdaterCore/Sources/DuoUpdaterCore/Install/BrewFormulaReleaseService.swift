@@ -168,7 +168,7 @@ public actor BrewFormulaReleaseService {
     /// `Sendable` because `brewInfoOffActor` is a nonisolated `async` function that
     /// hands it back to this actor — it crosses a concurrency domain, it isn't
     /// decoration.
-    private struct Info: Sendable { let homepage: URL?; let stableURL: String? }
+    struct Info: Sendable, Equatable { let homepage: URL?; let stableURL: String? }
 
     /// Runs `brew info` so the ~0.5s subprocess never occupies this actor. It is
     /// `async` and awaits the child through `ChildProcess`, so `compute` suspends
@@ -176,7 +176,6 @@ public actor BrewFormulaReleaseService {
     /// load-bearing: a *synchronous* call has no ability to switch executors
     /// (SE-0338), so a `brewInfo` called synchronously from `compute` ran to
     /// completion on this actor, and the actor stayed occupied throughout.
-
     ///
     /// That serialized every client behind every other. With a GitHub token configured
     /// `prewarmFormulaReleases` calls `release(...)` for each uncached outdated formula
@@ -218,16 +217,23 @@ public actor BrewFormulaReleaseService {
     /// Read `homepage` + `urls.stable.url` for one formula from `brew info
     /// --json=v2` — local, no network, authoritative for the installed formula.
     /// stderr is discarded, as it was, and drained, so a long run of warnings
-    /// cannot wedge the stdout read. A read, so a cancelled lookup may kill it.
-    private static func brewInfoOffActor(name: String) async -> Info? {
-        guard let brew = HomebrewInstaller.brewPath() else { return nil }
+    /// cannot wedge the stdout read.
+    ///
+    /// Runs to completion if the caller is cancelled: `release(for:)` carries on
+    /// after a cancel and hands the result to the notes UI, where a killed `brew
+    /// info` would read as "this formula has no release notes". The hop this
+    /// replaced could not be cancelled either. `brewPath` is a test seam.
+    static func brewInfoOffActor(
+        name: String, brewPath: @Sendable () -> String? = HomebrewInstaller.brewPath
+    ) async -> Info? {
+        guard let brew = brewPath() else { return nil }
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         // `--` terminates option parsing so a name can never be misread as a flag.
         guard let outcome = try? await ChildProcess.run(
                 brew, ["info", "--json=v2", "--formula", "--", name], environment: env,
-                standardError: .discard, onCancel: .terminateChild),
+                standardError: .discard, onCancel: .runToCompletion),
               outcome.succeeded,
               let root = try? JSONSerialization.jsonObject(with: outcome.standardOutput) as? [String: Any],
               let formula = (root["formulae"] as? [[String: Any]])?.first

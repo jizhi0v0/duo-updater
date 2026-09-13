@@ -509,10 +509,14 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   `terminationStatus` 沿用 `Process` 的约定(退出码或信号号)。**`onCancel` 没有默认值,每个调用点
   必须选**:会写东西的(解包、`hdiutil`、`BinaryDelta`、swap 里的 `xattr`/`chmod`/`osascript`、
   备份的 `ditto`/`chflags`、`brew install`、pkg 闸门的 `pkgutil`/`xar`)用 `.runToCompletion`
-  ——旧的 hop 本来就不可取消,半个 swap / 没卸载的 DMG / 半个 delta 比跑完更糟;只读查询
-  (`gh auth`、`brew info`、`mas outdated`、探针的 `unzip`)用 `.terminateChild`。
-  ⚠️ **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,也要 `.runToCompletion`。
-  `lsappinfo` 就是:被取消的重启复查拿到空表会清掉所有 Restart 徽标(对抗复审抓到)。
+  ——旧的 hop 本来就不可取消,半个 swap / 没卸载的 DMG / 半个 delta 比跑完更糟。
+  `.terminateChild` 只留给**被取消之后没人再用这个结果**的读:目前只有 App Store 的 `open`
+  (取消会从安装流程里抛出去)和 `duo triage` 的 opencode(失败只记日志、不写建议)。
+  ⚠️ **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,一律 `.runToCompletion`——
+  `lsappinfo`(空表会清掉所有 Restart 徽标)、`brew` 的几个读(`refreshBrewFormulae` 从视图的
+  `.task` 里跑,popover 一关就被取消,然后把空结果写进 Brew 树)、`brew info`、`gh auth`
+  (token 会被缓存十分钟)、`mas outdated`、`launchctl print`、探针的 `unzip`(被杀会被归类成
+  recipe 故障)。这几条都是两轮复审抓到的,不是设计时想到的。
   ⚠️ **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
   拆掉 hop 之后,`replaceItemAt`(它会删掉被替换下来的整个 bundle)、整包遍历和删除又回到了
   协作池上——对抗复审抓到的。现在这些各自进 `offCooperativePool`,子进程在 hop 之间 `await`。

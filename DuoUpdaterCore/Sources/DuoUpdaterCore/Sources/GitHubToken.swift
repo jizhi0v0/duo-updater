@@ -159,21 +159,30 @@ public enum GitHubToken {
     /// Run `gh` capturing stdout; nil on launch failure or non-zero exit.
     ///
     /// stderr is discarded, as before, and drained, so it cannot fill and wedge
-    /// the stdout read. A read-only query: a caller that is cancelled takes `gh`
-    /// down with it.
-    private static func run(_ executable: String, _ args: [String]) async -> String? {
+    /// the stdout read.
+    ///
+    /// Runs to completion if the caller is cancelled, although it only reads: its
+    /// answer outlives a cancel. `ChangelogService.gitHubToken` caches what
+    /// `resolve` returns for ten minutes, so a killed `gh` would be remembered as
+    /// "no token" and every changelog fetch in that window would go anonymous.
+    /// (Today's callers resolve inside detached tasks nobody cancels; this keeps
+    /// it true for the next one.) A wedged `gh` stays wedged until answered, as it
+    /// did behind the Dispatch hop — the callers race their own deadline.
+    static func run(_ executable: String, _ args: [String]) async -> String? {
         guard let outcome = try? await ChildProcess.run(
-            executable, args, standardError: .discard, onCancel: .terminateChild),
+            executable, args, standardError: .discard, onCancel: .runToCompletion),
               outcome.succeeded
         else { return nil }
         return String(decoding: outcome.standardOutput, as: UTF8.self)
     }
 
     /// Run `gh` capturing stderr (where `gh auth status` reports); returns the
-    /// text plus whether the command exited zero.
-    private static func runCapturingStderr(_ executable: String, _ args: [String]) async -> (String, Bool) {
+    /// text plus whether the command exited zero. Runs to completion on cancel for
+    /// the reason `run` gives: the Settings pane shows the answer, and a killed
+    /// `gh` would read as "not logged in".
+    static func runCapturingStderr(_ executable: String, _ args: [String]) async -> (String, Bool) {
         guard let outcome = try? await ChildProcess.run(
-            executable, args, standardOutput: .discard, onCancel: .terminateChild)
+            executable, args, standardOutput: .discard, onCancel: .runToCompletion)
         else { return ("", false) }
         return (String(decoding: outcome.standardError, as: UTF8.self), outcome.succeeded)
     }

@@ -130,7 +130,8 @@ public actor BrewFormulaService {
     /// the *caller* decides what a nonzero `status` means (an error for
     /// `outdated()`, an empty read for `runReading`).
     ///
-    /// `HomebrewInstaller.brewPath()` lives INSIDE `realExecutor` below, not in
+    /// `HomebrewInstaller.brewPath()` is asked only by the real executor
+    /// (`executor(brewPath:)` below, wired in `init()`), not by
     /// `outdated()` / `installedLeaves()` / `outdatedCasks()` themselves — those
     /// three used to each ask it directly before running the subprocess, which
     /// would leave a fake executor unable to answer "no brew" on its own and would
@@ -149,7 +150,7 @@ public actor BrewFormulaService {
     private let caskInstallsAnApp: CaskInstallsAnApp
 
     public init() {
-        self.executor = Self.realExecutor
+        self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
         self.caskInstallsAnApp = { Self.installsAnApp(caskToken: $0) }
     }
@@ -192,7 +193,7 @@ public actor BrewFormulaService {
     /// outdated, so a missing/clean machine simply shows no row.
     public func outdated() async throws -> [BrewOutdatedFormula] {
         // --formula: casks are HomebrewCaskSource's job. --json=v2: stable schema.
-        // `HOMEBREW_NO_AUTO_UPDATE=1` (set inside `realExecutor`) keeps this a pure
+        // `HOMEBREW_NO_AUTO_UPDATE=1` (set inside `executor(brewPath:)`) keeps this a pure
         // read of local state — never an implicit `brew update`.
         //
         // The spawn and the wait happen inside `executor`, which awaits the child
@@ -464,7 +465,7 @@ public actor BrewFormulaService {
     /// The real `Executor`: locate `brew`, spawn it read-only (never an implicit
     /// `brew update`), and await its exit.
     ///
-    /// This is the ONLY place that calls `HomebrewInstaller.brewPath()` for the
+    /// This is the ONLY place `HomebrewInstaller.brewPath()` is consulted for the
     /// three read paths in this actor — keeping that check out of `outdated()` /
     /// `installedLeaves()` / `outdatedCasks()` themselves is what lets a fake
     /// `Executor` answer "no brew" on its own, without a test asking the actual
@@ -472,18 +473,29 @@ public actor BrewFormulaService {
     ///
     /// stderr is discarded, as it was: `ChildProcess` drains it either way, so a
     /// long run of deprecation warnings or a Ruby backtrace cannot wedge the
-    /// stdout read — the deadlock the old `nullDevice` here was avoiding. A read,
-    /// so a cancelled load may kill `brew`; the old Dispatch hop could not be
-    /// cancelled.
-    private static func realExecutor(_ arguments: [String]) async throws -> (status: Int32, stdout: Data)? {
-        guard let brew = HomebrewInstaller.brewPath() else { return nil }
-        var env = ProcessInfo.processInfo.environmentWithSystemProxy
-        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        env["HOMEBREW_NO_ENV_HINTS"] = "1"
-        let outcome = try await ChildProcess.run(
-            brew, arguments, environment: env,
-            standardError: .discard, onCancel: .terminateChild)
-        return (outcome.terminationStatus, outcome.standardOutput)
+    /// stdout read — the deadlock the old `nullDevice` here was avoiding.
+    ///
+    /// Runs to completion if the caller is cancelled, although it only reads. The
+    /// caller does not stop when cancelled: `AppListModel.refreshBrewFormulae` runs
+    /// from a view's `.task`, is cancelled when the popover closes, and goes on to
+    /// write what these reads returned — a killed `brew` reads as `""` in
+    /// `runReading`, so the Brew tree, the outdated badges and the unchecked list
+    /// would all be replaced with empty ones. The Dispatch hop this replaced could
+    /// not be cancelled, so those writes always carried real data.
+    ///
+    /// `brewPath` is a parameter so a test can hand in an invented script and still
+    /// exercise this real executor, cancellation policy included.
+    static func executor(brewPath: @escaping @Sendable () -> String?) -> Executor {
+        { arguments in
+            guard let brew = brewPath() else { return nil }
+            var env = ProcessInfo.processInfo.environmentWithSystemProxy
+            env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+            env["HOMEBREW_NO_ENV_HINTS"] = "1"
+            let outcome = try await ChildProcess.run(
+                brew, arguments, environment: env,
+                standardError: .discard, onCancel: .runToCompletion)
+            return (outcome.terminationStatus, outcome.standardOutput)
+        }
     }
 
     /// Outdated casks that install **no app** — the ones nothing else covers. See

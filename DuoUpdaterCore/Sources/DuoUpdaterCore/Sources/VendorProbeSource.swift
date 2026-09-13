@@ -1369,6 +1369,33 @@ public struct VendorProbeSource: UpdateSource {
     /// only cheap version surface is a stub-installer archive whose bundled app's
     /// Info.plist tracks the latest client version. Every failure degrades the
     /// probe to "unknown" rather than guessing; the `Result` says which one.
+    /// `unzip -p <archive> <entry>`: the entry's bytes, or the failure.
+    ///
+    /// Awaited, not parked: this runs on every check and every `duo verify`.
+    /// Runs to completion if the caller is cancelled: a killed `unzip` surfaced as
+    /// `archiveExtractionFailed`, which the diagnostics classify as a recipe fault —
+    /// "a human needs to look" — for what was only a cancelled check. The archive
+    /// is a small stub read from a temp file, so there is nothing to save by
+    /// killing it.
+    static func extractZipEntry(archive: URL, entry: String) async -> Result<Data, ProbeFailure> {
+        let extracted: ChildProcess.Outcome
+        do {
+            extracted = try await ChildProcess.run(
+                "/usr/bin/unzip", ["-p", archive.path, entry],
+                standardError: .discard, onCancel: .runToCompletion)
+        } catch {
+            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
+        }
+        guard extracted.terminationStatus == 0 else {
+            return .failure(.archiveExtractionFailed(
+                "unzip exited \(extracted.terminationStatus) extracting '\(entry)'"))
+        }
+        guard !extracted.standardOutput.isEmpty else {
+            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
+        }
+        return .success(extracted.standardOutput)
+    }
+
     private func zipEntryPlistValue(
         url: URL, entry: String, key: String
     ) async -> Result<String, ProbeFailure> {
@@ -1397,24 +1424,10 @@ public struct VendorProbeSource: UpdateSource {
         catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        // Awaited, not parked: this runs on every check and every `duo verify`.
-        // A read of our own temp file, so a cancelled check may take `unzip` down
-        // with it. See `ChildProcess`.
-        let extracted: ChildProcess.Outcome
-        do {
-            extracted = try await ChildProcess.run(
-                "/usr/bin/unzip", ["-p", tmp.path, entry],
-                standardError: .discard, onCancel: .terminateChild)
-        } catch {
-            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
-        }
-        let plistData = extracted.standardOutput
-        guard extracted.terminationStatus == 0 else {
-            return .failure(.archiveExtractionFailed(
-                "unzip exited \(extracted.terminationStatus) extracting '\(entry)'"))
-        }
-        guard !plistData.isEmpty else {
-            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
+        let plistData: Data
+        switch await Self.extractZipEntry(archive: tmp, entry: entry) {
+        case .success(let data): plistData = data
+        case .failure(let failure): return .failure(failure)
         }
 
         // Parse as a property list (Spotify's is a binary plist, `bplist00`) and

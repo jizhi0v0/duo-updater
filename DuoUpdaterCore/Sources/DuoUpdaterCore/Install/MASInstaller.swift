@@ -348,15 +348,25 @@ public actor MASInstaller {
     ///
     /// SIGTERM at 20 s as before, now with SIGKILL 5 s later. The old watchdog sent
     /// only the SIGTERM, so a `mas` that ignored it kept the pre-flight waiting for
-    /// good; the answer on a timeout is `nil` either way. A read, so a cancelled
-    /// pre-flight may take it down.
+    /// good; the answer on a timeout is `nil` either way.
+    ///
+    /// Runs to completion if the caller is cancelled: the App Store pre-flight
+    /// carries on and acts on the answer, and a killed `mas` would read as "could
+    /// not check" — which that pre-flight treats as permission to skip on the disk
+    /// verdict alone. The deadline bounds the wait, as the old watchdog did.
     private func runOutdated() async -> Set<Int>? {
-        guard let mas = Self.executablePath else { return nil }
+        await Self.outdatedAdamIDs(mas: Self.executablePath)
+    }
+
+    /// `runOutdated` with the `mas` path handed in, so a test can use an invented
+    /// script.
+    static func outdatedAdamIDs(mas: String?) async -> Set<Int>? {
+        guard let mas else { return nil }
         guard let outcome = try? await ChildProcess.run(
             mas, ["outdated"],
             standardError: .discard,
             deadline: .init(terminateAfter: .seconds(20), killAfter: .seconds(25)),
-            onCancel: .terminateChild)
+            onCancel: .runToCompletion)
         else { return nil }
         guard outcome.succeeded else { return nil }
         return Self.parseOutdatedAdamIDs(

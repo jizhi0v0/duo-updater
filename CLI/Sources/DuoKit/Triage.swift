@@ -450,8 +450,10 @@ public enum Triage {
     /// On the deadline: SIGTERM, as before, and now SIGKILL 5 s later — the old
     /// loop sent SIGTERM and returned at once, leaving an opencode that ignored it
     /// running behind the job. The error still reads "timed out after Ns".
-    /// A cancelled caller takes opencode down with it; nothing is left to want
-    /// the answer.
+    /// A cancelled caller takes opencode down with it: `ask` turns the throw into a
+    /// failure that `run` logs and skips, and a suggestion is only ever written on
+    /// success, so nothing records a wrong answer. (Nothing in `duo` cancels it
+    /// today; a Ctrl-C ends the process.)
     static func shell(_ arguments: [String], cwd: URL, timeout: TimeInterval) async throws -> String {
         let seconds = Int64(timeout.rounded(.up))
         let outcome = try await ChildProcess.run(

@@ -18,10 +18,49 @@ public actor HomebrewInstaller {
             case .brewNotFound:
                 return "Homebrew isn’t installed (no brew found in the usual locations)."
             case .failed(let code, let output):
-                let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
-                return "brew failed (\(code)): \(tail)"
+                return HomebrewInstaller.failureDescription(code: code, output: output)
             }
         }
+    }
+
+    /// The one-line description both `BrewError.failed` copies (this one and
+    /// `BrewFormulaService.BrewError`) report. The popover and workbench rows render
+    /// it with `.lineLimit(1)`, so there what comes first is all the user sees.
+    ///
+    /// brew's own `Error:` line leads when there is one. The last three lines used
+    /// to lead, and brew puts its remediation after the error: a formula with no
+    /// bottle on a machine with outdated Command Line Tools surfaced as
+    /// `brew failed (1): Alternatively, manually download them from: …`, with
+    /// `Error: Your Command Line Tools are too outdated.` eight lines up.
+    /// The first `Error:` line, not the last: brew reports the cause first.
+    ///
+    /// ANSI escapes are stripped before the prefix check, not after: with
+    /// `HOMEBREW_COLOR` set (it reaches `brew update` from the user's shell
+    /// environment) brew writes `ESC[31mError:ESC[0m …`, which does not start with
+    /// `Error:` until the escapes are gone.
+    ///
+    /// The old tail still follows the error, after ` — `: the same string is the
+    /// popover's install-error tooltip, `duo install`'s `failed:` line and `--json`
+    /// reason, and the install log, none of which truncate, and brew's remediation
+    /// ("download the Command Line Tools for Xcode 27.0") is only in the tail. It
+    /// is taken from the lines after the error line, so an error that is itself one
+    /// of the last lines is not repeated. Without an `Error:` line this is exactly
+    /// the old tail.
+    static func failureDescription(code: Int32, output: String) -> String {
+        let errorLine = output
+            .split(whereSeparator: \.isNewline)
+            .lazy
+            .map { MASInstaller.stripANSI(String($0)) }
+            .first { $0.hasPrefix("Error:") }
+        let lines = output.split(separator: "\n")
+        guard let errorLine else {
+            return "brew failed (\(code)): \(lines.suffix(3).joined(separator: " "))"
+        }
+        let error = errorLine.trimmingCharacters(in: .whitespaces)
+        let at = lines.firstIndex { MASInstaller.stripANSI(String($0)).contains(errorLine) }
+        let after = at.map { lines[lines.index(after: $0)...] } ?? lines[...]
+        let tail = after.suffix(3).joined(separator: " ")
+        return tail.isEmpty ? "brew failed (\(code)): \(error)" : "brew failed (\(code)): \(error) — \(tail)"
     }
 
     /// Run `brew install --cask --force <token>`, streaming output lines.

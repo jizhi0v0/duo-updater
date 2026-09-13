@@ -77,6 +77,32 @@ import DuoUpdaterCore
             entry: "1f68f34a", detected: "5b73c7f4", ordersByLineage: true) == nil)
     }
 
+    /// #579: the exemption above was keyed on the probe's recipe id, and a
+    /// changelog finding's id (`changelog:<bundle>:…`) never matches one — so the
+    /// changelog sweep of the same app kept reading hashes by digit runs. Derived
+    /// from the registry, so a lineage app that gains a changelog recipe is covered
+    /// without anyone listing it. The pair is real: `6148a7a2` then `e9cb6e92` are
+    /// adjacent 2026-09-12 builds in super.engineering's `changelog.json`, newest
+    /// second, which digit runs read as a regression.
+    @Test func aLineageOrderedAppsChangelogIsNeverReportedAsGoingBackwards() {
+        #expect(VersionComparator.isNewer("6148a7a2", than: "e9cb6e92"))
+        let recipes = ChangelogRecipeRegistry.recipes
+            .filter { VendorProbeRegistry.ordersByLineage(bundleID: $0.bundleID) }
+        #expect(!recipes.isEmpty)
+        for recipe in recipes {
+            func changelogFinding(_ version: String) -> Finding {
+                Finding(
+                    recipeID: recipe.recipeID, registry: .changelog, bundleID: recipe.bundleID,
+                    channel: recipe.channel?.rawValue ?? "-", status: .ok, version: version,
+                    endpointHost: "example.invalid")
+            }
+            var baseline = Baseline()
+            _ = baseline.reconcile(changelogFinding("6148a7a2"))
+            #expect(!baseline.reconcile(changelogFinding("e9cb6e92"))
+                .contains { $0.contains("BACKWARDS") }, "\(recipe.recipeID)")
+        }
+    }
+
     /// Infrastructure trouble must be inert against the *actionable* streak in
     /// both directions: it can't push a recipe over the threshold, and it can't
     /// reset a real failure streak that is still running. Getting the second half

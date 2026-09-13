@@ -120,21 +120,21 @@ private let installed = [
         defer { release.signal() }
 
         let started = Date()
-        let scanned = await Inventory.scan(timeout: .milliseconds(200)) {
+        let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200)) {
             release.wait()
             return []
         }
         let elapsed = Date().timeIntervalSince(started)
 
-        #expect(scanned.isEmpty)
+        #expect(scanned == nil)
         // Generous: the assertion is "it came back", not a wall-clock bound —
         // a 3-core runner is not a stopwatch. The unfixed code never returns at
         // all, so any finite time distinguishes it.
         #expect(elapsed < 20, "returned after \(elapsed)s — the timeout did not abandon the scan")
     }
 
-    /// `duo check` needs "gave up" apart from "found nothing": the first must not
-    /// end in "Everything is up to date." (`Check.finish`).
+    /// Every command needs "gave up" apart from "found nothing": the first must not
+    /// be reported as an empty Mac (`AbandonedScanOutputTests`).
     ///
     /// Mutation: have `scanIfFinished(timeout:_:)` return `[]` on a timeout.
     @Test func anAbandonedScanIsNilNotEmpty() async {
@@ -153,8 +153,8 @@ private let installed = [
     /// …and the ordinary case still hands back what the scan found, rather than
     /// the empty list the timeout produces.
     @Test func aScanThatFinishesIsReturned() async {
-        let scanned = await Inventory.scan(timeout: BoundedScan.timeout) { installed }
-        #expect(scanned.map(\.name) == installed.map(\.name))
+        let scanned = await Inventory.scanIfFinished(timeout: BoundedScan.timeout) { installed }
+        #expect(scanned?.map(\.name) == installed.map(\.name))
     }
 
     /// The sweep's copy of this primitive read only `components.seconds`, which

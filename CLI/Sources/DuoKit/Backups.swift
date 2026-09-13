@@ -56,9 +56,12 @@ public enum Backups {
 
     static func list(json: Bool) async -> Int32 {
         let settings = Settings.load()
-        let installed = await Inventory.scan(settings)
-        let rows = rows(installed: installed, backups: BackupStore.allBackups())
-        json ? emitJSON(rows) : emitText(rows)
+        let installed = await Inventory.scanIfFinished(settings)
+        // After an abandoned scan no backup can be matched to its app, so each is
+        // listed by its key — which `rows` otherwise reserves for a backup nothing
+        // installed claims. The text says why; JSON has the scan's stderr line.
+        let rows = rows(installed: installed ?? [], backups: BackupStore.allBackups())
+        json ? emitJSON(rows) : emitText(rows, scanAbandoned: installed == nil)
         return 0
     }
 
@@ -113,7 +116,14 @@ public enum Backups {
         for row in rows { NDJSON.row(row) }
     }
 
-    static func emitText(_ rows: [Row]) {
+    /// `scanAbandoned`: apps were not matched to their backups, so rows under a raw
+    /// key do not mean "nothing installed claims this". "No backups stored." stays
+    /// true either way — the store is read without the scan. `print` is the stream,
+    /// for tests.
+    static func emitText(
+        _ rows: [Row], scanAbandoned: Bool = false,
+        print: (String) -> Void = { Swift.print($0) }
+    ) {
         guard !rows.isEmpty else {
             print("No backups stored.")
             return
@@ -132,13 +142,17 @@ public enum Backups {
         }
         print("\n  \(rows.count) backup\(rows.count == 1 ? "" : "s"), "
             + "\(byteFormatter.string(fromByteCount: rows.reduce(0) { $0 + $1.bytes })) total.")
+        if scanAbandoned {
+            print("  Listed by key, not app: the app scan was abandoned (see above), "
+                + "so no backup could be matched to an installed app.")
+        }
     }
 
     // MARK: - Restore
 
     static func restore(_ query: String, assumeYes: Bool, json: Bool) async -> Int32 {
         let settings = Settings.load()
-        let installed = await Inventory.scan(settings)
+        let installed = await Inventory.scanIfFinished(settings)
         let app: InstalledApp
         switch resolveTarget(query: query, installed: installed) {
         case .success(let matched): app = matched
@@ -251,7 +265,7 @@ public enum Backups {
     /// stable/esr) — the right outcome for `check`/`install`, which act on all
     /// of them, but not for a restore, which overwrites one specific bundle.
     static func resolveTarget(
-        query: String, installed: [InstalledApp]
+        query: String, installed: [InstalledApp]?
     ) -> Result<InstalledApp, Inventory.SelectionFailure> {
         switch Inventory.select(installed, matching: [query]) {
         case .failure(let failure):

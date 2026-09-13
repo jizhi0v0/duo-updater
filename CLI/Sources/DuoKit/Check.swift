@@ -149,9 +149,8 @@ public enum Check {
         // with nothing to update (or, for `list`, nothing installed), and the run
         // would end in "Everything is up to date." or "No apps found."
         let scanned = await Inventory.scanIfFinished(settings)
-        let apps = scanned ?? []
         let selected: [InstalledApp]
-        switch Inventory.select(apps, matching: options.queries) {
+        switch Inventory.select(scanned, matching: options.queries) {
         case .success(let matched): selected = matched
         case .failure(let message):
             FileHandle.standardError.write(Data("duo: \(message)\n".utf8))

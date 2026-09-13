@@ -22,7 +22,7 @@ public enum Restart {
         }
 
         let settings = Settings.load()
-        let apps = await Inventory.scan(settings)
+        let apps = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {
         case .success(let matched): selected = matched

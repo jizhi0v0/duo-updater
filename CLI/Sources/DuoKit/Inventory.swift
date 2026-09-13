@@ -69,15 +69,17 @@ public enum Inventory {
             : TestFlightAnnouncements(announcements: [], accessible: false)
     }
 
-    public static func scan(_ settings: Settings) async -> [InstalledApp] {
-        await scanIfFinished(settings) ?? []
-    }
-
-    /// `scan`, but nil when the scan was given up on rather than an empty list —
-    /// for `duo check` and `duo list`, which must not follow an abandoned scan with
-    /// "Everything is up to date." or "No apps found." The other commands (install, restart, backups, doctor, ignore)
-    /// still take the empty list, and what each prints after it has not been
-    /// reviewed for the same claim.
+    /// The installed apps, or nil when the scan was given up on.
+    ///
+    /// **Nil, never an empty list — and there is deliberately no `[]` spelling.**
+    /// There was one (`scan`, returning `[]` on a timeout), and every command that
+    /// took it turned "nothing was looked at" into a claim about the Mac:
+    /// `check` said "Everything is up to date.", `list` "No apps found.", a named
+    /// app "no installed app matches", `install --all` "Nothing to install.",
+    /// `doctor` "✓ every app can be copied", `backups list` filed every backup as
+    /// belonging to nothing installed. Removing it makes each caller decide what an
+    /// abandoned scan means for what it prints; `select` takes the optional for the
+    /// shared case.
     static func scanIfFinished(_ settings: Settings) async -> [InstalledApp]? {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
         return await scanIfFinished(timeout: BoundedScan.timeout) {
@@ -92,18 +94,12 @@ public enum Inventory {
         }
     }
 
-    /// The bounded scan, with the scanner passed in so a test can wedge it.
-    /// `BoundedScan` holds the thread-and-timeout half and the reasons for it;
-    /// what belongs here is only what `duo` should say when the scan is given up
-    /// on, which is not what the sweep says about the same event.
-    static func scan(
-        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
-    ) async -> [InstalledApp] {
-        await scanIfFinished(timeout: timeout, body) ?? []
-    }
-
-    /// The bounded scan, nil when it was given up on. The message is printed here
-    /// either way, so both spellings of `scan` say the same thing about it.
+    /// The bounded scan, with the scanner passed in so a test can wedge it; nil
+    /// when it was given up on. `BoundedScan` holds the thread-and-timeout half and
+    /// the reasons for it; what belongs here is only what `duo` should say when the
+    /// scan is given up on, which is not what the sweep says about the same event.
+    /// Everything after that line is the caller's, and "(see above)" in their
+    /// output points here.
     static func scanIfFinished(
         timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
     ) async -> [InstalledApp]? {
@@ -167,9 +163,19 @@ public enum Inventory {
     /// An ambiguous prefix is an error, never a guess: these arguments go on to
     /// name something we will replace on disk, and picking the "obvious" one of
     /// two Visual Studio Codes is how the wrong app gets overwritten.
+    ///
+    /// `apps` is nil when the scan was abandoned. Naming an app then fails without
+    /// claiming it is not installed — nothing was looked at, so duo cannot tell —
+    /// and naming none selects nothing, leaving the caller to say why its result is
+    /// empty.
     public static func select(
-        _ apps: [InstalledApp], matching queries: [String]
+        _ apps: [InstalledApp]?, matching queries: [String]
     ) -> Result<[InstalledApp], SelectionFailure> {
+        guard let apps else {
+            guard let query = queries.first else { return .success([]) }
+            return .failure(SelectionFailure(description:
+                "can't tell whether '\(query)' is installed: the app scan was abandoned (see above)"))
+        }
         guard !queries.isEmpty else { return .success(apps) }
         var selected: [InstalledApp] = []
         for query in queries {

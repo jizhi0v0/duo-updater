@@ -52,6 +52,15 @@ public enum Install {
         return .success(resolved)
     }
 
+    /// What `install` says when there is nothing to do. After an abandoned scan
+    /// nothing was checked, and "Nothing to install." would be a claim about apps
+    /// no one looked at; the exit status stays 0 either way.
+    static func emptyPlanLine(scanAbandoned: Bool) -> String {
+        scanAbandoned
+            ? "Nothing was checked: the app scan was abandoned (see above)."
+            : "Nothing to install."
+    }
+
     public static func run(_ options: Options) async -> Int32 {
         guard options.all || !options.queries.isEmpty else {
             FileHandle.standardError.write(Data(
@@ -60,9 +69,9 @@ public enum Install {
         }
 
         let settings = Settings.load()
-        let apps = await Inventory.scan(settings)
+        let scanned = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
-        switch Inventory.select(apps, matching: options.queries) {
+        switch Inventory.select(scanned, matching: options.queries) {
         case .success(let matched): selected = matched
         case .failure(let failure):
             FileHandle.standardError.write(Data("duo: \(failure)\n".utf8))
@@ -105,7 +114,7 @@ public enum Install {
         }
 
         guard !plan.isEmpty || !refusals.isEmpty else {
-            print("Nothing to install.")
+            print(emptyPlanLine(scanAbandoned: scanned == nil))
             return 0
         }
 

@@ -24,7 +24,9 @@ public enum Doctor {
         var brewInstalled: Bool
         var stateDirectory: String
         var installLockHolder: Int32?
-        var unbackupable: [Unbackupable]
+        /// nil when the app scan was abandoned: not checked, which `[]` would
+        /// report as "every app can be copied".
+        var unbackupable: [Unbackupable]?
     }
 
     /// An installed app that cannot be copied into the backup store, and the
@@ -68,6 +70,19 @@ public enum Doctor {
         return report.appManagement == "granted" ? 0 : 3
     }
 
+    /// The "rollback points" line. Not checked is neither ✓ nor ✗: an abandoned
+    /// scan looked at no app, so "every app can be copied" would be a claim about
+    /// apps nothing examined.
+    static func rollbackLine(_ unbackupable: [Unbackupable]?) -> (ok: Bool?, detail: String) {
+        guard let unbackupable else {
+            return (nil, "not checked — the app scan was abandoned (see above)")
+        }
+        return unbackupable.isEmpty
+            ? (true, "every app can be copied before an update")
+            : (false, "\(unbackupable.count) app(s) cannot be backed up, so updating "
+                + "them has no way back:")
+    }
+
     static func emitText(_ report: Report) {
         func line(_ ok: Bool?, _ label: String, _ detail: String) {
             let mark = ok.map { $0 ? "✓" : "✗" } ?? "·"
@@ -106,13 +121,10 @@ public enum Doctor {
         if let holder = report.installLockHolder {
             line(false, "install lock", "held by pid \(holder) — installs will be refused")
         }
-        if report.unbackupable.isEmpty {
-            line(true, "rollback points", "every app can be copied before an update")
-        } else {
-            line(false, "rollback points",
-                 "\(report.unbackupable.count) app(s) cannot be backed up, so updating "
-                 + "them has no way back:")
-            for entry in report.unbackupable {
+        let rollback = rollbackLine(report.unbackupable)
+        line(rollback.ok, "rollback points", rollback.detail)
+        if let unbackupable = report.unbackupable, !unbackupable.isEmpty {
+            for entry in unbackupable {
                 print("      \(entry.app) — \(entry.blockedBy) is not readable by you")
             }
             print("""
@@ -146,8 +158,8 @@ public enum Doctor {
     ///
     /// Concurrent because the cost is one `stat` per file and the bundles are
     /// independent; serially the same filtered walk takes 4.8s.
-    static func unbackupable(_ settings: Settings) async -> [Unbackupable] {
-        let apps = await Inventory.scan(settings)
+    static func unbackupable(_ settings: Settings) async -> [Unbackupable]? {
+        guard let apps = await Inventory.scanIfFinished(settings) else { return nil }
         let me = getuid()
         let candidates = apps.filter { app in
             let attributes = try? FileManager.default.attributesOfItem(atPath: app.path.path)

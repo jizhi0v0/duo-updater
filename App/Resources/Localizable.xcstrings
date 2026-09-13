@@ -6076,6 +6076,47 @@
         }
       }
     },
+    "brew update finished, but Homebrew is still %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update ist fertig, aber Homebrew ist noch %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update terminó, pero Homebrew sigue en %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update est terminé, mais Homebrew est toujours en %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update は完了しましたが、Homebrew は %@ のままです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update завершён, но Homebrew по-прежнему %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brew update 已完成，但 Homebrew 仍是 %@。"
+          }
+        }
+      }
+    },
     "Built on Chromium.": {
       "extractionState": "manual",
       "localizations": {
@@ -11038,6 +11079,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "Homebrew 目录"
+          }
+        }
+      }
+    },
+    "Homebrew %@ is available": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ ist verfügbar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ está disponible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ est disponible"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ を利用できます"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступен Homebrew %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ 可用"
           }
         }
       }
@@ -17966,6 +18048,47 @@
         }
       }
     },
+    "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Führt `brew update` aus – aktualisiert Homebrew und seine Paketlisten mit deinen eigenen Homebrew-Einstellungen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta `brew update`; actualiza Homebrew y sus listas de paquetes con tu propia configuración de Homebrew."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exécute `brew update` — met à jour Homebrew et ses listes de paquets avec vos propres réglages Homebrew."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "`brew update` を実行し、あなたの Homebrew 設定のまま Homebrew とパッケージ一覧を更新します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняет `brew update` — обновляет Homebrew и списки пакетов с вашими собственными настройками Homebrew."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行 `brew update` — 按你自己的 Homebrew 设置更新 Homebrew 并刷新软件包列表。"
+          }
+        }
+      }
+    },
     "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.": {
       "extractionState": "manual",
       "localizations": {
@@ -22619,6 +22742,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "你已经安装了它，所以仍然可以更新 — DuoUpdater 会在后台驱动 App Store 的“更新”列表（全新安装则需要 %@ 地区的账户）。这仅在 App Store 已将此更新列出后才有效；如果尚未列出，请稍后再试。"
+          }
+        }
+      }
+    },
+    "You have %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tienes la %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version installée : %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在のバージョン：%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установлена версия %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前为 %@"
           }
         }
       }

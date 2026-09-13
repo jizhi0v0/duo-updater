@@ -236,6 +236,9 @@ struct WorkbenchWindowView: View {
         }
         // Brew tree data (formulae + the cask set derives from results above).
         .task { await model.refreshBrewFormulae() }
+        // Separate task so the Homebrew check (login shell + `brew config`) never
+        // holds up the tree itself.
+        .task { await model.refreshHomebrewSelfUpdate() }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
         // we heard every one of them — so merely opening Settings, the Release Log,
@@ -384,7 +387,7 @@ struct WorkbenchWindowView: View {
     /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
     /// see only the Apps tree (no empty Brew header).
     private func hasBrew(_ lists: SidebarLists) -> Bool {
-        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty
+        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty || model.homebrewSelfUpdate != nil
     }
 
     /// Total brew items, for the Brew header's count pill and its list height.
@@ -470,9 +473,9 @@ struct WorkbenchWindowView: View {
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
-                    // A per-row upgrade is already holding brew's lock — a bulk run
-                    // would just fail, so disable it until that row finishes.
-                    .disabled(!model.upgradingFormulae.isEmpty)
+                    // A per-row upgrade or `brew update` is already holding brew's
+                    // lock — a bulk run would just fail, so disable it until that finishes.
+                    .disabled(!model.upgradingFormulae.isEmpty || model.homebrewUpdating)
                     .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
             }
         }
@@ -553,6 +556,11 @@ struct WorkbenchWindowView: View {
     /// existing install path) above outdated CLI formulae (their own inline action).
     private func brewListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
+            if let update = model.homebrewSelfUpdate {
+                HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                    // Nothing to show in the detail pane for Homebrew itself.
+                    .selectionDisabled()
+            }
             ForEach(lists.brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
@@ -928,6 +936,52 @@ private struct BrewFormulaSidebarRow: View {
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
+                    .disabled(model.homebrewUpdating)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Homebrew self-update row
+
+/// "Homebrew X is available" at the top of the Brew tree, with a one-click
+/// `brew update`. Only exists when `AppListModel.homebrewSelfUpdate` is non-nil,
+/// which already accounts for the user having turned auto-update off.
+private struct HomebrewSelfUpdateSidebarRow: View {
+    let update: HomebrewSelfUpdate
+    @Bindable var model: AppListModel
+
+    /// brew holds one global lock, so `brew update` can't start while an upgrade runs.
+    private var brewBusy: Bool { model.brewUpgrading || !model.upgradingFormulae.isEmpty }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "mug")
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Homebrew \(update.latest) is available").font(.body).lineLimit(1)
+                if let error = model.homebrewUpdateError {
+                    Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
+                } else if model.homebrewUpdating, let note = model.homebrewUpdateNote {
+                    Text(note)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                } else {
+                    Text("You have \(update.installed)")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer()
+            if model.homebrewUpdating {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Update") { Task { await model.updateHomebrew() } }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(brewBusy)
+                    .help("Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.")
             }
         }
         .padding(.vertical, 2)

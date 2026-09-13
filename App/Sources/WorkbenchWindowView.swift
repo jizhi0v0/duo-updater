@@ -384,12 +384,12 @@ struct WorkbenchWindowView: View {
     /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
     /// see only the Apps tree (no empty Brew header).
     private func hasBrew(_ lists: SidebarLists) -> Bool {
-        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty
+        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
     }
 
     /// Total brew items, for the Brew header's count pill and its list height.
     private func brewItemCount(_ lists: SidebarLists) -> Int {
-        lists.brewCasks.count + model.brewFormulae.count
+        lists.brewCasks.count + model.brewFormulae.count + model.brewUnchecked.count
     }
 
     @ViewBuilder
@@ -575,6 +575,11 @@ struct WorkbenchWindowView: View {
             ForEach(model.brewFormulae) { formula in
                 BrewFormulaSidebarRow(formula: formula, model: model)
                     .tag("brew:formula:\(formula.name)")
+            }
+            // Untagged on purpose: there's no version to compare and no notes to
+            // load, so nothing for a detail pane to show.
+            ForEach(model.brewUnchecked) { package in
+                BrewUncheckedSidebarRow(package: package)
             }
         }
         .listStyle(.sidebar)
@@ -931,6 +936,61 @@ private struct BrewFormulaSidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A Brew-tree row for an installed package brew wouldn't read from its tap
+/// (`BrewUncheckedPackage`). Without it the package is simply missing from the
+/// tree — brew's own listings drop it — which reads as "nothing to update". No
+/// update action: we don't know the version, and trusting the tap is the user's
+/// call, so the row offers the `brew trust` command to copy instead of running it.
+private struct BrewUncheckedSidebarRow: View {
+    let package: BrewUncheckedPackage
+
+    @State private var copied = false
+
+    private var status: String {
+        switch package.reason {
+        case .tapNotTrusted: String(localized: "Not checked · tap not trusted")
+        case .unreadable: String(localized: "Not checked · Homebrew can’t read it")
+        }
+    }
+
+    private var explanation: String {
+        switch package.reason {
+        case .tapNotTrusted:
+            String(localized: "Homebrew won’t read \(package.fullName) from its tap until you trust it, so updates can’t be checked. To trust it, run: \(package.trustCommand)")
+        case .unreadable:
+            String(localized: "Homebrew didn’t read \(package.fullName) from its tap, so updates can’t be checked.")
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "terminal")
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(package.name).font(.body).lineLimit(1)
+                Text(status)
+                    .font(.caption).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            Spacer()
+            if package.reason == .tapNotTrusted {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(package.trustCommand, forType: .string)
+                    copied = true
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help(String(localized: "Copy “\(package.trustCommand)”"))
+            }
+        }
+        .padding(.vertical, 2)
+        .help(explanation)
     }
 }
 

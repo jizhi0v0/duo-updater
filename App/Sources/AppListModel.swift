@@ -739,6 +739,23 @@ final class AppListModel {
     /// spinner. Cleared when the upgrade finishes.
     private(set) var formulaUpgradeNotes: [String: String] = [:]
 
+    /// A newer Homebrew release to offer `brew update` for, at the top of the
+    /// workbench Brew tree. nil = show nothing — including when the user disabled
+    /// auto-update or their config couldn't be read (`HomebrewSelfUpdateCheck`).
+    private(set) var homebrewSelfUpdate: HomebrewSelfUpdate?
+    /// The user's shell-exported `HOMEBREW_*` variables from the same check, passed
+    /// to the `brew update` it offers.
+    private var homebrewUpdateEnvironment: [String: String] = [:]
+    /// Bumped by every check; a check only applies its outcome if it is still the
+    /// latest one started. See `checkHomebrewSelfUpdate`.
+    private var homebrewCheckGeneration = 0
+    /// True while `brew update` is running.
+    private(set) var homebrewUpdating = false
+    /// Streamed tail of the running `brew update`.
+    private(set) var homebrewUpdateNote: String?
+    /// Last `brew update` failure (or a run that left Homebrew behind); cleared on the next run.
+    private(set) var homebrewUpdateError: String?
+
     /// Lazily-fetched release notes per formula, loaded only when a formula is
     /// selected in the workbench — so a long outdated list never burns the GitHub
     /// rate limit up front. Version-keyed (see `FormulaReleaseStore`): the version a
@@ -3171,10 +3188,64 @@ final class AppListModel {
         }
     }
 
+    /// Re-decide whether to offer a Homebrew update. Reads the user's login shell
+    /// and `brew config` (about a second together) and, only if an update may be
+    /// offered, the latest release (cached for hours) — so it runs when the
+    /// workbench opens, not on every popover open.
+    func refreshHomebrewSelfUpdate() async {
+        guard brewInstalled, !homebrewUpdating else { return }
+        await checkHomebrewSelfUpdate()
+    }
+
+    private func checkHomebrewSelfUpdate() async {
+        homebrewCheckGeneration += 1
+        let generation = homebrewCheckGeneration
+        let outcome = await HomebrewSelfUpdateCheck.run { await self.githubTokenForRecheck() }
+        // A check started before a `brew update` read the old `brew config`; if it
+        // lands after the update's own re-check it would put the stale offer back.
+        guard generation == homebrewCheckGeneration else { return }
+        // An error describes the attempt at THIS offer. Once the offer changes (or
+        // goes away) it no longer applies, and would otherwise sit on the next
+        // release's row in place of its version line.
+        if outcome.update != homebrewSelfUpdate { homebrewUpdateError = nil }
+        homebrewSelfUpdate = outcome.update
+        homebrewUpdateEnvironment = outcome.environment
+    }
+
+    /// Run `brew update` for the offered release, then re-check and re-read the
+    /// Brew tree (an update refreshes the package lists, so new upgrades can appear).
+    func updateHomebrew() async {
+        // brew takes one global lock; an update on top of an upgrade would just fail.
+        guard let offered = homebrewSelfUpdate, !homebrewUpdating,
+              !brewUpgrading, upgradingFormulae.isEmpty else { return }
+        homebrewUpdating = true
+        homebrewUpdateError = nil
+        homebrewUpdateNote = String(localized: "Starting…")
+        defer { homebrewUpdating = false; homebrewUpdateNote = nil }
+        do {
+            try await brewFormulaService.updateHomebrew(
+                environment: homebrewUpdateEnvironment
+            ) { [weak self] line in
+                Task { @MainActor in self?.homebrewUpdateNote = line }
+            }
+        } catch {
+            homebrewUpdateError = error.localizedDescription
+            return
+        }
+        await checkHomebrewSelfUpdate()
+        // A successful `brew update` that still leaves the same release on offer
+        // (e.g. a mirror remote that lags GitHub) would otherwise look like a button
+        // that does nothing.
+        if let still = homebrewSelfUpdate, still.latest == offered.latest {
+            homebrewUpdateError = String(localized: "brew update finished, but Homebrew is still \(still.installed).")
+        }
+        await refreshBrewFormulae()
+    }
+
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
     /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
     func upgradeBrewFormulae() async {
-        guard !brewUpgrading else { return }
+        guard !brewUpgrading, !homebrewUpdating else { return }
         // Don't stack a bulk run on top of in-flight per-row upgrades — both call
         // `brew`, which takes a single global lock; the second would just fail.
         guard upgradingFormulae.isEmpty else { return }
@@ -3217,7 +3288,7 @@ final class AppListModel {
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
     /// action in the workbench Brew list — then re-read the outdated set.
     func upgradeBrewFormula(named name: String) async {
-        guard !upgradingFormulae.contains(name) else { return }
+        guard !upgradingFormulae.contains(name), !homebrewUpdating else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = String(localized: "Starting…")

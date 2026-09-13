@@ -1,0 +1,250 @@
+import Testing
+import Foundation
+@testable import DuoUpdaterCore
+
+/// Whether the workbench offers `brew update`, and what it reads to decide.
+///
+/// `brew config` output is a captured fixture (Homebrew 7.0.0, 2026-09-13) rather
+/// than a live read, per CLAUDE.md "测试不能问宿主": whether this machine's brew is
+/// current, or its user disabled auto-update, must not change a test's answer.
+@Suite struct HomebrewSelfUpdateTests {
+
+    /// Head of a real `brew config`, with the user-set variables section appended
+    /// by each test.
+    private static let configHead = """
+        HOMEBREW_VERSION: 6.0.22-310-ga45b0a0
+        ORIGIN: https://github.com/Homebrew/brew
+        HEAD: a45b0a0143000000000000000000000000000000
+        Last commit: 2 hours ago
+        Branch: main
+        Core tap: N/A
+        Core cask tap: N/A
+        HOMEBREW_PREFIX: /opt/homebrew
+        """
+
+    // MARK: - brew config
+
+    /// Mutation: parse the version from the wrong key, or not at all → nil/other.
+    @Test func readsTheVersionAndDefaultsToAutoUpdateOn() {
+        let config = HomebrewConfig.parse(Self.configHead)
+        #expect(config == HomebrewConfig(version: "6.0.22-310-ga45b0a0", autoUpdateDisabled: false))
+    }
+
+    /// Mutation: drop the `HOMEBREW_NO_AUTO_UPDATE` branch → reads as enabled.
+    @Test func noAutoUpdateSetDisablesIt() {
+        let config = HomebrewConfig.parse(Self.configHead + "\nHOMEBREW_NO_AUTO_UPDATE: set\nHOMEBREW_NO_ENV_HINTS: set")
+        #expect(config?.autoUpdateDisabled == true)
+    }
+
+    /// brew prints boolean variables as `set` or `false`. Mutation: treat the key's
+    /// mere presence as "disabled" → this user, who explicitly has auto-update on,
+    /// would never be offered the update.
+    @Test func noAutoUpdateFalseLeavesItOn() {
+        let config = HomebrewConfig.parse(Self.configHead + "\nHOMEBREW_NO_AUTO_UPDATE: false")
+        #expect(config?.autoUpdateDisabled == false)
+    }
+
+    /// Mutation: return a config with an empty version → the policy would get a
+    /// value it can't parse instead of a clear "no config".
+    @Test func noVersionLineIsNoConfig() {
+        #expect(HomebrewConfig.parse("ORIGIN: https://github.com/Homebrew/brew\nBranch: stable") == nil)
+    }
+
+    // MARK: - Policy
+
+    private func offer(_ installed: String, _ latest: String?, disabled: Bool = false) -> HomebrewSelfUpdate? {
+        HomebrewSelfUpdatePolicy.update(
+            config: HomebrewConfig(version: installed, autoUpdateDisabled: disabled),
+            latestTag: latest)
+    }
+
+    /// Mutation: invert or drop the comparison → no offer when behind.
+    @Test func behindTheLatestReleaseIsOffered() {
+        #expect(offer("6.0.22", "7.0.0") == HomebrewSelfUpdate(installed: "6.0.22", latest: "7.0.0"))
+    }
+
+    /// Mutation: `<=` instead of strictly-less → the row never goes away after updating.
+    @Test func onTheLatestReleaseIsNotOffered() {
+        #expect(offer("7.0.0", "7.0.0") == nil)
+    }
+
+    /// Mutation: drop the `autoUpdateDisabled` guard → offered to a user who opted out.
+    @Test func disabledAutoUpdateHidesEvenWhenBehind() {
+        #expect(offer("6.0.22", "7.0.0", disabled: true) == nil)
+    }
+
+    /// A developer-mode checkout follows `main`, so its version carries a
+    /// `git describe` suffix. Mutation: stop accepting the suffix → a developer
+    /// who is a whole release behind is never told.
+    @Test func developerCheckoutBehindAReleaseIsOffered() {
+        #expect(offer("6.0.22-310-ga45b0a0", "7.0.0")?.installed == "6.0.22-310-ga45b0a0")
+        #expect(offer("6.0.22-dirty", "7.0.0") != nil)
+        #expect(offer("6.0.22-4-g1a2b3c4-dirty", "7.0.0") != nil)
+    }
+
+    /// Mutation: compare against the commit count, or treat any suffix as "behind"
+    /// → a developer already past the release sees the row permanently.
+    @Test func developerCheckoutPastTheReleaseIsNotOffered() {
+        #expect(offer("7.0.0-3-gd79ef82", "7.0.0") == nil)
+    }
+
+    /// Mutation: compare version strings instead of numbers → "6.10.0" < "6.9.9".
+    @Test func componentsCompareNumerically() {
+        #expect(offer("6.9.9", "6.10.0") != nil)
+        #expect(offer("6.10.0", "6.9.9") == nil)
+    }
+
+    /// Anything we can't read is "can't say an update is wanted". Mutation: fall
+    /// back to offering when a side doesn't parse.
+    @Test func unreadableVersionsAreNotOffered() {
+        #expect(offer(">=4.3.0 (shallow or no git repository)", "7.0.0") == nil)
+        #expect(offer("6.0.22", nil) == nil)
+        #expect(offer("6.0.22", "7.0.0-rc1") == nil)
+        // The latest tag is a release, never a describe string.
+        #expect(offer("6.0.22", "7.0.0-3-gd79ef82") == nil)
+        #expect(HomebrewSelfUpdatePolicy.update(config: nil, latestTag: "7.0.0") == nil)
+    }
+
+    // MARK: - GitHub response
+
+    @Test func readsTheTagName() {
+        #expect(HomebrewLatestRelease.tagName(from: Data(#"{"tag_name":"7.0.0","name":"7.0.0"}"#.utf8)) == "7.0.0")
+        #expect(HomebrewLatestRelease.tagName(from: Data(#"{"message":"API rate limit exceeded"}"#.utf8)) == nil)
+    }
+
+    // MARK: - Login shell environment
+
+    private func envOutput(_ entries: [String], before: String = "", after: String = "") -> Data {
+        var data = Data(before.utf8)
+        data.append(Data("\n\(LoginShellEnvironment.beginMarker)\n".utf8))
+        for entry in entries { data.append(Data(entry.utf8)); data.append(0) }
+        data.append(Data("\n\(LoginShellEnvironment.endMarker)\n".utf8))
+        data.append(Data(after.utf8))
+        return data
+    }
+
+    /// Keeps only `HOMEBREW_*`, splits entries on NUL and each on its first `=`.
+    /// Mutations: split on newlines (the multi-line value breaks), split on the
+    /// last `=` (the URL value breaks), or keep every variable.
+    @Test func parsesOnlyHomebrewVariablesBetweenTheMarkers() {
+        let data = envOutput(
+            ["PATH=/usr/bin:/bin",
+             "HOMEBREW_NO_AUTO_UPDATE=1",
+             "HOMEBREW_BREW_GIT_REMOTE=https://example.invalid/brew.git?a=b",
+             "HOMEBREW_ZZFIXTURE_MULTILINE=line one\nHOMEBREW_NOT_A_KEY=line two"],
+            before: "Welcome back!\nHOMEBREW_BANNER=printed by an rc file\n",
+            after: "HOMEBREW_TRAILER=also printed by an rc file\n")
+        #expect(LoginShellEnvironment.parse(data) == [
+            "HOMEBREW_NO_AUTO_UPDATE": "1",
+            "HOMEBREW_BREW_GIT_REMOTE": "https://example.invalid/brew.git?a=b",
+            "HOMEBREW_ZZFIXTURE_MULTILINE": "line one\nHOMEBREW_NOT_A_KEY=line two",
+        ])
+    }
+
+    /// An empty map means "the user set nothing" and lets the row show; a shell that
+    /// died half-way must not be read that way. Mutation: return what was parsed
+    /// so far when the end marker is missing.
+    @Test func missingEndMarkerIsUnknownNotEmpty() {
+        var data = Data("\n\(LoginShellEnvironment.beginMarker)\n".utf8)
+        data.append(Data("HOMEBREW_NO_AUTO_UPDATE=1".utf8)); data.append(0)
+        #expect(LoginShellEnvironment.parse(data) == nil)
+        #expect(LoginShellEnvironment.parse(Data()) == nil)
+    }
+
+    /// A real zsh reading fixture rc files (HOME and ZDOTDIR point at a temp dir,
+    /// never the host's). Covers what the parser tests can't: the `-l -i -c` script
+    /// actually produces parseable output, and an rc file that leaves a background
+    /// child holding stdout doesn't stall the read.
+    ///
+    /// Mutation: write output to a Pipe and read it to EOF → EOF waits for the
+    /// background `sleep 120`, so the call is still blocked when the 60 s deadline
+    /// passes and this fails. The deadline is not a performance bound (the real
+    /// call returns in well under a second); it only has to sit between "returns
+    /// normally" and "waits for the child", which are two orders of magnitude apart.
+    @Test func readsVariablesExportedByAFixtureZshrc() throws {
+        let home = try Self.fixtureHome(zshrc: """
+            echo "rc banner"
+            export HOMEBREW_NO_AUTO_UPDATE=1
+            sleep 120 &
+            """)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let environment = Self.fixtureEnvironment(home: home)
+        let box = ResultBox()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            box.value = LoginShellEnvironment.resolveHomebrewVariables(
+                shell: "/bin/zsh", environment: environment, timeout: 20)
+            done.signal()
+        }
+        #expect(done.wait(timeout: .now() + 60) == .success)
+        #expect(box.value?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+    }
+
+    private final class ResultBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: [String: String]?
+        var value: [String: String]? {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); stored = newValue; lock.unlock() }
+        }
+    }
+
+    /// Mutation: return an empty map on timeout → reads as "nothing set". Ignoring
+    /// the timeout altogether never returns (the rc below loops forever), so that
+    /// one surfaces as a hung run, not a red test.
+    ///
+    /// Also: giving up must not leave the stuck shell behind. The rc's `sleep` has a
+    /// per-run duration so this test can find exactly its own process.
+    ///
+    /// The rc hangs in a loop on purpose. Measured 2026-09-13 with Foundation's
+    /// `Process`: `terminate()` DID end an rc that was a single `sleep 30` (also
+    /// with `trap '' TERM` in front), so a fixture like that cannot catch a
+    /// `terminate()` regression — but an rc looping `while :; do sleep 1; done` left
+    /// the shell alive and spawning new children. Why the two differ was not
+    /// established; the loop is simply the shape observed to leak.
+    ///
+    /// Mutations: `process.terminate()` → the loop keeps starting new `sleep`s;
+    /// kill only the shell → the current `sleep` is reparented and survives;
+    /// miscount `proc_listchildpids` → same as killing only the shell.
+    @Test func aShellThatHangsIsUnknownAndKilled() throws {
+        let marker = "30.\(Int.random(in: 100_000...999_999))"
+        let home = try Self.fixtureHome(zshrc: "while :; do sleep \(marker); done")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let variables = LoginShellEnvironment.resolveHomebrewVariables(
+            shell: "/bin/zsh", environment: Self.fixtureEnvironment(home: home), timeout: 1)
+        #expect(variables == nil)
+        // SIGKILL delivery is asynchronous; allow it a moment before calling it a leak.
+        var survivors = Self.processes(matching: "sleep \(marker)")
+        for _ in 0..<20 where !survivors.isEmpty {
+            Thread.sleep(forTimeInterval: 0.1)
+            survivors = Self.processes(matching: "sleep \(marker)")
+        }
+        #expect(survivors.isEmpty, "leaked: \(survivors)")
+        for pid in survivors { kill(pid, SIGKILL) }
+    }
+
+    private static func processes(matching pattern: String) -> [pid_t] {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", pattern]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        guard (try? pgrep.run()) != nil else { return [] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        pgrep.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: \.isNewline).compactMap { pid_t($0) }
+    }
+
+    private static func fixtureHome(zshrc: String) throws -> URL {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-login-shell-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try zshrc.write(to: home.appendingPathComponent(".zshrc"), atomically: true, encoding: .utf8)
+        return home
+    }
+
+    private static func fixtureEnvironment(home: URL) -> [String: String] {
+        ["HOME": home.path, "ZDOTDIR": home.path, "PATH": "/usr/bin:/bin", "USER": NSUserName()]
+    }
+}

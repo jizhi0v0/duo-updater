@@ -171,8 +171,10 @@ public enum Check {
         if options.checkForUpdates {
             // Built here rather than inside `checker` so the run can say afterwards
             // whether each read got in — the checker itself never reports it.
-            let testflight = Inventory.testFlightStore(settings)
-            let announcements = Inventory.testFlightAnnouncements(settings)
+            let reads = Inventory.readsTestFlight(
+                settings.testFlightDetection, fullDiskAccess: Inventory.fullDiskAccess)
+            let testflight = Inventory.testFlightStore(reads: reads)
+            let announcements = Inventory.testFlightAnnouncements(reads: reads)
             results = await Inventory.checker(
                 settings, testflight: testflight, announcements: announcements
             ).check(checkable)

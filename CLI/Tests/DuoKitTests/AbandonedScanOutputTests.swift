@@ -86,6 +86,35 @@ import DuoUpdaterCore
         #expect(blocked.detail.hasPrefix("1 app(s) cannot be backed up"))
     }
 
+    /// `doctor --json`: "not checked" is the key being absent, not `null` — the
+    /// synthesized `Encodable` skips a nil optional, as it does for
+    /// `installLockHolder` — and `[]` stays "checked, none". The doc comment on
+    /// `Report.unbackupable` promises exactly this.
+    ///
+    /// Mutation: give `Doctor.Report` an `encode(to:)` that writes `unbackupable`
+    /// with `encode` (a `null` for nil).
+    @Test func doctorJSONOmitsUnbackupableWhenNotChecked() throws {
+        func report(_ unbackupable: [Doctor.Unbackupable]?) -> Doctor.Report {
+            Doctor.Report(
+                executable: "/ZZFixture/duo", appManagement: "granted",
+                isResponsibleForItself: true, installedApp: nil,
+                privilegedHelper: "registered", githubToken: "none",
+                alcoveCredentials: false, masInstalled: false, brewInstalled: false,
+                stateDirectory: "/ZZFixture/state", installLockHolder: nil,
+                unbackupable: unbackupable)
+        }
+        func object(_ r: Doctor.Report) throws -> [String: Any] {
+            let data = try JSONEncoder().encode(r)
+            return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        }
+        let notChecked = try object(report(nil))
+        #expect(notChecked["unbackupable"] == nil)
+        #expect(notChecked.keys.contains("appManagement"), "fixture encoded nothing")
+
+        let checked = try object(report([]))
+        #expect((checked["unbackupable"] as? [Any])?.isEmpty == true)
+    }
+
     /// `backups list` after an abandoned scan: every backup is listed by its key,
     /// which otherwise means nothing installed claims it — so the listing says why.
     /// With no backups at all, "No backups stored." is true either way.

@@ -120,7 +120,7 @@ private let installed = [
         defer { release.signal() }
 
         let started = Date()
-        let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200)) {
+        let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
             release.wait()
             return []
         }
@@ -140,20 +140,20 @@ private let installed = [
     @Test func anAbandonedScanIsNilNotEmpty() async {
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
-        let abandoned = await Inventory.scanIfFinished(timeout: .milliseconds(200)) {
+        let abandoned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
             release.wait()
             return []
         }
         #expect(abandoned == nil)
 
-        let empty = await Inventory.scanIfFinished(timeout: BoundedScan.timeout) { [] }
+        let empty = await Inventory.scanIfFinished(timeout: BoundedScan.timeout, detection: .off) { _ in [] }
         #expect(empty?.isEmpty == true)
     }
 
     /// …and the ordinary case still hands back what the scan found, rather than
     /// the empty list the timeout produces.
     @Test func aScanThatFinishesIsReturned() async {
-        let scanned = await Inventory.scanIfFinished(timeout: BoundedScan.timeout) { installed }
+        let scanned = await Inventory.scanIfFinished(timeout: BoundedScan.timeout, detection: .off) { _ in installed }
         #expect(scanned?.map(\.name) == installed.map(\.name))
     }
 

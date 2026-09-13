@@ -25,7 +25,11 @@ public enum Doctor {
         var stateDirectory: String
         var installLockHolder: Int32?
         /// nil when the app scan was abandoned: not checked, which `[]` would
-        /// report as "every app can be copied".
+        /// report as "every app can be copied". In `--json` a nil is **omitted**,
+        /// not written as `null` — the synthesized `Encodable` uses
+        /// `encodeIfPresent`, as it already does for `installLockHolder`. So "key
+        /// absent" means "not checked", and `[]` still means "checked, none".
+        /// `AbandonedScanOutputTests` pins both.
         var unbackupable: [Unbackupable]?
     }
 

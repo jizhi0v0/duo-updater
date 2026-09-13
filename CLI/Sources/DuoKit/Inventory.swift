@@ -33,6 +33,14 @@ public enum Inventory {
     /// `testFlightStore`); a grant arriving between the two would otherwise tag
     /// betas the checker then cannot answer. `duo check` also names this status as
     /// the reason in its note, so the note and the decision cannot disagree either.
+    ///
+    /// ⚠️ **Never touch this inside a bounded closure** (`boundedRead`,
+    /// `BoundedScan.result`). A `static let` is initialised under a one-time lock:
+    /// if its first access is on a thread the bound then abandons and the probe
+    /// never returns, every later access — on the unbounded main path — waits on
+    /// that lock forever, which is the hang the bound exists to prevent.
+    /// `boundedRead` decides on the caller's thread and hands its body a `Bool`, and
+    /// `InventoryTestFlightReadTests` lists every file that names this property.
     static let fullDiskAccess: TCCAuthStatus = TCCPreflight.fullDiskAccessStatus()
 
     /// TestFlight's store, or the sentinel that stands for "not read", according to
@@ -41,17 +49,14 @@ public enum Inventory {
     /// iPhone/iPad betas as TestFlight rows (#456) that the checker then had no
     /// store to answer.
     ///
-    /// `fullDiskAccess` and `open` are the live status and the live read, passed in
+    /// Takes the decision rather than making it, so it can be called inside a bound
+    /// without consulting `fullDiskAccess` there. `open` is the live read, passed in
     /// so a test can count opens: a sentinel and a refused read look identical from
     /// outside (both `accessible == false`), so only the count tells them apart.
     static func testFlightStore(
-        _ settings: Settings,
-        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
-        open: () -> TestFlightInventory = { TestFlightInventory() }
+        reads: Bool, open: () -> TestFlightInventory = { TestFlightInventory() }
     ) -> TestFlightInventory {
-        readsTestFlight(settings.testFlightDetection, fullDiskAccess: fullDiskAccess())
-            ? open()
-            : TestFlightInventory(macRows: [], accessible: false)
+        reads ? open() : TestFlightInventory(macRows: [], accessible: false)
     }
 
     /// TestFlight's notifications, or the "not read" sentinel, by the same rule as
@@ -60,13 +65,28 @@ public enum Inventory {
     /// does not read this one without the store either: it only ever qualifies
     /// what the store says, and it sits in another app's container too.
     static func testFlightAnnouncements(
-        _ settings: Settings,
-        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
-        open: () -> TestFlightAnnouncements = { TestFlightAnnouncements() }
+        reads: Bool, open: () -> TestFlightAnnouncements = { TestFlightAnnouncements() }
     ) -> TestFlightAnnouncements {
-        readsTestFlight(settings.testFlightDetection, fullDiskAccess: fullDiskAccess())
-            ? open()
-            : TestFlightAnnouncements(announcements: [], accessible: false)
+        reads ? open() : TestFlightAnnouncements(announcements: [], accessible: false)
+    }
+
+    /// Run `body` under `BoundedScan`'s bound, telling it whether this run reads
+    /// TestFlight — decided HERE, on the caller's thread, before the bound starts.
+    ///
+    /// `fullDiskAccess` is an autoclosure, and autoclosures cannot escape, so the
+    /// compiler refuses to evaluate it inside `body`: the decision cannot drift
+    /// into the thread the bound may abandon (see `fullDiskAccess` for why that
+    /// thread must never be the one to initialise it). Every bounded scan in `duo`
+    /// goes through here; `InventoryTestFlightReadTests` checks that nothing else
+    /// calls `BoundedScan.result`.
+    static func boundedRead<T: Sendable>(
+        _ detection: TestFlightDetection,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        within timeout: Duration,
+        _ body: @escaping @Sendable (_ readsTestFlight: Bool) -> T
+    ) async -> T? {
+        let reads = readsTestFlight(detection, fullDiskAccess: fullDiskAccess())
+        return await BoundedScan.result(within: timeout) { body(reads) }
     }
 
     /// The installed apps, or nil when the scan was given up on.
@@ -82,15 +102,18 @@ public enum Inventory {
     /// shared case.
     static func scanIfFinished(_ settings: Settings) async -> [InstalledApp]? {
         let extraLocations = settings.customScanPaths.map { URL(fileURLWithPath: $0) }
-        return await scanIfFinished(timeout: BoundedScan.timeout) {
+        return await scanIfFinished(
+            timeout: BoundedScan.timeout, detection: settings.testFlightDetection
+        ) { reads in
             // ⚠️ `testFlightStore` opens the database, and that open is the thing
             // the timeout exists to race — so it has to be INSIDE this closure.
             // It used to be, invisibly: `AppScanner`'s `testflight:` default was
             // evaluated at the call site. Naming it explicitly one line further
             // out reads identically and quietly moves the one blocking call out
-            // from under the only thing bounding it.
+            // from under the only thing bounding it. Whether to open it is
+            // decided outside (`boundedRead`); only the open happens in here.
             AppScanner(
-                extraLocations: extraLocations, testflight: testFlightStore(settings)).scan()
+                extraLocations: extraLocations, testflight: testFlightStore(reads: reads)).scan()
         }
     }
 
@@ -101,9 +124,13 @@ public enum Inventory {
     /// Everything after that line is the caller's, and "(see above)" in their
     /// output points here.
     static func scanIfFinished(
-        timeout: Duration, _ body: @escaping @Sendable () -> [InstalledApp]
+        timeout: Duration, detection: TestFlightDetection,
+        fullDiskAccess: @autoclosure () -> TCCAuthStatus = Inventory.fullDiskAccess,
+        _ body: @escaping @Sendable (_ readsTestFlight: Bool) -> [InstalledApp]
     ) async -> [InstalledApp]? {
-        guard let scanned = await BoundedScan.result(within: timeout, body) else {
+        guard let scanned = await boundedRead(
+            detection, fullDiskAccess: fullDiskAccess(), within: timeout, body
+        ) else {
             FileHandle.standardError.write(Data(
                 "duo: \(BoundedScan.gaveUpMessage(after: timeout)).\n".utf8))
             return nil
@@ -137,8 +164,9 @@ public enum Inventory {
         toolbox: ToolboxInventory = ToolboxInventory(),
         appStoreSignIn: () -> Bool? = { AppStoreSignIn.isSignedIn() }
     ) -> UpdateChecker {
-        let testflight = testflight ?? testFlightStore(settings)
-        let announcements = announcements ?? testFlightAnnouncements(settings)
+        let reads = { readsTestFlight(settings.testFlightDetection, fullDiskAccess: Inventory.fullDiskAccess) }
+        let testflight = testflight ?? testFlightStore(reads: reads())
+        let announcements = announcements ?? testFlightAnnouncements(reads: reads())
         let appStoreSignedIn = testflight.accessible ? appStoreSignIn() : nil
         return UpdateChecker(
             sources: SourceStack.make(

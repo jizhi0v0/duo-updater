@@ -85,14 +85,14 @@ import DuoUpdaterCore
         #expect(read.appStoreSignedIn == false)
     }
 
-    /// Both reads follow the rule: with detection on and Full Disk Access missing
-    /// neither store is opened, and with the grant each is opened once. Counted
-    /// through the `open` seam, because a sentinel and a refused read are both
+    /// The stores take the decision, not the setting: `reads: false` opens nothing
+    /// and hands back the sentinel, `reads: true` opens each once. Counted through
+    /// the `open` seam, because a sentinel and a refused read are both
     /// `accessible == false` and a Mac without TestFlight could not tell them apart.
     ///
-    /// Mutations: have `testFlightStore` or `testFlightAnnouncements` go back to
-    /// `settings.testFlightDetection.readsStore` alone.
-    @Test func neitherStoreIsOpenedWithoutFullDiskAccess() {
+    /// Mutations: make `testFlightStore` or `testFlightAnnouncements` call `open()`
+    /// regardless of `reads`.
+    @Test func neitherStoreIsOpenedWhenTheRunDoesNotRead() {
         var storeOpens = 0, noteOpens = 0
         func store() -> TestFlightInventory {
             storeOpens += 1
@@ -102,18 +102,98 @@ import DuoUpdaterCore
             noteOpens += 1
             return TestFlightAnnouncements(announcements: [], accessible: true)
         }
-        for status in [TCCAuthStatus.denied, .notDetermined] {
-            let s = Inventory.testFlightStore(settings(.keepFresh), fullDiskAccess: status, open: store)
-            let n = Inventory.testFlightAnnouncements(settings(.keepFresh), fullDiskAccess: status, open: notes)
-            #expect(!s.accessible && !n.accessible, "\(status)")
-        }
+        let s = Inventory.testFlightStore(reads: false, open: store)
+        let n = Inventory.testFlightAnnouncements(reads: false, open: notes)
+        #expect(!s.accessible && !n.accessible)
         #expect(storeOpens == 0)
         #expect(noteOpens == 0)
 
-        _ = Inventory.testFlightStore(settings(.whenAsked), fullDiskAccess: .granted, open: store)
-        _ = Inventory.testFlightAnnouncements(settings(.whenAsked), fullDiskAccess: .granted, open: notes)
+        _ = Inventory.testFlightStore(reads: true, open: store)
+        _ = Inventory.testFlightAnnouncements(reads: true, open: notes)
         #expect(storeOpens == 1)
         #expect(noteOpens == 1)
+    }
+
+    /// A thread-safe ordered log, for a body that runs on `BoundedScan`'s thread.
+    private final class Log: @unchecked Sendable {
+        private let lock = NSLock()
+        private var items: [String] = []
+        func append(_ item: String) { lock.withLock { items.append(item) } }
+        var entries: [String] { lock.withLock { items } }
+        func probe(_ status: TCCAuthStatus) -> TCCAuthStatus { append("probe"); return status }
+    }
+
+    /// `boundedRead` decides before the bound and hands the body the answer. The
+    /// order is what keeps `Inventory.fullDiskAccess` from being first initialised
+    /// on a thread the bound may abandon; evaluating the decision inside the body
+    /// does not compile (the status is a non-escaping autoclosure), so the order
+    /// asserted here is the one the compiler leaves possible.
+    ///
+    /// Mutations: pass `body(true)` / `body(!reads)` in `boundedRead`.
+    @Test func boundedReadDecidesFirstAndPassesTheDecisionIn() async {
+        for (status, expected) in [(TCCAuthStatus.denied, false), (.granted, true)] {
+            let log = Log()
+            let reads = await Inventory.boundedRead(
+                .keepFresh, fullDiskAccess: log.probe(status), within: .seconds(20)
+            ) { reads in
+                log.append("body")
+                return reads
+            }
+            #expect(reads == expected, "\(status)")
+            #expect(log.entries == ["probe", "body"], "\(status)")
+        }
+    }
+
+    /// Tripwires over the source tree, for the two properties the compiler cannot
+    /// hold on its own.
+    ///
+    /// 1. Every bounded scan goes through `Inventory.boundedRead` — the only place
+    ///    that decides before the bound — so nothing else calls `BoundedScan.result`.
+    /// 2. The files that name `Inventory.fullDiskAccess` are the ones checked to use
+    ///    it outside any bound. A new file on this list needs that check.
+    /// 3. `duo verify` never calls `Settings.load()`, which reads the Keychain and
+    ///    may run `gh` with no deadline (`Settings.loadTestFlightDetection`).
+    ///
+    /// Mutations: put `BoundedScan.result` back in `Verify.installedVersions`; name
+    /// `Inventory.fullDiskAccess` in `Verify.swift`; put `Settings.load()` back there.
+    @Test func boundedScansAndTheLiveStatusStayWhereTheyWereChecked() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources")
+        let files = try (FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? [])
+            .map { ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8)) }
+        #expect(files.count > 10, "found \(files.count) sources — wrong directory?")
+        func naming(_ needle: String) -> [String] {
+            files.filter { $0.1.contains(needle) }.map(\.0).sorted()
+        }
+        #expect(naming("BoundedScan.result(") == ["Inventory.swift"])
+        #expect(naming("Inventory.fullDiskAccess") == ["Check.swift", "Inventory.swift"])
+        // Code lines only: the doc comment there names the call it must not make.
+        let verify = try #require(files.first { $0.0 == "Verify.swift" }?.1)
+        let calls = verify.split(separator: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .filter { $0.contains("Settings.load()") }
+        #expect(calls.isEmpty, "\(calls)")
+    }
+
+    /// The detection setting read on its own agrees with `Settings.load()`'s, from
+    /// one reading of the key. A scratch suite, removed afterwards, so the real
+    /// preferences are never touched.
+    ///
+    /// Mutation: change the fallback in `testFlightDetection(from:)` from `.off`.
+    @Test func theDetectionSettingReadsAloneAsItDoesInLoad() {
+        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(Settings.testFlightDetection(from: defaults) == .off)
+        defaults.set("not-a-setting", forKey: UpdateSettings.testFlightDetectionKey)
+        #expect(Settings.testFlightDetection(from: defaults) == .off)
+        for detection in TestFlightDetection.allCases {
+            defaults.set(detection.rawValue, forKey: UpdateSettings.testFlightDetectionKey)
+            #expect(Settings.testFlightDetection(from: defaults) == detection)
+        }
     }
 
     /// `--refresh-testflight` starts TestFlight only when this run may read what it

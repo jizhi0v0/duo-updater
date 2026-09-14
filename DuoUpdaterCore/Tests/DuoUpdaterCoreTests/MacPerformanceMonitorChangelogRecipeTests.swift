@@ -6,10 +6,12 @@ import Foundation
 ///
 /// Its appcast carries none: one item, and no `sparkle:releaseNotesLink`, no
 /// `sparkle:fullReleaseNotesLink`, no `<description>` (fetched 2026-09-06 from
-/// the `appcast.xml` asset its `SUFeedURL` resolves to). The GitHub release body
-/// is a single sentence pointing elsewhere — "Mac Performance Monitor 1.7.1
-/// (build 206). See CHANGELOG.md for what's new." — so the repo's Keep a
-/// Changelog file is the only place the notes exist.
+/// the `appcast.xml` asset its `SUFeedURL` resolves to). Through 1.7.1 the GitHub
+/// release body was a single sentence pointing elsewhere — "Mac Performance
+/// Monitor 1.7.1 (build 206). See CHANGELOG.md for what's new." — so the repo's
+/// Keep a Changelog file was the only place the notes existed. (The 2.0.0 and
+/// 2.1.0 bodies carry full notes; CHANGELOG.md has both entries, checked
+/// 2026-09-14.)
 ///
 /// The fixture is the real file's opening, verbatim through the head of the
 /// second release: the `# Changelog` preamble, the `[Unreleased]` section, and

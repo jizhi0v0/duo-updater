@@ -8,7 +8,7 @@
 
 ### Recipes/com-sublimemerge.swift — stable VendorProbe（HTML 抓取与 "Build NNNN"）
 
-转引自 recipe 注释，未复测。整段原文。代码里："no usable API" 和末句 "Detection only." 是（c），见下面的更正；"Build 2125" 改成了示例；末尾那句改写成描述值的形状，不再说到某份拷贝。
+转引自 recipe 注释，未复测。整段原文。代码里："no usable API" 和末句 "Detection only." 是（c），见下面的更正；"Build 2125" 改成了示例；CRITICAL 那句（倒数第三句）改写成描述值的形状，不再说到某份拷贝。
 
 Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
 (no usable API; mirrors the Sublime Text 4 recipe in `Recipes/com-sublimetext-4.swift` — same vendor,

@@ -22,7 +22,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
     "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
     时可以改（记账 diff 里逐条可见），历史里保留原段落全文（见下面补充第 3 条）；整段原样留在
-    代码里、一句都没搬也没改的段落，不进历史。
+    代码里、一句都没搬也没改（只加 "e.g." 标记不算改）的段落，不进历史。
   - **更正跟着它更正的说法走。** 注释写着"X 以前成立、现在不成立"时，在同一个 PR 里把代码里
     （以及复述它的测试注释里）的旧说法改掉，不许只把更正搬走、把旧说法留下。反例：第一版把
     CapCut「`capcutpc_beta` 的坑已不存在」那段搬进历史，代码和 `CapCutProbeRecipeTests` 里剩下的
@@ -69,7 +69,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
      哪怕它挂在 "installed" 这个词上（"the installed 1.27.0 commit"、"the installed version"）。
      这条管的是某台机器被观测到有什么：假设场景里的泛称（"an update against an installed 2.9.x"）、
      引用的工具输出（"remote is BEHIND the installed copy"）、同一版本每份拷贝都一样的属性
-     （"this bundle's own build date"）都不是机器状态，原样保留。
+     （"this bundle's own build date"、某版本报出的 build 号、某个字段的格式）都不是机器状态，原样
+     保留。一句里两样都有时，只改"那台机器装的是哪个版本"那一半；拿不准时原样保留。
      **来源标注只说改了哪一类**（例如「改写了一处本机状态措辞：具体版本号」），不以任何语言复述
      被替换掉的短语——翻译过来的引用也算引用。
   2. **从厂商现状句里删掉日期或 "when checked"，就造出了一句无时间的断言，按（c）处理**：先复测，
@@ -78,8 +79,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
      而那页复测时回的是 404。
   3. **一段里只要有一句被搬走或被改写，历史里就放这一段的整段原文**，不是只放那一句；同一段里
      仍原样留在代码的句子也跟着出现在历史里——历史是带日期的快照，这种重复是有意的。只有整段
-     原样留在代码里的段落不进历史。只加一个 "e.g." 标记不算改写，不进历史；任何改写或任何（c）更正
-     都把整段原文送进历史，后面另起一行写复测或更正说明。
+     原样留在代码里的段落不进历史。只加一个 "e.g." 标记不算改写，不进历史——但只限本来就是示例形状
+     的数字；描述当前状态的数字照旧按上面「数字」那条带日期搬走。任何改写或任何（c）更正都把整段原文
+     送进历史；有复测或更正说明的，另起一行写在后面。
   4. **grep 副本的范围是整个仓库**，只排除各审计文档里的 `## 历史与实测` 一节、`CHANGELOG.md`、
      `changelog/`、`verify/baseline.json`，以及测试 fixture 和抓下来的响应体——它们是历史记录或数据，
      不是断言。（以前列过一份目录清单，漏了 `Recipes/` 以外的 `Sources/`、`CLI/` 和别的 family
@@ -333,7 +335,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对
 - [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 仅迁出历史：一键 pkg 的签名核对、changelog 页的排查
 - [ ] [**ChatGPT（原 Codex 桌面端）**](com-openai-codex.md) · `com.openai.codex` — 仅迁出历史：静态 feed 与灰度端点不一致、`plan_type` 两条轨的测量
-- [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对
+- [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对、group D「只检测」说法的更正
 - [ ] [**AweSun**](com-oray-sunlogin-macclient.md) · `com.oray.sunlogin.macclient` — 仅迁出历史：changelog 接口「50 bytes」的复查
 - [ ] [**AnyDesk**](com-philandro-anydesk.md) · `com.philandro.anydesk` — 仅迁出历史：一键 dmg 的签名核对、各平台版本号
 - [ ] [**Postman**](com-postmanlabs-mac.md) · `com.postmanlabs.mac` — 仅迁出历史：旧正则截断条目的计数
@@ -341,8 +343,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对
 - [ ] [**Shotbase**](com-shotbase-app.md) · `com.shotbase.app` — 仅迁出历史：appcast 条目数
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
-- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对
-- [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
+- [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
 - [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）

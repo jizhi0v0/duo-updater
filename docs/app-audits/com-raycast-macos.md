@@ -211,4 +211,4 @@ through 2.0.3.0 share one note.)
 
 复测 2026-09-14（约 07:58 UTC，只读 GET）：`releases.raycast.com/releases/latest?build=universal` 回 `1.104.29`（2026-09-10）。`www.raycast.com/changelog/macos` 的 `<title>` 已是 "Raycast - macOS Changelog"，内容与 `/changelog` 相同——10 个 `<span id>`，依次是 `2.3`、`2.2`、`2.1`、`2.0`、`0.71` … `0.66`，没有一个 1.x 条目。也就是说复测时这张页已经不是 v1 存档。约 09:09 UTC 另读 `www.raycast.com/changelog/macos-v1`：200，130,061 B，`<title>` 是 "Raycast - macOS V1 Changelog"，10 个 `<span id>` 从 `1.104.0` 到 `1.95.0`——v1 存档搬到了这个地址。
 
-更正 2026-09-14：#622（合并提交 `d58d0e00`）把 v1 ChangelogRecipe 的 `source` 和 v1 probe 的 `changelogURL` 改指 `/changelog/macos-v1`，并改写了代码里描述这几个地址的注释；本文件上面「Changelog」一节是 #622 写的现状。
+更正 2026-09-14：#622（squash 提交 `d58d0e00`）把 v1 ChangelogRecipe 的 `source` 和 v1 probe 的 `changelogURL` 改指 `/changelog/macos-v1`，并改写了代码里描述这几个地址的注释；本文件上面「Changelog」一节是 #622 写的现状。

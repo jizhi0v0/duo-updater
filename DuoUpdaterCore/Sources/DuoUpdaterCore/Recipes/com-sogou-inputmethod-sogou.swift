@@ -101,9 +101,8 @@ enum com_sogou_inputmethod_sogou {
         // a number belonging to something else.
         //
         // `changelogURL` stays on the update-log page: it is the only place the
-        // release notes exist, and the two agreed when this was written
-        // (2026-08-28) and on recheck 2026-09-14 (History has the versions and
-        // dates).
+        // release notes exist, and the two agreed when this was written (2026-08-28)
+        // and on recheck 2026-09-14 (History has the versions and dates).
         //
         // DETECTION ONLY, and here that is not conservatism. Its `install.sh` does
         // rotate `Contents` on the already-installed branch, like WeType's and

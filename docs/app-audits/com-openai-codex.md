@@ -27,7 +27,7 @@ Sparkle stages 41509, waits for a quit, and our restart is the quit.
 转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`app_version` 必填但不参与；另外两个参数 2026-08-24 实测不改变重定向目标），试过的值搬到这里。`app_version` 那组值原句没写日期，引入它的提交是 `fe22d48b`（2026-08-22）。唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 `app_version` is required (omit it, or send something unparseable, and
-there is no redirect) but does not participate: 0.0.0, the version installed on the machine measured on 2026-08-22,
+there is no redirect) but does not participate: 0.0.0, the version installed on the machines measured on 2026-08-22,
 and 99.999.99999 all resolved to the same target. A sentinel is
 deliberate — if OpenAI ever does step upgrades, 0.0.0 is the value most
 likely to be rejected outright, which `duo verify` reports, rather than

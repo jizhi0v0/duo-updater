@@ -73,6 +73,7 @@ Pattern A 的变体：同一 bundle id，两条轨靠 **app 名里的渠道词**
 - 同一 repo 里 nightly 每天多条；alpha 安装永远看不到它们（prerelease 被
   `/releases/latest` 排除 + tag 锚拒绝），nightly 安装只看到 nightly 轨。
 - `LSMinimumSystemVersion = 12.0`，低版本宿主由下载后检查兜住。
+- 2026-09-13 起同一 repo 多了第三条 `-preview.` prerelease 轨（tag `vX.Y.Z-preview.<date>.<seq>`，资产 `T3-Code-<ver>-preview.<date>.<seq>-arm64.dmg`），**没有覆盖**：alpha 与 nightly 两条 rule 的 tag 锚和资产 pattern 都不收它（2026-09-14 复测，见「历史与实测」）。nightly 的 `listPageSize` 5 同时变成零余量。
 
 ## 如何复验
 ```
@@ -85,7 +86,7 @@ Pattern A 的变体：同一 bundle id，两条轨靠 **app 名里的渠道词**
 ```
 
 ## 建议下一步
-无。检测 + 一键 + changelog 两轨均已覆盖。
+alpha、nightly 两轨的检测 + 一键 + changelog 已覆盖（2026-08-30）。2026-09-14 复测发现的 `-preview.` 轨未覆盖，是否接入待定（见「已知问题」）。
 
 ## 历史与实测
 
@@ -131,4 +132,4 @@ vendor-launched stable train with identical naming — nothing in the
 URL would distinguish it, and `/releases/latest` would return it; the
 anchor documents that exposure rather than pretending to close it.
 
-复测 2026-09-14（约 07:31 UTC，只读 `gh api repos/pingdotgg/t3code/releases?per_page=100` 与 `releases/latest`）：最新 100 条里 nightly tag 的首次出现在第 1 位（第 0 位是 `v0.0.41-preview.20260914.1693`），相邻两个 nightly tag 的位置差最大是 4；100 条里有 4 个 `-preview.` tag，最早的是 `v0.0.41-preview.20260913.1634`（2026-09-13），都标了 prerelease；`releases/latest` 是 `v0.0.40`（2026-09-08）。`v0.0.41-preview.20260914.1693` 的 macOS 资产名是 `T3-Code-0.0.41-preview.20260914.1693-arm64.dmg` 与 `…-x64.dmg`。
+复测 2026-09-14（约 07:31 UTC，只读 `gh api repos/pingdotgg/t3code/releases?per_page=100` 与 `releases/latest`）：最新 100 条里 nightly tag 的首次出现在第 1 位（第 0 位是 `v0.0.41-preview.20260914.1693`），相邻两个 nightly tag 的位置差最大是 4；100 条里有 4 个 `-preview.` tag，最早的是 `v0.0.41-preview.20260913.1634`（2026-09-13），都标了 prerelease；`releases/latest` 是 `v0.0.40`（2026-09-08）。`v0.0.41-preview.20260914.1693` 的 macOS 资产名是 `T3-Code-0.0.41-preview.20260914.1693-arm64.dmg` 与 `…-x64.dmg`。按 `GitHubListPageSizeTests` 的算法（最大位置差 + 1），nightly 的 floor 是 5，正好等于 `listPageSize` 5，没有余量（该测试表里记的仍是 2026-09-04 的 floor 3）。

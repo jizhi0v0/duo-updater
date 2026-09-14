@@ -188,7 +188,7 @@ $ duo check --json --all | grep qqmusic
 
 ### Recipes/com-tencent-QQMusicMac.swift — stable VendorProbe（`download.js`，锚定与版本粒度）
 
-转引自 recipe 注释，未复测。三段整段原文。代码里留下的是结论：查询参数不起作用（保留了实测日期）；两个 Mac 对象靠带版本号的 dmg 文件名区分；文件名里的 `Build01` 不是 `CFBundleVersion`。当天的版本号、日期、「各匹配一次」和别的平台的版本号搬到这里；`73276` 在代码里标成了示例。唯一的改写：第三段括号里说那是"装着的" 11.8.1 报出的 build，按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期的，引入它们的提交日期是 2026-08-29（与本段实测同日）。
+转引自 recipe 注释，未复测。三段整段原文。代码里留下的是结论：查询参数不起作用（保留了实测日期）；两个 Mac 对象靠带版本号的 dmg 文件名区分；文件名里的 `Build01` 不是 `CFBundleVersion`。当天的版本号、日期、「各匹配一次」和别的平台的版本号搬到这里；`73276` 在代码里标成了示例。唯一的改写：第三段括号里一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期的，引入它们的提交日期是 2026-08-29（与本段实测同日）。
 
 URL: every query parameter the site sends
 (`cv`/`ct`/`format`/`platform`/`g_tk`/`jsonpCallback`/…) is INERT —
@@ -222,7 +222,7 @@ granularity limit, not a dead discriminator.
 
 ### Recipes/com-tencent-QQMusicMac.swift — stable VendorProbe（一键 dmg）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`Flink1` 302 到带版本号的 dmg、`sign` 每次现铸；镜像里只有 `QQMusic.app`，所以 kind 是 `.dmg`，保留了核对日期），大小、bundle 字段、Team、`spctl`、`lipo` 搬到这里。两处改写：原文说镜像没往"这台机器"放任何旁路组件、版本号"与装着的那份一致"，都按本目录的机器状态规则改成了针对那台被核对的机器的说法；"the installed copy's team" 是和被更新的 app 比较，原样保留。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`Flink1` 302 到带版本号的 dmg、`sign` 每次现铸；镜像里只有 `QQMusic.app`，所以 kind 是 `.dmg`，保留了核对日期），大小、bundle 字段、Team、`spctl`、`lipo` 搬到这里。两处改写：两处本机状态措辞（某个文件在不在、具体版本号），都按本目录的机器状态规则改成了针对那台被核对的机器的说法；和被更新的 app 比较 Team 的那一处原样保留。
 
 One-click verified 2026-08-29 by resolving and opening the artifact this
 recipe builds: `Flink1` 302s to

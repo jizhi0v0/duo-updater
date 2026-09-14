@@ -8,7 +8,7 @@
 
 ### Recipes/com-netease-uuremote.swift — stable VendorProbe（Homebrew cask 为什么接不住）
 
-转引自 recipe 注释，未复测。唯一的改写：原文末句说这份拷贝是直接装的，按本目录的机器状态规则改成了针对写这句话时那台机器的说法。代码里改成了不依赖某台机器的说法（直接从厂商装的拷贝）。
+转引自 recipe 注释，未复测。唯一的改写：末句一处本机状态措辞（那份拷贝的安装来源），按本目录的机器状态规则改成了针对写这句话时那台机器的说法；代码里改成了不依赖某台机器的说法。
 
 The Homebrew cask can't cover this: its provenance gate (correctly) only
 adopts apps brew actually installed, and the copy on the machine this was written on had been installed directly.

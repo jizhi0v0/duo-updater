@@ -8,7 +8,7 @@
 
 ### Recipes/com-spotify-client.swift — stable VendorProbe（`.zipEntryPlist`，一键 dmg）
 
-转引自 recipe 注释，未复测。整段原文（原注释是一整块，中间没有空行）；代码里留下的是结论（stub 与客户端版本同步，2026-06-16 核对时比 Homebrew cask 新；2026-08-22 检查时找不到桌面端发布说明），两个大小、当天的版本号和找到的论坛帖子搬到这里。1.8MB 与 164MB 原句没写日期，引入它们的是 2026-06-16 那次核对所在的提交 `b57ecd21`。唯一的改写：原文说"装着的 app"也落后一个 build，按本目录的机器状态规则改成了针对那台被核对的机器的说法。
+转引自 recipe 注释，未复测。整段原文（原注释是一整块，中间没有空行）；代码里留下的是结论（stub 与客户端版本同步，2026-06-16 核对时比 Homebrew cask 新；2026-08-22 检查时找不到桌面端发布说明），两个大小、当天的版本号和找到的论坛帖子搬到这里。1.8MB 与 164MB 原句没写日期，引入它们的是 2026-06-16 那次核对所在的提交 `b57ecd21`。唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被核对的机器的说法。
 
 Spotify — no cheap public version API (the cohort `upgrade.scdn.co`
 endpoint is session-token-gated, not a configurable key). BUT the 1.8MB

@@ -138,7 +138,7 @@ duo verify --only qoder.ide
 
 ### Recipes/com-qoder-ide.swift — stable VendorProbe（条件端点）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（旧版本的 commit 得到最新版的 JSON，当前版本的 commit 得到 204 空 body，保留了实测日期），两个 commit 和版本号搬到这里。唯一的改写：原文说被测的那个 commit 属于"装着的" 1.27.0，按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（旧版本的 commit 得到最新版的 JSON，当前版本的 commit 得到 204 空 body，保留了实测日期），两个 commit 和版本号搬到这里。唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 ⚠️ CONDITIONAL ENDPOINT — the reason the last path segment is `latest`
 and not a commit. Measured 2026-09-06: the commit of the 1.27.0 installed on the machine measured that day
@@ -167,7 +167,7 @@ forever.
 
 ### Recipes/com-qoder-ide.swift — stable VendorProbe（一键 zip 与单渠道）
 
-转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（解包后 short == build == 端点的 `productVersion`，与装着的那份同 Team），签名细节搬到这里。第二段只把 "measured same day" 改成了具体日期——它原本指的是前一段里被搬走的那个日期。
+转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（解包后 short == build == 端点的 `productVersion`，与装着的那份同 Team），签名细节搬到这里。第一段唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被核对的机器的说法；和被更新的 app 比较 Team 的措辞本身原样保留。第二段只把 "measured same day" 改成了具体日期——它原本指的是前一段里被搬走的那个日期。
 
 The install spec takes the zip the API itself names, not the
 `Qoder-IDE-darwin-arm64.dmg` the download page hands a human. Same
@@ -176,7 +176,7 @@ it: `Qoder IDE.app`, `com.qoder.ide`, CFBundleShortVersionString ==
 CFBundleVersion == 1.28.0 == the API's `productVersion`, arm64-only,
 signed "Developer ID Application: Alibaba.com Singapore E-Commerce
 Private Limited (T27K5A5ZWD)" and accepted by `spctl` as Notarized
-Developer ID — the same Team as the installed 1.27.0 copy, so the swap
+Developer ID — the same Team as the 1.27.0 copy installed on the machine verified that day, so the swap
 passes the VendorInstaller gate.
 
 Single channel: `stable` is the only quality this server answers —

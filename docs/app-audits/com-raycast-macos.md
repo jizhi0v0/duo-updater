@@ -148,12 +148,15 @@ rather than left to start over.
 
 ### Recipes/com-raycast-macos.swift — stable VendorProbe v2（`x.raycast-releases.com`）
 
-转引自 recipe 注释，未复测。整段原文（开头是原注释里的响应形状摘录）。代码里去掉了核对地点那个从句，版本号标成了示例。唯一的改写：那个从句按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
+转引自 recipe 注释，未复测。整段原文（开头是原注释里的响应形状摘录）。代码里去掉了那个从句，版本号标成了示例。唯一的改写：一处本机状态措辞（核对所在的机器），按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
 
+```
 Shape: {"id":…,"version":"2.0.6.0","title":…,"changelog":…,
   "commit_sha":…,"created_at":"2026-08-25T07:34:17.976Z","updated_at":…,
   "builds":[{…,"url":…}],"download_url":"https://x-r2.…arm64.dmg",
   "checksum":"<md5>"}
+```
+
 `version` is the marketing string the installed bundle reports verbatim
 (2.0.6.0 == CFBundleShortVersionString, verified on the machine checked that day), so no
 `versionIsBuild`. The install URL is the top-level `download_url` — a
@@ -189,4 +192,4 @@ since v2 development took over; 1.104.x installs belong under the 1.104.0
 entry. (The same grouping is visible on the v2 side, where 2.0.6.0
 through 2.0.3.0 share one note.)
 
-复测 2026-09-14（约 07:58 UTC，只读 GET）：`releases.raycast.com/releases/latest?build=universal` 回 `1.104.29`（2026-09-10）。`www.raycast.com/changelog/macos` 的 `<title>` 已是 "Raycast - macOS Changelog"，内容与 `/changelog` 相同——10 个 `<span id>`，依次是 `2.3`、`2.2`、`2.1`、`2.0`、`0.71` … `0.66`，没有一个 1.x 条目。也就是说复测时这张页已经不是 v1 存档；代码里描述它是 v1 存档的那几句没有改，记在 PR 的 Found in passing 里。
+复测 2026-09-14（约 07:58 UTC，只读 GET）：`releases.raycast.com/releases/latest?build=universal` 回 `1.104.29`（2026-09-10）。`www.raycast.com/changelog/macos` 的 `<title>` 已是 "Raycast - macOS Changelog"，内容与 `/changelog` 相同——10 个 `<span id>`，依次是 `2.3`、`2.2`、`2.1`、`2.0`、`0.71` … `0.66`，没有一个 1.x 条目。也就是说复测时这张页已经不是 v1 存档；代码里描述它是 v1 存档的那几句没有改，记在 PR 的 Found in passing 里。约 09:09 UTC 另读 `www.raycast.com/changelog/macos-v1`：200，130,061 B，`<title>` 是 "Raycast - macOS V1 Changelog"，10 个 `<span id>` 从 `1.104.0` 到 `1.95.0`——v1 存档搬到了这个地址。

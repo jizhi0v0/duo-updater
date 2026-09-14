@@ -604,7 +604,7 @@ beta 还**倒退**了（9.4.0-beta8 → 9.3.5-beta1）。
 
 ### Recipes/com-lemon-lvoverseas.swift — stable + beta VendorProbe（两条共用的 `capCutRecipe` 注释）
 
-转引自 recipe 注释，未复测。唯一的改写：原文用“这台机器”说哪里都没有 CapCut 的 launch item，按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：一处本机状态措辞（某个文件在不在），按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 Measured 2026-08-27, all other
 parameters held fixed:

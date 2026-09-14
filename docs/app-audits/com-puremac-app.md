@@ -19,4 +19,4 @@ real update. The macOS-asset gate already walks past that release, but
 the number it walked past should never have parsed in the first place:
 one guard against a silent no-update is not enough.
 
-复测 2026-09-14（约 07:30 UTC，只读 `gh api repos/momenbasel/PureMac/releases/latest` 与 `releases?per_page=10`）：latest 是 `v2.9.8`（2026-08-21）；`cli-v1.0.0`（2026-08-17T22:44:53Z，非 prerelease）仍在列表里，排在 `v2.9.8` 之后，其余九条都是 `v2.9.x` tag。
+复测 2026-09-14（约 07:30 UTC，只读 `gh api repos/momenbasel/PureMac/releases/latest` 与 `releases?per_page=10`）：latest 是 `v2.9.8`（2026-08-21）；`cli-v1.0.0`（2026-08-17T22:44:53Z，非 prerelease）仍在列表里，排在 `v2.9.8` 之后，其余九条都是 `v2.9.x` tag。同日稍后（`releases?per_page=100` 与 `tags?per_page=100`）：以 `cli` 开头的 tag 只有 `cli-v1.0.0` 一个，代码里因此写成单数。

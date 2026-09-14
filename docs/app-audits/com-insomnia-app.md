@@ -92,7 +92,7 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 
 ### Recipes/com-insomnia-app.swift — stable GitHubReleaseRule（`core@X.Y.Z`，一键 `Insomnia.Core-<ver>.dmg`）
 
-转引自 recipe 注释，未复测。第一、二段原句没写日期；日期取自引入这句话的提交：`f7686b3d`（2026-06-07）。第三段唯一的改写：原文说这个 app 在“本地”没有装，按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。第一、二段原句没写日期；日期取自引入这句话的提交：`f7686b3d`（2026-06-07）。第三段唯一的改写：一处本机状态措辞（这个 app 装没装），按本目录的机器状态规则改成了针对那台被验证的机器的说法。
 
 An unanchored
 `core@(X.Y.Z)` captured `13.0.0` out of `core@13.0.0-beta.0` and pushed a

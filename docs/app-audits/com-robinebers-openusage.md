@@ -76,3 +76,21 @@ appcast 同样把 beta 条目标成 `<sparkle:channel>beta</sparkle:channel>`，
 
 ## 建议下一步
 无。检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-robinebers-openusage.swift — `changelogPages`（GitHub releases 兜底页）
+
+转引自 recipe 注释，未复测。整段原文；代码里去掉了两个没写日期的现状数字（51 个条目、v0.7.10 正文约 1 万字符），它们来自引入这段的提交 `cff8d0ed`（2026-08-31）。
+
+OpenUsage — resolves through the generic Sparkle source, but not one of
+its 51 appcast items carries a `<description>` or a
+`sparkle:releaseNotesLink`, so the app had no notes at all. The vendor
+writes them on the GitHub releases instead (v0.7.10's body is ~10k
+chars). Web fallback rather than a `ChangelogRecipe`: the release page
+is the same content the maintainer publishes, and nothing here needs a
+per-version parse.
+
+复测 2026-09-14（约 08:06 UTC，只读 GET `robinebers.github.io/openusage/appcast.xml`）：53 个 `<item>`，`<description` 与 `releaseNotesLink` 都出现 0 次，代码里 "not one of its appcast items" 仍成立。

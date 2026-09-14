@@ -263,3 +263,57 @@ Contents”，并为迁移脚本建立明确版本门控；不是把官网安装
 4. 若实现专用安装源，直接复用这个接口拿 `update_pack_url` + `update_pack_md5`（**动态**请求，
    带真实版本号；不要把 pin 了 `v=0.0.0.1` 的探测 URL 拿去下包），并且仍然不要发设备 hash。
 5. 一键前补齐 `SGQuDao` 保留、脚本版本门控、回滚和登录/词库回归测试。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。以下各段原句没写日期的，都来自引入它们的提交 `6c09268b`（2026-08-28）。
+
+### Recipes/com-sogou-inputmethod-sogou.swift — stable VendorProbe（条件端点、pin 旧版本）
+
+转引自 recipe 注释，未复测。四段整段原文（第二段里的表格是原注释里缩进的摘录）。代码里留下的是结论：不做分段升级；`sv` 按系统分三档，档位边界保留、各档对应的版本号搬到这里；静默失效那一种的说法改成了不带版本号的；changelog 页与接口「核对时一致」。
+
+So the probe pins `v` at `0.0.0.1` — below anything the vendor can ever
+ship, so the request can never drift into sentinel territory. It does
+NOT stage: measured at `6.23.0.0`, `6.16.1.0`, `2.0.0.26481`,
+`1.5.1.21442`, `1.0.0.2` and `0.0.0.1`, every one is answered with the
+same newest build rather than an intermediate hop, which is the property
+that makes a pinned-old-version probe mean "latest".
+
+WARNING: `sv` DOES gate by OS. The first version of this comment said it
+did not, from five values that all sat inside one bucket. Swept finely
+there are three answers:
+
+```
+    sv < 10.10             sentinel
+    sv 10.10 – 10.13       6.14.1.9298   (frozen since June 2023)
+    sv 10.14 – 27.6        6.24.1.11676  ← current
+    sv 27.61 and above     6.14.1.9298   again
+```
+
+The residual risk is narrow, and it is this recipe's one quiet failure:
+if Sogou splits the 10.14–27.6 bucket and ships a newer build only above
+it, the pinned request keeps answering 6.24.1.11676 and nothing fails.
+Most boundary moves are loud instead — a pin landing in the legacy
+bucket reports 6.14.1.9298, below every real install, which the sweep
+flags as `remote is BEHIND the installed copy`. The check for the quiet
+case is the changelog page: at the next release it advances and so must
+this.
+
+`changelogURL` stays on the update-log page: it is the only place the
+release notes exist, and the two agree (`6.24.1`, 2026-07-17, matching
+this bundle's own build date).
+
+复测 2026-09-14（约 07:25 UTC，只读 GET `macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`，另加 `cpu=arm64` / `x86_64` / `intel` 各一次）：四次都是 `version=6.24.1.11676`，`update_pack_url` 相同。代码里 "`cpu` is inert today" 因此原样保留。没有重扫 `sv` 的档位。
+
+### Recipes/com-sogou-inputmethod-sogou.swift — stable VendorProbe（安装脚本与 LaunchAgent）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（两个脚本都只 `bootout` 并删掉那个用户级 LaunchAgent，并不安装它）。唯一的改写：原文括号末句从一台机器推到「装了搜狗的机器上都没有这个文件」，按本目录的机器状态规则改成了针对那台被核对的机器的说法。
+
+(An earlier version of this comment said the installer *installs* a
+per-user LaunchAgent. It does the opposite: both scripts only `bootout`
+and `rm -rf` `~/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`,
+and no such file existed on the machine checked, which had Sogou installed.) The self-update payload
+above is a narrower shape again (a double zip carrying
+`Contents<version>.zip` plus `pre.sh`/`post.sh`/`switch.sh`, whose
+switch script has its own migration branches), so a one-click here needs
+a Sogou-specific path, not the generic archive install.

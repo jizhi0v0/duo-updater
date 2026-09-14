@@ -104,3 +104,30 @@ duo verify --only qoder.app
 
 ## 建议下一步
 - 无。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-qoder-app.swift — stable VendorProbe（`manifest.json`）
+
+转引自 recipe 注释，未复测。前两段整段原文，代码里只把两个没写日期的大小（1.4 KB、238 MB）去掉了；大小来自引入这两句的提交 `1c08f01c`（2026-09-06）。第三段整段搬出，代码里留下 "short == build == the manifest's `version`" 这个结论和核对日期。
+
+Qoder (the app) — the vendor publishes a 1.4 KB `manifest.json` beside
+the artifacts for its own installer to read: a top-level `version` plus
+one entry per platform with a sha256. Unconditional, tiny, and JSON, so
+it is preferred over every HTML surface this product has.
+
+The download page hands a human `Qoder-Installer-mac-arm64.zip`: a
+238 MB stub (`com.qoder.installer`, its own bundle id) whose
+`Contents/Resources/payload/Qoder-<version>-mac-arm64.zip` holds the
+real app — the DoubaoIme shape `nestedArchivePath` exists for, and one
+this recipe deliberately does NOT need. The same release ships
+unwrapped beside it as `Qoder-mac-arm64.zip`, which is what the manifest
+names and what this installs; the payload path could not be spelled as
+a fixed `nestedArchivePath` anyway, since it carries the version.
+
+Verified 2026-09-06 on the artifact the manifest resolved to:
+`Qoder.app`, `com.qoder.app`, short == build == 0.1.8 == the manifest's
+`version`, arm64-only, "Developer ID Application: BRIGHT ZENITH PRIVATE
+LIMITED (B6U242QL73)", notarized, matching the installed copy's Team.

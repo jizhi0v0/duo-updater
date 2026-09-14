@@ -86,3 +86,49 @@ Pattern A 的变体：同一 bundle id，两条轨靠 **app 名里的渠道词**
 
 ## 建议下一步
 无。检测 + 一键 + changelog 两轨均已覆盖。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-t3tools-t3code.swift — nightly GitHubReleaseRule（`listPageSize`）
+
+转引自 recipe 注释，未复测。整段原文（nightly 那条 rule 的注释是一整块）。代码里的 `listPageSize` 一句改成了说条件（别的轨的 release 会插在两个 nightly 之间），2026-09-04 的位置、间隔和页大小搬到这里，并按下面的复测注明间隔已经变宽；版本号标成了示例。
+
+T3 Code nightly — prerelease tags `vX.Y.Z-nightly.<date>.<seq>`, several
+per day, marked prerelease, so `usePrereleases` reads the list and the
+pattern is anchored to the nightly shape end to end. The app reports the
+whole string as BOTH marketing and build, so the extracted version must
+keep it intact rather than truncate to `X.Y.Z` — a nightly install shows
+`0.0.37-nightly.20260830.1227` on both sides, and `VersionComparator`
+orders the date/seq runs numerically. One-click: same Team
+ARK85ZXQ4Z, verified on the mounted nightly artifact. The asset name
+carries `-nightly.` — which is also why the alpha pattern above cannot
+drift onto this train: its `[0-9.]+` run refuses the dash.
+listPageSize: measured 2026-09-04 against the newest 100 releases —
+first-match index 0, worst run between two nightly tags is 2 (the
+alpha train's occasional release lands a single non-nightly entry in
+between, e.g. `v0.0.39-nightly.20260902.1252`→
+`v0.0.38-nightly.20260901.1250`). 5 keeps 2.5x headroom; real page
+measured at 11.9 KB gzipped for per_page=3 (12,157 bytes; an earlier
+comment rounded the same measurement to 9 KB), vs 64 KB at per_page=20.
+
+### Recipes/com-t3tools-t3code.swift — alpha channel proof
+
+转引自 recipe 注释，未复测。整段原文。"which is the only other train this repo publishes" 迁移时已不成立（见下面的复测），代码里改成了「写这句时 nightly 是唯一的另一条轨，此后多了 `-preview.` 轨，`[0-9.]+` 同样拒绝它的资产名」。原句来自提交 `8e0cc26e`（2026-08-30）。
+
+T3 Code alpha is the one channel with no token in the tag OR the asset
+name: `v0.0.36` / `T3-Code-0.0.36-arm64.dmg` are byte-identical in
+shape to what a hypothetical stable train would publish. What keeps
+the alpha rule off the nightly train is the install pattern's PURE
+DIGIT run — nightly assets (`T3-Code-0.0.37-nightly.20260830.1227-
+arm64.dmg`) carry `-nightly.<date>.<seq>` between the version and
+`-arm64`, which `[0-9.]+` refuses. So the proof is an anchor on that
+field, not on the artifact: it fails the day someone loosens the
+pattern enough to match nightly names (e.g. a `.*` run), which is the
+only other train this repo publishes. What it cannot do is catch a
+vendor-launched stable train with identical naming — nothing in the
+URL would distinguish it, and `/releases/latest` would return it; the
+anchor documents that exposure rather than pretending to close it.
+
+复测 2026-09-14（约 07:31 UTC，只读 `gh api repos/pingdotgg/t3code/releases?per_page=100` 与 `releases/latest`）：最新 100 条里 nightly tag 的首次出现在第 1 位（第 0 位是 `v0.0.41-preview.20260914.1693`），相邻两个 nightly tag 的位置差最大是 4；100 条里有 4 个 `-preview.` tag，最早的是 `v0.0.41-preview.20260913.1634`（2026-09-13），都标了 prerelease；`releases/latest` 是 `v0.0.40`（2026-09-08）。`v0.0.41-preview.20260914.1693` 的 macOS 资产名是 `T3-Code-0.0.41-preview.20260914.1693-arm64.dmg` 与 `…-x64.dmg`。

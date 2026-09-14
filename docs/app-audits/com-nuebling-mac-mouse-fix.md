@@ -87,3 +87,34 @@ beta 侧**未在真机上翻转** `General.checkForPrereleases`（该文件在�
 1. `MacMouseFixChannel.resolve(checkForPrereleases: true)` 的映射关系由单元测试直接钉住;
 2. `MacMouseFixChannel.checkForPrereleases(fromConfig:)` 的嵌套 key 解析由单元测试针对"拍平成顶层 key"这个具体的失效模式做了变异验证（人工引入该变异，两条相关用例按预期变红）；
 3. preview feed 最新条目对应的真实资产已下载解压，`Contents/Info.plist` 逐字段核对过（见上文）。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-nuebling-mac-mouse-fix.swift — ChangelogRecipe（`feedPagePattern`，每版一页）
+
+转引自 recipe 注释，未复测。第一段整段搬出。第二段是那三条列表的整段原文，代码里留下的是去掉计数之后的结论。两段都没写日期的计数，日期取自第一段自己的 2026-09-13，也是引入这些句子的提交 `abf1aea1`（2026-09-13）的日期。
+
+Measured 2026-09-13 against both live feeds: all 360 links match the
+page pattern. Of the 63 linked pages fetched (every version's `de`,
+plus all 12 languages of 3.0.8, 3.1.0 Beta 1 and 2.0.0), all 63 extract
+one entry whose `<title>` equals that item's
+`sparkle:shortVersionString` (`3.1.0 Beta 1` included). The 31 unlinked
+`en` pages were fetched too and all extract with no notice text.
+Checked independently in Python.
+
+  * A translated page opens with a "translated by AI" notice
+    (`<p><strong>ℹ️ …`) ending at the first `<hr />`, and the body
+    starts after it. Keyed on the notice, not on the first `<hr />`:
+    `en.html` is published but has no notice (and no feed links it
+    today), and its first `<hr />` is the one before the "previous
+    release" footer. Skipping to it left 16 of the 31 English pages
+    with only that footer as their notes.
+  * Sub-bullets are nested `<ul>`; the item pattern stops at the next
+    `<li>`/`<ul>`, so a parent and its first child stay two lines
+    rather than one merged line. 60 of the 63 pages use lists.
+  * The other three (2.1.0, 3.0.0 Beta 2 and Beta 3) are prose only,
+    and fall through to `<p>`.
+
+复测 2026-09-14（07:25 UTC，只读 GET 两份 appcast）：stable 17 个条目、204 条说明链接，`appcast-pre.xml` 30 个条目、360 条；两份都只链接 12 种语言，没有一条链到 `en.html`。代码里 "12 languages and no `en`" 和 "no feed links it today" 因此原样保留。页面没有重抓。

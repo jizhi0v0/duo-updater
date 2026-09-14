@@ -320,6 +320,21 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对
 - [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量
 - [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退
+- [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对
+- [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 仅迁出历史：一键 pkg 的签名核对、changelog 页的排查
+- [ ] [**ChatGPT（原 Codex 桌面端）**](com-openai-codex.md) · `com.openai.codex` — 仅迁出历史：静态 feed 与灰度端点不一致、`plan_type` 两条轨的测量
+- [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对
+- [ ] [**AweSun**](com-oray-sunlogin-macclient.md) · `com.oray.sunlogin.macclient` — 仅迁出历史：changelog 接口「50 bytes」的复查
+- [ ] [**AnyDesk**](com-philandro-anydesk.md) · `com.philandro.anydesk` — 仅迁出历史：一键 dmg 的签名核对、各平台版本号
+- [ ] [**Postman**](com-postmanlabs-mac.md) · `com.postmanlabs.mac` — 仅迁出历史：旧正则截断条目的计数
+- [ ] [**PureMac**](com-puremac-app.md) · `com.puremac.app` — 仅迁出历史：`cli-v1.0.0` tag 被读成版本号
+- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对
+- [ ] [**Shotbase**](com-shotbase-app.md) · `com.shotbase.app` — 仅迁出历史：appcast 条目数
+- [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
+- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
+- [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

@@ -119,3 +119,69 @@ destinations(inBomListing:)  → []
 ## 建议下一步
 - changelog 无意义（feed 文案是迁移劝告），不建议接。
 - 若 vendor 停更导致 RecipeHealth 报错，届时移出 registry 即可。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-openai-chat.swift — stable VendorProbe（sidekick appcast，为什么 bundle 看不见它）
+
+转引自 recipe 注释，未复测。整段原文，代码里留下的是去掉「截至 2026-08-30 仍在更新」那一句之后的其余部分。
+
+ChatGPT Classic (`com.openai.chat`) — OpenAI's PREVIOUS desktop app,
+kept alive in maintenance mode (its release notes literally push the
+new ChatGPT app: "Or, try the new ChatGPT app"). Still updating as of
+2026-08-30 (1.2026.184 / build 1784145287, published 2026-07-15), and
+the installed base is real — but its bundle carries NO `SUFeedURL`
+(verified against the mounted dmg), so the generic Sparkle source
+can't see it even though the vendor publishes a Sparkle feed. The
+feed at `sidekick/public/sparkle_public_appcast.xml` is EXACTLY the
+endpoint Homebrew's own `chatgpt-classic` cask names in its
+`livecheck` block (`strategy :sparkle`) — a third-party witness that
+this is the vendor's intended version surface.
+
+### Recipes/com-openai-chat.swift — stable VendorProbe（为什么只检测：pkg 不声明目的地）
+
+转引自 recipe 注释，未复测。三段整段原文；代码里留下的是结论（`PackageInfo` 没有 `<bundle path=…>`、Bom 里唯一带 `.app` 的路径是个 zip，所以装一次就会抛 `packageDestinationsUnreadable`），实测和 78 MB 这个大小搬到这里。
+
+⚠️ DETECTION-ONLY, and it has to be: `PackageInstaller` would refuse
+this pkg every time. The gate in `verifyOpenable` is fail-closed on
+declared destinations, and this package declares none. Measured
+2026-09-03 against the real 78 MB artifact, and re-checked by running
+`destinations(inPackageInfo:)` and `destinations(inBomListing:)` on its
+actual bytes — both return the empty set:
+
+  * `PackageInfo` carries `install-location="/"` and an EMPTY
+    `<bundle-version/>`; there is no `<bundle path=…>` element at all.
+  * The Bom's only `.app`-bearing line is
+    `./Library/Application Support/OpenAI/ChatGPT Classic Update/
+    ChatGPT Classic.app.zip` — a zip, so no path COMPONENT ends in
+    `.app` and `appBundlePrefixes` yields nothing.
+
+So an `install:` here resolves, downloads 78 MB, and then throws
+`packageDestinationsUnreadable` — a permanently broken Update button.
+
+### Recipes/com-openai-chat.swift — stable VendorProbe（包签名与 feed 声明）
+
+转引自 recipe 注释，未复测。原句没写核对日期；`hardwareRequirements` / `minimumSystemVersion` 那句来自提交 `e001a2de`（2026-08-30）。
+
+Verified signing, for the record: "Developer ID
+Installer: OpenAI OpCo, LLC (2DC432GLL2)", notarized, trusted
+timestamp 2026-07-15, same Team as the installed bundle. Feed also
+declares `hardwareRequirements=arm64` and minimumSystemVersion 14.0.
+
+### Recipes/com-openai-chat.swift — 为什么没有 ChangelogRecipe
+
+转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（2026-09-03 核对时 `<description>` 是指向替代产品的推广文案，不是发布说明），引文搬到这里。
+
+Deliberately NOT covered by a ChangelogRecipe, checked 2026-09-03 against the real
+bytes rather than assumed:
+
+  * **ChatGPT Classic** (`com.openai.chat`). Its Sparkle appcast has a
+    `<description>`, so it LOOKS like a changelog source — the content
+    is vendor marketing, not release notes: "&#8220;Install Update&#8221;
+    to keep using ChatGPT Classic", then "[Recommended] Or, try the new
+    ChatGPT app" with a link to the replacement product. One `<item>`,
+    no per-version history, and the same copy would render under every
+    future build. Rendering that as "what is new" is worse than the
+    web-view fallback, which at least shows it as the vendor's page.

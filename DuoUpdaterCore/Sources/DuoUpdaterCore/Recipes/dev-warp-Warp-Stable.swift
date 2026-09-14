@@ -82,9 +82,9 @@ enum dev_warp_Warp_Stable {
         // ungated endpoint the vendor probe already uses and carries a full
         // per-channel, per-version `changelogs` map (date + markdown sections) —
         // richer and far more stable than scraping rendered HTML. One recipe per
-        // channel; both
-        // point at the same JSON but the `channel` selects the sub-feed (and gives
-        // each its own cache slot — see `ChangelogService`). The entries are NOT in
+        // channel; both point at the same JSON but the `channel` selects the
+        // sub-feed (and gives each its own cache slot — see `ChangelogService`).
+        // The entries are NOT in
         // newest-first document order in the JSON, so the structured decoder sorts
         // by the (lexically-chronological) version key — hence not a regex recipe.
         //

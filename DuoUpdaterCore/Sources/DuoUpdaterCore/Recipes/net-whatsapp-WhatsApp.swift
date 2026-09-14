@@ -23,9 +23,9 @@ enum net_whatsapp_WhatsApp {
         // (57T9237FN3) match the installed copy, its `CFBundleShortVersionString`
         // equals what the probe reports, and `spctl` accepts it as "Notarized
         // Developer ID" (mounted and checked 2026-08-09; History has the version).
-        // WhatsApp also updates
-        // itself, so this row usually just confirms what already happened — but when
-        // its own updater is behind, the swap is ours to make.
+        // WhatsApp also updates itself, so this row usually just confirms what
+        // already happened — but when its own updater is behind, the swap is ours
+        // to make.
         VendorProbeRecipe(
             bundleID: "net.whatsapp.WhatsApp",
             url: URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!,

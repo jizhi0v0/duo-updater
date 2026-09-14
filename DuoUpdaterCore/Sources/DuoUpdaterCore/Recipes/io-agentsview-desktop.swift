@@ -9,8 +9,8 @@ enum io_agentsview_desktop {
         // GitHub v-tags. Some releases ship no mac dmg at all (v0.41.0 and
         // v0.33.1 were tar.gz-only; History has the count when this was written)
         // — the release walk skips them and one-click lands on the newest
-        // dmg-bearing release, same
-        // semantics the cask livecheck encodes. The aarch64 dmg is arm64-only
+        // dmg-bearing release, same semantics the cask livecheck encodes. The
+        // aarch64 dmg is arm64-only
         // (AgentsView_{v}_x64.dmg is the Intel twin); Team 2YMZH84KR8,
         // notarized. Mounted v0.41.1: io.agentsview.desktop, short == build.
         GitHubReleaseRule(

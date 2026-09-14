@@ -30,7 +30,8 @@ Two ways the list can lie are checked. A `PENDING` family that already carries a
 `// History:` pointer has been migrated and was not deleted. A `PENDING` family
 whose slug sorts at or below `LAST_MIGRATED` sits inside the range the batches
 have already covered, so a batch either skipped it or forgot to delete it (2d
-skipped WeType; `OUT_OF_ORDER` records that, and fails once it is stale). Each
+skipped WeType; `OUT_OF_ORDER` recorded that until 2e migrated it — an entry
+there records such a skip, and fails once it is stale). Each
 batch PR must bump `LAST_MIGRATED` to its last family; nothing checks that it
 did, or that nobody adds a family to `PENDING` by hand. The boundary is a constant rather than derived from where the
 pointers are because new families are now expected to carry a pointer too, and

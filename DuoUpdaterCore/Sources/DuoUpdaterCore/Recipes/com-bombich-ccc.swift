@@ -170,6 +170,28 @@ enum com_bombich_ccc {
         // to the vendor's own beta endpoint, and what they get there is the same
         // artifact this probe just read.
         //
+        // ⚠️ AND A RETIRED BETA RAIL IS NOW INVISIBLE. Requiring `-b` had a side
+        // effect worth naming: if Bombich ever drops or renames `?v=latestbeta`,
+        // the answer stops being a beta filename and the probe goes red, so
+        // somebody looks. It now resolves the stable zip and stays GREEN forever
+        // — "the cycle is resting" and "the rail is gone" are the same bytes, and
+        // nothing else here would notice (no `install`, so no proof questions it;
+        // the Homebrew cask is `auto_updates: true`, so no cross-check either).
+        // `trackClosedPattern` is not the answer: it wants the VENDOR to say the
+        // track is empty, and this endpoint says nothing — it just hands you a
+        // different file. Accepted knowingly, the same trade CotEditor's beta rule
+        // makes by accepting a stable tag.
+        //
+        // ⚠️ And a copy AHEAD of the graduation reads a lower "latest". If a cycle
+        // closes back to a stable older than the installed prerelease (on
+        // `7.2.1-b1`, endpoint answers `7.2`), `VersionComparator` correctly
+        // offers nothing, but the row names a smaller number and
+        // `RecipeSanity.remoteBehindInstalled` starts raising an advisory — the
+        // shape CotEditor's comment accepts as "a row that says up to date beside
+        // a lower number". Not what happened in the 7.1.7-b7 → 7.2 transition
+        // (the endpoint served `-b7` right up to 7.2's release; see the audit),
+        // so this is a reachable shape, not an observed one.
+        //
         // ⚠️ The other half of the cost is the changelog: `ccc7_rn_beta.html` is
         // the CLOSED cycle's page, so between cycles the offered version and the
         // notes beside it disagree (7.2 offered, 7.1.7-b7 described). Left as is

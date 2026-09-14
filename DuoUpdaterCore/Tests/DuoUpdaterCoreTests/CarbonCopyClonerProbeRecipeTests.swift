@@ -611,6 +611,16 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
     /// endpoint is between cycles), green while a cycle is open. That asymmetry
     /// is the point: this test is the live tripwire, and the stub-served tests
     /// above are what hold the behaviour down when it is not armed.
+    ///
+    /// ⚠️ WHAT IT CANNOT SEE, said out loud so it is not read as more than it is:
+    /// `hasPrefix("7.")` is satisfied by the stable fallback, so this passes
+    /// unchanged if the beta rail is RETIRED rather than resting — and it would
+    /// also pass if the recipe's `url` were repointed at `?v=ccc7` or `?v=latest`,
+    /// which resolve the same filename between cycles (the audit's table shows
+    /// all three). Neither gap is fixable by a stronger assertion here: nothing
+    /// in the response distinguishes those states — that is the cost the registry
+    /// comment names — and the URL itself is pinned by
+    /// `betaRecipeExistsAndUsesTheLatestbetaEndpoint`, not by this test.
     @Test func betaEndpointStillResolvesAVersionLive() async throws {
         let beta = try #require(self.betaRecipe())
         let outcome = await VendorProbeSource().probeDiagnostic(beta)

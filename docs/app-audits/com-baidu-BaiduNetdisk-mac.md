@@ -250,3 +250,37 @@ GET 正常（Range GET 返回 206，`Accept-Ranges: bytes`，断点续传可用�
 - 让 `duo verify` 的夜扫覆盖它（已随 registry 自动纳入），基线里记一次 `8.7.9`。
 - `/disk/cmsdata?platform=<tab>` 对 `guanjia`(Windows) / `linux` / `android` 等 tab
   同样有效，将来若接入别的百度客户端可以直接复用这套 pattern。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-baidu-BaiduNetdisk-mac.swift — stable VendorProbe（`/disk/cmsdata?do=client`）
+
+转引自 recipe 注释，未复测。唯一的改写：原文 "(the installed copy's team)" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+
+It answers
+anonymously — no cookie, no Referer, the browser-like default UA is fine
+(measured 2026-08-29).
+
+One-click verified 2026-08-29 by hashing the artifact this recipe
+resolves: `…/MACguanjia/8.7.9/BaiduNetdisk_mac_8.7.9_arm64.dmg` is MD5
+`23bfa249b059597234bfd396bf631300` — the CDN's own ETag, and the same
+bytes as the downloaded image, whose `BaiduNetdisk_mac.app` is bundle id
+`com.baidu.BaiduNetdisk-mac`, Team `738UU3Y57V` (the team of the copy installed on the
+machine measured that day), `lipo -archs` arm64, and `spctl -a -t install` "Notarized
+Developer ID".
+
+### Recipes/com-baidu-BaiduNetdisk-mac.swift — ChangelogRecipe（`/disk/cmsdata?platform=mac`）
+
+转引自 recipe 注释，未复测。
+
+(Measured on `"more":["say \"hi\" now","b"]`: `[^"]+` yields
+`["b"]` alone.) No live item carries a quote today — 0 of 165 —
+
+Verified 2026-08-29 against the live 40-entry response: all 40 entries
+match, and every version, date and item list is byte-identical to what
+`json.loads` produces for that entry — including all 7 that fall through
+to the title.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`?platform=mac&page=1&num=200` 返回 142 条（`total` 146），`more` 里 264 个元素，含引号的 0 个；`num=40` 那份 40 条里 7 条走 `title` 兜底。

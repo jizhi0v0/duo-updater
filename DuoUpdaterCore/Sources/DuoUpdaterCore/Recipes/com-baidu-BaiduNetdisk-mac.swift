@@ -4,13 +4,13 @@ enum com_baidu_BaiduNetdisk_mac {
     static let set = AppRecipeSet(
         family: "com-baidu-BaiduNetdisk-mac",
         probes: [
+        // History: docs/app-audits/com-baidu-BaiduNetdisk-mac.md#历史与实测
         // 百度网盘 (Baidu Netdisk) — reads the endpoint the vendor's own download
         // page is built from: `pan.baidu.com/disk/cmsdata?do=client` answers a small
         // JSON with one object per product line (`android`, `guanjia` = the Windows
         // client, `linux`, `mac`, `tv`, `genflow-pro-pc-mac`, …), each carrying that
         // line's version, its architecture URLs and a publish stamp. It answers
-        // anonymously — no cookie, no Referer, the browser-like default UA is fine
-        // (measured 2026-08-29).
+        // anonymously — no cookie, no Referer, the browser-like default UA is fine.
         //
         // Nothing standard can cover this app. It ships `Squirrel.framework` and an
         // electron-updater `Contents/Resources/app-update.yml` naming
@@ -20,8 +20,9 @@ enum com_baidu_BaiduNetdisk_mac {
         // `http://update.pan.baidu.com/autoupdate`, which answers 200 with a
         // ZERO-BYTE body to every request we can form — its parameters are not in
         // the clear, and it is plain HTTP besides. There is no Sparkle appcast, and
-        // the Homebrew cask cannot apply (this copy was installed by hand, and the
-        // brew provenance gate only adopts what brew installed).
+        // the Homebrew cask (`baidunetdisk`) cannot apply either: it is
+        // `auto_updates true`, which `HomebrewCaskSource` declines by design, and
+        // that source only adopts a copy brew itself installed.
         //
         // ANCHORING — the body carries several `…_arm64.dmg` URLs and only one is
         // this app. `MACguanjia` (the Netdisk Mac client) sits beside
@@ -35,13 +36,10 @@ enum com_baidu_BaiduNetdisk_mac {
         // construction, the version of the file the install spec downloads. A
         // mismatch degrades to "unknown", which is the safe direction.
         //
-        // One-click verified 2026-08-29 by hashing the artifact this recipe
-        // resolves: `…/MACguanjia/8.7.9/BaiduNetdisk_mac_8.7.9_arm64.dmg` is MD5
-        // `23bfa249b059597234bfd396bf631300` — the CDN's own ETag, and the same
-        // bytes as the downloaded image, whose `BaiduNetdisk_mac.app` is bundle id
-        // `com.baidu.BaiduNetdisk-mac`, Team `738UU3Y57V` (the installed copy's
-        // team), `lipo -archs` arm64, and `spctl -a -t install` "Notarized
-        // Developer ID". The install source must stay `.bodyPattern`: that CDN
+        // One-click: the resolved `BaiduNetdisk_mac_<ver>_arm64.dmg` holds
+        // `BaiduNetdisk_mac.app`, bundle id `com.baidu.BaiduNetdisk-mac`, Team
+        // `738UU3Y57V`, notarized (History has the verification). The install
+        // source must stay `.bodyPattern`: that CDN
         // answers **405 Method Not Allowed** to HEAD, so a `.redirect` source could
         // not resolve it at all.
         //
@@ -140,15 +138,9 @@ enum com_baidu_BaiduNetdisk_mac {
         // and the element is then SILENTLY DROPPED, not reported: the array's other
         // elements still match, so `firstNonEmptyItemHits` is satisfied, never tries
         // the fallback, and the entry renders with fewer notes than the vendor
-        // published. (Measured on `"more":["say \"hi\" now","b"]`: `[^"]+` yields
-        // `["b"]` alone.) No live item carries a quote today — 0 of 165 — which is
+        // published. No live item carries a quote, which is
         // exactly why this would have gone unnoticed; the recipe is `.json` because
         // this feed's strings are escaped, so the item pattern has to agree.
-        //
-        // Verified 2026-08-29 against the live 40-entry response: all 40 entries
-        // match, and every version, date and item list is byte-identical to what
-        // `json.loads` produces for that entry — including all 7 that fall through
-        // to the title.
         ChangelogRecipe(
             bundleID: "com.baidu.BaiduNetdisk-mac",
             source: URL(string: "https://pan.baidu.com/disk/cmsdata?platform=mac&page=1&num=40")!,

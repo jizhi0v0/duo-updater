@@ -4,6 +4,7 @@ enum com_brave_Browser {
     static let set = AppRecipeSet(
         family: "com-brave-Browser",
         probes: [
+        // History: docs/app-audits/com-brave-Browser.md#历史与实测
         // Brave Browser — Beta / Nightly. Sparkle appcast per channel and per ARCH.
         // Distinct bundle ids (`com.brave.Browser.beta` / `.nightly`) so the channel
         // gate routes each install to its own feed.
@@ -18,9 +19,9 @@ enum com_brave_Browser {
         // up; `displayVersionPattern` keeps the human-readable string on screen.
         //
         // The `-arm64` feed is deliberate: the plain path serves x64 dmgs only
-        // (`Brave-Browser-Beta-x64.dmg`). Both tracks carry the same version, so this
-        // changes the artifact, not the verdict. Verified 2026-08-09 on beta 194.104
-        // and nightly 195.47 — Team KL8N8XSYF4, notarized, ids matching.
+        // (`Brave-Browser-Beta-x64.dmg`). The two feeds are published separately and
+        // are not always on the same build, so reading the arm64 feed keeps the
+        // version and the artifact in one document. Team KL8N8XSYF4, notarized.
         VendorProbeRecipe(
             bundleID: "com.brave.Browser.beta",
             url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/beta-arm64/appcast.xml")!,

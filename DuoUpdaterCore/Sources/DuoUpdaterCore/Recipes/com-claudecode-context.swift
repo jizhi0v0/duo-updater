@@ -6,8 +6,8 @@ enum com_claudecode_context {
         githubRules: [
         // claude-devtools — visualiser/analyser for Claude Code sessions.
         // v-tags, and each release ships both an arm64 dmg and an x64 dmg plus
-        // zip/blockmap siblings (the cask itself is x86_64-gated, but the repo
-        // has shipped arm64 dmgs all along). Mounted v0.5.0:
+        // zip/blockmap siblings (the Homebrew cask picks between the two dmgs by
+        // architecture). Mounted v0.5.0:
         // com.claudecode.context, short == build == tag, Team 55PSHY2MW6,
         // notarized.
         GitHubReleaseRule(

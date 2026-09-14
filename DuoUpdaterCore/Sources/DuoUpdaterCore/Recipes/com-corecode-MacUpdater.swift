@@ -4,13 +4,14 @@ enum com_corecode_MacUpdater {
     static let set = AppRecipeSet(
         family: "com-corecode-MacUpdater",
         probes: [
+        // History: docs/app-audits/com-corecode-MacUpdater.md#历史与实测
         // MacUpdater — version is in an HTML comment marker on the product page.
         // NOTE: HTML scrape — more brittle than an API; refresh if it stops
         // matching.
         //
-        // One-click verified 2026-08-09 on 3.5.0: `macupdater_latest.dmg` is an
-        // unversioned "latest" URL holding `MacUpdater.app` — bundle id
-        // com.corecode.MacUpdater, Team 9D78DG5ACV, spctl "Notarized Developer ID".
+        // One-click: `macupdater_latest.dmg` is an unversioned "latest" URL holding
+        // `MacUpdater.app` — bundle id com.corecode.MacUpdater, Team 9D78DG5ACV,
+        // notarized.
         // Fixed rather than scraped: the page's only download href is that same
         // stable path.
         VendorProbeRecipe(

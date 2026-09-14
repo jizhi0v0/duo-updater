@@ -155,3 +155,16 @@ source: Vendor   installedVersion: 1.124.0   latestVersion: 1.124.0   status: up
 1. 若 Canva 之后启用 beta 轨道（独立 bundle id 或 app 内 channel 开关），按
    `ChannelProofRegistry` 的要求补 proof 再加 recipe，不要照抄 stable 这条。
 2. 若哪天出现可核实的桌面端 release notes 页，补 `changelogURL`。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-canva-CanvaDesktop.swift — stable VendorProbe（`latest-mac.yml`，一键 dmg）
+
+转引自 recipe 注释，未复测。
+
+Verified
+2026-08-27 on the real `Canva-1.124.0-universal.dmg`:
+com.canva.CanvaDesktop, 1.124.0, Team 5HD2ARTBFS, `spctl` "Notarized
+Developer ID".

@@ -4,6 +4,7 @@ enum com_bytedance_inputmethod_doubaoime {
     static let set = AppRecipeSet(
         family: "com-bytedance-inputmethod-doubaoime",
         probes: [
+        // History: docs/app-audits/com-bytedance-inputmethod-doubaoime.md#历史与实测
         // 豆包输入法 (DoubaoIme) — ByteDance's input method, installed from
         // `shurufa.doubao.com` into `/Library/Input Methods`. No SUFeedURL, no MAS
         // receipt, no Homebrew cask (the `doubao` cask ships `doubao.app`, the
@@ -30,12 +31,6 @@ enum com_bytedance_inputmethod_doubaoime {
         //     `CFBundleShortVersionString`.
         //   * `version_code` 1002007 is a THIRD namespace that matches nothing local.
         //     Never compare it.
-        //
-        // The first draft of this recipe compared only the marketing version, on the
-        // mistaken reading that 90602 had no local counterpart. It does — it is just
-        // not under a standard key. The cost of that draft was a blind spot for
-        // same-marketing-version respins (90601 → 90602, both "0.9.6"); comparing the
-        // vendor's own code closes it.
         //
         // If the vendor ever drops that Info.plist key, `AppScanner` reports NO build
         // rather than falling back to "1", and `evaluate()` returns to comparing
@@ -108,10 +103,10 @@ enum com_bytedance_inputmethod_doubaoime {
         //
         // `change_log` is one string of `- `-prefixed lines joined by escaped `\n`,
         // so the item pattern splits on those. NOTE the tail alternative is `|$)`,
-        // NOT the `|\\n?$)` used by the ChatWise recipe (`Recipes/app-chatwise.swift`): `\\n?` means "a literal
+        // NOT the `|\\n?$)` the ChatWise recipe (`Recipes/app-chatwise.swift`) used
+        // before it moved to the `.chatwiseReleases` decoder: `\\n?` means "a literal
         // backslash, optionally followed by n", which requires the body to END in a
-        // backslash and therefore drops the last bullet. Verified against the real
-        // 2026-08-21 response: 6 bullets in, 6 out.
+        // backslash and therefore drops the last bullet.
         ChangelogRecipe(
             bundleID: "com.bytedance.inputmethod.doubaoime",
             source: URL(string:

@@ -34,3 +34,22 @@ things that exist are one-off community forum posts from a decade ago
 (0.9.x, 1.0.9) and long-running threads asking for a changelog.
 
 复测 2026-09-14（约 08:10 UTC，只读 HEAD）：`SpotifyInstaller.zip` 1,868,153 B，`SpotifyARM64.dmg` 165,724,956 B。没有下载，所以 stub 里的版本与 dmg 的架构都没有复核。
+
+### 暂存更新在下次**启动**时应用，不是退出时（2026-09-14 实测）
+
+本机这份拷贝：1.2.98.301，Spotify 自己的更新器在 13:19 UTC 下好了 1.3.0.277
+（`~/Library/Application Support/Spotify/PersistentCache/Update/` 里的
+`spotify-autoupdate-1.3.0.277.g5441bb3e-5065.tbz` + `update.json`，并且已经解包到
+`Update/temp/Spotify.app`，404M）。
+
+- 21:44:16 DuoUpdater 的 Relaunch 退出 Spotify，然后按 ShipIt 的假设等磁盘前进：180 秒里磁盘一直是 1.2.98.301，`Update/` 原封不动。
+- 21:47:26 超时兜底重新打开 → 旧版进程（pid 70579）启动 → 21:47:27 派生 `Contents/MacOS/sp_relauncher` → 21:47:28 bundle 的 ctime 变化、1.3.0.277 的进程启动，`Update/` 目录被消费掉。
+
+同日在 MacBook Pro 那份拷贝上做了对照实验（1.2.99.317，17:43 暂存 1.3.0.277，已解包到 `temp/`），每秒记录一次：
+
+- 22:00:52 用 AppleScript 退出 → 之后 60 秒版本一直 1.2.99.317、`update.json` 在、bundle ctime 不动（`ps` 确认进程已退出）。
+- 22:01:58 `open -g` → 旧进程启动约 1 秒后自己退出，22:01:59 出现 `sp_relauncher`，22:02:00~01 bundle ctime 变化，22:02:01 1.3.0.277 的进程起来，22:02:05 `update.json` 被清掉。从打开到新版在跑约 3 秒；**中间有约 2 秒没有任何 Spotify 主进程**（只有 `sp_relauncher`）。
+
+所以 `SelfUpdaterStaging` 给 Spotify 标 `appliesOn: .launch`，Relaunch 在它退出后立即启动它。
+`sp_relauncher` 的字符串里有 `relaunchIfParentProcessDied` / `update_started` / `launch-updated-client`，
+没有逆向它的参数，**未验证**暂存还没解包到 `temp/` 时启动要多久（那种情况下 Relaunch 最多再等 30 秒）。

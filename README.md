@@ -110,6 +110,9 @@ It **respects each app's own update channel**:
   the registry, the declaration has never once said "Intel-only", and the
   packages that actually vary by architecture are exactly the ones that declare
   nothing — so a gate built on this field would not catch the case it exists for.
+  The *OS* floor is checked, though: a package whose payload app says it needs a
+  newer macOS than this Mac runs is refused before the system installer opens,
+  the same refusal the other routes make against a downloaded bundle.
 - **Never force-quits** a running app. When an update needs the app restarted to
   take effect, the quit is a plain `terminate()` — the app runs its own save
   prompts and can refuse. One that refuses is left running and keeps a

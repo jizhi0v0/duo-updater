@@ -116,10 +116,14 @@ public struct XcodeReleasesSource: UpdateSource {
             // The index's own `requires` — the macOS this build needs. Measured
             // 2026-09-15 on the live `data.json`: all 451 entries carry one, and
             // the 27.0 ladder is not flat — RC 1 (`27A266a`) requires "26.6"
-            // while every 27.0 beta requires "26.4". Filled so `UpdateChecker`
-            // can refuse an offer this Mac cannot take (#640); the candidate
-            // filter in `offer` above has usually settled it already, and this
-            // is what makes the floor visible to anything downstream.
+            // while every 27.0 beta requires "26.4", which is why a Mac on
+            // 26.0–26.5 was shown the RC (#640).
+            //
+            // The refusal itself already happened: `offer` above bounded its
+            // candidates by this value, so the build named here is one this Mac
+            // can run. Carried anyway because it is a fact about the release —
+            // the row's "requires macOS N" line (#634 part 3) reads it, and it
+            // is what install-time gate 6 will be checked against.
             minimumSystemVersion: offer.requires,
             sourceName: Self.sourceName,
             requiresManualInstaller: true,

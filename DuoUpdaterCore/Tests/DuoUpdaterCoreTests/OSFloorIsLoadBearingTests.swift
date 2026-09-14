@@ -2,7 +2,8 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// The vendor's declared macOS floor, now that something reads it (#640).
+/// The vendor's declared macOS floor, now that every source that states one acts
+/// on it (#640).
 ///
 /// Before this, `RemoteVersion.minimumSystemVersion` was write-only:
 /// `AlcoveUpdateSource` decoded `minimum_system_version` and `SparkleAppcastSource`
@@ -13,9 +14,18 @@ import Foundation
 /// `XcodeReleasesSource` did not even parse its index's `requires`, which is the
 /// one that had a live victim: a Mac on macOS 26.0–26.5 was shown Xcode 27.0 RC.
 ///
+/// **Where the refusal lives, and why not in the engine.** Each source refuses
+/// while CHOOSING its candidate — `usableItems` for Sparkle, `offer` for Xcode,
+/// `AlcoveUpdateSource.remote(from:token:osVersion:)` for Alcove — so a release
+/// this Mac cannot run never becomes a `RemoteVersion` at all.
+/// `UpdateChecker.evaluate` asks nothing about the host: a host-dependent branch
+/// there would make each of its ~60 comparison tests measure the machine it runs
+/// on, and the only verdict it could return (`.upToDate`) draws a plain
+/// checkmark — a second answer for a condition `AppStoreGate.needsNewerMacOS`
+/// already renders properly. One row, one answer; the row state is #634 part 3.
+///
 /// One predicate throughout: `SignatureVerifier.canRun(minimumSystemVersion:on:)`,
-/// which is also install-time gate 6 and (since this change) the expression inside
-/// `usableItems`. Never a second implementation — see `HostOS`.
+/// which is also install-time gate 6. `HostOS`'s doc comment lists all six sites.
 ///
 /// Every host here is injected. Not one of these tests may ask the Mac it runs on
 /// what OS that is; a test that did would answer differently in CI (CLAUDE.md).
@@ -24,13 +34,25 @@ import Foundation
 ///
 /// | # | mutation | observed red |
 /// |---|---|---|
-/// | 1 | delete the `if !SignatureVerifier.canRun(…)` block at the top of `UpdateChecker.evaluate` | `aReleaseAboveTheHostsMacOSIsNotOffered` |
-/// | 2 | flip that gate's sense (`!canRun` → `canRun`) | `aFloorThisMacMeetsStillOffers` (both hosts), `aRemoteWithNoFloorIsUnaffected` (both remotes), `aReleaseAboveTheHostsMacOSIsNotOffered` |
+/// | 1 | delete the `guard SignatureVerifier.canRun(…)` in `AlcoveUpdateSource.remote` | `aReleaseAboveTheHostsMacOSIsNotOffered` |
+/// | 2 | flip that guard's sense (`canRun` → `!canRun`) | `aReleaseAboveTheHostsMacOSIsNotOffered`, `aFloorThisMacMeetsStillOffers`, `aRemoteWithNoFloorIsUnaffected` |
 /// | 3 | `minimumSystemVersion: offer.requires` → `nil` in `XcodeReleasesSource.remote` | `theXcodeRemoteCarriesTheOfferedReleasesFloor` |
-/// | 4 | drop `&& SignatureVerifier.canRun(…)` from `offer`'s candidate filter | `aMacBelowTheRCsFloorIsOfferedTheNewestRUNNABLEBuild`, `aMacBelowEveryNewerBuildsFloorIsOfferedItself` (its offer half only — the checker's gate still caught the verdict, which is what a backstop is for) |
-/// | 5 | `self.requires = json["requires"] as? String` → `= nil` | `theIndexsRequiresIsParsed`, `theXcodeRemoteCarriesTheOfferedReleasesFloor`, and both of #4's — including the verdict half, since with no floor parsed the backstop has nothing to read either |
-/// | 6 | Alcove's coding key `"minimum_system_version"` → `"minimumSystemVersion"` | `alcoveDecodesTheVendorsFloorVerbatim`, `aReleaseAboveTheHostsMacOSIsNotOffered` |
+/// | 4 | drop `&& SignatureVerifier.canRun(…)` from `offer`'s candidate filter | `aMacBelowTheRCsFloorIsOfferedTheNewestRUNNABLEBuild`, `aMacBelowEveryNewerBuildsFloorIsOfferedItself` |
+/// | 5 | `self.requires = json["requires"] as? String` → `= nil` | `theIndexsRequiresIsParsed`, `theXcodeRemoteCarriesTheOfferedReleasesFloor`, and both of #4's |
+/// | 6 | Alcove's coding key `"minimum_system_version"` → `"minimumSystemVersion"` | `alcoveDecodesTheVendorsFloorVerbatim`, `aReleaseAboveTheHostsMacOSIsNotOffered`, `aFloorThisMacMeetsStillOffers`, `aRemoteWithNoFloorIsUnaffected` |
 /// | 7 | delete `usableItems`' floor guard | `SparkleMaximumSystemVersionTests` × 3 (`aFeedWithNoCapIsUnaffected`'s `min: "28.0"` case, `theWindowIsClosedAtBothEnds`, `aCappedLegacyItemIsDroppedFromTheHistoryToo`) |
+/// | 8 | `VendorHostRequirement.isSatisfied` returns `true` instead of checking its floor | `aProbeRecipesFloorStillGates` |
+/// | 9 | `XcodeReleasesSource.offer` degenerates to `(installed, installed)` for every host | `aMacBelowTheRCsFloorIsOfferedTheNewestRUNNABLEBuild`, `theXcodeRemoteCarriesTheOfferedReleasesFloor`, and three pre-existing `XcodeReleasesTests` |
+///
+/// ⚠️ #9 is the one this suite does NOT catch where you would expect it to.
+/// `aMacBelowEveryNewerBuildsFloorIsOfferedItself` stays GREEN under it, and pinning
+/// the literal `"27A5237l"` (instead of the `offer.build == installed.build` this
+/// used to assert, which is two outputs of one call compared against each other)
+/// does not change that: on THIS host the degenerate answer and the correct answer
+/// are the same build, so no assertion about this call can separate them. The
+/// literal is still the right form — it states what the answer is rather than that
+/// two unknowns agree — but what actually kills #9 is the other five tests, and
+/// saying otherwise would be inventing coverage.
 ///
 /// #6 changes the key rather than deleting the `CodingKeys` case because deleting
 /// it does not compile (a property absent from `CodingKeys` needs a default), and
@@ -66,27 +88,28 @@ import Foundation
     /// `api.tryalcove.com/updates/latest` needs a license key this checkout does
     /// not have, so it was not fetched. Stated rather than implied — only the
     /// floor and its spelling are measured here.
-    static let alcoveLatest = Data("""
-    {"tag_name":"1.7.9","build_number":203,
-     "published_at":"2026-06-30T20:57:57.000Z",
-     "minimum_system_version":"15 Sequoia",
-     "assets":[{"name":"Alcove.dmg","url":"https://api.tryalcove.com/updates/Alcove.dmg"}]}
-    """.utf8)
-
-    private static func decodedAlcove() throws -> UpdatesLatest {
-        try JSONDecoder().decode(UpdatesLatest.self, from: alcoveLatest)
+    private static func alcoveBody(floor: String?) -> Data {
+        let line = floor.map { "\"minimum_system_version\":\"\($0)\"," } ?? ""
+        return Data("""
+        {"tag_name":"1.7.9","build_number":203,
+         "published_at":"2026-06-30T20:57:57.000Z",
+         \(line)
+         "assets":[{"name":"Alcove.dmg","url":"https://api.tryalcove.com/updates/Alcove.dmg"}]}
+        """.utf8)
     }
 
-    /// The remote Alcove's source builds, with the floor it decoded — not a
-    /// literal, so a decode that silently stopped reading the field cannot leave
-    /// the gate tests green.
-    private static func alcoveRemote() throws -> RemoteVersion {
-        let latest = try decodedAlcove()
-        return RemoteVersion(
-            shortVersion: latest.tagName, version: nil,
-            downloadURL: latest.assets.first?.url,
-            minimumSystemVersion: latest.minimumSystemVersion,
-            sourceName: "Vendor", requiresManualInstaller: false)
+    private static func decodedAlcove(floor: String? = "15 Sequoia") throws -> UpdatesLatest {
+        try JSONDecoder().decode(UpdatesLatest.self, from: alcoveBody(floor: floor))
+    }
+
+    /// What the source would offer on a given Mac, from the decoded body — never a
+    /// literal floor, so a decode that silently stopped reading the field cannot
+    /// leave the gate tests green.
+    private static func alcoveRemote(floor: String? = "15 Sequoia", on osVersion: String)
+        throws -> RemoteVersion? {
+        AlcoveUpdateSource.remote(
+            from: try decodedAlcove(floor: floor), token: "zz-fixture-token",
+            osVersion: osVersion)
     }
 
     // MARK: - Alcove: the floor is parsed…
@@ -97,49 +120,55 @@ import Foundation
 
     // MARK: - …and now read
 
-    /// The gate. A Mac below the vendor's floor is not offered the release.
+    /// The gate. A Mac below the vendor's floor is not offered the release at all —
+    /// the source declines to build a `RemoteVersion`, exactly as `usableItems`
+    /// declines to keep a feed item.
     ///
     /// "15 Sequoia" parses as 15 followed by a text token, and a text token ranks
     /// below a numeric one in `VersionComparator` — so 14.7.2 is below it and
     /// 15.0.0 is not, which is what the vendor means by the string.
     @Test func aReleaseAboveTheHostsMacOSIsNotOffered() throws {
-        let remote = try Self.alcoveRemote()
-        let installed = Self.app(
-            name: "Alcove", bundleID: AlcoveUpdateSource.bundleID, short: "1.7.7", build: nil)
-        #expect(UpdateChecker.evaluate(installed: installed, remote: remote, osVersion: "14.7.2")
-                == .upToDate)
+        #expect(try Self.alcoveRemote(on: "14.7.2") == nil)
     }
 
     /// …and the gate is not wider than that: a Mac that MEETS the floor still gets
-    /// the update. Without this, "refuse everything" passes the test above.
+    /// the release, with the floor riding along on it. Without this, "refuse
+    /// everything" passes the test above.
     @Test func aFloorThisMacMeetsStillOffers() throws {
-        let remote = try Self.alcoveRemote()
-        let installed = Self.app(
-            name: "Alcove", bundleID: AlcoveUpdateSource.bundleID, short: "1.7.7", build: nil)
-        #expect(UpdateChecker.evaluate(installed: installed, remote: remote, osVersion: "15.0.0")
-                == .updateAvailable(latest: "1.7.9"))
-        #expect(UpdateChecker.evaluate(installed: installed, remote: remote, osVersion: "26.6.0")
-                == .updateAvailable(latest: "1.7.9"))
+        for host in ["15.0.0", "26.6.0"] {
+            let remote = try #require(try Self.alcoveRemote(on: host), "refused on \(host)")
+            #expect(remote.shortVersion == "1.7.9")
+            #expect(remote.minimumSystemVersion == "15 Sequoia")
+        }
     }
 
-    /// The population this must not disturb: every source that declares no floor at
-    /// all, which is most of them. A gate that fails CLOSED on a missing value
-    /// would stop every one of those apps updating.
-    @Test func aRemoteWithNoFloorIsUnaffected() {
-        let installed = Self.app(
-            name: "Subject", bundleID: "com.example.zzfixture", short: "1.0", build: nil)
-        let remote = RemoteVersion(
-            shortVersion: "2.0", version: nil, downloadURL: nil,
-            minimumSystemVersion: nil, sourceName: "Vendor", requiresManualInstaller: false)
-        #expect(UpdateChecker.evaluate(installed: installed, remote: remote, osVersion: "10.15.7")
-                == .updateAvailable(latest: "2.0"))
-        // And an unreadable one fails open too — same rule gate 6 states for a
+    /// The population this must not disturb: a body that declares no floor at all,
+    /// and one whose floor cannot be read as a version. A gate that failed CLOSED
+    /// on either would strand every app whose vendor says nothing — which is most
+    /// of them.
+    @Test func aRemoteWithNoFloorIsUnaffected() throws {
+        let absent = try #require(try Self.alcoveRemote(floor: nil, on: "10.15.7"))
+        #expect(absent.minimumSystemVersion == nil)
+        // And an unreadable one fails open too — the same rule gate 6 states for a
         // floor it cannot parse.
-        let unreadable = RemoteVersion(
-            shortVersion: "2.0", version: nil, downloadURL: nil,
-            minimumSystemVersion: "whenever", sourceName: "Vendor", requiresManualInstaller: false)
-        #expect(UpdateChecker.evaluate(installed: installed, remote: unreadable, osVersion: "10.15.7")
-                == .updateAvailable(latest: "2.0"))
+        let unreadable = try #require(try Self.alcoveRemote(floor: "whenever", on: "10.15.7"))
+        #expect(unreadable.minimumSystemVersion == "whenever")
+    }
+
+    // MARK: - Vendor probe recipes
+
+    /// `VendorHostRequirement.isSatisfied` used to hand-write the floor comparison;
+    /// it now calls `canRun` like everything else. Its architecture half is covered
+    /// by `WorkBuddyProbeRecipeTests`; nothing covered the floor half, which is how
+    /// a fourth copy of the comparison survived unnoticed.
+    @Test func aProbeRecipesFloorStillGates() {
+        let requirement = VendorHostRequirement(minimumSystemVersion: "15.0")
+        #expect(!requirement.isSatisfied(byOS: "14.7.2", arch: .arm64))
+        #expect(requirement.isSatisfied(byOS: "15.0.0", arch: .arm64))
+        // Fails open on a value with no digit in it — the one behaviour change of
+        // the switch to `canRun`, stated rather than left to be rediscovered.
+        #expect(VendorHostRequirement(minimumSystemVersion: "Sequoia")
+            .isSatisfied(byOS: "14.7.2", arch: .arm64))
     }
 
     // MARK: - Xcode
@@ -173,21 +202,25 @@ import Foundation
     /// And when nothing newer is runnable, the offer is the installed release
     /// itself — the engine then compares equal builds and says "up to date". The
     /// source still asserts no verdict of its own.
+    ///
+    /// The build is pinned as a LITERAL, not as `offer.build == installed.build`:
+    /// that comparison is two outputs of one call, so an `offer` degenerating to
+    /// `(installed, installed)` for every host satisfies it (mutation 9).
     @Test func aMacBelowEveryNewerBuildsFloorIsOfferedItself() throws {
         let (installed, offer) = try #require(XcodeReleasesSource.offer(
             forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0"))
-        #expect(offer.build == installed.build)
+        #expect(installed.build == "27A5237l")
+        #expect(offer.build == "27A5237l")
         let app = Self.app(
             name: "Xcode-beta", bundleID: XcodeReleasesSource.bundleID,
             short: "27.0", build: "27A5237l")
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0"))
-        #expect(UpdateChecker.evaluate(installed: app, remote: remote, osVersion: "26.0.0")
-                == .upToDate)
+        #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
-    /// The floor also rides along on the remote, so anything downstream — the
-    /// checker's own gate included — can see it rather than re-deriving it.
+    /// The floor rides along on the remote — a fact about the release that the
+    /// row's "requires macOS N" line (#634 part 3) and install-time gate 6 read.
     @Test func theXcodeRemoteCarriesTheOfferedReleasesFloor() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0"))

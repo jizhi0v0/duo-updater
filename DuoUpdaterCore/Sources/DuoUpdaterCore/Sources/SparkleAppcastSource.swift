@@ -238,12 +238,12 @@ public struct SparkleAppcastSource: UpdateSource {
             // Honor minimum system version when declared. The predicate is
             // `SignatureVerifier.canRun` — literally the expression that used to
             // be written out here, and the one gate 6 makes against a downloaded
-            // bundle's `LSMinimumSystemVersion` and `UpdateChecker.evaluate` now
-            // makes against `RemoteVersion.minimumSystemVersion` (#640). One
-            // copy, because the whole point of `HostOS` is that these three must
-            // not be able to disagree. (`canRun` also fails open on a value with
-            // no digit in it; the inline version reached the same verdict by the
-            // same `compare` call, since a text token ranks below a numeric one.)
+            // bundle's `LSMinimumSystemVersion`. One copy, because the whole
+            // point of `HostOS` is that these must not be able to disagree; its
+            // doc comment lists every site, all six of which now call this
+            // function (#640). (`canRun` also fails open on a value with no digit
+            // in it; the inline version reached the same verdict by the same
+            // `compare` call, since a text token ranks below a numeric one.)
             guard SignatureVerifier.canRun(
                 minimumSystemVersion: item.minimumSystemVersion, on: osVersion)
             else { return false }

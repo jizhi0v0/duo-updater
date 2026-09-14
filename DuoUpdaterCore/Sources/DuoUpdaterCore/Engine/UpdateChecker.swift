@@ -505,53 +505,23 @@ public struct UpdateChecker: Sendable {
     /// against an already-fetched remote (no network) — e.g. to notice an app
     /// updated itself in the background.
     ///
-    /// `osVersion` is a parameter rather than read from `ProcessInfo` in here —
-    /// this repo's rule that a test must never ask the host what OS it is running
-    /// (CLAUDE.md) — so a test can pin an arbitrary "this Mac". Every production
-    /// call site takes the default.
+    /// ⚠️ Deliberately asks NOTHING about this Mac — no OS floor, no architecture.
+    /// A vendor's macOS floor is applied where the candidate is CHOSEN (see
+    /// `SparkleAppcastSource.usableItems`, `XcodeReleasesSource.offer`,
+    /// `AlcoveUpdateSource.remote(from:token:osVersion:)`), never here, for two
+    /// reasons. It keeps this function a pure comparison of two versions, which is
+    /// what every one of its ~60 tests assumes — a host-dependent branch in here
+    /// makes each of those tests measure the machine it runs on unless it
+    /// remembers to pin an OS, and nothing enforces remembering. And the answer a
+    /// refusal deserves ("your Mac is too old for the new version") is a ROW
+    /// STATE, which `UpdateStatus` cannot carry: settling it to `.upToDate` here
+    /// would draw a plain checkmark, which is a third answer for a condition
+    /// `AppStoreGate.needsNewerMacOS` already renders properly for the store
+    /// route. One row, one answer (CLAUDE.md) — see #634 part 3, which is where
+    /// that state belongs.
     public static func evaluate(
-        installed: InstalledApp, remote: RemoteVersion,
-        osVersion: String = HostOS.numericVersion()
+        installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {
-        // The vendor's own macOS floor, for every source that fills it. Before
-        // this, `RemoteVersion.minimumSystemVersion` was write-only: two sources
-        // parsed a floor (`SparkleAppcastSource`, `AlcoveUpdateSource`) and
-        // nothing read it, so only Sparkle apps were ever bounded by one — and
-        // only because `usableItems` drops such items before a `RemoteVersion`
-        // exists at all. See #640.
-        //
-        // The predicate is `SignatureVerifier.canRun` — the SAME comparison gate
-        // 6 makes against a downloaded bundle's `LSMinimumSystemVersion`, and the
-        // one `usableItems` now calls too. Never a second implementation: a
-        // detection gate and an install gate disagreeing by a patch component
-        // produce an update that is offered forever and fails at the last step
-        // every time (see `HostOS`). It fails OPEN on anything it cannot read as
-        // a version, which is what makes it safe to put in front of every source.
-        //
-        // The verdict is `.upToDate` — "not offered", the same shape the
-        // marketing-downgrade refusal below uses. One-way by construction: this
-        // can only settle a row, never raise an update, so a source that declares
-        // a floor wrongly can at worst stop offering. The remote still travels
-        // with the row, so the version readout, the release notes and the
-        // timeline are unaffected.
-        //
-        // ⚠️ It is NOT the right final answer, and this is the known cost:
-        // "your Mac is too old for the new version" is drawn as a plain
-        // checkmark. Saying so needs the "blocked by the vendor's OS window"
-        // row state #634 part 3 is about, which `UpdateStatus` has no room for
-        // today; the alternative meanwhile is showing an update the user cannot
-        // take, which is what this replaces.
-        if !SignatureVerifier.canRun(minimumSystemVersion: remote.minimumSystemVersion, on: osVersion) {
-            Log.check.info("""
-                \(installed.bundleID ?? "?", privacy: .public): \
-                \(remote.sourceName, privacy: .public) offers \
-                \(remote.displayVersion ?? "?", privacy: .public) but it declares macOS \
-                \(remote.minimumSystemVersion ?? "?", privacy: .public) and this Mac runs \
-                \(osVersion, privacy: .public) — not offered
-                """)
-            return .upToDate
-        }
-
         // Build ids with no order of their own (commit hashes) are ordered by the
         // vendor's published lineage and by nothing else: every branch below ends
         // in `VersionComparator`, which on two hashes is a coin flip (see

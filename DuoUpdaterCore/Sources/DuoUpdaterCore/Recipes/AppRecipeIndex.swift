@@ -17,6 +17,7 @@ public enum AppRecipeIndex {
         app_zen_browser_zen.set,
         art_ginzburg_MiddleClick.set,
         at_obdev_littlesnitch.set,
+        at_studio_AsideBrowser.set,
         bot_cline_app.set,
         cc_ffitch_shottr.set,
         co_palokaj_battery.set,

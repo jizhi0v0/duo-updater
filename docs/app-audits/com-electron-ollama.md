@@ -66,7 +66,7 @@ otherwise be a prose release's last item.
 
 ### Recipes/com-electron-ollama.swift — stable GitHubReleaseRule（一键 `Ollama-darwin.zip`）
 
-转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：原文说的是“装着的那份”在漂移，按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入），代码里已改写成「没有这条 rule 时」。
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：原文说的是“装着的那份”在漂移，按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入）；代码里已改写成「那次检查的 bundle 也没有 `SUFeedURL`，这样的拷贝没有别的检测源，没有这条 rule 时行里只有 changelog recipe」。
 
 Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
 which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so
@@ -77,6 +77,8 @@ both 307→ github releases/latest/download (`Ollama-darwin.zip` / the
 `Ollama.dmg` asset).
 
 复测 2026-09-14（03:12 UTC，HEAD 不跟随重定向）：`ollama.com/install.sh` 307 到 `…/releases/latest/download/install.sh`（不是 app 资产）；`ollama.com/download` 回 200 页面；`ollama.com/download/Ollama.dmg` 与 `ollama.com/download/Ollama-darwin.zip` 各自 307 到 `github.com/ollama/ollama/releases/latest/download/` 下的同名资产。代码里那句已按这次复测改写。
+
+复测 2026-09-14（只读 GET `https://ollama.com/install.sh` 的脚本文本，跟随它的 307，没有执行）：第 48 行判断 `Darwin`，第 58 行 `DOWNLOAD_URL="https://ollama.com/download/Ollama-darwin.zip${VER_PARAM}"`，第 73、76 行下载并 `unzip` 这个 zip——代码里「`install.sh` fetches `Ollama-darwin.zip`」据此。
 
 Verified end-to-end 2026-06-06: the .app inside
 the latest zip self-reports CFBundleShortVersionString 0.30.6 (homogeneous,

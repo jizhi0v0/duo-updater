@@ -476,7 +476,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
-- ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
+- ✅ **GitHub Desktop — Beta** · 已接入（**更正 2026-09-14**：原先这里记为 ✗，与代码矛盾）。同 `com.github.GitHubClient`，beta 由装机版本串 `-betaN` 后缀判轨（`ReleaseChannel.detect` 第 4 步），`Recipes/com-github-GitHubClient.swift` 有 `channel: .beta` 的 `GitHubReleaseRule`（`release-X.Y.Z-betaN`，一键 `GitHub.Desktop-arm64.zip`）和 `?env=beta` 的 changelog，`githubChannelProofs` 锚 `/download/release-…-betaN/`。stable rule 仍排除 prerelease。
 - ✅ **Longbridge Desktop — Preview** · 已接入。**更正 2026-08-25 那版"已停更"的判断**：那条结论是
   从本机一个旧的 `0.15.0-preview.0` 包倒推的，没打端点；实际 2026-08-26 复核时 preview 轨道是活的。
   独立 bundle `com.longbridge.app.desktop.preview`（"Longbridge Preview.app"），靠 `.preview`
@@ -563,8 +563,8 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
-Orion / VS Code(stable) / Cursor / Figma / Slack / 1Password / Sublime（Text/Merge）/
-RustDesk / GitHub Desktop / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove /
+Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
+RustDesk / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove /
 Arc / HandBrake / Keka / Lark / MonitorControl / OBS Studio / Proxyman / Rectangle /
 The Unarchiver 等。
 

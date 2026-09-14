@@ -115,6 +115,6 @@ listPageSize: not installed on the measuring machine, so measured
 directly against the live endpoint (2026-09-04, newest 100 releases):
 first-match index 0, worst run of non-`core@` tags between two
 `core@` releases is 9 (`core@11.0.0`→`core@10.3.1`, the Design/CLI
-trains publish in between).
+trains publish in between). 15 keeps ~67% headroom over that.
 
 复测 2026-09-14（03:15 UTC，只读 GET `repos/Kong/insomnia/releases?per_page=100`）：首个 `core@X.Y.Z` 在第 0 位（`core@13.2.0`），相邻两个之间最多隔 8 个 release，100 条里 30 个 stable `core@` tag。

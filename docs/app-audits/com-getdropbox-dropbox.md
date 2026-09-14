@@ -91,8 +91,7 @@ curl -sI 'https://www.dropbox.com/download?plat=mac&full=1' | grep -i '^location
 ## 历史与实测
 
 ### Recipes/com-getdropbox-dropbox.swift — stable
-转引自 recipe 注释，未复测。（2026-09-14 下载的是 268.4.4124，结论见上「一键安装」；这段说的 264.4.3385
-当时装的是哪个架构的包，注释里没有记录。）
+转引自 recipe 注释，未复测。（2026-09-14 下载的是 268.4.4124，结论见上「一键安装」；这段说的 264.4.3385 当时装的是哪个架构的包，注释里没有记录。）
 
 One-click verified 2026-08-09 on 264.4.3385: the image is labelled
 "Dropbox Offline Installer" but holds the real `Dropbox.app` —

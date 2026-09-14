@@ -41,7 +41,7 @@ Reusing `app-audit`'s four patterns:
 | **A. Independent bundle id** | Each channel is its own `.app` / bundle id (Chrome `.canary`, Firefox beta) | Flag if uncovered → easy, hand to `/app-audit`; detection is "automatic" via bundle id |
 | **B. Same id, preference-switched** | One bundle id; an **in-app toggle** writes a preference that swaps the feed/endpoint (Fork, Surge, DuoPaste) | **PRIMARY TARGET** — find the toggle, hypothesize the signal |
 | **C. Same id, tag-filtered / keyed** | One bundle id + feed; an in-app toggle selects items via channel tag or header/license (OrbStack, TablePlus, CleanShot) | **PRIMARY TARGET** — same |
-| **D. Same id, undetectable** | In-app/server-side opt-in that leaves **no local artifact** (Slack Beta, Raycast Beta, Obsidian Insider) | Document as dead-end, do not re-investigate |
+| **D. Same id, undetectable** | In-app/server-side opt-in that leaves **no local artifact** (Slack Beta, Obsidian Insider) | Document as dead-end, do not re-investigate |
 
 The user asked specifically about **B/C**: apps where you trigger stable→preview
 *inside the app*. The deciding question is never "does it have a toggle" — it's
@@ -166,9 +166,10 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
    until `/app-audit` toggles a real install and diffs `defaults`.
 3. **Never mark a candidate detectable / ✓.** Highest you go is "B/C candidate,
    worth toggling." Only `channel-verify` on a real bundle earns a ✓.
-4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` § C lists Pattern-D apps
-   already ruled out (Slack Beta, Raycast Beta, Obsidian Insider, …). Figma Beta is
-   NOT one of them: it is Pattern A (`com.figma.DesktopBeta`, covered).
+4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 lists Pattern-D apps
+   already ruled out (Slack Beta, Obsidian Insider, …). Not dead ends, despite older
+   notes: Figma Beta is Pattern A (`com.figma.DesktopBeta`, covered), and Raycast's
+   v2 is a machine-selected train, not a channel (§3, corrected 2026-08-27).
    Re-confirm only if you have a NEW signal; otherwise skip.
 5. **Don't double-cover.** Subtract anything already in VendorProbeRecipe /
    GitHubReleasesSource / a `*Channel.swift` ChannelBinding before listing it.

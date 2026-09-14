@@ -10,7 +10,9 @@
 
 转引自 recipe 注释，未复测。
 
-That is true for DETECTION and wrong for INSTALL: that link
+It used to use the suite fwlink (linkid=525133), on the reasoning that
+there is no dedicated OneNote fwlink and the suite reports the same
+version. That is true for DETECTION and wrong for INSTALL: that link
 serves `Microsoft_365_and_Office_<build>_Installer.pkg`, which declares
 eight destinations — Word, Excel, PowerPoint, Outlook, OneNote, OneDrive,
 AutoUpdate and a Defender shim.

@@ -23,6 +23,7 @@ listPageSize: not installed on the measuring machine, so measured
 directly against the live endpoint (2026-09-04, newest 100 releases):
 first-match index 1 (the newest release is often the stable
 `release-…` tag one spot above), worst run between two `-betaN` tags
-is 4 (`release-3.4.16-beta1`→`release-3.4.13-beta2`).
+is 4 (`release-3.4.16-beta1`→`release-3.4.13-beta2`). 8 keeps 2x
+headroom over that.
 
 复测 2026-09-14（03:15 UTC，只读 GET `repos/desktop/desktop/releases?per_page=100`）：首个 `release-X.Y.Z-betaN` 在第 0 位（`release-3.6.6-beta1`），相邻两个之间最多隔 3 个 release，100 条里 61 个 beta tag。

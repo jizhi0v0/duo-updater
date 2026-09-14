@@ -42,20 +42,23 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
   `CFBundleVersion`。
 - 发布时间: 顶层 `published_at`，写入 Release Log。
 - 生产验证: mounted stable DMG `0.19.1 → 0.19.1`，stable / up-to-date。
+- preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
 ## Changelog
-- 来源: 同一份官方 JSON 的 `release_notes.en`，固定取英文作为默认。
-- 状态: 原生结构化 changelog，JSON 解码后解析 Markdown 标题和条目。
+- 来源: 英文的逐版本页 `longbridge.com/desktop/release-notes/v{version}`（preview 是 `…/release-notes/preview/v{version}`），不是 `latest.json` 的 `release_notes.en`——逐版本页正文更全，还带配图。（更正 2026-09-14：原先这里写的是 JSON 的 `release_notes.en`，与 `Recipes/com-longbridge-app-desktop.swift` 的 `ChangelogRecipe` 不符。）
+- 状态: 原生 changelog，`ChangelogRecipe` 用正则读页面的 `Release Date:` 块与 `<li>`/`<p>` 条目（`<video>` 截断条目，`imagePattern` 收图）。
 - 网页兜底: `https://longbridge.com/desktop/release-notes/`。
-- 限制: `latest.json` 只包含当前版本，因此原生视图一次显示一版；官网保留历史版本。
+- 限制: `maxEntries: 1`，按装机版本取那一页，原生视图一次显示一版；官网保留历史版本。
 
 ## 一键安装
 - 状态: ✓（Apple Silicon）。
 - 格式: 自包含 DMG；manifest 精确选择 `macos-aarch64.dmg`。
 - 安全: 官方 JSON 的 SHA-256 与下载字节一致；应用代码签名有效，Team
   `45NG8MW7WK`，Gatekeeper 判定 `Notarized Developer ID`。
-- Intel: manifest 虽提供 `macos-x86_64.dmg`，当前 VendorInstallSpec 不支持按运行架构
-  分支选择 URL，因此本次不宣称 Intel 一键安装覆盖。
+- 架构: manifest 也提供 `macos-x86_64.dmg`，但 DuoUpdater 只跑在 Apple silicon 上（`App/project.yml`
+  `ARCHS: arm64`），所以 pattern 锚 `macos-aarch64.dmg` 就是完整覆盖，没有 Intel 一键要补。
+  （更正 2026-09-14：原先写「本次不宣称 Intel 一键安装覆盖」，暗示将来会补。）
+- preview: 同样一键 `…-preview.N-macos-aarch64.dmg`，Team 与 stable 相同（`45NG8MW7WK`），见 `55721c0e`。
 
 ## 运行时（GPUI，不是 Tauri）
 
@@ -88,7 +91,7 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 ## 建议下一步
 1. 监控 stable manifest 的 `version`、`published_at`、`assets[].url` 字段形状。
-2. 若 VendorInstallSpec 将来支持按 host architecture 选 URL，再补 Intel 一键安装。
+（原第 2 条「若 VendorInstallSpec 将来支持按 host architecture 选 URL，再补 Intel 一键安装」已删：没有 Intel 宿主，见「一键安装」。）
 
 
 ## 历史与实测

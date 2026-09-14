@@ -899,15 +899,32 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// a feed binding the URI to two prefixes at once resolves the same way twice
     /// instead of by dictionary order.
     ///
-    /// ⚠️ Resolved binding first, literal `sparkle:` second — the SAME order as
-    /// `sparkleLocalName`, and it has to be. A feed that bound `sparkle` to some
-    /// other vocabulary and Sparkle's real URI to `s` would otherwise have its
-    /// elements read from `s:` and its attributes from `sparkle:`, i.e. two
-    /// halves of one `<item>` taken from two different vendors' vocabularies.
-    /// The literal fallback still fires for the cases it exists for: when no
-    /// prefix resolves to Sparkle's URI, the scan simply finds nothing.
-    private func sparkleAttribute(_ local: String, _ attributes: [String: String]) -> String? {
-        for key in attributes.keys.sorted() {
+    /// ⚠️ Resolved binding first, literal `sparkle:` second. Within ONE element's
+    /// attributes this is a real precedence rule: both spellings are visible in
+    /// the same dictionary at the same moment, so one of them has to win, and the
+    /// properly bound one should. The literal fallback still fires for the cases
+    /// it exists for — when no prefix resolves to Sparkle's URI, the scan simply
+    /// finds nothing.
+    ///
+    /// ⚠️ This does NOT generalise to elements, and it would be wrong to say the
+    /// parser "resolves both the same way round". `sparkleLocalName` checks the
+    /// namespace first only to decide whether THIS element is Sparkle's; separate
+    /// elements arrive in separate `didEndElement` calls with no memory of each
+    /// other, so when a feed carries both `<s:maximumSystemVersion>` (real URI)
+    /// and `<sparkle:maximumSystemVersion>` (foreign vocabulary, reaching the
+    /// switch via the literal fallback), the winner is decided by DOCUMENT ORDER
+    /// and by each field's own guard — not by which prefix is properly bound.
+    /// The direction is not even uniform: `version` / `shortVersionString` /
+    /// `channel` keep the FIRST value (`== nil` guard) while
+    /// `maximumSystemVersion` / `minimumSystemVersion` assign unconditionally and
+    /// so keep the LAST. `aFeedCarryingBothSpellingsOfAnElementIsOrderDecided`
+    /// pins this rather than pretending it does not exist; it is pre-existing
+    /// behaviour that namespace support merely makes reachable, and no observed
+    /// feed carries two vocabularies claiming the same element name.
+    private func sparkleAttribute(
+        _ local: String, _ attributes: [String: String], _ sortedKeys: [String]
+    ) -> String? {
+        for key in sortedKeys {
             guard let colon = key.firstIndex(of: ":") else { continue }
             guard String(key[key.index(after: colon)...]) == local,
                   uri(forPrefix: String(key[key.startIndex..<colon]))
@@ -940,6 +957,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             return
         }
 
+        // Sorted once per element rather than once per attribute read: `<enclosure>`
+        // alone asks five times, and the sort exists so a feed binding Sparkle's URI
+        // to two prefixes at once resolves the same way twice instead of by
+        // dictionary order.
+        let sortedAttributeKeys = attributeDict.keys.sorted()
+
         switch rssLocalName(elementName, qName) {
         case "item":
             current = SparkleAppcastItem()
@@ -956,12 +979,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             guard deltasDepth == 0 else {
                 if let urlString = attributeDict["url"],
                    let url = resolve(urlString),
-                   let from = sparkleAttribute("deltaFrom", attributeDict) {
+                   let from = sparkleAttribute("deltaFrom", attributeDict, sortedAttributeKeys) {
                     current?.deltas.append(DeltaPatch(
                         fromBuild: from,
                         url: url,
                         size: attributeDict["length"].flatMap { Int64($0) },
-                        edSignature: sparkleAttribute("edSignature", attributeDict)))
+                        edSignature: sparkleAttribute("edSignature", attributeDict, sortedAttributeKeys)))
                 }
                 break
             }
@@ -969,18 +992,18 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             if let length = attributeDict["length"], let n = Int64(length) {
                 current?.enclosureLength = n
             }
-            if let v = sparkleAttribute("version", attributeDict) { current?.version = v }
-            if let s = sparkleAttribute("shortVersionString", attributeDict) {
+            if let v = sparkleAttribute("version", attributeDict, sortedAttributeKeys) { current?.version = v }
+            if let s = sparkleAttribute("shortVersionString", attributeDict, sortedAttributeKeys) {
                 current?.shortVersionString = s
             }
-            if let sig = sparkleAttribute("edSignature", attributeDict) {
+            if let sig = sparkleAttribute("edSignature", attributeDict, sortedAttributeKeys) {
                 current?.edSignature = sig
             }
-            if let delta = sparkleAttribute("deltaFrom", attributeDict) {
+            if let delta = sparkleAttribute("deltaFrom", attributeDict, sortedAttributeKeys) {
                 current?.deltaFrom = delta
             }
             // Usually an item-level child element, but tolerate it on enclosure.
-            if let m = sparkleAttribute("minimumAutoupdateVersion", attributeDict) {
+            if let m = sparkleAttribute("minimumAutoupdateVersion", attributeDict, sortedAttributeKeys) {
                 current?.minimumAutoupdateVersion = m
             }
         default:

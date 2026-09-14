@@ -42,12 +42,15 @@ import Foundation
 /// |  4 | `sparkleAttribute`: delete the prefix-scan loop, keep only the literal key | RED — `altPrefix…`, `defaultNamespace…`, `aBoundPrefix…`, `aPrefixRebound…` |
 /// |  5 | `sparkleAttribute`: fall back to an unprefixed key as well | RED — `anUnprefixedEnclosureAttributeIsNotSparkles` |
 /// |  6 | `didEndElement`: drop the `handled` guard, let both switches run | **GREEN** |
-/// |  7 | `didStartElement`: match `deltas` on local name only, no namespace check | **GREEN** |
+/// |  7 | `didStartElement`: match `deltas` on local name only, no namespace check | RED — `aForeignDeltasBlockDoesNotSwallowTheRealEnclosure` |
 /// |  8 | `didEndElement`: delete the Sparkle `releaseNotesLink` case | RED — `theConventionalSpellingReadsEveryField` only |
 /// |  9 | `didEndMappingPrefix`: clear the prefix outright instead of popping one binding | RED — `aPrefixReboundOnAnInnerElementIsRestoredAfterIt` |
 /// | 10 | `rssLocalName`: return `elementName` unconditionally (match every namespace) | RED — `aForeignVocabularyIsNotReadAsRSS` |
 /// | 11 | `rssLocalName`: gate on `namespaceURI` being empty or Sparkle's instead of on the prefix | RED — `aForeignDefaultNamespaceStillParses` |
 /// | 12 | `sparkleAttribute`: check the literal `sparkle:` key BEFORE the resolved scan | RED — `aBoundPrefixBeatsTheLiteralOneOnAttributesToo` |
+/// | 13 | `VendorAppcastDeltas`: restore the `contains("sparkle:deltas")` gate | RED — `anAltPrefixDeltasBlockIsNotShortCircuitedByTheGate` |
+/// | 14 | hoisted `sortedAttributeKeys` returns empty (sort never happens) | RED — 6 cases across both suites |
+/// | 15 | `maximumSystemVersion` becomes first-wins like `version` | RED — `aFeedCarryingBothSpellingsOfAnElementIsOrderDecided` |
 ///
 /// Four rows are worth more than their verdict:
 ///
@@ -59,15 +62,18 @@ import Foundation
 ///    the release notes and a nested `<x:item>` made the genuine release vanish.
 ///    11 is the obvious correction, and it silently drops every element of a
 ///    feed whose default namespace is somebody else's.
-///  * **6 and 7 came back GREEN and are left green.** 7 removes a guard no
-///    input can observe: no vocabulary in an appcast names a non-Sparkle
-///    `<deltas>`. 6 is subtler — dropping `handled` really does record a
-///    Sparkle-namespaced `<markdownDescription>` twice, but the two copies are
-///    the same text in the same language, so `preferredVariant` returns the same
-///    string either way. Writing a case that "covers" either would be writing
-///    `f(X) == f(X)`. Both stay in the code because they state the rule for
-///    whoever adds the next element, and this table is where that is said out
-///    loud rather than a passing test implying otherwise.
+///  * **6 is GREEN and left green; 7 was wrongly assumed to be.** Dropping
+///    `handled` really does record a Sparkle-namespaced `<markdownDescription>`
+///    twice, but the two copies are the same text in the same language, so
+///    `preferredVariant` returns the same string either way — covering it would
+///    be writing `f(X) == f(X)`. 7 was in this paragraph too, on the reasoning
+///    that "no appcast vocabulary names a non-Sparkle `<deltas>`". That reasoning
+///    was about the START tag and missed the asymmetry: the mutation changes only
+///    the start, while `didEndElement` still resolves the namespace and correctly
+///    answers nil, so `deltasDepth` goes up and never comes down and every later
+///    `<enclosure>` — the real download included — is filed as a patch. A
+///    five-line fixture makes it red. **A green mutation is a claim that needs a
+///    fixture attempted against it, not a conclusion.**
 ///  * **8 went red in ONE case, and not the three that look like they should
 ///    have.** Losing `releaseNotesLink` loses it from the reference feed and
 ///    from each re-spelling alike, so all three `…ParsesLikeTheConventionalOne`
@@ -303,6 +309,84 @@ import Foundation
           <channel><item>
             <enclosure url="https://example.com/a.dmg" length="1"
                        sparkle:version="foreign" s:version="200"/>
+          </item></channel>
+        </rss>
+        """
+        #expect(Self.parse(xml).first?.version == "200")
+    }
+
+    /// A foreign `<x:deltas>` must not open the delta region — and, more to the
+    /// point, must not open one that never closes.
+    ///
+    /// This is what separates mutation 7 from mutation 6. Matching `<deltas>` on
+    /// the bare local name looks symmetric, but only the START tag is mutated:
+    /// `didEndElement` still asks `sparkleLocalName`, which correctly answers nil
+    /// for `x:deltas`. So `deltasDepth` goes up and never comes back down, and
+    /// every later `<enclosure>` in the feed — including the real download — is
+    /// filed as a delta patch. The item ends up with no URL at all.
+    @Test func aForeignDeltasBlockDoesNotSwallowTheRealEnclosure() {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0" xmlns:sparkle="\(Self.sparkleURI)" xmlns:x="https://example.com/x">
+          <channel><item>
+            <x:deltas>
+              <enclosure url="https://example.com/p.delta" length="1" sparkle:deltaFrom="199"/>
+            </x:deltas>
+            <enclosure url="https://example.com/a.dmg" length="4096" sparkle:version="200"/>
+          </item></channel>
+        </rss>
+        """
+        let item = Self.parse(xml).first
+        #expect(item?.enclosureURL?.absoluteString == "https://example.com/a.dmg")
+        #expect(item?.version == "200")
+    }
+
+    /// Two vocabularies claiming the same element name: who wins is decided by
+    /// DOCUMENT ORDER, not by which prefix is properly bound.
+    ///
+    /// Elements are independent `didEndElement` calls with no memory of each
+    /// other, so the attribute rule (bound prefix beats the literal one, see
+    /// `aBoundPrefixBeatsTheLiteralOneOnAttributesToo`) has no element analogue —
+    /// saying the parser "resolves both the same way round" would be false. The
+    /// direction is not even uniform between fields, which is why this pins both:
+    /// `maximumSystemVersion` assigns unconditionally so the LAST spelling wins,
+    /// while `version` carries an `== nil` guard so the FIRST one does.
+    ///
+    /// Pre-existing behaviour that namespace support merely makes reachable — no
+    /// observed feed carries two vocabularies claiming one Sparkle element name.
+    /// Pinned so that if anyone ever makes it uniform, they do it deliberately.
+    @Test func aFeedCarryingBothSpellingsOfAnElementIsOrderDecided() {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0" xmlns:sparkle="https://example.com/not-sparkle" xmlns:s="\(Self.sparkleURI)">
+          <channel><item>
+            <s:maximumSystemVersion>26.0</s:maximumSystemVersion>
+            <sparkle:maximumSystemVersion>99.0</sparkle:maximumSystemVersion>
+            <s:version>200</s:version>
+            <sparkle:version>999</sparkle:version>
+            <enclosure url="https://example.com/a.dmg" length="1"/>
+          </item></channel>
+        </rss>
+        """
+        let item = Self.parse(xml).first
+        #expect(item?.maximumSystemVersion == "99.0")  // last wins: unconditional assign
+        #expect(item?.version == "200")                // first wins: `== nil` guard
+    }
+
+    /// A prefix declared ON the very element that uses it must already be bound
+    /// when that element's attributes are read.
+    ///
+    /// `didStartMappingPrefix` fires just BEFORE the start tag it belongs to, so
+    /// this works — but nothing else in this suite would notice if the ordering
+    /// were the other way round, because every other fixture declares its prefixes
+    /// on an ancestor.
+    @Test func aPrefixDeclaredOnTheElementItselfIsAlreadyBound() {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0">
+          <channel><item>
+            <enclosure xmlns:s="\(Self.sparkleURI)"
+                       url="https://example.com/a.dmg" length="1" s:version="200"/>
           </item></channel>
         </rss>
         """

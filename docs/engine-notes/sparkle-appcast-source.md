@@ -103,13 +103,47 @@ already had — **the RSS switch accepts a name only when its qualified name
 carries no prefix**. A feed that makes SPARKLE the default namespace still works
 because it spells those elements unprefixed too.
 
-Elements and attributes also have to resolve in the same ORDER: the properly
-bound prefix first, the literal `sparkle:` one as the fallback. Checking the
-literal key first (the first draft, again) lets a feed that bound `sparkle` to a
-foreign vocabulary and Sparkle's real URI to `s` have its elements read from one
-vendor and its attributes from the other.
+Within one element's ATTRIBUTES, the properly bound prefix must beat the literal
+`sparkle:` one: both spellings sit in the same dictionary at the same moment, so
+one has to win. Checking the literal key first (the first draft, again) lets a
+feed that bound `sparkle` to a foreign vocabulary and Sparkle's real URI to `s`
+have half of one `<item>` read from each vendor.
 
-### §1.7 Unprefixed attributes are never Sparkle's
+⚠️ **That rule does not extend to elements, and it would be wrong to say the
+parser "resolves both the same way round."** Separate elements are separate
+`didEndElement` calls with no memory of each other, so when a feed carries both
+`<s:maximumSystemVersion>` and `<sparkle:maximumSystemVersion>`, the winner is
+decided by DOCUMENT ORDER and by each field's own guard — not by which prefix is
+bound. The direction is not even uniform: `version` / `shortVersionString` /
+`channel` keep the FIRST value (`== nil` guard), while `maximumSystemVersion` /
+`minimumSystemVersion` assign unconditionally and keep the LAST. This is
+pre-existing behaviour that namespace support merely makes reachable, and no
+observed feed carries two vocabularies claiming the same element name — it is
+pinned by a fixture rather than changed, so that making it uniform stays a
+deliberate act.
+
+### §1.7 The gate in front of the parser must not be narrower than the parser
+
+`VendorAppcastDeltas.patches` bails out early on bodies that are not appcasts at
+all (most vendor probes answer JSON). That gate read
+`body.contains("sparkle:deltas")` — a literal-prefix test in front of a now
+namespace-aware parser, so a feed spelling it `s:deltas`, or making Sparkle the
+default namespace, parsed correctly and was still short-circuited to `[]`. The
+effect is benign (a full download instead of a patch) and completely silent,
+which is what makes it worth naming: that file exists *because* two Sparkle
+readers drifted once before. It is now `contains("deltas")`.
+
+⚠️ **This is not the only literal-`sparkle:` reader in `Sources`** — measured,
+not assumed. `ToolboxSource.sparkleLatest` and roughly a dozen recipe
+`versionPattern` / `install` regexes (Brave, Vivaldi, VLC, Kagi, WeChat, Docker,
+OrbStack, ImageOptim, The Unarchiver, ChatGPT, Codex, Bartender) also match the
+literal prefix. Those are a different category and were deliberately left alone:
+each is pinned to one vendor's actual bytes and verified against that vendor's
+live endpoint by `duo verify`, so a prefix change there shows up as a red recipe
+rather than as silence. The gate above was general-purpose code standing in front
+of the general parser, which is why only it changed.
+
+### §1.8 Unprefixed attributes are never Sparkle's
 
 Per XML Namespaces §6.2 an unprefixed attribute is in no namespace even under a
 default `xmlns`. A feed that makes Sparkle the document default therefore

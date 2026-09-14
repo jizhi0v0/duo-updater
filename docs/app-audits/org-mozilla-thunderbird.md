@@ -90,10 +90,17 @@ https://aus.thunderbird.net/update/6/Thunderbird/<Version>/<BuildID>/Darwin_aarc
 - 锚点写死，实测约束与退化如何被抓到，见 Firefox 那份的「锚点是写死的」。
 
 ## Changelog
-- 来源: 无结构化 ChangelogRecipe；三条 recipe 的 `changelogURL` 指向
-  `https://www.thunderbird.net/thunderbird/releases/`，由工作台 WebView 内嵌官网页兜底
-- 跟随 channel: 否（一个 releases 页覆盖全部 channel）
-- Recipe 状态: 不需要（WebView 兜底足够；如要内联结构化条目可后补）
+- 来源: 三条结构化 ChangelogRecipe（stable、ESR、beta），都按版本套
+  `https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/`，每页一个版本
+  （`maxEntries: 1`）；ESR 补回 `esr` 后缀，beta 去掉 `bN` 再加 `beta`，读整个周期的累积页
+  （`urlVersionToken`）。daily 没有 ChangelogRecipe（理由见 recipe 注释）。
+  stable、beta、ESR 三条 probe recipe 的 `changelogURL` 仍指向
+  `https://www.thunderbird.net/thunderbird/releases/`
+- 跟随 channel: 是（stable 与 ESR 同一个 bundle id，靠 recipe 的 `channel` 分开；beta 有自己的 bundle id）
+- Recipe 状态: 已有（`5ff7b648`，2026-06-05）
+- 更正 2026-09-15：本节原写「来源: 无结构化 ChangelogRecipe」「跟随 channel: 否（一个 releases 页覆盖全部
+  channel）」「Recipe 状态: 不需要」。这几句随 2026-06-04 的审计写下（`068d8239`）时成立，次日 `5ff7b648`
+  加了这三条 ChangelogRecipe 之后就不成立了；`6d4ffe79`（2026-08-27）发布审计文档时原样带了过来。
 
 ## 一键安装
 - 状态: **已接入**，best-effort 就地 dmg 替换，叠在 Thunderbird 自己的更新器之上

@@ -148,3 +148,65 @@ make cli && duo verify --only asidebrowser --samples
    (同样要 `[^{}]*?` 围栏),Team `8CPD4K4TBB`。
 2. mac 出下一个构建时再打一次 Omaha,看有没有灰度。
 3. 渠道: 暂无,不需要改 `CHANNEL_COVERAGE_TODO.md`。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-15）。正文逐字，只去掉了行首 `// `；每组标明出处。四段都是 #623（`fbd8a0c2`）写的，家族迁移批次之后才进来，由收尾批次搬出。
+
+### Recipes/at-studio-AsideBrowser.swift — VendorProbe（`version_info.json` 的 mac 对象）
+
+转引自 recipe 注释，未复测。整段原文。原段落末尾有一行临时的 `snapshot-lint:allow` 标记，不是正文，没有抄进来，代码里已删掉。代码里留下的是结论（两个平台不同步发布，所以 pattern 只取 mac 对象），日期写成 "when checked (2026-09-14)"，两个版本号和 changelog 页顶部那条的版本号搬到这里。"So both patterns are fenced" 按当前代码不成立，见下面的更正。
+
+Reads the vendor's `version_info.json`, the same document the cask's
+livecheck reads. It carries one object per PLATFORM, and the platforms do
+not ship together: on 2026-09-14 it said mac `1.0.910.1` and win
+`1.0.914.1`, and the changelog page already led with 914.1. So both
+patterns are fenced inside the `"mac"` object by `[^{}]*?`, which cannot
+cross into `"win"` whichever order the keys come in.
+
+更正 2026-09-15：这条 probe 只有一条 pattern（`versionPattern`），没有 install spec，也没有第二条读 `version_info.json` 的 pattern。#623 的第一个提交 `f442122d` 和合并后的 `fbd8a0c2` 都是这样（`git show <提交>:DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/at-studio-AsideBrowser.swift | grep -n Pattern`，probe 里只有 `versionPattern` 一行），所以写下时就不成立。代码里改成 "So the version pattern is fenced …"。
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET，不跟随重定向）：`version_info.json` 200、244 B，mac `1.0.910.1`、win `1.0.914.1`；`aside.com/api/download/macos` 302 到 `https://releases.aside.com/dev-updater/Aside-1.0.910.1.dmg`。
+
+### Recipes/at-studio-AsideBrowser.swift — VendorProbe（版本方案、读到的是哪个构建）
+
+转引自 recipe 注释，未复测。整段原文。原句没写日期；"on the same day" 指上一段的 2026-09-14。代码里的改写：版本号标成示例；DMG 与 Omaha 两处核对写成 "When checked (2026-09-14)"，`nextversion` 的值搬到这里；"when measured" 改成 "then"。结论（这是人人能手动下载的构建，不是跑在分配前面的那个；mac 轨当时只有一个构建，灰度看不见，能看见时要复查）留在代码里。
+
+The version is the marketing string (`CFBundleShortVersionString`
+`1.0.910.1`, build `910.1`), so no `versionIsBuild`. The mac `url` is the
+same DMG `aside.com/api/download/macos` redirects to, and the Omaha check
+answered `nextversion 1.0.910.1` for an older install on the same day, so
+this is the build anyone can download by hand, not one ahead of an
+allocation. The mac track had a single build when measured, so a staged
+rollout would not have been visible; re-check when one could be.
+
+复测 2026-09-15（UTC 2026-09-14 16:14）：DMG 重定向同上一组。Omaha 检查是 POST，没有复测。
+
+### Recipes/at-studio-AsideBrowser.swift — ChangelogRecipe（一页跨平台，顶部可以比 mac 轨新）
+
+转引自 recipe 注释，未复测。整段原文（#623 写的，没有标记，是审查时补搬的）。原句没写日期；`at-studio-AsideBrowser.md` 正文「Changelog」一节记着同一现象的日期 2026-09-14（页面顶部 914.1，mac 910.1）。代码里留下的是结论（页面条目不标平台，所以顶部那条可以比 mac 轨提供过的任何版本都新，那是厂商先发 Windows、不是 probe 过期），两个版本号搬到这里，写成 "when checked (2026-09-14) the top entry was the Windows launch …"。
+
+ONE page for every platform, and entries are not marked with one. An entry
+can therefore be newer than anything the Mac has been offered: `v1.0.914.1`
+("Aside is now officially available on Windows!") topped the page while
+the mac track was still on 1.0.910.1. That is the vendor shipping Windows
+first, not a stale probe.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET）：`native.md` 第一个标题仍是 `v1.0.914.1`，`version_info.json` 的 mac 仍是 `1.0.910.1`（数字见上面两组的复测）。
+
+### Recipes/at-studio-AsideBrowser.swift — ChangelogRecipe（`native.md` 的形状）
+
+转引自 recipe 注释，未复测。整段原文。原段落末尾的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是形状（带 `v` 与不带 `v` 的标题从哪个版本分界、日期行只出现在 1.0.626.1 及更早的条目上、条目怎么取、`**bold**` 原样显示），条数（51、38、13，以及最新十条里 4 条带粗体）搬到这里，日期写成 "(checked 2026-09-14; …)"。
+
+Shape (51 entries on 2026-09-14): `## v1.0.914.1` headings from 1.0.626.1
+up, bare `## 1.0.624.1` below that. A `Month D, YYYY` line follows the
+heading only on 1.0.626.1 and older (38 entries); the newest 13 have none,
+and the version's middle digits are a month-day with no year, so no date
+is derived from it. Bodies mix `### Section` headings, `* ` bullets
+(sometimes indented), plain paragraphs and the odd fenced command, so the
+item pattern takes every non-blank line that is not a heading or a fence
+marker — a paragraph like "You can now switch profiles inside a single
+window." is the note itself. `**bold**` stays literal: `markdownSource`
+only unwraps code spans and links (4 items in the newest ten carry it).
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET）：`docs.aside.com/changelog/native.md` 200、`text/markdown; charset=utf-8`、31,321 B；51 个 `## ` 版本标题，带 `v` 的 14 个（最低 `v1.0.626.1`）、不带 `v` 的 37 个（最高 `1.0.624.1`）；紧跟日期行的 38 条（最新的是 `1.0.626.1`），没有日期行的 13 条；最新十条里，按 recipe 取条目的办法（非空、不以 `#`、反引号或 `>` 开头的行）数，含 `**` 的行 4 行。

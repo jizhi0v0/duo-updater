@@ -23,8 +23,9 @@ enum uk_co_bzwrd_macperfmonitor {
         //   - In Simplified Chinese, the Hardware tab listed every CPU
         //     instruction-set feature as unsupported. The check compared …
         //
-        // Two things differ from the Copilot recipe (`Recipes/com-github-CopilotForXcode.swift`), and both are the file's
-        // doing rather than taste:
+        // Three things differ from the Copilot recipe
+        // (`Recipes/com-github-CopilotForXcode.swift`), all of them the file's doing
+        // rather than taste: the two below, and `headingPattern` further down.
         //
         //  * `\[…\]` around the version, and a leading `[0-9]` inside it — that is
         //    what keeps the `## [Unreleased]` section at the top of the file from

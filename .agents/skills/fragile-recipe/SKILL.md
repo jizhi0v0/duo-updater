@@ -70,8 +70,20 @@ examples — don't author from memory:
    put in Swift) — it's the fastest honest check and needs no rebuild.
 
 6. **Register it** — add the recipe to the right registry array, with a comment
-   explaining where the version/notes live and any rollout/format gotcha (match the
-   surrounding entries' comment style; they document hard-won quirks).
+   stating the **current contract**: where the version/notes live, why the pattern
+   is anchored that way, and any rollout/format gotcha. What you measured to get
+   there (dated checks, counts, the versions an endpoint answered, how you found
+   out) goes in `docs/app-audits/<family>.md` under `## 历史与实测`, with
+   `// History: docs/app-audits/<family>.md#历史与实测` in the code (rules:
+   `docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). A new family gets
+   that section too: in its audit, or in a history-only doc if it has no audit,
+   which also needs its index line under 「仅迁出历史（未审计）」 in that README
+   (`check_app_audits.py` fails an unindexed doc). A short dated provenance clause
+   on a contract claim ("(checked 2026-09-14)") may stay; the allowed shapes are
+   in the `scripts/check_recipe_snapshots.py` docstring. Only when the measurement
+   really is the contract, exempt it with a line `snapshot-lint:allow — <reason>`
+   in the same paragraph; the reason is required. Don't copy an older neighbour
+   that still carries dated logs.
 
 7. **Add a regression test.** Two parts, both required:
    - A fixture test: a trimmed slice of the *real* response, asserting the parse.
@@ -88,8 +100,9 @@ examples — don't author from memory:
 8. **Run `make test`**, and confirm green.
 
    `swift test` alone is not the gate: `make test` also runs `check_app_audits.py`,
-   `check_prose_claims.py`, `check_staged_version_use.py` and the App-layer target,
-   and a recipe change routinely trips those. A run that skips them lets a
+   `check_recipe_snapshots.py`, `check_prose_claims.py`,
+   `check_staged_version_use.py` and the App-layer target, and a recipe change
+   routinely trips those. A run that skips them lets a
    regression through silently.
 
 9. **Hit the real endpoint** — a fixture proves the regex, not the vendor:

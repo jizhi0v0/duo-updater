@@ -222,6 +222,10 @@ Add the recipe to the `changelogs:` of the app's family file under
 `AppRecipeIndex.all` if it is new. `ChangelogRecipeRegistry.recipes` is derived
 from that index.
 
+The comment states the page's shape and why the patterns are anchored. Entry
+counts, the newest version you saw and the date you checked go to the family
+audit's `## 历史与实测` (SKILL.md step 6).
+
 Add a test to `ChangelogExtractorTests.swift` with an **inline fixture** (a trimmed
 copy of the real markup, including at least one HTML entity to prove decoding) and
 assert entry count, version, date, item count, and a decoded item. Pattern:

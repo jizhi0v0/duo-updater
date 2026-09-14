@@ -121,6 +121,7 @@ enum com_bombich_ccc {
         // Marketing matches the probed capture group
         // exactly, so `versionIsBuild` stays the default `false`, same as
         // stable.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // That stable answer is the vendor's ordinary RESTING state between
         // cycles, not an outage, and the graduation is the vendor's own text

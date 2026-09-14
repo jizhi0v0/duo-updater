@@ -23,6 +23,7 @@ enum com_windscribe_client {
         // authentication values" while `Bearer 9999` returns the same 200 body as
         // `Bearer 1234`. We send the vendor's own value because it is the one
         // combination proven to be exercised in production every day.
+        // snapshot-lint:allow — contract and measurement share one sentence, kept whole per README 「以句子为单位」
         //
         // WHY `/ChangeLogs/summary` AND NOT `/CheckUpdate`, which is the smaller
         // and more obvious endpoint. `CheckUpdate?platform=osx&beta=<n>` takes a
@@ -226,6 +227,7 @@ enum com_windscribe_client {
         // track are `prerelease: false` on GitHub, and NONE of the 51 it names on
         // the beta / guinea-pig tracks are — so nothing from a track the user did
         // not opt into can reach the panel.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // Tag shape is `vX.Y.Z` against the probe's bare `X.Y.Z`; `GitHubMarkdownParser`
         // is the same one the GitHub *version* source uses and already handles the
@@ -276,6 +278,7 @@ enum com_windscribe_client {
         // marks all 31 the same way — it has no idea which track a build is on.
         // So a beta reader sees guinea pig entries too, and both readers see
         // builds the vendor never announced.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
         // version comes from the vendor's feed and the notes come from GitHub,

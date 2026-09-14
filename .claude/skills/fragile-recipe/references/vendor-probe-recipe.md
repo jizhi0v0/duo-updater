@@ -170,8 +170,10 @@ Add the recipe to the `probes:` of the app's family file under
 `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` (and the family to
 `AppRecipeIndex.all` if it is new — `VendorProbeRegistry.recipes` is derived from
 that index), with a comment naming where the version lives, the Team ID if it installs, and any
-rollout/format gotcha (study the neighbors — they encode real quirks like Chrome's
-fractional rollout or VLC's ascending appcast).
+rollout/format gotcha (study the neighbors for their quirks, like Chrome's
+fractional rollout or VLC's ascending appcast, not for their dated verification
+logs). Measurements go to the family audit's `## 历史与实测`, not the comment; see
+SKILL.md step 6.
 
 Add a fixture test that feeds a trimmed real body to the extraction helper and
 asserts the version, e.g.:

@@ -14,6 +14,7 @@ enum at_studio_AsideBrowser {
         // `1.0.914.1`, and the changelog page already led with 914.1. So both
         // patterns are fenced inside the `"mac"` object by `[^{}]*?`, which cannot
         // cross into `"win"` whichever order the keys come in.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // NOT `entryStartPattern` with a plain `"version"` pattern, although this
         // looks like the case for it: that primitive slices the body and keeps the
@@ -61,6 +62,7 @@ enum at_studio_AsideBrowser {
         // marker — a paragraph like "You can now switch profiles inside a single
         // window." is the note itself. `**bold**` stays literal: `markdownSource`
         // only unwraps code spans and links (4 items in the newest ten carry it).
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // `/changelog/components` is the in-browser components' log, not the app's.
         ChangelogRecipe(

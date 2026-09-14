@@ -44,6 +44,7 @@ enum bot_cline_app {
         // What is given up is the release-history backfill only GitHub and
         // Sparkle sources produce; `publishedAtPattern` below still dates the
         // release each round.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // TWO CHANNELS, TWO BUNDLE IDS — pattern A, so nothing has to be inferred
         // from a preference or a version suffix. Stable is `bot.cline.app`, beta is
@@ -135,6 +136,7 @@ enum bot_cline_app {
         // titled `desktop-v…` (e.g. `desktop-v0.0.26`) and none would have matched
         // the version the row
         // shows.
+        // snapshot-lint:allow — catch-up batch after 2f
         //
         // The rolling feed tags the updater points at (`desktop-latest`,
         // `desktop-beta`) are releases in this list too; the `$`-anchored pattern

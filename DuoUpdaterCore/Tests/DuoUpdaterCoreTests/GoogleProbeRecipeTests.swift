@@ -82,7 +82,8 @@ struct GoogleProbeRecipeTests {
 
     /// "Open page" opens `downloadURL`, so it must be the desktop landing page.
     /// Two wrong answers, neither of which `PageURLTests` can see: the old
-    /// `gemini.google.com/download` 404s (2026-09-14), and the page's own
+    /// `gemini.google.com/download` answered 404 or a /sorry bot challenge
+    /// (both seen 2026-09-14), and the page's own
     /// "Download for macOS" button, `gemini.google/download/mac/`, has no file
     /// extension but 302s straight to the dmg — the browser would download a file.
     /// This pins the choice; it cannot tell whether the page is still up.

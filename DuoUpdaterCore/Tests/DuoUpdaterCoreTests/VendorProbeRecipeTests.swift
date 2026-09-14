@@ -237,9 +237,11 @@ private let warpEndpointFixture = #"""
     // exposed it — a rebuild of the same timestamp was invisible, because both
     // builds resolved to the identical string.
     //
-    // Expectations come from real bundles on all three tracks, recorded in
-    // application-test/records/dev-warp-Warp-Stable.md. Dev's `_00` is not a
-    // special case: that app reports a literal trailing `.00`.
+    // Expectations come from real bundles on all three tracks. The versions below
+    // are later builds than the ones in application-test/records/dev-warp-Warp-Stable.md
+    // (added in 19296da7, untracked in 4ff9a902; `git show 19296da7:` that path), which
+    // records the same trailing-counter shape. Dev's `_00` is not a special case:
+    // that app reports a literal trailing `.00`.
     let expected: [ReleaseChannel: String] = [
         .stable: "0.2026.08.05.09.03.01",
         .preview: "0.2026.08.05.09.03.01",

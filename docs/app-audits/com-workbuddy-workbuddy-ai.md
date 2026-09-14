@@ -58,3 +58,71 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 ## 已知问题
 
 - 国际站 changelog 页滞后于其发布轨道，vendor 侧问题，我们这边无解。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（两站两个 app 的对照表）
+
+转引自 recipe 注释，未复测。整段原文；（开头一句与表格之间原注释有空行，这里按两段放。）代码里只把表格最后一列的版本号去掉了。原句没写日期，引入它的提交是 `a374e923`（2026-08-27）。
+
+WorkBuddy ships as TWO separate apps, not two channels of one. Tencent
+runs an international site and a China site, each with its own bundle
+id, its own app name, its own update host and its own release train:
+
+```
+  com.workbuddy.workbuddy-ai  "WorkBuddy AI.app"  www.workbuddy.ai  5.4.2
+  com.workbuddy.workbuddy     "WorkBuddy.app"     www.workbuddy.cn  5.3.14
+```
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（传已装版本会得到 204）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论和日期（传你已经在跑的版本会得到 204，measured 2026-08-27 on both hosts），当天两站各传的版本搬到这里。
+
+TRAP, and the reason `version=0.0.0` is pinned into the URL: this is a
+"should I update?" service, not a "what is the latest?" one. Passing the
+version you already run returns **204 No Content** (measured 2026-08-27:
+5.3.14 → 204 on the CN host, 5.4.2 → 204 on the intl host), which would
+make the probe go dark precisely when it should say "up to date". An
+impossibly old version is what turns it into a latest-version query.
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（按架构分两条 recipe）
+
+转引自 recipe 注释，未复测。整段原文；「currently」一句按复测加了日期；「offer an Intel Mac a zip it cannot run」迁移时已不成立，代码里改写了，见下面的更正。
+
+Architecture: the endpoint serves both Macs and currently answers the
+same version to each, but the `url` it hands back is arch-specific
+(`/darwin-arm64/…` vs `/darwin-x64/…`). One recipe reading the arm64
+endpoint would therefore offer an Intel Mac a zip it cannot run. Hence
+one recipe per architecture, split by `hostRequirement` rather than by
+channel (the Raycast v1/v2 shape) so exactly one is eligible on any
+given Mac, and the install pattern is additionally pinned to its own
+`darwin-<arch>` path so a recipe cannot resolve the other arch's
+artifact even if the endpoint were to start ignoring the query.
+
+更正 2026-09-14：DuoUpdater 只跑在 arm64 上（`App/project.yml:23` `ARCHS: arm64`），没有 Intel 宿主。`VendorProbeSource` 在合并多端点之前按 `HostArch.current` 丢掉宿主跑不了的 recipe（`Sources/VendorProbeSource.swift:266-268` 调 `VendorProbeRecipe.runs(onOS:arch:)`，`Sources/VendorProbeRecipe.swift:1038-1040`；`VendorHostRequirement.isSatisfied` 是不带 Rosetta 例外的成员判断，:187-188），所以 x86_64 那条 recipe 在任何 DuoUpdater 宿主上都不会被用到。代码里去掉了 Intel Mac 的说法，改成说明这件事；同一说法在 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md) 的「陷阱三」里的副本一并改了。
+
+复测 2026-09-14（11:03 UTC，只读 GET）：`www.workbuddy.ai/v2/update?platform=workbuddy-darwin-arm64&version=0.0.0` 与 `…-x64…` 都回 `productVersion` `5.5.2.37849279`，`url` 分别在 `/darwin-arm64/` 与 `/darwin-x64/` 下；国内站两个架构都回 `5.3.14.36279234`。
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（一键：两站 DMG 的核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`sha256hash` 接不上 `checksumPattern`，由 Team FN2V63AD2J 闸兜底），2026-08-27 对两站 DMG 的字节数与签名核对搬到这里。
+
+One-click: the JSON's `url` is a plain, unsigned object on Tencent COS
+(intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
+`download.codebuddy.cn`). The `sha256hash` field alongside it is a
+SHA-256 hex digest, which `checksumPattern` (SHA-512, base64) cannot
+consume, so it is left unused and Team FN2V63AD2J gates the swap.
+Verified 2026-08-27 against both vendor DMGs at the same paths: the
+`.dmg` sibling of each `.zip` matches the published installer byte
+count, and both bundles are Developer ID signed under FN2V63AD2J.
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（Changelog：国际站页面落后）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（国际站页面落后于自己的轨道，这正是国际站 ChangelogRecipe 带 `acknowledgedStaleEntry` 的原因），写作当时的 5.2.7 / 5.4.2 搬到这里。复测见 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md) 的「历史与实测」。
+
+Changelog: each site's page is the one the app itself links (the build
+branches on `isOverseas()`); the intl page ran behind its own train at
+the time of writing (newest entry 5.2.7 against a 5.4.2 release) while
+the CN page was current.

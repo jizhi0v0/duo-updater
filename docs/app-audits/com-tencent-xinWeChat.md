@@ -112,3 +112,42 @@
 3. **测试** — `VendorProbeTests`（marketing 抽取 + 端到端不幽灵 + dmg 抠取）、
    `ChangelogExtractorTests`（sourceTemplate 解析 + per-version 页抽取）。本机 `com.tencent.xinWeChat`
    已装 = 真 bundle，单 channel 无需 channel-verify。317 测试全绿，live smoke = up to date。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tencent-xinWeChat.swift — stable VendorProbe（`entryStartPattern`：feed 的条目数与版本跨度）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（两个读取器不切片就各自在整份 body 上选，只因 Tencent 恰好新到旧排列才对得上；`<item>` 从不嵌套），2026-08-30 读到的条目数、版本跨度和「occurs 7 times」搬到这里，举例里的 "4.1.13" 改成了「最新版本」。
+
+`entryStartPattern` is what makes that safe. Without it the two readers
+select INDEPENDENTLY over the whole body — the version is the highest
+found anywhere (`selectHighest`), the download URL is the first enclosure
+found anywhere — and this feed carries 7 items spanning four generations
+(4.1.13.11 down to 2.3.31.22, read live 2026-08-30). They coincide only
+because Tencent happens to list newest first; a reordering that put the
+legacy `WeChatMac_10_15.dmg` item first would report "4.1.13" while
+installing a 3.8 build, silently. That is the #76 shape exactly, and an
+ordering argument is not a guard. `<item>` occurs 7 times in the body and
+never nested, so it slices between releases and not inside one.
+
+复测 2026-09-14：见下一组末尾，同一次读取。
+
+### Recipes/com-tencent-xinWeChat.swift — stable VendorProbe（同一版本按 OS 分三桶）
+
+转引自 recipe 注释，未复测。整段原文；代码里只去掉了三桶共同读出的具体版本号 "4.1.13"（与上一组同一次读取）。
+
+Tencent also buckets ONE version by OS across three of those items
+(`min12.0` with no max, `min12.0/max14.3`, and `min14.3/max15.0` which
+carries NO enclosure at all and tells the user to visit the website).
+Nothing here reads those bounds — `VendorProbeSource` consults neither,
+unlike `SparkleAppcastSource`. What keeps this correct is the tie-break in
+`highestVersionEntry`: `best` is replaced only on a STRICTLY newer
+version, so among the three items that all read "4.1.13" the FIRST wins —
+the no-max bucket carrying the universal dmg. If Tencent ever reorders
+those three, the enclosure-less bucket could win and one-click would go
+quiet: visible in the nightly sweep, and strictly better than the silent
+wrong-artifact install the un-sliced version risks.
+
+复测 2026-09-14（11:07 UTC，只读 GET `dldir1.qq.com/weixin/mac/mac-release.xml`，8,412 B）：7 个 `<item>`（字面 `<item>` 与 `</item>` 各 7 次，无嵌套），新到旧：`4.1.13.63` ×3、`3.8.10.17`、`3.8.2.21`、`3.4.1.17`、`2.3.31.22`；`4.1.13.63` 的三条依次是 min 12.0 无上限（带 universal dmg）、min 12.0 / max 14.3（带 dmg）、min 14.3 / max 15.0（无 enclosure）。

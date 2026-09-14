@@ -52,3 +52,33 @@
 ```
 swift run --package-path application-test channel-verify --scan dev.kdrag0n.MacVirt --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/dev-kdrag0n-MacVirt.swift — VendorProbe（一份 appcast 装所有 channel）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把旧 `appcast.xml` 冻结时的版本号 2.1.2 换成了「an older release」。原句没写日期，引入它的提交是 `44ccb054`（2026-06-03）。
+
+OrbStack — one Sparkle appcast (`appcast.new.xml`; the old `appcast.xml`
+froze at 2.1.2) carrying every channel as <sparkle:channel> elements.
+OrbStack has no Info.plist SUFeedURL, so it reaches us here, not via
+SparkleAppcastSource; `AppScanner` reads `updates_optinChannel` to set
+the install's channel (see `OrbStackChannel`) and we pick the matching
+recipe per `channel`. Each anchors its regex to its own channel tag, so
+a user is only ever offered their channel's build. Install stays on the
+codesign path (Team HUAQ24HBR6) — OrbStack ships no SUPublicEDKey.
+
+### Recipes/dev-kdrag0n-MacVirt.swift — `channelProofs`（同一个 dmg 在各 channel 间晋升）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（同一个 dmg 在各 channel 间晋升，所以证据是 channel 标签锚），2026-08-09 三条 channel 同为 `v2.2.3_20963` 这个例子搬到这里。
+
+OrbStack publishes one appcast with a `<sparkle:channel>` tag per item and
+promotes the same dmg across channels (all three were v2.2.3_20963 on
+2026-08-09). The channel tag the patterns are anchored to is the proof.
+Both halves named, like WeChat RC and for the same reason: one appcast
+serves all three channels, and the `<sparkle:channel>` prefix on the
+version pattern and on the install pattern is what confines each to its
+own `<item>`. Losing it from the install pattern alone would let the
+enclosure match the first item in the feed regardless of channel.

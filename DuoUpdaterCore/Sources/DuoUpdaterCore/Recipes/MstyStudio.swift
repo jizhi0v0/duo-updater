@@ -4,6 +4,7 @@ enum MstyStudio {
     static let set = AppRecipeSet(
         family: "MstyStudio",
         probes: [
+        // History: docs/app-audits/MstyStudio.md#历史与实测
         // Msty Studio — official electron-builder manifest lists both x64 and
         // arm64 assets and reports the same version as Info.plist. MstyStudio,
         // Team S6CF5A8MX9, notarized.
@@ -20,9 +21,7 @@ enum MstyStudio {
         // the obvious `^\s+sha512:` would hand the x64 digest to an arm64
         // download and fail every install. Requiring `url: MstyStudio_arm64.zip`
         // immediately before the digest makes the pairing structural rather than
-        // positional: measured 2026-08-29, the naive pattern yields `2Ix1WRcS…`
-        // (x64) and this one `aNSie9nH…` (arm64), and the downloaded
-        // `MstyStudio_arm64.zip` hashes to exactly the latter.
+        // positional (History has the 2026-08-29 check against a downloaded zip).
         //
         // The checksum earns its place twice over here. Because the URL is a
         // "latest" path while the digest belongs to the version the probe
@@ -42,10 +41,10 @@ enum MstyStudio {
         // reformat would turn "installed a slightly newer build" into "one-click
         // is dead", which is the worse of the two failures.
         //
-        // Verified 2026-08-29 on the artifact this spec selects: 248,234,928 B,
-        // extracts to `MstyStudio.app` 2.9.8, `Developer ID Application: Ashok
-        // Gelal (S6CF5A8MX9)`, spctl "accepted / Notarized Developer ID",
-        // `lipo -archs` = arm64.
+        // The artifact this spec selects extracts to an arm64 `MstyStudio.app`
+        // signed `Developer ID Application: Ashok Gelal (S6CF5A8MX9)`, accepted by
+        // spctl as Notarized Developer ID (checked 2026-08-29; History has the
+        // version and size).
         VendorProbeRecipe(
             bundleID: "MstyStudio",
             url: URL(string: "https://next-assets.msty.studio/app/latest/mac/latest-mac.yml")!,

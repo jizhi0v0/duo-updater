@@ -58,3 +58,32 @@
 ```
 swift run --package-path application-test channel-verify --scan io.tailscale.ipn.macsys --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/io-tailscale-ipn-macsys.swift — stable VendorProbe（release-candidate 轨的路径）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「(verified 2026-08-21: HTTP 200, same JSON shape …)」改成了「(when checked, 2026-08-21, it answered 200 with the same JSON shape …)」。
+
+Tailscale — official package index. `MacZipsVersion` is the macsys
+build (top-level `Version` is the Linux/Windows train — wrong here).
+Three public tracks share `io.tailscale.ipn.macsys`; the channel gate
+routes each install to its own endpoint per the app's opt-in toggle
+(see `TailscaleChannel`). `pkgs.tailscale.com/rc` 404s, but that's just
+the wrong guessed path — the real release-candidate track lives at
+`pkgs.tailscale.com/release-candidate/` (verified 2026-08-21: HTTP 200,
+same JSON shape as stable/unstable below).
+
+### Recipes/io-tailscale-ipn-macsys.swift — release-candidate VendorProbe（RC 与 stable 的版本关系）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「both were 1.102.3 on 2026-08-21」换成了「History has a dated case」。
+
+On version numbers: per Tailscale's own docs the RC track carries the
+*next patch of the current stable line*, so it normally reads equal to
+stable (right after a promotion — both were 1.102.3 on 2026-08-21) or
+ahead of it (while a patch is being tested), not behind. Either way
+nothing here depends on that: `VersionComparator.isNewer` requires
+strictly-greater, so an equal or lower RC version offers no update
+rather than proposing a downgrade.

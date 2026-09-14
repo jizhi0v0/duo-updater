@@ -154,3 +154,52 @@ stable 与 beta **共享 bundle id 和 app 名**，`ReleaseChannel.detect` 只�
 Vorssaint 是 `auto_updates true` 下确实会漏掉的活跃 app。stable / beta 现在由同一
 官方 GitHub 仓库分轨检测，真实 bundle 的共享身份和 beta 后缀均已验证；Homebrew
 通用覆盖没有被重复实现，一键安装也因签名验证失败而保持关闭。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-vorssaint-utils.swift — stable GitHubReleaseRule（一键为什么在 2026-09-03 打开）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（当天实测两条轨的 app 都过 `codesign --verify --deep --strict` 与 `spctl`；没签名的是 dmg 容器，而 `SignatureVerifier` 只查解出来的 `.app`），被推翻的早先说法、OS build 与两个版本号搬到这里。
+
+One-click enabled 2026-09-03 after measuring the artifacts rather than
+trusting the earlier note. That note said the stable dmg's app failed
+strict code-sign verification on macOS 27 and used it as the reason to
+withhold an install spec; on the same OS build (27.0 / 26A5425a) both
+the stable 3.3.2 and the 3.3.3-beta.3 app pass
+`codesign --verify --deep --strict` ("valid on disk", "satisfies its
+Designated Requirement") and `spctl -a -t execute` ("accepted",
+"Notarized Developer ID", ticket stapled, Team 3D485NHW29). What IS
+unsigned is the dmg CONTAINER — and `SignatureVerifier` gates on the
+extracted `.app`, never the container, so it was never the blocker it
+was read as.
+
+### Recipes/com-vorssaint-utils.swift — stable GitHubReleaseRule（beta 端到端核对与 repo 改名）
+
+转引自 recipe 注释，未复测。整段原文；（原注释这两部分之间没有空行，是一段。）代码里留下的是结论：beta 一侧端到端验过（beta 装机拿到的是更新的 beta 而不是稳定版）；改名后钉住规范 slug，因为 URLSession 跟 301 时丢 `Authorization`。版本号、夜扫抓到它的经过（#340、#341）和 2026-09-05 对 301 的核对搬到这里。
+
+Verified end to end 2026-09-03 from the beta side, which is the one
+that can go wrong: installed `3.3.3-beta.1` in `~/Applications`, the
+row offered `3.3.3-beta.3` and NOT stable 3.3.2 (the display version's
+`-beta.N` is what `ReleaseChannel.detect` reads — stable and beta share
+both the bundle id and the app name, so nothing else distinguishes
+them), and `duo install` landed it on the beta build.
+Renamed upstream; re-pointed 2026-09-05 (was vorssaintapp/vorssaint-utils).
+The nightly sweep caught it as `staleSlug` + `anonymousDespiteToken` on both
+channels (#340, #341): URLSession drops `Authorization` following GitHub's
+301, so the rule was silently competing for the anonymous 60/hour per-IP
+budget. Verified 2026-09-05: `repos/vorssaintapp/vorssaint-utils` answers
+301 and `full_name` reads `vorssaint/vorssaint-utils`.
+
+### Recipes/com-vorssaint-utils.swift — beta GitHubReleaseRule（`listPageSize`）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是条件（`-beta.` tag 少且连续，但稳定版会把最新的 beta tag 往后推），「5 keeps margin」这个无时间的余量说法按下面的复测改成了带日期的位置加条件（2026-09-14 在列表下标 3，即从 0 数起的第 3 位：再来一个稳定版仍在 5 条的页里，再来两个就不在），2026-09-04 的计数、位置和页大小搬到这里。
+
+listPageSize: measured 2026-09-04 — only 4 `-beta.` tags exist in the
+repo's whole history (73 releases scanned), all consecutive
+(first-match index 0, worst gap 1). Small sample, so 5 keeps margin
+rather than trimming to the observed minimum; real page measured at
+17 KB, vs 48 KB at the old per_page=20.
+
+复测 2026-09-14（11:02 UTC，只读 `gh api repos/vorssaint/vorssaint-utils/releases?per_page=100`）：共 76 条；`-beta.` tag 仍是 4 个、连续，位于第 3–6 位（`v3.3.3-beta.4`…`v3.3.3-beta.1`），前面是 `v3.3.5`、`v3.3.4`、`v3.3.3`。beta rule 的 `listPageSize` 是 5。

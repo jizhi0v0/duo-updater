@@ -54,6 +54,7 @@ channel gap, it is a whole app we do not answer for」。这条断言不准确**
    在 2026-08-27 直接返回 404（`curl` 复测，不是 HEAD 误报），且该路径不在
    `https://termius.com/sitemap.xml` 里——网站已经改版，没有替代的 changelog 页。
    见 issue #102。
+   （更正 2026-09-14：同日稍晚的提交 `34dea5eb`（2026-08-27 23:40 +0800，关闭 #102）已把 stable 的 `changelogURL` 改指 `https://docs.termius.com/changelog`，提交说明写明此前「没有替代页」的结论是只查了站点地图得出的。见文末「历史与实测」。）
 
 **审计过程中还核实了一条看起来像 bug、实际不是的观察**：`install` 固定指向
 `https://autoupdate.termius.com/mac-arm64/Termius.dmg`，挂载后 `lipo -info`
@@ -188,7 +189,8 @@ rollout:
   本来就是同一种读法。
 - **没有 changelogURL**：`https://termius.com/release-notes`（stable 那条既存
   recipe 用的）已经 404，站点地图里也没有替代页，所以没有给 Beta 编一个同样会
-  404 的链接，UI 走「no release notes」。`downloadURL` 用了确认存在的
+  404 的链接，UI 走「no release notes」。（更正 2026-09-14：stable 同日已改指
+  `docs.termius.com/changelog`，「没有替代页」不成立；那页是否带 beta 构建的说明没有核对。）`downloadURL` 用了确认存在的
   `https://termius.com/beta-program`（200，真实的 Beta Program 落地页）。
 
 生产验证（`swift run --package-path CLI duo verify --only termius`，2026-08-27，
@@ -227,6 +229,9 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 **没有接。** 站点没有可用的 release notes 页（见上「issue 核对」的第 2 条发现）。
 既存 stable recipe 的 `changelogURL` 已死，Beta 新 recipe 干脆不设。
 
+更正 2026-09-14：上面两句写于 `34dea5eb` 之前。stable 的 `changelogURL` 同日已改指
+`https://docs.termius.com/changelog`（2026-09-14 复测 200）；Beta recipe 仍未设 `changelogURL`。
+
 ## 一键安装
 
 - **stable (`com.termius-dmg.mac`)**：已启用（本 PR 之前就有），装的是 arm64-only
@@ -250,7 +255,8 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 
 1. **`com.termius-dmg.mac` 的 `changelogURL` 已死**（404，站点无替代页）。已拆分
    为独立任务（issue #102），不在本 PR 范围（不影响功能，只影响 changelog 展示，
-   降级为「no release notes」）。
+   降级为「no release notes」）。更正 2026-09-14：已由 `34dea5eb` 修好（关闭 #102），
+   改指 `docs.termius.com/changelog`。
 2. Beta 的一键读的是**轨道最新**而非**本机分配**（`rollout` 字段今天满量，无 device
    id 选择器）——继承自既存 stable recipe 的同一读法，不是本 PR 引入的新差异。
 
@@ -260,9 +266,38 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 ## 建议下一步
 
 1. 修或移除 `com.termius-dmg.mac` 的 `changelogURL`（当前 404，见 issue #102）。
+   更正 2026-09-14：已由 `34dea5eb` 完成。
 2. 若 vendor 未来把 `rollout.freeUsers`/`paidUsers` 降到 100 以下，需要重新评估
    Beta（以及既存 stable）recipe 是否应该改读「本机分配」而非「轨道最新」——目前
    无法从这份 electron-builder 静态 manifest 得到 device 级别的分配信息。
 
 **不要**把 `com.termius-dmg.mac` 改成 `mac-universal` 的 feed + dmg——那不是修 bug，
 是把 arm64-pinned by design 的正确行为改坏，见 issue #102。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-termius-dmg-mac.swift — beta VendorProbe（一键 dmg 的挂载核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（Team 与 stable 相同、Notarized Developer ID、dmg 是 universal，所以不需要 `hostRequirement`），日期、下载挂载的做法、`9.43.1` 与 `lipo -info` 这次核对搬到这里。
+
+Verified 2026-08-27 by downloading and mounting the real dmg:
+com.termius-beta.mac, 9.43.1, Team 6KN952WR85, Notarized Developer
+ID, not sandboxed — same Team as stable, so `VendorInstaller`'s Team
+gate holds. Unlike the arm64-only stable recipe above, this feed's
+dmg is confirmed UNIVERSAL (`lipo -info` on the downloaded artifact:
+x86_64 arm64), so one recipe correctly serves every Mac with no
+`hostRequirement` needed.
+
+### Recipes/com-termius-dmg-mac.swift — beta VendorProbe（为什么没有 `changelogURL`）
+
+转引自 recipe 注释，未复测。整段原文。「stable's own changelogURL, above」和「no replacement page exists」迁移时已不成立，代码里改写了，见下面的更正。
+
+No changelogURL: `https://termius.com/release-notes` (stable's own
+changelogURL, above) 404s as of 2026-08-27 and no replacement page
+exists in the vendor's sitemap — flagged separately, not fixed here.
+
+更正 2026-09-14：同日稍晚的提交 `34dea5eb`（2026-08-27 23:40 +0800，关闭 #102）已把 stable 的 `changelogURL` 改指 `https://docs.termius.com/changelog`，提交说明写明此前「没有替代页」的结论是只查了站点地图得出的。
+
+复测 2026-09-14（11:02 UTC，只读、不跟随重定向）：`termius.com/release-notes` 404；`termius.com/changelog` 308 → `https://docs.termius.com/changelog`；后者 200。没有核对那页是否带 beta 构建的说明。

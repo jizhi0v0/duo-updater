@@ -4,6 +4,7 @@ enum com_tencent_wechatdevtools {
     static let set = AppRecipeSet(
         family: "com-tencent-wechatdevtools",
         probes: [
+        // History: docs/app-audits/com-tencent-wechatdevtools.md#历史与实测
         // 微信开发者工具 (WeChat DevTools) — Tencent's mini-program IDE, three
         // parallel channels: 稳定版 Stable, 预发布版 RC, 开发版 Nightly. All three are
         // the SAME install (one bundle, one app name), and since the 2.02 Electron
@@ -23,8 +24,9 @@ enum com_tencent_wechatdevtools {
         // NW.js 2.01 train), and an unanchored `nightly` prefix would match it.
         //
         // NOT the old `servicewechat.com/wxa-dev-logic/download_redirect?…&
-        // version_type=N` endpoint: measured 2026-08-18, it ignores `version_type`
-        // entirely and 302s all three values to the same Stable dmg.
+        // version_type=N` endpoint: when checked (2026-08-18) it ignored
+        // `version_type` entirely and 302'd all three values to the same Stable
+        // dmg.
         //
         // One-click: the arm64 `.pkg`, `Developer ID Installer: Tencent Technology
         // (Shanghai) Co., Ltd (FN2V63AD2J)`, notarized on all three channels

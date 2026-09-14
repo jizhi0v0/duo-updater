@@ -58,3 +58,31 @@
 ## 建议下一步
 1. 架构感知安装规格落地后使用对应 DMG 与 sha512。
 
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/MstyStudio.swift — VendorProbe（`checksumPattern` 锚在 arm64 文件名上）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（要求 `url: MstyStudio_arm64.zip` 紧挨在摘要前，配对就是结构性的而不是靠位置），2026-08-29 两个模式各读出的摘要前缀与下载文件的核对搬到这里。
+
+THE CHECKSUM PATTERN IS ANCHORED ON THE arm64 FILENAME, and that anchor
+is the whole reason this recipe was blocked. `checksumPattern` is a
+separate first-match over the body, and this manifest lists four
+artifacts — `MstyStudio_x64.zip` FIRST, then arm64, then both dmgs — so
+the obvious `^\s+sha512:` would hand the x64 digest to an arm64
+download and fail every install. Requiring `url: MstyStudio_arm64.zip`
+immediately before the digest makes the pairing structural rather than
+positional: measured 2026-08-29, the naive pattern yields `2Ix1WRcS…`
+(x64) and this one `aNSie9nH…` (arm64), and the downloaded
+`MstyStudio_arm64.zip` hashes to exactly the latter.
+
+### Recipes/MstyStudio.swift — VendorProbe（一键 zip 的核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（解出 arm64 的 `MstyStudio.app`、签名者 Ashok Gelal (S6CF5A8MX9)、spctl 接受，checked 2026-08-29），大小与版本 2.9.8 搬到这里。
+
+Verified 2026-08-29 on the artifact this spec selects: 248,234,928 B,
+extracts to `MstyStudio.app` 2.9.8, `Developer ID Application: Ashok
+Gelal (S6CF5A8MX9)`, spctl "accepted / Notarized Developer ID",
+`lipo -archs` = arm64.

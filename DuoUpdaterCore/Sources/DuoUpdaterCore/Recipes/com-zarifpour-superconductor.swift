@@ -4,6 +4,7 @@ enum com_zarifpour_superconductor {
     static let set = AppRecipeSet(
         family: "com-zarifpour-superconductor",
         probes: [
+        // History: docs/app-audits/com-zarifpour-superconductor.md#历史与实测
         // super.engineering (Superconductor) — `latest.json` is the manifest the
         // app's own updater reads (the URL, the `superconductor-updater` UA and
         // "nightly entry missing valid sha" all sit in its binary). Shape,
@@ -40,7 +41,8 @@ enum com_zarifpour_superconductor {
         //
         // Reads the newest build on the only track — the dmg the site's own
         // Download button (`super.engineering/api/download`, a 302 to the same URL
-        // on 2026-09-10) and the app's updater hand every user.
+        // when checked, 2026-09-10 and 2026-09-14) and the app's updater hand every
+        // user.
         VendorProbeRecipe(
             bundleID: "com.zarifpour.superconductor",
             url: URL(string: "https://releases.superconductor.so/latest.json")!,

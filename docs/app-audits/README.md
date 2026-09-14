@@ -116,7 +116,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**DuoPaste**](io-duopaste-daemon.md) · `io.duopaste.daemon` — B(stable/beta) · 2 channels, shared ID + channel-tag ChannelBinding · **beta + stable 两 channel 真机验证 ✓**（beta 用 `…-beta` 构建；stable 经 `sparkleIncludePrereleases` 取值验证，改动已还原）· 2026-06-04
 - [x] [**CleanShot X**](pl-maketheweb-cleanshotx.md) · `pl.maketheweb.cleanshotx` — C B(license feed) · license-keyed Sparkle feed · **stable 本机验证 ✓**（legit feed head=4.8.8=installed）· 2026-06-04
 - [x] [**CapCut**](com-lemon-lvoverseas.md) · `com.lemon.lvoverseas` — P(stable/beta) B · 2 channels, shared ID + ChannelBinding（`joinBeta` 在容器外的 INI）· **全 channel 一键 ✓**（Team 22MMUN2RN5，两轨真实 dmg 挂载核对）· **两轨版本字段是反的**（beta 的 short=`9.3.4531` / version=`9.4.0-beta4`，故 beta `versionIsBuild:true`）· 同 id 有 MAS 副本（19.2.0），靠 `_MASReceipt` 分流 · 2026-08-27
-- [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 的 arm64-only 一键是刻意的 arm64-pin（DuoUpdater 自身 arm64-only），不是 bug；真正待修的是 `changelogURL` 404，已拆分为独立任务 · issue #91、#102 · 2026-08-27
+- [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 的 arm64-only 一键是刻意的 arm64-pin（DuoUpdater 自身 arm64-only），不是 bug；`changelogURL` 404 已由 `34dea5eb` 同日修好（改指 `docs.termius.com/changelog`，2026-09-14 复测 200）· issue #91、#102 · 2026-08-27
 - [x] [**UTM**](com-utmapp-UTM.md) · `com.utmapp.UTM` — G(stable+beta，一键) C + MAS/TestFlight 通用托管 · 包内无 channel 标记；用观测版本的 exact GitHub release `prerelease` 位判轨（判"这份拷贝是什么"），候选则按 `max(装机大版本线, 最新正式版)` 取 —— **UTM 的预览是每条线的前半段、会转正，不是平行轨** · 双渠道 changelog 隔离，beta 侧含转正条目 · 真实 v5.0.5 DMG 签名/公证验证 ✓ · 2026-09-03
 - [x] [**Mac Mouse Fix**](com-nuebling-mac-mouse-fix.md) · `com.nuebling.mac-mouse-fix` — B(stable/beta) · 2 channels, shared ID + feed-swap ChannelBinding · **stable 端到端本机验证 ✓**（`channel-verify --check` 走生产 AppScanner→ChannelBinding→Sparkle，实时命中 stable feed，判定 up to date）· beta 侧 resolver 映射与真实 preview bundle 已核对，未在本机翻转该 app 自身的偏好文件 · 2026-09-12
 
@@ -350,7 +350,18 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
 - [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
-- [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
+- [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对
+- [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小
+- [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — 仅迁出历史：Insiders 一键 zip 的核对、channel proof 的 tag 计数、`detect` 那段指向的更正；stable 未审计，同 family 的 Insiders 已审计（见上「未编入分类」）
+- [ ] [**ToDesk**](com-youqu-todesk-mac.md) · `com.youqu.todesk.mac` — 仅迁出历史：下载页锚点的变化经过、灰度链接排到 GA 前面的复测、macOS 更新日志页停更的版本
+- [ ] [**Kiro**](dev-kiro-desktop.md) · `dev.kiro.desktop` — 仅迁出历史：从下载页换到更新元数据的经过、一键 zip 的核对、RSS 里不带版本号的条目数
+- [ ] [**Beekeeper Studio**](io-beekeeperstudio-desktop.md) · `io.beekeeperstudio.desktop` — 仅迁出历史：一键 arm64 dmg 的核对
+- [ ] [**Podman Desktop**](io-podmandesktop-PodmanDesktop.md) · `io.podmandesktop.PodmanDesktop` — 仅迁出历史：airgap 包的大小、repo 改名导致匿名限流的测量
+- [ ] [**Anki**](net-ankiweb-anki.md) · `net.ankiweb.anki` — 仅迁出历史：已关闭的 folded-build 缺口那段的原文
+- [ ] [**ImageOptim**](net-pornel-ImageOptim.md) · `net.pornel.ImageOptim` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 `.tar.xz` 的核对
+- [ ] [**Bear**](net-shinyfrog-bear.md) · `net.shinyfrog.bear` — 仅迁出历史：App Store 探测用例的上线核对
+- [ ] [**GrandPerspective**](net-sourceforge-grandperspectiv.md) · `net.sourceforge.grandperspectiv` — 仅迁出历史：一键 dmg 的核对
+- [ ] [**WhatsApp**](net-whatsapp-WhatsApp.md) · `net.whatsapp.WhatsApp` — 仅迁出历史：一键 dmg 的核对、两次 App Store lookup 的版本差、catalog key 大小写那次事故
 
 ## 非 app 文档
 

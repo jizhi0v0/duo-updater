@@ -4,8 +4,10 @@ enum dev_kdrag0n_MacVirt {
     static let set = AppRecipeSet(
         family: "dev-kdrag0n-MacVirt",
         probes: [
+        // History: docs/app-audits/dev-kdrag0n-MacVirt.md#历史与实测
         // OrbStack — one Sparkle appcast (`appcast.new.xml`; the old `appcast.xml`
-        // froze at 2.1.2) carrying every channel as <sparkle:channel> elements.
+        // froze at an older release, History has which) carrying every channel as
+        // <sparkle:channel> elements.
         // OrbStack has no Info.plist SUFeedURL, so it reaches us here, not via
         // SparkleAppcastSource; `AppScanner` reads `updates_optinChannel` to set
         // the install's channel (see `OrbStackChannel`) and we pick the matching
@@ -32,8 +34,9 @@ enum dev_kdrag0n_MacVirt {
         ],
         channelProofs: [
         // OrbStack publishes one appcast with a `<sparkle:channel>` tag per item and
-        // promotes the same dmg across channels (all three were v2.2.3_20963 on
-        // 2026-08-09). The channel tag the patterns are anchored to is the proof.
+        // promotes the same dmg across channels (History has a dated case where
+        // all three carried the same build). The channel tag the patterns are
+        // anchored to is the proof.
         // Both halves named, like WeChat RC and for the same reason: one appcast
         // serves all three channels, and the `<sparkle:channel>` prefix on the
         // version pattern and on the install pattern is what confines each to its

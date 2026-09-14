@@ -10,6 +10,7 @@ enum com_termius_dmg_mac {
         // are unversioned (`Termius.dmg`), so the install URL is fixed and the
         // version comes from the feed. Verified 2026-08-16 on the arm64 dmg:
         // com.termius-dmg.mac, 9.43.1, Team 6KN952WR85, notarized.
+        // snapshot-lint:allow — this dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block names Termius stable and relies on it.
         VendorProbeRecipe(
             bundleID: "com.termius-dmg.mac",
             url: URL(string: "https://autoupdate.termius.com/mac-arm64/latest-mac.yml")!,
@@ -25,6 +26,7 @@ enum com_termius_dmg_mac {
                     URL(string: "https://autoupdate.termius.com/mac-arm64/Termius.dmg")!),
                 kind: .dmg)),
 
+        // History: docs/app-audits/com-termius-dmg-mac.md#历史与实测
         // Termius Beta — a genuinely independent bundle id from stable's
         // `com.termius-dmg.mac` (issue #91), so no cross-channel risk and
         // `ReleaseChannel.detect()` needs no new rule: `CFBundleName`/
@@ -41,13 +43,12 @@ enum com_termius_dmg_mac {
         // what led here, since the app's own bundled `app-update.yml` names an
         // `acl: private` S3 bucket that a plain GET can't read (403, verified).
         //
-        // Verified 2026-08-27 by downloading and mounting the real dmg:
-        // com.termius-beta.mac, 9.43.1, Team 6KN952WR85, Notarized Developer
-        // ID, not sandboxed — same Team as stable, so `VendorInstaller`'s Team
-        // gate holds. Unlike the arm64-only stable recipe above, this feed's
-        // dmg is confirmed UNIVERSAL (`lipo -info` on the downloaded artifact:
-        // x86_64 arm64), so one recipe correctly serves every Mac with no
-        // `hostRequirement` needed.
+        // One-click: the real dmg holds com.termius-beta.mac, Team 6KN952WR85,
+        // Notarized Developer ID, not sandboxed — same Team as stable, so
+        // `VendorInstaller`'s Team gate holds. Unlike the arm64-only stable
+        // recipe above, this feed's dmg is UNIVERSAL (x86_64 arm64), so one
+        // recipe correctly serves every Mac with no `hostRequirement` needed
+        // (downloaded and mounted 2026-08-27; History has the version checked).
         //
         // checksumPattern is safe here — unlike Signal Beta, whose CDN staples
         // the dmg AFTER electron-builder computed the feed's sha512 (see the
@@ -56,9 +57,10 @@ enum com_termius_dmg_mac {
         // 2026-08-27 to equal `shasum -a 512 | base64` of the downloaded file,
         // byte for byte.
         //
-        // No changelogURL: `https://termius.com/release-notes` (stable's own
-        // changelogURL, above) 404s as of 2026-08-27 and no replacement page
-        // exists in the vendor's sitemap — flagged separately, not fixed here.
+        // No changelogURL. When this recipe was written, stable's changelogURL
+        // was `https://termius.com/release-notes`, which 404'd; stable now points
+        // at the docs-host page (above). Whether that page carries the beta
+        // builds' notes has not been checked (History has the original note).
         VendorProbeRecipe(
             bundleID: "com.termius-beta.mac",
             url: URL(string: "https://autoupdate.termius.com/mac-beta-universal/latest-mac.yml")!,

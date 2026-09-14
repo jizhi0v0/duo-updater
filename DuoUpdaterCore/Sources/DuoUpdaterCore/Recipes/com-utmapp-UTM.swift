@@ -4,6 +4,7 @@ enum com_utmapp_UTM {
     static let set = AppRecipeSet(
         family: "com-utmapp-UTM",
         changelogs: [
+        // History: docs/app-audits/com-utmapp-UTM.md#历史与实测
         // UTM Stable and Beta publish in one GitHub repository with plain numeric
         // tags and the same `UTM.dmg` asset name. The release record's
         // `prerelease` bit is the only split, matching the corresponding
@@ -34,10 +35,8 @@ enum com_utmapp_UTM {
             // page, so a 20-entry cap would spend part of the window on releases
             // the preview history is not about — and the entry pushed out first is
             // the graduated one an install is actually being offered, which is the
-            // whole reason this recipe keeps final releases. Measured on the live
-            // page: within the top 40 there are 24 previews and 16 final releases,
-            // `v4.7.5` sits at index 7, and 33 further releases would have to ship
-            // before it fell out. At the old cap of 20 that margin was 13.
+            // whole reason this recipe keeps final releases (History has the
+            // measured positions and margins).
             maxEntries: 40,
             channel: .beta,
             includesPromotedStable: true,
@@ -49,25 +48,24 @@ enum com_utmapp_UTM {
         // UTM — virtualiser. Stable and Beta share EVERYTHING visible locally:
         // bundle id, app name, plain numeric marketing/build versions, Team ID,
         // and the literal `UTM.dmg` asset name. The tag is plain numeric too
-        // (`v5.0.5`), so no suffix can gate the beta rule. Instead, the source
+        // (e.g. `v5.0.5`), so no suffix can gate the beta rule. Instead, the source
         // looks up the exact tag for the installed version and reads GitHub's own
         // authoritative `prerelease` bit to decide WHICH RULE this copy is on. An
         // unprovable tag claims no channel and answers on the stable rule.
         //
-        // What that bit does NOT mean here is "a parallel Beta train". Measured
-        // over all 131 releases: 78 are prereleases, and each minor line ships
-        // previews and then graduates at a higher patch number (`v4.7.0…v4.7.3`
-        // are "(Beta)", `v4.7.4`/`v4.7.5` are not). Confining a preview install to
-        // prereleases therefore strands it at every graduation — 14 times in the
-        // real history, worst window 2024-11-27 → 2025-07-09 with four stable
-        // releases published into the silence — while offering it the newest
-        // release of any kind walks a `v4.7.3` install onto a `v5.0.5` preview
-        // instead of its own line's `v4.7.5`. Hence the line-anchored scope.
+        // What that bit does NOT mean here is "a parallel Beta train": each minor
+        // line ships previews and then graduates at a higher patch number
+        // (`v4.7.0…v4.7.3` are "(Beta)", `v4.7.4`/`v4.7.5` are not). Confining a
+        // preview install to prereleases therefore strands it at every graduation,
+        // while offering it the newest release of any kind walks a `v4.7.3`
+        // install onto a `v5.0.5` preview instead of its own line's `v4.7.5`.
+        // Hence the line-anchored scope. (History has the release counts and the
+        // graduations measured over the whole history.)
         //
-        // Real v5.0.5 DMG verified 2026-09-03: 302,621,893 bytes, SHA-256
-        // 713afe73c711f01344b8766654be531cd391ed2e30931206f43b5159f143764f;
-        // com.utmapp.UTM 5.0.5 (124), Team WDNLXAD4W8, strict deep signature
-        // valid, Gatekeeper `accepted, source=Notarized Developer ID`.
+        // One-click: the `UTM.dmg` asset holds com.utmapp.UTM, Team WDNLXAD4W8,
+        // strict deep signature valid, Gatekeeper `accepted, source=Notarized
+        // Developer ID` (checked on a real DMG 2026-09-03; History has its version,
+        // size and hash).
         GitHubReleaseRule(
             bundleID: "com.utmapp.UTM",
             owner: "utmapp", repo: "UTM",
@@ -81,14 +79,12 @@ enum com_utmapp_UTM {
         // walk for the first tag match, it needs `lineAnchoredCeiling` to find
         // EITHER the newest release in the installed major line OR the newest
         // STABLE release within the fetched page (whichever's newer) — missing
-        // both makes it decline rather than offer anything. Measured 2026-09-04
-        // against the newest 100 releases, filtering on GitHub's own
-        // `prerelease` bit (not the version pattern, which nearly every tag
-        // matches — 98/100): the newest STABLE release currently sits at index
-        // 6 (UTM is mid-preview-burst right now), and the worst gap between genuinely CONSECUTIVE stable
-        // releases in the newest 100 is 9 (`v4.0.8`→`v3.2.4`). An earlier
-        // comment named `v3.1.4`→`v2.4.1` as the worst pair; those two are not
-        // consecutive — `v3.0.4-2` (prerelease: false) sits between them.
+        // both makes it decline rather than offer anything. Counting stable by
+        // GitHub's own `prerelease` bit (not the version pattern, which nearly
+        // every tag matches): during a preview burst the newest STABLE release
+        // sits several entries down, and consecutive stable releases have sat
+        // nearly 10 entries apart in the newest 100 (when checked, 2026-09-04 and
+        // 2026-09-14; History has the positions and the pairs). A page of 20
         // covers both; trimming it below ~15 would be gambling on the burst
         // never growing past what's been observed once already.
         GitHubReleaseRule(
@@ -103,7 +99,7 @@ enum com_utmapp_UTM {
             channel: .beta),
         ],
         githubChannelProofs: [
-        // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
+        // UTM's tag and asset name carry no channel token at all (e.g. `v5.0.5` /
         // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
         // even meant to be a different artifact forever: UTM's previews graduate
         // into the same numbering, so a Beta install is legitimately offered a
@@ -112,10 +108,10 @@ enum com_utmapp_UTM {
         // WHICH ALGORITHM chose it, and that is what this anchors: the rule must
         // keep asking for the line-anchored candidate.
         //
-        // Be clear about the reach of that, because the previous version of this
-        // comment overstated it: a `.recipeAnchor` reflects the REGISTRY's field
-        // values, so it fails when someone edits this rule back to `.newest`, and
-        // it cannot see anything about the code in `resolve` that reads the field.
+        // Be clear about the reach of that: a `.recipeAnchor` reflects the
+        // REGISTRY's field values, so it fails when someone edits this rule back
+        // to `.newest`, and it cannot see anything about the code in `resolve`
+        // that reads the field.
         // `UTMGitHubChannelTests.aPreviewInstallWhoseLineGraduatedIsOfferedThatGraduation`
         // is what covers the code: delete the ceiling and it offers a v5 preview
         // to a 4.7 install.

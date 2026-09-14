@@ -16,6 +16,7 @@ enum com_workbuddy_workbuddy {
             changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
         ],
         changelogs: [
+        // History: docs/app-audits/com-workbuddy-workbuddy.md#历史与实测
         // WorkBuddy — Tencent's two sites, two apps (see the VendorProbe registry
         // and docs/app-audits/com-workbuddy-workbuddy.md). Both docs sites are the
         // same VitePress build, so ONE set of patterns serves both and only
@@ -38,29 +39,28 @@ enum com_workbuddy_workbuddy {
         // "Lanched 🚀" (the vendor's own typo), or nothing at all on the oldest
         // entries — so the pattern skips anything that is not a tag or a paren
         // rather than trying to enumerate the variants. The date group is optional
-        // for the same reason: 19 of the CN page's older entries have no date.
+        // for the same reason: some of the CN page's older entries have no date.
         //
         // `</h2>\s*<ul>` adjacency is deliberate: it is what keeps a heading whose
         // notes are laid out some other way from swallowing the NEXT release's
-        // list. It costs the 17 oldest CN entries (4.5.0–4.7.5, which use a
-        // different markup), and that is free — `maxEntries` stops at 40 and the
-        // newest 58 all parse. Verified against both live pages 2026-08-27: CN 58
-        // entries, newest 5.3.14 with 14 items; intl 2 entries, newest 5.2.7.
+        // list. It costs the oldest CN entries (4.5.0–4.7.5, which use a different
+        // markup), and that is free — `maxEntries` stops at 40 and far more than 40
+        // of the newest parse (History has the dated counts from both live pages).
         //
-        // The intl page IS that short: it carries two entries and stops at 5.2.7
-        // (2026-07-17) while its own endpoint ships 5.4.2. A future reader finding
-        // "only 2 entries" has found the vendor's page, not a broken recipe — the
-        // CN page, parsed by the identical pattern, returns 58.
+        // The intl page is short: it stops at 5.2.7 (2026-07-17), while its
+        // own endpoint has shipped newer releases (when checked, 2026-08-27,
+        // 2026-08-28 and 2026-09-14; History has the entry counts and versions). A
+        // future reader finding only a couple of entries has found the vendor's
+        // page, not a broken recipe — the CN page, parsed by the identical pattern,
+        // returns dozens.
         //
         // That is also why the intl recipe carries `acknowledgedStaleEntry`
-        // (issue #88). `duo verify` reads 5.2.7 against a detected 5.4.2, calls it
-        // a whole release behind, and files "recipe degraded" — a complaint that
-        // can never clear, because there is nothing on our side to fix. Re-checked
-        // live 2026-08-28: intl still 2 entries topping out at 5.2.7, CN still
-        // parsing, newest 5.3.14 (2026-08-17). The acknowledgement names 5.2.7
-        // rather than switching the check off, so the day the pattern slips to an
-        // older section — or the vendor finally publishes — the sweep speaks up
-        // again.
+        // (issue #88). `duo verify` reads 5.2.7 against the newer detected version,
+        // calls it a whole release behind, and files "recipe degraded" — a
+        // complaint that can never clear, because there is nothing on our side to
+        // fix. The acknowledgement names 5.2.7 rather than switching the check off,
+        // so the day the pattern slips to an older section — or the vendor finally
+        // publishes — the sweep speaks up again.
         ChangelogRecipe(
             bundleID: "com.workbuddy.workbuddy",
             source: URL(string: "https://www.workbuddy.cn/docs/workbuddy/Changelog")!,

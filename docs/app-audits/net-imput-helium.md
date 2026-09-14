@@ -144,3 +144,54 @@ stable rule 走 `/releases/latest`（GitHub 定义上排除 prerelease），所�
 新版暂存好了"的识别对 Helium 不生效。本次没动它——那面旗子还管着别的行为，值得单独评估。
 （另注：官网说 Helium 只在 "Helium services" 开启时才自更新，而它默认关闭，所以这条盲区
 的实际触发面比看上去小。）
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/net-imput-helium.swift — ChangelogRecipe（item 捕获先于 JSON 反转义）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「five of them in the current 40-release window」换成了「History has how many the release window held」。原句没写日期，引入它的提交是 `63a92707`（2026-09-03）。
+
+The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`: the capture runs
+BEFORE the JSON unescape, so a commit subject containing `\"` — five of
+them in the current 40-release window — would be cut at the backslash and
+shown as half a line. Same trap `StructuredFormat.postmanReleaseNotes`
+documents as the reason that format abandoned regex.
+
+### Recipes/net-imput-helium.swift — ChangelogRecipe（`"prerelease":false`）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（厂商会先把一个构建标成 prerelease 一两天，appcast 才接上，列出来就会给不被提供的版本显示说明），`0.16.4.1` 那次和「33 entries … newest 0.16.3.1」搬到这里。后者没写日期，引入它的提交是 `e52a7a9d`（2026-09-03）。
+
+`"prerelease":false` for the same reason as Headlamp (`Recipes/com-microsoft-Headlamp.swift`), and it is not
+theoretical here: the vendor tags a build as prerelease for a day or two
+before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
+would show notes for a version this app is not being offered. 33 entries
+on the live endpoint, newest 0.16.3.1 — the version the appcast serves.
+
+### Recipes/net-imput-helium.swift — `sparkleFeeds`（读 vendor appcast 得到什么）
+
+转引自 recipe 注释，未复测。整段原文；代码里把「~40 MB against a 124 MB full download」改成了「about a third of the full download」。原句没写日期，引入它的提交是 `cff8d0ed`（2026-08-31）。
+
+Reading it buys two things the GitHub rule cannot: the beta train
+(`<sparkle:channel>beta</sparkle:channel>` on one item), and the delta
+patches every item publishes — ~40 MB against a 124 MB full download.
+Its enclosures are RELATIVE (`assets/helium_….dmg`), which Sparkle
+resolves against the appcast URL and we now do too; before that fix
+this entry would have produced a schemeless, unfetchable download.
+
+复测 2026-09-14：见下一组末尾。没有重新量 delta 与全量包的大小。
+
+### Recipes/net-imput-helium.swift — `changelogPages`（改走 appcast 的代价）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「its 9 items」换成了「its items」。原句没写日期，引入它的提交是 `cff8d0ed`（2026-08-31）。
+
+Helium — moved from the GitHub source to its own Sparkle feed
+(`SparkleFeedCatalog`) for the beta train and the delta patches. That
+trade costs the notes: the GitHub release body was carrying them, and
+the vendor's appcast has no `<description>` and no
+`sparkle:releaseNotesLink` on any of its 9 items. Without this entry
+the move would have silently emptied the notes pane, so the fallback
+points back at the releases the body lives on.
+
+复测 2026-09-14（11:48 UTC，只读 GET `updates.helium.computer/mac/appcast-arm64.xml`，18,686 B）：10 个 `<item>`，其中 1 个带 `<sparkle:channel>beta</sparkle:channel>`；`<description` 0 次、`releaseNotesLink` 0 次；`<sparkle:deltas>` 10 个（每个 item 一个）。

@@ -69,3 +69,41 @@ swift run --package-path application-test channel-verify --scan dev.zed.Zed-Prev
 swift run --package-path application-test channel-verify --check dev.zed.Zed-Preview --expect preview
 swift run --package-path application-test channel-verify /tmp/zed-stable.dmg --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/dev-zed-Zed.swift — ChangelogRecipe（从 zed.dev 页面换到 GitHub Releases API）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是现状（读 GitHub Releases API 那份列表，一份 JSON 取代两页多兆 HTML，2026-08-21 替换），旧页面的标记形状、「2+ MB」和逐字节等价的核对搬到这里。末句前半不准确，见下面的更正。
+
+Zed Preview and Stable — both used to scrape the 2+ MB server-rendered
+zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
+with an `<article>` of `<li>` items). Replaced 2026-08-21 with the
+GitHub Releases API list we already fetch for version detection
+(the `githubRules` in this file, bundle ids
+`dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response instead of two
+multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
+(see `StructuredFormat.zedGitHubReleases`). Both channels share this one
+recipe's URL; `StructuredChangelogDecoder` splits on `channel` the same
+way it does for Warp.
+
+更正 2026-09-14：「Both channels share this one recipe's URL」——这个文件里是两条 `ChangelogRecipe`（Preview 与 Stable 各一条，`bundleID`/`channel` 不同），共用同一个 `source` URL；`1bf107c9`（2026-08-22）写下这句时也是两条。代码里改成「The two recipes below, one per channel, share one URL」。
+
+### Recipes/dev-zed-Zed.swift — Preview GitHubReleaseRule（一键与 `listPageSize`）
+
+转引自 recipe 注释，未复测。整段原文；（「Best-effort one-click」与 `listPageSize` 两句之间原注释没有空行，是一段。）代码里前半段原样；`listPageSize` 一句改成了说条件和余量，2026-09-04 的位置、间隔和页大小搬到这里。
+
+Best-effort one-click, same as stable: the Preview prerelease ships its own
+`Zed-aarch64.dmg` whose `Zed Preview.app` is the same Team MQ55VZLNZQ build,
+bundle id dev.zed.Zed-Preview — verified 2026-06-06 to match the install.
+The rule resolves the right tag (prerelease), so each channel gets its own
+dmg/bundle id; the gate enforces the Team match. arm64 only.
+listPageSize: measured 2026-09-04 against the newest 100 releases —
+the newest is always a `-pre` tag (first-match index 0) and the worst
+run of non-`-pre` tags between two `-pre` releases is 3 (index gap;
+e.g. `v1.5.1-pre`→`v1.5.0-pre`). 5 keeps ~67% headroom over that and
+was the real page measured at 32 KB, vs 104 KB at the old per_page=20.
+
+复测 2026-09-14（11:02 UTC，只读 `gh api repos/zed-industries/zed/releases?per_page=100`）：第一个 `-pre` tag 在第 0 位；相邻两个 `-pre` tag 的位置差最大是 3（`v1.5.1-pre`→`v1.5.0-pre`）。Preview rule 的 `listPageSize` 是 5。

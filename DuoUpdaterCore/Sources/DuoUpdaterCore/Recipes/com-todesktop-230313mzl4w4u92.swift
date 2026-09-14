@@ -21,6 +21,7 @@ enum com_todesktop_230313mzl4w4u92 {
                 kind: .dmg)),
         ],
         changelogs: [
+        // History: docs/app-audits/com-todesktop-230313mzl4w4u92.md#历史与实测
         // Cursor — the changelog is organised as dated POSTS, not versions: nothing
         // on the page carries a "3.16.17" anywhere, so the date takes the version
         // column and the post's headline becomes the entry title (same shape as
@@ -35,7 +36,8 @@ enum com_todesktop_230313mzl4w4u92 {
         //    `ChangelogExtractor` de-duplicates on version+title; without that the
         //    pane listed each release two rows apart.
         //  • The last post has no following post to stop at, so `<footer` closes the
-        //    body — otherwise it swallowed 26KB of page chrome as "items".
+        //    body — otherwise it swallowed the page chrome as "items" (History has
+        //    the size).
         // `www.cursor.com` 308s to the apex domain; followed once here rather than
         // on every fetch.
         ChangelogRecipe(

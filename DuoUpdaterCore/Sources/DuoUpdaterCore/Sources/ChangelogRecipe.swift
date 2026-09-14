@@ -324,7 +324,9 @@ public struct ChangelogRecipe: Codable, Sendable {
     public enum StructuredFormat: String, Codable, Sendable {
         /// Warp's `releases.warp.dev/channel_versions.json` — a `changelogs.<channel>`
         /// map of `v0.YYYY.MM.DD.HH.MM.<channel>_NN` → `{date, markdown_sections}`.
-        /// Read instead of the docs site, which now sits behind a Vercel bot wall.
+        /// Read instead of the docs site, which sat behind a Vercel bot wall when this
+        /// format was added (mid-2026); a 2026-09-14 recheck got plain 200s. See
+        /// `Recipes/dev-warp-Warp-Stable.swift`.
         case warpChannelVersions
         /// Typeless's `help/release-notes/macos` page — the whole release-notes JSON
         /// is base64+gzip in the Next.js `__NEXT_DATA__.props.pageProps.compressedData`

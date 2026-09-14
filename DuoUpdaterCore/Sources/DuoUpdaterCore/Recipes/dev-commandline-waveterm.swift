@@ -19,6 +19,7 @@ enum dev_commandline_waveterm {
         // Wave Terminal — electron-builder feed. Verified 2026-08-16: the zip
         // holds `Wave.app`, dev.commandline.waveterm, 0.14.5, Team M4LA8V687Y,
         // notarized — the same string the feed's `version:` carries.
+        // snapshot-lint:allow — this dated verification stays in code: the batch block above says every named file states what was read off the artifact.
         VendorProbeRecipe(
             bundleID: "dev.commandline.waveterm",
             url: URL(string: "https://dl.waveterm.dev/releases-w2/latest-mac.yml")!,

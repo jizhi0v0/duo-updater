@@ -400,9 +400,9 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// stable/preview releases interleave roughly 1:1 with occasional bursts
         /// of 2 in a row: the first 40 releases held 22 preview / 18 stable, both
         /// comfortably over the `maxEntries: 15` this recipe (like the old one)
-        /// asks for. A single page, never paginated — GitHub's rate limit is
-        /// unauthenticated (60/hour/IP) and `ChangelogService` doesn't attach a
-        /// token.
+        /// asks for. A single page, never paginated — without a token GitHub allows
+        /// 60 requests/hour/IP, and `ChangelogService` attaches a token only when one
+        /// is configured.
         case zedGitHubReleases
         /// A plain `api.github.com/repos/<owner>/<repo>/releases` array, decoded
         /// with the same `GitHubMarkdownParser` the GitHub *version* source uses.

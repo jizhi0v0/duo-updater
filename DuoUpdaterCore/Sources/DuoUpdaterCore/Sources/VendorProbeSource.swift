@@ -236,7 +236,7 @@ public struct VendorProbeSource: UpdateSource {
             return nil
         }
         // Installed-version gate: a vendor can keep several MAJOR-VERSION
-        // generations under one shared bundle id, each independently maintained
+        // generations under one shared bundle id, each still downloadable
         // and each a separate product (Carbon Copy Cloner 5/6/7 all report
         // `com.bombich.ccc` — see `VendorProbeRecipe.installedVersionPattern`).
         // Drop the recipes that don't match the generation actually installed

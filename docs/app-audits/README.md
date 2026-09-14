@@ -136,7 +136,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor
 - [x] **The Unarchiver** · `com.macpaw.site.theunarchiver` — P · ✓ src=Vendor
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor
-- [x] **Dropbox** · `com.getdropbox.dropbox` — P · ✓ src=Vendor
+- [x] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — P (one-click dmg) · ✓ src=Vendor · **一键改取 `arch=arm64` 包**：不带参数的 dmg 是 x86_64-only，Apple silicon 上被架构闸拒 · 2026-09-14
 - [x] **Plex** · `tv.plex.desktop` — P · ✓ src=Vendor
 - [x] **Bartender** · `com.surteesstudios.Bartender` — P · ✓ src=Sparkle
 - [x] **ImageOptim** · `net.pornel.ImageOptim` — P · ✓ src=Sparkle

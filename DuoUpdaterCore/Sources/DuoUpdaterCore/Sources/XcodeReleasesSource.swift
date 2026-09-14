@@ -47,7 +47,8 @@ import Foundation
 /// so no string comparison has to understand Apple's build spelling.
 public struct XcodeReleasesSource: UpdateSource {
 
-    public let name = "Xcode Releases"
+    static let sourceName = "Xcode Releases"
+    public let name = Self.sourceName
 
     public static let bundleID = "com.apple.dt.Xcode"
 
@@ -70,7 +71,12 @@ public struct XcodeReleasesSource: UpdateSource {
         // `AppScanner` puts `ProductBuildVersion` here for Xcode — see the table above.
         guard let installedBuild = app.buildVersion, !installedBuild.isEmpty else { return nil }
 
-        let releases = try await fetch()
+        return Self.remote(forBuild: installedBuild, in: try await fetch())
+    }
+
+    /// What `latestVersion` reports for an installed build, given the index. Pure,
+    /// so the engine's verdict on it is testable without network.
+    static func remote(forBuild installedBuild: String, in releases: [Release]) -> RemoteVersion? {
         guard let (installed, offer) = Self.offer(forBuild: installedBuild, in: releases)
         else { return nil }
 
@@ -88,14 +94,26 @@ public struct XcodeReleasesSource: UpdateSource {
             // that is exists nowhere in the bundle — so "27.0 beta 1 → 27.0 beta 5"
             // instead of an opaque build number on the left.
             installedDisplayVersion: installed.displayVersion,
-            sourceName: name,
+            sourceName: Self.sourceName,
             requiresManualInstaller: true,
             changelogURL: offer.notesURL,
             // Deliberately no `publishedAt`: the index dates releases to the DAY,
             // and the release timeline only plots times it can trust to the minute
             // (see `ReleaseTimelineStore`). A midnight stamp would be a fabrication.
-            publishedAt: nil
+            publishedAt: nil,
+            // Apple's build ids have no order a string comparison can read: a beta's
+            // is `27A5237l`, the RC after it `27A266a`, and 5237 > 266 made every
+            // beta read as AHEAD of its own RC — "up to date", with the RC drawn as a
+            // downgrade. The index's `_versionOrder` is the order, so it decides
+            // "newer" in the engine exactly as it decided the offer above.
+            buildLineage: Self.lineage(of: releases)
         )
+    }
+
+    /// Every build in the index, newest first by `_versionOrder`. A build shared
+    /// by several entries (an RC and its release) sits at its highest rank.
+    static func lineage(of releases: [Release]) -> BuildLineage {
+        BuildLineage(newestFirst: releases.sorted { $0.order > $1.order }.map(\.build))
     }
 
     /// The installed release and the one to offer for it, or nil when the build

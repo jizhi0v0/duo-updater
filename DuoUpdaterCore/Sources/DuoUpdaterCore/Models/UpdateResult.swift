@@ -324,12 +324,13 @@ public struct RemoteVersion: Sendable, Hashable {
     /// anyone can go and look.)
     public let deltas: [DeltaPatch]
 
-    /// The vendor's own order for builds whose ids carry none — set only by a
-    /// recipe that declares `VendorProbeRecipe.buildLineage`. When present it is
-    /// the whole answer to "is this newer": `UpdateChecker.evaluate` and the other
-    /// direction checks ask it instead of `VersionComparator`, and a pair it cannot
-    /// place is "cannot tell", never a coin flip. nil for every other source. See
-    /// `BuildLineage`.
+    /// The vendor's own order for builds whose ids carry none a string comparison
+    /// can read — set by a recipe that declares `VendorProbeRecipe.buildLineage`,
+    /// and by `XcodeReleasesSource` (Apple build ids: beta `27A5237l` precedes RC
+    /// `27A266a`). When present it is the whole answer to "is this newer":
+    /// `UpdateChecker.evaluate` and the other direction checks ask it instead of
+    /// `VersionComparator`, and a pair it cannot place is "cannot tell", never a
+    /// coin flip. nil for every other source. See `BuildLineage`.
     public let buildLineage: BuildLineage?
 
     public init(

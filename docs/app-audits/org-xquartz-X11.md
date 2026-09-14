@@ -8,7 +8,7 @@
 
 ### Recipes/org-xquartz-X11.swift — GitHubReleaseRule（pkg 的核对）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`pkgutil --check-signature` 的签名者、notarized 与 timestamped，`Distribution` 声明的 id 与装机 bundle 相同，checked 2026-08-16），pkg 的版本号与字节数搬到这里；其余原样，重新折行。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`pkgutil --check-signature` 的签名者、notarized 与 timestamped，`Distribution` 声明的 id 与装机 bundle 相同、声明的版本就是 tag 里的版本，checked 2026-08-16），pkg 的具体版本号与字节数搬到这里；其余原样，重新折行。
 
 The installed app lives in `/Applications/Utilities`, which the scanner
 covers. Verified 2026-08-16 against the real 2.8.6 pkg (122,035,963 B):

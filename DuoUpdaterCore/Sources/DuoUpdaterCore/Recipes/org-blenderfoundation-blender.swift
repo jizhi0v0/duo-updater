@@ -15,9 +15,13 @@ enum org_blenderfoundation_blender {
         // GUARD: the dev-docs nav lists in-development versions first, whose intros
         // read "is currently in Alpha/Beta" and so DON'T match — yielding zero
         // entries (safe embed fallback) rather than a partial changelog. URL is
-        // version-pinned to a RELEASED minor, so it has to be bumped by hand when a
-        // new Blender ships (same as the old Warp/Ghostty version-pins) — Blender
-        // exposes no released-only index to follow.
+        // version-pinned to a RELEASED minor (same as the old Warp/Ghostty
+        // version-pins) — Blender exposes no released-only index to follow. ⚠️
+        // Bumping the pin alone does not work for 5.2: that page's `<h1>` and intro
+        // say "5.2 LTS" and it has no `corrective-releases` heading, so this
+        // pattern parses 0 entries there and the pane silently falls back to the
+        // embed (checked 2026-09-14; History has the details). A fix is filed
+        // separately.
         ChangelogRecipe(
             bundleID: "org.blenderfoundation.blender",
             source: URL(string: "https://developer.blender.org/docs/release_notes/5.1/")!,

@@ -5,14 +5,17 @@ enum uk_co_bzwrd_macperfmonitor {
         family: "uk-co-bzwrd-macperfmonitor",
         changelogs: [
         // History: docs/app-audits/uk-co-bzwrd-macperfmonitor.md#历史与实测
-        // Mac Performance Monitor — its appcast carries no notes at all: no
-        // `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
-        // `<description>` (fetched 2026-09-06 from the `appcast.xml` asset its
-        // `SUFeedURL` points at). Through 1.7.1 the GitHub release body was one
-        // sentence that said where to look: "Mac Performance Monitor 1.7.1 (build
-        // 206). See CHANGELOG.md for what's new." The 2.0.0 and 2.1.0 bodies carry
-        // full notes instead, and CHANGELOG.md has entries for both (checked
-        // 2026-09-14). Requested in #374.
+        // Mac Performance Monitor — through 1.7.1 the repo's CHANGELOG.md was the
+        // only place its notes existed: the `appcast.xml` asset its `SUFeedURL`
+        // points at had no `sparkle:releaseNotesLink`, no
+        // `sparkle:fullReleaseNotesLink` and no `<description>`, and the GitHub
+        // release body was one sentence that said where to look ("Mac Performance
+        // Monitor 1.7.1 (build 206). See CHANGELOG.md for what's new."; both
+        // fetched 2026-09-06). Since 2.0.0 the appcast's one item carries that
+        // release's notes as an HTML `<description>`, and so does the release body;
+        // both cover only the newest release, so this recipe is still the only
+        // source of the history, and CHANGELOG.md has entries for 2.0.0 and 2.1.0
+        // (all checked 2026-09-14; History has the appcasts). Requested in #374.
         //
         // Keep a Changelog, with the version in BRACKETS:
         //

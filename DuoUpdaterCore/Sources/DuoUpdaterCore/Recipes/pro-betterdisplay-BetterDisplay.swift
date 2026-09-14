@@ -25,7 +25,9 @@ enum pro_betterdisplay_BetterDisplay {
         // split on GitHub's `prerelease` flag, and BetterDisplay resolves its
         // channel from two Settings toggles rather than from the bundle id (see
         // `BetterDisplayChannel`):
-        //   * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
+        //   * `.stable`   → prerelease: false — e.g. v4.3.6, v4.3.5; since v5.0.5
+        //                 that includes 5.x releases as well as 4.x ones (checked
+        //                 2026-09-14; History has the tags).
         //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
         //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
         //                 (v5.0.0/v5.0.1), which are excluded from what we OFFER
@@ -39,7 +41,7 @@ enum pro_betterdisplay_BetterDisplay {
         //                 pre track is where those builds come from and the closest
         //                 true history for them; without this third registration the
         //                 channel-aware lookup would fall back to `.stable` and show
-        //                 an internal 5.x user the 4.x notes.
+        //                 an internal-track user the stable releases' notes instead.
         //
         // That rolling `pre` release cannot leak into either rail as an entry titled
         // "pre": GitHub orders this endpoint by `created_at`, and `pre` was created

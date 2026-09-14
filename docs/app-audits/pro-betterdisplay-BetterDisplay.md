@@ -24,6 +24,35 @@ the shell never had, and the history a per-tag page cannot hold.
 
 复测 2026-09-14（13:59 UTC，只读 GET `waydabber.github.io/BetterDisplay/changelog.html`，Safari UA）：200，解压后 1,149 B，没有 `<body>` 元素：只有 `<head>` 里的样式与两个脚本引用，和一段读 `?tag` 再 GET `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` 的内联脚本。
 
+### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（三条 recipe，三条轨）
+
+转引自 recipe 注释，未复测。整段原文（段首的说明句接着缩进的三条要点，要点用代码块围起来）。`.stable` 那条只列 4.x 版本、`.unstable` 那条末句 "show an internal 5.x user the 4.x notes" 迁移时都已不准确，代码里改写了，见下面的更正；其余原样。
+
+THREE recipes, one per track — none of them removable as a duplicate,
+even though `.beta` and `.unstable` differ only in `channel`. The tracks
+split on GitHub's `prerelease` flag, and BetterDisplay resolves its
+channel from two Settings toggles rather than from the bundle id (see
+`BetterDisplayChannel`):
+```
+  * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
+  * `.beta`     ("Receive pre-release updates") → prerelease: true —
+                v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
+                (v5.0.0/v5.0.1), which are excluded from what we OFFER
+                because they are Apple-silicon-only, but are real history
+                and belong in the rail.
+  * `.unstable` ("Receive internal pre-release updates") → deliberately
+                the same feed as `.beta`. The internal track has no
+                per-version notes anywhere: its items link
+                `changelog.html?tag=pre`, and that rolling release's body
+                is static boilerplate about what internal builds are. The
+                pre track is where those builds come from and the closest
+                true history for them; without this third registration the
+                channel-aware lookup would fall back to `.stable` and show
+                an internal 5.x user the 4.x notes.
+```
+
+更正 2026-09-14（15:15 UTC，`gh api 'repos/waydabber/BetterDisplay/releases?per_page=40'`）：新到旧前 9 条是 `v4.3.7`（prerelease false，2026-09-11）、`v5.0.5`（false，2026-08-31）、`v5.0.4`（true）、`v5.0.3`（true）、`v5.0.2`（true）、`v4.3.6`（false）、`v5.0.1`（true）、`v5.0.0`（true）、`v4.3.5`（false）；40 条里 `prerelease: false` 的 5.x 只有 `v5.0.5`。所以 `.stable` 的列表现在同时有 4.x 与 5.x，内部轨的用户退回 `.stable` 时看到的也不只是 4.x 的说明。`v5.0.5` 在原句写下（`195c8b44`，2026-08-27）之后才创建；它创建时是否就是 `prerelease: false` 没有记录。代码里 `.stable` 那条改成「例如 v4.3.6、v4.3.5；自 v5.0.5 起也包括 5.x」（checked 2026-09-14），末句改成「给内部轨的用户看 stable 各版本的说明」。
+
 ### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（滚动的 `pre` release 为什么进不了列表）
 
 转引自 recipe 注释，未复测。整段原文；代码里第 40 新的 release 的日期换成「早了好几年」并注明核对日期，`pre` 自己的创建日期（厂商事件的日期）原样；其余原样，重新折行。

@@ -17,8 +17,8 @@ enum org_xquartz_X11 {
         // covers. On the real pkg, `pkgutil --check-signature` reports "Developer
         // ID Installer: Apple Inc. - XQuartz (NA574AWV7E)", notarized and
         // timestamped, and its `Distribution` declares `org.xquartz.X11` — the same
-        // id the installed bundle reports (checked 2026-08-16; History has the pkg
-        // version and size).
+        // id the installed bundle reports — at the version its tag names (checked
+        // 2026-08-16; History has the pkg version and size).
         //
         // Tags are `XQuartz-2.8.6`; the release also carries `.dSYMS.tar.bz2` and
         // `.sha256sum`/`.sha512sum` siblings, so the asset pattern is anchored to

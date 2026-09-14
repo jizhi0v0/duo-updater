@@ -33,9 +33,13 @@ GitHub release 正文也不是说明，是一句指路（75 字节）：
 
 所以 issue 说的是对的：真正的说明只在仓库的 `CHANGELOG.md` 里，格式是 Keep a Changelog。
 
-更正 2026-09-14：上面两段写的是审计当天（1.7.1 及以前）的 release 正文。2.0.0（2026-09-10）与
-2.1.0（2026-09-11）两条 release 的正文已经带完整说明；`CHANGELOG.md` 也有这两版的条目，recipe 的
-entry pattern 在当天的文件上解析出 19 条（`gh api …/releases` 与只读 GET raw `CHANGELOG.md`）。
+更正 2026-09-14：上面三段写的是审计当天（1.7.1 及以前）的 appcast 与 release 正文。按 release 取回的
+`appcast.xml` 资产（`gh api …/releases/assets/<id>`，15:13 UTC）：`v1.7.1.206` 987 B、1 个 `<item>`、
+0 个 `<description>`；`v2.0.0.231` 5,771 B 与 `v2.1.0.236`（当前 latest）5,520 B 都是 1 个 `<item>`、
+1 个 `<description>`（2.1.0 那条是整篇 HTML 说明），三份都没有 `releaseNotesLink` / `fullReleaseNotesLink`。
+2.0.0（2026-09-10）与 2.1.0（2026-09-11）两条 release 的正文也已带完整说明。两处都只覆盖最新一版，
+历史仍只在 `CHANGELOG.md` 里：它有这两版的条目，recipe 的 entry pattern 在当天的文件上解析出 19 条
+（`gh api …/releases` 与只读 GET raw `CHANGELOG.md`）。
 
 ## Recipe
 
@@ -92,7 +96,7 @@ markdownSource: true
 
 ### Recipes/uk-co-bzwrd-macperfmonitor.swift — ChangelogRecipe（appcast 与 release 正文都没有说明）
 
-转引自 recipe 注释，未复测。整段原文。"one item" 这个观测值搬到这里；"The GitHub release body is one sentence that says where to look" 迁移时已不成立，代码里改写了，见下面的更正；其余原样。
+转引自 recipe 注释，未复测。整段原文。"one item" 这个观测值搬到这里；"its appcast carries no notes at all" 与 "The GitHub release body is one sentence that says where to look" 迁移时都已不成立，代码里改写了，见下面的更正；其余原样。
 
 Mac Performance Monitor — its appcast carries no notes at all: one item,
 and no `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
@@ -101,7 +105,7 @@ and no `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
 says where to look: "Mac Performance Monitor 1.7.1 (build 206). See
 CHANGELOG.md for what's new." Requested in #374.
 
-更正 2026-09-14（`gh api 'repos/Zesty0wl/mac-performance-monitor/releases?per_page=10'`、`…/releases/latest`，14:19 UTC；只读 GET raw `CHANGELOG.md`，14:20 UTC）：`v1.7.1.206` 及以前的正文仍是那一句指路；`v2.0.0.231`（2026-09-10）与 `v2.1.0.236`（2026-09-11）的正文是带标题的完整说明；`CHANGELOG.md` 有 `[2.1.0]` 与 `[2.0.0]` 两节，recipe 的 entryPattern 在当天的文件上解析出 19 条。代码里改成：到 1.7.1 为止正文是那一句，2.0.0 与 2.1.0 的正文带完整说明，`CHANGELOG.md` 两版都有条目。同一说法的副本一并改了：`Tests/DuoUpdaterCoreTests/MacPerformanceMonitorChangelogRecipeTests.swift` 的文档注释、本审计「为什么需要一条 changelog recipe」一节（加了更正）、`docs/app-audits/README.md` 的索引行。appcast 的 item 数没有复测。
+更正 2026-09-14（`gh api 'repos/Zesty0wl/mac-performance-monitor/releases?per_page=10'`、`…/releases/latest`，14:19 UTC；只读 GET raw `CHANGELOG.md`，14:20 UTC）：`v1.7.1.206` 及以前的正文仍是那一句指路；`v2.0.0.231`（2026-09-10）与 `v2.1.0.236`（2026-09-11）的正文是带标题的完整说明；`CHANGELOG.md` 有 `[2.1.0]` 与 `[2.0.0]` 两节，recipe 的 entryPattern 在当天的文件上解析出 19 条。按 release 取回的 `appcast.xml` 资产（`gh api -H 'Accept: application/octet-stream' …/releases/assets/<id>`，15:13 UTC）：`v1.7.1.206` 987 B、1 个 `<item>`、0 个 `<description>`；`v2.0.0.231` 5,771 B 与 `v2.1.0.236`（当前 latest）5,520 B 都是 1 个 `<item>`、1 个 `<description>`，2.1.0 那条是整篇 HTML 说明；三份都没有 `releaseNotesLink` / `fullReleaseNotesLink`。代码里改成：到 1.7.1 为止 appcast 没有说明、release 正文是那一句；2.0.0 起 appcast 唯一的那条带 HTML `<description>`、正文也带说明，都只覆盖最新一版，所以历史仍只有这条 recipe 读得到；`CHANGELOG.md` 两版都有条目。同一说法的副本一并改了：`Tests/DuoUpdaterCoreTests/MacPerformanceMonitorChangelogRecipeTests.swift` 的文档注释、本审计「为什么需要一条 changelog recipe」一节（加了更正）、`docs/app-audits/README.md` 的索引行（同一行里的条数也按 rule 5 补上了复测的 19 条）。
 
 ### Recipes/uk-co-bzwrd-macperfmonitor.swift — ChangelogRecipe（item pattern 的链接定义边界）
 

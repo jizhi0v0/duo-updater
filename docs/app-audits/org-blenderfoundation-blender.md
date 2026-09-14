@@ -52,7 +52,7 @@
 
 ### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe（钉在一个版本上的发布说明页）
 
-转引自 recipe 注释，未复测。整段原文。括号里的 "(5.3 Alpha, 5.2 Beta)" 与 "the latest RELEASED minor" 迁移时都已不成立：5.2 LTS 已发布，`source` 仍钉在 5.1（见下面的更正）。代码里去掉了括号里的版本，并把 "version-pinned to the latest RELEASED minor; bump it when …" 改成 "version-pinned to a RELEASED minor, so it has to be bumped by hand when …"。原句没写日期，引入它们的提交是 `599e8dde`（2026-06-04）；其余原样，重新折行。
+转引自 recipe 注释，未复测。整段原文。括号里的 "(5.3 Alpha, 5.2 Beta)" 与 "the latest RELEASED minor" 迁移时都已不成立：5.2 LTS 已发布，`source` 仍钉在 5.1（见下面的更正）。代码里去掉了括号里的版本，并把 "version-pinned to the latest RELEASED minor; bump it when a new Blender ships" 改成 "version-pinned to a RELEASED minor"，另加一句警告：只把钉的版本改到 5.2 解析出 0 条、面板静默退回内嵌网页，修复另行登记。原句没写日期，引入它们的提交是 `599e8dde`（2026-06-04）；其余原样，重新折行。
 
 Blender — developer.blender.org/docs/release_notes/<major.minor>/ is the
 clean per-version notes page (the blender.org/download marketing pages are
@@ -68,4 +68,4 @@ changelog. URL is version-pinned to the latest RELEASED minor; bump it when
 a new Blender ships (same as the old Warp/Ghostty version-pins) — Blender
 exposes no released-only index to follow.
 
-更正 2026-09-14（13:59–14:01 UTC，只读 GET，Safari UA，不跟随重定向）：`developer.blender.org/docs/release_notes/5.2/` 200，`<h1>` 是 "Blender 5.2 LTS Release Notes"，正文 "was released on July 14, 2026"；`/5.3/` 的 `<h1>` 是 "Blender 5.3 Release Notes"，正文 "Blender 5.3 is currently in"；`/docs/release_notes/` 的导航依次列 5.3、5.2 LTS、4.5 LTS、5.1、5.0。recipe 的 `source` 仍是 `/5.1/`（`Recipes/org-blenderfoundation-blender.swift:23`）。另：`entryPattern` 的 `Blender\s+(?<version>…)\s+Release Notes` 在 5.2 那页的 "5.2 LTS Release Notes" 上不匹配（本地 Python 正则复算），只把钉的版本改成 5.2 会得到零条。
+更正 2026-09-14（13:59–14:01 UTC，只读 GET，Safari UA，不跟随重定向）：`developer.blender.org/docs/release_notes/5.2/` 200，`<h1>` 是 "Blender 5.2 LTS Release Notes"，正文 "was released on July 14, 2026"；`/5.3/` 的 `<h1>` 是 "Blender 5.3 Release Notes"，正文 "Blender 5.3 is currently in"；`/docs/release_notes/` 的导航依次列 5.3、5.2 LTS、4.5 LTS、5.1、5.0。recipe 的 `source` 仍是 `/5.1/`（`Recipes/org-blenderfoundation-blender.swift:27`）。只把钉的版本改成 5.2 会得到 0 条，原因有三处，都是在 13:59 UTC 取回的 5.2 页上用本地 Python 按 recipe 的 `entryPattern` 复算的：(1) `<h1>` 是 "Blender 5.2 LTS Release Notes"，而 pattern 要求 `Blender\s+<version>\s+Release Notes`；(2) 引言是 `<p>Blender 5.2 LTS was released on July 14, 2026.`，而 pattern 要求 `Blender\s+[\d.]+\s+was released on`；(3) 页上没有 `id="corrective-releases"` 的 `<h2>`（5.1 那页有 1 个，5.2 那页 0 个；5.2 的 `<h2>` 只有 `compatibility` 与 `bugfixes`），而 body 的 lookahead 要求它。

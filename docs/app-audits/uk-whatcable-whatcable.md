@@ -32,8 +32,10 @@
 
 **为什么 beta 这条必须有**：beta 包的 marketing 串原样带 `-beta.8`（实测 v1.5.0-beta.8
 的 Info.plist），`detect` 判为 `.beta`，stable rule 的 channel 闸就会拒它——没有 beta
-rule 的话，一个 beta 安装会**没有任何源**、行永远显示 Failed。这是 `VendorProbeRecipe`
-里 Alfred `.beta` 那条注释记录过的同一个形状。
+rule 的话，一个 beta 安装会**没有任何源**、行永远显示 Failed。这是
+`Recipes/com-runningwithcrayons-Alfred.swift` 里 Alfred `.beta` 那条注释记录过的同一个形状
+（更正 2026-09-14：写这段时那条注释在 `Sources/VendorProbeRecipe.swift` 里，拆分提交 `4adf2227` 把它搬到了
+这个文件）。
 
 ### 未覆盖的那一半：app 内的 beta 开关
 
@@ -189,7 +191,7 @@ have no source at all and read "Failed" indefinitely. That is not
 hypothetical: it is the exact shape of the Alfred regression documented
 on its `.beta` recipe in `VendorProbeRecipe`.
 
-更正 2026-09-14：写这句时（`75802fee`，2026-09-06）Alfred 的 `.beta` recipe 在 `Sources/VendorProbeRecipe.swift`（`git grep -n "Alfred, PRE-RELEASE channel" 75802fee` → 第 1138 行）；拆分提交 `4adf2227`（2026-09-14）之后它在 `Recipes/com-runningwithcrayons-Alfred.swift:8`。代码里改成指向那个文件。
+更正 2026-09-14：写这句时（`75802fee`，2026-09-06）Alfred 的 `.beta` recipe 在 `Sources/VendorProbeRecipe.swift`（`git grep -n "Alfred, PRE-RELEASE channel" 75802fee` → 第 1138 行）；拆分提交 `4adf2227`（2026-09-14）之后它在 `Recipes/com-runningwithcrayons-Alfred.swift:8`。代码里改成指向那个文件；本审计「Channel 详情」下「为什么 beta 这条必须有」一段里的中文副本同样改了，并加了更正说明。
 
 ### Recipes/uk-whatcable-whatcable.swift — beta GitHubReleaseRule（pattern 为什么也收 stable tag：保险丝那一条）
 

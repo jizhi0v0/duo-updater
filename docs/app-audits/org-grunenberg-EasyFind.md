@@ -8,7 +8,7 @@
 
 ### Recipes/org-grunenberg-EasyFind.swift — VendorProbe（一键 zip 的核对）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（zip 里的 app、bundle id、Team、Notarized Developer ID、spctl，checked 2026-08-16），版本号搬到这里。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（zip 里的 app、bundle id、`CFBundleShortVersionString` 与下载路径里的版本是同一个字符串、Team、Notarized Developer ID、spctl，checked 2026-08-16），具体版本号搬到这里。
 
 One-click verified 2026-08-16 against that zip: `EasyFind.app`,
 org.grunenberg.EasyFind, 5.0.2, Team 679S2QUWR8 (DEVONtechnologies,

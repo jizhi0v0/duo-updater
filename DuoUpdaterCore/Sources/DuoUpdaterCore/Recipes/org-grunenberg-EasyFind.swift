@@ -20,9 +20,11 @@ enum org_grunenberg_EasyFind {
         // The install URL is the same link, read from the same page — no
         // templating, so a vendor rename of the artifact can't silently 404.
         //
-        // One-click: that zip holds `EasyFind.app`, org.grunenberg.EasyFind, Team
-        // 679S2QUWR8 (DEVONtechnologies, LLC), notarized Developer ID, spctl
-        // accepted (checked 2026-08-16; History has the version).
+        // One-click: that zip holds `EasyFind.app`, org.grunenberg.EasyFind, whose
+        // CFBundleShortVersionString is the same string as the version in the
+        // download path, Team 679S2QUWR8 (DEVONtechnologies, LLC), notarized
+        // Developer ID, spctl accepted (checked 2026-08-16; History has the
+        // version).
         VendorProbeRecipe(
             bundleID: "org.grunenberg.EasyFind",
             url: URL(string: "https://www.devontechnologies.com/apps/freeware")!,

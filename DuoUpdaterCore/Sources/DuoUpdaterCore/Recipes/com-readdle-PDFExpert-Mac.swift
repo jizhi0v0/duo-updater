@@ -19,8 +19,10 @@ enum com_readdle_PDFExpert_Mac {
         //   <p><strong>Version 3.13.2 </strong></p> text<br />more text<br />
         // with the trailing space present on some headings and not others.
         //
-        // A few versions appear TWICE on the page, some with different text in
-        // the two bodies (History has which). `ChangelogExtractor` dedupes on
+        // A few versions appear TWICE on the page (when checked, 2026-09-14:
+        // 3.10.23, 3.10.22 and 3.9.2 repeat; the 3.10.2x pairs sit at headings
+        // 11-14), and for two of those the two bodies are different text
+        // (History has the original counts). `ChangelogExtractor` dedupes on
         // version + title and the title is nil here, so the second body of each
         // pair is dropped silently. Left as is rather than worked around: which of
         // two same-numbered paragraphs is the real one is the vendor's question,

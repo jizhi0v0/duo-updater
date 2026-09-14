@@ -6,12 +6,13 @@ enum com_t3tools_t3code {
         githubRules: [
         // History: docs/app-audits/com-t3tools-t3code.md#历史与实测
         // T3 Code — two covered trains, ONE bundle id (`com.t3tools.t3code`), one
-        // repo; a third, `-preview.` prerelease train, has appeared since and is
-        // not covered (see the alpha proof below). `ReleaseChannel.detect()` reads
-        // the display name: the primary build is `T3 Code (Alpha).app` (→ .alpha)
-        // and the nightly prerelease train is `T3 Code (Nightly).app` (→ .nightly),
-        // verified on the mounted artifacts.
-        // Neither carries SUFeedURL; the cask is auto_updates, so Homebrew defers.
+        // repo; a `-preview.` release series has also appeared (tags since
+        // 2026-09-12, releases since 2026-09-13) and is not covered.
+        // `ReleaseChannel.detect()` reads the display name: the primary build is
+        // `T3 Code (Alpha).app` (→ .alpha) and the nightly prerelease train is
+        // `T3 Code (Nightly).app` (→ .nightly), verified on the mounted artifacts.
+        // Neither the alpha nor the nightly build carries SUFeedURL; the cask is
+        // auto_updates, so Homebrew defers.
         //
         // The alpha train tags plain `vX.Y.Z` and is NOT prerelease-flagged, so
         // `/releases/latest` answers for it; the anchored pattern keeps the
@@ -65,12 +66,12 @@ enum com_t3tools_t3code {
         // arm64.dmg`) carry `-nightly.<date>.<seq>` between the version and
         // `-arm64`, which `[0-9.]+` refuses. So the proof is an anchor on that
         // field, not on the artifact: it fails the day someone loosens the
-        // pattern enough to match nightly names (e.g. a `.*` run). Nightly was the
-        // only other train this repo published when this was written; a
-        // `-preview.` train has appeared since, whose asset names `[0-9.]+`
-        // refuses the same way (History has the recheck). What it cannot do is
-        // catch a vendor-launched stable train with identical naming — nothing in the
-        // URL would distinguish it, and `/releases/latest` would return it; the
+        // pattern enough to match nightly names (e.g. a `.*` run). The `-preview.`
+        // release series that has appeared since (tags since 2026-09-12, releases
+        // since 2026-09-13) names its assets with a token that `[0-9.]+` refuses
+        // the same way (History has the recheck). What it cannot do is catch a
+        // vendor-launched stable train with identical naming — nothing in the URL
+        // would distinguish it, and `/releases/latest` would return it; the
         // anchor documents that exposure rather than pretending to close it.
         ChannelProofKey("com.t3tools.t3code", .alpha):
             .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),

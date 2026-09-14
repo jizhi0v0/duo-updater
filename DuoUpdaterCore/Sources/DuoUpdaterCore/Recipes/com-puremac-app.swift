@@ -12,7 +12,7 @@ enum com_puremac_app {
         //
         // The tag is anchored because this repo ships a *second product* out of
         // the same releases: a `cli-v…` tag carrying only a CLI tarball, which
-        // GitHub can mark latest (History has the one there is). The default
+        // GitHub can mark latest (History has the count when checked). The default
         // pattern is unanchored, so it reads such a tag as a version (`cli-v1.0.0`
         // as 1.0.0) — which, against the app's own higher version, evaluates as "up
         // to date" and hides every real update. The macOS-asset gate already walks

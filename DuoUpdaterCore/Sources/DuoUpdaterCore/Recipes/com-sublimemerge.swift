@@ -12,12 +12,12 @@ enum com_sublimemerge {
         // `sublimemerge.com/updates/stable_update_check`). The /download page's
         // latest marker (e.g. `<p class="latest"><i>Version:</i> Build 2125</p>`)
         // precedes the descending history, so the anchored "Build NNNN" is newest.
-        // CRITICAL: capture the FULL "Build NNNN" string — installed
-        // CFBundleShortVersionString is literally of the form "Build 2125", and a
-        // bare "2125" would read as a perpetual phantom update (VersionComparator
-        // ranks a number above adjacent text).
-        // Builds are 2xxx (not 4xxx like Sublime Text); the class="latest" anchor
-        // already makes it single-match.
+        // CRITICAL: capture the FULL "Build NNNN" string — the app's
+        // CFBundleShortVersionString has the form "Build NNNN" (e.g. "Build 2125"),
+        // and a bare "2125" would read as a perpetual phantom update
+        // (VersionComparator ranks a number above adjacent text). Builds are 2xxx
+        // (not 4xxx like Sublime Text); the class="latest" anchor already makes it
+        // single-match.
         VendorProbeRecipe(
             bundleID: "com.sublimemerge",
             url: URL(string: "https://www.sublimemerge.com/download")!,

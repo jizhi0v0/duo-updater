@@ -13,11 +13,10 @@ enum com_openai_chat {
         // it was still shipping), and the installed base is real — but its bundle
         // carries NO `SUFeedURL` (verified against the mounted dmg), so the
         // generic Sparkle source can't see it even though the vendor publishes a
-        // Sparkle feed. The
-        // feed at `sidekick/public/sparkle_public_appcast.xml` is EXACTLY the
-        // endpoint Homebrew's own `chatgpt-classic` cask names in its
-        // `livecheck` block (`strategy :sparkle`) — a third-party witness that
-        // this is the vendor's intended version surface.
+        // Sparkle feed. The feed at `sidekick/public/sparkle_public_appcast.xml`
+        // is EXACTLY the endpoint Homebrew's own `chatgpt-classic` cask names in
+        // its `livecheck` block (`strategy :sparkle`) — a third-party witness
+        // that this is the vendor's intended version surface.
         //
         // Feed shape: one `<item>` whose `sparkle:shortVersionString` is the
         // marketing version (matches CFBundleShortVersionString; the build

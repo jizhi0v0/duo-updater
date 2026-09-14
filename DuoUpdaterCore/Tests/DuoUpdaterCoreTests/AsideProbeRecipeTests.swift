@@ -73,14 +73,28 @@ struct AsideProbeRecipeTests {
         let registered = try registered()
         let url = URL(string: "https://\(host)/version_info.json")!
         DocumentServer.serve(url, body)
+        // Everything that reads the body or shapes the request, so a pattern added
+        // to the registered recipe later is exercised here too. Left out: the url,
+        // and the fields that fetch something else (`identities`, `track`,
+        // `buildLineage`) or gate on the host (`hostRequirement`).
         let recipe = VendorProbeRecipe(
             bundleID: registered.bundleID, url: url, mode: registered.mode,
             versionPattern: registered.versionPattern,
+            transientBodyPattern: registered.transientBodyPattern,
+            trackClosedPattern: registered.trackClosedPattern,
             downloadURL: registered.downloadURL, changelogURL: registered.changelogURL,
             selectHighest: registered.selectHighest,
             versionIsBuild: registered.versionIsBuild,
+            buildNamespace: registered.buildNamespace,
+            displayVersionPattern: registered.displayVersionPattern,
+            publishedAtPattern: registered.publishedAtPattern,
             entryStartPattern: registered.entryStartPattern,
-            install: registered.install)
+            install: registered.install,
+            requestBody: registered.requestBody,
+            requestHeaders: registered.requestHeaders,
+            followRedirects: registered.followRedirects,
+            channel: registered.channel,
+            installedVersionPattern: registered.installedVersionPattern)
         return await VendorProbeSource(recipes: [], session: DocumentServer.session())
             .probeOutcome(recipe)
     }

@@ -136,7 +136,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor
 - [x] **The Unarchiver** · `com.macpaw.site.theunarchiver` — P · ✓ src=Vendor
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor
-- [x] **Dropbox** · `com.getdropbox.dropbox` — P · ✓ src=Vendor
+- [x] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — P (one-click dmg) · ✓ src=Vendor · **一键改取 `arch=arm64` 包**：不带参数的 dmg 是 x86_64-only，Apple silicon 上被架构闸拒 · 2026-09-14
 - [x] **Plex** · `tv.plex.desktop` — P · ✓ src=Vendor
 - [x] **Bartender** · `com.surteesstudios.Bartender` — P · ✓ src=Sparkle
 - [x] **ImageOptim** · `net.pornel.ImageOptim` — P · ✓ src=Sparkle
@@ -293,7 +293,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Things 3**](com-culturedcode-ThingsMac.md) · `com.culturedcode.ThingsMac` — 仅迁出历史：App Store 探测用例的上线核对
 - [ ] [**Hidden Bar**](com-dwarvesv-minimalbar.md) · `com.dwarvesv.minimalbar` — 仅迁出历史：空 Sparkle feed 的抓取与一键 zip 核对
 - [ ] [**Goose**](com-electron-goose.md) · `com.electron.goose` — 仅迁出历史：repo 改名导致匿名限流的测量
-- [ ] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — 仅迁出历史：一键 dmg 的签名核对、cask livecheck 的旧说法
 - [ ] [**GitHub Desktop**](com-github-GitHubClient.md) · `com.github.GitHubClient` — 仅迁出历史：两轨 zip 的签名核对、beta `listPageSize` 的测量
 - [ ] [**Android Studio**](com-google-android-studio.md) · `com.google.android.studio` — 仅迁出历史：预览渠道旧实现的错误、按发布日期排序的实例
 - [ ] [**Antigravity / Antigravity IDE**](com-google-antigravity.md) · `com.google.antigravity` / `com.google.antigravity-ide` — 仅迁出历史：端点的发现、IDE 端点的哨兵测量、changelog 页的 gzip 误读

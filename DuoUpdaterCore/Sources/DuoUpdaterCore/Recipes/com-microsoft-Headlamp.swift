@@ -89,13 +89,11 @@ enum com_microsoft_Headlamp {
         // `Authorization` while following it — the fetch that actually returns
         // the releases comes back ANONYMOUS, whatever token the user configured.
         // See #135.
-        // listPageSize: measured 2026-09-04 against the newest 100 releases —
-        // first-match index 0 (the interleaved `headlamp-helm-`/`headlamp-plugin-`
-        // tags this comment warns about don't match `^v…$`), worst run between
-        // two app tags is 4 (`v0.23.0`→`v0.22.0`). 8 keeps 2x headroom; a
-        // per_page=5 was measured at 42 KB (barely less than per_page=3's
-        // 40 KB — `body` dominates either way), so 8 doesn't cost meaningfully
-        // more than 5 while leaving real margin over the observed gap of 4.
+        // listPageSize: the interleaved `headlamp-helm-`/`headlamp-plugin-` tags this
+        // comment warns about don't match `^v…$`, so two app tags can sit a few
+        // releases apart; 8 keeps 2x headroom over the widest run measured, and
+        // because each release's `body` dominates the response, a page of 8 costs
+        // little more than a page of 5 (History has the dated counts and sizes).
         GitHubReleaseRule(
             bundleID: "com.microsoft.Headlamp",
             owner: "kubernetes-sigs", repo: "headlamp",

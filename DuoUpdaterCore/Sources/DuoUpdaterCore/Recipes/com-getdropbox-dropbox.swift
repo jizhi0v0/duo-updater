@@ -8,13 +8,13 @@ enum com_getdropbox_dropbox {
         // Dropbox (desktop, mac) — the website's "latest" download link. A single
         // 302 from www.dropbox.com/download?plat=mac&full=1 lands on the versioned
         // package edge.dropboxstatic.com/dbx-releng/client/Dropbox%20<ver>.dmg, so
-        // the version rides in the %20-encoded Location filename. The target is a
-        // ~200 MB dmg, so don't follow — read the small 302 Location
+        // the version rides in the %20-encoded Location filename. The target is the
+        // full dmg, so don't follow — read the small 302 Location
         // (followRedirects:false). NOTE the scheme is 3-component (e.g. 254.4.2518 =
         // 254/4/2518, not four) — the pattern is three numeric groups.
         // Dropbox self-updates, so this row usually just confirms that. (The
-        // Homebrew cask's livecheck reads this same redirect — adding `&arch=arm64`
-        // on Apple silicon — and its url confirms this host.)
+        // Homebrew cask's livecheck read this same redirect when checked — adding
+        // `&arch=arm64` on Apple silicon — and its url confirms this host; History.)
         //
         // One-click: the image is labelled "Dropbox Offline Installer" but holds
         // the real `Dropbox.app` — com.getdropbox.dropbox, Team G7HH3F8CAK,

@@ -42,7 +42,10 @@ enum com_google_android_studio {
         //     Canary build (that's a stability DOWNGRADE). When a Beta sits on the
         //     latest RC and the only newer thing is the next version's Canary, the
         //     Beta is correctly up to date.
-        // (See `InstalledApp.prefersVendorProbeOverToolbox`.)
+        // (An earlier "highest across all previews" version wrongly pushed
+        //  `2026.1.3 Canary 1` at a Beta install that was already current; and the
+        //  original channel-pure "Canary only" wrongly hid the RC the user wanted.
+        //  See `InstalledApp.prefersVendorProbeOverToolbox`.)
         //
         // NOT newest-first (see issue #76): the feed is ordered by PUBLICATION
         // DATE, not by version. With two feature trains open at once, a newer

@@ -26,11 +26,9 @@ enum com_insomnia_app {
         // desktop app — the `Insomnia.Core-` anchor excludes them. Electron app with
         // its own updater, so a fallback; the Team-ID gate (`VendorInstaller`)
         // enforces the match at install time.
-        // listPageSize: measured directly against the live endpoint (2026-09-04,
-        // newest 100 releases):
-        // first-match index 0, worst run of non-`core@` tags between two
-        // `core@` releases is 9 (`core@11.0.0`→`core@10.3.1`, the Design/CLI
-        // trains publish in between). 15 keeps ~67% headroom over that.
+        // listPageSize: the Design/CLI trains publish between `core@` releases, so
+        // two `core@` tags can sit several releases apart; 15 keeps ~67% headroom
+        // over the widest run measured (History has the dated counts).
         GitHubReleaseRule(
             bundleID: "com.insomnia.app",
             owner: "Kong", repo: "insomnia",

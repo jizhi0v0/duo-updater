@@ -73,12 +73,10 @@ enum com_github_GitHubClient {
         // CFBundleShortVersionString (no phantom update/downgrade against the stable
         // `3.5.12`). Same `GitHub.Desktop-arm64.zip`
         // one-click as stable.
-        // listPageSize: measured directly against the live endpoint (2026-09-04,
-        // newest 100 releases):
-        // first-match index 1 (the newest release is often the stable
-        // `release-…` tag one spot above), worst run between two `-betaN` tags
-        // is 4 (`release-3.4.16-beta1`→`release-3.4.13-beta2`). 8 keeps 2x
-        // headroom over that.
+        // listPageSize: the newest release is often the stable `release-…` tag one
+        // spot above the newest beta, and consecutive `-betaN` tags can sit several
+        // releases apart; 8 keeps 2x headroom over the widest run measured between
+        // two of them (History has the dated counts).
         GitHubReleaseRule(
             bundleID: "com.github.GitHubClient",
             owner: "desktop", repo: "desktop",

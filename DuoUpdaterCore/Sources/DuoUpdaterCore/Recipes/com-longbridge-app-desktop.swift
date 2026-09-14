@@ -36,9 +36,9 @@ enum com_longbridge_app_desktop {
         // `ReleaseChannel.detect` resolves it via the `.preview` bundle-id suffix
         // and the two trains cannot be confused by bundle id alone.
         //
-        // The channel's website presence has come and gone: `/desktop/preview/` is
-        // 404 — there is no download landing page — and the preview release-notes
-        // index has at times rendered an EMPTY version list while the per-version
+        // The channel's website presence has come and gone: `/desktop/preview/` has
+        // been 404 when checked — no download landing page — and the preview
+        // release-notes index has at times rendered an EMPTY version list while the per-version
         // notes pages, this manifest, and the artifacts stayed published (History
         // has both states). So a user who already runs Preview can be updated in
         // place even when the website offers no way to discover it. That is why
@@ -123,8 +123,9 @@ enum com_longbridge_app_desktop {
         // this way the two patterns are mutually exclusive — verified in both
         // directions against the live pages.
         //
-        // `source` is the preview index. Like stable's, it carries no
-        // `Release Date:` block whether or not it lists any versions, which makes it
+        // `source` is the preview index. Like stable's, it has carried no
+        // `Release Date:` block whether or not it listed any versions (History),
+        // which makes it
         // a correct no-version fallback for the same reason: it yields nothing and
         // the UI embeds the page instead of inventing an entry.
         ChangelogRecipe(

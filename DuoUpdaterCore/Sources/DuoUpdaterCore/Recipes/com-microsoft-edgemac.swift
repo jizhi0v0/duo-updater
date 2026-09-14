@@ -31,9 +31,9 @@ enum com_microsoft_edgemac {
         // `microsoft-edge-relnotes-security`, plural.
         //
         // Dev gets NO `changelogURL` at all, and that is the measured answer
-        // rather than a guess (History has the measurement: Learn's own table of
-        // contents lists no Dev release-notes page, and the plausible Dev spellings
-        // 404). Microsoft stopped publishing Dev channel notes; pointing the button at
+        // rather than a guess (History has the dated measurement: Learn's own table of
+        // contents listed no Dev release-notes page, and the plausible Dev spellings
+        // 404'd). Microsoft stopped publishing Dev channel notes; pointing the button at
         // Beta's or Stable's page would show a Dev user another train's changes,
         // which is worse than showing none (same call as Thunderbird Daily, `Recipes/org-mozilla-thunderbird.swift`).
         VendorProbeRecipe(

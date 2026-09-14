@@ -29,8 +29,9 @@ enum com_figma_Desktop {
         // com.figma.DesktopBeta, its own "Figma Beta.app", and a parallel endpoint
         // tree under /beta/. Pattern A (independent installs), so no cross-channel
         // risk — this recipe only ever resolves against a real Figma Beta install,
-        // which detects as `.beta`. Endpoint mirrors stable exactly: RELEASE.json →
-        // version + the FigmaBeta-<ver>.zip url. Same signer as stable (Team
+        // which detects as `.beta` (verified via channel-verify on the 126.6.2
+        // bundle). Endpoint mirrors stable exactly: RELEASE.json → version + the
+        // FigmaBeta-<ver>.zip url. Same signer as stable (Team
         // T8RA8NE3B7), so one-click is safe behind the same Team gate. Notes share the product release-notes page
         // (Figma publishes no separate beta changelog).
         VendorProbeRecipe(
@@ -58,8 +59,8 @@ enum com_figma_Desktop {
         // are a published, stable contract. It also fixes a real bug in the old
         // recipe: the page lazy-loads posts as you scroll, so the page scrape only
         // ever saw the first few `<article>` blocks however large `maxEntries` was
-        // set — the feed carries far more, so the `maxEntries: 20` cap actually
-        // engages.
+        // set — the feed carried far more (History), so the `maxEntries: 20` cap
+        // actually engages.
         //
         // Each entry (captured verbatim 2026-08-19):
         //   <entry>

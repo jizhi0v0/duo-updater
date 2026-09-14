@@ -46,8 +46,10 @@ enum net_imput_helium {
         // and which one you get is not the recipe's to choose — it varied by
         // request on 2026-09-03. A pattern written against either form alone reads
         // as a clean "the vendor restyled their page" failure against the other.
-        // The registry's other GitHub-API recipes never met this because they go
-        // through `Decodable`, which cannot see whitespace at all.
+        // The GitHub-API recipes that go through `Decodable` never meet this,
+        // because it cannot see whitespace at all; Headlamp's
+        // (`Recipes/com-microsoft-Headlamp.swift`) is also a regex and carries the
+        // same `\s*`.
         ChangelogRecipe(
             bundleID: "net.imput.helium",
             source: URL(

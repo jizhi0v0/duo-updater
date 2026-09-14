@@ -7,9 +7,9 @@ enum com_dwarvesv_minimalbar {
         // History: docs/app-audits/com-dwarvesv-minimalbar.md#历史与实测
         // Hidden Bar — the app DOES carry a Sparkle feed
         // (`SUFeedURL = api.amore.computer/v1/apps/com.dwarvesv.minimalbar/appcast.xml`),
-        // which is why it looks covered from the outside and isn't: the feed has
-        // answered 200 with a well-formed `<channel>` — title, link, description —
-        // and **no `<item>` at all**. `SparkleAppcastSource`
+        // which is why it looks covered from the outside and isn't: on every check so
+        // far (History) the feed answered 200 with a well-formed `<channel>` — title,
+        // link, description — and **no `<item>` at all**. `SparkleAppcastSource`
         // finds nothing, returns nil, and the row falls through to here as
         // "unknown" with nothing failing anywhere. An empty feed is exactly the
         // shape a broken recipe can't be told from a healthy one, so the version

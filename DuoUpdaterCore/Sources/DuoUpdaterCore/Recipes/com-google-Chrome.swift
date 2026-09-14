@@ -130,10 +130,12 @@ enum com_google_Chrome {
             // page (the real one is too big to commit).
             //
             // What NOT to reach for here: `(?:…)*+` and `(?>(?:…)*)` over the BODY.
-            // A possessive/atomic run silently stops matching past ~250 000
-            // characters — measured: 100 000 matches, 250 000 does not, and the
-            // failure is a quiet "no match", not an error. Chrome's post bodies run to
-            // hundreds of KB, so that form can drop one and the pane loses an entry
+            // A possessive/atomic run silently stops matching on long spans —
+            // `ChromeChangelogPatternTests.aPossessiveRunSilentlyStopsMatchingOnALongBody`
+            // pins that a 100 000-character run still matches and a 300 000-character one
+            // does not — and the failure is a quiet "no match", not an error. Chrome's
+            // post bodies can run to hundreds of KB (History has the sizes seen), so that
+            // form can drop one and the pane loses an entry
             // with nothing anywhere saying so. The gaps below are atomic only across
             // spans of a few hundred characters, well under that limit.
             entryPattern:

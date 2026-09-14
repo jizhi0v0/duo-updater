@@ -33,21 +33,24 @@ enum com_electron_ollama {
         ],
         githubRules: [
         // Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
-        // which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so
-        // without this rule it has no detection source — only a changelog recipe.
-        // The macOS app is the same GitHub `/releases/latest`: ollama.com's macOS
-        // download links (`/download/Ollama.dmg`, `/download/Ollama-darwin.zip`) 307
-        // to `github.com/ollama/ollama/releases/latest/download/…`. Tags carry a `v`
+        // which falls through `HomebrewCaskSource`; the bundle checked when this rule
+        // was added carried no `SUFeedURL` either (History), so for a copy like that
+        // this rule is the only detection source — otherwise just a changelog recipe.
+        // The macOS app is the same GitHub `/releases/latest`: when checked
+        // (History has the dates), ollama.com's `/download/Ollama.dmg` and the
+        // `/download/Ollama-darwin.zip` that `install.sh` fetches both 307'd to
+        // `github.com/ollama/ollama/releases/latest/download/…`. Tags carry a `v`
         // prefix (e.g. `v0.30.6`), stripped by the
-        // default pattern → `0.30.6`. The .app inside the zip self-reports the tag's
-        // version as CFBundleShortVersionString (homogeneous,
-        // no ghost update). Stable channel, no prereleases (`/releases/latest`).
+        // default pattern → `0.30.6`. The .app inside the zip reported the tag's
+        // version as CFBundleShortVersionString when verified (History) —
+        // homogeneous, no ghost update. Stable channel, no prereleases
+        // (`/releases/latest`).
         //
         // Best-effort one-click: the `Ollama-darwin.zip` asset IS a notarized
         // Developer ID build, Team 3MU9H2V9Y9 (Infra Technologies) matching the
         // install, so the in-place swap passes the VendorInstaller Team-ID gate.
-        // Ollama ships its own updater, but it drifts in practice, so rather than
-        // refuse to act we offer
+        // Ollama ships its own updater, but it has been seen stuck releases behind
+        // (History), so rather than refuse to act we offer
         // the swap as a fallback when its updater hasn't kept up. The zip wraps
         // `Ollama.app`, swapped in place like the other zip recipes. Ollama runs a
         // background `ollama serve`, so after the swap the live process is still the

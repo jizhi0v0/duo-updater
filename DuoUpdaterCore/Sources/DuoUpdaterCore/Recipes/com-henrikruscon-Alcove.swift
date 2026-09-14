@@ -11,15 +11,20 @@ enum com_henrikruscon_Alcove {
         // first whenever the user's license credentials are seeded; this recipe is
         // what everyone else gets.
         //
-        // The old endpoint (update.tryalcove.com) is GONE — it no longer resolves at
-        // all (NXDOMAIN). Its replacement is the download host's
+        // The old endpoint (update.tryalcove.com) is GONE — it stopped resolving
+        // (NXDOMAIN; History has the dates). Its replacement is the download host's
         // own metadata endpoint, `download.tryalcove.com/latest` — a small
         // unauthenticated JSON doc, e.g.:
         //   {"version":"1.7.9","build":203,"published_at":"…","assets":[…],
         //    "minimum_system_version":"15 Sequoia"}
         // `version` is the marketing string (== CFBundleShortVersionString — no build
-        // trap; `build` is carried separately and we ignore it). Single-channel: `?channel=beta`
-        // 404s ("No releases available") and an `X-Channel` header changes nothing.
+        // trap; `build` is carried separately and we ignore it). When checked against
+        // the licensed channel on 2026-07-29 it matched build-for-build — unlike every
+        // mirror before it, IN SYNC rather than trailing (History has the check) — which
+        // is why this document is trusted for detection while the public binaries
+        // below are not. Single-channel as far as it has been probed: `?channel=beta`
+        // answered 404 ("No releases available") and an `X-Channel` header changed
+        // nothing (History has both checks).
         //
         // The pattern requires `{` or `,` before the key so it can never drift onto
         // the sibling `minimum_system_version` (whose value, "15 Sequoia", isn't
@@ -27,7 +32,8 @@ enum com_henrikruscon_Alcove {
         //
         // DETECTION-ONLY, deliberately — do NOT re-attach an install spec. The public
         // binaries at download.tryalcove.com/{Alcove.dmg,Alcove.zip} are the *trial*
-        // build and lag this metadata badly. Installing it while claiming the
+        // build and have lagged this metadata badly (History has both checks).
+        // Installing it while claiming the
         // metadata's version would leave a permanent phantom "update available" that
         // no install can ever clear. There is no versioned public download path either
         // (e.g. `/1.7.9/Alcove.dmg`, `?version=…` all 404 or serve the same stale
@@ -37,9 +43,9 @@ enum com_henrikruscon_Alcove {
         // Notes come from the `api.tryalcove.com/changelog` ChangelogRecipe below;
         // `changelogURL` is the page the notes pane falls back to, and links out
         // to, when no recipe applies (`ChangelogRecipeSelection.fallbackPage`).
-        // That page is not what gets parsed: the HTML www.tryalcove.com/changelog
-        // serves carries no version text, so there is nothing in it to scrape
-        // (History has how it looked when it did).
+        // That page is not what gets parsed: neither shape www.tryalcove.com/changelog
+        // has served offered scrapable notes — most recently its HTML carried no
+        // version text at all (History has both shapes, with dates).
         VendorProbeRecipe(
             bundleID: "com.henrikruscon.Alcove",
             url: URL(string: "https://download.tryalcove.com/latest")!,

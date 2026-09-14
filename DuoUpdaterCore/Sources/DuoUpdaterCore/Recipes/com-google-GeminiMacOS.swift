@@ -7,9 +7,9 @@ enum com_google_GeminiMacOS {
         // History: docs/app-audits/com-google-GeminiMacOS.md#历史与实测
         // Gemini — Google's Omaha update service, which answers only a POST. The
         // published download URL carries no version (`.../release2/Gemini.dmg`,
-        // unchanged across releases so far) and the download page answers a plain
-        // fetch with Google's bot challenge (302 → /sorry),
-        // so nothing reachable states a version. This service does; it was found
+        // unchanged across releases so far) and no reachable page states a version
+        // (History has what the download page answered when checked). This service
+        // does; it was found
         // by reading the app's own update request. Asking as version `0.0.0.0`
         // makes it answer with the manifest for the newest build, not "noupdate".
         //

@@ -5,8 +5,9 @@ enum com_github_CopilotForXcode {
         family: "com-github-CopilotForXcode",
         changelogs: [
         // History: docs/app-audits/com-github-CopilotForXcode.md#历史与实测
-        // GitHub Copilot for Xcode — the Sparkle feed carries no notes on any of
-        // its items, and the GitHub release bodies are a single sentence
+        // GitHub Copilot for Xcode — when checked (History) the Sparkle feed carried
+        // no notes on any of its items, and the GitHub release bodies were a single
+        // sentence
         // (e.g. "Release 0.51.0 of Copilot extension for Xcode"). The real notes are
         // the repo's Keep-a-Changelog file, e.g.:
         //

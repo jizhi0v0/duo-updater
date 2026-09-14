@@ -47,7 +47,8 @@ enum com_microsoft_m365copilot {
         //     `learn.microsoft.com/en-us/microsoft-365-copilot/release-notes` is
         //     organised by DATE and then by PRODUCT (Excel, Word, Outlook,
         //     PowerPoint, OneNote, Viva Insights, …) for the whole Microsoft 365
-        //     Copilot service and is not keyed by the app's version, so no
+        //     Copilot service and, on both checks, was not keyed by the app's
+        //     version, so no
         //     version-keyed recipe can bind, and a date-keyed one would show
         //     Excel and Outlook features under the Copilot app's row.
         ])

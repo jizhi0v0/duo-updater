@@ -11,13 +11,16 @@ enum net_ankiweb_anki {
         // compares digit runs numerically, so 08 == 8 and the two read as the same
         // version — no phantom update.
         //
-        // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern for
-        // the same reason as Goose (`Recipes/com-electron-goose.swift`): `-mac-apple` carries no token that
-        // `installableAsset` recognises as an architecture, so pinning it alone would
-        // read as arch-neutral and hand an Intel Mac the Apple-silicon build. With
-        // both matched, `intel` selects the x86_64 dmg on an Intel Mac and the
-        // token-free `-mac-apple` wins on Apple silicon. Team ZL66D3NMZM and
-        // notarization verified on BOTH dmgs.
+        // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern:
+        // `-mac-apple` carries no token that `installableAsset` recognises as an
+        // architecture, so on its own it reads as arch-neutral. With both matched
+        // the arch preference picks between them — `intel` marks the other dmg as
+        // the x86_64 build, and the token-free `-mac-apple` wins on Apple silicon,
+        // the only host DuoUpdater runs on (`App/project.yml`);
+        // `GitHubReleaseRuleTests.archNeutralNamesStillResolvePerArchitecture` pins
+        // that choice. Whatever a name says, the install gate reads the downloaded
+        // bundle's real architectures (`SignatureVerifier.verifyRunnableArchitecture`).
+        // Team ZL66D3NMZM and notarization verified on BOTH dmgs.
         //
         // CLOSED GAP (was verified on this machine 2026-08-16, and was never a rule
         // bug): Anki stamps `CFBundleVersion` as a literal "1" for every build. When

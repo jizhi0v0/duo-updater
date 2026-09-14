@@ -14,8 +14,8 @@ enum com_eusoft_eudic {
         //
         // It cannot reach the appcast's own structured path either:
         // `AppcastHTMLChangelogParser.isStructured` requires at least one `<li>`
-        // and this body has ZERO (`<p>` and `<br>` instead), so without a recipe
-        // `SparkleAppcastSource` leaves `structuredChangelog` nil and the pane falls
+        // and this body had ZERO when checked (`<p>` and `<br>` instead; History),
+        // so without a recipe `SparkleAppcastSource` leaves `structuredChangelog` nil and the pane falls
         // to raw-HTML rendering of the whole blob.
         //
         // The headings are not a clean version list, which is what rules out

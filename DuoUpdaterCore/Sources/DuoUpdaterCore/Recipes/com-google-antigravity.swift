@@ -6,7 +6,8 @@ enum com_google_antigravity {
         probes: [
         // History: docs/app-audits/com-google-antigravity.md#历史与实测
         // Antigravity — its own electron-builder feed, on the Cloud Run service the
-        // app's updater polls (there is no Omaha entry).
+        // app's updater polls (no Omaha entry was found: the plausible appids tried
+        // answered `error-unknownApplication`; History has the check).
         //
         // Preferred over the download page, which was the first thing that worked
         // and is a far worse source: it advertises two products at once (the IDE,
@@ -23,8 +24,8 @@ enum com_google_antigravity {
         // rolling out (`stagingPercentage` below 100) would be offered here
         // before the app itself takes it.
         //
-        // The feed's `sha512` is verifiable: the served zip's Content-Length is
-        // exactly the `size` it states, so the hash was
+        // The feed's `sha512` is verifiable: on both checks (History) the served zip's
+        // Content-Length was exactly the `size` it states, so the hash was
         // taken on the bytes we will actually download — unlike Signal's feed,
         // where a size delta gave away a hash computed before stapling.
         VendorProbeRecipe(
@@ -103,10 +104,10 @@ enum com_google_antigravity {
         // Antigravity — antigravity.google/changelog, which the hub's
         // `VendorProbeRecipe` already links as its `changelogURL`.
         //
-        // Read the DECODED body: the server answers gzip even for
-        // `Accept-Encoding: identity`, and counting the compressed stream is how
+        // Read the DECODED body: when checked (History) the server answered gzip even
+        // for `Accept-Encoding: identity`, and counting the compressed stream is how
         // this page was once misread as a JS-rendered shell with no versions.
-        // Decoded it is fully server-rendered Astro markup carrying every release
+        // Decoded, it was fully server-rendered Astro markup carrying every release
         // for all four products — which is also why both apps can be covered from
         // the one page.
         //

@@ -74,12 +74,16 @@ examples — don't author from memory:
    is anchored that way, and any rollout/format gotcha. What you measured to get
    there (dated checks, counts, the versions an endpoint answered, how you found
    out) goes in `docs/app-audits/<family>.md` under `## 历史与实测`, with
-   `// History: docs/app-audits/<family>.md#历史与实测` in the code. A new family
-   gets that section too: in its audit, or in a history-only doc if it has no
-   audit. A short dated provenance clause on a contract claim ("(checked
-   2026-09-14)") may stay. Rules: `docs/app-audits/README.md`
-   §「从 recipe 注释迁出的历史」. Don't copy an older neighbour that still carries
-   dated logs.
+   `// History: docs/app-audits/<family>.md#历史与实测` in the code (rules:
+   `docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). A new family gets
+   that section too: in its audit, or in a history-only doc if it has no audit,
+   which also needs its index line under 「仅迁出历史（未审计）」 in that README
+   (`check_app_audits.py` fails an unindexed doc). A short dated provenance clause
+   on a contract claim ("(checked 2026-09-14)") may stay; the allowed shapes are
+   in the `scripts/check_recipe_snapshots.py` docstring. Only when the measurement
+   really is the contract, exempt it with a line `snapshot-lint:allow — <reason>`
+   in the same paragraph; the reason is required. Don't copy an older neighbour
+   that still carries dated logs.
 
 7. **Add a regression test.** Two parts, both required:
    - A fixture test: a trimmed slice of the *real* response, asserting the parse.

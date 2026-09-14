@@ -61,8 +61,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - **检查**：`check_app_audits.py` 要求每个回链指向 git 跟踪的文件、文件里有那一行标题、
   `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
   指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
-  审计新增行数）要回答的。`check_recipe_snapshots.py` 拦迁移过的 family 注释里新写进的
-  带日期实测（形状清单和豁免见脚本）。
+  审计新增行数）要回答的。`check_recipe_snapshots.py` 扫描不在它 `PENDING` 名单里的每个
+  family（包括新 family）的当前注释，拦带日期的实测（形状清单和豁免见脚本）。
 - **补充七条**（#615 三轮复审的教训，上面各条没有覆盖到的）：
   1. **机器状态怎么划**：拿身份、Team 或 bundle 和"被更新的那个 app"比较的措辞原样保留
      （"matching the install"、"the installed copy's team"、"same Team as the installed app"）。

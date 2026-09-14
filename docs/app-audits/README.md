@@ -209,7 +209,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Changelog-only (detection via Sparkle or Homebrew)
 
 - [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
-- [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C, detection still unknown
+- [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C + G (one-click zip, best-effort)
 - [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
 - [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew
 - [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew
@@ -286,6 +286,12 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
 - [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
+- [ ] [**Macs Fan Control**](com-crystalidea-macsfancontrol.md) · `com.crystalidea.macsfancontrol` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Things 3**](com-culturedcode-ThingsMac.md) · `com.culturedcode.ThingsMac` — 仅迁出历史：App Store 探测用例的上线核对
+- [ ] [**Hidden Bar**](com-dwarvesv-minimalbar.md) · `com.dwarvesv.minimalbar` — 仅迁出历史：空 Sparkle feed 的抓取与一键 zip 核对
+- [ ] [**Goose**](com-electron-goose.md) · `com.electron.goose` — 仅迁出历史：repo 改名导致匿名限流的测量
+- [ ] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — 仅迁出历史：一键 dmg 的签名核对、cask livecheck 的旧说法
+- [ ] [**GitHub Desktop**](com-github-GitHubClient.md) · `com.github.GitHubClient` — 仅迁出历史：两轨 zip 的签名核对、beta `listPageSize` 的测量
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

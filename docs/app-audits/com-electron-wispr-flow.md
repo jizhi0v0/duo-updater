@@ -43,6 +43,9 @@
   路径 `wispr-flow/darwin/arm64/` 下也有: 2026-08-29 两条各下一份，长度同为 331,807,594 B、
   SHA-256 同为 `0217292d…d6a31`，即 `-beta` 是别名不是另一个 build。所以模板用 stable 路径，
   是把告警**消掉**而不是压掉。
+  2026-09-14 复测（只读 GET + 不跟随重定向的 HEAD）：feed 仍是 26 条，最老的 22 条（到 1.6.721）仍指向
+  `wispr-flow-beta/…`，1.6.765 起的 4 条已改指 `wispr-flow/…`；`currentRelease` 1.6.827 在两条路径下都回 200、
+  `Content-Length` 同为 317,421,090，但 ETag 与 Last-Modified 不同，没有下载比对字节。
 - 端到端实测 2026-08-29: 装 1.6.675 → `duo check` 报 1.6.721 → `duo install` →
   磁盘 1.6.721，Team 不变，`duo check` 转 up-to-date。
 
@@ -55,3 +58,38 @@
 ## 建议下一步
 1. 若 vendor 改动资产路径，`.versionTemplate` 会以 404 大声失败——届时改模板即可。
 
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-electron-wispr-flow.swift — stable VendorProbe（`.versionTemplate` 一键）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`495d1e81`（2026-08-29）。
+
+The feed's 26 entries each carry their own `url`, but the
+version is printed BEFORE the url inside every entry, and
+`.bodyPatternHighestVersioned` requires capture group 1 to be the url and
+group 2 the version — an order a single left-to-right regex cannot
+produce here.
+
+An earlier note here said the feed was architecture-specific and that a
+one-click risked a cross-architecture swap.
+
+Every entry
+in this stable feed — all 26 — points at a `wispr-flow-beta/…` path.
+Following it works (the artifact there is a normal notarized stable
+build; 1.6.721 downloaded and extracted 2026-08-29:
+`com.electron.wispr-flow`, CFBundleShortVersionString 1.6.721,
+`Developer ID Application: Wispr AI INC (C9VQZ78H85)`, spctl "accepted /
+Notarized Developer ID", stapled), but it makes every nightly `duo
+verify` raise "stable recipe resolved what looks like a PRE-RELEASE
+artifact" — a standing false positive on the one sweep whose job is to
+be believed, and one `duo reconcile` would file as an issue.
+
+The same object is served from the stable path this recipe already
+probes, `wispr-flow/darwin/arm64/`: verified 2026-08-29 by fetching both
+and comparing — identical size (331,807,594 B) and identical SHA-256
+(0217292d…d6a31), so the `-beta` bucket is an alias, not another build.
+
+复测 2026-09-14（03:12 UTC，只读 GET 与不跟随重定向的 HEAD，没有下载）：`RELEASES.json` 仍有 26 条；最老的 22 条（1.5.848 … 1.6.721，发布于 2026-08-28 及以前）指向 `wispr-flow-beta/…`，最新的 4 条（1.6.765 … 1.6.827，2026-09-02 起）指向 `wispr-flow/…`。`currentRelease` 是 1.6.827，它在两条路径下都回 200、`Content-Length` 同为 317,421,090，ETag 不同（stable 路径那份是分段上传的 `…-38`）、Last-Modified 相差 11 分钟；字节是否相同没有比对。代码里 "all 26" 那句已改写。

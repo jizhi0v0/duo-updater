@@ -4,6 +4,7 @@ enum com_docker_docker {
     static let set = AppRecipeSet(
         family: "com-docker-docker",
         probes: [
+        // History: docs/app-audits/com-docker-docker.md#历史与实测
         // Docker Desktop — Sparkle appcast. Titles read "<ver> (<build>)" (and
         // "Version <ver> (<build>)"); take the highest since the feed isn't
         // strictly ordered. The channel title "Docker for Mac" carries no
@@ -22,15 +23,13 @@ enum com_docker_docker {
             // drop whole feeds — see `SparkleAppcastParser`.)
             //
             // And the entry is chosen by the version it declares, not by position:
-            // this feed is NOT newest-first. On 2026-08-17 it listed 4.86.0 (build
-            // 236216) ahead of 4.87.0 (236836), so a first-match download fetched
-            // 4.86.0 over an installed 4.86.0 — 574 MB, a 2.26 GB backup, "install
-            // done", and the update still pending. `sparkle:shortVersionString` sits
-            // in the same tag as the URL, so the two can no longer disagree.
+            // this feed is NOT newest-first, so a first-match download can fetch an
+            // older build than the version reported (History has the incident).
+            // `sparkle:shortVersionString` sits in the same tag as the URL, so the
+            // two can no longer disagree.
             //
-            // Verified 2026-08-09 on 4.85.0 (build 235549): `Docker.app` in the
-            // image, bundle id com.docker.docker, Team 9BNSXJN65R, spctl "Notarized
-            // Developer ID". 573 MB, arm64-specific feed path.
+            // The image holds `Docker.app` — bundle id com.docker.docker, Team
+            // 9BNSXJN65R, notarized Developer ID.
             install: VendorInstallSpec(
                 urlSource: .bodyPatternHighestVersioned(
                     #"<enclosure[^>]*url="(https://desktop\.docker\.com/[^"]+/Docker\.dmg)"[^>]*sparkle:shortVersionString="([0-9][0-9.]*)""#),
@@ -39,8 +38,7 @@ enum com_docker_docker {
         changelogs: [
         // Docker Desktop — the release-notes page in its Markdown source form.
         // `docs.docker.com/desktop/release-notes.md` serves `text/markdown`
-        // directly (the `.md` twin of the HTML page), 142 versions deep, newest
-        // 4.87.0 on 2026-08-17 — the installed version here.
+        // directly (the `.md` twin of the HTML page).
         //
         // The `- [Windows](…)` / `- [Mac …]` / `- [Linux …]` installer links each
         // release opens with are excluded by the item pattern's negative lookahead:
@@ -49,7 +47,7 @@ enum com_docker_docker {
         // and the `### Bug fixes and enhancements` sections — is kept.
         //
         // `markdownSource` because the notes link out mid-sentence
-        // (`[Docker Compose v5.4.0](…)`); without it a plain-text render prints the
+        // (e.g. `[Docker Compose v5.4.0](…)`); without it a plain-text render prints the
         // brackets and the URL.
         ChangelogRecipe(
             bundleID: "com.docker.docker",

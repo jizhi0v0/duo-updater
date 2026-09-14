@@ -49,3 +49,19 @@
 ## 建议下一步
 1. 若新增 next/beta bundle，需真实验包后单独建 channel。
 
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-exafunction-windsurf.swift — stable VendorProbe（一键 `.bodyPattern` dmg）
+
+转引自 recipe 注释，未复测。
+
+An earlier note here called detection "architecture-neutral" and omitted
+one-click on that basis.
+
+Verified 2026-08-29 on the real artifact this pattern selects (3.8.20):
+mounted, `com.exafunction.windsurf`, `Developer ID Application:
+EXAFUNCTION, INC. (83Z2LHX6XW)`, spctl "accepted / Notarized Developer
+ID", stapled, `lipo -archs` = arm64.

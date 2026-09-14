@@ -95,3 +95,19 @@ channel 门先于比较，所以不构成跨轨推送。
 
 ## 建议下一步
 无。两轨检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-github-CopilotForXcode.swift — ChangelogRecipe（repo 的 `CHANGELOG.md`）
+
+转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`cff8d0ed`（2026-08-31）。
+
+GitHub Copilot for Xcode — the Sparkle feed carries no notes on any of
+its 12 items, and the GitHub release bodies are a single sentence
+("Release 0.51.0 of Copilot extension for Xcode").
+
+21 entries parse from the live file (2026-08-31), head 0.51.0.
+
+复测 2026-09-14（03:13 UTC，只读 GET）：`githubcopilotide.z13.web.core.windows.net/appcast.xml` 12 个 `<item>`，没有一个带 `<description>`、`releaseNotesLink` 或 `fullReleaseNotesLink`；最新 3 个 GitHub release 的正文是 "Pre-release 0.51.182 of Copilot extension for Xcode"、"Pre-release 0.51.181 …"、"Release 0.51.0 …"；`CHANGELOG.md` 仍以 `# Changelog` 开头，按 recipe 的 entry pattern 数到 21 条。

@@ -833,11 +833,11 @@ private func matches(
 }
 
 /// Two rules pin an Apple-silicon-only artifact whose FILENAME carries no token
-/// `installableAsset` reads as an architecture (`Goose.zip`, `anki-…-mac-apple.dmg`).
-/// Matching only those would classify them as arch-neutral and install an arm64
-/// build on an Intel Mac — which the install gate cannot catch, since it checks
-/// signature, Team and bundle id but never architecture. Both rules therefore match
-/// the Intel sibling too, and these are the assertions that keep it that way.
+/// `installableAsset` reads as an architecture (`Goose.zip`, `anki-…-mac-apple.dmg`),
+/// so on its own each reads as arch-neutral. Both rules also match the Intel sibling,
+/// so the arch preference picks per host, and these are the assertions that keep it
+/// that way. (Whatever a name says, the install gate reads the downloaded bundle's
+/// real architectures — `SignatureVerifier.verifyRunnableArchitecture`.)
 @Test func archNeutralNamesStillResolvePerArchitecture() {
     func picked(_ bundleID: String, _ names: [String], _ arch: HostArch) -> String? {
         let assets = names.map {

@@ -8,8 +8,11 @@ enum com_federicoterzi_espanso {
 
         // Espanso — text expander. The macOS asset name carries NO version
         // (`Espanso-Mac-Universal.dmg`), so the pattern is a literal. Older releases
-        // shipped the same name as a .zip; if upstream flips back, the install URL
-        // simply resolves nothing (a warning) instead of grabbing a wrong artifact.
+        // shipped the same name as a .zip; if upstream flips back, a release without
+        // the dmg is not read as this app's version: `GitHubReleasesSource` walks back
+        // to the newest release that still carries it, and past
+        // `maxReleasesWithoutMacOSAsset` such releases records a recipe miss —
+        // instead of grabbing a wrong artifact.
         // One-click: com.federicoterzi.espanso, Team 6424323YUH, notarized.
         GitHubReleaseRule(
             bundleID: "com.federicoterzi.espanso",

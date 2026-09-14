@@ -17,13 +17,18 @@ public struct HomebrewCaskSource: UpdateSource {
 
     private let catalog: HomebrewCaskCatalog
     private let inventory: BrewLocalInventory
+    /// Injected like `SignatureVerifier`'s `osVersion`, and for the same reason:
+    /// the pick below must be testable off whatever Mac the tests run on.
+    private let hostOSVersion: String
 
     public init(
         catalog: HomebrewCaskCatalog = .shared,
-        inventory: BrewLocalInventory = BrewLocalInventory()
+        inventory: BrewLocalInventory = BrewLocalInventory(),
+        hostOSVersion: String = HostOS.numericVersion()
     ) {
         self.catalog = catalog
         self.inventory = inventory
+        self.hostOSVersion = hostOSVersion
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -33,20 +38,33 @@ public struct HomebrewCaskSource: UpdateSource {
         guard !app.isMASApp else { return nil }
 
         // Nothing in the Caskroom → the provenance gate below can never pass, so
-        // decline before pulling the 5 MB catalog over the network.
+        // decline before pulling the ~2 MB catalog over the network.
         guard !inventory.isEmpty else { return nil }
 
         let filename = app.path.lastPathComponent  // e.g. "TablePlus.app"
-        var match = try await catalog.entry(forAppFilename: filename)
-        if match == nil, let bundleID = app.bundleID {
-            match = try await catalog.entry(forBundleID: bundleID)
+        var candidates = try await catalog.entries(forAppFilename: filename)
+        if candidates.isEmpty, let bundleID = app.bundleID {
+            candidates = try await catalog.entries(forBundleID: bundleID)
         }
-        guard let entry = match else { return nil }
+        guard !candidates.isEmpty else { return nil }
 
-        // Provenance gate: only adopt this app if Homebrew actually installed the
-        // matched cask here. A filename/id collision with an uninstalled cask is
-        // not ours to update.
-        guard inventory.isInstalled(caskToken: entry.token) else { return nil }
+        // Provenance gate: only adopt this app if Homebrew actually installed one
+        // of the matching casks here. A filename/id collision with an uninstalled
+        // cask is not ours to update.
+        //
+        // Ask every candidate rather than only the index's preferred one. When a
+        // vendor splits an `.app` across two casks by macOS (`onyx` `== 11…26`,
+        // `onyx@beta` `>= 27` — issue #638), the cask this Mac *can* install and
+        // the cask it *did* install disagree for anyone who upgraded macOS without
+        // switching casks, and answering "no cask" for them would replace a
+        // correct row with `.unknown`. Installed beats runnable; among several
+        // installed (not a shape brew allows for one `.app`, but the index cannot
+        // know that) the index's host preference breaks the tie.
+        let preferred = candidates.first { $0.admits(hostOSVersion) } ?? candidates[0]
+        let installed = candidates.filter { inventory.isInstalled(caskToken: $0.token) }
+        guard let entry = installed.first(where: { $0.token == preferred.token })
+                ?? installed.first
+        else { return nil }
 
         // Self-updating gate: an `auto_updates` cask delegates updates to the app's
         // own updater — brew is NOT its update channel, and the cask version

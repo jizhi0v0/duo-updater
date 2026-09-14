@@ -156,9 +156,17 @@ can't be picked — require the version-path shape (e.g. `/vlc/releases/\d…`).
 first match in document order must be the newest release; confirm that against
 the real index (vendors put newest first, but verify).
 
-When the vendor has no index, fall back to a version-pinned `source` and note in
-the comment that the URL needs bumping when a new version ships (as the older Warp
-/ Ghostty entries did before they moved to indexes).
+When the vendor has no index but names each page after the version, template the
+URL instead: `sourceTemplate` with `{version}`, `{majorMinor}` (one page per minor,
+patches folded in: Blender), `{major}` (Opera) or `{appleDocVersion}` (Xcode). The
+page then follows the installed or offered build, with nothing to bump.
+
+A version-pinned `source` is the last resort. It fails silently: it keeps parsing
+the old page after the vendor ships, and nothing warns. Bumping it by hand is no
+safer. Blender's recipe was pinned to `/5.1/`, and a plain bump to `/5.2/` parsed
+zero entries: the LTS page words its heading differently and has no section the
+old pattern ended on. If you must pin, run the pattern on the NEXT version's page
+before calling the bump done.
 
 ## Feed-resolved pages — `feedPagePattern` (link-only Sparkle feeds)
 

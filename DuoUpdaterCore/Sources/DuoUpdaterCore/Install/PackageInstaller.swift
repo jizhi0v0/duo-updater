@@ -801,8 +801,19 @@ public actor PackageInstaller {
     /// on this machine to test against, and none was downloaded for this change.
     /// Such a payload lands on `.unreadablePayload`, i.e. installs exactly as it
     /// does today.
+    ///
+    /// `scratchRoot` is a parameter for the same reason `osVersion` is: a test
+    /// asserting that this leaves nothing behind must be able to look at a
+    /// directory only its own call writes to. Reading the shared temp directory
+    /// instead measures whatever else happens to be running — which is not a
+    /// theoretical objection, it is how the first version of that test passed on
+    /// a 14-core machine and failed on a 3-core runner, where sibling tests in
+    /// the same suite were still holding their own scratch when it looked.
     static func payloadMinimumSystemVersion(
-        _ pkg: URL, components: [Component], appName: String
+        _ pkg: URL,
+        components: [Component],
+        appName: String,
+        scratchRoot: URL = FileManager.default.temporaryDirectory
     ) async -> PayloadFloor {
         guard !components.isEmpty else { return .noComponents }
 
@@ -821,15 +832,15 @@ public actor PackageInstaller {
         }
         guard let candidate else { return .noMember }
 
-        let fm = FileManager.default
         // Named so `sweepStaleWorkDirectories` reclaims it: this directory holds a
         // whole `Payload` (69 MB for that vendor package, hundreds for ToDesk),
         // and a crash between the extraction and the removal below would
         // otherwise leak it forever — nothing else sweeps the temp directory.
-        let scratch = fm.temporaryDirectory
+        let scratch = scratchRoot
             .appendingPathComponent(
                 "\(Self.osFloorScratchPrefix)\(UUID().uuidString)", isDirectory: true)
-        guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
+        guard (try? FileManager.default.createDirectory(
+            at: scratch, withIntermediateDirectories: true)) != nil
         else { return .unreadablePayload }
 
         // One exit, so the scratch removal cannot be skipped. `defer` is what this
@@ -845,10 +856,13 @@ public actor PackageInstaller {
     /// future caller outside `verifyOpenable`). Production goes through
     /// `verifyOpenable`, which already read them.
     static func payloadMinimumSystemVersion(
-        _ pkg: URL, appName: String
+        _ pkg: URL,
+        appName: String,
+        scratchRoot: URL = FileManager.default.temporaryDirectory
     ) async -> PayloadFloor {
         await payloadMinimumSystemVersion(
-            pkg, components: await readComponents(pkg), appName: appName)
+            pkg, components: await readComponents(pkg),
+            appName: appName, scratchRoot: scratchRoot)
     }
 
     private static func readFloor(

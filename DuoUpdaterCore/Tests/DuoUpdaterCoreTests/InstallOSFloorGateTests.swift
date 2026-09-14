@@ -518,25 +518,32 @@ import Foundation
 
     /// Test 7: the extracted `Payload` is a whole copy of the package's contents
     /// (69 MB for the one real vendor package read here), so nothing may be left
-    /// behind. Both the payload and its scratch directory must be gone when this
-    /// returns, and the scratch must carry the `DuoUpdater-pkg-` prefix the
-    /// sweeper reclaims — a crash between extraction and removal is the case the
-    /// prefix is for.
+    /// behind. Its scratch directory must be gone when this returns, and must
+    /// carry the `DuoUpdater-pkg-` prefix the sweeper reclaims — a crash between
+    /// extraction and removal is the case the prefix is for.
+    ///
+    /// ⚠️ **The scratch root is injected, and the first version's failure is the
+    /// argument for it.** That version snapshotted the shared temp directory
+    /// before and after the call and diffed it. Sibling tests in this suite run
+    /// in parallel and create scratch directories of their own, so the diff was
+    /// measuring the rest of the suite: green on a 14-core machine, red on the
+    /// 3-core CI runner, which saw two other live scratches and reported them as
+    /// this call's leak. Marking the suite `.serialized` would have hidden that
+    /// rather than removed it — the assertion has to be about one call's own
+    /// directory, the same way `osVersion` is pinned rather than read from the
+    /// host.
     @Test func thePayloadScratchIsGoneWhenTheGateReturns() async throws {
         try await withPkgTempDir { dir in
             let pkg = try await buildFlatPackage(floor: "99.0", in: dir)
-            let temp = FileManager.default.temporaryDirectory
+            let root = dir.appendingPathComponent(
+                "ZZFixture-scratch-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
-            func osfloorEntries() -> Set<String> {
-                let entries = (try? FileManager.default.contentsOfDirectory(
-                    atPath: temp.path)) ?? []
-                return Set(entries.filter { $0.contains("osfloor") })
-            }
-            let before = osfloorEntries()
             #expect(await PackageInstaller.payloadMinimumSystemVersion(
-                pkg, appName: "ZZFixture Suite") == .floor("99.0"))
-            #expect(osfloorEntries().subtracting(before).isEmpty,
-                    "gate 6 left a payload scratch behind")
+                pkg, appName: "ZZFixture Suite", scratchRoot: root) == .floor("99.0"))
+
+            let left = try FileManager.default.contentsOfDirectory(atPath: root.path)
+            #expect(left.isEmpty, "gate 6 left \(left) behind in its scratch root")
 
             // The name the sweeper looks for. `sweepStaleWorkDirectories` only
             // reclaims `DuoUpdater-pkg-`, so a scratch named anything else is

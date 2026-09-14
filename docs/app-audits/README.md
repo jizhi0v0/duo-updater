@@ -18,7 +18,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   changelog 页"。**（c）**：对照**当前代码**（不是对照日期）已经不成立的——改正或删掉，
   理由写进 PR，**不许当成真话搬进历史**。
 - **以句子为单位。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；契约和实测
-  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面四条先于它：
+  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面五条先于它：
   - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
     "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
     时可以改（记账 diff 里逐条可见），历史里保留原段落全文；整句原样放回代码的，从历史里删掉，
@@ -33,6 +33,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
     file:line，并写明成立条件。反例：第一版 Windscribe 写"`duo verify` files an installed copy
     under its resolved channel"，没写读不到偏好时（文件缺失、解不出、resolver 超时）那份拷贝仍按
     stable 归档。
+  - **没写日期的数字，先分示例还是现状。** 用来展示格式或形状的（示例）留在代码里、标成示例
+    （"e.g."），比如 Canva 注释里说明 feed 与 bundle 是同一个字符串的 `1.124.0`；断言“现在是怎样”的
+    （现状：条数、“最新是 X”、“N 个条目”）连同引入它的日期搬进历史，代码只留结论，比如 1Password
+    的 "item 1 of 89"。现状数字而契约又依赖它仍然成立的，按（c）处理：复测，或改写成不依赖具体值
+    的说法。
 - **搬完单独重读 Swift 文件。** 不看历史、只读留下的注释：每句仍为真（留下的 "today"、"which it
   is today" 也要核——CapCut 那句 "stable is 9.3.0 — which it is today" 在重读时已经不成立），
   没有悬空的 "see below"、"that"、"the question"。
@@ -43,7 +48,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`，
   下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
   结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
-  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。
+  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。历史是注释当时的带日期快照，不跟代码同步：
+  它和代码里留下的结论重复是无害的，代码以后变了而历史没跟着变也是预期的，不算漂移。
 - **机器状态**：本目录的 `MACHINE_STATE` 规则同样管搬过来的句子。描述"那台机器装了/没有什么"
   的句子改成针对那份拷贝的说法（"the machine measured on 2026-08-27 had …"），不加豁免。这是
   历史正文里唯一允许的改写，PR 里逐条列出。

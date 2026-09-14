@@ -457,3 +457,24 @@ No `changelogURL` beyond what's already public: the same
 `ccc7_rn_beta.html` page the stable investigation already found
 (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
 than re-verified as a separate discovery.
+
+### Recipes/com-bombich-ccc.swift — CCC 7 beta VendorProbe（周期之间答 stable zip，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，出自 #610（`0e630f55`，家族迁移批次 #608 之后合并）；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（周期之间 `?v=latestbeta` 落到普通 stable zip，是实测不是推测），日期写成 "when checked (2026-09-14)"，文件名搬到这里。
+
+beta (CCC 7) — same bundle id, opted into from
+CCC's own Settings → Software Update → "Inform me of beta releases".
+`?v=latestbeta` (no hyphen) 302s through the same two-hop chain as stable
+to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`) while a beta is on
+offer, and to the plain stable zip between cycles — measured, not
+"likely": 2026-09-14 it answered with the same `ccc-7.2.8399.zip` as
+`?v=ccc7` and `?v=latest`. `versionPattern` accepts BOTH, which is why
+`-b<N>` is optional below. It used to require the suffix, so the
+between-cycles answer matched nothing and the probe threw `ProbeFailed`
+(`VendorProbeSource`): a failed-check row, and a `duo verify` finding on
+every machine for a recipe working as written (issue #612).
+Marketing matches the probed capture group
+exactly, so `versionIsBuild` stays the default `false`, same as
+stable.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，逐跳 HEAD、不跟随重定向，只读 `Location`）：`download_ccc.php?v=latestbeta`、`?v=ccc7`、`?v=latest` 都经 `api.bombich.com/download/ccc?v=…` 302 到 `https://bombich-cdn.com/ccc-7.2.8399.zip`。

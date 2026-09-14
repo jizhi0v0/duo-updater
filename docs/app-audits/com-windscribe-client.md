@@ -801,3 +801,28 @@ Cross-referenced against the vendor's own `beta` numbers, those 31 are
 12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
 all (2.24.11 is one: built as stable, published as a GitHub prerelease,
 on no track).
+
+### Recipes/com-windscribe-client.swift — stable ChangelogRecipe（`.gitHubReleases` 只留正式版，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #607（`17323d31`）试点迁移之后留在代码里的版本；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（厂商 release 轨的版本在 GitHub 上是正式版，beta / guinea pig 轨的不是，所以用户没选的轨进不了面板），日期写成 "(checked 2026-09-07 across every release since 2024; …)"。19 与 51 两个计数搬到这里；"all 19" 与 "NONE of the 51" 两个量词在代码里改成了不带量词的复数说法，理由见下面的复测。
+
+`.gitHubReleases` keeps stable releases only, which is exactly the split
+this vendor publishes: measured 2026-09-07 across every release since
+2024, all 19 of the versions the vendor's own API names on its release
+track are `prerelease: false` on GitHub, and NONE of the 51 it names on
+the beta / guinea-pig tracks are — so nothing from a track the user did
+not opt into can reach the panel.
+
+复测 2026-09-15（UTC 2026-09-14 16:16，只读 GET；厂商 `api.windscribe.com/ChangeLogs?platform=osx` 带厂商页面自己的 `Authorization: Bearer 1234`，GitHub `repos/Windscribe/Desktop-App/releases` 两页共 122 条）：厂商列出 `release_date` 在 2024 年及以后的 70 个条目，`beta` 为 0 的 19 个、为 1 或 2 的 51 个，与原文计数相同。51 个里 49 个在 GitHub 上是 `prerelease: true`，另外两个（`2.21.1`、`2.20.6`）没有 GitHub release。19 个里有 6 个条目的 `url` 不含 `Windscribe_<版本>_` 形状的文件名，这次没有对上；对上的 13 个里 12 个是 `prerelease: false`，`2.15.9` 没有 GitHub release（同一文件下一段已经写了）。所以原文 "all 19 … are `prerelease: false`" 这个量词这次核不实，代码里没有沿用。
+
+### Recipes/com-windscribe-client.swift — beta / guinea pig ChangelogRecipe（这份列表多列了什么，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #607（`17323d31`）试点迁移之后留在代码里的版本；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（GitHub 对所有 prerelease 一视同仁，分不出 beta 与 guinea pig，所以 beta 读者也会看到 guinea pig 条目，两种读者都会看到厂商没公布的构建），日期写成 "(checked 2026-09-07 on the newest 40 releases; …)"，9 / 31 两个计数搬到这里。
+
+⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
+releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
+marks all 31 the same way — it has no idea which track a build is on.
+So a beta reader sees guinea pig entries too, and both readers see
+builds the vendor never announced.
+
+复测 2026-09-15（UTC 2026-09-14 16:16，只读 GET）：最新 40 条 release 里 10 条 `prerelease: false`、30 条 `prerelease: true`。

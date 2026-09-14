@@ -9,9 +9,8 @@ enum uk_co_bzwrd_macperfmonitor {
         // only place its notes existed: the `appcast.xml` asset its `SUFeedURL`
         // points at had no `sparkle:releaseNotesLink`, no
         // `sparkle:fullReleaseNotesLink` and no `<description>`, and the GitHub
-        // release body was one sentence that said where to look ("Mac Performance
-        // Monitor 1.7.1 (build 206). See CHANGELOG.md for what's new."; both
-        // fetched 2026-09-06). Since 2.0.0 the appcast's one item carries that
+        // release body was one sentence pointing at CHANGELOG.md (History quotes
+        // both as fetched). Since 2.0.0 the appcast's one item carries that
         // release's notes as an HTML `<description>`, and so does the release body;
         // both cover only the newest release, so this recipe is still the only
         // source of the history, and CHANGELOG.md has entries for 2.0.0 and 2.1.0

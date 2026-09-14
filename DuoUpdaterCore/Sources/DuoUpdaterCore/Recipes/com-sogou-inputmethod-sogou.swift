@@ -4,6 +4,7 @@ enum com_sogou_inputmethod_sogou {
     static let set = AppRecipeSet(
         family: "com-sogou-inputmethod-sogou",
         probes: [
+        // History: docs/app-audits/com-sogou-inputmethod-sogou.md#历史与实测
         // 搜狗输入法 (SogouInput) — Sogou's input method, installed from
         // `shurufa.sogou.com` / `pinyin.sogou.com` into `/Library/Input Methods`.
         //
@@ -16,7 +17,7 @@ enum com_sogou_inputmethod_sogou {
         // it upgrade to". Ask it as an up-to-date client and it answers with a
         // sentinel — `version=1.0.0.1`, below every real build, which is how it
         // tells the client to stay put. Ask it as an old one and it names the
-        // current release with a payload URL and an md5:
+        // current release with a payload URL and an md5, e.g.:
         //
         //   version=6.24.1.11676
         //   update_pack_url=…/autosetup6.24.1.11676_V10003_20260715_223833.zip
@@ -24,12 +25,11 @@ enum com_sogou_inputmethod_sogou {
         //
         // So the probe pins `v` at `0.0.0.1` — below anything the vendor can ever
         // ship, so the request can never drift into sentinel territory. It does
-        // NOT stage: measured at `6.23.0.0`, `6.16.1.0`, `2.0.0.26481`,
-        // `1.5.1.21442`, `1.0.0.2` and `0.0.0.1`, every one is answered with the
-        // same newest build rather than an intermediate hop, which is the property
-        // that makes a pinned-old-version probe mean "latest".
+        // NOT stage: every older version tried was answered with the same newest
+        // build rather than an intermediate hop (History has the values), which is
+        // the property that makes a pinned-old-version probe mean "latest".
         //
-        // THE VERSION IS THE BUNDLE'S OWN. `6.24.1.11676` is exactly
+        // THE VERSION IS THE BUNDLE'S OWN. e.g. `6.24.1.11676` is exactly
         // `CFBundleShortVersionString`, four segments included — unlike the
         // changelog page, which publishes three and would have needed the
         // installed side trimmed to compare at all. Same namespace, no derivation,
@@ -54,14 +54,10 @@ enum com_sogou_inputmethod_sogou {
         // — but it is what would decide which architecture we are told about if
         // Sogou ever split them.
         //
-        // WARNING: `sv` DOES gate by OS. The first version of this comment said it
-        // did not, from five values that all sat inside one bucket. Swept finely
-        // there are three answers:
-        //
-        //     sv < 10.10             sentinel
-        //     sv 10.10 – 10.13       6.14.1.9298   (frozen since June 2023)
-        //     sv 10.14 – 27.6        6.24.1.11676  ← current
-        //     sv 27.61 and above     6.14.1.9298   again
+        // WARNING: `sv` DOES gate by OS. Swept finely there were three answers
+        // (History has the sweep): the sentinel below 10.10, the current build
+        // for 10.14 – 27.6, and a build frozen since June 2023 for 10.10 – 10.13
+        // and again from 27.61 up.
         //
         // So the pinned `27.0` IS choosing a build for an OS, and that upper edge
         // has a consequence for the vendor's own users: a Sogou client on macOS 28
@@ -72,12 +68,12 @@ enum com_sogou_inputmethod_sogou {
         //
         // The residual risk is narrow, and it is this recipe's one quiet failure:
         // if Sogou splits the 10.14–27.6 bucket and ships a newer build only above
-        // it, the pinned request keeps answering 6.24.1.11676 and nothing fails.
-        // Most boundary moves are loud instead — a pin landing in the legacy
-        // bucket reports 6.14.1.9298, below every real install, which the sweep
-        // flags as `remote is BEHIND the installed copy`. The check for the quiet
-        // case is the changelog page: at the next release it advances and so must
-        // this.
+        // it, the pinned request keeps answering the build it answers now and
+        // nothing fails. Most boundary moves are loud instead — a pin landing in
+        // the legacy bucket reports the frozen 2023 build, below every real
+        // install, which the sweep flags as `remote is BEHIND the installed copy`.
+        // The check for the quiet case is the changelog page: at the next release
+        // it advances and so must this.
         //
         // The pattern requires `update_pack_url` to FOLLOW the version, so the
         // sentinel response cannot be read as one. Without that guard a sentinel
@@ -105,8 +101,8 @@ enum com_sogou_inputmethod_sogou {
         // a number belonging to something else.
         //
         // `changelogURL` stays on the update-log page: it is the only place the
-        // release notes exist, and the two agree (`6.24.1`, 2026-07-17, matching
-        // this bundle's own build date).
+        // release notes exist, and the two agreed when checked (History has the
+        // version and dates).
         //
         // DETECTION ONLY, and here that is not conservatism. Its `install.sh` does
         // rotate `Contents` on the already-installed branch, like WeType's and
@@ -120,11 +116,10 @@ enum com_sogou_inputmethod_sogou {
         // this app does not perform on anybody. A Contents rotation leaves every
         // one of those undone.
         //
-        // (An earlier version of this comment said the installer *installs* a
-        // per-user LaunchAgent. It does the opposite: both scripts only `bootout`
-        // and `rm -rf` `~/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`,
-        // and no such file exists on a machine with Sogou installed.) The self-update payload
-        // above is a narrower shape again (a double zip carrying
+        // Neither script installs a per-user LaunchAgent: both only `bootout` and
+        // `rm -rf` `~/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`
+        // (History has the earlier note that said otherwise). The self-update
+        // payload above is a narrower shape again (a double zip carrying
         // `Contents<version>.zip` plus `pre.sh`/`post.sh`/`switch.sh`, whose
         // switch script has its own migration branches), so a one-click here needs
         // a Sogou-specific path, not the generic archive install.

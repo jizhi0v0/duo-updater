@@ -27,6 +27,7 @@ enum com_postmanlabs_mac {
                 kind: .zip)),
         ],
         changelogs: [
+        // History: docs/app-audits/com-postmanlabs-mac.md#历史与实测
         // Postman — CDN-hosted JSON array under the "notes" key (newest-first).
         // Each element has "version", "content" (Markdown; `\r\n` line separators in
         // recent entries, bare `\n` in older ones) and "createdAt" (ISO-8601).
@@ -38,9 +39,8 @@ enum com_postmanlabs_mac {
         // verbatim — nothing downstream strips it for this recipe). This replaces a
         // regex itemPattern that only recognized the escaped `\\r\\n` form and, on
         // top of that, truncated any line containing an escaped quote at the
-        // backslash (`[^\\]{10,}` stops there) — confirmed against the live feed:
-        // 2 of the 30 most recent releases had a mid-sentence truncation the old
-        // path produced silently.
+        // backslash (`[^\\]{10,}` stops there) — silently, on real releases in
+        // the live feed (History has the count).
         ChangelogRecipe(
             bundleID: "com.postmanlabs.mac",
             source: URL(string: "https://mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json")!,

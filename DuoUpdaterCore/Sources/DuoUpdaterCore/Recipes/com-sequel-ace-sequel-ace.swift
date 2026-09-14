@@ -6,7 +6,7 @@ enum com_sequel_ace_sequel_ace {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // Sequel Ace — tags are `production/5.4.0-20109` (marketing version plus the
+        // Sequel Ace — tags are e.g. `production/5.4.0-20109` (marketing version plus the
         // build number); the default pattern's first match is the marketing version,
         // which is what the app reports. `beta/…` tags and some respun `production/…`
         // tags are published as prereleases, so `/releases/latest` is what keeps a

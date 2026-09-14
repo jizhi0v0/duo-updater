@@ -4,6 +4,7 @@ enum com_tencent_QQMusicMac {
     static let set = AppRecipeSet(
         family: "com-tencent-QQMusicMac",
         probes: [
+        // History: docs/app-audits/com-tencent-QQMusicMac.md#历史与实测
         // QQ音乐 (QQMusic Mac) — Tencent ships no Sparkle appcast and no public
         // version API; the client updates itself in-app. The one machine-readable
         // surface is the download page's own data file,
@@ -20,54 +21,47 @@ enum com_tencent_QQMusicMac {
         // `changelogURL` points at that page only as the human-facing fallback.
         //
         // URL: every query parameter the site sends
-        // (`cv`/`ct`/`format`/`platform`/`g_tk`/`jsonpCallback`/…) is INERT —
-        // measured 2026-08-29, the bare path, the site's full query, and a minimal
-        // query all return byte-identical bodies with identical `Last-Modified`
-        // and `Cache-Control: max-age=600`, and the callback name is always
-        // `MusicJsonCallback` regardless of `jsonpCallback`. So the bare path is
+        // (`cv`/`ct`/`format`/`platform`/`g_tk`/`jsonpCallback`/…) is INERT
+        // (measured 2026-08-29; History has the comparison). So the bare path is
         // registered: fewer tokens to go stale, same answer.
         //
         // ANCHORING — the body holds TWO `"Ftype":2,"Ftitle":"Mac"` objects. `ID:2`
-        // is the live client (11.8.1, 2026-08-03); `ID:15` is a 2020-era legacy
-        // record still parked in the table (7.0.0, "QQ音乐Mac7.0全新改版", link
+        // is the live client; `ID:15` is a 2020-era legacy record still parked in
+        // the table (7.0.0, "QQ音乐Mac7.0全新改版", link
         // `QQMusicMac_Mgr.dmg`). Both patterns therefore key on the VERSIONED Mac
         // dmg filename `QQMusicMac<ver>Build<nn>.dmg` rather than on `Ftitle`, an
         // `ID`, or a `Fversion` label: the legacy entry's link has no version in it
         // (`QQMusicMac_Mgr`), so `QQMusicMac[0-9]` excludes it structurally, and
-        // the Windows/Android/iOS links carry different filename stems. One match
-        // each in the live body.
+        // the Windows/Android/iOS links carry different filename stems.
         //
         // FROZEN-MARKETING GRANULARITY, stated rather than assumed: the `Build01`
         // in the filename is the vendor's respin ordinal for that marketing
-        // version, NOT the app's `CFBundleVersion` (the installed 11.8.1 reports
-        // build `73276`). Comparing it as a build would be a cross-namespace
-        // comparison, so this stays a marketing-only recipe (`versionIsBuild`
+        // version, NOT the app's `CFBundleVersion` (e.g. 11.8.1 is build `73276`).
+        // Comparing it as a build would be a cross-namespace comparison, so this
+        // stays a marketing-only recipe (`versionIsBuild`
         // false): a same-marketing respin (11.8.1 Build01 → Build02) is invisible
         // here, never a phantom update. Tencent does move the marketing version
-        // (the same body has Windows at 22.5.2 and iPhone at 20.7.5), so this is a
-        // granularity limit, not a dead discriminator.
+        // (the same body carries other platforms at other marketing versions;
+        // History has the values), so this is a granularity limit, not a dead
+        // discriminator.
         //
         // No `publishedAtPattern`: the date lives inside `Fdesc` as
-        // `发布时间：2026-08-03` — a bare calendar day with no time and no zone,
+        // e.g. `发布时间：2026-08-03` — a bare calendar day with no time and no zone,
         // which `ReleaseDate` does not parse, so a pattern here would be a silent
         // no-op. (It is also the FIRST-match trap: the Windows object precedes Mac
         // in the body, so an unanchored date pattern would stamp the Mac release
         // with Windows' date.) The ChangelogRecipe shows the day verbatim, which
         // is display-only and where a zone-less day belongs.
         //
-        // One-click verified 2026-08-29 by resolving and opening the artifact this
-        // recipe builds: `Flink1` 302s to
-        // `dldir.y.qq.com/…/QQMusicMac11.8.1Build01.dmg?sign=…` (the `sign` is
+        // One-click: `Flink1` 302s to the versioned dmg
+        // (`dldir.y.qq.com/…/QQMusicMac<ver>Build<nn>.dmg?sign=…`; the `sign` is
         // minted per request by the redirect; the one in the body is the redirect's
-        // own token, read fresh from the live body at apply time). The 97 MB image
-        // holds `QQMusic.app` AND NOTHING ELSE — no pkg, no daemon, no
-        // LaunchAgents/LaunchDaemons/PrivilegedHelperTools sibling on this machine
-        // — which is what makes `.dmg` (bundle swap only) the correct kind rather
-        // than `.pkg`. Bundle id `com.tencent.QQMusicMac`, `CFBundleShortVersionString`
-        // 11.8.1 / `CFBundleVersion` 73276 (identical to the installed copy), Team
-        // `FN2V63AD2J` (Tencent Technology (Shanghai) Company Limited — the
-        // installed copy's team, which the VendorInstaller signature gate enforces),
-        // `spctl -a -t install` "Notarized Developer ID", `lipo -archs` x86_64 arm64.
+        // own token, read fresh from the live body at apply time). The image holds
+        // `QQMusic.app` AND NOTHING ELSE — no pkg, no daemon, no
+        // LaunchAgents/LaunchDaemons/PrivilegedHelperTools sibling — which is what
+        // makes `.dmg` (bundle swap only) the correct kind rather than `.pkg`
+        // (verified 2026-08-29 by resolving and opening the artifact this recipe
+        // builds; History has the check).
         VendorProbeRecipe(
             bundleID: "com.tencent.QQMusicMac",
             url: URL(string: "https://y.qq.com/download/download.js")!,

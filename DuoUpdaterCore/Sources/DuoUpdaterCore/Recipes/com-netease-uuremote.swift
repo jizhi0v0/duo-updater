@@ -4,27 +4,22 @@ enum com_netease_uuremote {
     static let set = AppRecipeSet(
         family: "com-netease-uuremote",
         probes: [
+        // History: docs/app-audits/com-netease-uuremote.md#历史与实测
         // UURemote (网易UU远程) — no Sparkle, no public version JSON, and the
         // product page is client-rendered so the HTML carries no version at all.
         // The one machine-readable surface is the download button's endpoint, found
         // in the page's markup: NetEase's release API 302s to the versioned package
-        // (`uuyc_4.35.0.pkg`), which is the version the app reports.
+        // (e.g. `uuyc_4.35.0.pkg`), which is the version the app reports.
         //
-        // The Homebrew cask can't cover this: its provenance gate (correctly) only
-        // adopts apps brew actually installed, and this one was installed directly.
+        // The Homebrew cask can't cover a copy installed straight from the vendor:
+        // its provenance gate (correctly) only adopts apps brew actually installed.
         //
-        // One-click verified 2026-08-09 on the 4.35.0 package: `pkgutil
-        // --check-signature` reports "Developer ID Installer: Hangzhou Bobo
-        // Technology Co Ltd (PU9BNSBJW7)" — the same team as the installed bundle —
-        // notarized, with a trusted timestamp. A `.pkg` hands off to macOS's own
-        // installer, so the user still confirms it there (same flow as ToDesk and
-        // AweSun); the install spec re-resolves the redirect at download time so it
-        // always fetches the current package, not this version's.
-        // No `changelogURL`: there is no such page. `uuyc.163.com/changelog` and
-        // `/update` both answer 200, but they return byte-identical content to a
-        // path that does not exist — an SPA catch-all serving the homepage, not a
-        // changelog. The download page is a distinct page but contains no
-        // 更新日志/更新说明/新增/修复 markers at all. (Checked 2026-08-22.)
+        // A `.pkg` hands off to macOS's own installer, so the user still confirms
+        // it there (same flow as ToDesk and AweSun); the install spec re-resolves
+        // the redirect at download time so it always fetches the current package,
+        // not this version's.
+        // No `changelogURL`: no changelog page was found when checked (2026-08-22;
+        // History has the candidate URLs and what they returned).
         VendorProbeRecipe(
             bundleID: "com.netease.uuremote",
             url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,

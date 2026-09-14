@@ -12,13 +12,14 @@ enum com_qoder_ide {
         // (forum.qoder.com/t/qdoer-qoder-qoder-ide/12088, read 2026-09-06) —
         // "Qoder IDE 用来代码，Qoder 是国际版 QoderWork 的迭代": the IDE is the coding
         // tool, the plain "Qoder" app is the successor to QoderWork. Separate
-        // bundle ids, separate version lines (1.28.0 vs 0.1.8), separate
+        // bundle ids, separate version lines (e.g. 1.28.0 vs 0.1.8), separate
         // release-note pages, separate download hosts — and, the part the install
         // gate cares about, SEPARATE TEAM IDs (T27K5A5ZWD vs B6U242QL73). The
         // vendor states that split itself: the installer stub's
         // `installer-manifest.json` carries `expectedIdeTeamIdentifier` AND
         // `expectedQoderTeamIdentifier` side by side.
 
+        // History: docs/app-audits/com-qoder-ide.md#历史与实测
         // Qoder IDE — a VS Code fork, so it speaks VS Code's update protocol
         // verbatim. `Contents/Resources/app/product.json` names
         // `updateUrl = https://center.qoder.sh/algo` (read off the real 1.27.0
@@ -26,10 +27,10 @@ enum com_qoder_ide {
         // `/api/update/<platform>/<quality>/<commit>`.
         //
         // ⚠️ CONDITIONAL ENDPOINT — the reason the last path segment is `latest`
-        // and not a commit. Measured 2026-09-06: the installed 1.27.0 commit
-        // (`a48791e9…`) is answered with the 1.28.0 JSON, and the CURRENT 1.28.0
-        // commit (`68cf4c38…`) is answered **204, empty body**. Sending this
-        // machine's own commit would make one response shape mean two things —
+        // and not a commit. An older build's commit is answered with the newest
+        // build's JSON, and the CURRENT build's commit with **204, empty body**
+        // (measured 2026-09-06; History has the commits). Sending this machine's
+        // own commit would make one response shape mean two things —
         // "you are current" on a Mac that has it, "the endpoint is broken" in a
         // sweep that has no install — which is exactly how a check goes quietly
         // dead (the trap the Mozilla AUS recipes (`Recipes/org-mozilla-firefox.swift`) document at length).
@@ -47,24 +48,21 @@ enum com_qoder_ide {
         // mode is the same; the claim about the upstream protocol is the part
         // that is unverified.
         //
-        // `productVersion`, not `name`, though both read "1.28.0" today: `name`
-        // is the field the protocol lets a vendor put a human string in, and
-        // `productVersion` is the one defined to be the version. `version` is the
-        // COMMIT — matching it would compare a 40-hex string against `1.27.0`
-        // forever.
+        // `productVersion`, not `name`, though both carried the same version when
+        // checked (2026-09-14, "1.29.0"): `name` is the field the protocol lets a
+        // vendor put a human string in, and `productVersion` is the one defined to
+        // be the version. `version` is the COMMIT — matching it would compare a
+        // 40-hex string against `1.27.0` forever.
         //
         // The install spec takes the zip the API itself names, not the
         // `Qoder-IDE-darwin-arm64.dmg` the download page hands a human. Same
-        // release, and the zip needs no mount. Verified 2026-09-06 by unpacking
-        // it: `Qoder IDE.app`, `com.qoder.ide`, CFBundleShortVersionString ==
-        // CFBundleVersion == 1.28.0 == the API's `productVersion`, arm64-only,
-        // signed "Developer ID Application: Alibaba.com Singapore E-Commerce
-        // Private Limited (T27K5A5ZWD)" and accepted by `spctl` as Notarized
-        // Developer ID — the same Team as the installed 1.27.0 copy, so the swap
-        // passes the VendorInstaller gate.
+        // release, and the zip needs no mount. Unpacked on 2026-09-06 (History has
+        // the check), its app's CFBundleShortVersionString == CFBundleVersion ==
+        // the API's `productVersion`, signed by the same Team as the installed
+        // copy, so the swap passes the VendorInstaller gate.
         //
         // Single channel: `stable` is the only quality this server answers —
-        // `/api/update/darwin-arm64/insider/latest` 404s (measured same day).
+        // `/api/update/darwin-arm64/insider/latest` 404s (measured 2026-09-06).
         //
         // ⚠️ The install pattern's `[0-9.]+` path segment is NOT tied to the
         // `productVersion` this recipe reports — both are read out of the same
@@ -119,15 +117,12 @@ enum com_qoder_ide {
         // appending the payload to the real entries changes neither the count nor
         // the versions).
         //
-        // Nor, any longer, is it what keeps the page's own
+        // Nor is it what keeps the page's own
         // `<div class="eyebrow">Release Notes</div>` header out of the newest
-        // entry's date. That WAS true of the first version of this recipe, and
-        // stopped being true when the gaps below were tempered — the sentinel they
-        // temper on is the label attribute, so it does that job now. Measured on
-        // both live pages: stripping the three attribute prefixes while keeping
-        // the tempered gaps changes nothing at all (108 and 7 entries, same
-        // versions, same dates); the header is only captured when the tempering
-        // goes too.
+        // entry's date: the sentinel the gaps below temper on is the label
+        // attribute, so the tempering does that job, and the header is only
+        // captured when the tempering goes too (History has the measurement, and
+        // the first version of this recipe, where the attributes did do it).
         //
         // What they still earn: they are the shape this recipe DECLARES it reads,
         // which is what makes the tempering sentinel legitimate rather than a
@@ -135,14 +130,11 @@ enum com_qoder_ide {
         // below stop being detectable (`aDamagedEntryCannotBorrow…` both fail
         // under a prefix-stripped pattern). Belt and braces, honestly labelled.
         //
-        // Measured on the real pages 2026-09-06: the pattern MATCHES 108 blocks on
-        // the IDE page (1.28.0 back to 0.1.15) and 7 on the app's (0.1.8 back to
-        // 0.1.0), versions and dates agreeing with the products' own version
-        // endpoints exactly. Two numbers below that, and neither is 108:
-        // `ChangelogExtractor` yields 107, because 1.19.1's notes are prose with no
-        // `<li>` and an entry with no items is dropped; and the pane shows the
-        // `maxEntries` default of 40, which neither recipe overrides. 108 is the
-        // pattern's reach over the page, not history a reader gets.
+        // How many blocks the pattern matches is its reach over the page, not
+        // history a reader gets: `ChangelogExtractor` drops an entry whose notes
+        // are prose with no `<li>`, and the pane shows the `maxEntries` default
+        // of 40, which neither recipe overrides (History has the 2026-09-06
+        // counts).
         //
         // `<li[^>]*>` rather than a bare `<li>`: no entry on either page carries an
         // attribute there today, so this changes nothing that can be measured — it

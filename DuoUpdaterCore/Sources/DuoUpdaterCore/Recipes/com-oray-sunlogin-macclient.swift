@@ -33,10 +33,9 @@ enum com_oray_sunlogin_macclient {
                 requestHeaders: ["Referer": "https://sunlogin.oray.com/"])),
         ],
         changelogs: [
-        // AweSun (Oray) — same JSON API as the VendorProbeRecipe (verified live
-        // 2026-08-21: GET returns 200/~15KB; the earlier "50 bytes" observation
-        // that prompted a re-check did not reproduce and the endpoint/logic are
-        // both healthy — see `sunLoginSoftwareLogs`'s doc comment for the shape).
+        // History: docs/app-audits/com-oray-sunlogin-macclient.md#历史与实测
+        // AweSun (Oray) — same JSON API as the VendorProbeRecipe (see
+        // `sunLoginSoftwareLogs`'s doc comment for the shape).
         ChangelogRecipe(
             bundleID: "com.oray.sunlogin.macclient",
             source: URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!,

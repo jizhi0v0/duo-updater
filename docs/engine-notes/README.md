@@ -62,5 +62,6 @@ what to do when the number has already drifted once.
 ## Index
 
 - [`app-store-page-cache.md`](app-store-page-cache.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/AppStorePageCache.swift`
+- [`sparkle-appcast-source.md`](sparkle-appcast-source.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SparkleAppcastSource.swift`, §1 how Foundation's `XMLParser` reports namespaces and why the appcast reader matches on (URI, local name) with a literal-prefix fallback
 - [`pre-install-gate.md`](pre-install-gate.md) — `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/PreInstallGate.swift`
 - [`app-list-model.md`](app-list-model.md) — `App/Sources/AppListModel.swift`, migrated in slices: §1 the install path (`install` / `runInstall` / `GateHandle` / `performInstall`), §2 running-app detection (`armRunningAppsMonitor` / `refreshRunningApps` / `retry`), §3 channel-switch recheck (`recheckChannelSwitches` / `runChannelSwitchRecheck`), §4 the check round (`refresh` / `performRefresh`, the TestFlight sync helpers, the `elevationRequiredPaths` / `runtimeKeys` memos, `refreshLocal` / `performLocalRescan` / `refreshRow`)

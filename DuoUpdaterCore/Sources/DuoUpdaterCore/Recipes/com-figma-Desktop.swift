@@ -12,8 +12,8 @@ enum com_figma_Desktop {
         // body also carries the absolute zip URL ("url":"…/Figma-<ver>.zip") — the
         // install spec captures that for one-click. The zip is a notarized
         // Developer ID build, Team T8RA8NE3B7 (Figma, Inc.), bundle id
-        // com.figma.Desktop, so the VendorInstaller Team gate passes. ChangelogRecipe renders the
-        // notes. (Figma also self-updates via Squirrel; this is a manual fallback.)
+        // com.figma.Desktop == the installed app, so the VendorInstaller Team gate
+        // passes. ChangelogRecipe renders the notes. (Figma also self-updates via Squirrel; this is a manual fallback.)
         VendorProbeRecipe(
             bundleID: "com.figma.Desktop",
             url: URL(string: "https://desktop.figma.com/mac-arm/RELEASE.json")!,

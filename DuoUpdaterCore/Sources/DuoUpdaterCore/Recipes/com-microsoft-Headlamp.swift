@@ -90,7 +90,7 @@ enum com_microsoft_Headlamp {
         // the releases comes back ANONYMOUS, whatever token the user configured.
         // See #135.
         // listPageSize: the interleaved `headlamp-helm-`/`headlamp-plugin-` tags this
-        // comment warns about don't match `^v…$`, so two app tags can sit a few
+        // comment warns about (which don't match `^v…$`) can put two app tags a few
         // releases apart; 8 keeps 2x headroom over the widest run measured, and
         // because each release's `body` dominates the response, a page of 8 costs
         // little more than a page of 5 (History has the dated counts and sizes).

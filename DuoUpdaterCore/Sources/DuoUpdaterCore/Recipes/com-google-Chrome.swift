@@ -137,7 +137,8 @@ enum com_google_Chrome {
             // post bodies can run to hundreds of KB (History has the sizes seen), so that
             // form can drop one and the pane loses an entry
             // with nothing anywhere saying so. The gaps below are atomic only across
-            // spans of a few hundred characters, well under that limit.
+            // spans of a few hundred characters, far below the 100 000 characters that
+            // test shows still matching.
             entryPattern:
                 #"title='Stable Channel Update for Desktop'>"#
                 + #"(?>(?:(?!<span class='publishdate').)*?"#

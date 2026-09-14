@@ -205,10 +205,10 @@ struct GroupBProbeRecipeTests {
             == "https://res.public.onecdn.static.microsoft/x/Microsoft_OneNote_16.109.26053122_Updater.pkg")
     }
 
-    /// The suite installer must not be reachable from this recipe any more. It
-    /// declares eight destinations — Word, Excel, PowerPoint, Outlook, OneNote,
-    /// OneDrive, AutoUpdate and a Defender shim — so installing it to update
-    /// OneNote put the whole of Office on the machine.
+    /// The suite installer must not be reachable from this recipe any more. When
+    /// checked (2026-08-19) it declared eight destinations — Word, Excel,
+    /// PowerPoint, Outlook, OneNote, OneDrive, AutoUpdate and a Defender shim — so
+    /// installing it to update OneNote put the whole of Office on the machine.
     @Test func oneNoteDoesNotResolveTheWholeOfficeSuite() throws {
         let recipe = try #require(
             VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.onenote.mac" })

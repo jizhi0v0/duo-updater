@@ -33,9 +33,10 @@ enum com_electron_ollama {
         ],
         githubRules: [
         // Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
-        // which falls through `HomebrewCaskSource`; the bundle checked when this rule
-        // was added carried no `SUFeedURL` either (History), so for a copy like that
-        // this rule is the only detection source — otherwise just a changelog recipe.
+        // which falls through `HomebrewCaskSource`. The bundle checked when this rule
+        // was added had no `SUFeedURL` either (History). A copy like that has no
+        // other detection source: without this rule its row would have only the
+        // changelog recipe.
         // The macOS app is the same GitHub `/releases/latest`: when checked
         // (History has the dates), ollama.com's `/download/Ollama.dmg` and the
         // `/download/Ollama-darwin.zip` that `install.sh` fetches both 307'd to

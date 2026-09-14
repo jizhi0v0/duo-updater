@@ -137,3 +137,21 @@ changelog 那半边的回归证据在 `RockxyChangelogRecipeTests`（fixture 是
    （schema 化的全量发布目录，带 sha256、EdDSA 签名、`minimum_system_version`）。
    今天用不到 —— Sparkle 已经答了检测、GitHub API 已经答了 changelog ——
    但如果哪天 appcast 挪走了，那两个文件是最省事的替代端点。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-amunx-rockxy-community.swift — ChangelogRecipe（GitHub releases）
+
+转引自 recipe 注释，未复测。
+
+What it cannot do is history: the vendor rewrites that file in place, so
+it carries the newest release and nothing else (fetched 2026-09-09: 1
+`<item>`, 2225 bytes).
+
+Measured over the live 40-release page 2026-09-09: 40/40 parse, 0
+prereleases, 0 drafts, 0 empty bodies.
+
+Verified against all 40 bodies:
+the phrase appears in zero extracted items.

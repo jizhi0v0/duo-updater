@@ -4,6 +4,7 @@ enum com_1password_1password {
     static let set = AppRecipeSet(
         family: "com-1password-1password",
         probes: [
+        // History: docs/app-audits/com-1password-1password.md#历史与实测
         // 1Password 8 — self-updates via its own EdDSA updater, so no standard
         // source resolves it. The vendor's app-updates.agilebits.com/check JSON
         // API only serves the NIGHTLY channel for product OPM8 (no stable param
@@ -34,10 +35,9 @@ enum com_1password_1password {
         // The payload the stub itself downloads is per-architecture and public
         // (read out of the installer binary's own strings, 2026-08-16):
         //   downloads.1password.com/mac/1Password-latest-{aarch64,x86_64}.zip
-        // plus `.BETA-` / `.NIGHTLY-` variants for the other channels. Verified by
-        // downloading the aarch64 one (214,254,924 B): it unzips to `1Password.app`
-        // itself — com.1password.1password, 8.12.33, Team 2BUA8C4S2C, notarized
-        // Developer ID, spctl accepted, arm64.
+        // plus `.BETA-` / `.NIGHTLY-` variants for the other channels. The aarch64
+        // one unzips to `1Password.app` itself — Team 2BUA8C4S2C, notarized (History
+        // has the verification).
         //
         // A "latest" URL rather than a version template: 1Password publishes no
         // versioned artifact path, so this can in principle serve a build newer

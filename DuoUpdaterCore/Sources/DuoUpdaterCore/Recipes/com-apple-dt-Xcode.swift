@@ -4,10 +4,11 @@ enum com_apple_dt_Xcode {
     static let set = AppRecipeSet(
         family: "com-apple-dt-Xcode",
         changelogs: [
+        // History: docs/app-audits/com-apple-dt-Xcode.md#历史与实测
         // Xcode — Apple's own release notes, which `XcodeReleasesSource` already
         // links per release (`links.notes.url` in `xcodereleases.com/data.json`)
         // and which the pane could only ever embed: the `/documentation/…` URL
-        // serves a 17 KB SPA shell with no note text in it (fetched 2026-09-03).
+        // serves a 17 KB SPA shell with no note text in it.
         // The `/tutorials/data/…` twin of that URL is the document the shell
         // fetches, and it carries everything.
         //

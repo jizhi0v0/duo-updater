@@ -4,6 +4,7 @@ enum com_anthropic_claudefordesktop {
     static let set = AppRecipeSet(
         family: "com-anthropic-claudefordesktop",
         probes: [
+        // History: docs/app-audits/com-anthropic-claudefordesktop.md#历史与实测
         // Claude desktop — TWO endpoints, both listed, highest wins (see
         // `VendorProbeSource.best`). Anthropic runs a staged rollout, so "latest"
         // genuinely has two answers and which leads flips during a ramp:
@@ -12,11 +13,10 @@ enum com_anthropic_claudefordesktop {
         //   2. the Squirrel rollout endpoint below — what THIS machine's own
         //      updater acts on, keyed by its device id.
         //
-        // Neither alone is right. GA alone goes blind for the whole ramp: on
-        // 2026-08-15, 1.30096.5 had been on the CDN for a day and the app's own
-        // updater had already staged it for relaunch, while GA still said
-        // 1.30096.1 — we'd have reported "up to date" the entire time. The rollout
-        // endpoint alone would go blind the other way if a bucket is held back.
+        // Neither alone is right. GA alone goes blind for the whole ramp, reporting
+        // "up to date" while the app's own updater has already staged a newer build
+        // (History has the incident). The rollout endpoint alone would go blind the
+        // other way if a bucket is held back.
         //
         // The old reason for skipping the rollout endpoint — a synthetic device id
         // lands in an unrelated bucket, hiding real updates when behind and
@@ -50,8 +50,8 @@ enum com_anthropic_claudefordesktop {
 
         // (2) Claude desktop — the staged-rollout endpoint its own Squirrel
         // updater calls. `device_id` is REQUIRED (no id → HTTP 400) and selects
-        // the rollout bucket: four synthetic ids sampled on 2026-08-15 answered
-        // .1/.5/.1/.1, which is exactly why the id must be this machine's real one
+        // the rollout bucket (synthetic ids land in different buckets), which is
+        // exactly why the id must be this machine's real one
         // (`~/Library/Application Support/Claude/ant-did`, a base64-wrapped UUID)
         // and never a fabricated one. With the real id the answer is, by
         // construction, what Claude's own updater will do.

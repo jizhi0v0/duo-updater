@@ -52,3 +52,22 @@
 ## 建议下一步
 1. 若 vendor 改用带 hash 的资产名，模板会 404 大声失败；届时改模板。
 
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-aionui-app.swift — stable VendorProbe（electron-builder arm64 manifest）
+
+转引自 recipe 注释，未复测。
+
+The
+manifest's `path`/`url` entries are bare filenames, but they do NOT
+resolve against the manifest's own directory: measured 2026-08-29,
+`…/releases/AionUi-2.1.61-mac-arm64.zip` answers 403 AccessDenied while
+`…/releases/2.1.61/AionUi-2.1.61-mac-arm64.zip` answers 200.
+
+Verified 2026-08-29:
+`openssl dgst -sha512 -binary` of the downloaded zip reproduces the
+manifest value exactly. Extracted: `com.aionui.app`, 2.1.61, `Developer
+ID Application: AionUi Inc. (52JQX2HUSC)`, spctl "accepted / Notarized
+Developer ID", stapled, `lipo -archs` = arm64.

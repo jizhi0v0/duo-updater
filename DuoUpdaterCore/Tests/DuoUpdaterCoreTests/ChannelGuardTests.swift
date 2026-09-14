@@ -296,6 +296,40 @@ import Foundation
         keystoneChannel: nil, version: "6.5 nightly (7301)") == .stable)
 }
 
+/// CotEditor's prerelease train has TWO phases — `-beta[.N]` and `-rc[.N]` — and
+/// step 4 recognizes exactly one of the four resulting shapes (`-beta.<N>`), so
+/// the scoped rule carries the other three. Asserted here rather than only in
+/// `CotEditorChannelTests` because the property this case exists for is the
+/// SCOPING, which that file cannot see: it only ever passes this bundle id.
+///
+/// The negative rows are the point. `-rc` and a bare `-beta` are shapes other
+/// vendors ship on their STABLE line (a build label, a monorepo tag), and the
+/// rule deliberately does not read them for anybody else — matching them
+/// globally would put those copies on a `.beta` channel no recipe of theirs
+/// serves, which is a dead row rather than a wrong offer. Mutation-checked:
+/// dropping `bundleID == "com.coteditor.CotEditor"` from the rule fails the two
+/// `com.example.other` rows.
+@Test func cotEditorPrereleaseShapesAreReadOnlyForCotEditor() {
+    func detect(_ bundleID: String, _ version: String) -> ReleaseChannel {
+        ReleaseChannel.detect(
+            name: "CotEditor", bundleID: bundleID, keystoneChannel: nil, version: version)
+    }
+    // All four real prerelease shapes (`git ls-remote --tags`, 2026-09-14).
+    for version in ["7.1.0-beta", "7.1.0-beta.6", "7.1.0-rc", "7.0.0-rc.2"] {
+        #expect(detect("com.coteditor.CotEditor", version) == .beta, "\(version)")
+    }
+    // The release both phases graduate into is NOT on the train.
+    #expect(detect("com.coteditor.CotEditor", "7.1.0") == .stable)
+
+    // Scoped to this bundle id: the same strings on any other app fall through to
+    // the ordinary signals. `7.1.0-beta.6` still reads `.beta` for everyone —
+    // that one is step 4's `-beta.<N>` shape, not this rule — which is exactly
+    // why it cannot stand in for the scoping check.
+    #expect(detect("com.example.other", "7.1.0-rc") == .stable)
+    #expect(detect("com.example.other", "7.1.0-beta") == .stable)
+    #expect(detect("com.example.other", "7.1.0-beta.6") == .beta)
+}
+
 /// End-to-end regression, derived from the REAL registry (not a hand-copied
 /// fixture) and replayed against the REAL `littlesnitch6.plist` response body
 /// (obdev's own vendor feed, captured 2026-08-29 — the same URL Homebrew's

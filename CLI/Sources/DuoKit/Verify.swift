@@ -947,6 +947,24 @@ public enum Verify {
                     bodySample: diagnostic.bodySample)
             }
 
+            // A windowed recipe that parses another train's notes. Nothing else in
+            // this sweep can see it: the page answers, the pattern matches, and the
+            // lag check below only fires when the newest entry TRAILS the installed
+            // version — the other train's newer page leads it. Raycast's v1 archive
+            // spent weeks here after the vendor moved it, recording 2.x versions
+            // as healthy. No `version` or `entryCount` on the finding, so
+            // the baseline does not record the other train's numbers as good.
+            if let complaint = changelogWindowComplaint(
+                recipe, entryVersions: changelog.entries.map(\.version)) {
+                return Finding(
+                    recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
+                    channel: recipe.channel?.rawValue ?? "-", status: .broken,
+                    failureKind: "entriesOutsideVersionWindow", failureDetail: complaint,
+                    endpointHost: failingHost(diagnostic, host: host),
+                    pattern: recipe.entryPattern, elapsedMs: elapsed,
+                    bodySample: diagnostic.bodySample)
+            }
+
             // Cross-check against what the version sources said. A changelog
             // stuck a whole release behind what the app is being offered means
             // the entry pattern is reading a stale or wrong part of the page.
@@ -1103,6 +1121,28 @@ public enum Verify {
         return "Homebrew's cask `\(caskToken)` is STILL at \(caskVersion) \(days) days after "
             + "\(version) was published — the newer version may not exist for macOS "
             + "(a platform-partial release), which would make this a permanent phantom update"
+    }
+
+    /// A recipe that declares a version window exists to keep one train's notes
+    /// away from the other train's installs, so every entry its page yields must
+    /// fall inside that window. Returns nil for a recipe with no window.
+    ///
+    /// Any entry outside counts, not just the newest: a page that carries both
+    /// trains still shows a v1 user v2 notes. Entries whose `version` does not
+    /// start with a digit are not judged — a headline has no position in a
+    /// version window, the same scoping `changelogLagComplaint` applies.
+    static func changelogWindowComplaint(
+        _ recipe: ChangelogRecipe, entryVersions: [String]
+    ) -> String? {
+        guard recipe.declaresVersionWindow else { return nil }
+        let outside = entryVersions.filter {
+            $0.first?.isNumber == true && !recipe.covers(appVersion: $0)
+        }
+        guard !outside.isEmpty else { return nil }
+        let window = "[\(recipe.minimumAppVersion ?? "0"), \(recipe.belowAppVersion ?? "∞"))"
+        return "\(outside.count) of \(entryVersions.count) entries fall outside the recipe's "
+            + "version window \(window) (\(outside.prefix(5).joined(separator: ", "))) — "
+            + "the page is serving another train's notes"
     }
 
     /// Flag a changelog only when it trails the detected version at

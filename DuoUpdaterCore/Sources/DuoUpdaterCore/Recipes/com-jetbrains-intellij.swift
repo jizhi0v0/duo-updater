@@ -4,12 +4,11 @@ enum com_jetbrains_intellij {
     static let set = AppRecipeSet(
         family: "com-jetbrains-intellij",
         probes: [
+        // History: docs/app-audits/com-jetbrains-intellij.md#历史与实测
         // IntelliJ IDEA — JetBrains data services. The `YYYY.` prefix is what keeps
         // this off the 2-component `majorVersion` field; the segment count must NOT
-        // be pinned. It was pinned to exactly three (`YYYY.x.y`) and JetBrains then
-        // shipped a fourth — `"version": "2026.2.0.1"` — so the anchored pattern
-        // stopped matching and the row silently fell to "unknown" with the probe
-        // reporting "resolved no version". Accept one to three segments after the
+        // be pinned: JetBrains ships four-component versions too (e.g.
+        // `"version": "2026.2.0.1"`). Accept one to three segments after the
         // year. Only consulted when Toolbox isn't managing it (a website install);
         // the same JSON carries the aarch64 DMG direct link, so we install in place.
         // No inline sha256 (the API gives only a checksum *link*), so we lean on the
@@ -26,13 +25,14 @@ enum com_jetbrains_intellij {
                 kind: .dmg)),
 
         // IntelliJ IDEA EAP — same data services API on the `eap` channel. The EAP
-        // marketing "version" stays "2026.2" across many builds, so comparing it
-        // would never detect a build bump; we compare on the `build` (262.x) via
-        // `versionIsBuild`. The installed bundle's CFBundleVersion is prefixed
-        // ("IU-262.6653.22") while the API build is bare ("262.7132.23") — the
-        // source strips the product-code prefix so they compare in one namespace.
-        // `channel: .preview` matches the `-EAP` bundle id (see ReleaseChannel). Like
-        // stable, only fires when Toolbox isn't installed.
+        // marketing "version" stays the same (e.g. "2026.2") across many builds, so
+        // comparing it would never detect a build bump; we compare on the `build`
+        // (e.g. 262.x) via `versionIsBuild`. The installed bundle's CFBundleVersion
+        // is prefixed (e.g. "IU-262.6653.22") while the API build is bare (e.g.
+        // "262.7132.23") — `UpdateChecker` strips the product-code prefix so they
+        // compare in one namespace. `channel: .preview` matches the `-EAP` bundle id (see
+        // ReleaseChannel). Like stable, only consulted when Toolbox isn't managing
+        // this copy.
         VendorProbeRecipe(
             bundleID: "com.jetbrains.intellij-EAP",
             url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=eap")!,

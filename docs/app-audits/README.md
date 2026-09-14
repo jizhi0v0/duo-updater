@@ -245,7 +245,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
 - [x] [**Mac Performance Monitor**](uk-co-bzwrd-macperfmonitor.md) · `uk.co.bzwrd.macperfmonitor` — S(stable) C · 检测本来就通（bundle 自带 `SUFeedURL`，指向 release 资产）· **appcast 一条说明都没有**（无 `releaseNotesLink`/`fullReleaseNotesLink`/`description`），release 正文只有一句"See CHANGELOG.md"，已加 recipe 解仓库的 Keep-a-Changelog 文件（17 条，`[Unreleased]` 排除）· 用户报 #374 · 未验真包 · 2026-09-06
 - [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) C · 两轨 tag 过、共享 bundle id · **两轨真包验证 ✓**（stable 0.51.0 未被推 prerelease；prerelease 0.51.182 留在本轨）· feed 与 release 正文都无实质说明，已加 recipe 解 repo 的 `CHANGELOG.md`（21 条）· 2026-08-31
-- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 210 条全无 inline，只有一个**不分版本**的 `releaseNotesLink`；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
+- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 全无 inline，只有 `releaseNotesLink`，几乎所有条目（含最新）都指向同一张**不分版本**的总页；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
 - [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · ⚠️ **已停产**（OpenAI 2026-08-09 停止运行，feed 停在 1.2026.189.1）· 真包挂载验证 ✓ · 原审计误称「无 delta」，实测 head 条目 5 个 `<sparkle:deltas>`；无 changelog · 2026-08-31
 - [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· ⚠️ **无 changelog**（feed 无 inline；docs.perplexity.ai 那份是 API 的，不是桌面端）· 2026-08-31
 - [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) C · 三轨 tag 过、共享 bundle id · 真包 1.6.0/rc2/daily 三轨验证 ✓ · **rc 轨当时被判成 stable**（rc 包 short 也是 `1.6.0`），引擎已修 + 装 rc2 上机复验 · changelog 走官网 recipe（feed 无 inline；页面 mac/Windows 混排，须锚平台徽章）· 2026-08-31
@@ -292,6 +292,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Goose**](com-electron-goose.md) · `com.electron.goose` — 仅迁出历史：repo 改名导致匿名限流的测量
 - [ ] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — 仅迁出历史：一键 dmg 的签名核对、cask livecheck 的旧说法
 - [ ] [**GitHub Desktop**](com-github-GitHubClient.md) · `com.github.GitHubClient` — 仅迁出历史：两轨 zip 的签名核对、beta `listPageSize` 的测量
+- [ ] [**Android Studio**](com-google-android-studio.md) · `com.google.android.studio` — 仅迁出历史：预览渠道旧实现的错误、按发布日期排序的实例
+- [ ] [**Antigravity / Antigravity IDE**](com-google-antigravity.md) · `com.google.antigravity` / `com.google.antigravity-ide` — 仅迁出历史：端点的发现、IDE 端点的哨兵测量、changelog 页的 gzip 误读
+- [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
+- [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态
+- [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

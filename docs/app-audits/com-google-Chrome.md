@@ -68,3 +68,34 @@
 ## 建议下一步
 1. **无需改代码** — 四 channel 检测均已接入且实测正确，写/更新本审计文档即可。
 2. （可选，低优先）beta/dev/canary 暂无独立 changelog recipe，靠 `developer.chrome.com/release-notes` 内嵌兜底。若要做 per-channel changelog，需确认 Chrome Releases blog 是否有 `Beta updates`/`Dev updates` label 页结构同 stable —— 收益低，不建议现在做。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-google-Chrome.swift — stable / beta / dev / canary VendorProbe（per-channel dmg 一键）
+
+转引自 recipe 注释，未复测。
+
+All four channels install from Google's own permanent per-channel dmg
+(`dl.google.com/chrome/mac/universal/<channel>/…`), verified 2026-08-09:
+each holds the matching bundle id, Team EQHXZ8M8AV, spctl "Notarized
+Developer ID", and a version in the same 4-part form the API reports.
+
+### Recipes/com-google-Chrome.swift — ChangelogRecipe（Chrome Releases 博客 *Stable updates* 标签页）
+
+转引自 recipe 注释，未复测。最后一段原句没写日期；日期取自引入这句话的提交：`da0845c5`（2026-09-02）。
+
+Measured against the live 852 KB page (6 posts) with the old form:
+renaming the closing `</script>` ran past 150 s, and a page whose
+4-part build numbers went away took 20.6 s, both on a thread the
+caller is awaiting.
+
+Same seven mutations, new form: worst case 0.074 s, and the pristine
+page still yields the identical two entries.
+
+Chrome's second post is
+a 324 KB body, so that form drops it and the pane loses an entry with
+nothing anywhere saying so.
+
+复测 2026-09-14（03:13 UTC，只读 GET）：标签页 569,736 字节，只含 1 个 `title='Stable Channel Update for Desktop'`、3 个 `<script type='text/template'>`，最长的正文 216,368 字符。代码里 "second post is a 324 KB body" 那句已改写成不依赖具体帖子的说法。

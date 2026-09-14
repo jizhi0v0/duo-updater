@@ -58,3 +58,50 @@ swift run --package-path application-test channel-verify /tmp/discord-stable.dmg
 swift run --package-path application-test channel-verify /tmp/discord-ptb.dmg    --expect ptb
 swift run --package-path application-test channel-verify /tmp/discord-canary.dmg --expect canary
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-hnc-Discord.swift — stable / ptb / canary VendorProbe（update manifest + download 重定向）
+
+转引自 recipe 注释，未复测。
+
+One-click NOTE: the
+manifest carries only `.distro` module files, not an app dmg, so the
+install uses Discord's SEPARATE public download endpoint —
+`discord.com/api/download?platform=osx&format=dmg` — which 302s to the same
+version's `…/apps/osx/<ver>/Discord.dmg` (verified 0.0.395 == host_version).
+
+2026-08-16: the patterns no longer name the CDN HOST. Discord moved
+stable's downloads from `stable.dl2.discordapp.net` to plain
+`dl.discordapp.net` and the host-anchored pattern stopped matching —
+`duo verify` reported `versionPatternNoMatch` on an 8801-byte body that
+was otherwise perfectly well-formed.
+
+ptb/canary were still on `*.dl2` when this was written and were moved to
+the same host-agnostic shape so the identical break can't repeat there.
+
+One-click verified 2026-08-09: `https://discord.com/api/download/ptb`
+302s to `…/apps/osx/0.0.252/DiscordPTB.dmg`, holding `Discord PTB.app`
+— bundle id com.hnc.DiscordPTB, Team 53Q6R32WPB, accepted by spctl.
+
+复测 2026-09-14（03:14 UTC，只读 GET manifest；download 端点只发 HEAD、不跟随重定向）：三个 manifest 的 distro URL 分别在 `stable.dl2.discordapp.net`（0.0.411）、`ptb.dl2.discordapp.net`（0.0.260）、`canary.dl2.discordapp.net`（0.0.1321）上——stable 又回到了 `stable.dl2`；三条 download 重定向的 `Location` 版本与各自 `host_version` 相同（`…/apps/osx/0.0.411/Discord.dmg`、`…/0.0.260/DiscordPTB.dmg`、`…/0.0.1321/DiscordCanary.dmg`）。
+
+### Recipes/com-hnc-Discord.swift — `MacAppStoreProbeCase`（`com.hammerandchisel.discord`，wrapped iOS）
+
+转引自 recipe 注释，未复测。
+
+Confirmed live 2026-09-04: flag
+present. Re-measured 2026-09-12: flag false, `appPlatforms`
+`["phone", "pad"]`, and the page's Compatibility section names no
+Mac at all — a true negative, which is what keeps this case a
+useful probe of the `false` verdict.
+
+The 2026-09-04 note here used to explain the `false` as "Discord
+ships a native build now". That reading was wrong twice over: the
+App Store listing publishes no Mac binary (Discord's Mac app is a
+direct download, off-store), and had it been true the verdict would
+have been backwards — a native Mac build is precisely the shape that
+makes `isIOSBinaryMacOSCompatible == false` mean "supported", which
+is the bug `MacCompatibilityReading` exists to fix.

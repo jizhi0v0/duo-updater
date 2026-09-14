@@ -30,7 +30,7 @@ enum com_jetbrains_toolbox {
         // (long-requested: YouTrack TBX-2807), but the official product-releases
         // API the download site itself uses returns the full history as JSON. The
         // `TBA` product code is the Toolbox App; each element of the TBA array has
-        // `version` ("3.7.2"), `date`, and a `whatsnew` HTML string. Structured
+        // `version` (e.g. "3.7.2"), `date`, and a `whatsnew` HTML string. Structured
         // decode, same reason and same decoder as IntelliJ IDEA (`Recipes/com-jetbrains-intellij.swift`; shared
         // endpoint shape, JSON-escaped HTML the regex path used to scrape as text).
         // Toolbox's `whatsnew` is CUMULATIVE — each release concatenates its own

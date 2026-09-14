@@ -47,6 +47,8 @@ head = `14.8/1480`。
   feed 210 条**没有一条**带 `<description>`；它们 210 条**全部**带同一个
   `sparkle:releaseNotesLink`，指向上面那张**不分版本**的总页。所以在加 recipe 之前，
   不管你装的是哪一版，点开都是一整部历史塞进 web view。
+  （2026-09-14 复测：211 条里 179 条（含最新 14.8.1）指向 `release_notes.html`，最老的 31 条指向
+  `releases/release_notes.html`，1 条指向 `release_notes-14.html`——不是「全部同一个」，但最新的都在总页上。）
 - 页面结构：`<h2>14.8</h2>` + `<h3>New:</h3>` + 一串**裸 `<li>`**（厂商没有包 `<ul>`，
   所以条目正文只能一直吃到下一个 `<h2>`）。实测解出 121 条，head 14.8。
 - ⚠️ 别接 `api.whispertranscribe.com/changelog`：那是**另一个 app**
@@ -72,3 +74,20 @@ head = `14.8/1480`。
 
 ## 建议下一步
 无。检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-goodsnooze-MacWhisper.swift — ChangelogRecipe（`release_notes.html`）
+
+转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`cff8d0ed`（2026-08-31）。
+
+MacWhisper — its Sparkle appcast carries no `<description>` on any of
+its 210 items, only a `sparkle:releaseNotesLink` pointing every release
+at ONE shared page.
+
+复测 2026-09-14（03:13 UTC，只读 GET `macwhisper-site.vercel.app/appcast.xml`）：211 个 `<item>`，没有一个带 `<description>`；`releaseNotesLink` 有三个不同的值：179 条（含最新的 14.8.1）指向 `release_notes.html`，第 12 条（13.24.2）指向 `release_notes-14.html`，最老的 31 条（5.1 及以前）指向 `releases/release_notes.html`。代码里 "every release" 那句已改成「几乎每一条、含最新」。
+
+121 entries
+parse from the live page (2026-08-31), head 14.8.

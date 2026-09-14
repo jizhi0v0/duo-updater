@@ -4,27 +4,27 @@ enum com_google_GeminiMacOS {
     static let set = AppRecipeSet(
         family: "com-google-GeminiMacOS",
         probes: [
+        // History: docs/app-audits/com-google-GeminiMacOS.md#历史与实测
         // Gemini — Google's Omaha update service, which answers only a POST. The
         // published download URL carries no version (`.../release2/Gemini.dmg`,
         // unchanged across releases so far) and the download page answers a plain
-        // fetch with Google's bot challenge (302 → /sorry, observed 2026-08-16),
+        // fetch with Google's bot challenge (302 → /sorry),
         // so nothing reachable states a version. This service does; it was found
         // by reading the app's own update request. Asking as version `0.0.0.0`
         // makes it answer with the manifest for the newest build, not "noupdate".
         //
-        // Verified 2026-08-16 on the installed copy: manifest `1.94.11.734`
-        // against `CFBundleShortVersionString` 1.94.11.734 — the same scheme, so
-        // no build-vs-marketing trap here. The reply is prefixed with Google's
+        // The manifest version is the same scheme as `CFBundleShortVersionString`,
+        // so no build-vs-marketing trap here. The reply is prefixed with Google's
         // `)]}'` anti-hijacking line, which the regex simply skips.
         //
         // The manifest publishes a sha256, but `checksumPattern` verifies a
         // base64 SHA-512, so it goes unused; the signature gate still applies.
         // No `changelogURL`: `gemini.google/release-notes` is the Gemini *Apps*
         // product feed — model and feature announcements keyed by DATE
-        // (2023.04.10, …), with no desktop build number anywhere. The installed
-        // app reports 1.96.4.775, so nothing on that page can ever line up with
-        // the version on this row. Exactly the mismatch the Notion changelog was
-        // moved off of; wiring it here would reintroduce it. (Checked 2026-08-22.)
+        // (e.g. 2023.04.10), with no desktop build number anywhere. The app's own
+        // version is four-part (e.g. 1.96.4.775), so nothing on that page
+        // can ever line up with the version on this row. Exactly the mismatch the
+        // Notion changelog was moved off of; wiring it here would reintroduce it.
         VendorProbeRecipe(
             bundleID: "com.google.GeminiMacOS",
             url: URL(string: "https://update.googleapis.com/service/update2/json")!,

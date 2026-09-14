@@ -70,9 +70,17 @@ struct BoundedBlockingWorkTests {
         #expect(bounded.isStuck(fifo.path), "giving up must record that the key is stranded")
     }
 
-    /// Mutation: delete the `guard !isStuck(key)` in `run` — the second call pays
-    /// the deadline again and the elapsed ceiling fails. Without this the
-    /// menu-bar app, which scans on a timer, strands one more thread every pass.
+    /// Mutation: delete the `guard !isStuck(key)` in `run` — the second call starts
+    /// another read, waits out the deadline on it, and reaches `onDeadline`. Without
+    /// this the menu-bar app, which scans on a timer, strands one more thread every
+    /// pass.
+    ///
+    /// Asserted by whether the second call reached its deadline, not by timing it.
+    /// This used to be `elapsed < 0.2`, a wall-clock bound in the parallel suite:
+    /// on the 3-core runner this test has taken 11.5s end to end for 0.5s of
+    /// deadline (run 34863863895, attempt 1), so a bound that tight was one scheduling stall
+    /// from red. The read on the FIFO cannot finish before `cleanup`, so a call
+    /// that starts one always reaches the hook, however fast or slow the machine is.
     @Test func aKeyKnownStuckIsAnsweredWithoutStartingMoreWork() throws {
         let (fifo, cleanup) = try Self.blockingFile()
         defer { cleanup() }
@@ -80,12 +88,13 @@ struct BoundedBlockingWorkTests {
         let bounded = BoundedBlockingWork(label: "test")
         _ = bounded.run(key: fifo.path, timeout: 0.5) { Self.openAndClose(fifo) }
 
-        let started = Date()
-        let second = bounded.run(key: fifo.path, timeout: 0.5) { Self.openAndClose(fifo) }
-        let elapsed = Date().timeIntervalSince(started)
+        var reachedDeadline = false
+        let second = bounded.run(
+            key: fifo.path, timeout: 0.5, onDeadline: { _ in reachedDeadline = true }
+        ) { Self.openAndClose(fifo) }
 
         #expect(second == nil)
-        #expect(elapsed < 0.2,
+        #expect(!reachedDeadline,
                 "a key already known stuck must short-circuit, not wait again")
     }
 

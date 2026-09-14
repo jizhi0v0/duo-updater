@@ -41,7 +41,15 @@ enum VendorAppcastDeltas {
     static func patches(
         inBody body: String, forVersion version: String, feedURL: URL? = nil
     ) -> [DeltaPatch] {
-        guard body.contains("sparkle:deltas") else { return [] }
+        // ⚠️ Prefix-free on purpose. This is only a cheap bail-out for bodies that
+        // are not appcasts at all (most probes answer JSON), so it must not be
+        // narrower than the parser behind it: `sparkle:` is the vendor's chosen
+        // prefix, not part of the format, and a feed spelling it `s:deltas` or
+        // making Sparkle the default namespace parses fine but would be
+        // short-circuited to `[]` here — silently costing the delta route the very
+        // app it was built for, in the one file whose whole reason for existing
+        // (see the note above) is that the two Sparkle paths must not drift.
+        guard body.contains("deltas") else { return [] }
         let items = SparkleAppcastParser.parse(Data(body.utf8), relativeTo: feedURL)
         let matching = items.filter {
             $0.version == version || $0.shortVersionString == version

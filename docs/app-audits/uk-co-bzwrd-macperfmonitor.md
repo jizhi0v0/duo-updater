@@ -56,8 +56,8 @@ headingPattern  \n###\s+(?<heading>[^\n]+)
 `headingPattern` 是 `e57d1f47`（#562，2026-09-12）加的；这块两次都没跟着改。现在按
 `Recipes/uk-co-bzwrd-macperfmonitor.swift` 的 `ChangelogRecipe` 逐字补上。
 
-跟仓库里那条同形的 CopilotForXcode recipe（也是读 repo 的 `CHANGELOG.md`）比，两处不同，
-都是这份文件逼出来的：
+跟仓库里那条同形的 CopilotForXcode recipe（也是读 repo 的 `CHANGELOG.md`）比，四处不同，
+都是这份文件逼出来的——下面两条、再下面的「第三处」，和第四处 `headingPattern`：
 
 1. **版本号带方括号**，而且方括号里要求首字符是数字 —— 这一条是用来挡掉文件顶部的
    `## [Unreleased]`。那是个有真实条目的小节，描述的是还装不了的构建。
@@ -70,6 +70,14 @@ headingPattern  \n###\s+(?<heading>[^\n]+)
 一整块链接定义（`[1.3.2]: https://…/compare/…`），而最后一条 entry 的 body 一直跑到文件尾，
 所以没有这个边界时，**最老那条的最后一项会把 17 条链接全吞进去** —— 实测 1709 字符，
 加上边界之后 137 字符。不缩进，所以不会误伤这个作者两格缩进的续行。
+
+第四处，是后来加的（`e57d1f47`，#562，2026-09-12）：**`headingPattern`**。这是一份真正的
+Keep a Changelog 文件，`### Added` / `### Fixed` 这类组标题都是真的分类，所以渲染成小节标题，
+而不只是当条目的终止边界用。CopilotForXcode 那条没有这个字段。
+
+更正 2026-09-15：本节原写「两处不同」，但同一节里已经列了「第三处」，`headingPattern` 加进代码后
+又多了一处，计数一直没改；recipe 注释里的 "Two things differ" 同样没改，已一并改成三处（那边把 `\n\[`
+算在第二条里）。
 
 ### 实测
 
@@ -126,3 +134,12 @@ prose plus compare URLs, against 137 with it. Nothing else changes: the
 same 17 entries parse with the same item counts, and no item carries a
 link definition any more. Unindented, so it cannot fire on a wrapped
 continuation line, which this vendor indents by two spaces.
+
+### Recipes/uk-co-bzwrd-macperfmonitor.swift — ChangelogRecipe（和 CopilotForXcode recipe 的不同，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文（原注释就是这一行半，第一行超长）。"Two things differ" 按当前代码不成立，代码里改写了，见下面的更正；其余原样。
+
+Two things differ from the Copilot recipe (`Recipes/com-github-CopilotForXcode.swift`), and both are the file's
+doing rather than taste:
+
+更正 2026-09-15：`Recipes/com-github-CopilotForXcode.swift` 的 `ChangelogRecipe` 只有 `source`、`entryPattern`、单行的 `itemPatterns: [#"\n-\s+(?<item>[^\n]+)"#]` 和 `markdownSource`，没有 `headingPattern`；本文件的 recipe 在 `e57d1f47`（#562，2026-09-12）之后多了 `headingPattern`，同一段注释下文也写了它。所以不同之处是三处，不是两处。代码里改成 "Three things differ from the Copilot recipe (…), all of them the file's doing rather than taste: the two below, and `headingPattern` further down."，并按周围宽度重新折行。审计正文「Recipe」一节的「两处不同」一并改了。

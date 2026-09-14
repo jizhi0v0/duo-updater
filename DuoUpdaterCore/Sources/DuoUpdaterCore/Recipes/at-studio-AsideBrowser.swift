@@ -49,10 +49,11 @@ enum at_studio_AsideBrowser {
         // the rendered HTML.
         //
         // ONE page for every platform, and entries are not marked with one. An entry
-        // can therefore be newer than anything the Mac has been offered: `v1.0.914.1`
-        // ("Aside is now officially available on Windows!") topped the page while
-        // the mac track was still on 1.0.910.1. That is the vendor shipping Windows
-        // first, not a stale probe.
+        // can therefore be newer than anything the Mac has been offered: when checked
+        // (2026-09-14) the top entry was the Windows launch ("Aside is now officially
+        // available on Windows!"), a version the mac track had not been offered yet
+        // (History has both versions). That is the vendor shipping Windows first,
+        // not a stale probe.
         //
         // Shape (checked 2026-09-14; History has the counts): `## v1.0.914.1`
         // headings from 1.0.626.1 up, bare `## 1.0.624.1` below that. A

@@ -151,7 +151,7 @@ make cli && duo verify --only asidebrowser --samples
 
 ## 历史与实测
 
-从 recipe 注释迁出（2026-09-15）。正文逐字，只去掉了行首 `// `；每组标明出处。三段都是 #623（`fbd8a0c2`）写的，家族迁移批次之后才进来，由收尾批次搬出。
+从 recipe 注释迁出（2026-09-15）。正文逐字，只去掉了行首 `// `；每组标明出处。四段都是 #623（`fbd8a0c2`）写的，家族迁移批次之后才进来，由收尾批次搬出。
 
 ### Recipes/at-studio-AsideBrowser.swift — VendorProbe（`version_info.json` 的 mac 对象）
 
@@ -181,6 +181,18 @@ allocation. The mac track had a single build when measured, so a staged
 rollout would not have been visible; re-check when one could be.
 
 复测 2026-09-15（UTC 2026-09-14 16:14）：DMG 重定向同上一组。Omaha 检查是 POST，没有复测。
+
+### Recipes/at-studio-AsideBrowser.swift — ChangelogRecipe（一页跨平台，顶部可以比 mac 轨新）
+
+转引自 recipe 注释，未复测。整段原文（#623 写的，没有标记，是审查时补搬的）。原句没写日期；`at-studio-AsideBrowser.md` 正文「Changelog」一节记着同一现象的日期 2026-09-14（页面顶部 914.1，mac 910.1）。代码里留下的是结论（页面条目不标平台，所以顶部那条可以比 mac 轨提供过的任何版本都新，那是厂商先发 Windows、不是 probe 过期），两个版本号搬到这里，写成 "when checked (2026-09-14) the top entry was the Windows launch …"。
+
+ONE page for every platform, and entries are not marked with one. An entry
+can therefore be newer than anything the Mac has been offered: `v1.0.914.1`
+("Aside is now officially available on Windows!") topped the page while
+the mac track was still on 1.0.910.1. That is the vendor shipping Windows
+first, not a stale probe.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET）：`native.md` 第一个标题仍是 `v1.0.914.1`，`version_info.json` 的 mac 仍是 `1.0.910.1`（数字见上面两组的复测）。
 
 ### Recipes/at-studio-AsideBrowser.swift — ChangelogRecipe（`native.md` 的形状）
 

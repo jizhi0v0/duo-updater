@@ -12,6 +12,7 @@ enum com_bjango_istatmenus {
         // `iStat Menus.app`, com.bjango.istatmenus, 7.30, Team Y93TK974AT,
         // notarized. The pattern skips the `7` in the product name and takes the
         // version that follows it.
+        // This dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block relies on it.
         VendorProbeRecipe(
             bundleID: "com.bjango.istatmenus",
             url: URL(string: "https://download.istatmenus.app/istatmenus7/download/")!,

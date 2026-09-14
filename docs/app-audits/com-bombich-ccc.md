@@ -1,7 +1,7 @@
 # Carbon Copy Cloner
 
 ## 基本信息
-- Bundle ID: `com.bombich.ccc`——**三个独立、各自仍在维护的大版本代际（5/6/7）共用同一个
+- Bundle ID: `com.bombich.ccc`——**三个独立、各自仍可下载的大版本代际（5/6/7）共用同一个
   bundle id**，2026-08-29 下载并展开三份真实 zip 核实：
   - CCC 7: `ccc-7.1.6.8368.zip`，`CFBundleShortVersionString` 7.1.6 / `CFBundleVersion` 8368
   - CCC 6: `ccc-6.1.13.7699.zip`，6.1.13 / 7699
@@ -41,10 +41,10 @@
 302 到一个真实的 beta 构件（`ccc-7.1.7-b7.8389.zip`），完全不需要抓包或猜 `SUFeedURL`
 的请求形状。
 
-**2026-08-29 补记 2（关键正确性问题，用户指出）：CCC 有多个仍在维护的大版本，
+**2026-08-29 补记 2（关键正确性问题，用户指出）：CCC 有多个仍可下载的大版本，
 `?v=latest` 只会给最新的那个（CCC 7），跨代际比较是错的。**
 Bombich 的下载页（`bombich.com/download`）标着 macOS 兼容矩阵：CCC 7 需要 Ventura+，
-CCC 6 覆盖 Catalina–Sonoma，CCC 5 覆盖 High Sierra–Big Sur——三条线现在都还在发布点版本
+CCC 6 覆盖 Catalina–Sonoma，CCC 5 覆盖 High Sierra–Big Sur——三条线都还能下载
 （下载页同时列着 `?v=ccc5`/`?v=ccc6`/`?v=ccc7` 三个可用链接，不只是 `?v=latest` 那个别名）。
 升代际是**付费升级**，不是免费更新："We do not sell CCC 4 or CCC 5 licenses. To use CCC 4
 or 5, please purchase a CCC 6 license"（bombich.com/en/kb/ccc/6）。

@@ -5,10 +5,10 @@ enum com_bombich_ccc {
         family: "com-bombich-ccc",
         probes: [
         // History: docs/app-audits/com-bombich-ccc.md#历史与实测
-        // Carbon Copy Cloner — THREE independently maintained major-version
+        // Carbon Copy Cloner — THREE separately downloadable major-version
         // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc` under
-        // the same Team `L4F2DED5Q7`. Bombich still
-        // ships point releases to all three (bombich.com/download lists
+        // the same Team `L4F2DED5Q7`. Bombich keeps
+        // all three downloadable (bombich.com/download lists
         // `?v=ccc5`/`?v=ccc6`/`?v=ccc7` as live download links alongside
         // `?v=latest`, which is a permanent alias for whichever is newest —
         // currently ccc7) and crossing generations is a PAID upgrade, not a free
@@ -27,7 +27,7 @@ enum com_bombich_ccc {
         // forever, silently, the same shape of bug `VersionComparator`'s
         // "never compare across namespaces" rule exists to prevent — just one
         // this registry had not modeled before because no other vendor here
-        // keeps multiple ACTIVELY maintained generations under one bundle id.
+        // keeps multiple generations downloadable side by side under one bundle id.
         //
         // stable (CCC 7) — the app DOES ship a Sparkle
         // `SUFeedURL` (`https://api.bombich.com/updates/ccc`), so it is not the

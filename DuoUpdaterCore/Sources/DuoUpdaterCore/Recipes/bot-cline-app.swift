@@ -118,8 +118,9 @@ enum bot_cline_app {
         // Cline — the release bodies are the changelog (plain `- ` bullet lists, no
         // `##` headings, which `GitHubMarkdownParser`'s bullet pass handles before
         // it ever reaches the prose fallback). Version detection does NOT come from
-        // here: it reads Cline's own Tauri manifest, for the reasons in
-        // `VendorProbeRegistry`. This endpoint is fetched only when the workbench
+        // here: it reads Cline's own Tauri manifest, for the reasons in the
+        // `VendorProbeRecipe` comment above in this file. This endpoint is fetched
+        // only when the workbench
         // opens a Cline row — `ChangelogService` is on-demand and never runs during
         // a check round — so the monorepo's page size is not on the scan path.
         //

@@ -652,11 +652,26 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         preferredLanguages: [String] = Locale.preferredLanguages
     ) -> [SparkleAppcastItem] {
         let parser = XMLParser(data: data)
+        // Sparkle's vocabulary is a NAMESPACE, not the literal string "sparkle:".
+        // Both flags are load-bearing and neither defaults on:
+        // `shouldProcessNamespaces` is what splits an element into (URI, local
+        // name); `shouldReportNamespacePrefixes` is the only way to learn the
+        // prefix→URI bindings, because turning the first one on REMOVES the
+        // `xmlns:*` declarations from the attribute dictionary while leaving
+        // attribute keys qualified. See `sparkleLocalName` / `sparkleAttribute`
+        // and docs/engine-notes/sparkle-appcast-source.md §1.
+        parser.shouldProcessNamespaces = true
+        parser.shouldReportNamespacePrefixes = true
         let delegate = SparkleAppcastParser(base: base, preferredLanguages: preferredLanguages)
         parser.delegate = delegate
         parser.parse()
         return delegate.items
     }
+
+    /// The namespace every Sparkle element and attribute actually lives in. The
+    /// `sparkle:` prefix conventionally bound to it is the vendor's choice, not
+    /// part of the format.
+    static let sparkleNamespace = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 
     /// The appcast's own URL, for resolving the relative URLs inside it.
     private let base: URL?
@@ -805,6 +820,104 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// exactly this reason, with no error anywhere to say so.
     private var deltasDepth = 0
 
+    // MARK: - Namespace resolution
+
+    /// prefix → the stack of URIs it is currently bound to, innermost last.
+    ///
+    /// A stack rather than one URI because a feed may rebind a prefix on an inner
+    /// element; `didStartMappingPrefix` fires just before that element's start tag
+    /// and `didEndMappingPrefix` just after its end tag, so push/pop is exact.
+    /// Only needed for ATTRIBUTES: elements arrive with their URI already
+    /// resolved, attributes do not (their keys stay qualified).
+    private var prefixBindings: [String: [String]] = [:]
+
+    func parser(_ parser: XMLParser, didStartMappingPrefix prefix: String, toURI namespaceURI: String) {
+        prefixBindings[prefix, default: []].append(namespaceURI)
+    }
+
+    func parser(_ parser: XMLParser, didEndMappingPrefix prefix: String) {
+        if prefixBindings[prefix]?.popLast() != nil, prefixBindings[prefix]?.isEmpty == true {
+            prefixBindings[prefix] = nil
+        }
+    }
+
+    /// The URI `prefix` is bound to here, or nil if it is bound to nothing.
+    private func uri(forPrefix prefix: String) -> String? { prefixBindings[prefix]?.last }
+
+    /// The Sparkle local name this element carries, or nil if it is not Sparkle's.
+    ///
+    /// Two ways in, in this order:
+    ///
+    ///  1. The element resolved into Sparkle's namespace — whatever prefix the
+    ///     vendor bound it to, or no prefix at all under `xmlns="…sparkle"`.
+    ///  2. Its qualified name reads `sparkle:…` — whatever that prefix is or
+    ///     isn't bound to. This is the whole of the pre-namespace parser's rule,
+    ///     kept so the change is a strict SUPERSET of what already worked: a feed
+    ///     that declares nothing (libxml2 recovers rather than failing, handing
+    ///     back the local name with an empty URI) and, just as important, a feed
+    ///     that declares the URI with a typo in it. Both parse today; narrowing
+    ///     (2) to "bound to nothing" would turn either into a silent total loss
+    ///     of the vocabulary, which is the failure this change exists to prevent.
+    ///     The price is the pre-existing one: a non-Sparkle vocabulary that
+    ///     picked the same short prefix is misread, exactly as it is today.
+    private func sparkleLocalName(
+        _ elementName: String, _ namespaceURI: String?, _ qName: String?
+    ) -> String? {
+        if namespaceURI == SparkleAppcastParser.sparkleNamespace { return elementName }
+        let qualified = qName ?? elementName
+        guard qualified.hasPrefix("sparkle:") else { return nil }
+        return String(qualified.dropFirst("sparkle:".count))
+    }
+
+    /// The RSS local name of this element, or nil if the element belongs to
+    /// somebody else's vocabulary.
+    ///
+    /// ⚠️ The rule is "its qualified name carries NO PREFIX", which is exactly
+    /// what matching `elementName` meant before namespaces were processed —
+    /// deliberately, because that switch reads `item`, `enclosure`,
+    /// `description`, `markdownDescription` and `pubDate`, all names a foreign
+    /// vocabulary may also use. Once `elementName` became the bare local name,
+    /// matching it alone started accepting every namespace: measured on this
+    /// checkout, a `<dc:description>` ahead of the real one silently became the
+    /// release notes, and an `<x:item>` nested inside `<item>` reset `current`
+    /// and made the entire genuine release disappear.
+    ///
+    /// Gating on `namespaceURI` instead would be wrong in the other direction —
+    /// also measured: a feed with a foreign DEFAULT namespace (`xmlns=`
+    /// RSS 1.0's URI) parses today, and every one of its elements would stop
+    /// matching. A feed that makes SPARKLE the default namespace still works
+    /// here because it spells those elements unprefixed too.
+    private func rssLocalName(_ elementName: String, _ qName: String?) -> String? {
+        (qName ?? elementName).contains(":") ? nil : elementName
+    }
+
+    /// The value of the Sparkle attribute named `local`, by the same two ways in.
+    ///
+    /// ⚠️ An UNPREFIXED attribute is in no namespace even under a default
+    /// `xmlns` — that is the XML namespaces spec, not a shortcut — so there is no
+    /// third case here matching a bare `version="…"` on `<enclosure>`. Sorted so
+    /// a feed binding the URI to two prefixes at once resolves the same way twice
+    /// instead of by dictionary order.
+    ///
+    /// ⚠️ Resolved binding first, literal `sparkle:` second — the SAME order as
+    /// `sparkleLocalName`, and it has to be. A feed that bound `sparkle` to some
+    /// other vocabulary and Sparkle's real URI to `s` would otherwise have its
+    /// elements read from `s:` and its attributes from `sparkle:`, i.e. two
+    /// halves of one `<item>` taken from two different vendors' vocabularies.
+    /// The literal fallback still fires for the cases it exists for: when no
+    /// prefix resolves to Sparkle's URI, the scan simply finds nothing.
+    private func sparkleAttribute(_ local: String, _ attributes: [String: String]) -> String? {
+        for key in attributes.keys.sorted() {
+            guard let colon = key.firstIndex(of: ":") else { continue }
+            guard String(key[key.index(after: colon)...]) == local,
+                  uri(forPrefix: String(key[key.startIndex..<colon]))
+                    == SparkleAppcastParser.sparkleNamespace
+            else { continue }
+            return attributes[key]
+        }
+        return attributes["sparkle:\(local)"]
+    }
+
     func parser(
         _ parser: XMLParser,
         didStartElement elementName: String,
@@ -813,15 +926,26 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         attributes attributeDict: [String: String]
     ) {
         textBuffer = ""
+        // `xml` is bound implicitly by the XML spec, never declared, and Foundation
+        // leaves the key qualified whether namespaces are processed or not.
         currentLanguage = attributeDict["xml:lang"]
-        switch elementName {
+
+        // Sparkle's own vocabulary first; anything Sparkle does not define falls
+        // through to the RSS switch below, which only accepts UNPREFIXED names
+        // (see `rssLocalName`). That is what keeps a feed making Sparkle the
+        // DEFAULT namespace working — it spells `<item>` and `<enclosure>`
+        // unprefixed — without accepting a foreign vocabulary's `<x:item>`.
+        if sparkleLocalName(elementName, namespaceURI, qName) == "deltas" {
+            deltasDepth += 1
+            return
+        }
+
+        switch rssLocalName(elementName, qName) {
         case "item":
             current = SparkleAppcastItem()
             // Whatever is still in the table belongs to an item that is over. See
             // `applyLocalizedChildren` for why the reset lives here.
             localizedChildren.removeAll(keepingCapacity: true)
-        case "sparkle:deltas":
-            deltasDepth += 1
         case "enclosure":
             // Inside <sparkle:deltas> this is a patch, not the release download.
             // Collected rather than merely skipped: it is the same release, reachable
@@ -832,12 +956,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             guard deltasDepth == 0 else {
                 if let urlString = attributeDict["url"],
                    let url = resolve(urlString),
-                   let from = attributeDict["sparkle:deltaFrom"] {
+                   let from = sparkleAttribute("deltaFrom", attributeDict) {
                     current?.deltas.append(DeltaPatch(
                         fromBuild: from,
                         url: url,
                         size: attributeDict["length"].flatMap { Int64($0) },
-                        edSignature: attributeDict["sparkle:edSignature"]))
+                        edSignature: sparkleAttribute("edSignature", attributeDict)))
                 }
                 break
             }
@@ -845,18 +969,18 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             if let length = attributeDict["length"], let n = Int64(length) {
                 current?.enclosureLength = n
             }
-            if let v = attributeDict["sparkle:version"] { current?.version = v }
-            if let s = attributeDict["sparkle:shortVersionString"] {
+            if let v = sparkleAttribute("version", attributeDict) { current?.version = v }
+            if let s = sparkleAttribute("shortVersionString", attributeDict) {
                 current?.shortVersionString = s
             }
-            if let sig = attributeDict["sparkle:edSignature"] {
+            if let sig = sparkleAttribute("edSignature", attributeDict) {
                 current?.edSignature = sig
             }
-            if let delta = attributeDict["sparkle:deltaFrom"] {
+            if let delta = sparkleAttribute("deltaFrom", attributeDict) {
                 current?.deltaFrom = delta
             }
             // Usually an item-level child element, but tolerate it on enclosure.
-            if let m = attributeDict["sparkle:minimumAutoupdateVersion"] {
+            if let m = sparkleAttribute("minimumAutoupdateVersion", attributeDict) {
                 current?.minimumAutoupdateVersion = m
             }
         default:
@@ -881,31 +1005,62 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         qualifiedName qName: String?
     ) {
         let text = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch elementName {
-        case "sparkle:deltas":
+
+        // Sparkle's vocabulary first; anything it does not define falls through
+        // to the RSS switch, which is how a feed that makes Sparkle the DEFAULT
+        // namespace still gets its `<item>` / `<description>` / `<pubDate>` read.
+        //
+        // `handled` stops an element whose local name is in BOTH switches
+        // (`markdownDescription`) from being recorded twice when it arrives
+        // Sparkle-namespaced.
+        var handled = true
+        switch sparkleLocalName(elementName, namespaceURI, qName) {
+        case "deltas":
             deltasDepth = max(0, deltasDepth - 1)
-        case "sparkle:version":
+        case "version":
             if current?.version == nil, !text.isEmpty { current?.version = text }
-        case "sparkle:shortVersionString":
+        case "shortVersionString":
             if current?.shortVersionString == nil, !text.isEmpty {
                 current?.shortVersionString = text
             }
-        case "sparkle:maximumSystemVersion":
+        case "maximumSystemVersion":
             current?.maximumSystemVersion = text
-        case "sparkle:minimumSystemVersion":
+        case "minimumSystemVersion":
             current?.minimumSystemVersion = text
-        case "sparkle:channel":
+        case "channel":
+            // In a feed that makes Sparkle the DEFAULT namespace, RSS's own
+            // `</channel>` also lands here. It closes after `</item>`, so
+            // `current` is nil and the assignment is a no-op on nil — the same
+            // guard that has always kept a channel-level `<description>` off the
+            // first item (see `recordLocalized`).
             if current?.channel == nil, !text.isEmpty { current?.channel = text }
-        case "sparkle:hardwareRequirements":
+        case "hardwareRequirements":
             if !text.isEmpty {
                 current?.hardwareRequirements = Set(
                     text.lowercased().split(separator: ",")
                         .map { $0.trimmingCharacters(in: .whitespaces) })
             }
-        case "sparkle:minimumAutoupdateVersion":
+        case "minimumAutoupdateVersion":
             if current?.minimumAutoupdateVersion == nil, !text.isEmpty {
                 current?.minimumAutoupdateVersion = text
             }
+        case "markdownDescription":
+            // Sparkle defines this one and so does the bare RSS spelling some
+            // feeds use. Both land on the one shared key, so a feed mixing them
+            // compares its variants against each other rather than letting
+            // whichever spelling came first win outright. This case is what
+            // makes `handled` load-bearing: it is the only local name in both
+            // switches, and without the guard a Sparkle-namespaced copy would be
+            // recorded twice.
+            recordLocalized("markdownDescription", text)
+        case "releaseNotesLink":
+            recordLocalized("sparkle:releaseNotesLink", text)
+        default:
+            handled = false
+        }
+        guard !handled else { textBuffer = ""; return }
+
+        switch rssLocalName(elementName, qName) {
         case "description":
             // Only inside an <item>; the channel-level <description> has no
             // `current` to attach to, so it's harmlessly dropped (see
@@ -919,15 +1074,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             // child at all — Mac Mouse Fix's and Mole's, both fetchable by anyone —
             // tag every duplicate with xml:lang, so neither takes this branch.
             recordLocalized("description", text)
-        case "markdownDescription", "sparkle:markdownDescription":
-            // Both spellings share one key, so a feed mixing them compares its
-            // variants against each other rather than letting whichever spelling
-            // came first win outright.
+        case "markdownDescription":
+            // The bare spelling; Sparkle's own is handled above and shares this
+            // same key.
             recordLocalized("markdownDescription", text)
         case "pubDate":
             if current?.pubDate == nil, !text.isEmpty { current?.pubDate = text }
-        case "sparkle:releaseNotesLink":
-            recordLocalized("sparkle:releaseNotesLink", text)
         case "item":
             // Before appending: the localized children can only be resolved once
             // every variant in this item has been seen.

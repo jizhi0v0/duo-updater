@@ -86,6 +86,40 @@ import Testing
         #expect(!RelaunchLanding.stagedSwap(to: amp("130")).launchesWithoutLanding)
         #expect(!RelaunchLanding.applied.launchesWithoutLanding)
     }
+
+    // MARK: - Swap-on-launch (Spotify)
+
+    /// The 2026-09-14 hang: Spotify only swaps when opened again, so a landing
+    /// that polls disk *before* launching waits out its whole budget for nothing.
+    /// `.stagedOnLaunch` must launch first and poll after.
+    @Test func aSwapOnLaunchLaunchesBeforeWaiting() {
+        let landing = RelaunchLanding.stagedOnLaunch(to: amp("130"))
+        #expect(!landing.waitsForDisk, "nothing lands until we launch it")
+        #expect(landing.landsAfterLaunch)
+        #expect(!RelaunchLanding.stagedSwap(to: amp("130")).landsAfterLaunch,
+                "ShipIt must still be left alone until disk moves")
+        #expect(!RelaunchLanding.applied.landsAfterLaunch)
+        #expect(!RelaunchLanding.appStoreSwap(past: amp("128")).landsAfterLaunch)
+    }
+
+    /// Once launched it waits for the same thing a staged swap does.
+    @Test func aSwapOnLaunchIsSatisfiedLikeAStagedSwap() {
+        let landing = RelaunchLanding.stagedOnLaunch(to: amp("130"))
+        #expect(!landing.isSatisfied(byDisk: amp("129")))
+        #expect(landing.isSatisfied(byDisk: amp("130")))
+        #expect(landing.isSatisfied(byDisk: amp("131")))
+        #expect(!landing.isSatisfied(byDisk: VersionSide()))
+    }
+
+    /// The staged build's trigger picks the order — the only mapping there is.
+    @Test func theStagedTriggerPicksTheLanding() {
+        let url = URL(fileURLWithPath: "/ZZFixture/Staged.app")
+        let onQuit = StagedSelfUpdate(version: "1.0", buildVersion: "130", stagedBundlePath: url)
+        let onLaunch = StagedSelfUpdate(
+            version: "1.0", buildVersion: "130", stagedBundlePath: url, appliesOn: .launch)
+        #expect(RelaunchLanding.staged(onQuit) == .stagedSwap(to: amp("130")))
+        #expect(RelaunchLanding.staged(onLaunch) == .stagedOnLaunch(to: amp("130")))
+    }
 }
 
 /// The continuous-release window: an armed relaunch marker must survive the
@@ -117,6 +151,14 @@ import Testing
     @Test func anUnchangedMarkerIsKept() {
         let armed = RelaunchLanding.stagedSwap(to: amp("130"))
         #expect(armed.retargeted(nowStaged: amp("130")) == armed)
+    }
+
+    /// A swap-on-launch marker is retargeted the same way but keeps its order —
+    /// turning it into `.stagedSwap` would bring back the wait-before-launch hang.
+    @Test func aSwapOnLaunchMarkerKeepsItsKind() {
+        let armed = RelaunchLanding.stagedOnLaunch(to: amp("130"))
+        #expect(armed.retargeted(nowStaged: amp("131")) == .stagedOnLaunch(to: amp("131")))
+        #expect(armed.retargeted(nowStaged: nil) == nil)
     }
 
     /// The other landings are not derived from the staging area at all: their

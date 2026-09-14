@@ -117,29 +117,7 @@ INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
 # Families no batch has migrated yet. Delete a batch's families here in that
 # batch's PR; delete the whole list after the last batch.
 PENDING = frozenset({
-    "com-tencent-inputmethod-wetype", "com-tencent-wechatdevtools",
-    "com-tencent-xinWeChat", "com-termius-dmg-mac",
-    "com-theron-UnnaturalScrollWheels", "com-tigervnc-tigervnc",
-    "com-tinyapp-tableplus", "com-tinyspeck-slackmacgap",
-    "com-todesktop-230313mzl4w4u92", "com-typewhisper-mac", "com-unity3d-unityhub",
-    "com-usebruno-app", "com-utmapp-UTM", "com-vivaldi-Vivaldi",
-    "com-vorssaint-utils", "com-vscodium", "com-workbuddy-workbuddy",
-    "com-workbuddy-workbuddy-ai", "com-xingyuzhong-deepseekgui",
-    "com-youqu-todesk-mac", "com-zarifpour-superconductor",
-    "dev-commandline-waveterm", "dev-kdrag0n-MacVirt", "dev-kiro-desktop",
-    "dev-openchamber-desktop", "dev-warp-Warp-Stable", "dev-zed-Zed",
-    "digital-twisted-noTunes", "eu-exelban-Stats", "im-riot-app",
-    "info-marcel-dierkes-KeepingYouAwake", "io-agentsview-desktop",
-    "io-balena-etcher", "io-beekeeperstudio-desktop", "io-dcloud-HBuilderX",
-    "io-ganeshrvel-openmtp", "io-github-clash-verge-rev-clash-verge-rev",
-    "io-github-wickenico-wailbrew", "io-podmandesktop-PodmanDesktop",
-    "io-rancherdesktop-app", "io-tailscale-ipn-macsys", "jan-ai-app",
-    "md-obsidian", "me-qii404-another-redis-desktop-manager", "MstyStudio",
-    "net-ankiweb-anki", "net-freemacsoft-AppCleaner", "net-imput-helium",
-    "net-kovidgoyal-calibre", "net-kovidgoyal-kitty", "net-librewolf-librewolf",
-    "net-pornel-ImageOptim", "net-shinyfrog-bear",
-    "net-sourceforge-grandperspectiv", "net-sourceforge-sqlitebrowser",
-    "net-whatsapp-WhatsApp", "notion-id", "now-typeless-desktop", "org-alacritty",
+    "now-typeless-desktop", "org-alacritty",
     "org-audacityteam-audacity", "org-blenderfoundation-blender", "org-darktable",
     "org-flameshot-Flameshot", "org-gimp-gimp", "org-gnome-Meld", "org-gnu-Emacs",
     "org-godotengine-godot", "org-grunenberg-EasyFind", "org-inkscape-Inkscape",
@@ -158,11 +136,10 @@ PENDING = frozenset({
 
 # The last family of the last merged batch, in `AppRecipeIndex`'s order (slug,
 # case-insensitive). Bump it in the batch PR that deletes its families above.
-LAST_MIGRATED = "com-tencent-QQMusicMac"
+LAST_MIGRATED = "notion-id"
 
 # PENDING families that sort inside the migrated range on purpose, with why.
 OUT_OF_ORDER = {
-    "com-tencent-inputmethod-wetype": "batch 2d skipped it; batch 2e migrates it",
 }
 
 DATE = r"20\d\d-\d\d-\d\d"

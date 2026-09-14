@@ -10,6 +10,7 @@ enum com_termius_dmg_mac {
         // are unversioned (`Termius.dmg`), so the install URL is fixed and the
         // version comes from the feed. Verified 2026-08-16 on the arm64 dmg:
         // com.termius-dmg.mac, 9.43.1, Team 6KN952WR85, notarized.
+        // snapshot-lint:allow — this dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block names Termius stable and relies on it.
         VendorProbeRecipe(
             bundleID: "com.termius-dmg.mac",
             url: URL(string: "https://autoupdate.termius.com/mac-arm64/latest-mac.yml")!,

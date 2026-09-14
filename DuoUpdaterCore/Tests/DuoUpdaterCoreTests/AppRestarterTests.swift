@@ -96,28 +96,52 @@ import Foundation
 
     /// The property the whole thing exists for, and the one a `withTaskGroup`
     /// would quietly fail: giving up must not mean *waiting* for the abandoned
-    /// operation. If this regressed, the call would take the operation's 30s
-    /// rather than the timeout's 50ms — which is exactly the wedged-launch
-    /// behaviour the timeout was added to prevent.
+    /// operation — which is exactly the wedged-launch behaviour the timeout was
+    /// added to prevent.
     ///
-    /// The bound is 15s, not the 50ms the call should actually take, because this
-    /// measures WALL CLOCK and therefore also measures however long this task
-    /// spent unscheduled. It failed at 5.926s on a 3-core CI runner with the whole
-    /// suite running in parallel — with the property intact, since the regression
-    /// takes 30s and nothing near 5.9s can be it. A bound that a loaded machine
-    /// trips is not measuring the property; it is measuring the machine.
+    /// Asserted as an ORDERING, not a duration. This used to bound the call's wall
+    /// clock, and failed on the 3-core CI runner at 5.926s under a 5s bound and
+    /// again at 15.477s under 15s, both with the property intact: in the parallel
+    /// suite a wall-clock reading measures how long this task sat unscheduled.
+    /// Here the operation cannot finish until it is released, and the only
+    /// release that runs before `firstToFinish` returns is the hang guard, so
+    /// `returnedFirst` is decided by the order of two events and not by how fast
+    /// the machine is. `Once` makes that order atomic: whichever side claims first
+    /// is the side that got there first.
     ///
-    /// 15s keeps a 2× margin to the failure mode, which is the only distinction
-    /// this test can make. Tightening it back toward the real 50ms would look
-    /// stricter and buy nothing: there is no regression between 50ms and 30s to
-    /// catch, because the abandoned operation's sleep is the only other outcome.
+    /// The wait ignores cancellation on purpose, standing in for the system call
+    /// that won't be cancelled: an operation that honoured it would let a task
+    /// group that cancels its children look correct.
+    ///
+    /// The guard is not a bound on anything asserted. It exists so a regression
+    /// fails in 30s instead of hanging the suite — the operation would otherwise
+    /// wait for a release that only comes after the call it is holding open. For
+    /// it to turn a correct implementation red, this task's resumption, already
+    /// enqueued when the timeout fires, would have to still be waiting after a job
+    /// enqueued 30s later has run. The worst sleep overshoot recorded for this
+    /// suite on that runner is 6.4s (quoted from `BrewFormulaReleaseActorTests`,
+    /// not re-measured here).
+    ///
+    /// Mutation: replace the body of `firstToFinish` with a `withTaskGroup` that
+    /// returns the first child's answer — red after the 30s guard, "the call waited
+    /// for the abandoned operation", with or without `group.cancelAll()` before the
+    /// return. The wall-clock version this replaced passed the `cancelAll()`
+    /// variant in 0.054s: its operation was a `Task.sleep`, which cancellation ends.
     @Test func givingUpDoesNotWaitForTheAbandonedOperation() async {
-        let started = ContinuousClock.now
-        _ = await AppRestarter.firstToFinish(timeout: .milliseconds(50), fallback: false) {
+        let release = Signal()
+        let returnedFirst = Once()
+        let hangGuard = Task {
             try? await Task.sleep(for: .seconds(30))
+            release.fire()
+        }
+        _ = await AppRestarter.firstToFinish(timeout: .milliseconds(50), fallback: false) {
+            await release.wait()
+            _ = returnedFirst.claim()
             return true
         }
-        #expect(ContinuousClock.now - started < .seconds(15))
+        #expect(returnedFirst.claim(), "the call waited for the abandoned operation")
+        release.fire()
+        hangGuard.cancel()
     }
 
     /// `onTimeout` is the log line, so it must fire only when the budget really
@@ -255,5 +279,34 @@ import Foundation
         let fabricated = URL(fileURLWithPath: "/ZZFixture-\(UUID().uuidString)/Fixture.app")
         #expect(!FileManager.default.fileExists(atPath: fabricated.path))
         #expect(!AppRestarter.hasProcesses(insideBundle: fabricated))
+    }
+
+    /// Fires once; `wait` returns once it has fired, whenever that was. It does not
+    /// return on cancellation.
+    private final class Signal: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func fire() {
+            let resume: [CheckedContinuation<Void, Never>] = lock.withLock {
+                guard !fired else { return [] }
+                fired = true
+                defer { waiters = [] }
+                return waiters
+            }
+            resume.forEach { $0.resume() }
+        }
+
+        func wait() async {
+            await withCheckedContinuation { continuation in
+                let now: Bool = lock.withLock {
+                    if fired { return true }
+                    waiters.append(continuation)
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
     }
 }

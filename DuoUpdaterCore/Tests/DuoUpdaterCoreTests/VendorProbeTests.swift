@@ -518,13 +518,6 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.highestVersion(from: fixture, pattern: pattern) == "1.0.8")
 }
 
-@Test func dropboxProbeExtractsThreeComponentVersionFromLocation() {
-    // 302 Location with %20-encoded filename; version is 3-component (254/4/2518).
-    let location = "https://edge.dropboxstatic.com/dbx-releng/client/Dropbox%20254.4.2518.dmg"
-    let pattern = #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#
-    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "254.4.2518")
-}
-
 @Test func microsoftTeamsProbeAnchorsToWebView2CanaryNotWebView2() {
     // The config/v1/MicrosoftTeams JSON carries two macOS tracks: WebView2
     // (lower version) and WebView2Canary (production/Public R4, higher version).

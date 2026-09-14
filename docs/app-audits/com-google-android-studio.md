@@ -18,7 +18,7 @@ the older train's RC.
 
 ### Recipes/com-google-android-studio.swift — `channelProofs`（Canary / Beta 的 artifact marker）
 
-转引自 recipe 注释，未复测。这句和上一组那句写的是同一次观测，一个写 2026-08-27、一个写 2026-08-26，两处原文照录。两句都由提交 `57e9b6ef`（2026-08-27 11:09 +0800）引入，它的提交信息写的是「on 2026-08-27 2026.1.4 RC 2 (older 261 train) sat …」，与第一组的日期一致；这一组的 2026-08-26 是从它替换掉的旧 `ChannelArtifactProof.swift` 注释里沿用下来的（`7e7fe6fc`，2026-08-26，原话「exactly what the feed served on 2026-08-26」）。所以 08-27 是那次提交时的观测，08-26 是前一天那条旧注释的观测；两天的 feed 是否一样没有记录。
+转引自 recipe 注释，未复测。这句写 2026-08-26，上一组那句写 2026-08-27，两处原文照录。两句都由提交 `57e9b6ef`（2026-08-27 11:09 +0800）引入，它的提交信息写的是「on 2026-08-27 2026.1.4 RC 2 (older 261 train) sat …」，与第一组的日期一致；这一组的 2026-08-26 是从它替换掉的旧 `ChannelArtifactProof.swift` 注释里沿用下来的（`7e7fe6fc`，2026-08-26，原话「exactly what the feed served on 2026-08-26」）。所以 08-27 是那次提交时的观测，08-26 是前一天那条旧注释的观测；两天的 feed 是否一样没有记录。
 
 (It is NOT
 legitimate merely because the RC was the most recently PUBLISHED item —

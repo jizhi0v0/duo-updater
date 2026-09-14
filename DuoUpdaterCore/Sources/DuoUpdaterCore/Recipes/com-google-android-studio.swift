@@ -50,8 +50,8 @@ enum com_google_android_studio {
         // NOT newest-first (see issue #76): the feed is ordered by PUBLICATION
         // DATE, not by version. With two feature trains open at once, a newer
         // train's Canary can publish AFTER an older train's RC, so plain first-match
-        // on the channel set lands on the older train's RC. `entryStartPattern` slices the feed into its
-        // `{"date":…}` items and makes `versionPattern`/`displayVersionPattern`/
+        // on the channel set lands on the older train's RC. `entryStartPattern`
+        // slices the feed into its `{"date":…}` items and makes `versionPattern`/`displayVersionPattern`/
         // the install URL all resolve against the ONE entry whose build compares
         // highest, instead of three separate first-matches over the whole feed
         // that could each land on a different entry (flipping `selectHighest` on

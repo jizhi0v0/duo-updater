@@ -118,8 +118,8 @@ enum com_longbridge_app_desktop {
         //
         // The version group REQUIRES the `-preview.N` suffix. Reusing stable's
         // group here would be a silent mis-read rather than a miss: on this page
-        // it matches and stops at the numeric part (e.g. `0.19.0`), dropping the suffix, so the pane would
-        // label a preview build with the stable version number it is not. Anchored
+        // it matches and stops at the numeric part (e.g. `0.19.0`), dropping the
+        // suffix, so the pane would label a preview build with the stable version number it is not. Anchored
         // this way the two patterns are mutually exclusive — verified in both
         // directions against the live pages.
         //

@@ -168,8 +168,10 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
    worth toggling." Only `channel-verify` on a real bundle earns a ✓.
 4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 lists Pattern-D apps
    already ruled out (Slack Beta, Obsidian Insider, …). Not dead ends, despite older
-   notes: Figma Beta is Pattern A (`com.figma.DesktopBeta`, covered), and Raycast's
-   v2 is a machine-selected train, not a channel (§3, corrected 2026-08-27).
+   notes: Figma Beta is Pattern A (`com.figma.DesktopBeta`, covered), Raycast's
+   v2 is a machine-selected train, not a channel (§3, corrected 2026-08-27), and
+   Insomnia Beta is reopened — detection is ready, only the rule is missing (§3,
+   corrected 2026-09-14; alpha stays blocked).
    Re-confirm only if you have a NEW signal; otherwise skip.
 5. **Don't double-cover.** Subtract anything already in VendorProbeRecipe /
    GitHubReleasesSource / a `*Channel.swift` ChannelBinding before listing it.

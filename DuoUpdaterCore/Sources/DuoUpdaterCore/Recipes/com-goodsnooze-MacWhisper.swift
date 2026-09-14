@@ -7,10 +7,11 @@ enum com_goodsnooze_MacWhisper {
         // History: docs/app-audits/com-goodsnooze-MacWhisper.md#历史与实测
         // MacWhisper — when checked (History) its Sparkle appcast carried no
         // `<description>` on any of its items, only a `sparkle:releaseNotesLink`,
-        // and the current items shared ONE page (a few items point elsewhere;
-        // History has the counts). So the source-supplied `changelogURL` renders the
-        // whole history in a web view whichever current version you are on. That page is plain, hand-written
-        // HTML and splits cleanly per version, e.g.:
+        // and most items shared ONE page (about one in seven pointed elsewhere
+        // when checked; History has the counts). So the source-supplied
+        // `changelogURL` renders the whole history in a web view whichever current
+        // version you are on. That page is plain, hand-written HTML and splits
+        // cleanly per version, e.g.:
         //
         //   <h2>14.8</h2>
         //   <h3>New:</h3>

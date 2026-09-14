@@ -453,7 +453,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **LM Studio — Beta** · 同 `ai.elementlabs.lmstudio`，版本 API 无 channel 参数
 - ✗ **DBeaver — Early Access** · 同 `org.jkiss.dbeaver.core.product`，EA 共享 id、标签格式同 stable
 - ✗ **Beekeeper Studio — Beta** · 同 `io.beekeeperstudio.desktop`，同 repo prerelease，stable rule 已排除
-- ✗ **Insomnia — Beta/Alpha** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离），但 `ReleaseChannel.detect()` **不解析版本后缀** → 检测为 `.stable`。所以 `channel: .beta` rule 永远不会被 channel gate 选中。**前置依赖**：先教 `detect()` 识别 `com.insomnia.app` 的 `-beta.N`/`-alpha.N` 后缀，beta channel 才可接（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪）
+- ◐ **Insomnia — Beta 可接（已不是死轨）/ Alpha 仍受阻** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离）。**更正 2026-09-14**：原先这里写 `ReleaseChannel.detect()`「不解析版本后缀」、`channel: .beta` rule 永远选不中——自 `87fafac7`（2026-08-30）起 `detect()` 第 4 步严格识别整串以 `-beta.<数字>` 结尾的版本，beta 的检测前提已具备，**只差一条 `channel: .beta` rule**（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪；见 `docs/app-audits/com-insomnia-app.md`）。`-alpha.N` 仍不被 `detect()` 识别（第 4 步和版本尾词表都没有 alpha），alpha 仍受阻。
 - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
 - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
 - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
@@ -564,7 +564,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
-RustDesk / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove /
+RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
 Arc / HandBrake / Keka / Lark / MonitorControl / OBS Studio / Proxyman / Rectangle /
 The Unarchiver 等。
 

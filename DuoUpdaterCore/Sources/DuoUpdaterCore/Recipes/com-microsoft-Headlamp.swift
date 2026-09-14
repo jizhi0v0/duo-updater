@@ -91,9 +91,8 @@ enum com_microsoft_Headlamp {
         // See #135.
         // listPageSize: the interleaved `headlamp-helm-`/`headlamp-plugin-` tags this
         // comment warns about (which don't match `^v…$`) can put two app tags a few
-        // releases apart; 8 keeps 2x headroom over the widest run measured, and
-        // because each release's `body` dominates the response, a page of 8 costs
-        // little more than a page of 5 (History has the dated counts and sizes).
+        // releases apart; 8 keeps 2x headroom over the widest run measured (History
+        // has the dated counts, and page sizes that no longer hold).
         GitHubReleaseRule(
             bundleID: "com.microsoft.Headlamp",
             owner: "kubernetes-sigs", repo: "headlamp",

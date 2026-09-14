@@ -64,4 +64,6 @@ per_page=5 was measured at 42 KB (barely less than per_page=3's
 40 KB — `body` dominates either way), so 8 doesn't cost meaningfully
 more than 5 while leaving real margin over the observed gap of 4.
 
-复测 2026-09-14（03:15 UTC，只读 GET `repos/kubernetes-sigs/headlamp/releases?per_page=100`）：首个 `v…` app tag 在第 0 位，相邻两个 app tag 之间最多隔 3 个 release。没有复测响应大小。
+复测 2026-09-14（03:15 UTC，只读 GET `repos/kubernetes-sigs/headlamp/releases?per_page=100`）：首个 `v…` app tag 在第 0 位，相邻两个 app tag 之间最多隔 3 个 release。
+
+复测 2026-09-14（06:49 UTC，带 token 的只读 GET 同一 releases 端点）：`per_page=3` 159,451 B，`per_page=5` 172,509 B，`per_page=8` 297,921 B——8 是 5 的 1.73 倍，「8 doesn't cost meaningfully more than 5」已不成立（app tag 的 `body` 本身就几十 KB）。代码里删掉了这句成本判断，只留页大小的理由。

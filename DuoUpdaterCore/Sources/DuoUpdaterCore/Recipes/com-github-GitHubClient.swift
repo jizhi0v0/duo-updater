@@ -20,8 +20,8 @@ enum com_github_GitHubClient {
         // feed was structured JSON all along, so it's decoded by
         // `StructuredChangelogDecoder.decodeGitHubDesktop` rather than regex-scraped;
         // see `.gitHubDesktopChangelog` for the shape. Stable feed carries bare
-        // versions (e.g. `3.5.12`); beta carries e.g. `3.5.12-beta2`. A parse miss just falls back to
-        // embedding the SPA. `channel` here is only for the recipe-registry lookup
+        // versions (e.g. `3.5.12`); beta carries e.g. `3.5.12-beta2`. A parse miss
+        // just falls back to embedding the SPA. `channel` here is only for the recipe-registry lookup
         // (`ChangelogRecipeRegistry.recipe(forBundleID:channel:)` picks stable vs.
         // beta by it) — the decoder itself takes no channel, since stable and beta
         // are two different URLs, not one document split by a channel key.

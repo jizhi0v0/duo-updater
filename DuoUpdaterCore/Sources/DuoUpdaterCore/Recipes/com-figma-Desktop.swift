@@ -13,7 +13,8 @@ enum com_figma_Desktop {
         // install spec captures that for one-click. The zip is a notarized
         // Developer ID build, Team T8RA8NE3B7 (Figma, Inc.), bundle id
         // com.figma.Desktop == the installed app, so the VendorInstaller Team gate
-        // passes. ChangelogRecipe renders the notes. (Figma also self-updates via Squirrel; this is a manual fallback.)
+        // passes. ChangelogRecipe renders the notes. (Figma also self-updates via
+        // Squirrel; this is a manual fallback.)
         VendorProbeRecipe(
             bundleID: "com.figma.Desktop",
             url: URL(string: "https://desktop.figma.com/mac-arm/RELEASE.json")!,
@@ -31,9 +32,9 @@ enum com_figma_Desktop {
         // risk — this recipe only ever resolves against a real Figma Beta install,
         // which detects as `.beta` (verified via channel-verify on the 126.6.2
         // bundle). Endpoint mirrors stable exactly: RELEASE.json → version + the
-        // FigmaBeta-<ver>.zip url. Same signer as stable (Team
-        // T8RA8NE3B7), so one-click is safe behind the same Team gate. Notes share the product release-notes page
-        // (Figma publishes no separate beta changelog).
+        // FigmaBeta-<ver>.zip url. Same signer as stable (Team T8RA8NE3B7), so
+        // one-click is safe behind the same Team gate. Notes share the product
+        // release-notes page (Figma publishes no separate beta changelog).
         VendorProbeRecipe(
             bundleID: "com.figma.DesktopBeta",
             url: URL(string: "https://desktop.figma.com/mac-arm/beta/RELEASE.json")!,

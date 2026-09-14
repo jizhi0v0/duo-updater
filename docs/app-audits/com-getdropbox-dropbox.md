@@ -101,7 +101,7 @@ version matching the redirect filename. (Worth stating, since the sibling
 
 ### Recipes/com-getdropbox-dropbox.swift — stable（从 batch 2c 迁出的另外两句）
 
-转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`599e8dde`（2026-06-04）。
+转引自 recipe 注释，未复测。两段原句都没写日期；日期取自引入这两句的提交：`599e8dde`（2026-06-04）。
 
 The target is a
 ~200 MB dmg, so don't follow — read the small 302 Location
@@ -112,4 +112,4 @@ The target is a
 (Homebrew
 cask has no livecheck; its url/version confirm this host + build.)
 
-复测 2026-09-14（只读 GET `Homebrew/homebrew-cask` 的 `Casks/d/dropbox.rb`）：cask 有 `livecheck`，读的正是 `www.dropbox.com/download?plat=mac&full=1`，Apple silicon 上再加 `&arch=arm64`（`strategy :header_match`）；`url` 是 `edge.dropboxstatic.com/dbx-releng/client/Dropbox%20#{version}#{arch}.dmg`。#616 之后代码里已不再提 livecheck。
+复测 2026-09-14（只读 GET `Homebrew/homebrew-cask` 的 `Casks/d/dropbox.rb`）：cask 有 `livecheck`，读的正是 `www.dropbox.com/download?plat=mac&full=1`，Apple silicon 上再加 `&arch=arm64`（`strategy :header_match`）；`url` 是 `edge.dropboxstatic.com/dbx-releng/client/Dropbox%20#{version}#{arch}.dmg`。#616 之后的代码提到 cask 的 livecheck 时说的是它给 `arm:` 加同一个 `arch` 参数，与这次复测一致。

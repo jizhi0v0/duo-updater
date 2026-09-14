@@ -40,11 +40,11 @@
 - 阻塞: direct-install detection not implemented.
 
 ## 已知问题
-- Changelog URL must be bumped each Blender minor release; there is no released-only index.
+- Changelog URL is pinned to a released minor and there is no released-only index. Bumping the pin alone does not work for 5.2 LTS: the entry pattern parses 0 entries on that page (see 历史与实测). Until a fix lands, 5.2 users are shown the 5.1 notes.
 
 ## 建议下一步
 1. Keep current Homebrew + version-pinned changelog coverage.
-2. When Blender ships a new stable minor, update the ChangelogRecipe URL and fixture.
+2. Rework the ChangelogRecipe so it follows the current release (the 5.2 page's "LTS" heading and intro and its missing corrective-releases section all break the current pattern), then update the fixture.
 
 ## 历史与实测
 
@@ -52,7 +52,7 @@
 
 ### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe（钉在一个版本上的发布说明页）
 
-转引自 recipe 注释，未复测。整段原文。括号里的 "(5.3 Alpha, 5.2 Beta)" 与 "the latest RELEASED minor" 迁移时都已不成立：5.2 LTS 已发布，`source` 仍钉在 5.1（见下面的更正）。代码里去掉了括号里的版本，并把 "version-pinned to the latest RELEASED minor; bump it when a new Blender ships" 改成 "version-pinned to a RELEASED minor"，另加一句警告：只把钉的版本改到 5.2 解析出 0 条、面板静默退回内嵌网页，修复另行登记。原句没写日期，引入它们的提交是 `599e8dde`（2026-06-04）；其余原样，重新折行。
+转引自 recipe 注释，未复测。整段原文。括号里的 "(5.3 Alpha, 5.2 Beta)" 与 "the latest RELEASED minor" 迁移时都已不成立：5.2 LTS 已发布，`source` 仍钉在 5.1（见下面的更正）。代码里去掉了括号里的版本，并把 "version-pinned to the latest RELEASED minor; bump it when a new Blender ships" 改成 "version-pinned to a RELEASED minor"，另加一句警告：只把钉的版本改到 5.2 解析出 0 条、面板静默退回内嵌网页；recipe 改好之前，5.2 用户看到的是 5.1 的说明。原句没写日期，引入它们的提交是 `599e8dde`（2026-06-04）；其余原样，重新折行。
 
 Blender — developer.blender.org/docs/release_notes/<major.minor>/ is the
 clean per-version notes page (the blender.org/download marketing pages are

@@ -20,8 +20,8 @@ enum org_blenderfoundation_blender {
         // Bumping the pin alone does not work for 5.2: that page's `<h1>` and intro
         // say "5.2 LTS" and it has no `corrective-releases` heading, so this
         // pattern parses 0 entries there and the pane silently falls back to the
-        // embed (checked 2026-09-14; History has the details). A fix is filed
-        // separately.
+        // embed (checked 2026-09-14; History has the details). Until the recipe is
+        // reworked, a 5.2 user is shown the 5.1 notes.
         ChangelogRecipe(
             bundleID: "org.blenderfoundation.blender",
             source: URL(string: "https://developer.blender.org/docs/release_notes/5.1/")!,

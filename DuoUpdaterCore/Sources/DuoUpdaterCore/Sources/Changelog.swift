@@ -89,7 +89,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 6: Raycast's v1 recipe moved its `source` to `/changelog/macos-v1`. The old
     ///   path had turned into a copy of the v2 page, so notes already cached for a
     ///   1.104.x install are the 2.x train's.
-    public static let parserGeneration = 6
+    /// - 7: Blender's recipe follows the target version's minor page instead of a
+    ///   fixed `/5.1/`, and parses LTS pages. Notes already cached for a 5.2.x
+    ///   install are 5.1's.
+    public static let parserGeneration = 7
 
     public let entries: [Entry]
 

@@ -80,8 +80,12 @@ import Foundation
     /// 6 (Raycast v1's `source` moved to `/changelog/macos-v1`) moves neither
     /// fixture: it is one app's recipe. Pinned by `RaycastReleasesTests` and
     /// `ChangelogVersionWindowTests`.
+    ///
+    /// 7 (Blender follows the target minor's page and parses LTS pages) moves
+    /// neither fixture: it is one app's recipe. Pinned by
+    /// `BlenderChangelogRecipeTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 6)
+        #expect(Changelog.parserGeneration == 7)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

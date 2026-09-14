@@ -22,10 +22,9 @@ enum net_pornel_ImageOptim {
             // One-click: `ImageOptim.app` in the archive, bundle id
             // net.pornel.ImageOptim, Team 59KZTZA4XR, accepted by spctl (checked
             // 2026-08-09; History has the version). The enclosure is a `.tar.xz`,
-            // which `.tarGz` handles despite the
-            // name — `VendorInstaller` renames by kind and `ArchiveExtractor` runs
-            // `tar -xf` with no compression flag, so tar sniffs xz itself (checked by
-            // extracting a deliberately misnamed copy).
+            // which `.tarGz` handles despite the name — `VendorInstaller` renames by
+            // kind and `ArchiveExtractor` runs `tar -xf` with no compression flag, so
+            // tar sniffs xz itself (checked by extracting a deliberately misnamed copy).
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"<enclosure[^>]*url="(https://imageoptim\.com/[^"]+\.tar\.xz)""#),

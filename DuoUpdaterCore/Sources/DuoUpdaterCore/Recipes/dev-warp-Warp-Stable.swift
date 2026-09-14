@@ -13,9 +13,11 @@ enum dev_warp_Warp_Stable {
         // reports the feed's `v<stamp>.<channel>_NN` as `<stamp>.NN`, so the
         // counter is joined back on (see `VendorProbeRecipe.version(of:in:)`).
         // Confirmed against real bundles on all three tracks — including dev's
-        // `_00`, which the app does spell out as a trailing `.00`. (The record of
-        // that check was never tracked in git; the audit's channel-verify section,
-        // `docs/app-audits/dev-warp-Warp-Stable.md`, covers the three tracks.)
+        // `_00`, which the app does spell out as a trailing `.00`. The record of
+        // that check was `application-test/records/dev-warp-Warp-Stable.md`,
+        // added in `19296da7` and untracked in `4ff9a902` (`git show 19296da7:`
+        // that path still reads it); the audit's channel-verify section,
+        // `docs/app-audits/dev-warp-Warp-Stable.md`, covers the three tracks.
         //
         // PREVIEW installs one-click; DEV deliberately does not. `app.warp.dev/
         // download?package=dmg&channel=preview` really does serve WarpPreview.app
@@ -84,9 +86,9 @@ enum dev_warp_Warp_Stable {
         // richer and far more stable than scraping rendered HTML. One recipe per
         // channel; both point at the same JSON but the `channel` selects the
         // sub-feed (and gives each its own cache slot — see `ChangelogService`).
-        // The entries are NOT in
-        // newest-first document order in the JSON, so the structured decoder sorts
-        // by the (lexically-chronological) version key — hence not a regex recipe.
+        // The entries are NOT in newest-first document order in the JSON, so the
+        // structured decoder sorts by the (lexically-chronological) version key —
+        // hence not a regex recipe.
         //
         // Stable and Preview only. There is deliberately **no Dev recipe**: Warp
         // ships a real `dev.warp.Warp-Dev` build and the probe tracks its version

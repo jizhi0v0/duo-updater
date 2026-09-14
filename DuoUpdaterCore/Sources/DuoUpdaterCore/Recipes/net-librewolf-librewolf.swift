@@ -6,9 +6,13 @@ enum net_librewolf_librewolf {
         probes: [
         // History: docs/app-audits/net-librewolf-librewolf.md#历史与实测
         // LibreWolf — release tags, newest first; tag is "<firefox-version>-<packaging>"
-        // (e.g. "151.0.3-1") and we capture only the upstream Firefox version so it
-        // compares equal to the installed app's `CFBundleShortVersionString` (keeping
-        // "-1" would read as a perpetual update). No auto-updater — genuinely useful.
+        // (e.g. "151.0.3-1") and we capture only the upstream Firefox version.
+        // `VersionComparator` splits on `-` and pads a missing component with 0, so
+        // against a copy that reports the suffix in `CFBundleShortVersionString`
+        // (e.g. "151.0.3-1", as the checked copy did) the capture reads as not
+        // newer — up to date — while a new Firefox version still reads as newer; a
+        // packaging-only respin ("-2") is not offered. No auto-updater — genuinely
+        // useful.
         // Real installed bundle id is `net.librewolf.librewolf` (NOT
         // `org.mozilla.librewolf` — LibreWolf re-brands the Mozilla source). Version
         // source is **Codeberg**, not GitLab: LibreWolf migrated, and the old GitLab
@@ -21,10 +25,9 @@ enum net_librewolf_librewolf {
         // `librewolf-<ver>-macos-arm64-package.dmg`, but when checked (2026-08-09;
         // History has Gatekeeper's message) the `LibreWolf.app` inside was ad-hoc
         // signed (`TeamIdentifier=not set`) and Gatekeeper rejected it outright.
-        // `VendorInstaller`'s same-Team gate would
-        // refuse it anyway, and rightly: there is no signing identity to compare the
-        // installed copy against. Don't wire one-click here unless LibreWolf starts
-        // shipping a Developer ID build.
+        // `VendorInstaller`'s same-Team gate would refuse it anyway, and rightly:
+        // there is no signing identity to compare the installed copy against. Don't
+        // wire one-click here unless LibreWolf starts shipping a Developer ID build.
         VendorProbeRecipe(
             bundleID: "net.librewolf.librewolf",
             url: URL(string: "https://codeberg.org/api/v1/repos/librewolf/bsys6/releases/latest")!,

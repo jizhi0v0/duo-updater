@@ -89,9 +89,10 @@ enum net_imput_helium {
         // Reading it buys two things the GitHub rule cannot: the beta train
         // (`<sparkle:channel>beta</sparkle:channel>` on one item), and the delta
         // patches every item publishes — about a third of the full download
-        // (History has the sizes). Its enclosures are RELATIVE (`assets/helium_….dmg`), which Sparkle
-        // resolves against the appcast URL and we now do too; before that fix
-        // this entry would have produced a schemeless, unfetchable download.
+        // (History has the sizes). Its enclosures are RELATIVE
+        // (`assets/helium_….dmg`), which Sparkle resolves against the appcast URL
+        // and we now do too; before that fix this entry would have produced a
+        // schemeless, unfetchable download.
         "net.imput.helium": URL(string: "https://updates.helium.computer/mac/appcast-arm64.xml")!,
         ],
         changelogPages: [

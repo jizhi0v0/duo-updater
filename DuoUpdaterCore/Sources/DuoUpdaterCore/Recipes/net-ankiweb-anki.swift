@@ -8,9 +8,9 @@ enum net_ankiweb_anki {
 
         // History: docs/app-audits/net-ankiweb-anki.md#历史与实测
         // Anki — tags are date-shaped with a zero-padded month (e.g. `26.08.1`)
-        // while the app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
-        // compares digit runs numerically, so 08 == 8 and the two read as the same
-        // version — no phantom update.
+        // while the app reports `26.8.1`. That is NOT a mismatch for us:
+        // `VersionComparator` compares digit runs numerically, so 08 == 8 and the
+        // two read as the same version — no phantom update.
         //
         // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern:
         // `-mac-apple` carries no token that `installableAsset` recognises as an

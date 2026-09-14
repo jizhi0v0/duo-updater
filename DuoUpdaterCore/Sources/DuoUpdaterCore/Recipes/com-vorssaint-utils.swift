@@ -44,10 +44,11 @@ enum com_vorssaint_utils {
             installerKind: .dmg),
         // listPageSize: `-beta.` tags are rare in this repo and have shipped
         // consecutively, but stable releases published after a beta run push the
-        // newest beta tag down the list. Small sample, so 5 keeps margin rather
-        // than trimming to the observed minimum (History has the 2026-09-04
-        // measurement, a 2026-09-14 recheck with the newest beta further down, and
-        // the page sizes).
+        // newest beta tag down the list. When checked (2026-09-14) it sat at index
+        // 3 of a page of 5, so the page still holds it after one more stable
+        // release and not after two without a new beta. 5 was sized on 2026-09-04,
+        // before those stable releases (History has both measurements and the
+        // page sizes).
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
             owner: "vorssaint", repo: "vorssaint-utils",

@@ -10,9 +10,9 @@ enum dev_zed_Zed {
         // bundle ids `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response
         // instead of the two multi-megabyte zed.dev/releases/{preview,stable} HTML
         // pages this replaced on 2026-08-21 (History has the old scrape and its
-        // equivalence check; see `StructuredFormat.zedGitHubReleases`). Both
-        // channels share this one recipe's URL; `StructuredChangelogDecoder` splits
-        // on `channel` the same way it does for Warp.
+        // equivalence check; see `StructuredFormat.zedGitHubReleases`). The two
+        // recipes below, one per channel, share one URL; `StructuredChangelogDecoder`
+        // splits on `channel` the same way it does for Warp.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed-Preview",
             source: URL(

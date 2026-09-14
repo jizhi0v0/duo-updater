@@ -8,7 +8,7 @@
 
 ### Recipes/com-youqu-todesk-mac.swift — VendorProbe（下载页锚点、灰度风险与没有 changelogURL）
 
-转引自 recipe 注释，未复测。整段原文；（原注释整块没有空行，是一段。）代码里留下的是结论：版本字段是裸变量、pkg 文件名是唯一稳定的字面量、DaaS 链接以 `ToDesk_D…` 开头所以被排除、位置参数里的日期不能当锚、一键按捕获的版本拼 URL、macOS 更新日志页已停更。搬到这里的是：旧锚点的例子与 2026-07-13 的变化经过、位置参数块与 DaaS 链接的具体版本、macOS 更新日志页的条数与版本、Windows 页的日期。「the only `ToDesk_<digits>.pkg` on the page is the consumer GA build」和 Residual risk 一句迁移时已不成立，见下面的更正。唯一的改写：一处本机状态措辞（那台机器装的具体版本），按本目录的机器状态规则改成了针对那台被检查的机器的说法。
+转引自 recipe 注释，未复测。整段原文；（原注释整块没有空行，是一段。）代码里留下的是结论：版本字段是裸变量、pkg 文件名是唯一稳定的字面量、DaaS 链接以 `ToDesk_D…` 开头所以被排除、位置参数里的日期不能当锚、一键按捕获的版本拼 URL、macOS 更新日志页已停更。搬到这里的是：旧锚点的例子与 2026-07-13 的变化经过、位置参数块与 DaaS 链接的具体版本、macOS 更新日志页的条数与版本、Windows 页的日期。「the only `ToDesk_<digits>.pkg` on the page is the consumer GA build」和 Residual risk 一句迁移时已不成立，见下面的更正。唯一的改写：一处本机状态措辞（那台机器装的具体版本），按本目录的机器状态规则改成了针对那台被检查的机器的说法；原句没写日期，这里的 2026-08-22 取自引入那句的提交 `0afc3ef4`。
 
 ToDesk (远程控制) — Hainan Youqu's remote-desktop app. No standard source
 resolves it; its in-app appcast sits behind a JS bot-challenge (the reason
@@ -40,7 +40,7 @@ VendorInstaller signature gate enforces it.
 No `changelogURL`: the vendor's macOS log page exists but is abandoned.
 `update.todesk.com/macos/uplog.html` is server-rendered with 30 real
 versions, and its newest is 4.8.1.0 (2025.9.5) — while the copy
-installed on the machine checked that day is 4.10.0.0. It is not the whole site going stale: the same
+installed on the machine checked on 2026-08-22 is 4.10.0.0. It is not the whole site going stale: the same
 host's `windows/uplog.html` was current to 2026.8.18 on the same day.
 Pointing the pane at it would show notes for a version the user passed
 two minor releases ago, which is the version-mismatch failure the
@@ -49,3 +49,5 @@ Notion and Figma changelogs were just moved away from.
 更正 2026-09-14：灰度通道已经回到了 `ToDesk_<digits>.pkg` 这个名字、而且排在 GA 前面——正是 Residual risk 预想的情形，但灰度包比 GA **新**，不是「stale-but-real … under-reporting」。一键模板用捕获到的版本拼 `https://dl.todesk.com/macos/ToDesk_{0}.pkg`，拼出来的就是灰度包的地址。代码里改写成当前情形，「rebuilds the GA URL」改成「rebuilds the URL」，并删去那台机器装的版本。
 
 复测 2026-09-14（11:04 UTC，只读 GET，Safari UA；没有核对 app 自己的 UA 是否拿到同样的 body）：`www.todesk.com/download.html` 76,446 B，按 `ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg` 依次匹配到 `5.1.0.0`（`mac_link_gray:"https://dl.todesk.com/macos/ToDesk_5.1.0.0.pkg"`）和 `4.10.1.0`（位置参数块，前面紧挨着日期 `"2026.8.28"`）；DaaS 链接是 `ToDesk_DaaS_v1.1.0.1.pkg` 与 `ToDesk_DaaS-v1.1.0.1_392.pkg`；版本字段是 `mac_version:k`、`mac_version_gray:c`（仍是裸变量）。`update.todesk.com/macos/uplog.html` 7,398 B，最新 `4.8.1.0`（2025.9.5）；`update.todesk.com/windows/uplog.html` 23,792 B，最新 `5.0.2.0`（2026.8.31）。
+
+复测 2026-09-14（12:55 UTC，同一页，只读 GET）：按 `window.__NUXT__` 的参数表还原，`mac_version` = `4.10.1.0`、`mac_version_gray` = `5.1.0.0`、`mac_gray_percent` = `"10"`、`mac_release_date` = `2026.8.28`——厂商只把 5.1.0.0 推给 10% 的用户，而这条 recipe 读到的是灰度包（字段名后面的单字母变量名每次请求不同）。

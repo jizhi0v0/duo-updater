@@ -64,7 +64,7 @@ swift run --package-path application-test channel-verify /tmp/WarpDev.dmg     --
 
 ### Recipes/dev-warp-Warp-Stable.swift — Preview / Dev VendorProbe（版本里的构建计数器）
 
-转引自 recipe 注释，未复测。整段原文；末句指向的记录文件迁移时已不可达，代码里改写了，见下面的更正。这里还有一处不是机器状态的改写：原文末句里那份记录文件的完整路径换成了「[an untracked local record]」——`scripts/check_app_audits.py` 不允许审计文档里出现指向未跟踪记录目录里某个文件的路径，逐字保留会让检查失败。
+转引自 recipe 注释，未复测。整段原文；末句指向的记录文件迁移时已不在当前树里（`4ff9a902` 起不再跟踪），代码里改写了，见下面的更正。这里还有一处不是机器状态的改写：原文末句里那份记录文件的完整路径换成了「[an untracked local record]」——`scripts/check_app_audits.py` 不允许审计文档里出现指向未跟踪记录目录里某个文件的路径，逐字保留会让检查失败。
 
 Warp — Preview / Dev. One JSON lists every channel's version, each tagged
 with the channel name in its suffix (`…preview_01`), so a per-channel
@@ -77,7 +77,7 @@ Confirmed against real bundles on all three tracks in
 [an untracked local record] — including dev's
 `_00`, which the app does spell out as a trailing `.00`.
 
-更正 2026-09-14：`application-test/records/` 被 `.gitignore:40` 排除，那份 `dev-warp-Warp-Stable.md` 从来不在 git 里，别人循着这个路径找不到任何东西。原结论出自提交 `c910576f`（2026-08-10），它的提交说明写着三条轨都对真实 bundle 核对过、包括 dev 的 `.00`。代码里保留这个结论，去掉了路径，改成说明那份记录没进 git，并指向本审计的 channel-verify 一节（2026-06-04 的三轨核对）。
+更正 2026-09-14：那份记录文件（记录目录 `application-test/records/` 下的 `dev-warp-Warp-Stable.md`）由 `19296da7`（2026-06-04）加入 git，`4ff9a902`（2026-08-14，「chore: stop tracking local working notes」）起不再跟踪，现在由 `.gitignore:40` 排除，所以当前树里循着这个路径找不到它。`git show 19296da7:` 加上那个路径仍能读到：表里 dev 的真实 short version 是 `0.2026.06.04.09.31.00`（stable 与 preview 是 `0.2026.05.27.15.44.01`）。原结论出自提交 `c910576f`（2026-08-10），它的提交说明写着三条轨都对真实 bundle 核对过、包括 dev 的 `.00`。代码里保留这个结论，改成写明记录的加入与取消跟踪的两个提交，并指向本审计的 channel-verify 一节（2026-06-04 的三轨核对）。
 
 ### Recipes/dev-warp-Warp-Stable.swift — Preview VendorProbe（一键与 `channel=dev` 的陷阱）
 
@@ -109,7 +109,7 @@ each its own cache slot — see `ChangelogService`). The entries are NOT in
 newest-first document order in the JSON, so the structured decoder sorts
 by the (lexically-chronological) version key — hence not a regex recipe.
 
-复测 2026-09-14（11:40–11:41 UTC，只读 GET，不跟随重定向）：`docs.warp.dev/changelog` 与 `docs.warp.dev/changelog/2026/` 在 Safari UA、`Python-urllib/3.12` UA、`curl/8.7.1` UA 下都回 200（96,473 B / 554,738 B），body 里没有 "Checkpoint"。本机走代理，没有换网络再测。
+复测 2026-09-14（11:40–11:41 UTC，只读 GET，不跟随重定向）：`docs.warp.dev/changelog` 与 `docs.warp.dev/changelog/2026/` 在 Safari UA、`Python-urllib/3.12` UA、`curl/8.7.1` UA 下都回 200（96,473 B / 554,738 B），body 里没有 "Checkpoint"。本机走代理，没有换网络再测。同一说法在 `Sources/ChangelogRecipe.swift` 的 `StructuredFormat.warpChannelVersions` 文档注释里的副本（「which now sits behind a Vercel bot wall」）一并改成了过去时并注明复测。
 
 ### Recipes/dev-warp-Warp-Stable.swift — ChangelogRecipe（为什么没有 Dev recipe）
 

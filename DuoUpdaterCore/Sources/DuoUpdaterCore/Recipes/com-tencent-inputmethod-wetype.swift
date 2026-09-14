@@ -29,6 +29,11 @@ enum com_tencent_inputmethod_wetype {
         //   {"zip_download_url": ".../2.2.3/WeType_2.2.3_657.zip",
         //    "zip_version": "2.2.3.657", "zip_download_md5": "…"}
         //
+        // We compare BUILDS, not the marketing version: `zip_version`'s 4th segment
+        // is the same number the installed bundle carries as `CFBundleVersion`, so
+        // `versionIsBuild` compares build to build, and `displayVersionPattern`
+        // keeps the row reading the three-part version rather than a bare build.
+        //
         // Not the `WeTypeInstaller_<x.y.z>_<build>_<letter>.zip` filenames on
         // `z.weixin.qq.com/web/change-log/macos`, which an earlier recipe read:
         // those numbers are **the installer stub's own version, not the app's**.
@@ -37,7 +42,7 @@ enum com_tencent_inputmethod_wetype {
         // answers with a number from the wrong namespace (History has the versions
         // and how the nightly sweep caught it).
         //
-        // That page also lags on its own account (History has a dated case), so
+        // That page also lags on its own account (History has an example), so
         // neither the filenames nor the notes on it are a version source.
         //
         // ONE-CLICK, restored 2026-08-28 (withdrawn 2026-08-16 after a user lost
@@ -83,13 +88,13 @@ enum com_tencent_inputmethod_wetype {
         // WeType (微信输入法) — the official changelog page its VendorProbe
         // names as `changelogURL`. Next.js page with the data server-rendered
         // inline (an `__next_f` RSC blob, no JS needed): a flat list of release
-        // objects for ALL platforms, tagged
-        // `"platform":1`=iOS / `2`=Android / `3`=macOS / `4`=Windows. The entry
-        // pattern ties the captured version/body to its OWN object's `"platform":3`
-        // (version precedes platform; `[^"]*` can't cross a structural quote, so it
-        // can't bleed into an adjacent platform's object) — so only macOS releases
-        // become entries. The notes live in `content_html`, where each line is its
-        // own tag — usually `<h2>` (including the dash-bulleted lines), sometimes
+        // objects for ALL platforms, tagged `"platform":1`=iOS / `2`=Android /
+        // `3`=macOS / `4`=Windows. The entry pattern ties the captured version/body
+        // to its OWN object's `"platform":3` (version precedes platform; `[^"]*`
+        // can't cross a structural quote, so it can't bleed into an adjacent
+        // platform's object) — so only macOS releases become entries. The notes
+        // live in `content_html`, where each line is its own tag — usually `<h2>`
+        // (including the dash-bulleted lines), sometimes
         // `<ul><li>` or `<p>` — so itemPatterns try all three. No human per-entry
         // date is published (only a unix `release_date`), so `date` is omitted
         // rather than shown as a raw epoch. CRUCIAL: the list runs oldest→newest, so

@@ -76,7 +76,7 @@ swift run --package-path application-test channel-verify /tmp/zed-stable.dmg --e
 
 ### Recipes/dev-zed-Zed.swift — ChangelogRecipe（从 zed.dev 页面换到 GitHub Releases API）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是现状（读 GitHub Releases API 那份列表，一份 JSON 取代两页多兆 HTML，2026-08-21 替换），旧页面的标记形状、「2+ MB」和逐字节等价的核对搬到这里。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是现状（读 GitHub Releases API 那份列表，一份 JSON 取代两页多兆 HTML，2026-08-21 替换），旧页面的标记形状、「2+ MB」和逐字节等价的核对搬到这里。末句前半不准确，见下面的更正。
 
 Zed Preview and Stable — both used to scrape the 2+ MB server-rendered
 zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
@@ -88,6 +88,8 @@ multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
 (see `StructuredFormat.zedGitHubReleases`). Both channels share this one
 recipe's URL; `StructuredChangelogDecoder` splits on `channel` the same
 way it does for Warp.
+
+更正 2026-09-14：「Both channels share this one recipe's URL」——这个文件里是两条 `ChangelogRecipe`（Preview 与 Stable 各一条，`bundleID`/`channel` 不同），共用同一个 `source` URL；`1bf107c9`（2026-08-22）写下这句时也是两条。代码里改成「The two recipes below, one per channel, share one URL」。
 
 ### Recipes/dev-zed-Zed.swift — Preview GitHubReleaseRule（一键与 `listPageSize`）
 

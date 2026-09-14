@@ -298,4 +298,6 @@ No changelogURL: `https://termius.com/release-notes` (stable's own
 changelogURL, above) 404s as of 2026-08-27 and no replacement page
 exists in the vendor's sitemap — flagged separately, not fixed here.
 
-更正 2026-09-14：同日稍晚的提交 `34dea5eb`（2026-08-27 23:40 +0800，关闭 #102）已把 stable 的 `changelogURL` 改指 `https://docs.termius.com/changelog`，提交说明写明此前「没有替代页」的结论是只查了站点地图得出的。复测 2026-09-14（11:02 UTC，只读、不跟随重定向）：`termius.com/release-notes` 404；`termius.com/changelog` 308 → `https://docs.termius.com/changelog`；后者 200。没有核对那页是否带 beta 构建的说明。
+更正 2026-09-14：同日稍晚的提交 `34dea5eb`（2026-08-27 23:40 +0800，关闭 #102）已把 stable 的 `changelogURL` 改指 `https://docs.termius.com/changelog`，提交说明写明此前「没有替代页」的结论是只查了站点地图得出的。
+
+复测 2026-09-14（11:02 UTC，只读、不跟随重定向）：`termius.com/release-notes` 404；`termius.com/changelog` 308 → `https://docs.termius.com/changelog`；后者 200。没有核对那页是否带 beta 构建的说明。

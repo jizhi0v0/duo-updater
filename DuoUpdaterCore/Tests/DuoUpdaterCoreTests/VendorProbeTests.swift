@@ -29,8 +29,11 @@ import Foundation
 // so the one durable literal is the consumer `macos/ToDesk_<ver>.pkg` filename. The
 // page also carries DaaS (enterprise) pkg links `ToDesk_DaaS_v1.1.0.1.pkg` /
 // `…-v1.1.0.1_392.pkg` that appear FIRST; anchoring on `ToDesk_<digit>` skips them
-// (they read `ToDesk_D…`) and lands the consumer GA build. Regression guard below:
-// the retired `mac_version:"…"` anchor must no longer match this body.
+// (they read `ToDesk_D…`) and, in this fixture, lands the consumer GA build. On the
+// live page of 2026-09-14 a consumer GRAY link (`…/macos/ToDesk_5.1.0.0.pkg`, 10% rollout)
+// came first, so first-match read the gray build there — see the recipe comment.
+// Regression guard below: the retired `mac_version:"…"` anchor must no longer match
+// this body.
 @Test func todeskAnchorsOnGAPkgFilenameNotDaaSChannel() {
     let recipe = try! #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.youqu.todesk.mac" })
@@ -38,12 +41,14 @@ import Foundation
     // positional-arg block; every mac_version field is now a bare variable.
     let body = #"mac_link:"https://dl.todesk.com/daas/mac/ToDesk_DaaS_v1.1.0.1.pkg",mac_link_gray:"https://dl.todesk.com/daas/mac/ToDesk_DaaS-v1.1.0.1_392.pkg",mac_version:l,mac_version_gray:l,"#
         + #"("",false,"-1","2026.7.10","https://dl.todesk.com/macos/ToDesk_4.9.7.4.pkg",true)"#
-    // Version anchors on the consumer GA pkg filename, NOT the DaaS 1.1.0.1 links.
+    // Version anchors on the first consumer pkg filename (GA in this fixture), NOT the
+    // DaaS 1.1.0.1 links.
     #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.4")
     // Regression: the retired mac_version literal anchor finds nothing in the new body.
     #expect(VendorProbeRecipe.extractVersion(
         from: body, pattern: #"mac_version:"([0-9]+(?:\.[0-9]+)+)""#) == nil)
-    // The install spec rebuilds the GA pkg URL from the captured filename version.
+    // The install spec rebuilds the pkg URL from the captured filename version (the GA
+    // pkg here, because the fixture has no gray consumer link).
     guard case let .bodyTemplate(template, fields) = recipe.install?.urlSource else {
         Issue.record("expected bodyTemplate install source"); return
     }

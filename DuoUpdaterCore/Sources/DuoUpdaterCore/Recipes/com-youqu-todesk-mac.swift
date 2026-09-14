@@ -34,10 +34,9 @@ enum com_youqu_todesk_mac {
         // (`update.todesk.com/macos/uplog.html`) was abandoned when checked
         // (2026-08-22, 2026-09-14) — its newest entry sat releases behind the
         // shipping app, while the same host's `windows/uplog.html` was current
-        // (History has the versions). Pointing
-        // the pane at it would show notes for a version the user passed releases
-        // ago, which is the version-mismatch failure the Notion and Figma
-        // changelogs were just moved away from.
+        // (History has the versions). Pointing the pane at it would show notes for
+        // a version the user passed releases ago, which is the version-mismatch
+        // failure the Notion and Figma changelogs were just moved away from.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
             url: URL(string: "https://www.todesk.com/download.html")!,

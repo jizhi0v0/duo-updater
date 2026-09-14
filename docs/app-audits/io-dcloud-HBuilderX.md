@@ -33,8 +33,9 @@
   - `channel: .alpha`——VendorProbeSource channel gate 必须与安装的 `.alpha` 一致
 
 ## Changelog
-- stable: ChangelogRecipe ✓（`hx.dcloud.net.cn/Tutorial/HistoryVersion`）
-- alpha: ChangelogRecipe ✓（相同 changelogURL，单独 bundleID `io.dcloud.HBuilderXAlpha`）
+- stable: ChangelogRecipe ✓（读 `hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md`；`hx.dcloud.net.cn/Tutorial/HistoryVersion` 是两条 VendorProbe 的 `changelogURL`）
+- alpha: ChangelogRecipe ✓（读 `…/ReleaseNote_alpha.md`，单独 bundleID `io.dcloud.HBuilderXAlpha`；VendorProbe 的 changelogURL 与 stable 相同）
+- 更正 2026-09-14：这两行原来把 `HistoryVersion` 写成 ChangelogRecipe 的来源；那是两条 VendorProbe 的 `changelogURL`，两条 ChangelogRecipe 自 `0b92a57f`（2026-08-22）起读的是上面的 markdown（`Recipes/io-dcloud-HBuilderX.swift` 两条 `ChangelogRecipe` 的 `source`）。
 
 ## 一键安装
 - stable: **一键 ✓**（2026-07-03 加，随版本源改到 `release.json` 一并接入）。`files[]` 里带
@@ -81,7 +82,7 @@ shape as the alpha recipe below.
 
 ### Recipes/io-dcloud-HBuilderX.swift — stable VendorProbe（此前的第三方镜像）
 
-转引自 recipe 注释，未复测。整段原文，整段从代码里搬走（开头一段已经说明现在读的是厂商自己的 `release.json`）。
+转引自 recipe 注释，未复测。整段原文；代码里改成一句否决说明留下（第三方镜像只提供更新 manifest、没有安装包、可能落后于厂商），「官方 release.json 更新鲜、直接列出 arm64 dmg」这句由开头一段承担。
 
 Previously this pointed at a third-party mirror
 (update.liuyingyong.cn/…/alpha/…) that only served the update manifest,

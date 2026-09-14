@@ -11,6 +11,10 @@ enum io_dcloud_HBuilderX {
         // the alpha recipe below. (The changelog recipe no longer reads this file;
         // see ChangelogRecipe.)
         //
+        // Not the third-party mirror (`update.liuyingyong.cn/…/alpha/…`) this once
+        // read: it served only the update manifest, no installer, and could lag the
+        // vendor.
+        //
         // One-click: `files[]` lists the platforms in win/x64/arm64 order, so the
         // plain `mac_simple` x64 `.dmg` appears BEFORE `mac_simple_arm64`; the
         // `\.arm64\.dmg` anchor pins the Apple-silicon build regardless of order

@@ -22,10 +22,10 @@ enum com_tencent_xinWeChat {
         // date) and bumps cleanly to "4.1.11" when that ships. We deliberately do
         // NOT compare the `sparkle:version` build (e.g. 268853 vs 268851): WeChat
         // re-spins builds inside one marketing version, and surfacing "→ 268853" is
-        // both a meaningless number and a non-update in the user's eyes. The pattern matches
-        // both the element and the enclosure-attribute form of `shortVersionString`;
-        // selectHighest takes the newest across all items (it matches nothing but app
-        // versions).
+        // both a meaningless number and a non-update in the user's eyes. The
+        // pattern matches both the element and the enclosure-attribute form of
+        // `shortVersionString`; selectHighest takes the newest across all items (it
+        // matches nothing but app versions).
         //
         // One-click dmg: the enclosure is on Tencent's own CDN, same channel, signed
         // by the same Team `5A4RE8SF68` (Tencent Mobile International) as the installed

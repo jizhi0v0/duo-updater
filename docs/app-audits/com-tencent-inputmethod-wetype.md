@@ -207,7 +207,7 @@ duo install → backed up → downloading → extracting → verifyingCodeSignat
 
 ### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（开头三段：版本从 changelog 页读的那一版）
 
-转引自 recipe 注释，未复测。三段整段原文，迁移时都已不成立（描述的是被替换掉的读页面的 recipe），见下面的更正。代码里第一段只留下了到 appcast 冻结为止的那部分，并改成指向现在的 manifest；后两段删了。
+转引自 recipe 注释，未复测。三段整段原文，迁移时都已不成立（描述的是被替换掉的读页面的 recipe），见下面的更正。代码里第一段只留下了到 appcast 冻结为止的那部分，并改成指向现在的 manifest；后两段删了，其中「We compare BUILDS, not the marketing version」的理由按现在的 manifest 另写成一段留在代码里（`zip_version` 第 4 段与装机 `CFBundleVersion` 是同一个数）。
 
 WeType (微信输入法) — Tencent's input method. Installs under
 `/Library/Input Methods` (not /Applications), now scanned by AppScanner.

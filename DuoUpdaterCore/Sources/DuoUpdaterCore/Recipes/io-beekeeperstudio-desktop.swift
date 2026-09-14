@@ -15,11 +15,11 @@ enum io_beekeeperstudio_desktop {
         // Matthew Rathbone) reporting the tag as its version, bundle id
         // io.beekeeperstudio.desktop (checked 2026-06-06; History has the version).
         // Electron app with its own updater, so a fallback. The filename carries
-        // the version, so the pattern stays version-agnostic; arm64 (the bare `…-<ver>.dmg` is NOT
-        // universal — checked with `file` on 6.0.1, it is a single x86_64 slice —
-        // and a `-mac.zip` also ships, so the arm64 anchor is what keeps an Intel
-        // build off an arm64 Mac). The VendorInstaller Team-gate enforces the match
-        // against whatever is installed.
+        // the version, so the pattern stays version-agnostic; arm64 (the bare
+        // `…-<ver>.dmg` is NOT universal — checked with `file` on 6.0.1, it is a
+        // single x86_64 slice — and a `-mac.zip` also ships, so the arm64 anchor is
+        // what keeps an Intel build off an arm64 Mac). The VendorInstaller Team-gate
+        // enforces the match against whatever is installed.
         GitHubReleaseRule(
             bundleID: "io.beekeeperstudio.desktop",
             owner: "beekeeper-studio", repo: "beekeeper-studio",

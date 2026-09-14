@@ -62,6 +62,22 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
   指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
   审计新增行数）要回答的。
+- **补充七条**（#615 三轮复审的教训，上面各条没有覆盖到的）：
+  1. **和"被更新的那个 app"比较的措辞不是机器状态**："the installed app"、"matching the
+     install"、"the installed copy's team" 原样保留。只有说"这台 Mac 装了/量到了什么"的句子才按
+     机器状态改写；改写的来源标注转述原文，不引用被替换掉的那个短语。
+  2. **从厂商现状句里删掉日期或 "when checked"，就造出了一句无时间的断言，按（c）处理**：先复测，
+     或者把日期留着。反例：#615 第一版从 Gemini 的 "(302 → /sorry, observed 2026-08-16)" 里删掉
+     日期，剩下 "the download page answers a plain fetch with Google's bot challenge (302 → /sorry)"，
+     而那页复测时回的是 404。
+  3. **代码里留下改写过的结论时，历史里放它所在的整段原文**，不是只放被改的那一句——原文要在
+     某处完整存在。
+  4. **grep 副本的范围**：`git grep` 覆盖 Tests、`App/Sources`、`docs/engine-notes/`、
+     `CHANNEL_COVERAGE_TODO.md`、`.claude/skills/` 与 `.agents/`、本文件的索引行、根目录 README。
+  5. **改索引、台账或 skill 的某一行时，核这一行其余的说法**：在本批范围内的一起改，不在的列进 PR
+     的 Found in passing。
+  6. **改写里的量词**（"a few"、"ONE"、"all"、"never"）必须和历史里记下的计数一致。
+  7. **改过的注释行按周围行的宽度重新折行。**
 
 ---
 

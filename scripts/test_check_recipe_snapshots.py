@@ -276,12 +276,31 @@ class Snapshots(unittest.TestCase):
         self.assertEqual(crs.main(root=self.root, minimum=1, shapes=broken), 1)
 
     # The check's own exit code, end to end, on a clean fixture.
+    # Mutation: delete the success print in `main`.
     def test_a_clean_tree_passes(self):
         self.anchor()
         self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
         # Captured so the `make test` log holds one success line, the real run's.
-        with contextlib.redirect_stdout(io.StringIO()):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
             self.assertEqual(crs.main(root=self.root, minimum=1), 0)
+        self.assertIn("✓ no dated snapshots in recipe comments — 2 families guarded",
+                      out.getvalue())
+
+    # Mutation: `main` returns 0 while `review` reports an offence. Every other
+    # offence test reads `review()`, so without this one the exit code is untested.
+    def test_an_offence_fails_main(self):
+        self.anchor()
+        self.write("zz-fixture", swift(REAL["measurement-led"]))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
+
+    # Mutation: `main` returns 0 while `review` reports a stale marker.
+    def test_a_stale_marker_fails_main(self):
+        self.anchor()
+        self.write("zz-fixture", swift("        // Nothing dated here.\n" + ALLOW))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
 
 
 if __name__ == "__main__":

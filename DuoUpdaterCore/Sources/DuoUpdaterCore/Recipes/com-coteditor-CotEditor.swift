@@ -90,7 +90,8 @@ enum com_coteditor_CotEditor {
         // described further down, arriving through a phase the pattern could not
         // see rather than through a patch release. Nothing reported it, and nothing
         // could: the sweep asks whether the pattern still matches, not whether what
-        // it matched is the right release. History has the dated replay.
+        // it matched is the right release. The dated replay is in the audit's
+        // 「rc 相位」 section.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
         // same call WhatCable's beta rule makes, for the same two reasons, and

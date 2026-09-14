@@ -54,18 +54,19 @@ import Foundation
 ///                                        5.0.4  internal   x86_64 arm64
 ///                                        4.3.6  untagged   x86_64 arm64
 /// (2.3.9 and 3.5.6b are universal too.) Every one of those artifacts is signed
-/// by Team 299YSU96J7, the same identity as the installed app — so the signature
-/// gate cannot catch a cross-architecture mistake here either.
+/// by Team 299YSU96J7, the same identity as the installed app.
 /// Why the tag exists at all is unconfirmed; the timeline reads as "the first two
 /// v5 previews shipped Apple-silicon-only, and the tag kept Intel users on the
 /// `pre` track from being handed one", but the vendor has not said so.
 /// Nothing in the feed says so: the items declare no `<sparkle:hardwareRequirements>`
 /// and the enclosure is named `BetterDisplay-v5.0.1-pre-release.dmg` with no arch
-/// token, so `SparkleAppcastSource.archVerdict` would rate them `.neutral` and
-/// happily offer them to an Intel Mac that cannot run them. Excluding the tag
-/// costs nothing: 5.0.2+ moved to `pre` with a higher version, so an `arm64_pre`
-/// item could never be the offered update anyway — only two rows of changelog
-/// history are lost.
+/// token, so `SparkleAppcastSource.archVerdict` would rate them `.neutral`.
+/// That is harmless here: DuoUpdater ships arm64-only (`App/project.yml`,
+/// `ARCHS: arm64`), so every Mac it runs on can run an arm64-only build. What
+/// keeps the tag excluded is the rest of this paragraph — what it is for is
+/// unconfirmed, and excluding it costs nothing: 5.0.2+ moved to `pre` with a
+/// higher version, so an `arm64_pre` item could never be the offered update
+/// anyway — only two rows of changelog history are lost.
 ///
 /// Safety: an unreadable or absent key falls back to `.stable` — the shipped
 /// default — so we never push a prerelease at someone who did not opt in.

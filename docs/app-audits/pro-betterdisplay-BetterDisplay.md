@@ -79,3 +79,34 @@ deliberately NOT listed — that one holds real changes, which is why the
 match is whole-heading rather than a substring.
 
 复测 2026-09-14（同一次 `per_page=40` 读取）：40 条里 20 条带其中一种名单标题——19 条 "Included Localizations"（`v3.3.4` 同时还有 "Localization Improvements"），1 条 "Localizations included in this release"（`v3.3.3`）；40 条正文里 `<details` 与 `<!--` 都是 0 次。名单正文逐条带贡献者列表，「只有两种不同文本」没有按原来的切法重算。
+
+### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（三条 recipe，三条轨；`arm64_pre` 的理由，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #632（`9babda42`）改写之后留在代码里的版本（改写之前的原文见上面「三条 recipe，三条轨」那一组），段首说明句接缩进的三条要点，要点用代码块围起来。`.beta` 那条里 "because they are Apple-silicon-only" 按当前代码不成立，代码里改写了，见下面的更正；其余原样。
+
+THREE recipes, one per track — none of them removable as a duplicate,
+even though `.beta` and `.unstable` differ only in `channel`. The tracks
+split on GitHub's `prerelease` flag, and BetterDisplay resolves its
+channel from two Settings toggles rather than from the bundle id (see
+`BetterDisplayChannel`):
+```
+  * `.stable`   → prerelease: false — e.g. v4.3.6, v4.3.5; since v5.0.5
+                that includes 5.x releases as well as 4.x ones (checked
+                2026-09-14; History has the tags).
+  * `.beta`     ("Receive pre-release updates") → prerelease: true —
+                v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
+                (v5.0.0/v5.0.1), which are excluded from what we OFFER
+                because they are Apple-silicon-only, but are real history
+                and belong in the rail.
+  * `.unstable` ("Receive internal pre-release updates") → deliberately
+                the same feed as `.beta`. The internal track has no
+                per-version notes anywhere: its items link
+                `changelog.html?tag=pre`, and that rolling release's body
+                is static boilerplate about what internal builds are. The
+                pre track is where those builds come from and the closest
+                true history for them; without this third registration the
+                channel-aware lookup would fall back to `.stable` and show
+                an internal-track user the stable releases' notes instead.
+```
+
+更正 2026-09-15：DuoUpdater 只发 arm64 构建——`App/project.yml` 项目级 `settings` 里 `ARCHS: arm64`，由 `a8295aee`（2026-08-14）钉死，早于这句话（`195c8b44`，2026-08-27）。所以 DuoUpdater 能运行的每一台 Mac 都能运行 arm64-only 的构建，"Apple-silicon-only" 不是不提供这两个构建的理由，写下时就不是。不提供它们的理由在 `Sources/BetterDisplayChannel.swift` 的文档注释里：这个 tag 的含义没有得到厂商确认，而 5.0.2 起的构建都以更高的版本号进了 `pre`，所以排除它不损失任何可提供的更新。那段注释里同样以 Intel Mac 为前提的两句（签名闸拦不住跨架构错误、`archVerdict` 会把它们提供给跑不了的 Intel Mac）一并改了，`Tests/DuoUpdaterCoreTests/BetterDisplayChannelTests.swift` 的 `arm64PreIsNeverInAnyAllowedSet` 文档注释里的同一说法也改了。代码里这条改成 "(`BetterDisplayChannel` says why)"。

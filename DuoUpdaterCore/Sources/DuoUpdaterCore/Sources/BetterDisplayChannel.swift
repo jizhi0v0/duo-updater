@@ -3,7 +3,7 @@ import Foundation
 /// BetterDisplay (`pro.betterdisplay.BetterDisplay`) ships THREE tracks through
 /// ONE Sparkle appcast (`betterdisplay.pro/betterdisplay/sparkle/appcast.xml`),
 /// selected by two toggles in Settings → Application → Updates:
-///   * stable            → the untagged items (4.3.6 is the newest, 2026-08-26)
+///   * stable            → the untagged items (4.3.6 was the newest on 2026-08-26)
 ///   * "Receive pre-release updates"          → `<sparkle:channel>pre`
 ///   * "Receive internal pre-release updates" → `<sparkle:channel>internal`
 ///
@@ -27,16 +27,16 @@ import Foundation
 ///
 /// Why a binding at all, when `SparkleAppcastSource` already infers the channel
 /// from the running build: the inference cannot see an opt-in the user has not
-/// yet acted on. Reproduced on this machine 2026-08-26 — BetterDisplay 4.3.6
-/// (build 50119, a stable-track build) with both toggles on, the vendor's own
-/// updater offering v5.0.4, and `duo check` reporting "up-to-date" because the
-/// installed build matches the untagged 4.3.6 item. The vendor documents the
+/// yet acted on. Reproduced 2026-08-26 on a copy at BetterDisplay 4.3.6 (build
+/// 50119, a stable-track build) with both toggles on: the vendor's own updater
+/// offered v5.0.4, and `duo check` reported "up-to-date" because that copy's
+/// build matches the untagged 4.3.6 item. The vendor documents the
 /// inference as the fallback, not the rule ("If you are already running a
 /// pre-release version, you'll receive pre-release updates until the next stable
 /// release even if this option is disabled").
 ///
-/// The preference keys, read off `~/Library/Preferences/pro.betterdisplay.BetterDisplay.plist`
-/// on 2026-08-26 while flipping the GUI toggles:
+/// The preference keys, read off the app's preferences domain
+/// (`pro.betterdisplay.BetterDisplay`) on 2026-08-26 while flipping the GUI toggles:
 ///     both off  → `preReleaseChannel` ABSENT,  `internalReleaseChannel` ABSENT
 ///     both on   → `preReleaseChannel` 1,       `internalReleaseChannel` 1
 ///     pre only  → `preReleaseChannel` 1,       `internalReleaseChannel` 0
@@ -62,11 +62,15 @@ import Foundation
 /// and the enclosure is named `BetterDisplay-v5.0.1-pre-release.dmg` with no arch
 /// token, so `SparkleAppcastSource.archVerdict` would rate them `.neutral`.
 /// That is harmless here: DuoUpdater ships arm64-only (`App/project.yml`,
-/// `ARCHS: arm64`), so every Mac it runs on can run an arm64-only build. What
-/// keeps the tag excluded is the rest of this paragraph — what it is for is
-/// unconfirmed, and excluding it costs nothing: 5.0.2+ moved to `pre` with a
-/// higher version, so an `arm64_pre` item could never be the offered update
-/// anyway — only two rows of changelog history are lost.
+/// `ARCHS: arm64`), so every Mac it runs on can run an arm64-only build.
+/// What keeps the tag out is the binding: `resolve` below names only `pre` and
+/// `internal`, and for a binding that names tags
+/// `SparkleAppcastSource.allowedChannels` allows the untagged items plus exactly
+/// those names. Leaving `arm64_pre` out costs nothing offerable: from 5.0.2 on,
+/// every 5.x build in the feed is numbered above both `arm64_pre` items (5.0.0,
+/// 5.0.1), whichever tag it carries — `pre`, `internal`, or untagged (that line
+/// reached 5.0.5 when checked, 2026-09-15) — so neither could be the offered
+/// update; only two rows of changelog history are lost.
 ///
 /// Safety: an unreadable or absent key falls back to `.stable` — the shipped
 /// default — so we never push a prerelease at someone who did not opt in.

@@ -234,6 +234,14 @@ channel.
   logic in the whole file (three tracks, a subsuming toggle, an excluded
   `arm64_pre` fourth tag with its own architecture trap). Worth creating
   one — flagged as a documentation gap, not part of this task's scope to fix.
+  *Correction 2026-09-15:* there is no architecture trap. The one meant here,
+  from `BetterDisplayChannel.swift`'s comment at the time, was an arm64-only
+  `arm64_pre` build being offered to an Intel Mac, and DuoUpdater ships
+  arm64-only (`App/project.yml`, `ARCHS: arm64`, since `a8295aee` on
+  2026-08-14). The tag stays out because `BetterDisplayChannel.resolve` never
+  names it. Since #632 there is also a BetterDisplay doc,
+  `pro-betterdisplay-BetterDisplay.md`, but it holds only history moved out of
+  recipe comments; it is not an audit, so the coverage gap above still stands.
 
 ---
 

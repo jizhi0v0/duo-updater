@@ -30,8 +30,8 @@
 
 | Channel/代际 | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| CCC 7 stable | `com.bombich.ccc` | — | `download_ccc.php?v=latest` 重定向文件名 | `channel: .stable` + `installedVersionPattern: ^7\.` | ✓ |
-| CCC 7 beta   | `com.bombich.ccc` | 共享 | `download_ccc.php?v=latestbeta` 重定向文件名 + `CFBundleShortVersionString` 的 `-b<N>` 后缀（`detect()` 新增 step 0.8）| `channel: .beta` + `installedVersionPattern: ^7\.` | ✓ |
+| CCC 7 stable | `com.bombich.ccc` | — | `download_ccc.php?v=ccc7` 重定向文件名 | `channel: .stable` + `installedVersionPattern: ^7\.` | ✓ |
+| CCC 7 beta   | `com.bombich.ccc` | 共享 | `download_ccc.php?v=latestbeta` 重定向文件名（`-b<N>` 可选，周期之间是毕业后的 stable，见 2026-09-14 实测）+ `CFBundleShortVersionString` 的 `-b<N>` 后缀（`detect()` 新增 step 0.8）| `channel: .beta` + `installedVersionPattern: ^7\.` | ✓ |
 | CCC 6 stable | `com.bombich.ccc` | 共享 | `download_ccc.php?v=ccc6` 重定向文件名 | `installedVersionPattern: ^6\.` | ✓（2026-08-29 新增） |
 | CCC 5 stable | `com.bombich.ccc` | 共享 | `download_ccc.php?v=ccc5` 重定向文件名 | `installedVersionPattern: ^5\.` | ✓（2026-08-29 新增） |
 
@@ -80,8 +80,12 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 ### stable
 
 - 源: VendorProbe，`.redirectFilename` 模式
-- 端点: `https://bombich.com/software/download_ccc.php?v=latest`
-  （HEAD 请求经两跳重定向 `api.bombich.com/download/ccc?v=latest` → CDN
+- 端点: `https://bombich.com/software/download_ccc.php?v=ccc7`
+  （**不是 `?v=latest`**——2026-08-29 的多代际修复把它换成了按代际限定的别名，
+  `stableRecipeUsesTheGenerationScopedEndpoint` 现在明令禁止 `v=latest`。
+  下面这行连同本节其余部分是 2026-08-30 用 `?v=latest` 做的实测，当天两者解析到同一个
+  文件，所以记录本身没错，错的是把端点写成了 `?v=latest`。）
+  （HEAD 请求经两跳重定向 `api.bombich.com/download/ccc?v=<ccc7|latest>` → CDN
   `bombich.scdn1.secure.raxcdn.com/software/files/ccc-7.1.6.8368.zip`，只读
   `Location`/最终 URL，不下载 27 MB 正文）
 - 版本方案: 文件名 `ccc-<marketing>.<build>.zip`，marketing 段是 2 或 3 段（`7.1` 或
@@ -124,7 +128,9 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
   stable 一致），已公证
 - 版本方案: 文件名 `ccc-<marketing>-b<N>.<build>.zip`（例：`7.1.7-b7`），正则在原有
   marketing 分组末尾加 `-b[0-9]+`，捕获组连同 beta 后缀一起取出，与
-  `CFBundleShortVersionString` 逐字符一致，`versionIsBuild` 同样不需要开
+  `CFBundleShortVersionString` 逐字符一致，`versionIsBuild` 同样不需要开。
+  **该后缀 2026-09-14 起是可选的**（`(?:-b[0-9]+)?`）——周期之间这个端点答的是毕业后的
+  stable 文件名，理由和证据见下面那条实测
 - **channel 检测信号**: `CFBundleShortVersionString` 的 `-b<N>` 短后缀——不是 Mozilla
   的 `b<N>`（要求恰好一个点、无连字符，如 `155.0b5`），也不是 GitHub Desktop 那种全词
   `-beta<N>`（如 `3.5.12-beta2`）。`ReleaseChannel.detect()` 原有 step 4 两条规则都
@@ -132,6 +138,127 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
   bundle id 共享、版本串本身就是唯一信号时，才值得为单个 app 单独开规则，不改全局
   pattern）
 - changelog: 复用之前调查阶段就已经找到的 `ccc7_rn_beta.html`（当时只是没接进 recipe）
+
+**2026-09-14 实测：beta 轨道是周期性的，`?v=latestbeta` 在两个周期之间答 stable。**
+这是厂商的常态，不是故障。当天用与 `.redirectFilename` 同样的 HEAD-并跟随请求实测：
+
+| query | 最终 URL | `lastPathComponent` |
+|---|---|---|
+| `?v=latestbeta` | `https://bombich.download/ccc-7.2.8399.zip` | `ccc-7.2.8399.zip` |
+| `?v=ccc7` | `https://bombich.download/ccc-7.2.8399.zip` | `ccc-7.2.8399.zip` |
+| `?v=latest` | `https://bombich.download/ccc-7.2.8399.zip` | `ccc-7.2.8399.zip` |
+| `?v=ccc6` | `https://bombich.download/ccc-6.1.13.7699.zip` | `ccc-6.1.13.7699.zip` |
+| `?v=ccc5` | `https://bombich.download/ccc-5.1.28.6213.zip` | `ccc-5.1.28.6213.zip` |
+
+顺带：CDN 主机已经从 2026-08-29/30 记录的
+`bombich.scdn1.secure.raxcdn.com/software/files/` 换成了 `bombich.download/`。
+上面那些旧记录按当日实测保留原样，不改。`.redirectFilename` 读的是最终 URL 的
+`lastPathComponent`，所以 recipe 从头到尾没看见这次搬迁。
+
+**7.1.7 的 beta train 毕业成了 7.2，这是厂商自己的文字，不是推论。** 两条独立证据：
+
+1. `ccc7_rn.html`（`last-modified: 2026-09-13`）里**根本没有 7.1.7 这一节**——版本标题
+   从 `CCC 7.1.6: July 15, 2026` 直接跳到 `CCC 7.2`。那条 train 没有以 `7.1.7` 落地。
+2. 7.2 的 "What's new" 与 `ccc7_rn_beta.html`（`last-modified: 2026-08-18`，仍停在
+   "CCC 7.1.7-b7 — This is a pre-release update of CCC"）的「What we're testing in this
+   beta cycle」逐条对应：bootable backup 的 hybrid 增量策略、"When files are modified on
+   the source" 的两条放宽、Settings 窗口重做、锁屏时 `NSFileProtectionComplete` 文件的
+   处理、`/.streams` 全局排除、SAMBA hidden flag、"Sign in with Microsoft" OAUTH、
+   `ccc --watch` 进度显示、"Removed TouchBar support"。7.2 的正文还直说了
+   "During our latest beta testing cycle"。
+
+**后果与修法。** 旧的 beta `versionPattern` 要求 `-b[0-9]+`，于是在这个常态上一条都不匹配：
+`VendorProbeSource` 抛 `ProbeFailed`（`versionPatternNoMatch`），行显示检查失败，而
+`duo verify` 走的是 recipe 不是安装，所以每台机器都会报一条红。`verify/baseline.json` 里
+`vendor:com.bombich.ccc:beta` 当时已经是 `consecutiveActionable: 1` /
+`lastSignature: versionPatternNoMatch` / `lastGoodVersion: 7.1.7-b7`（2026-09-13T14:24Z），
+阈值 2，下一轮扫描就会开 issue。
+
+**2026-09-14T02:26Z 那一轮真的开了：issue #612**（`consecutiveActionable: 2`，
+`triagedSignature: versionPatternNoMatch`，抓到的响应体正是 `ccc-7.2.8399.zip`）。
+
+⚠️ **issue 里那条自动建议不能用**，虽然它带着一个 ✅：
+`^ccc-(\d+(?:\.\d+)+)\.zip$`。那个 ✅ 只核了「能从响应体里抽出东西」，抽出来的是
+`7.2.8399`——marketing 和 build 连在一起，没有任何 CCC bundle 的
+`CFBundleShortVersionString` 长这样，喂进比较就是一个永不消失的幻影更新。移植到 Python
+打全部文件名，三处都错：
+
+| 文件名 | issue 的建议 | 本次采用 |
+|---|---|---|
+| `ccc-7.2.8399.zip` | `7.2.8399`（marketing+build 粘连） | `7.2` |
+| `ccc-7.1.7-b7.8389.zip` | **nil**（周期开着时 beta 反而读不到了） | `7.1.7-b7` |
+| `ccc-6.1.13.7699.zip` | `6.1.13.7699`（**跨代际**） | nil |
+| `ccc-5.1.28.6213.zip` | `5.1.28.6213`（**跨代际**） | nil |
+| `ccc-8.0.1.9000.zip` | `8.0.1.9000`（**跨代际，付费升级**） | nil |
+
+它把整个三 recipe 拆分存在的理由——代际锚——一起拆掉了。issue 自己标着
+「Unverified suggestion — do not apply without testing」，这就是那句话的用处。
+
+改法是把 `-b<N>` 变成可选——`^ccc-(7(?:\.[0-9]+)+(?:-b[0-9]+)?)\.[0-9]{3,}\.zip$`——
+与 CotEditor 的 beta rule 同一个判断（见 `Recipes/com-coteditor-CotEditor.swift`）。
+用 Python 把正则移植过去打真实响应体复算（两个证人），全矩阵：
+
+| 文件名 | ccc5 | ccc6 | ccc7 | beta（旧） | beta（新） |
+|---|---|---|---|---|---|
+| `ccc-5.1.28.6213.zip` | 5.1.28 | nil | nil | nil | nil |
+| `ccc-6.1.13.7699.zip` | nil | 6.1.13 | nil | nil | nil |
+| `ccc-7.1.1234.zip` | nil | nil | 7.1 | nil | 7.1 |
+| `ccc-7.1.6.8368.zip` | nil | nil | 7.1.6 | nil | 7.1.6 |
+| `ccc-7.1.7-b7.8389.zip` | nil | nil | nil | 7.1.7-b7 | 7.1.7-b7 |
+| `ccc-7.2.8399.zip`（当天实测的那个） | nil | nil | 7.2 | **nil** | **7.2** |
+| `ccc-8.0.1.9000.zip` | nil | nil | nil | nil | nil |
+| `ccc-8.0.2-b1.9012.zip` | nil | nil | nil | nil | nil |
+
+排序也单独复算过（把 `VersionComparator.tokenize`/`compare` 移植到 Python）：
+`isNewer("7.2", "7.1.7-b7") = true`，反向 false。**这一对在第二个分量就分出胜负
+（1 vs 2），根本走不到 CotEditor 那对 `7.1.0` / `7.1.0-beta.6` 依赖的
+「补位 `.number(0)` 胜过 `.text`」规则**；那条规则在这里只对未来某个
+`7.3` / `7.3-b1` 形状的毕业才承重（也复算过，true）。
+
+**代价，两条，都是知道了才接受的：**
+
+- **单向，而且这里没法自动回到 beta 轨。** 装上 7.2 之后 `ReleaseChannel.detect` step 0.8
+  找不到 `-b<N>`，答 `.stable`，从下一次检查起由 stable recipe 服务，不再给 prerelease。
+  CotEditor 能自愈是因为 `CotEditorChannel` 读厂商自己那个 prerelease 勾选框、优先级高于
+  版本串；CCC 有同一个勾选框（Settings → Software Update → "Inform me of beta releases"，
+  beta notes 页自己写着），但**这个仓库里没有任何东西读它**——`com.bombich.ccc` 没有
+  `ChannelBinding`。所以形状上等同 WhatCable 而非 CotEditor，想回到轨上要手动装一份 beta。
+  接受的理由：另一边是一条永久红、且从来不会被给任何东西的行；而且这条 recipe 是
+  detection-only，`downloadURL` 就是厂商自己的 beta 端点，用户点过去拿到的正是这次解析到的
+  同一个构件。
+- **changelog 会对不上。** `ccc7_rn_beta.html` 是**已关闭周期**的页面，所以两个周期之间
+  提供的版本（7.2）和旁边的说明（7.1.7-b7）说的不是一回事。没有按形状切换页面——那要从
+  文件名去猜厂商当前处在哪个状态，正是这条 recipe 在别处刻意避免的推断。
+
+**复审补出来的两条代价（第一版的代价清单漏了，记在这里而不是留给下一个人发现）：**
+
+1. **退役的 beta 轨道从此看不出来了。** 旧 pattern 有一个副作用：Bombich 哪天把
+   `?v=latestbeta` 撤掉或改名，答案不再是 beta 文件名，probe 就变红，有人会去看。
+   现在它会解析出 stable 并且**永远绿着**——「轨道在周期之间休息」和「轨道没了」在响应里
+   长得一模一样，而这个 recipe 没有 install、也就没有 proof 会去质疑它，Homebrew 那条
+   cask 又是 `auto_updates: true` 交叉核对不上。CotEditor 的 beta rule 接受 stable tag
+   时接受的是同一件事。没有别的修法：`trackClosedPattern` 要的是**厂商自己说**这条轨道
+   空了，而这个端点什么都不说，只是换个文件给你。所以这是知道了才接受的，不是没想到。
+2. **一个装着比「毕业版」更新的 prerelease 的拷贝，会看到一个更旧的「最新版本」。** 周期
+   关掉时端点回落到 stable，如果那份 stable 比装机的 beta 旧（比如装着 `7.2.1-b1`、端点
+   答 `7.2`），`VersionComparator` 正确地不提供更新，但行上写的「最新」是个更小的数字，
+   而且 `RecipeSanity.remoteBehindInstalled` 会开始出一条 advisory。CotEditor 的注释接受
+   了同形的后果（"a row that says 'up to date' beside a lower number"）。
+   ⚠️ **复审说这个窗口「刚刚发生过」（2026-08-18 → 09-13），实测不是。** baseline 里
+   `vendor:com.bombich.ccc:beta` 的 `lastGoodAt` 是 `2026-09-13T14:24Z`、
+   `lastGoodVersion` 是 `7.1.7-b7`，而 stable ccc7 要到同一天 20:25 才读到 `7.2`——
+   也就是说 beta 页面 2026-08-18 冻住之后，**端点一直在发 `-b7`**，那个窗口里没有出现过
+   回落。机制是真的，被引用的那次不是；按量到的写。
+
+**这次没有改的：**`ChannelProofRegistry` 没有、也不需要 CCC beta 的条目——
+`proofs` 要覆盖的是 `channelRecipesWithInstall`，这条 recipe 没有 `install`，
+`RecipeSanity.crossChannelArtifact` 在第一道 guard 就返回 nil。但要记下来的是：
+`-b[0-9]+` 原本是「这个答案来自哪条 train」的第二个独立说法，现在它能被 stable 文件名满足，
+于是只剩 `url` 里的 `v=latestbeta` 在说这件事。将来真要加 `install`，必须登记的是
+`.recipeAnchor(#"latestbeta"#, in: ["url"])`（endpoint-keyed，同 IntelliJ EAP / Alfred beta），
+**不是**锚在 `-b` 上的 `.artifact`——后者在厂商开着周期的每一天都绿，偏偏在它该判断的那次
+发布上失效。CotEditor 的 proof 条目记着自己犯过一模一样的错，绿了整整一天。
+
 
 - 注意事项:
   - **Info.plist 确实有 `SUFeedURL`**（`https://api.bombich.com/updates/ccc`），
@@ -192,8 +319,8 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 
 1. **CCC 7 stable/beta 检测已完成**：
    `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` 两条
-   `com.bombich.ccc` recipe（`.redirectFilename`，`download_ccc.php?v=latest` /
-   `?v=latestbeta`）；`ReleaseChannel.swift` 新增 step 0.8 识别 `-b<N>` 短后缀。
+   `com.bombich.ccc` recipe（`.redirectFilename`，`download_ccc.php?v=ccc7` /
+   `?v=latestbeta`——stable 那条 2026-08-29 起是按代际限定的 `?v=ccc7`，不是 `?v=latest`）；`ReleaseChannel.swift` 新增 step 0.8 识别 `-b<N>` 短后缀。
 2. **多代际正确性已修复（2026-08-29，用户发现的问题）**：新增
    `VendorProbeRecipe.installedVersionPattern` 字段（`hostRequirement` 的对偶）+
    `VendorProbeSource.probeDiagnostic` 里新的一道过滤，CCC 6/CCC 5 各自注册一条

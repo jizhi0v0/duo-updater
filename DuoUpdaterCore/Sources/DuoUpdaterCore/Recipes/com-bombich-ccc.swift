@@ -111,13 +111,90 @@ enum com_bombich_ccc {
         // CCC's own Settings → Software Update → "Inform me of beta releases".
         // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as stable
         // to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`) while a beta is on
-        // offer. It also answers with the plain stable zip, likely whenever none is
-        // (between beta cycles), and `versionPattern` does not match that: the probe
-        // throws `ProbeFailed` (`VendorProbeSource`), so the row shows a failed check
-        // and `duo verify` reports the recipe as failing. Marketing matches the probed
-        // capture group
+        // offer, and to the plain stable zip between cycles — measured, not
+        // "likely": 2026-09-14 it answered with the same `ccc-7.2.8399.zip` as
+        // `?v=ccc7` and `?v=latest`. `versionPattern` accepts BOTH, which is why
+        // `-b<N>` is optional below. It used to require the suffix, so the
+        // between-cycles answer matched nothing and the probe threw `ProbeFailed`
+        // (`VendorProbeSource`): a failed-check row, and a `duo verify` finding on
+        // every machine for a recipe working as written (issue #612).
+        // Marketing matches the probed capture group
         // exactly, so `versionIsBuild` stays the default `false`, same as
         // stable.
+        //
+        // That stable answer is the vendor's ordinary RESTING state between
+        // cycles, not an outage, and the graduation is the vendor's own text
+        // rather than an inference: `ccc7_rn.html` skips 7.1.7 entirely (7.1.6 →
+        // 7.2) and 7.2's "What's new" is the beta page's cycle list item for
+        // item, while that beta page stayed frozen on the closed cycle's last
+        // prerelease. Both readings are in `docs/app-audits/com-bombich-ccc.md`.
+        //
+        // Anchoring to `-b` instead fails on that resting state in both of the
+        // ways CotEditor's beta rule (`Recipes/com-coteditor-CotEditor.swift`)
+        // spells out for the same vendor shape:
+        //
+        //   • A copy on `7.1.7-b7` is never offered the `7.2` that graduated from
+        //     its own train, and sits on a superseded prerelease until the next
+        //     cycle opens. (CotEditor's version of this bullet adds "while the
+        //     vendor's own updater hands it that release". Not repeated here: CCC
+        //     ships Sparkle but its feed is the dead zero-byte one described
+        //     above, so its own updater hands a beta copy nothing either. The
+        //     vendor's DOWNLOAD endpoint for beta users is what serves the
+        //     graduation, which is the thing measured.)
+        //     `VersionComparator` ranks the graduation on its own, and with more
+        //     room to spare than CotEditor's pair: `7.2` beats `7.1.7-b7` at the
+        //     SECOND component, so it never reaches the `.text`-versus-padded-
+        //     `.number(0)` rule `7.1.0` / `7.1.0-beta.6` depends on. The pattern
+        //     was the only thing in the way.
+        //   • And it is not a quiet nil. `duo verify` walks RECIPES, not
+        //     installs, so the miss is a red finding on every machine for a
+        //     recipe working exactly as written, and the row shows a failed check
+        //     behind a Retry button that cannot work.
+        //
+        // ⚠️ THE COST IS ONE-WAY, and unlike CotEditor it is NOT recoverable here
+        // without a code change. Taking the graduation puts the copy on `7.2`,
+        // `ReleaseChannel.detect` step 0.8 finds no `-b<N>` and answers
+        // `.stable`, and the stable recipe serves it from the next check on — so
+        // we stop offering it prereleases. CotEditor escapes that because
+        // `CotEditorChannel` reads the vendor's own prerelease checkbox and is
+        // authoritative whatever the version string says. CCC has the same
+        // checkbox (quoted above) and nothing here reads it — there is no
+        // `ChannelBinding` for `com.bombich.ccc` — so this is WhatCable's shape,
+        // not CotEditor's, and a user who wants back on the train installs a beta
+        // by hand. Taken anyway because the alternative is a row that is
+        // permanently red and offered nothing at all, and because this recipe is
+        // detection-only: nothing is installed for them, `downloadURL` sends them
+        // to the vendor's own beta endpoint, and what they get there is the same
+        // artifact this probe just read.
+        //
+        // ⚠️ AND A RETIRED BETA RAIL IS NOW INVISIBLE. Requiring `-b` had a side
+        // effect worth naming: if Bombich ever drops or renames `?v=latestbeta`,
+        // the answer stops being a beta filename and the probe goes red, so
+        // somebody looks. It now resolves the stable zip and stays GREEN forever
+        // — "the cycle is resting" and "the rail is gone" are the same bytes, and
+        // nothing else here would notice (no `install`, so no proof questions it;
+        // the Homebrew cask is `auto_updates: true`, so no cross-check either).
+        // `trackClosedPattern` is not the answer: it wants the VENDOR to say the
+        // track is empty, and this endpoint says nothing — it just hands you a
+        // different file. Accepted knowingly, the same trade CotEditor's beta rule
+        // makes by accepting a stable tag.
+        //
+        // ⚠️ And a copy AHEAD of the graduation reads a lower "latest". If a cycle
+        // closes back to a stable older than the installed prerelease (on
+        // `7.2.1-b1`, endpoint answers `7.2`), `VersionComparator` correctly
+        // offers nothing, but the row names a smaller number and
+        // `RecipeSanity.remoteBehindInstalled` starts raising an advisory — the
+        // shape CotEditor's comment accepts as "a row that says up to date beside
+        // a lower number". Not what happened in the 7.1.7-b7 → 7.2 transition
+        // (the endpoint served `-b7` right up to 7.2's release; see the audit),
+        // so this is a reachable shape, not an observed one.
+        //
+        // ⚠️ The other half of the cost is the changelog: `ccc7_rn_beta.html` is
+        // the CLOSED cycle's page, so between cycles the offered version and the
+        // notes beside it disagree (7.2 offered, 7.1.7-b7 described). Left as is
+        // — the stable page is not this channel's page either, and swapping by
+        // shape would mean guessing which state the vendor is in from the
+        // filename, which is the inference this recipe avoids everywhere else.
         //
         // CHANNEL SIGNAL: `CFBundleShortVersionString` carries a short `-b<N>`
         // suffix (e.g. "7.1.7-b7") that `ReleaseChannel.detect()` needed a new
@@ -132,11 +209,28 @@ enum com_bombich_ccc {
         //
         // `?v=latestbeta` is itself a "latest" alias, and unlike stable there is
         // no per-generation twin to switch to. So the anchor on
-        // `versionPattern` — major 7,
-        // same as stable's — is the only guard available here, and it fails closed:
-        // the first CCC 8 beta produces an `ccc-8.…-b<N>.…zip` filename this
-        // pattern does not match, so the probe fails (a Failed row, and a finding in
-        // the nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
+        // `versionPattern` — major 7, same as stable's — is the only guard
+        // available here, and making `-b<N>` optional puts the WHOLE weight on it:
+        // requiring `-b` used to reject a CCC 8 STABLE filename as a side effect,
+        // and now only the `7` does. It still fails closed in both shapes —
+        // `ccc-8.0.2-b1.9012.zip` and `ccc-8.0.1.9000.zip` alike fail to match, so
+        // the probe fails (a Failed row, and a finding in the nightly sweep)
+        // instead of offering a CCC 7 install a CCC 8 build, beta or paid upgrade.
+        //
+        // ⚠️ THE ENDPOINT IS NOW THE ONLY THING THAT SAYS "BETA". `-b[0-9]+` used
+        // to be a second, independent statement of which train an answer came
+        // from; it is now satisfied by a stable filename, so `url`'s
+        // `v=latestbeta` carries that alone — the endpoint-keyed shape
+        // `ChannelArtifactProof.recipeAnchor(_, in: ["url"])` exists for (IntelliJ
+        // EAP's and Alfred beta's are the registered ones). None is registered
+        // here because none is required: `ChannelProofRegistry.proofs` has to
+        // cover `channelRecipesWithInstall`, this recipe carries no `install`, and
+        // `RecipeSanity.crossChannelArtifact` returns nil at its first guard. The
+        // day an install spec is added, the proof that becomes mandatory is
+        // `.recipeAnchor(#"latestbeta"#, in: ["url"])` and NOT an `.artifact` one
+        // anchored to `-b`: that one passes every day the vendor has a cycle open
+        // and fails on exactly the release it is there to judge — the mistake
+        // CotEditor's own proof entry records having shipped for a day.
         //
         // No `install`, same reasoning as stable — the privileged-helper
         // footprint applies equally to both channels. `installedVersionPattern`
@@ -147,7 +241,7 @@ enum com_bombich_ccc {
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta")!,
             mode: .redirectFilename,
-            versionPattern: #"^ccc-(7(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
+            versionPattern: #"^ccc-(7(?:\.[0-9]+)+(?:-b[0-9]+)?)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
             channel: .beta,

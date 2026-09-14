@@ -270,7 +270,7 @@ Contents”，并为迁移脚本建立明确版本门控；不是把官网安装
 
 ### Recipes/com-sogou-inputmethod-sogou.swift — stable VendorProbe（条件端点、pin 旧版本）
 
-转引自 recipe 注释，未复测。四段整段原文（第二段里的表格是原注释里缩进的摘录）。代码里留下的是结论：不做分段升级；`sv` 按系统分三档，档位边界保留、各档对应的版本号搬到这里；静默失效那一种的说法改成了不带版本号的；changelog 页与接口 2026-08-28 核对时一致（原句没写核对日期，取引入它的提交 `6c09268b` 的日期）。
+转引自 recipe 注释，未复测。四段整段原文（第二段里的表格是原注释里缩进的摘录）。代码里留下的是结论：不做分段升级；`sv` 按系统分三档，档位边界保留、各档对应的版本号搬到这里；静默失效那一种的说法改成了不带版本号的；changelog 页与接口在写这句时（2026-08-28，引入它的提交 `6c09268b` 的日期；原句没写核对日期）一致，2026-09-14 复测仍一致。
 
 So the probe pins `v` at `0.0.0.1` — below anything the vendor can ever
 ship, so the request can never drift into sentinel territory. It does
@@ -303,7 +303,7 @@ this.
 release notes exist, and the two agree (`6.24.1`, 2026-07-17, matching
 this bundle's own build date).
 
-复测 2026-09-14（约 07:25 UTC，只读 GET `macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`，另加 `cpu=arm64` / `x86_64` / `intel` 各一次）：四次都是 `version=6.24.1.11676`，`update_pack_url` 相同。代码里 "`cpu` is inert today" 因此原样保留。没有重扫 `sv` 的档位。
+复测 2026-09-14（约 07:25 UTC，只读 GET `macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`，另加 `cpu=arm64` / `x86_64` / `intel` 各一次）：四次都是 `version=6.24.1.11676`，`update_pack_url` 相同。代码里 "`cpu` is inert today" 因此原样保留。没有重扫 `sv` 的档位。约 09:47 UTC 另读 `pinyin.sogou.com/mac/update_log.php`（53,446 B）：最上面的条目是 `6.24.1`、`2026-07-17`；同时 `macversion.txt` 仍回 `version=6.24.1.11676`，两者一致。
 
 ### Recipes/com-sogou-inputmethod-sogou.swift — stable VendorProbe（安装脚本与 LaunchAgent）
 

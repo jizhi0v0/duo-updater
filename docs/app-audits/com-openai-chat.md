@@ -163,9 +163,11 @@ So an `install:` here resolves, downloads 78 MB, and then throws
 
 ### Recipes/com-openai-chat.swift — stable VendorProbe（包签名与 feed 声明）
 
-转引自 recipe 注释，未复测。原句没写核对日期；`hardwareRequirements` / `minimumSystemVersion` 那句来自提交 `e001a2de`（2026-08-30）。
+转引自 recipe 注释，未复测。整段原文；前两句原样留在代码里。签名那句没写核对日期；`hardwareRequirements` / `minimumSystemVersion` 那句来自提交 `e001a2de`（2026-08-30）。
 
-Verified signing, for the record: "Developer ID
+Detection is unaffected and is what this recipe is for. Anyone adding
+one-click later has to solve the destination gate AND the relocation,
+not just flip a flag. Verified signing, for the record: "Developer ID
 Installer: OpenAI OpCo, LLC (2DC432GLL2)", notarized, trusted
 timestamp 2026-07-15, same Team as the installed bundle. Feed also
 declares `hardwareRequirements=arm64` and minimumSystemVersion 14.0.

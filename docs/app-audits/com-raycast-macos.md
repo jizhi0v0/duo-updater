@@ -140,15 +140,20 @@ recipe 正是在维护这条前置条件，而不是绕过它。
 
 ### Recipes/com-raycast-macos.swift — stable VendorProbe v1（`variant: "v1"`）
 
-转引自 recipe 注释，未复测。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
+转引自 recipe 注释，未复测。整段原文；除 baseline 改名那句外都原样留在代码里。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
 
-Its
+Raycast v1 — official "latest release" endpoint; `version` is first.
+Carries an explicit `variant` for the same reason v2 does: a duplicated
+(bundleID, channel) group must declare every member deliberately. Its
 verify baseline entry was renamed with it (`…:stable` → `…:stable:v1`)
 rather than left to start over.
+One-click: the same JSON's `downloadURL` is the dmg (a
+worker.raycast-releases.com proxy URL wrapping a presigned R2 object;
+resolved fresh from each probe so its signed expiry is never stale).
 
 ### Recipes/com-raycast-macos.swift — stable VendorProbe v2（`x.raycast-releases.com`）
 
-转引自 recipe 注释，未复测。整段原文（开头是原注释里的响应形状摘录）。代码里去掉了那个从句，版本号标成了示例。唯一的改写：一处本机状态措辞（核对所在的机器），按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
+转引自 recipe 注释，未复测。整段原文（开头是原注释里的响应形状摘录）。代码里去掉了括号里说明在哪台机器上核对的那个从句（类别：核对所在的机器），版本号标成了示例。唯一的改写：同一个从句，一处本机状态措辞（核对所在的机器），按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
 
 ```
 Shape: {"id":…,"version":"2.0.6.0","title":…,"changelog":…,
@@ -180,9 +185,12 @@ what preceded the 2.0 GA number.
 
 ### Recipes/com-raycast-macos.swift — ChangelogRecipe v1 存档（`/changelog/macos`）
 
-转引自 recipe 注释，未复测。第一组是单独搬出的一句；第二组整段原文，代码里留下的是结论（存档最新条目比 v1 端点旧不代表页面过期，Raycast 每个 minor 一份说明），两边的版本号搬到这里。第二组原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
+转引自 recipe 注释，未复测。两段都是整段原文：第一段只搬走了末句的核对记录，其余原样留在代码里；第二段代码里留下的是结论（存档最新条目比 v1 端点旧不代表页面过期，Raycast 每个 minor 一份说明），两边的版本号搬到这里。第二段原句没写日期，引入它的提交是 `6e1088ee`（2026-08-27）。
 
-Verified against the live page 2026-08-27: 10 entries,
+Raycast v1 archive — /changelog/macos, the page titled "Raycast - macOS
+V1 Changelog". Byte-for-byte the same component as the v2 page above, so
+the patterns are the same three strings; only `source` and the version
+window differ. Verified against the live page 2026-08-27: 10 entries,
 1.104.0 back to 1.95.0, all parsing.
 
 Its newest entry is 1.104.0 (December 16, 2025) while the v1 endpoint is

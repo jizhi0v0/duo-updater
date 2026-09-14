@@ -167,7 +167,7 @@ forever.
 
 ### Recipes/com-qoder-ide.swift — stable VendorProbe（一键 zip 与单渠道）
 
-转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（解包后 short == build == 端点的 `productVersion`，与装着的那份同 Team），签名细节搬到这里。第一段唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被核对的机器的说法；和被更新的 app 比较 Team 的措辞本身原样保留。第二段只把 "measured same day" 改成了具体日期——它原本指的是前一段里被搬走的那个日期。
+转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（解包后 short == build == 端点的 `productVersion`，Team 与被更新的 app 一致所以过闸），签名细节搬到这里。第一段唯一的改写：Team 比较那句里的版本号那一半是一处本机状态措辞（具体版本号），改成了针对那台被核对的机器的说法；「和被更新的 app 比较 Team」这层意思保留，句子本身按上面的规则改了措辞。第二段只把 "measured same day" 改成了具体日期——它原本指的是前一段里被搬走的那个日期。
 
 The install spec takes the zip the API itself names, not the
 `Qoder-IDE-darwin-arm64.dmg` the download page hands a human. Same

@@ -18,12 +18,14 @@ a version this app will never install.
 
 ### Recipes/com-philandro-anydesk.swift — stable VendorProbe（一键 `anydesk.dmg`）
 
-转引自 recipe 注释，未复测。
+转引自 recipe 注释，未复测。整段原文；末句原样留在代码里。
 
 Verified 2026-08-16 on the downloaded dmg: AnyDesk.app 9.7.3,
 com.philandro.anydesk, Developer ID `AnyDesk Software GmbH (KHRWM533LU)`
 — the same Team as the installed copy — notarized and accepted by
-`spctl`.
+`spctl`. The dmg URL carries no version, but it does not need to: it
+always serves the release this file names first (its `Last-Modified`,
+2026-07-22, matches that entry's date).
 
 ### Recipes/com-philandro-anydesk.swift — ChangelogRecipe（同一份 `changelog.txt`）
 

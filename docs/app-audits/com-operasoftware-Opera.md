@@ -6,6 +6,35 @@
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 
+### Recipes/com-operasoftware-Opera.swift — group D 共用说明（目录索引）
+
+转引自 recipe 注释，未复测。整段原文。末尾两句是（c），见下面的更正；前面的部分原样留在代码里。
+
+All three — Opera (this file), LibreOffice (`Recipes/org-libreoffice-script.swift`)
+and pgAdmin (`Recipes/org-pgadmin-pgadmin4.swift`) — are the same shape: a
+vendor's plain Apache/MirrorBrain
+directory listing of version folders, sorted ALPHABETICALLY (not
+numerically) by every one of these servers — confirmed for Opera by
+diffing the default listing against an explicit `?C=N;O=A` (name,
+ascending) request: identical. Alphabetical sort makes `selectHighest`
+mandatory (`"100.0…" < "99.0…"` as strings, so first-in-document is
+often not the newest), and — for exactly the same reason — makes it UNSAFE
+to build the install/download URL from ANY single match (first OR last):
+once a version component crosses a digit-width boundary (Opera's 3-digit
+major overtaking 2-digit, pgAdmin's major eventually reaching v10 and
+sorting ahead of v9.x, a LibreOffice patch someday reaching two digits)
+the alphabetically-first-or-last entry silently stops being the numeric
+maximum, and a template built from it would download an OLDER build than
+the one just reported as available. `VendorInstallSpec.URLSource` has no
+"take the true max of every match" mode — only first (`bodyPattern`/
+`bodyTemplate`) or last (`bodyPatternLast`) — so none of it can be made
+to agree with `selectHighest`'s numeric max safely. All three are
+therefore detection-only, even though every one of them mounts to a
+genuine, notarized, Developer-ID-signed app (verified in each recipe's own comment) — the
+blocker is this URL-construction gap, not the artifact.
+
+更正 2026-09-14：三条 recipe 都通过 `.versionTemplate` 装（它填探测解析出的版本，不是在列表上再匹配一次），都是一键：`Recipes/com-operasoftware-Opera.swift`、`Recipes/org-libreoffice-script.swift`、`Recipes/org-pgadmin-pgadmin4.swift` 的 install spec；Opera 与 pgAdmin 的一键在 `9585ddfe`（2026-08-16，这段写完一小时后）加入。`URLSource` 现在还有 `bodyPatternHighestVersioned`。代码里的末尾两句已改写。
+
 ### Recipes/com-operasoftware-Opera.swift — stable VendorProbe（目录索引，版本方案）
 
 转引自 recipe 注释，未复测。整段原文；代码里留下的是版本方案的结论（marketing 只有两段、`CFBundleVersion` 是四段、与目录名一致，保留了核对日期），挂载核对的细节搬到这里。

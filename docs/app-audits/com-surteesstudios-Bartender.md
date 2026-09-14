@@ -21,10 +21,12 @@ would leave the endpoint unwatched. Do not "fix" this by re-pointing it.
 
 ### Recipes/com-surteesstudios-Bartender.swift — stable VendorProbe（一键 zip）
 
-转引自 recipe 注释，未复测。
+转引自 recipe 注释，未复测。整段原文；括号里那句原样留在代码里。
 
 Verified 2026-08-09 on 6.6.2: `Bartender 6.app` in the archive, bundle
 id com.surteesstudios.Bartender, Team 24J875RH8J, spctl "Notarized
-Developer ID".
+Developer ID". (Note the older entries are served from macbartender.com
+and the recent ones from downloads.macbartender.com — the pattern
+accepts either host.)
 
 复测 2026-09-14（约 07:30 UTC，只读 GET；`www.macbartender.com/B2/updates/AppcastB6.xml` 先 307 到 `downloads.macbartender.com` 同一路径）：16 个 `<item>`，第一个 enclosure 是 6.0.0（`macbartender.com/B2/updates/6-0-0/…`），最后一个是 6.6.2（`downloads.macbartender.com/…/6-6-2/…`）。代码里 "the first enclosure is 6.0.0" 和两个主机的说法因此原样保留。

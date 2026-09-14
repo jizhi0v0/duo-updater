@@ -253,7 +253,7 @@ duo install ~/Applications/"PDF Expert.app" --yes --json
 
 ### Recipes/com-readdle-PDFExpert-Mac.swift — ChangelogRecipe（`pem3/changelog`）
 
-转引自 recipe 注释，未复测。三段整段原文；代码里去掉的是没写日期的现状数字（3.5 KB、88 个标题 / 85 个版本、重复的是哪几个版本、「全页 88 条」），留下的是结论（有几个版本号出现两次、第二份正文被静默丢掉，除 3.10.2x 外都在 `maxEntries` 窗口之外；清洗后没有短于四个字符的条目）。这些数字来自引入它们的提交 `90790999`（2026-09-04）。
+转引自 recipe 注释，未复测。三段整段原文；代码里去掉的是没写日期的现状数字（3.5 KB、88 个标题 / 85 个版本、「全页 88 条」）；重复的版本改成带 2026-09-14 复测日期的快照（哪三个版本、3.10.2x 那两对在第 11–14 个标题）；"for two of those the two bodies are different text"、第二份正文被静默丢掉、"both fall outside the `maxEntries` window anyway except 3.10.2x" 原样留在代码里；清洗后没有短于四个字符的条目改成了「核对时」的说法。这些数字来自引入它们的提交 `90790999`（2026-09-04）。
 
 PDF Expert — the appcast's `sparkle:releaseNotesLink` is
 `pem3/changelog.html`, a 3.5 KB page holding ONLY the newest release's

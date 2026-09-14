@@ -52,3 +52,40 @@
 ## 建议下一步
 1. 已接入并部署：VendorProbe + 一键 dmg + 结构化 changelog（含 inline 图片）。全链路绿。
 2. 脆弱点: changelog 依赖 `compressedData` 仍是 base64+gzip 且 `__NEXT_DATA__` 结构不变；任一改了 `StructuredChangelogDecoder.decodeTypeless` 会返回 nil → 自动回退到 `changelogURL` WebView，不崩。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/now-typeless-desktop.swift — stable VendorProbe（开头的说明）
+
+转引自 recipe 注释，未复测。整段原文。末句 "No public changelog page exists." 迁移时不成立，而且写下时就不成立，代码里改写了，见下面的更正；其余原样。
+
+Typeless (now.typeless.desktop) — AI voice dictation, Electron app that
+self-updates via electron-updater (Squirrel.Mac). No Sparkle feed in
+Info.plist; the Homebrew cask is `auto_updates true` so brew never answers
+— the only public "latest version" surface is the electron-builder feed.
+Single stable channel (no beta/canary anywhere). The vendor splits by arch:
+`arm64-mac.yml` for Apple Silicon (what we probe), `latest-mac.yml` for x64.
+The feed's `version` is the marketing version (1.8.0) and matches the
+installed app's CFBundleShortVersionString exactly (build is 1.8.0.109 — we
+do NOT compare against that), so no versionIsBuild. One-click: the same yml
+lists `Typeless-<ver>-arm64.dmg`; we resolve its filename against
+typeless-static.com/desktop-release/ and verify the dmg's base64 sha512 from
+the line right after its `url:` — on top of VendorInstaller's mandatory
+same-Team gate (installed Team 947QKAND4W). No public changelog page exists.
+
+更正 2026-09-14：这句和本条 VendorProbe 的 `changelogURL`（`https://www.typeless.com/help/release-notes/macos`）、下面那条 `ChangelogRecipe`（`structuredFormat: .typelessReleaseNotes`）是同一个提交 `cd608174`（2026-06-19）加进来的，从一开始就互相矛盾；本审计「Changelog」一节记的也是「已接入」。代码里改成：说明在厂商帮助中心那页（`changelogURL`），由下面的 `ChangelogRecipe` 读取。复测 2026-09-14（13:59 UTC，只读 GET，Safari UA，不跟随重定向）：该页 200，解压后 156,470 B。
+
+### Recipes/now-typeless-desktop.swift — ChangelogRecipe（`maxEntries`）
+
+转引自 recipe 注释，未复测。整段原文；代码里去掉了括号里的历史长度（版本个数与最早的版本），原句没写日期，引入它的提交是 `cd608174`（2026-06-19）；其余原样，重新折行。
+
+Typeless — the release-notes page ships every version's notes (with a
+hero image per release) base64+gzip'd inside the Next.js `__NEXT_DATA__`.
+No regex can read that, so the structured decoder inflates it and emits
+rich entries (image + prose blocks). Single channel. `maxEntries` caps the
+long history (20 versions back to 0.1.0) at the most recent handful. The
+page lists an upcoming version a few days ahead of its date; that's fine —
+the changelog is informational and the vendor probe still gates "update
+available" on the GA electron-builder feed.

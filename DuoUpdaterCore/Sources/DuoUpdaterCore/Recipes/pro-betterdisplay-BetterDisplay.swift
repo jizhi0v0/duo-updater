@@ -4,14 +4,15 @@ enum pro_betterdisplay_BetterDisplay {
     static let set = AppRecipeSet(
         family: "pro-betterdisplay-BetterDisplay",
         changelogs: [
+        // History: docs/app-audits/pro-betterdisplay-BetterDisplay.md#历史与实测
         // BetterDisplay — the same GitHub release bodies the vendor's own page was
         // already showing, rendered natively instead of in a web view.
         //
         // The appcast carries no `<description>`; every item points
         // `<sparkle:releaseNotesLink>` at
         // `waydabber.github.io/BetterDisplay/changelog.html?tag=<tag>`. That page is
-        // an EMPTY shell — fetched 2026-08-27, 1149 bytes, no body content at all.
-        // Its inline script reads `?tag`, GETs
+        // an EMPTY shell with no body content at all (checked 2026-08-27 and
+        // 2026-09-14; History has the size). Its inline script reads `?tag`, GETs
         // `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` (the old
         // repo name, still redirecting) and renders `response.body` with marked.js.
         // So the web view was rendering GitHub markdown the whole time, minus our
@@ -42,18 +43,18 @@ enum pro_betterdisplay_BetterDisplay {
         //
         // That rolling `pre` release cannot leak into either rail as an entry titled
         // "pre": GitHub orders this endpoint by `created_at`, and `pre` was created
-        // 2022-04-06 while the 40th-newest release is 2025-01-03 (both read
-        // 2026-08-27). It is far outside a `per_page=40` window and sinks further
-        // with every release the vendor cuts.
+        // 2022-04-06, years before the 40th-newest release when checked (2026-08-27
+        // and 2026-09-14; History has that release's date). It is far outside a
+        // `per_page=40` window and sinks further with every release the vendor cuts.
         //
-        // `skipSections` drops the contributor roster. It is not a changelog: 18 of
-        // the newest 40 releases carry it, and between them they use only TWO
-        // distinct texts — the same paragraph repeated down a 15-row rail. The
-        // vendor gives no marker for it (no HTML comment, no `<details>` anywhere in
-        // those 40 bodies), so the heading IS the marker, and they have spelled it
-        // two ways. Both are listed. `### Localization Improvements` (v3.3.4) is
-        // deliberately NOT listed — that one holds real changes, which is why the
-        // match is whole-heading rather than a substring.
+        // `skipSections` drops the contributor roster. It is not a changelog: about
+        // half of the newest 40 releases carried it when checked (2026-08-27 and
+        // 2026-09-14; History has the counts), the roster repeated down a 15-row
+        // rail. The vendor gives no marker for it (no HTML comment, no `<details>`
+        // in the 40 bodies checked), so the heading IS the marker, and they have
+        // spelled it two ways. Both are listed. `### Localization Improvements`
+        // (v3.3.4) is deliberately NOT listed — that one holds real changes, which
+        // is why the match is whole-heading rather than a substring.
         ChangelogRecipe(
             bundleID: BetterDisplayChannel.bundleID,
             source: URL(

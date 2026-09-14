@@ -4,12 +4,15 @@ enum uk_co_bzwrd_macperfmonitor {
     static let set = AppRecipeSet(
         family: "uk-co-bzwrd-macperfmonitor",
         changelogs: [
-        // Mac Performance Monitor — its appcast carries no notes at all: one item,
-        // and no `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
+        // History: docs/app-audits/uk-co-bzwrd-macperfmonitor.md#历史与实测
+        // Mac Performance Monitor — its appcast carries no notes at all: no
+        // `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
         // `<description>` (fetched 2026-09-06 from the `appcast.xml` asset its
-        // `SUFeedURL` points at). The GitHub release body is one sentence that
-        // says where to look: "Mac Performance Monitor 1.7.1 (build 206). See
-        // CHANGELOG.md for what's new." Requested in #374.
+        // `SUFeedURL` points at). Through 1.7.1 the GitHub release body was one
+        // sentence that said where to look: "Mac Performance Monitor 1.7.1 (build
+        // 206). See CHANGELOG.md for what's new." The 2.0.0 and 2.1.0 bodies carry
+        // full notes instead, and CHANGELOG.md has entries for both (checked
+        // 2026-09-14). Requested in #374.
         //
         // Keep a Changelog, with the version in BRACKETS:
         //
@@ -34,11 +37,11 @@ enum uk_co_bzwrd_macperfmonitor {
         // ⚠️ `\n\[` is in that list because the file ends with the link-reference
         // block the format prescribes (`[1.3.2]: https://…/compare/…`), and the
         // last entry's body runs to `\z`. Without that boundary the oldest entry's
-        // final bullet swallowed all 17 of them — measured at 1709 characters of
-        // prose plus compare URLs, against 137 with it. Nothing else changes: the
-        // same 17 entries parse with the same item counts, and no item carries a
-        // link definition any more. Unindented, so it cannot fire on a wrapped
-        // continuation line, which this vendor indents by two spaces.
+        // final bullet swallowed every one of them, compare URLs and all (History
+        // has the measured lengths). Nothing else changes: the same entries parse
+        // with the same item counts, and no item carries a link definition any
+        // more. Unindented, so it cannot fire on a wrapped continuation line, which
+        // this vendor indents by two spaces.
         //
         // `headingPattern` (#554, part of #399) turns the `### Added` / `###
         // Fixed` group headings back into real `.heading` blocks instead of

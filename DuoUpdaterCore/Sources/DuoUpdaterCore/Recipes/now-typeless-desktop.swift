@@ -4,6 +4,7 @@ enum now_typeless_desktop {
     static let set = AppRecipeSet(
         family: "now-typeless-desktop",
         probes: [
+        // History: docs/app-audits/now-typeless-desktop.md#历史与实测
         // Typeless (now.typeless.desktop) — AI voice dictation, Electron app that
         // self-updates via electron-updater (Squirrel.Mac). No Sparkle feed in
         // Info.plist; the Homebrew cask is `auto_updates true` so brew never answers
@@ -16,7 +17,9 @@ enum now_typeless_desktop {
         // lists `Typeless-<ver>-arm64.dmg`; we resolve its filename against
         // typeless-static.com/desktop-release/ and verify the dmg's base64 sha512 from
         // the line right after its `url:` — on top of VendorInstaller's mandatory
-        // same-Team gate (installed Team 947QKAND4W). No public changelog page exists.
+        // same-Team gate (installed Team 947QKAND4W). The release notes are on the
+        // vendor's help-center page (`changelogURL`), which the `ChangelogRecipe`
+        // below reads.
         VendorProbeRecipe(
             bundleID: "now.typeless.desktop",
             url: URL(string: "https://typeless-static.com/desktop-release/arm64-mac.yml")!,
@@ -36,10 +39,10 @@ enum now_typeless_desktop {
         // hero image per release) base64+gzip'd inside the Next.js `__NEXT_DATA__`.
         // No regex can read that, so the structured decoder inflates it and emits
         // rich entries (image + prose blocks). Single channel. `maxEntries` caps the
-        // long history (20 versions back to 0.1.0) at the most recent handful. The
-        // page lists an upcoming version a few days ahead of its date; that's fine —
-        // the changelog is informational and the vendor probe still gates "update
-        // available" on the GA electron-builder feed.
+        // long history at the most recent handful. The page lists an upcoming
+        // version a few days ahead of its date; that's fine — the changelog is
+        // informational and the vendor probe still gates "update available" on the
+        // GA electron-builder feed.
         ChangelogRecipe(
             bundleID: "now.typeless.desktop",
             source: URL(string: "https://www.typeless.com/help/release-notes/macos")!,

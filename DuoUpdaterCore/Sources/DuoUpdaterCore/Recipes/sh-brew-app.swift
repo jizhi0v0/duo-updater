@@ -4,14 +4,15 @@ enum sh_brew_app {
     static let set = AppRecipeSet(
         family: "sh-brew-app",
         changelogs: [
+        // History: docs/app-audits/sh-brew-app.md#历史与实测
         // BrewUI (Homebrew's official GUI, cask `homebrew-app`) — the version comes
         // from `HomebrewCaskSource`, which carries no notes at all: its only link
         // is the cask's `formulae.brew.sh` listing. The notes are the project's
         // GitHub releases, which are also where the cask downloads from
         // (`…/BrewUI/releases/download/v#{version}/Homebrew-#{version}.zip`), so
-        // tag and cask version are the same number by construction: `v0.4.0`
-        // ↔ cask `0.4.0` ↔ the bundle's `CFBundleShortVersionString` `0.4.0`
-        // (2026-09-13).
+        // tag and cask version are the same number by construction, and the
+        // bundle's `CFBundleShortVersionString` is that number too (checked
+        // 2026-09-13; History has the versions).
         //
         // Bodies are GitHub's generated "What's Changed" lists, which
         // `GitHubMarkdownParser` already strips of the `by @user in <PR>` suffix

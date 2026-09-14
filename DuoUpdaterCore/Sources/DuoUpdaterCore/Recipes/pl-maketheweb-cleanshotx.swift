@@ -4,6 +4,7 @@ enum pl_maketheweb_cleanshotx {
     static let set = AppRecipeSet(
         family: "pl-maketheweb-cleanshotx",
         changelogs: [
+        // History: docs/app-audits/pl-maketheweb-cleanshotx.md#历史与实测
         // CleanShot X — Nuxt page, very regular markup. Re-derived 2026-09-01, when
         // the 5.0 release shipped with the page rebuilt around it:
         //   <div class="version"><div class="date">1 September, 2026</div>
@@ -21,11 +22,12 @@ enum pl_maketheweb_cleanshotx {
         // the third is why the number→list gap has to be permissive.
         //
         // That gap is tempered rather than a plain `.*?` so it cannot leave the
-        // block it started in. All 102 blocks on today's page carry a
-        // `ul.changes`, so a lazy `.*?` finds the right one — but the day one of
-        // them doesn't, a lazy gap silently pairs that version with the *next*
-        // one's notes, which is the failure that reads as correct. Costs 0.6 ms
-        // over the whole 183 KB page.
+        // block it started in. Every block on the page carried a `ul.changes` when
+        // checked (2026-09-01 and 2026-09-14; History has the counts), so a lazy
+        // `.*?` finds the right one — but the day one of them doesn't, a lazy gap
+        // silently pairs that version with the *next* one's notes, which is the
+        // failure that reads as correct. The tempered gap costs next to nothing
+        // over the whole page (History has the timing).
         ChangelogRecipe(
             bundleID: "pl.maketheweb.cleanshotx",
             source: URL(string: "https://cleanshot.com/changelog")!,

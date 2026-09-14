@@ -4,6 +4,7 @@ enum org_whispersystems_signal_desktop {
     static let set = AppRecipeSet(
         family: "org-whispersystems-signal-desktop",
         probes: [
+        // History: docs/app-audits/org-whispersystems-signal-desktop.md#历史与实测
         // Signal — Stable + Beta. electron-builder feeds (one per channel). Stable
         // ships `org.whispersystems.signal-desktop`; Beta is a separate
         // "Signal Beta.app" (detected as `.beta` from its name). Signal self-updates
@@ -24,14 +25,15 @@ enum org_whispersystems_signal_desktop {
         //
         // 2. NO checksumPattern, deliberately. The yml's `sha512`/`size` describe
         //    the dmg as electron-builder emitted it, *before* Signal's CI signs and
-        //    staples it; the CDN serves the stapled file (+2563 bytes on both
-        //    channels), so the feed hash can never match the bytes we download and a
-        //    checksum gate would abort every install. (Typeless reads a structurally
-        //    identical feed with delta 0 — this is Signal's pipeline, not
-        //    electron-builder's, so don't "fix" it by copying Typeless.) Integrity
-        //    still rests on VendorInstaller's mandatory gates, verified against both
-        //    real dmgs: notarized Developer ID, Team U68MSDN6DR on both channels,
-        //    and a signed bundle id that pins each channel to its own install.
+        //    staples it; the CDN serves the stapled file (larger on both channels;
+        //    History has the byte count), so the feed hash can never match the
+        //    bytes we download and a checksum gate would abort every install.
+        //    (Typeless reads a structurally identical feed with delta 0 — this is
+        //    Signal's pipeline, not electron-builder's, so don't "fix" it by copying
+        //    Typeless.) Integrity still rests on VendorInstaller's mandatory gates,
+        //    verified against both real dmgs: notarized Developer ID, Team
+        //    U68MSDN6DR on both channels, and a signed bundle id that pins each
+        //    channel to its own install.
         VendorProbeRecipe(
             bundleID: "org.whispersystems.signal-desktop",
             url: URL(string: "https://updates.signal.org/desktop/latest-mac.yml")!,

@@ -143,3 +143,86 @@ duo verify --only whatcable
 
 ## 建议下一步
 - `ChannelBinding` 读 `receiveBetaUpdates`，覆盖"stable 构建 + 开了开关"这一格。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/uk-whatcable-whatcable.swift — stable GitHubReleaseRule（固定的资产名）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "on every one of the newest 100 releases (measured 2026-09-06)" 改成 "on every release checked (2026-09-06 and 2026-09-14; History has the counts)"；其余原样，重新折行。
+
+WhatCable — an open-source menu-bar app (`uk.whatcable.whatcable`) that
+reads what each USB-C/Thunderbolt cable plugged into the Mac can
+actually do. Distributed from its own GitHub releases: one constant
+asset name, `WhatCable.zip`, on every one of the newest 100 releases
+(measured 2026-09-06). The `whatcable-cli-<version>.zip` beside it is
+the standalone CLI, a different artifact — the app bundle ships its own
+copy at `Contents/Helpers/whatcable`, which is what Homebrew's cask
+symlinks — so the pattern is anchored end to end and cannot drift onto
+it.
+
+复测 2026-09-14（13:57 UTC，`gh api 'repos/darrylmorley/whatcable/releases?per_page=100'` 两页）：共 135 个 release，135 个都有 `WhatCable.zip`。
+
+### Recipes/uk-whatcable-whatcable.swift — stable GitHubReleaseRule（一键 zip 的核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（资产里的 app、bundle id、short == tag、universal、签名者与 spctl、与装机副本同 Team），核对日期挂在句末，当时的版本号搬到这里。
+
+One-click verified 2026-09-06 on the real v1.4.0 asset: `WhatCable.app`,
+`uk.whatcable.whatcable`, CFBundleShortVersionString 1.4.0 == the tag,
+universal (x86_64 + arm64), signed "Developer ID Application: Darryl
+Morley (M4RUJ7W6MP)" and accepted by `spctl` as Notarized Developer ID —
+the same Team as the installed copy, so the swap passes the
+VendorInstaller gate.
+
+### Recipes/uk-whatcable-whatcable.swift — beta GitHubReleaseRule（为什么必须有这条）
+
+转引自 recipe 注释，未复测。整段原文。末句 "documented on its `.beta` recipe in `VendorProbeRecipe`" 指的位置迁移时已不对，代码里改了，见下面的更正；其余原样。
+
+WhatCable beta — the same repo's prerelease train, and it MUST exist
+rather than being left to the stable rule. The betas ship a version
+string the bundle keeps verbatim (`CFBundleShortVersionString` reads
+"1.5.0-beta.8", confirmed on the real v1.5.0-beta.8 artifact), which
+`ReleaseChannel.detect` step 4 resolves to `.beta` — so a beta install
+is refused by the stable rule's channel gate and, without this, would
+have no source at all and read "Failed" indefinitely. That is not
+hypothetical: it is the exact shape of the Alfred regression documented
+on its `.beta` recipe in `VendorProbeRecipe`.
+
+更正 2026-09-14：写这句时（`75802fee`，2026-09-06）Alfred 的 `.beta` recipe 在 `Sources/VendorProbeRecipe.swift`（`git grep -n "Alfred, PRE-RELEASE channel" 75802fee` → 第 1138 行）；拆分提交 `4adf2227`（2026-09-14）之后它在 `Recipes/com-runningwithcrayons-Alfred.swift:8`。代码里改成指向那个文件。
+
+### Recipes/uk-whatcable-whatcable.swift — beta GitHubReleaseRule（pattern 为什么也收 stable tag：保险丝那一条）
+
+转引自 recipe 注释，未复测。整段原文；两条缩进的要点整体用代码块围起来。代码里 "release 115 of the 135 this repo has published" 改成 "more than a hundred releases into this repo's history (History has the count)"（原句没写日期，引入它的提交是 `d8c3a6dc`，2026-09-06），「之前的草稿写成 79」那句更正的经过搬到这里；其余原样。本审计也记着 135 与 115。
+
+```
+  • A copy on `1.5.0-beta.8` would never be offered the plain `1.5.0`
+    that graduates from it — it would sit on a superseded prerelease
+    until the next cycle opened. `VersionComparator` ranks the
+    graduation correctly (a missing 4th component pads to `.number(0)`
+    and beats `.text("beta")`), so the only thing standing in the way
+    was the pattern.
+  • Worse, it is a fuse. If this vendor pauses the beta train, a
+    `-beta\.`-only pattern matches nothing in the page, and the miss is
+    a red `duo verify` finding on EVERY machine — the sweep walks rules,
+    not installs — for a rule that is working exactly as written. Not a
+    remote prospect: the beta train did not exist at all until
+    `v1.2.0-beta.1`, release 115 of the 135 this repo has published.
+    (An earlier draft said "79 releases in". That was a position inside
+    the newest-100 page read as a position in the repo's history.)
+```
+
+复测 2026-09-14（同一次两页读取，按 `created_at` 排序）：`v1.2.0-beta.1` 是 135 个里的第 115 个（2026-07-15），也是最早的 `-beta.` tag。
+
+### Recipes/uk-whatcable-whatcable.swift — beta GitHubReleaseRule（`listPageSize`）
+
+转引自 recipe 注释，未复测。整段原文；代码里的 `listPageSize` 一句改成说条件（核对过的 release 的 tag 都匹配这条 pattern、都带 `WhatCable.zip`，所以首个匹配就在第 0 位），测量范围、日期与两种页大小搬到这里；其余原样，重新折行。
+
+listPageSize: measured 2026-09-06 over the newest 100 releases — every
+one of the 100 tags matches this pattern and carries `WhatCable.zip`,
+so first-match index is 0 and the gap is 0. The floor is 1; 5 is kept
+for headroom against a draft or a platform-partial release, and costs
+5.9 KB gzipped against 23.8 KB at the default 20. `probesNewestFirst`
+means the common round is a page of one anyway.
+
+复测 2026-09-14（同一次两页读取）：135 个 tag 全部匹配 `^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$`，135 个都带 `WhatCable.zip`；最新的是 `v1.5.0-beta.8`（prerelease，2026-08-31）。页大小没有复测。

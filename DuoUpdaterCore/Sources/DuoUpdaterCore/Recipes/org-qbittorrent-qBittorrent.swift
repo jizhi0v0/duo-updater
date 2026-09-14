@@ -4,6 +4,7 @@ enum org_qbittorrent_qBittorrent {
     static let set = AppRecipeSet(
         family: "org-qbittorrent-qBittorrent",
         githubRules: [
+        // History: docs/app-audits/org-qbittorrent-qBittorrent.md#历史与实测
         // qBittorrent is NOT a VendorProbe recipe — it moved to a GitHub release rule (see
         // `GitHubReleasesSource`). Upstream publishes the same macOS dmg on both
         // SourceForge and GitHub Releases, and GitHub is the better read: no WAF
@@ -16,11 +17,11 @@ enum org_qbittorrent_qBittorrent {
         // a property of where we read from: the macOS dmg on GitHub is the SAME
         // artifact SourceForge serves, signed `Authority=qbittorrent macos` with
         // `TeamIdentifier=not set` (a self-made certificate, not a Developer ID),
-        // and `spctl -a -t install` rejects it. Verified 2026-08-16 by downloading
-        // `qbittorrent-5.2.3.dmg` (48,317,381 B) straight from this repo's release
-        // and mounting it — org.qbittorrent.qBittorrent, 5.2.3, universal, and
-        // rejected. No `installAssetPattern`, so the row shows the version and
-        // opens qbittorrent.org.
+        // and `spctl -a -t install` rejects it (checked 2026-08-16 on the dmg
+        // downloaded straight from this repo's release and mounted:
+        // org.qbittorrent.qBittorrent, universal; History has the version and
+        // size). No `installAssetPattern`, so the row shows the version and opens
+        // qbittorrent.org.
         //
         // Read here rather than from SourceForge (where this app lived until
         // 2026-08-16) because the tag IS the release — SourceForge's

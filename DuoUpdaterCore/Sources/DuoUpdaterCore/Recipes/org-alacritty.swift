@@ -4,6 +4,7 @@ enum org_alacritty {
     static let set = AppRecipeSet(
         family: "org-alacritty",
         githubRules: [
+        // History: docs/app-audits/org-alacritty.md#历史与实测
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
         // MARK: Detection-only — the published build can't pass the install gate
@@ -16,8 +17,8 @@ enum org_alacritty {
         // notarized Developer ID build (ad-hoc signed or unsigned), so
         // `VendorInstaller` would refuse the swap anyway. Leaving
         // `installAssetPattern` nil states that up front: we surface the version and
-        // send the user to the releases page. Verified 2026-08-16 by running
-        // `codesign`/`spctl` on the downloaded artifact.
+        // send the user to the releases page (checked 2026-08-16 by running
+        // `codesign`/`spctl` on each downloaded artifact).
 
         // Alacritty — ad-hoc signed, no Team ID.
         GitHubReleaseRule(

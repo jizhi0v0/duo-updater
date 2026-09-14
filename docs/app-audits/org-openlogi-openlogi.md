@@ -92,3 +92,21 @@ beta/nightly 构建或本机需要辨识的 channel 偏好。
 1. 保持当前 detection-only GitHub rule，合并后由 verify 监控 repo slug 与 latest tag。
 2. 若批准一键，再单独核对 0.8.2 DMG 的 Team、签名、公证、架构选择和 bundle-only
    安装边界，然后在本 app PR 内或后续 OpenLogi 专属 PR 打开资产规则。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-openlogi-openlogi.swift — GitHubReleaseRule（一键的端到端核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（端到端装过一次；挂载 arm64 dmg 读到的 bundle id、short == tag、与上一版相同的 Team、Developer ID 与 spctl），日期挂在开头的括号里，两次安装的具体版本号搬到这里；其余原样，重新折行。本审计「一键安装」一节与索引行也记着同一次核对。
+
+One-click verified 2026-09-03 end to end: installed 0.8.2 in
+`~/Applications`, `duo install` took it to 0.8.3. Mounted arm64 dmg:
+org.openlogi.openlogi, short `0.8.3` == tag, Team 8U3ZJ258K9 (the same
+Team 0.8.2 carries, so the swap gate passes), signed Developer ID and
+accepted by `spctl` as Notarized Developer ID. Each release also ships
+an `-macos-x86_64.dmg` plus Windows/Linux artifacts and a `.minisig`
+beside every one of them, so the pattern pins the arm64 dmg and ends on
+`.dmg$` — without the anchor `OpenLogi-v0.8.3-macos-arm64.dmg.minisig`
+truncates onto a URL nobody published.

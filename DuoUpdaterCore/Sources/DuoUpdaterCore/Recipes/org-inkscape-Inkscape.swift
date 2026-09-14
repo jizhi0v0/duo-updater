@@ -4,19 +4,19 @@ enum org_inkscape_Inkscape {
     static let set = AppRecipeSet(
         family: "org-inkscape-Inkscape",
         probes: [
+        // History: docs/app-audits/org-inkscape-Inkscape.md#历史与实测
         // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
 
         // Inkscape — `/release/` 302s to `/release/inkscape-1.4.4/`, a clean
         // version signal.
         //
-        // ONE-CLICK via `.versionTemplate`. An earlier note here said the dmg was
-        // unreachable, because the download PAGE hands the file out through an
-        // HTML `<meta http-equiv="Refresh">` to `/gallery/item/<id>/…` with a
-        // per-release id (59498 for 1.4.4_arm64) that no template can predict.
-        // That was the wrong place to look: the same file also sits at a plain
-        // version-named path on the media host, no gallery id involved —
-        // `media.inkscape.org/dl/resources/file/Inkscape-<ver>_arm64.dmg`
-        // (2026-08-16: 1.4.4 → 200, 156,920,591 B; 1.4.3 → 200).
+        // ONE-CLICK via `.versionTemplate`. The download PAGE hands the file out
+        // through an HTML `<meta http-equiv="Refresh">` to `/gallery/item/<id>/…`
+        // with a per-release id that no template can predict, but the same file
+        // also sits at a plain version-named path on the media host, no gallery id
+        // involved — `media.inkscape.org/dl/resources/file/Inkscape-<ver>_arm64.dmg`
+        // (checked 2026-08-16; History has the responses, and the earlier note
+        // that called the dmg unreachable).
         //
         // The naming does NOT reach back forever — 1.4.2 is a 404 under every
         // variant tried — but that costs nothing here: the URL is only ever built
@@ -28,8 +28,9 @@ enum org_inkscape_Inkscape {
         // org.inkscape.Inkscape, CFBundleShortVersionString `1.4.4` — same scheme
         // the redirect publishes — Team SW3D6BB6A6 (Rene de Hesselle, who also
         // signs Meld, `Recipes/org-gnome-Meld.swift`), notarized Developer ID, spctl accepted. arm64-only
-        // artifact, so an Intel Mac is refused by the runnable-arch gate rather
-        // than handed a build it can't run.
+        // artifact, which is every host DuoUpdater runs on (`App/project.yml`,
+        // `ARCHS: arm64`).
+        // snapshot-lint:allow — this dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block names this file and relies on it.
         VendorProbeRecipe(
             bundleID: "org.inkscape.Inkscape",
             url: URL(string: "https://inkscape.org/release/")!,
@@ -55,8 +56,7 @@ enum org_inkscape_Inkscape {
         // contents is a nested list whose items all carry
         // `class="toclevel-N tocsection-N"`, and the page footer's are
         // `<li id="footer-info-…">` — allowing attributes would turn the whole
-        // navigation into "changes" (35 TOC entries against 116 real ones on the
-        // 1.4.4 page, captured 2026-08-16).
+        // navigation into "changes" (History has the counts on the 1.4.4 page).
         ChangelogRecipe(
             bundleID: "org.inkscape.Inkscape",
             source: URL(string: "https://wiki.inkscape.org/wiki/Release_notes/1.4")!,

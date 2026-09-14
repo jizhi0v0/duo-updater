@@ -4,6 +4,7 @@ enum org_mozilla_thunderbird {
     static let set = AppRecipeSet(
         family: "org-mozilla-thunderbird",
         probes: [
+        // History: docs/app-audits/org-mozilla-thunderbird.md#历史与实测
         // Shared rationale for Mozilla pre-release channels: Recipes/org-mozilla-firefox.swift.
 
         // Thunderbird — same Mozilla `product-details` mechanism for Release and
@@ -18,12 +19,11 @@ enum org_mozilla_thunderbird {
         // sorts as a pre-release (< the suffix-less installed version) so it never
         // phantoms; a real bump (140.11.1→140.12.0esr) still compares newer.
         // One-click: Mozilla's `download.mozilla.org/?product=…-latest&os=osx`
-        // 302-redirects to the per-channel `.dmg` on its CDN (verified 2026-06-17:
-        // thunderbird-latest → 152.0, -beta-latest → 152.0b4, -esr-latest →
-        // 140.12.0esr, -nightly-latest → 154.0a1). Every channel is signed by
-        // Mozilla Corporation (Team `43AQ936H96`), so the VendorInstaller same-Team
-        // gate is satisfied and fails closed if Mozilla ever rotates. Best-effort
-        // in-place dmg swap on top of Thunderbird's own self-updater.
+        // 302-redirects to the per-channel `.dmg` on its CDN (checked for all four
+        // product codes 2026-06-17; History has the versions). Every channel is
+        // signed by Mozilla Corporation (Team `43AQ936H96`), so the VendorInstaller
+        // same-Team gate is satisfied and fails closed if Mozilla ever rotates.
+        // Best-effort in-place dmg swap on top of Thunderbird's own self-updater.
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbird",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
@@ -152,10 +152,10 @@ enum org_mozilla_thunderbird {
         // version-templated like the others. The notes URL is keyed by MAJOR, not
         // build: `/152.0beta/releasenotes/` is one cumulative page for the whole
         // 152 beta cycle (b1→b2→…, several "What’s Fixed" sections under one
-        // "152.0beta" heading, ~41 items). `urlVersionToken` drops the bN build
-        // suffix and appends "beta" (152.0 / 152.0b3 → 152.0beta), so the template
-        // auto-tracks the current cycle with no pin to bump. `source` is the
-        // current cycle page as a fallback only.
+        // "152.0beta" heading). `urlVersionToken` drops the bN build suffix and
+        // appends "beta" (152.0 / 152.0b3 → 152.0beta), so the template
+        // auto-tracks the current cycle with no pin to bump. `source` is one
+        // fixed cycle's page (152.0beta), used as a fallback only.
         ChangelogRecipe(
             bundleID: "org.mozilla.thunderbirdbeta",
             source: URL(string: "https://www.thunderbird.net/en-US/thunderbird/152.0beta/releasenotes/")!,

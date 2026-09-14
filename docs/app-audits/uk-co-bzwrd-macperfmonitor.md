@@ -33,6 +33,10 @@ GitHub release 正文也不是说明，是一句指路（75 字节）：
 
 所以 issue 说的是对的：真正的说明只在仓库的 `CHANGELOG.md` 里，格式是 Keep a Changelog。
 
+更正 2026-09-14：上面两段写的是审计当天（1.7.1 及以前）的 release 正文。2.0.0（2026-09-10）与
+2.1.0（2026-09-11）两条 release 的正文已经带完整说明；`CHANGELOG.md` 也有这两版的条目，recipe 的
+entry pattern 在当天的文件上解析出 19 条（`gh api …/releases` 与只读 GET raw `CHANGELOG.md`）。
+
 ## Recipe
 
 ```
@@ -81,3 +85,33 @@ markdownSource: true
 - **没验过真包**：没有下载 zip/pkg 核对 Team ID、公证和版本字段。接的是 changelog，
   不碰安装路径，所以没做这一步；要接一键安装必须先补上。
 - 仓库里有 `Casks/`，Homebrew 那条路没查。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/uk-co-bzwrd-macperfmonitor.swift — ChangelogRecipe（appcast 与 release 正文都没有说明）
+
+转引自 recipe 注释，未复测。整段原文。"one item" 这个观测值搬到这里；"The GitHub release body is one sentence that says where to look" 迁移时已不成立，代码里改写了，见下面的更正；其余原样。
+
+Mac Performance Monitor — its appcast carries no notes at all: one item,
+and no `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
+`<description>` (fetched 2026-09-06 from the `appcast.xml` asset its
+`SUFeedURL` points at). The GitHub release body is one sentence that
+says where to look: "Mac Performance Monitor 1.7.1 (build 206). See
+CHANGELOG.md for what's new." Requested in #374.
+
+更正 2026-09-14（`gh api 'repos/Zesty0wl/mac-performance-monitor/releases?per_page=10'`、`…/releases/latest`，14:19 UTC；只读 GET raw `CHANGELOG.md`，14:20 UTC）：`v1.7.1.206` 及以前的正文仍是那一句指路；`v2.0.0.231`（2026-09-10）与 `v2.1.0.236`（2026-09-11）的正文是带标题的完整说明；`CHANGELOG.md` 有 `[2.1.0]` 与 `[2.0.0]` 两节，recipe 的 entryPattern 在当天的文件上解析出 19 条。代码里改成：到 1.7.1 为止正文是那一句，2.0.0 与 2.1.0 的正文带完整说明，`CHANGELOG.md` 两版都有条目。同一说法的副本一并改了：`Tests/DuoUpdaterCoreTests/MacPerformanceMonitorChangelogRecipeTests.swift` 的文档注释、本审计「为什么需要一条 changelog recipe」一节（加了更正）、`docs/app-audits/README.md` 的索引行。appcast 的 item 数没有复测。
+
+### Recipes/uk-co-bzwrd-macperfmonitor.swift — ChangelogRecipe（item pattern 的链接定义边界）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（不加这个边界，最老那条的最后一项会吞下整个链接块），被吞下的链接数、两种长度的实测与 "the same 17 entries" 里的条数搬到这里（原句没写日期，引入它的提交是 `bf5db16b`，2026-09-06）；其余原样，重新折行。本审计也记着同一组数。
+
+⚠️ `\n\[` is in that list because the file ends with the link-reference
+block the format prescribes (`[1.3.2]: https://…/compare/…`), and the
+last entry's body runs to `\z`. Without that boundary the oldest entry's
+final bullet swallowed all 17 of them — measured at 1709 characters of
+prose plus compare URLs, against 137 with it. Nothing else changes: the
+same 17 entries parse with the same item counts, and no item carries a
+link definition any more. Unindented, so it cannot fire on a wrapped
+continuation line, which this vendor indents by two spaces.

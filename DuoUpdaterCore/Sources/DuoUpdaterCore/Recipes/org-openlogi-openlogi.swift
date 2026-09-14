@@ -4,6 +4,7 @@ enum org_openlogi_openlogi {
     static let set = AppRecipeSet(
         family: "org-openlogi-openlogi",
         githubRules: [
+        // History: docs/app-audits/org-openlogi-openlogi.md#历史与实测
         // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
         // is `org.openlogi.openlogi` and carries neither Sparkle nor another
         // standard update feed in Info.plist; its Homebrew cask is
@@ -13,15 +14,16 @@ enum org_openlogi_openlogi {
         // publishing is gated on both macOS DMGs existing. The anchored pattern
         // rejects prerelease suffixes rather than truncating one onto stable.
         //
-        // One-click verified 2026-09-03 end to end: installed 0.8.2 in
-        // `~/Applications`, `duo install` took it to 0.8.3. Mounted arm64 dmg:
-        // org.openlogi.openlogi, short `0.8.3` == tag, Team 8U3ZJ258K9 (the same
-        // Team 0.8.2 carries, so the swap gate passes), signed Developer ID and
-        // accepted by `spctl` as Notarized Developer ID. Each release also ships
-        // an `-macos-x86_64.dmg` plus Windows/Linux artifacts and a `.minisig`
-        // beside every one of them, so the pattern pins the arm64 dmg and ends on
-        // `.dmg$` — without the anchor `OpenLogi-v0.8.3-macos-arm64.dmg.minisig`
-        // truncates onto a URL nobody published.
+        // One-click, checked end to end (2026-09-03; History has the versions):
+        // `duo install` took a copy of the previous release to the next one.
+        // Mounted arm64 dmg: org.openlogi.openlogi, short == tag, Team 8U3ZJ258K9
+        // (the same Team the previous release carries, so the swap gate passes),
+        // signed Developer ID and accepted by `spctl` as Notarized Developer ID.
+        // Each release also ships an `-macos-x86_64.dmg` plus Windows/Linux
+        // artifacts and a `.minisig` beside every one of them, so the pattern pins
+        // the arm64 dmg and ends on `.dmg$` — without the anchor
+        // `OpenLogi-v0.8.3-macos-arm64.dmg.minisig` truncates onto a URL nobody
+        // published.
         //
         // ⚠️ Two facts worth not rediscovering. The app carries NO stapled
         // notarization ticket (0.8.2 and 0.8.3 both; it is how this vendor ships,

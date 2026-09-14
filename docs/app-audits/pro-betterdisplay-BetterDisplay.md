@@ -1,0 +1,52 @@
+# BetterDisplay
+
+**这不是审计**：family `pro-betterdisplay-BetterDisplay`（`Recipes/pro-betterdisplay-BetterDisplay.swift`）里 BetterDisplay `pro.betterdisplay.BetterDisplay` 的覆盖情况没有审过。这份文件只接收从 recipe 注释迁出的历史，登记在索引的「仅迁出历史（未审计）」一节。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（appcast 指向的 changelog 页是空壳）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "— fetched 2026-08-27, 1149 bytes, no body content at all" 改成 "with no body content at all (checked 2026-08-27 and 2026-09-14; History has the size)"；其余原样。
+
+The appcast carries no `<description>`; every item points
+`<sparkle:releaseNotesLink>` at
+`waydabber.github.io/BetterDisplay/changelog.html?tag=<tag>`. That page is
+an EMPTY shell — fetched 2026-08-27, 1149 bytes, no body content at all.
+Its inline script reads `?tag`, GETs
+`api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` (the old
+repo name, still redirecting) and renders `response.body` with marked.js.
+So the web view was rendering GitHub markdown the whole time, minus our
+styling and plus the vendor's "Download app for macOS" button image. Going
+to the API directly gets the identical text, the version and date headings
+the shell never had, and the history a per-tag page cannot hold.
+
+复测 2026-09-14（13:59 UTC，只读 GET `waydabber.github.io/BetterDisplay/changelog.html`，Safari UA）：200，解压后 1,149 B，没有 `<body>` 元素：只有 `<head>` 里的样式与两个脚本引用，和一段读 `?tag` 再 GET `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` 的内联脚本。
+
+### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（滚动的 `pre` release 为什么进不了列表）
+
+转引自 recipe 注释，未复测。整段原文；代码里第 40 新的 release 的日期换成「早了好几年」并注明核对日期，`pre` 自己的创建日期（厂商事件的日期）原样；其余原样，重新折行。
+
+That rolling `pre` release cannot leak into either rail as an entry titled
+"pre": GitHub orders this endpoint by `created_at`, and `pre` was created
+2022-04-06 while the 40th-newest release is 2025-01-03 (both read
+2026-08-27). It is far outside a `per_page=40` window and sinks further
+with every release the vendor cuts.
+
+复测 2026-09-14（13:57 UTC，`gh api 'repos/waydabber/BetterDisplay/releases?per_page=40'` 与 `…/releases/tags/pre`）：40 条里最新的是 `v4.3.7`（created 2026-09-11），第 40 条是 `v3.3.3`（created 2025-01-22）；`pre` created 2022-04-06。
+
+### Recipes/pro-betterdisplay-BetterDisplay.swift — ChangelogRecipe（`skipSections` 为什么按整个标题匹配）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "18 of the newest 40 releases carry it, and between them they use only TWO distinct texts" 改成 "about half of the newest 40 releases carried it when checked (2026-08-27 and 2026-09-14; History has the counts)"（原句没写日期，引入它的提交是 `a6ac16b1`，2026-08-27），"anywhere in those 40 bodies" 改成 "in the 40 bodies checked"；其余原样，重新折行。
+
+`skipSections` drops the contributor roster. It is not a changelog: 18 of
+the newest 40 releases carry it, and between them they use only TWO
+distinct texts — the same paragraph repeated down a 15-row rail. The
+vendor gives no marker for it (no HTML comment, no `<details>` anywhere in
+those 40 bodies), so the heading IS the marker, and they have spelled it
+two ways. Both are listed. `### Localization Improvements` (v3.3.4) is
+deliberately NOT listed — that one holds real changes, which is why the
+match is whole-heading rather than a substring.
+
+复测 2026-09-14（同一次 `per_page=40` 读取）：40 条里 20 条带其中一种名单标题——19 条 "Included Localizations"（`v3.3.4` 同时还有 "Localization Improvements"），1 条 "Localizations included in this release"（`v3.3.3`）；40 条正文里 `<details` 与 `<!--` 都是 0 次。名单正文逐条带贡献者列表，「只有两种不同文本」没有按原来的切法重算。

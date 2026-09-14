@@ -4,6 +4,7 @@ enum org_mozilla_firefox {
     static let set = AppRecipeSet(
         family: "org-mozilla-firefox",
         probes: [
+        // History: docs/app-audits/org-mozilla-firefox.md#历史与实测
         // Firefox — `product-details` carries Release and ESR. Beta, Developer
         // Edition and Nightly are NOT readable there and go to Mozilla's own
         // update service instead; see the block above those three recipes.
@@ -11,8 +12,8 @@ enum org_mozilla_firefox {
         // `org.mozilla.firefox`; the channel is told apart by `application.ini`
         // RemotingName (`firefox`/`firefox-beta`/`firefox-esr` — see
         // `ReleaseChannel`), NOT the version suffix, because the installed
-        // `CFBundleShortVersionString` DROPS the `b`/`esr` (verified on real
-        // bundles 2026-06-04: Beta reports `152.0`, ESR `140.11.0`). So three
+        // `CFBundleShortVersionString` DROPS the `b`/`esr` (checked on real Beta and
+        // ESR bundles 2026-06-04; History has the versions). So three
         // recipes share that bundle id and are picked by the install's detected
         // channel. Developer Edition (`org.mozilla.firefoxdeveloperedition`,
         // RemotingName `firefox-dev`) and Nightly (`org.mozilla.nightly`) have
@@ -21,9 +22,8 @@ enum org_mozilla_firefox {
         // (never phantoms against the suffix-less install) while a real bump still
         // compares newer. One-click: identical mechanism to
         // Thunderbird — `download.mozilla.org/?product=…-latest&os=osx` 302→ the
-        // per-channel `.dmg` (verified 2026-06-17: firefox-latest 152.0,
-        // -beta-latest 152.0b10, -esr-latest 140.12.0esr, -devedition-latest
-        // 152.0b10, -nightly-latest 154.0a1). All Mozilla-signed (Team `43AQ936H96`),
+        // per-channel `.dmg` (checked for all five product codes 2026-06-17; History
+        // has the versions). All Mozilla-signed (Team `43AQ936H96`),
         // so VendorInstaller's same-Team gate is satisfied / fails closed. Note Dev
         // Edition's product code is `firefox-devedition-latest` (its dmg lives under
         // /pub/devedition/, not /pub/firefox/).
@@ -47,11 +47,9 @@ enum org_mozilla_firefox {
         // says "155.0b5" is measured against "155.0" and the tokenizer ranks the
         // pre-release BELOW the release: `isNewer` is false for every build of
         // the cycle. Nightly is worse: Mozilla ships one EVERY DAY and they are
-        // all called `157.0a1`, so a ~4-week cycle produced exactly zero update
-        // notices. (Measured 2026-08-30 against real bundles; the beta half was
-        // recorded as an accepted limitation on 2026-06-04, the nightly half was
-        // never noticed because "remote == installed" had been written down as a
-        // *good* sign — no phantom updates — without taking the next step.)
+        // all called `157.0a1`, so a ~4-week cycle gives exactly zero update
+        // notices (checked 2026-08-30 against real bundles; History has how both
+        // halves went unnoticed before that).
         //
         // The bundle does carry a per-build number — `CFBundleVersion` is
         // `<major><yy>.<month>.<day>`, `15526.8.26` for 155.0b5 — but no Mozilla
@@ -59,12 +57,9 @@ enum org_mozilla_firefox {
         // sides DO share is `application.ini`'s `BuildID`: the app's own updater
         // asks `aus5.mozilla.org` (the URL is in `application.ini` itself, under
         // `[AppUpdate]`) and that service answers with the same `BuildID`, byte
-        // for byte. Verified 2026-08-30 on all five channels by unpacking the
-        // official dmg and diffing against the live response:
-        //
-        //     FF beta        20260826090609    FF dev  20260826090609
-        //     FF nightly     20260829211045    TB beta 20260826184332
-        //     TB daily       20260829100815
+        // for byte (checked 2026-08-30 on all five channels by unpacking the
+        // official dmg and diffing against the live response; History has the
+        // build ids).
         //
         // So these five recipes (Firefox beta, Developer Edition and Nightly in this
         // file; Thunderbird beta and Daily in `Recipes/org-mozilla-thunderbird.swift`)
@@ -81,17 +76,17 @@ enum org_mozilla_firefox {
         // One response shape, two meanings, is how a check goes quietly dead.
         // With a frozen anchor every user and the nightly sweep send the SAME
         // request, an answer is always expected, and empty is unambiguously a
-        // failure. Measured constraints on the anchor (2026-08-30):
+        // failure. The anchor has to meet these constraints (measured 2026-08-30;
+        // History has the requests and answers):
         //
-        //   • The version must be at or above Mozilla's newest *watershed*.
-        //     `ver=124.0` is answered with the 125.0 Beta 9 watershed build;
-        //     `125.0` and everything above gets the current one. Nightly has no
-        //     watershed (`90.0a1` still gets today's build).
-        //   • The build id must be newer than roughly 2023-01-15 — below that AUS
-        //     answers nothing, on every channel, regardless of version.
-        //   • The OS version does not affect the answer (`Darwin 20`…`27` all
-        //     agree), and there is no throttling: 10 identical requests, 10
-        //     identical answers.
+        //   • The version must be at or above Mozilla's newest *watershed*: below
+        //     it, AUS answers with the watershed build rather than the current
+        //     one. Nightly has no watershed.
+        //   • The build id must be newer than a floor, which sat well below this
+        //     anchor's 2025-01-01 when measured — below the floor AUS answers
+        //     nothing, on every channel, regardless of version.
+        //   • The OS version does not affect the answer, and there is no
+        //     throttling: identical requests get identical answers.
         //
         // Both anchors decay eventually — a new watershed above 155.0, or the
         // build-id floor rising past 2025. **Both decay modes are caught**, and
@@ -115,8 +110,9 @@ enum org_mozilla_firefox {
         // question: `RecipeSanity` warns when an extracted version appears
         // verbatim in the request URL, which is exactly the shape a pattern
         // matching the URL instead of the body would take. Nightly is anchored at
-        // 120.0a1 rather than the current 157.0a1 for that reason (nightly has no
-        // watershed at all — 90.0a1 still gets today's build).
+        // 120.0a1 rather than the current nightly version for that reason (nightly
+        // has no watershed at all, so an older version still gets today's build;
+        // History has the measurement).
         // Thunderbird's `application.ini` names `aus.thunderbird.net`, which 302s
         // to the same path on `aus5.mozilla.org`. We follow Thunderbird's own host
         // rather than short-cutting to the redirect target: if the two ever
@@ -191,7 +187,7 @@ enum org_mozilla_firefox {
         // download paths do not: Beta sits under a `<major>.0b<N>` release dir, ESR
         // under an `esr` one, Developer Edition under `/devedition/`, Nightly under
         // `/nightly/`. Firefox Beta and Developer Edition resolve the SAME upstream
-        // version (154.0b8), so only the `/devedition/` vs `/firefox/` path tells
+        // version (e.g. 154.0b8), so only the `/devedition/` vs `/firefox/` path tells
         // them apart — which is exactly why the marker is a path, not a version.
         ChannelProofKey("org.mozilla.firefox", .beta): .artifact(#"/firefox/releases/[0-9.]+b[0-9]+/"#),
         ChannelProofKey("org.mozilla.firefox", .esr): .artifact(#"/firefox/releases/[0-9.]+esr/"#),

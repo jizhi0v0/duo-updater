@@ -45,3 +45,27 @@
 ## 建议下一步
 1. Keep current Homebrew + version-pinned changelog coverage.
 2. When Blender ships a new stable minor, update the ChangelogRecipe URL and fixture.
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe（钉在一个版本上的发布说明页）
+
+转引自 recipe 注释，未复测。整段原文。括号里的 "(5.3 Alpha, 5.2 Beta)" 与 "the latest RELEASED minor" 迁移时都已不成立：5.2 LTS 已发布，`source` 仍钉在 5.1（见下面的更正）。代码里去掉了括号里的版本，并把 "version-pinned to the latest RELEASED minor; bump it when …" 改成 "version-pinned to a RELEASED minor, so it has to be bumped by hand when …"。原句没写日期，引入它们的提交是 `599e8dde`（2026-06-04）；其余原样，重新折行。
+
+Blender — developer.blender.org/docs/release_notes/<major.minor>/ is the
+clean per-version notes page (the blender.org/download marketing pages are
+sprawling splash pages with no parseable block). Each page is an <h1>
+"Blender 5.1 Release Notes", a <p>"Blender 5.1 was released on DATE."</p>,
+then module-section <ul>s and Compatibility/Bugfixes lists up to the
+"Corrective Releases" heading. We surface a COARSE summary (changed-module
+list + compat/bugfix bullets). Requiring the literal "was released on" is a
+GUARD: the dev-docs nav lists in-development versions first (5.3 Alpha,
+5.2 Beta) whose intros read "is currently in Alpha/Beta" and so DON'T
+match — yielding zero entries (safe embed fallback) rather than a partial
+changelog. URL is version-pinned to the latest RELEASED minor; bump it when
+a new Blender ships (same as the old Warp/Ghostty version-pins) — Blender
+exposes no released-only index to follow.
+
+更正 2026-09-14（13:59–14:01 UTC，只读 GET，Safari UA，不跟随重定向）：`developer.blender.org/docs/release_notes/5.2/` 200，`<h1>` 是 "Blender 5.2 LTS Release Notes"，正文 "was released on July 14, 2026"；`/5.3/` 的 `<h1>` 是 "Blender 5.3 Release Notes"，正文 "Blender 5.3 is currently in"；`/docs/release_notes/` 的导航依次列 5.3、5.2 LTS、4.5 LTS、5.1、5.0。recipe 的 `source` 仍是 `/5.1/`（`Recipes/org-blenderfoundation-blender.swift:23`）。另：`entryPattern` 的 `Blender\s+(?<version>…)\s+Release Notes` 在 5.2 那页的 "5.2 LTS Release Notes" 上不匹配（本地 Python 正则复算），只把钉的版本改成 5.2 会得到零条。

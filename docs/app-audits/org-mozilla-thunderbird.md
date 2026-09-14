@@ -153,3 +153,45 @@ swift run --package-path application-test channel-verify /tmp/tb-daily.dmg  --ex
 
 想看红：从 `https://archive.mozilla.org/pub/thunderbird/nightly/<年>/<月>/` 取前一个
 build 的 dmg，同一个 `157.0a1` 会判出 UPDATE。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-mozilla-thunderbird.swift — Release / ESR VendorProbe（开头的说明）
+
+转引自 recipe 注释，未复测。整段原文；代码里把 "(verified 2026-06-17: thunderbird-latest → 152.0, …)" 改成 "(checked for all four product codes 2026-06-17; History has the versions)"，其余原样，重新折行。
+
+Thunderbird — same Mozilla `product-details` mechanism for Release and
+ESR; Beta and Daily go to `aus.thunderbird.net` for the same reason the
+Firefox pre-release channels do (see that block). Channel routing
+is by `application.ini` RemotingName (see `ReleaseChannel`), NOT the
+version suffix: the installed `CFBundleShortVersionString` DROPS the
+`b`/`esr` suffix (verified on real bundles 2026-06-04). Bundle ids differ
+per channel — Release & ESR share `org.mozilla.thunderbird`, Beta is
+`org.mozilla.thunderbirdbeta`, Daily is `org.mozilla.thunderbird-daily`.
+The `product-details` probes still capture the feed's full `esr` form: it
+sorts as a pre-release (< the suffix-less installed version) so it never
+phantoms; a real bump (140.11.1→140.12.0esr) still compares newer.
+One-click: Mozilla's `download.mozilla.org/?product=…-latest&os=osx`
+302-redirects to the per-channel `.dmg` on its CDN (verified 2026-06-17:
+thunderbird-latest → 152.0, -beta-latest → 152.0b4, -esr-latest →
+140.12.0esr, -nightly-latest → 154.0a1). Every channel is signed by
+Mozilla Corporation (Team `43AQ936H96`), so the VendorInstaller same-Team
+gate is satisfied and fails closed if Mozilla ever rotates. Best-effort
+in-place dmg swap on top of Thunderbird's own self-updater.
+
+### Recipes/org-mozilla-thunderbird.swift — beta ChangelogRecipe（按周期取页）
+
+转引自 recipe 注释，未复测。整段原文。"~41 items" 是没写日期的条数（引入它的提交是 `5ff7b648`，2026-06-05），搬到这里；"`source` is the current cycle page" 迁移时已不成立，代码里改写了，见下面的更正。
+
+Thunderbird Beta — its own bundle id (`org.mozilla.thunderbirdbeta`),
+version-templated like the others. The notes URL is keyed by MAJOR, not
+build: `/152.0beta/releasenotes/` is one cumulative page for the whole
+152 beta cycle (b1→b2→…, several "What’s Fixed" sections under one
+"152.0beta" heading, ~41 items). `urlVersionToken` drops the bN build
+suffix and appends "beta" (152.0 / 152.0b3 → 152.0beta), so the template
+auto-tracks the current cycle with no pin to bump. `source` is the
+current cycle page as a fallback only.
+
+更正 2026-09-14（13:59–14:01 UTC，只读 GET，不跟随重定向）：`source` 仍是 `/152.0beta/releasenotes/`（`Recipes/org-mozilla-thunderbird.swift:161`），而当前 beta 周期已是 156：`product-details.mozilla.org/1.0/thunderbird_versions.json` 的 `LATEST_THUNDERBIRD_DEVEL_VERSION` 是 `156.0b3`；`/en-US/thunderbird/156.0beta/releasenotes/` 200，标题 "Version 156.0beta | Released August 31, 2026"；`/152.0beta/releasenotes/` 仍 200（"Released May 21, 2026"）。代码里改成：`source` 是某一个固定周期的页（152.0beta），只作兜底。

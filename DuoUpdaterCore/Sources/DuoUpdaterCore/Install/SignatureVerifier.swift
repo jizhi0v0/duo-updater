@@ -478,7 +478,20 @@ public enum SignatureVerifier {
     /// below are the gate's rule, and a second copy of them is exactly the
     /// detection-time/install-time divergence `HostOS`'s doc comment warns about.
     /// Accepts XML and binary plists alike — `PropertyListSerialization` sniffs
-    /// the format, and a payload's plist is routinely binary.
+    /// the format, and a payload's plist may be either — the one real vendor
+    /// payload read for this (UU Remote 4.35.0) is XML, and a compiled bundle's
+    /// is usually binary.
+    /// Whether `data` is a property list at all.
+    ///
+    /// Only so a caller that got no floor can say WHICH kind of nothing it got:
+    /// a plist that parses and declares no macOS floor is ordinary, one that does
+    /// not parse means the caller read the wrong bytes. `PackageInstaller` needs
+    /// the distinction; the bundle route never does, because it is holding the
+    /// bundle.
+    static func infoPlistParses(_ data: Data) -> Bool {
+        (try? PropertyListSerialization.propertyList(from: data, format: nil)) != nil
+    }
+
     static func declaredMinimumSystemVersion(inInfoPlist data: Data) -> String? {
         guard
             let plist = try? PropertyListSerialization

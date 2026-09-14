@@ -457,7 +457,7 @@ personalized `legit.maketheweb.io/api/v1/appcast?key=<licenseKey>` feed,
 which requires a real license key this session does not have.
 **Could not measure** the feed duo-updater actually reads; relying on the
 prior verification recorded in `docs/app-audits/pl-maketheweb-cleanshotx.md`
-(2026-06-04: personalized feed head = 4.8.8 = installed). Not re-verified
+(2026-06-04: personalized feed head = 4.8.8 = the observed version). Not re-verified
 this session. Moot for the channel-proof question regardless, since
 CleanShot only ever resolves `.stable`.
 

@@ -46,9 +46,15 @@ GitHub release 正文也不是说明，是一句指路（75 字节）：
 ```
 source        raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md
 entryPattern  (?:^|\n)##\s+\[(?<version>[0-9][^\]]*)\]\s*-\s*(?<date>[^\n]+)\n(?<body>.*?)(?=\n##\s|\z)
-itemPatterns  \n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\z)
+itemPatterns  \n-\s+(?<item>.+?)(?=\n-\s|\n###\s|\n##\s|\n\[|\z)
 markdownSource: true
+headingPattern  \n###\s+(?<heading>[^\n]+)
 ```
+
+更正 2026-09-15：上面这块以前的 `itemPatterns` 没有 `\n\[`，也没有 `headingPattern` 这一行，
+与代码不符。`\n\[` 是 `bf5db16b`（2026-09-06）加进代码的（下面「第三处」写的就是它），
+`headingPattern` 是 `e57d1f47`（#562，2026-09-12）加的；这块两次都没跟着改。现在按
+`Recipes/uk-co-bzwrd-macperfmonitor.swift` 的 `ChangelogRecipe` 逐字补上。
 
 跟仓库里那条同形的 CopilotForXcode recipe（也是读 repo 的 `CHANGELOG.md`）比，两处不同，
 都是这份文件逼出来的：
@@ -57,7 +63,8 @@ markdownSource: true
    `## [Unreleased]`。那是个有真实条目的小节，描述的是还装不了的构建。
 2. **条目要跨行**。这个作者把 bullet 折在 ~78 列、续行缩进两格，所以别的 recipe 通用的
    `[^\n]+` 会把大多数条目截在半句话上（"…every CPU instruction-set" 就没了）。
-   现在是懒扫描，扫到下一个 bullet、下一个 `###` 组标题、下一个 `##` 条目或结尾为止。
+   现在是懒扫描，扫到下一个 bullet、下一个 `###` 组标题、下一个 `##` 条目、
+   文件末尾的链接定义块（`\n\[`，见下面第三处）或结尾为止。
 
 ⚠️ 第三处，是复审补的：条目的终止条件里必须有 **`\n\[`**。Keep a Changelog 的文件末尾是
 一整块链接定义（`[1.3.2]: https://…/compare/…`），而最后一条 entry 的 body 一直跑到文件尾，

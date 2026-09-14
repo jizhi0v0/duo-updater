@@ -3719,8 +3719,11 @@ final class AppListModel {
             result,
             staged: SelfUpdaterStaging.staged(
                 for: result.app, requireNewerThanInstalled: false)) {
-            Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a quit")
-            let note = String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it when you quit it — installing now would be undone.")
+            let appliesOnLaunch = staged.appliesOn == .launch
+            Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a \(appliesOnLaunch ? "launch" : "quit", privacy: .public)")
+            let note = appliesOnLaunch
+                ? String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it the next time you open it — installing now would be undone.")
+                : String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it when you quit it — installing now would be undone.")
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
@@ -5326,6 +5329,7 @@ final class AppListModel {
             if AppRestarter.runningInstances(of: result.app).isEmpty {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
                 if appliesOnLaunch {
+                    await awaitBundleProcessesGone(result.app)
                     Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) quit — launching it to apply the staged build")
                     await relaunchAfterSwap(result.app, activates: wasFrontmost)
                     launchedAtTick = tick
@@ -5385,6 +5389,20 @@ final class AppListModel {
         if applied {
             let version = await Self.readShortVersionOffMain(result.app.path)
             UpdateNotifier.restarted(app: result.app.name, version: version, appID: result.app.bundleID)
+        }
+    }
+
+    /// Before launching an app whose updater applies on launch: give the quit
+    /// app's helper processes up to ~5 s to exit. Its main process leaving
+    /// `runningInstances` is not the whole app — Spotify's Chromium helpers are
+    /// invisible there and may still hold its profile while they tear down, and
+    /// an old build launched into that can exit without applying anything. Both
+    /// measured swaps were opened a minute or more after the quit, so this gap
+    /// was never exercised; the cap keeps a helper that never exits from
+    /// stalling the relaunch.
+    private func awaitBundleProcessesGone(_ app: InstalledApp) async {
+        for _ in 0..<25 where AppRestarter.hasProcesses(insideBundle: app.path) {
+            try? await Task.sleep(for: .milliseconds(200))
         }
     }
 
@@ -5496,6 +5514,9 @@ final class AppListModel {
         guard AppRestarter.runningInstances(of: app).isEmpty else {
             await refreshRow(handoff.result)
             return
+        }
+        if handoff.landing.landsAfterLaunch {
+            await awaitBundleProcessesGone(app)
         }
         Log.app.info("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
         let relaunched = await relaunchAfterSwap(app, activates: handoff.activates)

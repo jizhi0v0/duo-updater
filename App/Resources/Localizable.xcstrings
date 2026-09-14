@@ -534,6 +534,47 @@
         }
       }
     },
+    "%@ has already downloaded %@ and will apply it the next time you open it — installing now would be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat %@ bereits heruntergeladen und installiert es beim nächsten Öffnen – eine Installation jetzt würde überschrieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó %@ y lo instalará la próxima vez que lo abras: instalarlo ahora quedaría sobrescrito."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé %@ et l’installera à sa prochaine ouverture — installer maintenant serait écrasé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでに %@ をダウンロード済みで、次回起動時に適用します。今インストールしても上書きされます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загрузил %@ и установит его при следующем запуске — установка сейчас будет перезаписана."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已经下载好 %@，会在你下次打开它时安装 —— 现在装会被覆盖。"
+          }
+        }
+      }
+    },
     "%@ has an update.": {
       "extractionState": "manual",
       "localizations": {

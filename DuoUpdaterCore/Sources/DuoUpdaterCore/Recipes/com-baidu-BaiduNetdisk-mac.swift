@@ -29,7 +29,8 @@ enum com_baidu_BaiduNetdisk_mac {
         // `MACGenFlowPro` (库库GenFlow, a different Baidu product on the same CDN),
         // and the netdisk entry itself publishes x64 / arm64 / universal side by
         // side. So both patterns pin the product path AND the architecture: a bare
-        // `_arm64\.dmg` matches `KukuAI_1.3.6_arm64.dmg` FIRST in the real body.
+        // `_arm64\.dmg` can match another product's dmg (e.g. `KukuAI_…_arm64.dmg`)
+        // first.
         //
         // The version pattern uses a BACKREFERENCE so the directory version and the
         // filename version have to agree — the version this reports is then, by
@@ -44,15 +45,15 @@ enum com_baidu_BaiduNetdisk_mac {
         // not resolve it at all.
         //
         // FROZEN-MARKETING GRANULARITY, stated rather than assumed: the feed
-        // exposes only a marketing version (`8.7.9`) while the bundle also carries a
-        // build (`CFBundleVersion` 473) the feed never mentions. `VersionComparator`
+        // exposes only a marketing version (e.g. `8.7.9`) while the bundle also carries a
+        // build (e.g. `CFBundleVersion` 473) the feed never mentions. `VersionComparator`
         // ties on marketing, finds no remote build, and answers "not newer" — so a
         // build-only respin is invisible here, never a phantom update. Baidu's mac
-        // line does move its marketing version (the same body has the Windows client
-        // at 8.7.9.102 and linux at 8.7.0), so this is a granularity limit, not a
+        // line does move its marketing version (History has the versions observed),
+        // so this is a granularity limit, not a
         // dead discriminator.
         //
-        // No `publishedAtPattern`: `publish` is `"2026-08-28 14:39:00"` —
+        // No `publishedAtPattern`: `publish` looks like `"2026-08-28 14:39:00"` —
         // space-separated and zone-less, a shape `ReleaseDate` does not parse, so
         // the pattern would silently yield nothing. It is Asia/Shanghai (that stamp
         // is two minutes before the artifact's own `Last-Modified: Fri, 28 Aug 2026
@@ -91,10 +92,10 @@ enum com_baidu_BaiduNetdisk_mac {
         // convention. This recipe reads that endpoint directly; the human page is
         // what `VendorProbeRegistry`'s `changelogURL` points at for the fallback.
         //
-        // 145 releases are on offer; `num=40` matches `maxEntries` so the request
-        // is 24 KB rather than 58 KB. Newest-first, so no `newestLast`.
+        // `num=40` matches `maxEntries`, so the request carries 40 releases rather
+        // than the whole list. Newest-first, so no `newestLast`.
         //
-        // Entry shape (verbatim, compact — the vendor emits no spaces):
+        // Entry shape, e.g. (verbatim, compact — the vendor emits no spaces):
         //   {"detail":[{"more":["【团队空间】…"],"stable":true,"title":"百度网盘全新升级"}],
         //    "publish":"2026-08-28 14:39:00","size":"444.2M","system":"Mac OS X 10.13+",
         //    "title":"百度网盘Mac电脑客户端V8.7.9","url":"…_x64.dmg","url_1":"…_arm64.dmg",
@@ -102,29 +103,28 @@ enum com_baidu_BaiduNetdisk_mac {
         //
         // Three shapes in the live data the patterns are built around, not guessed:
         //
-        //  1. **`more` is empty for 11 of the 141 releases the feed returns, and
+        //  1. **`more` is empty for some releases, and
         //     the note moves into the detail object's `title`.** Those are not
-        //     note-less releases — 4.54.9's title is
+        //     note-less releases — e.g. 4.54.9's title is
         //     "百度网盘优化了一些已知的体验问题，欢迎升级体验~", the whole note.
         //     So `body` captures the WHOLE detail object and the item patterns are
         //     ordered: bullets first, the title only when there are none.
-        //     Capturing just the `more` array would not have shown eleven blank
+        //     Capturing just the `more` array would not have shown those as blank
         //     entries — `ChangelogExtractor` drops an entry whose item patterns
-        //     yield nothing (`guard !noteHits.isEmpty`), so those eleven releases
+        //     yield nothing (`guard !noteHits.isEmpty`), so those releases
         //     would be MISSING from the changelog entirely, with no blank row to
         //     notice. The fallback is what keeps them.
         //  2. **The key order inside `detail` is not fixed, and neither is the key
-        //     set** — measured over all 141 entries (`num=200`; the feed's own
-        //     `total` says 145): `more` and `title` are on every one, `stable` on
-        //     97, `feature_tips` on 44. So nothing may assume `more` comes first,
-        //     and `feature_tips` is a third of the feed rather than a curiosity.
-        //     It is a plain STRING in all 44 (`"mac版可以xxx啦"`, vendor filler,
+        //     set**: `more` and `title` are on every entry, `stable` and
+        //     `feature_tips` only on some. So nothing may assume `more` comes first,
+        //     and `feature_tips` is common rather than a curiosity.
+        //     It is a plain STRING wherever it appears (`"mac版可以xxx啦"`, vendor filler,
         //     never a release note), which is the only reason the punctuation
         //     anchoring below declines it — a value preceded by `:`. Were the
         //     vendor to make it an array, its elements would start rendering as
         //     notes.
         //  3. **The version string gained a space at some point**: recent releases
-        //     say `百度网盘Mac电脑客户端V8.7.9`, older ones `百度网盘Mac电脑客户端 V4.15.0`,
+        //     say e.g. `百度网盘Mac电脑客户端V8.7.9`, older ones `百度网盘Mac电脑客户端 V4.15.0`,
         //     and the oldest drop the prose entirely (`Mac版 V3.9.5`). Anchoring on
         //     `V` + digits rather than on the label survives all three.
         //

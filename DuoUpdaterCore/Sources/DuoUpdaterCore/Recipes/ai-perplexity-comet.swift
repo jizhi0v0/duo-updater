@@ -5,9 +5,10 @@ enum ai_perplexity_comet {
         family: "ai-perplexity-comet",
         probes: [
         // History: docs/app-audits/ai-perplexity-comet.md#历史与实测
-        // Comet — the cask's JSON update API is rollout-stale (145.x while the
-        // public download already contains 151.x), so probing it would report a
-        // downgrade. The official stable download GET redirects to a signed R2 URL
+        // Comet — the cask's JSON update API is rollout-stale (it lags the public
+        // download; versions are Chromium-major-prefixed, e.g. 145.x), so probing it
+        // would report a downgrade. The official stable download GET redirects to a
+        // signed R2 URL
         // whose versioned directory exactly matches the mounted bundle's marketing
         // version. HEAD is a vendor trap (redirects to example.com), hence GET with
         // redirects disabled. ai.perplexity.comet, Team 7S8W4W365S, notarized;
@@ -38,7 +39,7 @@ enum ai_perplexity_comet {
         //
         // No checksum, because the gateway publishes none — so unlike Msty there
         // is nothing here that notices when the build fetched is not the build
-        // compared. The gateway always serves current: a row checked at
+        // compared. The gateway always serves current: a row checked at, e.g.,
         // 151.0.7922.247 and clicked after 152.x ships installs 152.x and records
         // 151.0.7922.247 until the next check corrects it. That is bookkeeping
         // drift, not a broken app, and it is the same property every `.redirect`

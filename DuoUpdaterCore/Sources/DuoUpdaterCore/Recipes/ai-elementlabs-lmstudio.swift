@@ -14,7 +14,7 @@ enum ai_elementlabs_lmstudio {
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://lmstudio.ai/changelog/lmstudio"),
             // Feed has no link — build the dmg path from version + build, both of
-            // which are REQUIRED in the path (…/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
+            // which are REQUIRED in the path (e.g. …/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
             // dropping the build 404s). Team D65G88RHWN.
             install: VendorInstallSpec(
                 urlSource: .bodyTemplate(
@@ -24,9 +24,9 @@ enum ai_elementlabs_lmstudio {
         ],
         changelogs: [
         // LM Studio — Next.js changelog index. The index page already carries the
-        // *full* release notes for the latest ~10 versions inline (the visible
+        // *full* release notes for the latest versions inline (the visible
         // truncation is a CSS mask only; the markup is complete), so we parse it
-        // directly rather than the per-version pages. Each entry is:
+        // directly rather than the per-version pages. Each entry is, e.g.:
         //   <a href="/changelog/lmstudio/lmstudio-v0.4.20">
         //     <span class="sr-only">LM Studio 0.4.20</span></a>
         //   …<div class="markdown-body …"><p><strong>Build 1</strong></p>

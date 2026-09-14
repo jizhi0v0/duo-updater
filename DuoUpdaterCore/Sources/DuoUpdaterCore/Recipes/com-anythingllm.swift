@@ -15,13 +15,14 @@ enum com_anythingllm {
         // `cdn.anythingllm.com`:
         //
         //   * `latest/version.txt` — a one-line plain-text version body
-        //     (`1.16.1\n`), which is EXACTLY the endpoint Homebrew's own
+        //     (e.g. `1.16.1\n`), which is EXACTLY the endpoint Homebrew's own
         //     `anythingllm` cask names in its `livecheck` block — a third party
         //     already depends on it for the same purpose, so this is the vendor's
         //     intended version surface, not a guess. Prefer it over scraping the
         //     homepage.
         //   * `latest/AnythingLLMDesktop-Silicon.dmg` — the arm64 build, an
-        //     UNVERSIONED moving pointer (no `1.16.1/…` path exists; 404). The
+        //     UNVERSIONED moving pointer (no versioned path, e.g. `1.16.1/…`, exists;
+        //     404). The
         //     pair is published together.
         //     This is the same `/latest/` + livecheck pairing the cask itself
         //     ships, so the drift risk is shared with Homebrew, not invented
@@ -39,7 +40,7 @@ enum com_anythingllm {
         // Delta/binary patch: not a Sparkle app and the CDN carries no
         // `.delta`/`.patch` artifacts — nothing to consume.
         // Notes live in the project's GitHub releases, on the SAME numbering as
-        // `version.txt` (`1.16.1` ↔ `v1.16.1`, 2026-09-03) — see the
+        // `version.txt` (e.g. `1.16.1` ↔ `v1.16.1`, 2026-09-03) — see the
         // `ChangelogRecipe` for `com.anythingllm`, which parses them natively.
         // `docs.anythingllm.com/changelog` 404s and is not the page.
         VendorProbeRecipe(

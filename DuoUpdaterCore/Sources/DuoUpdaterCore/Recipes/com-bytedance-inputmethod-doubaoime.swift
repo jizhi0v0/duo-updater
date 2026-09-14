@@ -13,23 +13,24 @@ enum com_bytedance_inputmethod_doubaoime {
         //
         // The site's own download button reads this endpoint (`platform` ∈
         // android/ios/macos/windows), which is the vendor's statement of what the
-        // current shipping build is:
+        // current shipping build is, e.g.:
         //
         //   {"code":0,"data":{"url":".../DoubaoImeInstaller_v90602_release.zip",
         //    "version_code":1002007,"version_name":"V0.9.6"},"msg":"success"}
         //
         // VERSION SCHEME — three numbers in this response, and which one to compare
         // is the whole recipe:
-        //   * the `v90602` in the zip filename is the vendor's version code, and the
+        //   * the `v<code>` in the zip filename (`v90602` above) is the vendor's
+        //     version code, and the
         //     installed bundle carries THE SAME NUMBER in its custom Info.plist key
-        //     `Wave Build Version Number` (also spelled `0.9.6.2` in
+        //     `Wave Build Version Number` (also spelled out, e.g. `0.9.6.2`, in
         //     `Wave Build Version`). `AppScanner` reads that key in place of
         //     `CFBundleVersion`, which is a flat "1" on every build. This pair is
         //     what we compare — exact, respins included.
-        //   * `version_name` "V0.9.6" is the marketing string, and is what the row
+        //   * `version_name` (e.g. "V0.9.6") is the marketing string, and is what the row
         //     SHOWS (`displayVersionPattern`); it equals the installed
         //     `CFBundleShortVersionString`.
-        //   * `version_code` 1002007 is a THIRD namespace that matches nothing local.
+        //   * `version_code` (e.g. 1002007) is a THIRD namespace that matches nothing local.
         //     Never compare it.
         //
         // If the vendor ever drops that Info.plist key, `AppScanner` reports NO build
@@ -43,8 +44,8 @@ enum com_bytedance_inputmethod_doubaoime {
         //
         // ONE-CLICK, and it takes one more step than any other recipe because the
         // artifact here is not the app. The endpoint hands over
-        // `DoubaoImeInstaller_v<code>_release.zip`, a ~190 MB stub whose
-        // `Contents/Resources` holds `DoubaoIme.zip` (170 MB) plus the `install.sh`
+        // `DoubaoImeInstaller_v<code>_release.zip`, a stub whose
+        // `Contents/Resources` holds `DoubaoIme.zip` plus the `install.sh`
         // it runs — so `nestedArchivePath` unwraps one level, and the whole gate
         // stack (signature, Team, bundle id, architecture) then runs on the real
         // `DoubaoIme.app`. Without the unwrap the bundle-id gate would refuse
@@ -92,6 +93,7 @@ enum com_bytedance_inputmethod_doubaoime {
         // track; `inhouse` and `test` also answer but are ByteDance's internal builds
         // (the installed bundle's Info.plist carries `CHANNEL_NAME = release`).
         //
+        // A response looks like this, e.g.:
         //   {"list":[{"channel":"release","platform":"macOS","version_name":"0.9.6",
         //     "version_code":90601,"change_log":"- 新增账号登录…；\n- 新增离线语音…",
         //     …,"push_message":{"title":"豆包输入法已更新至 0.9.6 版本",…}}]}

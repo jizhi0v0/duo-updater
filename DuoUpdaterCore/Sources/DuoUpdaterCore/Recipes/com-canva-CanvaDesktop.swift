@@ -16,9 +16,10 @@ enum com_canva_CanvaDesktop {
         // repo, and the iTunes lookup for this bundle id returns 0 results, so the
         // probe is the only surface that answers at all.
         //
-        // The two sides compare like-for-like: the feed's `version` is `1.124.0` and
-        // the shipped bundle's `CFBundleShortVersionString` is `1.124.0`. Its
-        // `CFBundleVersion` is an unrelated `3597652.392500792` that appears nowhere
+        // The two sides compare like-for-like: the feed's `version` and the shipped
+        // bundle's `CFBundleShortVersionString` carry the same string (e.g. `1.124.0`).
+        // Its `CFBundleVersion` is an unrelated number (e.g. `3597652.392500792`) that
+        // appears nowhere
         // in the feed, which is why this is NOT `versionIsBuild`.
         //
         // Every pattern here ends at a run of digits and dots, and that is the
@@ -30,7 +31,7 @@ enum com_canva_CanvaDesktop {
         // `-beta` into the STABLE feed and the pattern matches NOTHING, so the app
         // degrades to "unknown" rather than capturing `1.98.0`, reporting a
         // prerelease as stable, and reading as a permanent downgrade against an
-        // installed 1.124.0. The artifact pattern is pinned the same way, so an
+        // installed stable (e.g. 1.124.0). The artifact pattern is pinned the same way, so an
         // install can never resolve `Canva-1.98.0-beta-universal.dmg`.
         //
         // One-click: the dmg holds `Canva.app` and nothing else — no pkg, no

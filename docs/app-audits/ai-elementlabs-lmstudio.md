@@ -19,3 +19,12 @@ moved to `/changelog/lmstudio`, with the per-version slug nested one level
 deeper.
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`lmstudio.ai/changelog` 列出的仍是 Bionic 条目（首条 `Bionic 1.1.2`）；`versions-prod.lmstudio.ai/update/darwin/arm64/0.0.0` 答 `0.4.24`；`/changelog/lmstudio` 首条是嵌套 slug `lmstudio/lmstudio-v0.4.24`。
+
+### Recipes/ai-elementlabs-lmstudio.swift — ChangelogRecipe（index 页内联的 notes 数量）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`2af36691`（2026-06-02）。
+
+The index page already carries the
+*full* release notes for the latest ~10 versions inline (the visible
+truncation is a CSS mask only; the markup is complete), so we parse it
+directly rather than the per-version pages.

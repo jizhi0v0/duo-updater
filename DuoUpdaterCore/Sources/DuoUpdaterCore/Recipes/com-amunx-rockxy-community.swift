@@ -17,7 +17,7 @@ enum com_amunx_rockxy_community {
         // one rung no matter how many builds the user skipped.
         //
         // github.com/RockxyApp/Rockxy carries the same notes plus the history, and
-        // the tag is the marketing version verbatim (`v0.38.2` → `0.38.2` via
+        // the tag is the marketing version verbatim (e.g. `v0.38.2` → `0.38.2` via
         // `stripLeadingV`), which is what `CFBundleShortVersionString` reports.
         //
         // No `skipSections`. Every body opens with a `> **Distribution notice:**`

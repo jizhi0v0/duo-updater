@@ -5,7 +5,7 @@ enum com_carriez_rustdesk {
         family: "com-carriez-rustdesk",
         changelogs: [
         // RustDesk — GitHub releases page, same shape as Ollama but the sr-only
-        // <h2> carries a bare version ("1.4.7", no leading "v"), so the version
+        // <h2> carries a bare version (e.g. "1.4.7", no leading "v"), so the version
         // group matches digits directly. Each release is a <section> with an
         // sr-only h2 (version), a <relative-time datetime="…"> (ISO datetime),
         // and a <div class="markdown-body …"> body. Notes open with a screenshot

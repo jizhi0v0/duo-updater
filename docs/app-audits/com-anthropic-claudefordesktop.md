@@ -20,3 +20,10 @@ the rollout bucket: four synthetic ids sampled on 2026-08-15 answered
 .1/.5/.1/.1, which is exactly why the id must be this machine's real one
 (`~/Library/Application Support/Claude/ant-did`, a base64-wrapped UUID)
 and never a fabricated one.
+
+### Recipes/com-anthropic-claudefordesktop.swift — rollout VendorProbe（`pub_date`）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`b41af17a`（2026-08-15）。
+
+`pub_date` is UTC (39s after the artifact's Last-Modified),
+and it's what finally gets Claude into the Release Log timeline.

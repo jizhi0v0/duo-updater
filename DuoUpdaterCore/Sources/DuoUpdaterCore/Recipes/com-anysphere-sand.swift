@@ -29,7 +29,7 @@ enum com_anysphere_sand {
         //     could only be probed by reading a filename.
         //   • `/updates/api/update/darwin-arm64/sand/<installed>/stable`, which
         //     the Homebrew cask's livecheck reads, is the app's own Squirrel feed
-        //     and is CONDITIONAL: it answers `{"url":…,"name":"0.30.0"}` when a
+        //     and is CONDITIONAL: it answers e.g. `{"url":…,"name":"0.30.0"}` when a
         //     newer build exists and **204 with an empty body** when the caller is
         //     already current. An
         //     empty body is also what a broken endpoint looks like, so probing it

@@ -56,7 +56,7 @@ enum com_anthropic_claudefordesktop {
         // and never a fabricated one. With the real id the answer is, by
         // construction, what Claude's own updater will do.
         //
-        // The response is small JSON:
+        // The response is small JSON, e.g.:
         //   {"currentRelease":"1.30096.5","releases":[{"version":…,"updateTo":{
         //     "name":…,"version":…,"pub_date":"2026-08-14T22:50:24.042387",
         //     "url":"https://downloads.claude.ai/releases/…zip","notes":…}}]}
@@ -69,8 +69,8 @@ enum com_anthropic_claudefordesktop {
         // placeholder, and that is the copy logs and verify findings carry.
         // One-click is safe for the same reason as (1) and then some: this is
         // precisely the build allocated to this machine. Team Q6L2SF6YDW gates
-        // the swap. `pub_date` is UTC (39s after the artifact's Last-Modified),
-        // and it's what finally gets Claude into the Release Log timeline.
+        // the swap. `pub_date` is UTC, and it's what finally gets Claude into the
+        // Release Log timeline.
         VendorProbeRecipe(
             bundleID: "com.anthropic.claudefordesktop",
             url: URL(string: "https://api.anthropic.com/api/desktop/darwin/universal/squirrel/update?device_id=__IDENTITY__")!,
@@ -93,7 +93,7 @@ enum com_anthropic_claudefordesktop {
         // text/markdown form of every docs page): server-rendered, on a stable URL, and
         // free of the hashed-JS + zstd-cache fragility of the in-app "What's new" popup
         // (which reads an inline array baked into claude.ai's web bundle — variable
-        // names rotate every deploy). Each release is one block:
+        // names rotate every deploy). Each release is one block, e.g.:
         //   <Update label="v1.22209.0" description="2026-07-16"> … </Update>
         // version = the label minus its leading "v" (matches the
         // com.anthropic.claudefordesktop build the VendorProbe reads); date = the

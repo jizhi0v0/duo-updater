@@ -18,14 +18,14 @@ enum com_1password_1password {
         // `ChangelogRecipe(com.1password.1password)`.
         //
         // `selectHighest` rather than first-match, because the feed is ASCENDING
-        // (8.7.0 from 2022 is item 1 of 89) — first-match here would report a
+        // (8.7.0 from 2022 is item 1) — first-match here would report a
         // four-year-old release as current, which reads as "up to date" forever.
         // Comparing numerically means the order stops mattering at all.
         //
         // ONE-CLICK — but NOT from the URL the download page hands out.
         // `downloads.1password.com/mac/1Password.zip` looks perfect (stable URL,
         // Developer ID 2BUA8C4S2C, notarized) and is a trap: it contains
-        // `1Password Installer.app` (`com.1password.1password-installer`, 21 MB), a
+        // `1Password Installer.app` (`com.1password.1password-installer`), a
         // stub that fetches the real app. Swapping THAT over
         // `/Applications/1Password.app` would replace the password manager with its
         // own installer — and every signature gate would pass, because the stub is
@@ -72,7 +72,7 @@ enum com_1password_1password {
         //   <description>&lt;ul&gt;&lt;li&gt;We&amp;rsquo;ve fixed …&lt;/li&gt;&lt;/ul&gt;</description></item>
         //
         // Two consequences of it being a feed rather than a page:
-        //   * items are ASCENDING (8.7.0 from 2022 first, 89 of them), so
+        //   * items are ASCENDING (8.7.0 from 2022 first), so
         //     `newestLast` flips them — the HTML page was newest-first;
         //   * the change list lives ENTITY-ESCAPED inside <description>, so the
         //     item pattern matches `&lt;li&gt;`, not `<li>`. Matching a raw `<li>`

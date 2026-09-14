@@ -18,7 +18,7 @@ enum com_coteditor_CotEditor {
         // STABLE entries — `includesPromotedStable` makes
         // `StructuredChangelogDecoder.decodeGitHubReleases` want every
         // non-prerelease, not only the one that graduates, so the beta rail is
-        // simply the newest 20 releases (7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
+        // simply the newest 20 releases (e.g. 7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
         // That is the field's existing behaviour and it is what this rail wants —
         // the copy can be offered any of them — but it is not "the 6 betas", which
         // is what an earlier version of this comment claimed.
@@ -55,7 +55,7 @@ enum com_coteditor_CotEditor {
         // is what #368 was about: that feed keeps ONE prerelease slot, so every
         // beta but the newest is trimmed out of it, `channel(ofInstalled:)` then
         // misses on both passes, and the copy falls back to the default channel —
-        // where the stable line outranks it by build (843 against 840) and is
+        // where the stable line outranks it by build (843 against 840 in #368) and is
         // three marketing versions older. GitHub keeps every release, and the tag
         // says which train it is on, so the channel needs no lookup that history
         // can invalidate. `SparkleFeedCatalog` therefore does NOT carry the feed:
@@ -74,7 +74,7 @@ enum com_coteditor_CotEditor {
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
         // The beta train is CYCLICAL, and that is what shapes this rule. The
-        // unnumbered `7.1.0-beta` (the cycle's first) is a real shape,
+        // unnumbered `-beta` (e.g. `7.1.0-beta`, that cycle's first) is a real shape,
         // which is why the suffix is optional twice over below.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
@@ -136,7 +136,7 @@ enum com_coteditor_CotEditor {
         // WhatCable's entry (`Recipes/uk-whatcable-whatcable.swift`) — but NOT the same anchor, and the difference is
         // load-bearing: WhatCable's is `-beta\.`, which matches the escaped dot in
         // its own `-beta\.[0-9]+` pattern. CotEditor's cycle opens with an
-        // unnumbered `7.1.0-beta`, so its pattern reads `-beta(?:` — `-beta`
+        // unnumbered `-beta` (e.g. `7.1.0-beta`), so its pattern reads `-beta(?:` — `-beta`
         // followed by a parenthesis, never by an escaped dot. Tightening this
         // anchor to WhatCable's literal shape would make the proof report a
         // correct rule as unanchored.

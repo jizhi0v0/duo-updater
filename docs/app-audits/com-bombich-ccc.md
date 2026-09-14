@@ -321,3 +321,12 @@ detection-only for the same reason.
 
 changelogURL is CCC 5's own release-notes page, verified
 200 2026-08-29.
+
+### Recipes/com-bombich-ccc.swift — CCC 7 beta VendorProbe（`changelogURL`）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`3b875e57`（2026-08-29）。
+
+No `changelogURL` beyond what's already public: the same
+`ccc7_rn_beta.html` page the stable investigation already found
+(lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
+than re-verified as a separate discovery.

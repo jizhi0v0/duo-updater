@@ -258,3 +258,25 @@ Verified against the live manifest 2026-09-12 —
 the resolved URL was
 `…/desktop-v0.0.23-beta.1/Cline-Beta_0.0.23-beta.1_universal.app.tar.gz`,
 and the stable manifest's URL matches neither half.
+
+### Recipes/bot-cline-app.swift — stable + beta VendorProbe（Tauri `latest.json`，未写日期的数字）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`cc44a957`（2026-09-12）。
+
+Cline — Tauri (`tauri-plugin-updater 2.10.1`), not Electron and not
+Sparkle, so nothing generic reaches it: `feed-discover` on the real
+0.0.26 bundle prints `noKnownUpdater` (no `SUFeedURL`, no
+`app-update.yml`), and there is no Homebrew cask at all
+(`brew search --cask cline` → clion / font-karla-tamil-inclined /
+sonic-lineup).
+
+`strings`
+on `Contents/MacOS/cline-app` (the real binary; `Contents/MacOS/Cline`
+does not exist — the bundle ships `cline-app` plus a 181 MB
+`code-sidecar`) yields exactly one `releases/download/…` address per
+build:
+
+The list endpoint avoids that but
+costs 52,732 gzipped bytes at `per_page=40` and, per
+`GitHubConditionalCache`, carries NO `Last-Modified` and an `ETag` that
+rotates with `assets[].download_count`.

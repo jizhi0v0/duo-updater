@@ -7,7 +7,7 @@ enum com_bjango_istatmenus {
         // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
 
         // iStat Menus — a "latest" link that 302s straight to the versioned zip
-        // (`…/versions/iStatMenus7.30.zip`), so the redirect target is both the
+        // (e.g. `…/versions/iStatMenus7.30.zip`), so the redirect target is both the
         // version signal and the download. Verified 2026-08-16: the zip holds
         // `iStat Menus.app`, com.bjango.istatmenus, 7.30, Team Y93TK974AT,
         // notarized. The pattern skips the `7` in the product name and takes the

@@ -284,3 +284,38 @@ match, and every version, date and item list is byte-identical to what
 to the title.
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`?platform=mac&page=1&num=200` 返回 142 条（`total` 146），`more` 里 264 个元素，含引号的 0 个；`num=40` 那份 40 条里 7 条走 `title` 兜底。
+
+### Recipes/com-baidu-BaiduNetdisk-mac.swift — stable VendorProbe + ChangelogRecipe（未写日期的数字）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`eea33316`（2026-08-29）、`ccde0c06`（2026-08-29）、`61d42d44`（2026-08-29）。
+
+So both patterns pin the product path AND the architecture: a bare
+`_arm64\.dmg` matches `KukuAI_1.3.6_arm64.dmg` FIRST in the real body.
+
+Baidu's mac
+line does move its marketing version (the same body has the Windows client
+at 8.7.9.102 and linux at 8.7.0), so this is a granularity limit, not a
+dead discriminator.
+
+145 releases are on offer; `num=40` matches `maxEntries` so the request
+is 24 KB rather than 58 KB.
+
+**`more` is empty for 11 of the 141 releases the feed returns, and
+    the note moves into the detail object's `title`.**
+
+Capturing just the `more` array would not have shown eleven blank
+    entries — `ChangelogExtractor` drops an entry whose item patterns
+    yield nothing (`guard !noteHits.isEmpty`), so those eleven releases
+    would be MISSING from the changelog entirely, with no blank row to
+    notice.
+
+**The key order inside `detail` is not fixed, and neither is the key
+    set** — measured over all 141 entries (`num=200`; the feed's own
+    `total` says 145): `more` and `title` are on every one, `stable` on
+    97, `feature_tips` on 44. So nothing may assume `more` comes first,
+    and `feature_tips` is a third of the feed rather than a curiosity.
+    It is a plain STRING in all 44 (`"mac版可以xxx啦"`, vendor filler,
+    never a release note), which is the only reason the punctuation
+    anchoring below declines it — a value preceded by `:`.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`?do=client` 里 `mac` 条目是 `百度网盘Mac电脑客户端V8.8.3`，`feature_tips` 为空串；`?platform=mac&num=200` 返回 142 条（`total` 146），`more` 为空 11 条，`stable` 98 条，`feature_tips` 44 条且全是字符串。

@@ -21,7 +21,7 @@ enum com_bombich_ccc {
         // Each generation therefore gets its own recipe, gated with
         // `installedVersionPattern` so `VendorProbeSource` only offers a
         // same-generation point release — never routes a CCC 5/6 install through
-        // `?v=latest`'s CCC 7 answer just because "7.1.6" sorts numerically
+        // `?v=latest`'s CCC 7 answer just because, e.g., "7.1.6" sorts numerically
         // above "5.1.28"/"6.1.13". Without this gate every CCC 5/6 install in
         // this registry would have been a phantom cross-generation "update"
         // forever, silently, the same shape of bug `VersionComparator`'s
@@ -62,14 +62,15 @@ enum com_bombich_ccc {
         // `ccc-8.…` filename fails to match and the probe reports nothing rather
         // than a cross-generation version. Failing closed here is right — a recipe
         // that goes quiet shows up in the nightly `duo verify` sweep, a recipe
-        // that reports a paid upgrade as a point release does not. `7.1.6` matches the installed app's `CFBundleShortVersionString`
-        // exactly (`8368` matches `CFBundleVersion`), and CCC bumps its marketing
-        // version on every release (7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
+        // that reports a paid upgrade as a point release does not. The captured
+        // marketing version matches the bundle's `CFBundleShortVersionString`
+        // exactly (e.g. `7.1.6`, with `8368` matching `CFBundleVersion`), and CCC
+        // bumps its marketing version on every release (e.g. 7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
         // quarterly per `https://bombich.com/software/updates/ccc7_rn.html`) — not
         // a frozen-marketing app — so the default marketing-only comparison
         // (`versionIsBuild: false`) is correct, no build-number routing needed.
         // The filename's marketing segment is 2 OR 3 dot-groups depending on era
-        // (`ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
+        // (e.g. `ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
         // which is exactly why the cask's own `livecheck` comment calls out a
         // "variable number of parts" — the pattern below accepts both, always
         // taking everything before the trailing 3+ digit build segment.
@@ -114,16 +115,15 @@ enum com_bombich_ccc {
         // stable.
         //
         // CHANNEL SIGNAL: `CFBundleShortVersionString` carries a short `-b<N>`
-        // suffix ("7.1.7-b7") that `ReleaseChannel.detect()` needed a new
+        // suffix (e.g. "7.1.7-b7") that `ReleaseChannel.detect()` needed a new
         // bundle-id-scoped rule for (step 0.8) — it is neither the Mozilla
         // `b<N>` shape (requires exactly one dot, no dash) nor the full-word
         // `-beta<N>` shape (GitHub Desktop's), so without that rule this would
         // silently read as `.stable`.
         //
         // No `changelogURL` beyond what's already public: the same
-        // `ccc7_rn_beta.html` page the stable investigation already found
-        // (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
-        // than re-verified as a separate discovery.
+        // `ccc7_rn_beta.html` page the stable investigation already found is reused
+        // here directly rather than re-verified as a separate discovery.
         //
         // `?v=latestbeta` is itself a "latest" alias, and unlike stable there is
         // no per-generation twin to switch to. So the anchor on

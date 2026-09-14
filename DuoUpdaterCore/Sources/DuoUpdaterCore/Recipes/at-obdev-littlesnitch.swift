@@ -69,7 +69,7 @@ enum at_obdev_littlesnitch {
         //
         // CHANNEL SIGNAL: unlike every other same-bundle-id app in this
         // registry, Object Development bakes the channel word straight into the
-        // installed `CFBundleShortVersionString` itself — "6.5 nightly (7301)".
+        // installed `CFBundleShortVersionString` itself — e.g. "6.5 nightly (7301)".
         // Diffing the two Info.plists shows ONLY `CFBundleShortVersionString`
         // and `CFBundleVersion` differ; the bundle id, name and everything else
         // are identical. `ReleaseChannel.detect()` needed a new step for this
@@ -80,10 +80,10 @@ enum at_obdev_littlesnitch {
         //
         // FEED-VS-BUNDLE TRAP (exactly the shape this registry's notes warn
         // about elsewhere): the feed's `BundleShortVersionString` for the
-        // `nightly` entry is plain "6.5" — it STRIPS the " nightly (7301)"
+        // `nightly` entry is the bare number (e.g. "6.5") — it STRIPS the " nightly (<build>)"
         // suffix the real installed bundle carries. Never trust that field for
         // channel detection. `versionIsBuild` sidesteps it entirely by comparing
-        // `BundleVersion` "7301", which DOES match the installed
+        // `BundleVersion` (e.g. "7301"), which DOES match the installed
         // `CFBundleVersion` byte-for-byte.
         //
         // Same static feed as stable, `nightly` lifecycle entry. No `install`,

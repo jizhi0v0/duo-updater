@@ -323,3 +323,14 @@ vendor's own code closes it.
 
 Verified against the real
 2026-08-21 response: 6 bullets in, 6 out.
+
+### Recipes/com-bytedance-inputmethod-doubaoime.swift — stable VendorProbe（一键安装包）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`489b3921`（2026-08-28）。
+
+The endpoint hands over
+`DoubaoImeInstaller_v<code>_release.zip`, a ~190 MB stub whose
+`Contents/Resources` holds `DoubaoIme.zip` (170 MB) plus the `install.sh`
+it runs — so `nestedArchivePath` unwraps one level, and the whole gate
+stack (signature, Team, bundle id, architecture) then runs on the real
+`DoubaoIme.app`.

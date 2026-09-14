@@ -8,7 +8,7 @@ enum ai_opencode_desktop {
         // moved from sst/opencode via GitHub's org-rename redirect; we pin the
         // canonical anomalyco path). Same GitHub-releases shape as Ollama/RustDesk:
         // each release is a <section aria-labelledby="hd-…"> with an sr-only <h2>
-        // carrying the version ("v1.15.13"), a <relative-time datetime="…"> (ISO
+        // carrying the version (e.g. "v1.15.13"), a <relative-time datetime="…"> (ISO
         // date), and a <div class="markdown-body …"> body. The leading "v" is
         // dropped. The desktop app and CLI share one version line, so the releases
         // versions match the installed app build.

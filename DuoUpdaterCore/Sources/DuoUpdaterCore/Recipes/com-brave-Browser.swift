@@ -10,11 +10,11 @@ enum com_brave_Browser {
         // gate routes each install to its own feed.
         //
         // COMPARE ON THE BUILD, not the marketing string. The feed's
-        // `sparkle:shortVersionString` is Brave's own 4-part version ("1.94.104.0")
+        // `sparkle:shortVersionString` is Brave's own 4-part version (e.g. "1.94.104.0")
         // while the installed bundle reports a CHROMIUM-prefixed one
-        // ("151.1.94.104"). Comparing those puts 1 against 151 and concludes the
+        // (e.g. "151.1.94.104"). Comparing those puts 1 against 151 and concludes the
         // installed copy is newer — so the row read "up to date" forever and Brave
-        // Beta/Nightly could never surface an update. `sparkle:version` ("194.104")
+        // Beta/Nightly could never surface an update. `sparkle:version` (e.g. "194.104")
         // is exactly the bundle's `CFBundleVersion`, so that's the pair that lines
         // up; `displayVersionPattern` keeps the human-readable string on screen.
         //

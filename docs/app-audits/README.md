@@ -276,7 +276,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [ ] [**LM Studio**](ai-elementlabs-lmstudio.md) · `ai.elementlabs.lmstudio` — 仅迁出历史：`/changelog` 根路径改给 Bionic 的记录
 - [ ] [**MarkEdit**](app-cyan-markedit.md) · `app.cyan.markedit` — 仅迁出历史：universal 与 `-apple-silicon` 两个 dmg 的核对
+- [ ] [**ChatWise**](app-chatwise.md) · `app.chatwise` — 仅迁出历史：changelog 页 SvelteKit 壳的大小
 - [ ] [**Zen Browser**](app-zen-browser-zen.md) · `app.zen-browser.zen` — 仅迁出历史：一键 dmg 的签名核对
+- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶

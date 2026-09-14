@@ -4,6 +4,7 @@ enum app_chatwise {
     static let set = AppRecipeSet(
         family: "app-chatwise",
         probes: [
+        // History: docs/app-audits/app-chatwise.md#历史与实测
         // ChatWise — Squirrel releases endpoint: a newest-first array of versions, read
         // first-match (no `selectHighest`), so the first entry is the one reported.
         VendorProbeRecipe(
@@ -19,9 +20,9 @@ enum app_chatwise {
                 checksumPattern: #"arm64\.zip"\s*,\s*"sha512"\s*:\s*"([^"]+)""#)),
         ],
         changelogs: [
-        // ChatWise — the public /changelog page is a SvelteKit shell (a ~4 KB
+        // ChatWise — the public /changelog page is a SvelteKit shell (a small
         // document with no notes in it) that hydrates from the releases JSON
-        // endpoint, so we read that endpoint directly. It is a newest-first array:
+        // endpoint, so we read that endpoint directly. It is a newest-first array, e.g.:
         //   {"version":"26.6.0","changelog":"- new provider: cloudflare workers ai",
         //    "assets":[...],"date":"2026-06-26T16:04:26.161Z"}
         // Decoded as JSON rather than regex-scraped: the notes are a markdown

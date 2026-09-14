@@ -7,7 +7,7 @@ enum bot_cline_app {
         // MARK: - 2026-09-12 Cline Desktop
 
         // History: docs/app-audits/bot-cline-app.md#历史与实测
-        // Cline — Tauri (`tauri-plugin-updater 2.10.1`), not Electron and not
+        // Cline — Tauri (`tauri-plugin-updater`), not Electron and not
         // Sparkle, so nothing generic reaches it: `feed-discover` on the real
         // 0.0.26 bundle prints `noKnownUpdater` (no `SUFeedURL`, no
         // `app-update.yml`), and there is no Homebrew cask at all
@@ -18,7 +18,7 @@ enum bot_cline_app {
         // THE ENDPOINT IS THE ONE THE APP ITSELF READS, and that is not inferred
         // from the URL shape — each channel's own executable names it. `strings`
         // on `Contents/MacOS/cline-app` (the real binary; `Contents/MacOS/Cline`
-        // does not exist — the bundle ships `cline-app` plus a 181 MB
+        // does not exist — the bundle ships `cline-app` plus a large
         // `code-sidecar`) yields exactly one `releases/download/…` address per
         // build:
         //
@@ -37,7 +37,7 @@ enum bot_cline_app {
         // 24 `v*` (the VS Code extension), 22 `sdk/sdk/v*`, 21 `cli-v*` — and the
         // non-desktop three are all non-prerelease. `/releases/latest` therefore
         // answers with whichever product shipped last. The list endpoint avoids that
-        // but costs 52,732 gzipped bytes at `per_page=40` and, per
+        // but costs far more bytes at `per_page=40` than the manifests below and, per
         // `GitHubConditionalCache`, carries NO `Last-Modified` and an `ETag` that
         // rotates with `assets[].download_count`. These two manifests are a few KB
         // and DO serve `Last-Modified`.
@@ -51,7 +51,7 @@ enum bot_cline_app {
         // identical (hence no `versionIsBuild`), the build is universal, and the
         // signer is Team 6F2AYU54ZH, notarized (History has the mounted images).
         // `detect()` has two independent signals and needs neither recipe's help:
-        // the `.beta` bundle-id suffix and the `-beta.1` full-semver version.
+        // the `.beta` bundle-id suffix and the `-beta.N` full-semver version.
         //
         // A BETA COPY IS NEVER WALKED ONTO STABLE, unlike CotEditor's cyclical
         // train where taking the graduation is the point. The two ids are
@@ -63,7 +63,7 @@ enum bot_cline_app {
         // THE CLOSING QUOTE IN `versionPattern` IS LOAD-BEARING. `"version"` is
         // the manifest's first key and its value is bare semver on stable; without
         // the trailing `"` the stable pattern would match the `0.0.23` PREFIX of a
-        // `0.0.23-beta.1` value and silently report a version that was never
+        // value like `0.0.23-beta.1` and silently report a version that was never
         // published to this track. Verified on the real beta body: the stable
         // pattern matches nothing there (and the beta pattern matches nothing in
         // the stable body).
@@ -132,7 +132,8 @@ enum bot_cline_app {
         // `sdk/sdk/v0.0.82` and so on. More noise than signal, and none of it
         // malformed enough to look wrong. The capture group is the second half:
         // `stripLeadingV` only removes a leading `v`, so every entry would have been
-        // titled `desktop-v0.0.26` and none would have matched the version the row
+        // titled `desktop-v…` (e.g. `desktop-v0.0.26`) and none would have matched
+        // the version the row
         // shows.
         //
         // The rolling feed tags the updater points at (`desktop-latest`,

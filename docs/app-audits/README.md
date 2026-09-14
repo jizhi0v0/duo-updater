@@ -146,11 +146,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **JetBrains Toolbox** · `com.jetbrains.toolbox` — P C (one-click) · ✓ src=Vendor · **一键接入 2026-07-03**（macM1 dmg 取 releases API，Team 2ZEFAR8TH3）· channel-verify 复验 ✓
 - [x] **Android Studio** · `com.google.android.studio` — P · ✓ src=Toolbox(managed)
 - [x] [**WeChat (微信 官网版)**](com-tencent-xinWeChat.md) · `com.tencent.xinWeChat` — P C (one-click dmg) · ✓ src=Vendor · 检测=公开 Sparkle appcast 截 3 段 marketing（4.1.10.53→4.1.10，不比 build）· changelog=官网 per-version 页 sourceTemplate · live smoke=up to date · 2026-06-16
-- [x] [**Wispr Flow**](com-electron-wispr-flow.md) · `com.electron.wispr-flow` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
+- [x] [**Wispr Flow**](com-electron-wispr-flow.md) · `com.electron.wispr-flow` — P (one-click zip via `.versionTemplate`) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Granola**](com-granola-app.md) · `com.granola.app` — P (one-click universal dmg) · real DMG + live probe ✓ · 2026-08-17
-- [x] [**Longbridge Desktop（长桥桌面版）**](com-longbridge-app-desktop.md) · `com.longbridge.app.desktop` — P+C (stable, one-click arm64 dmg) · `release_notes.en` · stable + retired preview real DMGs verified ✓ · 2026-08-25
+- [x] [**Longbridge Desktop（长桥桌面版）**](com-longbridge-app-desktop.md) · `com.longbridge.app.desktop` — P+C (stable + preview, one-click arm64 dmg) · changelog 读英文逐版本页 · stable + preview real DMGs verified ✓（preview 不是退役轨：独立 bundle `…desktop.preview`，recipe 活着，2026-09-14 复测 `1.0.0-preview.1`）· 2026-08-25
 - [x] [**Comet**](ai-perplexity-comet.md) · `ai.perplexity.comet` — P (detection-only) · redirect version avoids stale rollout API · real DMG + live probe ✓ · 2026-08-17
-- [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (detection-only) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17
+- [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (one-click dmg via `.bodyPattern`) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17
 - [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Msty Studio**](MstyStudio.md) · `MstyStudio` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Grok Bot**](com-anysphere-sand.md) · `com.anysphere.sand` — P (one-click arm64 dmg, Team DCNK4UB866) · xAI 的产品但由 Anysphere 构建，走 Cursor 的更新基建（`api2.cursor.sh` / `downloads.cursor.com`），接口上的 app name 是 `sand` · asar 里的 nightly/dogfood 两轨客户端与服务端都不可达，故单 channel · 官网按钮那条无版本号、cask livecheck 那条最新时回 204，都不用 · 真实 DMG + live probe ✓ · 2026-08-29
@@ -205,11 +205,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Helium**](net-imput-helium.md) · `net.imput.helium` — G (one-click arm64 dmg) · 真包 0.16.2.1 挂载验证 ✓ · **已改走 vendor 自己的 appcast**（`SparkleFeedCatalog` 补 feed 地址——包里没有 `SUFeedURL`，Sparkle 嵌在 Chromium framework 里）：stable+beta 两轨 + delta（40MB vs 124MB 全量），渠道由装机 build 在 feed 里反查得出、不读厂商偏好；GitHub rule 留作兜底。changelog 因此改走 catalog 兜底页 · 2026-08-31
 - [x] [**Claude Status Bar**](com-local-claudestatusbar.md) · `com.local.claudestatusbar` — G (one-click dmg) · 真包 v0.4.4 挂载验证 ✓ · 有一个孤立 prerelease tag `v0.4.0-beta.1`，**决定不接** · 2026-08-31
 - [x] [**claude-devtools**](com-claudecode-context.md) · `com.claudecode.context` — G (one-click arm64 dmg) · 真包 v0.5.0 挂载验证 ✓（GitHub 胜、up to date、release 正文即 changelog；`v0.4.13` 其实是 prerelease，原文说「全部非 prerelease」有误）· 2026-08-31
+- [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C + G (one-click zip, best-effort)
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
 - [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
-- [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C, detection still unknown
 - [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
 - [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew
 - [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew
@@ -245,7 +245,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
 - [x] [**Mac Performance Monitor**](uk-co-bzwrd-macperfmonitor.md) · `uk.co.bzwrd.macperfmonitor` — S(stable) C · 检测本来就通（bundle 自带 `SUFeedURL`，指向 release 资产）· **appcast 一条说明都没有**（无 `releaseNotesLink`/`fullReleaseNotesLink`/`description`），release 正文只有一句"See CHANGELOG.md"，已加 recipe 解仓库的 Keep-a-Changelog 文件（17 条，`[Unreleased]` 排除）· 用户报 #374 · 未验真包 · 2026-09-06
 - [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) C · 两轨 tag 过、共享 bundle id · **两轨真包验证 ✓**（stable 0.51.0 未被推 prerelease；prerelease 0.51.182 留在本轨）· feed 与 release 正文都无实质说明，已加 recipe 解 repo 的 `CHANGELOG.md`（21 条）· 2026-08-31
-- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 210 条全无 inline，只有一个**不分版本**的 `releaseNotesLink`；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
+- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 全无 inline，只有 `releaseNotesLink`，当前条目共用同一张**不分版本**的总页（2026-09-14：211 条里 179 条，含最新）；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
 - [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · ⚠️ **已停产**（OpenAI 2026-08-09 停止运行，feed 停在 1.2026.189.1）· 真包挂载验证 ✓ · 原审计误称「无 delta」，实测 head 条目 5 个 `<sparkle:deltas>`；无 changelog · 2026-08-31
 - [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· ⚠️ **无 changelog**（feed 无 inline；docs.perplexity.ai 那份是 API 的，不是桌面端）· 2026-08-31
 - [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) C · 三轨 tag 过、共享 bundle id · 真包 1.6.0/rc2/daily 三轨验证 ✓ · **rc 轨当时被判成 stable**（rc 包 short 也是 `1.6.0`），引擎已修 + 装 rc2 上机复验 · changelog 走官网 recipe（feed 无 inline；页面 mac/Windows 混排，须锚平台徽章）· 2026-08-31
@@ -289,6 +289,21 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
 - [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
+- [ ] [**Macs Fan Control**](com-crystalidea-macsfancontrol.md) · `com.crystalidea.macsfancontrol` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Things 3**](com-culturedcode-ThingsMac.md) · `com.culturedcode.ThingsMac` — 仅迁出历史：App Store 探测用例的上线核对
+- [ ] [**Hidden Bar**](com-dwarvesv-minimalbar.md) · `com.dwarvesv.minimalbar` — 仅迁出历史：空 Sparkle feed 的抓取与一键 zip 核对
+- [ ] [**Goose**](com-electron-goose.md) · `com.electron.goose` — 仅迁出历史：repo 改名导致匿名限流的测量
+- [ ] [**GitHub Desktop**](com-github-GitHubClient.md) · `com.github.GitHubClient` — 仅迁出历史：两轨 zip 的签名核对、beta `listPageSize` 的测量
+- [ ] [**Android Studio**](com-google-android-studio.md) · `com.google.android.studio` — 仅迁出历史：预览渠道旧实现的错误、按发布日期排序的实例
+- [ ] [**Antigravity / Antigravity IDE**](com-google-antigravity.md) · `com.google.antigravity` / `com.google.antigravity-ide` — 仅迁出历史：端点的发现、IDE 端点的哨兵测量、changelog 页的 gzip 误读
+- [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
+- [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态
+- [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
+- [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
+- [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名
+- [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对
+- [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量
+- [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

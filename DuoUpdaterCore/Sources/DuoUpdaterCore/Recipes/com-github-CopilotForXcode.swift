@@ -4,10 +4,12 @@ enum com_github_CopilotForXcode {
     static let set = AppRecipeSet(
         family: "com-github-CopilotForXcode",
         changelogs: [
-        // GitHub Copilot for Xcode — the Sparkle feed carries no notes on any of
-        // its 12 items, and the GitHub release bodies are a single sentence
-        // ("Release 0.51.0 of Copilot extension for Xcode"). The real notes are
-        // the repo's Keep-a-Changelog file:
+        // History: docs/app-audits/com-github-CopilotForXcode.md#历史与实测
+        // GitHub Copilot for Xcode — when checked (History) the Sparkle feed carried
+        // no notes on any of its items, and the GitHub release bodies were a single
+        // sentence
+        // (e.g. "Release 0.51.0 of Copilot extension for Xcode"). The real notes are
+        // the repo's Keep-a-Changelog file, e.g.:
         //
         //   ## 0.51.0 - August 12, 2026
         //   ### Added
@@ -24,7 +26,7 @@ enum com_github_CopilotForXcode {
         // items carry inline code (`/v1/messages`) and `[text](url)` links that a
         // plain renderer would otherwise print as punctuation. The `### Added` /
         // `### Fixed` group headings are dropped — only the `- ` bullets become
-        // items. 21 entries parse from the live file (2026-08-31), head 0.51.0.
+        // items.
         ChangelogRecipe(
             bundleID: "com.github.copilotforxcode",
             source: URL(string: "https://raw.githubusercontent.com/github/CopilotForXcode/main/CHANGELOG.md")!,

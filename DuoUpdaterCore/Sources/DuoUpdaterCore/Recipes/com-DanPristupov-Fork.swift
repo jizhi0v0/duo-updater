@@ -5,7 +5,7 @@ enum com_DanPristupov_Fork {
         family: "com-DanPristupov-Fork",
         changelogs: [
         // Fork — git-fork.com/releasenotes is a single server-rendered page with all
-        // Mac releases. Each version block opens with:
+        // Mac releases. Each version block opens with, e.g.:
         //   <h4 class="header4 release-notes">Fork 2.67</h4>
         //   ...
         //   <h5 class="date">15 May 2026</h5>

@@ -7,7 +7,7 @@ enum com_electron_kontena_lens {
         // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
 
         // Lens — electron-builder feed. The version carries a literal `-latest`
-        // suffix (`2026.6.260931-latest`) and so does the shipped bundle's own
+        // suffix (e.g. `2026.6.260931-latest`) and so does the shipped bundle's own
         // `CFBundleShortVersionString`, verified on the mounted dmg
         // (com.electron.kontena-lens, Team JJ22T2W355, notarized). Both sides
         // therefore compare like-for-like; do NOT "clean up" the suffix here,

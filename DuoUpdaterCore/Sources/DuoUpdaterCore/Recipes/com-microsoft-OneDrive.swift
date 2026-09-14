@@ -10,9 +10,9 @@ enum com_microsoft_OneDrive {
         // followRedirects:false reads the Location header instead of lastPathComponent.
         //
         // Capture only the FIRST THREE components: the installed bundle's
-        // CFBundleShortVersionString is exactly those (`26.078.0426`), while the
+        // CFBundleShortVersionString is exactly those (e.g. `26.078.0426`), while the
         // 4th path component is a build revision that the marketing version omits —
-        // and CFBundleVersion uses a *different* scheme (`26078.0426.0002`, first
+        // and CFBundleVersion uses a *different* scheme (e.g. `26078.0426.0002`, first
         // two merged), so neither installed field matches the full 4-component path.
         // Comparing the full path version would read the trailing `.0002` as newer
         // than `26.078.0426` and phantom-update forever. (Verified against a real

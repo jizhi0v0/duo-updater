@@ -13,7 +13,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —        | —   | —      | ✓           |
-| **preview**  | —       | —        | —   | —      | ✗（已停更） |
+| **preview**  | —       | —        | —   | —      | ✓（2026-08-26 接入，见下） |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**。
 
@@ -25,10 +25,15 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 状态 |
 |---------|-----------|-----------|----------|------|
 | stable | `com.longbridge.app.desktop` | 独立 | 默认 stable | ✓ |
-| preview（旧） | `com.longbridge.app.desktop.preview` | 独立 | bundle id / 显示名 / 版本后缀 | ✗ 已停更，不接 |
+| preview | `com.longbridge.app.desktop.preview` | 独立 | bundle id / 显示名 / 版本后缀 | ✓ VendorProbe + changelog + 一键（`55721c0e`） |
 
 旧 preview 实包 `0.15.0-preview.0` 已验证为独立 Bundle ID，生产
 `ReleaseChannel.detect()` 正确识别为 `.preview`；stable 配方不会跨渠道命中它。
+
+**更正（2026-09-14）**：本文原先把 preview 记为「已停更，不接」。那是 2026-08-25 从一个旧包倒推的，
+2026-08-26 的 `55721c0e` 已按活轨接入（`Recipes/com-longbridge-app-desktop.swift`，`channel: .preview`）。
+2026-09-14 只读 GET 复测：preview 索引 `/desktop/release-notes/preview/` 列出 `v1.0.0-preview.1` 与
+`v1.0.0-preview.0`，`preview/latest.json` 是 `1.0.0-preview.1`（2026-09-08 发布），资产带 `sha256`。
 
 ## 更新检测
 - 源: VendorProbe。
@@ -37,20 +42,23 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
   `CFBundleVersion`。
 - 发布时间: 顶层 `published_at`，写入 Release Log。
 - 生产验证: mounted stable DMG `0.19.1 → 0.19.1`，stable / up-to-date。
+- preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
 ## Changelog
-- 来源: 同一份官方 JSON 的 `release_notes.en`，固定取英文作为默认。
-- 状态: 原生结构化 changelog，JSON 解码后解析 Markdown 标题和条目。
+- 来源: 英文的逐版本页 `longbridge.com/desktop/release-notes/v{version}`（preview 是 `…/release-notes/preview/v{version}`），不是 `latest.json` 的 `release_notes.en`——逐版本页正文更全，还带配图。（更正 2026-09-14：原先这里写的是 JSON 的 `release_notes.en`，与 `Recipes/com-longbridge-app-desktop.swift` 的 `ChangelogRecipe` 不符。）
+- 状态: 原生 changelog，`ChangelogRecipe` 用正则读页面的 `Release Date:` 块与 `<li>`/`<p>` 条目（`<video>` 截断条目，`imagePattern` 收图）。
 - 网页兜底: `https://longbridge.com/desktop/release-notes/`。
-- 限制: `latest.json` 只包含当前版本，因此原生视图一次显示一版；官网保留历史版本。
+- 限制: `maxEntries: 1`，按装机版本取那一页，原生视图一次显示一版；官网保留历史版本。
 
 ## 一键安装
 - 状态: ✓（Apple Silicon）。
 - 格式: 自包含 DMG；manifest 精确选择 `macos-aarch64.dmg`。
 - 安全: 官方 JSON 的 SHA-256 与下载字节一致；应用代码签名有效，Team
   `45NG8MW7WK`，Gatekeeper 判定 `Notarized Developer ID`。
-- Intel: manifest 虽提供 `macos-x86_64.dmg`，当前 VendorInstallSpec 不支持按运行架构
-  分支选择 URL，因此本次不宣称 Intel 一键安装覆盖。
+- 架构: manifest 也提供 `macos-x86_64.dmg`，但 DuoUpdater 只跑在 Apple silicon 上（`App/project.yml`
+  `ARCHS: arm64`），所以 pattern 锚 `macos-aarch64.dmg` 就是完整覆盖，没有 Intel 一键要补。
+  （更正 2026-09-14：原先写「本次不宣称 Intel 一键安装覆盖」，暗示将来会补。）
+- preview: 同样一键 `…-preview.N-macos-aarch64.dmg`，Team 与 stable 相同（`45NG8MW7WK`），见 `55721c0e`。
 
 ## 运行时（GPUI，不是 Tauri）
 
@@ -77,11 +85,58 @@ WebView 才逃过。判据现在改成正面证据（二进制里必须有 `taur
 Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 ## 已知问题
-- preview 渠道已经停止更新；保留为明确的死轨记录，不添加旧 endpoint recipe。
+- （已更正）原先这里写 preview「已经停止更新、不添加 recipe」；preview 实际在更新且已接入，见「Channel 详情」的更正。
 - 官方 manifest 发布十六进制 SHA-256，而 VendorInstallSpec 的内联 checksum 闸当前只支持
   base64 SHA-512；运行时仍由强制签名 / Team ID 闸保护。
 
 ## 建议下一步
 1. 监控 stable manifest 的 `version`、`published_at`、`assets[].url` 字段形状。
-2. 若 VendorInstallSpec 将来支持按 host architecture 选 URL，再补 Intel 一键安装。
+（原第 2 条「若 VendorInstallSpec 将来支持按 host architecture 选 URL，再补 Intel 一键安装」已删：没有 Intel 宿主，见「一键安装」。）
 
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-longbridge-app-desktop.swift — preview VendorProbe（`com.longbridge.app.desktop.preview`）
+
+转引自 recipe 注释，未复测。前两段原句没写日期；日期取自引入这些句子的提交：`55721c0e`（2026-08-26）。
+
+The channel has been DE-LISTED from the vendor's site but not retired:
+`/desktop/release-notes/preview/` still returns 200 while rendering an
+EMPTY version list (stable's index server-renders 48 links), and
+`/desktop/preview/` is 404 — there is no download landing page. The
+per-version notes pages, this manifest, and the artifacts are all still
+published, so a user who already runs Preview can be updated in place;
+they just cannot discover a new one through the website. That is why
+`changelogURL` points at the (currently empty) preview index rather than
+a version-specific page: it is the right place conceptually and will
+repopulate on its own if the vendor restores the listing.
+
+Two structural differences from the stable manifest, both deliberate
+here: the version carries a `-preview.N` suffix (so the pattern requires
+it — the stable pattern's trailing quote cannot match this shape, and
+this one cannot match stable's, verified both directions against the
+live bodies), and preview assets ship WITHOUT the `sha256` field stable
+includes. No checksum is asserted either way (`checksumPattern` wants a
+base64 SHA-512), so this costs nothing today, but it is a sign the
+preview manifest is maintained at a lower standard than stable's.
+
+Verified 2026-08-26 against the downloaded 0.19.0-preview.1 artifact
+(75,399,519 B): com.longbridge.app.desktop.preview, arm64,
+Team 45NG8MW7WK — the SAME team as stable, which is what
+`VendorInstaller`'s signature gate requires — spctl accepted as
+Notarized Developer ID.
+
+复测 2026-09-14（03:15 UTC，只读 GET）：`/desktop/release-notes/preview/` 回 200，列出 2 个版本（`./v1.0.0-preview.0`、`./v1.0.0-preview.1`），不再是空列表；stable 索引列出 49 个版本；`/desktop/preview/` 仍是 404；preview `latest.json` 是 `1.0.0-preview.1`（`published_at` 2026-09-08），它的资产**带** `sha256`（与 stable 的 `latest.json` 一样，各 6 处）。代码里 "DE-LISTED / currently empty" 与 "ship WITHOUT the `sha256`" 两处已按这次复测改写。
+
+### Recipes/com-longbridge-app-desktop.swift — preview ChangelogRecipe
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`55721c0e`（2026-08-26）。
+
+`source` is the preview index. The vendor currently renders it EMPTY
+(see the VendorProbeRecipe comment), which makes it a correct no-version
+fallback for the same reason stable's index is: it yields nothing and
+the UI embeds the page instead of inventing an entry.
+
+复测 2026-09-14：preview 与 stable 两个索引页里 `Release Date` 都出现 0 次。

@@ -188,3 +188,36 @@ Sparkle 的「软件更新」框则会在启动约 4 分钟后自己弹。
   `LSBackgroundOnly`，所以 `AppRestarter.isStandaloneNestedApp` 正确地不把它当嵌套 app。
 - cask 的 `uninstall.quit` 列了 `com.eusoft.eudic.LightPeek`，但 26.9.0 的 bundle 里
   已经没有这个组件了。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-eusoft-eudic.swift — ChangelogRecipe（`eudic_mac.xml` appcast）
+
+转引自 recipe 注释，未复测。后三段原句没写日期；日期取自引入这些句子的提交：`03711fe6`（2026-09-01）。
+
+Eudic (欧路词典) — `source` is its Sparkle 1 appcast, not a web page,
+because the appcast IS the changelog: the vendor keeps the app's entire
+history inside the NEWEST item's `<description>` CDATA — 10,253
+characters, one `<h2>` for the current release and 34 `<h3>` sections
+running back to 2.5.0 (measured 2026-09-01). Every older `<item>` in the
+feed is a 2010-era stub. So without a recipe the row rendered sixteen
+years of notes under the heading "26.9.0".
+
+It cannot reach the appcast's own structured path either:
+`AppcastHTMLChangelogParser.isStructured` requires at least one `<li>`
+and this body has ZERO — 29 `<p>` and 154 `<br>` instead — so
+`SparkleAppcastSource` leaves `structuredChangelog` nil and the pane fell
+to raw-HTML rendering of the whole blob.
+
+```
+The headings are not a clean version list, which is what rules out
+teaching the generic parser this shape:
+  * 7 of the 34 are the literal label "更新内容", not a version;
+  * several carry a suffix — "3.6.0 改进", and "2.5.2改进" with no space.
+```
+
+Yields 29 entries, validated against the live feed.
+
+复测 2026-09-14（03:11 UTC，只读 GET）：feed 6 个 `<item>`，最新一条标题 `《欧路词典》Mac 26.9.0`，其 `<description>` 10,265 字符，`<h2>` 1 个、`<h3>` 34 个、`<li>` 0 个、`<p>` 29 个、`<br>` 154 个；其余 5 条的 `<pubDate>` 都在 2010 年。按 `<h[23]>…更新内容…</h[23]>` 数到 6 个标签行。

@@ -91,11 +91,25 @@ curl -sI 'https://www.dropbox.com/download?plat=mac&full=1' | grep -i '^location
 ## 历史与实测
 
 ### Recipes/com-getdropbox-dropbox.swift — stable
-转引自 recipe 注释，未复测。（2026-09-14 下载的是 268.4.4124，结论见上「一键安装」；这段说的 264.4.3385
-当时装的是哪个架构的包，注释里没有记录。）
+转引自 recipe 注释，未复测。（2026-09-14 下载的是 268.4.4124，结论见上「一键安装」；这段说的 264.4.3385 当时装的是哪个架构的包，注释里没有记录。）
 
 One-click verified 2026-08-09 on 264.4.3385: the image is labelled
 "Dropbox Offline Installer" but holds the real `Dropbox.app` —
 com.getdropbox.dropbox, Team G7HH3F8CAK, spctl "Notarized Developer ID",
 version matching the redirect filename. (Worth stating, since the sibling
 1Password download turned out to be a stub installer, not the app.)
+
+### Recipes/com-getdropbox-dropbox.swift — stable（从 batch 2c 迁出的另外两句）
+
+转引自 recipe 注释，未复测。两段原句都没写日期；日期取自引入这两句的提交：`599e8dde`（2026-06-04）。
+
+The target is a
+~200 MB dmg, so don't follow — read the small 302 Location
+(followRedirects:false).
+
+复测 2026-09-14（05:18 UTC，对 dmg 只发 HEAD）：不带 `arch` 的重定向落到 `Dropbox%20268.4.4124.dmg`，`Content-Length` 398,329,648；`…268.4.4124.arm64.dmg` 是 387,752,941。代码（#616 之后）写的是 "several-hundred-MB dmg"。
+
+(Homebrew
+cask has no livecheck; its url/version confirm this host + build.)
+
+复测 2026-09-14（只读 GET `Homebrew/homebrew-cask` 的 `Casks/d/dropbox.rb`）：cask 有 `livecheck`，读的正是 `www.dropbox.com/download?plat=mac&full=1`，Apple silicon 上再加 `&arch=arm64`（`strategy :header_match`）；`url` 是 `edge.dropboxstatic.com/dbx-releng/client/Dropbox%20#{version}#{arch}.dmg`。#616 之后的代码提到 cask 的 livecheck 时说的是它给 `arm:` 加同一个 `arch` 参数，与这次复测一致。

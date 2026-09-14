@@ -6,7 +6,7 @@ enum com_intelliscapesolutions_caffeine {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // Caffeine — one constant `Caffeine.dmg` per release, tags are bare `1.1.4`.
+        // Caffeine — one constant `Caffeine.dmg` per release, tags are bare (e.g. `1.1.4`).
         // One-click: com.intelliscapesolutions.caffeine, Team YD6LEYT6WZ, notarized.
         GitHubReleaseRule(
             bundleID: "com.intelliscapesolutions.caffeine",

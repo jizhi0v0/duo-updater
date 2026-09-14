@@ -4,24 +4,24 @@ enum com_eusoft_eudic {
     static let set = AppRecipeSet(
         family: "com-eusoft-eudic",
         changelogs: [
+        // History: docs/app-audits/com-eusoft-eudic.md#历史与实测
         // Eudic (欧路词典) — `source` is its Sparkle 1 appcast, not a web page,
         // because the appcast IS the changelog: the vendor keeps the app's entire
-        // history inside the NEWEST item's `<description>` CDATA — 10,253
-        // characters, one `<h2>` for the current release and 34 `<h3>` sections
-        // running back to 2.5.0 (measured 2026-09-01). Every older `<item>` in the
-        // feed is a 2010-era stub. So without a recipe the row rendered sixteen
-        // years of notes under the heading "26.9.0".
+        // history inside the NEWEST item's `<description>` CDATA — one `<h2>` for
+        // the current release and an `<h3>` section for each earlier one. Every
+        // older `<item>` in the feed is a 2010-era stub. So without a recipe the row
+        // renders the whole history under the newest version's heading.
         //
         // It cannot reach the appcast's own structured path either:
         // `AppcastHTMLChangelogParser.isStructured` requires at least one `<li>`
-        // and this body has ZERO — 29 `<p>` and 154 `<br>` instead — so
-        // `SparkleAppcastSource` leaves `structuredChangelog` nil and the pane fell
-        // to raw-HTML rendering of the whole blob.
+        // and this body had ZERO when checked (`<p>` and `<br>` instead; History),
+        // so without a recipe `SparkleAppcastSource` leaves `structuredChangelog`
+        // nil and the pane falls to raw-HTML rendering of the whole blob.
         //
         // The headings are not a clean version list, which is what rules out
         // teaching the generic parser this shape:
-        //   * 7 of the 34 are the literal label "更新内容", not a version;
-        //   * several carry a suffix — "3.6.0 改进", and "2.5.2改进" with no space.
+        //   * some are the literal label "更新内容", not a version;
+        //   * several carry a suffix — e.g. "3.6.0 改进", and "2.5.2改进" with no space.
         // So the entry pattern keys on a heading that CONTAINS a dotted number
         // rather than on the heading tag, and `body` runs to the next such heading
         // — stepping over the label rows, which is exactly why the lookahead
@@ -32,7 +32,7 @@ enum com_eusoft_eudic {
         // consumed because the renderer draws its own bullet. The capture is
         // `.*?` to the next `<br>`/`</p>` rather than `[^<]+`: the pre-3.7 sections
         // wrap whole lines in `<b>`, and a no-tag capture silently dropped every
-        // one of them. Yields 29 entries, validated against the live feed.
+        // one of them.
         //
         // No dates: the per-version sections carry none (the feed's single
         // `<pubDate>` describes only the newest release), so every entry renders

@@ -85,3 +85,36 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 1. ✅ stable ChangelogRecipe 已接（见上）。
 2. beta channel：检测前提已完成；另开 app PR 真机复验并加 `.beta` GitHub rule。
 3. alpha channel：先扩 `ReleaseChannel.detect()` 识别 `-alpha.N`，再加 `.alpha` rule。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-insomnia-app.swift — stable GitHubReleaseRule（`core@X.Y.Z`，一键 `Insomnia.Core-<ver>.dmg`）
+
+转引自 recipe 注释，未复测。第一、二段原句没写日期；日期取自引入这句话的提交：`f7686b3d`（2026-06-07）。第三段唯一的改写：原文说这个 app 在“本地”没有装，按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+
+An unanchored
+`core@(X.Y.Z)` captured `13.0.0` out of `core@13.0.0-beta.0` and pushed a
+beta onto stable users as "13.0.0" (and the `-beta.0` dmg name then failed
+`installAssetPattern`, so the row showed "Open", not even "Update").
+
+(The earlier comment's
+"betas sort after the stable of the same line" assumption was simply wrong
+when a brand-new line debuts as a prerelease.)
+
+Best-effort one-click: the `Insomnia.Core-<ver>.dmg` (universal) wraps
+`Insomnia.app` — verified 2026-06-06 a notarized Developer ID build (Team
+FX44YY62GV, Kong Inc.) reporting version 12.6.0 == tag, bundle id
+com.insomnia.app. The sibling `inso-macos-*` assets are the CLI, not the
+desktop app — the `Insomnia.Core-` anchor excludes them. Electron app with
+its own updater, so a fallback; not installed on the machine this was verified on, so the Team-gate
+enforces the match at install time.
+
+listPageSize: not installed on the measuring machine, so measured
+directly against the live endpoint (2026-09-04, newest 100 releases):
+first-match index 0, worst run of non-`core@` tags between two
+`core@` releases is 9 (`core@11.0.0`→`core@10.3.1`, the Design/CLI
+trains publish in between). 15 keeps ~67% headroom over that.
+
+复测 2026-09-14（03:15 UTC，只读 GET `repos/Kong/insomnia/releases?per_page=100`）：首个 `core@X.Y.Z` 在第 0 位（`core@13.2.0`），相邻两个之间最多隔 8 个 release，100 条里 30 个 stable `core@` tag。

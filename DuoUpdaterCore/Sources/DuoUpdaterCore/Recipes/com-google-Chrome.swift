@@ -4,12 +4,13 @@ enum com_google_Chrome {
     static let set = AppRecipeSet(
         family: "com-google-Chrome",
         probes: [
+        // History: docs/app-audits/com-google-Chrome.md#历史与实测
         // Google Chrome — official VersionHistory API (page_size=1, desc).
         //
         // All four channels install from Google's own permanent per-channel dmg
-        // (`dl.google.com/chrome/mac/universal/<channel>/…`), verified 2026-08-09:
-        // each holds the matching bundle id, Team EQHXZ8M8AV, spctl "Notarized
-        // Developer ID", and a version in the same 4-part form the API reports.
+        // (`dl.google.com/chrome/mac/universal/<channel>/…`): each holds the matching
+        // bundle id, Team EQHXZ8M8AV, notarized Developer ID, and a version in the
+        // same 4-part form the API reports.
         //
         // Chrome self-updates through Keystone, which is NOT a reason to withhold
         // one-click — that is what `vendorInstallPolicy` is for, and its own settings
@@ -87,7 +88,7 @@ enum com_google_Chrome {
         // exact post title `Stable Channel Update for Desktop` — that one literal
         // both selects the desktop posts AND excludes the Beta/Dev/Early/Extended
         // channels (whose titles differ: "Chrome Beta for Desktop Update",
-        // "Early Stable Update for Desktop", etc.). Structure per post:
+        // "Early Stable Update for Desktop", etc.). Structure per post, e.g.:
         //   <a ... title='Stable Channel Update for Desktop'>…</a>
         //   <span class='publishdate' itemprop='datePublished'>Wednesday, May 27, 2026</span>
         //   <script type='text/template'>…post HTML…</script>
@@ -97,7 +98,7 @@ enum com_google_Chrome {
         // lists Windows/Mac/Linux variants.
         //
         // Two item shapes, tried in order:
-        //   1. CVE — security updates list each fix as inline spans (NOT <li>):
+        //   1. CVE — security updates list each fix as inline spans (NOT <li>), e.g.:
         //      "[$reward][issue] Severity CVE-2026-9872: Out of bounds write in GPU."
         //      The CVE id + description sit together in one span's text, so anchor on
         //      the `CVE-YYYY-N:` literal and capture to the next tag.
@@ -115,10 +116,7 @@ enum com_google_Chrome {
             // a combinatorial search. This pattern used to be four unbounded lazy
             // gaps (`.*?`) in a row, which is fine while the page still matches and
             // ruinous the day it stops — and a vendor restyle is exactly "it stops".
-            // Measured against the live 852 KB page (6 posts) with the old form:
-            // renaming the closing `</script>` ran past 150 s, and a page whose
-            // 4-part build numbers went away took 20.6 s, both on a thread the
-            // caller is awaiting. Every gap below is now either
+            // Every gap below is now either
             //
             //   • an atomic group `(?>…)` around a gap AND the literal that ends it,
             //     so once the first publishdate (then the first template opener)
@@ -128,17 +126,19 @@ enum com_google_Chrome {
             //     and a failure downstream cannot retry against the next
             //     version-shaped number in the body.
             //
-            // Same seven mutations, new form: worst case 0.074 s, and the pristine
-            // page still yields the identical two entries. `ChromeChangelogPatternTests`
-            // pins that with a generated page (the real one is too big to commit).
+            // `ChromeChangelogPatternTests` pins that fail-fast bound with a generated
+            // page (the real one is too big to commit).
             //
             // What NOT to reach for here: `(?:…)*+` and `(?>(?:…)*)` over the BODY.
-            // A possessive/atomic run silently stops matching past ~250 000
-            // characters — measured: 100 000 matches, 250 000 does not, and the
-            // failure is a quiet "no match", not an error. Chrome's second post is
-            // a 324 KB body, so that form drops it and the pane loses an entry with
-            // nothing anywhere saying so. The gaps below are atomic only across
-            // spans of a few hundred characters, well under that limit.
+            // A possessive/atomic run silently stops matching on long spans —
+            // `ChromeChangelogPatternTests.aPossessiveRunSilentlyStopsMatchingOnALongBody`
+            // pins that a 100 000-character run still matches and a 300 000-character one
+            // does not — and the failure is a quiet "no match", not an error. Chrome's
+            // post bodies can run to hundreds of KB (History has the sizes seen), so that
+            // form can drop one and the pane loses an entry
+            // with nothing anywhere saying so. The gaps below are atomic only across
+            // spans of a few hundred characters, far below the 100 000 characters that
+            // test shows still matching.
             entryPattern:
                 #"title='Stable Channel Update for Desktop'>"#
                 + #"(?>(?:(?!<span class='publishdate').)*?"#

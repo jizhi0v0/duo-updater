@@ -6,10 +6,11 @@ enum com_longbridge_app_desktop {
         probes: [
         // MARK: - 2026-08-25 Longbridge Desktop
 
+        // History: docs/app-audits/com-longbridge-app-desktop.md#历史与实测
         // Longbridge Desktop — the vendor's compact stable JSON is the same
         // manifest used by its release-notes site. `version` matches the mounted
-        // app's CFBundleShortVersionString exactly (0.19.1); CFBundleVersion is a
-        // timestamp-like build (20260820.080114) and must not be compared.
+        // app's CFBundleShortVersionString exactly (e.g. 0.19.1); CFBundleVersion is
+        // a timestamp-like build (e.g. 20260820.080114) and must not be compared.
         //
         // The response carries both macOS architectures. DuoUpdater currently
         // runs this official-website install path on Apple Silicon, so the URL
@@ -35,31 +36,27 @@ enum com_longbridge_app_desktop {
         // `ReleaseChannel.detect` resolves it via the `.preview` bundle-id suffix
         // and the two trains cannot be confused by bundle id alone.
         //
-        // The channel has been DE-LISTED from the vendor's site but not retired:
-        // `/desktop/release-notes/preview/` still returns 200 while rendering an
-        // EMPTY version list (stable's index server-renders 48 links), and
-        // `/desktop/preview/` is 404 — there is no download landing page. The
-        // per-version notes pages, this manifest, and the artifacts are all still
-        // published, so a user who already runs Preview can be updated in place;
-        // they just cannot discover a new one through the website. That is why
-        // `changelogURL` points at the (currently empty) preview index rather than
-        // a version-specific page: it is the right place conceptually and will
-        // repopulate on its own if the vendor restores the listing.
+        // The channel's website presence has come and gone: `/desktop/preview/` has
+        // been 404 when checked — no download landing page — and the preview
+        // release-notes index has at times rendered an EMPTY version list while the per-version
+        // notes pages, this manifest, and the artifacts stayed published (History
+        // has both states). So a user who already runs Preview can be updated in
+        // place even when the website offers no way to discover it. That is why
+        // `changelogURL` points at the preview index rather than a version-specific
+        // page: it is the right place conceptually, listed or not.
         //
         // Two structural differences from the stable manifest, both deliberate
         // here: the version carries a `-preview.N` suffix (so the pattern requires
         // it — the stable pattern's trailing quote cannot match this shape, and
         // this one cannot match stable's, verified both directions against the
-        // live bodies), and preview assets ship WITHOUT the `sha256` field stable
-        // includes. No checksum is asserted either way (`checksumPattern` wants a
-        // base64 SHA-512), so this costs nothing today, but it is a sign the
-        // preview manifest is maintained at a lower standard than stable's.
+        // live bodies), and preview assets have shipped WITHOUT the `sha256` field
+        // stable includes (History). No checksum is asserted either way
+        // (`checksumPattern` wants a base64 SHA-512), so that difference costs
+        // nothing.
         //
-        // Verified 2026-08-26 against the downloaded 0.19.0-preview.1 artifact
-        // (75,399,519 B): com.longbridge.app.desktop.preview, arm64,
+        // The preview artifact is com.longbridge.app.desktop.preview, arm64,
         // Team 45NG8MW7WK — the SAME team as stable, which is what
-        // `VendorInstaller`'s signature gate requires — spctl accepted as
-        // Notarized Developer ID.
+        // `VendorInstaller`'s signature gate requires — notarized Developer ID.
         VendorProbeRecipe(
             bundleID: "com.longbridge.app.desktop.preview",
             url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/latest.json")!,
@@ -121,14 +118,15 @@ enum com_longbridge_app_desktop {
         //
         // The version group REQUIRES the `-preview.N` suffix. Reusing stable's
         // group here would be a silent mis-read rather than a miss: on this page
-        // it matches and stops at `0.19.0`, dropping the suffix, so the pane would
-        // label a preview build with the stable version number it is not. Anchored
+        // it matches and stops at the numeric part (e.g. `0.19.0`), dropping the
+        // suffix, so the pane would label a preview build with the stable version number it is not. Anchored
         // this way the two patterns are mutually exclusive — verified in both
         // directions against the live pages.
         //
-        // `source` is the preview index. The vendor currently renders it EMPTY
-        // (see the VendorProbeRecipe comment), which makes it a correct no-version
-        // fallback for the same reason stable's index is: it yields nothing and
+        // `source` is the preview index. Like stable's, it has carried no
+        // `Release Date:` block whether or not it listed any versions (History),
+        // which makes it
+        // a correct no-version fallback for the same reason: it yields nothing and
         // the UI embeds the page instead of inventing an entry.
         ChangelogRecipe(
             bundleID: "com.longbridge.app.desktop.preview",

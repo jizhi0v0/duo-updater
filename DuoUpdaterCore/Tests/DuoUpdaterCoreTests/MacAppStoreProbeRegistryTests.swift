@@ -6,7 +6,9 @@ import Foundation
 /// verify`'s App Store sweep reads. Nothing here talks to a network; the live
 /// endpoint checks belong to the sweep itself (`AppStoreVerify`, in the CLI
 /// package) and were run manually against real endpoints (see the registry's
-/// per-case comments and this repo's task notes for the raw output).
+/// per-case comments — or, for families whose comment history has been moved
+/// out, e.g. Things and Discord, `docs/app-audits/<family>.md#历史与实测` — and
+/// this repo's task notes for the raw output).
 ///
 /// Every test is derived FROM the registry — `MacAppStoreProbeRegistry.cases`
 /// — rather than hand-listing bundle ids here a second time, so a case added

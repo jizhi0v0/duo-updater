@@ -121,7 +121,8 @@ struct ChromeChangelogPatternTests {
 
     /// Why the body gap is a plain lazy tempered dot and not `*+` or `(?>…)`:
     /// a possessive/atomic run silently stops matching past roughly 250 000
-    /// characters, and Chrome's second post is a 324 KB body. The failure is not an
+    /// characters, and Chrome's post bodies run to hundreds of KB (one was 324 KB
+    /// when this was written, 2026-09-02). The failure is not an
     /// error — it is a quiet "no match", i.e. an entry vanishing from the pane. If
     /// this ever stops being true, the comment on the recipe should change with it.
     @Test func aPossessiveRunSilentlyStopsMatchingOnALongBody() throws {

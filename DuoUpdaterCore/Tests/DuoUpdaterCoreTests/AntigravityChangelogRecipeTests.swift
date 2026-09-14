@@ -39,9 +39,9 @@ import Foundation
         let changelog = try #require(
             ChangelogExtractor.extract(from: antigravityChangelogFixture, using: recipe))
 
-        // 2.5.5 is exactly what this app's `VendorProbeRecipe` detects — the
-        // confirmation its comment said it could not get that the page covers the
-        // IDE at all.
+        // 2.5.5 is exactly what this app's `VendorProbeRecipe` detected when the
+        // fixture was fetched — confirmation that the page's `ide` panel covers the
+        // IDE, not only the hub.
         #expect(changelog.entries.map(\.version) == ["2.5.5"])
         #expect(changelog.entries.first?.date == "August 13, 2026")
     }

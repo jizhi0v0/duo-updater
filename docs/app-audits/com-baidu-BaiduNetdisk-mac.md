@@ -257,7 +257,7 @@ GET 正常（Range GET 返回 206，`Accept-Ranges: bytes`，断点续传可用�
 
 ### Recipes/com-baidu-BaiduNetdisk-mac.swift — stable VendorProbe（`/disk/cmsdata?do=client`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "(the installed copy's team)" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。
 
 It answers
 anonymously — no cookie, no Referer, the browser-like default UA is fine
@@ -267,8 +267,8 @@ One-click verified 2026-08-29 by hashing the artifact this recipe
 resolves: `…/MACguanjia/8.7.9/BaiduNetdisk_mac_8.7.9_arm64.dmg` is MD5
 `23bfa249b059597234bfd396bf631300` — the CDN's own ETag, and the same
 bytes as the downloaded image, whose `BaiduNetdisk_mac.app` is bundle id
-`com.baidu.BaiduNetdisk-mac`, Team `738UU3Y57V` (the team of the copy installed on the
-machine measured that day), `lipo -archs` arm64, and `spctl -a -t install` "Notarized
+`com.baidu.BaiduNetdisk-mac`, Team `738UU3Y57V` (the installed copy's
+team), `lipo -archs` arm64, and `spctl -a -t install` "Notarized
 Developer ID".
 
 ### Recipes/com-baidu-BaiduNetdisk-mac.swift — ChangelogRecipe（`/disk/cmsdata?platform=mac`）

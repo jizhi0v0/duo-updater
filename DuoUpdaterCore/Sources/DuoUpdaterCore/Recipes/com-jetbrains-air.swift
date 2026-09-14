@@ -10,7 +10,7 @@ enum com_jetbrains_air {
         // `source` is the shell, `indexLinkPattern` follows the `<script src=
         // "/assets/index-<hash>.js">` to the current bundle (the hash changes every
         // deploy, so we must follow it, never pin it). The entry/item patterns then
-        // run against that JS. Each release is an object literal:
+        // run against that JS. Each release is an object literal, e.g.:
         //   {version:"261.681.18",date:"June 2, 2026",title:"...",
         //    description:"...",[image:qE,]content:i.jsxs(i.Fragment,{children:[...]})}
         // `description` and `image` are optional and vary per entry, so `body`

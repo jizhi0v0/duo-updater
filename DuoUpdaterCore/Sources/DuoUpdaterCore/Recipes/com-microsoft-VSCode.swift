@@ -4,6 +4,7 @@ enum com_microsoft_VSCode {
     static let set = AppRecipeSet(
         family: "com-microsoft-VSCode",
         probes: [
+        // History: docs/app-audits/com-microsoft-VSCode.md#历史与实测
         // VS Code — Microsoft's official update API. `name` is the version.
         VendorProbeRecipe(
             bundleID: "com.microsoft.VSCode",
@@ -22,7 +23,7 @@ enum com_microsoft_VSCode {
         // so `ReleaseChannel.detect` reads the standalone "Insiders" word → .preview;
         // the bundle id has no `.insiders`/`-insiders` suffix to match on). CRUCIAL:
         // the installed `CFBundleShortVersionString` carries the `-insider` suffix
-        // ("1.124.0-insider"), so the version pattern MUST keep it too — the stable
+        // (e.g. "1.124.0-insider"), so the version pattern MUST keep it too — the stable
         // `\d+\.\d+\.\d+` would extract a bare "1.124.0" and read every install as
         // perpetually out-of-date. `name` only bumps on the ~monthly minor (the
         // daily builds differ by commit hash, which the Info.plist doesn't expose),
@@ -43,7 +44,7 @@ enum com_microsoft_VSCode {
         ],
         changelogs: [
         // VS Code — the official `/updates` page redirects to the latest stable
-        // release page (e.g. /updates/v1_123). The top summary is:
+        // release page (e.g. /updates/v1_123). The top summary is, e.g.:
         //   <h1>Visual Studio Code 1.123</h1>
         //   ...<hr><p><em>Release date: June 3, 2026</em></p>
         //   ...<ul><li><a …>…</a>: …</li>...</ul>
@@ -52,9 +53,8 @@ enum com_microsoft_VSCode {
         // The highlights <ul> is the only list before "Happy Coding!", so the
         // body anchor is unambiguous; the trailing <blockquote> (an occasional
         // event/announcement aside, e.g. "VS Code Live at Build") is matched
-        // optionally so its presence/absence doesn't break the close anchor — the
-        // 1.122→1.123 page added it, which is what regressed the old pattern to a
-        // webview fallback. We intentionally parse the latest release only; the
+        // optionally so its presence/absence doesn't break the close anchor. We
+        // intentionally parse the latest release only; the
         // page itself is the vendor's stable "what changed now" surface.
         ChangelogRecipe(
             bundleID: "com.microsoft.VSCode",

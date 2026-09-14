@@ -453,7 +453,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **LM Studio — Beta** · 同 `ai.elementlabs.lmstudio`，版本 API 无 channel 参数
 - ✗ **DBeaver — Early Access** · 同 `org.jkiss.dbeaver.core.product`，EA 共享 id、标签格式同 stable
 - ✗ **Beekeeper Studio — Beta** · 同 `io.beekeeperstudio.desktop`，同 repo prerelease，stable rule 已排除
-- ✗ **Insomnia — Beta/Alpha** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离），但 `ReleaseChannel.detect()` **不解析版本后缀** → 检测为 `.stable`。所以 `channel: .beta` rule 永远不会被 channel gate 选中。**前置依赖**：先教 `detect()` 识别 `com.insomnia.app` 的 `-beta.N`/`-alpha.N` 后缀，beta channel 才可接（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪）
+- ◐ **Insomnia — Beta 可接（已不是死轨）/ Alpha 仍受阻** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离）。**更正 2026-09-14**：原先这里写 `ReleaseChannel.detect()`「不解析版本后缀」、`channel: .beta` rule 永远选不中——自 `87fafac7`（2026-08-30）起 `detect()` 第 4 步严格识别整串以 `-beta.<数字>` 结尾的版本，beta 的检测前提已具备，**只差一条 `channel: .beta` rule**（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪；见 `docs/app-audits/com-insomnia-app.md`）。`-alpha.N` 仍不被 `detect()` 识别（第 4 步和版本尾词表都没有 alpha），alpha 仍受阻。
 - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
 - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
 - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
@@ -476,7 +476,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
-- ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
+- ✅ **GitHub Desktop — Beta** · 已接入（**更正 2026-09-14**：原先这里记为 ✗，与代码矛盾）。同 `com.github.GitHubClient`，beta 由装机版本串 `-betaN` 后缀判轨（`ReleaseChannel.detect` 第 4 步），`Recipes/com-github-GitHubClient.swift` 有 `channel: .beta` 的 `GitHubReleaseRule`（`release-X.Y.Z-betaN`，一键 `GitHub.Desktop-arm64.zip`）和 `?env=beta` 的 changelog，`githubChannelProofs` 锚 `/download/release-…-betaN/`。stable rule 仍排除 prerelease。
 - ✅ **Longbridge Desktop — Preview** · 已接入。**更正 2026-08-25 那版"已停更"的判断**：那条结论是
   从本机一个旧的 `0.15.0-preview.0` 包倒推的，没打端点；实际 2026-08-26 复核时 preview 轨道是活的。
   独立 bundle `com.longbridge.app.desktop.preview`（"Longbridge Preview.app"），靠 `.preview`
@@ -491,6 +491,9 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   每版说明页、CDN 清单、DMG 直链都还在。另外 preview 的 asset **不带 `sha256`**（stable 带），
   是清单降级维护的信号。若 preview 真的停产，表现会是 `latest.json` 长期不动 —— 由夜间 `duo verify`
   全量扫描的版本停滞告警兜底，不需要提前拆 recipe。
+  **2026-09-14 复测**（只读 GET）：上面两条站点状态都变了——`/desktop/release-notes/preview/` 重新列出
+  `v1.0.0-preview.0`、`v1.0.0-preview.1` 两个版本，preview `latest.json`（`1.0.0-preview.1`，2026-09-08 发布）的
+  asset 现在也带 `sha256`；`/desktop/preview/` 仍是 404。
 
 ### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
 
@@ -560,8 +563,8 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
-Orion / VS Code(stable) / Cursor / Figma / Slack / 1Password / Sublime（Text/Merge）/
-RustDesk / GitHub Desktop / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove /
+Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
+RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
 Arc / HandBrake / Keka / Lark / MonitorControl / OBS Studio / Proxyman / Rectangle /
 The Unarchiver 等。
 

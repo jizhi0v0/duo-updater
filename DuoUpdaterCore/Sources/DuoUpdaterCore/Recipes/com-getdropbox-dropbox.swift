@@ -11,7 +11,7 @@ enum com_getdropbox_dropbox {
         // edge.dropboxstatic.com/dbx-releng/client/Dropbox%20<ver>.arm64.dmg, so the
         // version rides in the %20-encoded Location filename. The target is a
         // several-hundred-MB dmg, so don't follow — read the small 302 Location
-        // (followRedirects:false). NOTE the scheme is 3-component (254.4.2518 =
+        // (followRedirects:false). NOTE the scheme is 3-component (e.g. 254.4.2518 =
         // 254/4/2518, not four) — the pattern is three numeric groups. Dropbox
         // self-updates, so this row usually just confirms that.
         //
@@ -29,8 +29,9 @@ enum com_getdropbox_dropbox {
         // update the install gate will refuse. Don't relax it to `(?:\.arm64)?`.
         //
         // The image is labelled "Dropbox Offline Installer" but holds the real
-        // `Dropbox.app` — worth stating, since the sibling 1Password download
-        // turned out to be a stub installer, not the app.
+        // `Dropbox.app` — worth stating, since the 1Password download
+        // (`Recipes/com-1password-1password.swift`) turned out to be a stub
+        // installer, not the app.
         VendorProbeRecipe(
             bundleID: "com.getdropbox.dropbox",
             url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!,

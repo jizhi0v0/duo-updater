@@ -65,3 +65,45 @@
 
 ## 建议下一步
 - 已完成。后续仅在端点结构或签名变化时复核 recipe。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-figma-Desktop.swift — stable VendorProbe（一键 `Figma-<ver>.zip`）
+
+转引自 recipe 注释，未复测。
+
+Confirmed 2026-06-06: the
+downloaded Figma-126.4.13.zip is a notarized Developer ID build, Team
+T8RA8NE3B7 (Figma, Inc.), bundle id com.figma.Desktop == the installed
+app, so the VendorInstaller Team gate passes.
+
+### Recipes/com-figma-Desktop.swift — beta VendorProbe（`com.figma.DesktopBeta`）
+
+转引自 recipe 注释，未复测。
+
+Same signer as stable (Team T8RA8NE3B7,
+confirmed 2026-06-06 on the real FigmaBeta-126.6.2.zip), so one-click is
+safe behind the same Team gate.
+
+### Recipes/com-figma-Desktop.swift — ChangelogRecipe（release-notes Atom feed）
+
+转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`0d9d4246`（2026-08-22）。
+
+It also fixes a real bug in the old
+recipe: the page lazy-loads posts as you scroll, so the live DOM only ever
+had ~8 `<article>` blocks to match against however large `maxEntries` was
+set — the feed carries hundreds, so the existing `maxEntries: 20` cap now
+actually engages.
+
+Checked against the live feed (444 entries, 2026-08-19):
+no entry's title or content carries embedded HTML tags today, so that
+cleanup is currently a no-op — but the ordering is still correct for the
+day one does.
+
+Verified against the same 8 posts on 2026-08-19: combined
+item text drops from 3390 to 1062 characters (31%) versus the old
+`<article>`/`<p>` scrape, while every title and date matches byte-for-byte.
+
+复测 2026-09-14（03:20 UTC 前后，只读 GET）：Atom feed 有 450 个 `<entry>`。

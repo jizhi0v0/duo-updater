@@ -836,7 +836,7 @@ suggestions. Use this decision table:
 | Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
 | Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint |
-| Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` § C | Document the reason; no code change |
+| Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |
 | Already fully covered | → Write/update audit doc only | No code change needed |
 
 **Example handoff text in the report:**
@@ -848,7 +848,7 @@ suggestions. Use this decision table:
 2. 加 changelog: `/fragile-recipe Notion` (ChangelogRecipe,
    source `https://www.notion.so/releases`, entry markup `<div class="release">`)
 3. beta channel: BLOCKED — 同 bundle ID `notion.id`, 应用内 opt-in, 无检测信号
-   → 更新 CHANNEL_COVERAGE_TODO.md § C
+   → 更新 CHANNEL_COVERAGE_TODO.md §3
 ```
 
 ---

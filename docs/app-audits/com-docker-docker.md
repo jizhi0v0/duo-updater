@@ -106,3 +106,28 @@ find "<Docker.app>/Contents/MacOS/Docker Desktop.app/Contents" \
    ChannelBinding 或独立 recipe。
 2. 若产品需要展示 Docker 已下载待安装状态，先记录 backend 的稳定状态文件/IPC，再添加专用
    staging detector；不要复用 ShipIt。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-docker-docker.swift — stable VendorProbe（一键 `Docker.dmg`）
+
+转引自 recipe 注释，未复测。唯一的改写：原文说 4.86.0 是“装着的”那份，按本目录的机器状态规则改成了针对那台被量的机器的说法。
+
+On 2026-08-17 it listed 4.86.0 (build
+236216) ahead of 4.87.0 (236836), so a first-match download fetched
+4.86.0 over the 4.86.0 installed on the machine measured that day — 574 MB, a 2.26 GB backup, "install
+done", and the update still pending.
+
+Verified 2026-08-09 on 4.85.0 (build 235549): `Docker.app` in the
+image, bundle id com.docker.docker, Team 9BNSXJN65R, spctl "Notarized
+Developer ID". 573 MB, arm64-specific feed path.
+
+### Recipes/com-docker-docker.swift — ChangelogRecipe（`release-notes.md`）
+
+转引自 recipe 注释，未复测。唯一的改写：原文末尾说 4.87.0 是“这里装着的”版本，按本目录的机器状态规则改成了针对那台被量的机器的说法。
+
+`docs.docker.com/desktop/release-notes.md` serves `text/markdown`
+directly (the `.md` twin of the HTML page), 142 versions deep, newest
+4.87.0 on 2026-08-17 — the version installed on the machine measured that day.

@@ -24,7 +24,8 @@ pointing at it.
 
 Two incidents that used to be retold a third time in this slice were trimmed
 instead of copied here, because they already have an authoritative home:
-Docker's 4.86.0-before-4.87.0 first-match bug is `Recipes/com-docker-docker.swift`'s
+Docker's 4.86.0-before-4.87.0 first-match bug is
+[`docs/app-audits/com-docker-docker.md#历史与实测`](../app-audits/com-docker-docker.md#历史与实测)'s
 account (and `CHANGELOG.md`'s user-facing one); ChatGPT's 6971→6962
 same-app-race is `SelfUpdaterStaging.staged`'s and
 `UpdatePolicy.stagedBlocksInstall`'s own doc comments. See the PR for this

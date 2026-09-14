@@ -127,7 +127,7 @@ if argv[1] == "--check" {
             MacAppStoreSource(),
             SparkleAppcastSource(),
             HomebrewCaskSource(),
-            GitHubReleasesSource(token: GitHubToken.resolve()),
+            GitHubReleasesSource(token: await GitHubToken.resolve()),
             VendorProbeSource()
         ],
         toolbox: ToolboxSource())
@@ -467,7 +467,7 @@ let checker = UpdateChecker(
         MacAppStoreSource(),
         SparkleAppcastSource(),
         HomebrewCaskSource(),
-        GitHubReleasesSource(token: GitHubToken.resolve()),
+        GitHubReleasesSource(token: await GitHubToken.resolve()),
         VendorProbeSource()
     ],
     toolbox: ToolboxSource())

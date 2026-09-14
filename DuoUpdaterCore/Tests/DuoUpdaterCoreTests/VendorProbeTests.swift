@@ -24,39 +24,68 @@ import Foundation
         == "5.11.2026052520-alpha")
 }
 
-// ToDesk — the download page server-renders the macOS pkg URL into an inline data
-// blob. As of 2026-07-13 every macOS version field is variable-ized (`mac_version:l`),
-// so the one durable literal is the consumer `macos/ToDesk_<ver>.pkg` filename. The
-// page also carries DaaS (enterprise) pkg links `ToDesk_DaaS_v1.1.0.1.pkg` /
-// `…-v1.1.0.1_392.pkg` that appear first in this fixture; anchoring on
-// `ToDesk_<digit>` skips them (they read `ToDesk_D…`) and, in this fixture, lands
-// the consumer GA build. On the
-// live page of 2026-09-14 a consumer GRAY link (`…/macos/ToDesk_5.1.0.0.pkg`, 10% rollout)
-// came first, so first-match read the gray build there — see the recipe comment.
-// Regression guard below: the retired `mac_version:"…"` anchor must no longer match
-// this body.
-@Test func todeskAnchorsOnGAPkgFilenameNotDaaSChannel() {
-    let recipe = try! #require(
+// ToDesk — the recipe reads the vendor's config API, whose rows carry both the GA
+// release (`mac_version` / `mac_link`) and a percentage rollout (`mac_version_gray` /
+// `mac_link_gray`) that is newer than GA. Only GA may come out: reading a gray row
+// offers every install the build the vendor gives to a slice of users.
+//
+// The rows below are verbatim from a real response, trimmed to the ones that
+// neighbour the anchor: GA, gray, DaaS (enterprise) and the `mac_downloader_*`
+// installer app. In the response they come in `id` order, GA first, and an
+// unanchored pkg-filename pattern happens to land GA there — so the same rows are
+// also asserted with the gray and near-miss rows moved ahead of GA, which is the
+// order that tells a GA anchor from a first-match one. `mac_downloader_version`
+// holds the GA value in this response, so a pattern that drifted onto that row
+// would still pass here; nothing in real data can tell those two apart today.
+private let todeskGAFirstRows = [
+    #"{"id":8,"type":1,"name":"mac_version","value":"4.10.1.0"}"#,
+    #"{"id":9,"type":1,"name":"mac_release_date","value":"2026.8.28"}"#,
+    #"{"id":10,"type":1,"name":"mac_link","value":"https://dl.todesk.com/macos/ToDesk_4.10.1.0.pkg"}"#,
+    #"{"id":67,"type":1,"name":"mac_link_new","value":"https://dl.todesk.com/macos/ToDesk_4.10.1.0.pkg"}"#,
+    #"{"id":78,"type":1,"name":"mac_gray_percent","value":"10"}"#,
+    #"{"id":80,"type":1,"name":"mac_link_gray","value":"https://dl.todesk.com/macos/ToDesk_5.1.0.0.pkg"}"#,
+    #"{"id":81,"type":1,"name":"mac_version_gray","value":"5.1.0.0"}"#,
+    #"{"id":90,"type":1,"name":"daas_mac_link","value":"https://dl.todesk.com/daas/mac/ToDesk_DaaS_v1.1.0.1.pkg"}"#,
+    #"{"id":91,"type":1,"name":"daas_mac_version","value":"1.1.0.1"}"#,
+    #"{"id":94,"type":1,"name":"daas_mac_link_gray","value":"https://dl.todesk.com/daas/mac/ToDesk_DaaS-v1.1.0.1_392.pkg"}"#,
+    #"{"id":153,"type":1,"name":"mac_downloader_version","value":"4.10.1.0"}"#,
+    #"{"id":159,"type":1,"name":"mac_downloader_version_gray","value":"5.1.0.0"}"#,
+]
+
+private func todeskConfigBody(_ rows: [String]) -> String {
+    #"{"code":200000,"data":{"list":["# + rows.joined(separator: ",") + "]}}"
+}
+
+@Test(arguments: [
+    todeskGAFirstRows,
+    // Gray, DaaS and installer-app rows ahead of GA.
+    Array(todeskGAFirstRows[4...]) + Array(todeskGAFirstRows[..<4]),
+])
+func todeskReadsGAConfigRowNotTheGrayRollout(rows: [String]) throws {
+    let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.youqu.todesk.mac" })
-    // Trimmed real blob: DaaS GA + gray pkg links (own digits) precede the GA
-    // positional-arg block; every mac_version field is now a bare variable.
-    let body = #"mac_link:"https://dl.todesk.com/daas/mac/ToDesk_DaaS_v1.1.0.1.pkg",mac_link_gray:"https://dl.todesk.com/daas/mac/ToDesk_DaaS-v1.1.0.1_392.pkg",mac_version:l,mac_version_gray:l,"#
-        + #"("",false,"-1","2026.7.10","https://dl.todesk.com/macos/ToDesk_4.9.7.4.pkg",true)"#
-    // Version anchors on the first consumer pkg filename (GA in this fixture), NOT the
-    // DaaS 1.1.0.1 links.
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.4")
-    // Regression: the retired mac_version literal anchor finds nothing in the new body.
-    #expect(VendorProbeRecipe.extractVersion(
-        from: body, pattern: #"mac_version:"([0-9]+(?:\.[0-9]+)+)""#) == nil)
-    // The install spec rebuilds the pkg URL from the captured filename version (the GA
-    // pkg here, because the fixture has no gray consumer link).
-    guard case let .bodyTemplate(template, fields) = recipe.install?.urlSource else {
-        Issue.record("expected bodyTemplate install source"); return
+    #expect(recipe.url.absoluteString == "https://www.todesk.com/api/config/getConfig?type=1")
+    let body = todeskConfigBody(rows)
+
+    let version = VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern)
+    #expect(version == "4.10.1.0")
+    #expect(version != "5.1.0.0")
+
+    // The install URL is built from the RESOLVED version, and must be the
+    // response's own GA `mac_link` — never its `mac_link_gray`.
+    let spec = try #require(recipe.install)
+    #expect(spec.kind == .pkg)
+    guard case .versionTemplate(let template) = spec.urlSource else {
+        Issue.record("expected a version template"); return
     }
-    let captured = try! #require(VendorProbeRecipe.extractVersion(from: body, pattern: fields[0]))
-    #expect(captured == "4.9.7.4")
-    #expect(template.replacingOccurrences(of: "{0}", with: captured)
-        == "https://dl.todesk.com/macos/ToDesk_4.9.7.4.pkg")
+    let installURL = template.replacingOccurrences(of: "{version}", with: try #require(version))
+    let gaLink = VendorProbeRecipe.extractVersion(
+        from: body, pattern: #""name":"mac_link","value":"([^"]+)""#)
+    let grayLink = VendorProbeRecipe.extractVersion(
+        from: body, pattern: #""name":"mac_link_gray","value":"([^"]+)""#)
+    #expect(gaLink != nil && grayLink != nil)  // fixture guard: both links present
+    #expect(installURL == gaLink)
+    #expect(installURL != grayLink)
 }
 
 // Spotify — has no cheap version API; the version is read from the bundled

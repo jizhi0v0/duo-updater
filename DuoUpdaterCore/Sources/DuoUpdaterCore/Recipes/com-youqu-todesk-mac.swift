@@ -7,29 +7,38 @@ enum com_youqu_todesk_mac {
         // History: docs/app-audits/com-youqu-todesk-mac.md#历史与实测
         // ToDesk (远程控制) — Hainan Youqu's remote-desktop app. No standard source
         // resolves it; its in-app appcast sits behind a JS bot-challenge (the reason
-        // it was long left "unknown"). The public download page is the way in: a
-        // Nuxt/Vue SPA whose macOS pkg URL is SERVER-RENDERED into the inline data
-        // blob (no JS needed). ANCHOR ON THE `macos/` pkg FILENAME `ToDesk_<ver>.pkg`.
-        // The vendor's macOS version fields are bare variables (e.g. `mac_version:l`,
-        // no quoted digits), so the pkg filename is the one durable literal (History
-        // has the quoted literal an earlier recipe keyed off, and when it went).
-        // The DaaS (enterprise) pkg links on the page read `ToDesk_D…`, so
-        // anchoring on `ToDesk_<digit>` excludes them. NB the positional-arg block
-        // also carries release DATES (e.g. `2026.7.10`) ahead of the pkg URL —
-        // never anchor on them; the real marketing version (==
-        // CFBundleShortVersionString) lives in the filename. Non-build recipe,
-        // first match, no selectHighest.
-        // Gray channel: first-match takes whichever consumer `ToDesk_<digits>.pkg`
-        // comes first in the body. When this anchor was written (2026-07-14) the GA
-        // build was the only one. When checked again (2026-09-14; History has both
-        // versions and the original note) the gray link (`mac_link_gray`) also
-        // pointed at a `…/macos/ToDesk_<digits>.pkg` and came before GA, so the
-        // recipe read the gray build — which was NEWER than GA, not the
-        // stale-but-safe case an earlier version of this note assumed.
-        // One-click pkg install rebuilds the URL from the captured filename version
-        // (template), on the vendor's own dl.todesk.com, signed by the same Team
-        // KM56KD59W4 (Hainan Youqu Technology) as the installed app — the
-        // VendorInstaller signature gate enforces it.
+        // it was long left "unknown"). The way in is the config API the public
+        // download page itself renders from: `getConfig?type=1` answers JSON, a flat
+        // list of `{"id":…,"type":1,"name":…,"value":…}` rows, one per client field.
+        // ANCHOR ON THE EXACT ROW NAME `"name":"mac_version"`, both quotes: the
+        // closing one keeps out `mac_version_gray`, the opening one keeps out
+        // `daas_mac_version` (enterprise). Its value is the marketing version
+        // (== CFBundleShortVersionString). Non-build recipe, one match, no
+        // selectHighest.
+        // GA vs gray: `mac_version` / `mac_link` is the release everyone gets.
+        // `mac_version_gray` / `mac_link_gray` is a percentage rollout
+        // (`mac_gray_percent`) that the page hands out per visitor by cookie, and
+        // it can be NEWER than GA. Reading it would offer every install a build
+        // the vendor gives only to that slice, so this recipe never reads a
+        // `_gray` row.
+        // Why not the download page: its Nuxt payload hoists repeated values into
+        // positional arguments, so `mac_version:l` / `mac_link:n` are bare variables
+        // and whether the GA pkg URL appears as a literal depends on whether some
+        // other field happens to share it, while the gray link stayed a literal
+        // ahead of it (History has the page as it was when this moved).
+        // An unanchored `ToDesk_<digits>.pkg` pattern looks like it works on this
+        // API too — its rows come in `id` order, and GA's `mac_link` happens to
+        // precede `mac_link_gray` — but that is betting on document order again.
+        // Copies already ahead of GA: an install that took a gray build compares
+        // newer than this feed, so it is offered nothing until GA passes it, and
+        // `duo verify` on that machine warns that the remote is behind the
+        // installed copy (#628; History has how such copies came about).
+        // One-click pkg install fills the URL from the RESOLVED version
+        // (`versionTemplate`), so the pkg is always the release that was compared;
+        // the template has the same shape as the API's `mac_link` value, and the
+        // fixture test holds the two together. On the vendor's own dl.todesk.com,
+        // signed by the same Team KM56KD59W4 (Hainan Youqu Technology) as the
+        // installed app — the VendorInstaller signature gate enforces it.
         // No `changelogURL`: the vendor's macOS log page
         // (`update.todesk.com/macos/uplog.html`) was abandoned when checked
         // (2026-08-22, 2026-09-14) — its newest entry sat releases behind the
@@ -39,14 +48,13 @@ enum com_youqu_todesk_mac {
         // failure the Notion and Figma changelogs were just moved away from.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
-            url: URL(string: "https://www.todesk.com/download.html")!,
+            url: URL(string: "https://www.todesk.com/api/config/getConfig?type=1")!,
             mode: .responseBody,
-            versionPattern: #"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            versionPattern: #""name"\s*:\s*"mac_version"\s*,\s*"value"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.todesk.com/download.html"),
             install: VendorInstallSpec(
-                urlSource: .bodyTemplate(
-                    "https://dl.todesk.com/macos/ToDesk_{0}.pkg",
-                    fields: [#"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#]),
+                urlSource: .versionTemplate(
+                    "https://dl.todesk.com/macos/ToDesk_{version}.pkg"),
                 kind: .pkg)),
         ])
 }

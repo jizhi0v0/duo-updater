@@ -2792,8 +2792,8 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-09-14T08:25:21Z",
-      "lastGoodVersion" : "5.1.0.0",
+      "lastGoodAt" : "2026-09-14T13:53:49Z",
+      "lastGoodVersion" : "4.10.1.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.zarifpour.superconductor:nightly" : {

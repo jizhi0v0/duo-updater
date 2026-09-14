@@ -4,13 +4,15 @@ import Foundation
 
 /// Mac Performance Monitor's release notes (#374, reported by a user).
 ///
-/// Its appcast carries none: one item, and no `sparkle:releaseNotesLink`, no
-/// `sparkle:fullReleaseNotesLink`, no `<description>` (fetched 2026-09-06 from
-/// the `appcast.xml` asset its `SUFeedURL` resolves to). Through 1.7.1 the GitHub
-/// release body was a single sentence pointing elsewhere — "Mac Performance
-/// Monitor 1.7.1 (build 206). See CHANGELOG.md for what's new." — so the repo's
-/// Keep a Changelog file was the only place the notes existed. (The 2.0.0 and
-/// 2.1.0 bodies carry full notes; CHANGELOG.md has both entries, checked
+/// Through 1.7.1 its appcast carried none: one item, and no
+/// `sparkle:releaseNotesLink`, no `sparkle:fullReleaseNotesLink`, no
+/// `<description>` (fetched 2026-09-06 from the `appcast.xml` asset its
+/// `SUFeedURL` resolves to). The GitHub release body was a single sentence
+/// pointing elsewhere — "Mac Performance Monitor 1.7.1 (build 206). See
+/// CHANGELOG.md for what's new." — so the repo's Keep a Changelog file was the
+/// only place the notes existed. (Since 2.0.0 the appcast's one item carries an
+/// HTML `<description>` and the release body carries full notes, both for the
+/// newest release only; CHANGELOG.md has the 2.0.0 and 2.1.0 entries. Checked
 /// 2026-09-14.)
 ///
 /// The fixture is the real file's opening, verbatim through the head of the

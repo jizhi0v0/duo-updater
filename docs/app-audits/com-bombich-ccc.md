@@ -174,6 +174,26 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 `lastSignature: versionPatternNoMatch` / `lastGoodVersion: 7.1.7-b7`（2026-09-13T14:24Z），
 阈值 2，下一轮扫描就会开 issue。
 
+**2026-09-14T02:26Z 那一轮真的开了：issue #612**（`consecutiveActionable: 2`，
+`triagedSignature: versionPatternNoMatch`，抓到的响应体正是 `ccc-7.2.8399.zip`）。
+
+⚠️ **issue 里那条自动建议不能用**，虽然它带着一个 ✅：
+`^ccc-(\d+(?:\.\d+)+)\.zip$`。那个 ✅ 只核了「能从响应体里抽出东西」，抽出来的是
+`7.2.8399`——marketing 和 build 连在一起，没有任何 CCC bundle 的
+`CFBundleShortVersionString` 长这样，喂进比较就是一个永不消失的幻影更新。移植到 Python
+打全部文件名，三处都错：
+
+| 文件名 | issue 的建议 | 本次采用 |
+|---|---|---|
+| `ccc-7.2.8399.zip` | `7.2.8399`（marketing+build 粘连） | `7.2` |
+| `ccc-7.1.7-b7.8389.zip` | **nil**（周期开着时 beta 反而读不到了） | `7.1.7-b7` |
+| `ccc-6.1.13.7699.zip` | `6.1.13.7699`（**跨代际**） | nil |
+| `ccc-5.1.28.6213.zip` | `5.1.28.6213`（**跨代际**） | nil |
+| `ccc-8.0.1.9000.zip` | `8.0.1.9000`（**跨代际，付费升级**） | nil |
+
+它把整个三 recipe 拆分存在的理由——代际锚——一起拆掉了。issue 自己标着
+「Unverified suggestion — do not apply without testing」，这就是那句话的用处。
+
 改法是把 `-b<N>` 变成可选——`^ccc-(7(?:\.[0-9]+)+(?:-b[0-9]+)?)\.[0-9]{3,}\.zip$`——
 与 CotEditor 的 beta rule 同一个判断（见 `Recipes/com-coteditor-CotEditor.swift`）。
 用 Python 把正则移植过去打真实响应体复算（两个证人），全矩阵：

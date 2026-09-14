@@ -122,15 +122,12 @@ enum com_bombich_ccc {
         // exactly, so `versionIsBuild` stays the default `false`, same as
         // stable.
         //
-        // **`-b<N>` IS OPTIONAL BELOW, AND THAT IS THE DESIGN.** This train runs
-        // in CYCLES, and BETWEEN cycles `?v=latestbeta` answers with the STABLE
-        // zip — the build the train graduated into. It is the vendor's ordinary
-        // resting state, not an outage: the beta notes page has been frozen on
-        // the last prerelease of a closed cycle while stable moved on, and the
-        // graduation is stated in the vendor's own text rather than inferred
-        // (`ccc7_rn.html` skips 7.1.7 entirely and 7.2's "What's new" is the beta
-        // page's cycle list item for item). Evidence and the endpoint readings
-        // are in `docs/app-audits/com-bombich-ccc.md`.
+        // That stable answer is the vendor's ordinary RESTING state between
+        // cycles, not an outage, and the graduation is the vendor's own text
+        // rather than an inference: `ccc7_rn.html` skips 7.1.7 entirely (7.1.6 →
+        // 7.2) and 7.2's "What's new" is the beta page's cycle list item for
+        // item, while that beta page stayed frozen on the closed cycle's last
+        // prerelease. Both readings are in `docs/app-audits/com-bombich-ccc.md`.
         //
         // Anchoring to `-b` instead fails on that resting state in both of the
         // ways CotEditor's beta rule (`Recipes/com-coteditor-CotEditor.swift`)

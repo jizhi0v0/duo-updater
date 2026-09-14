@@ -4,6 +4,7 @@ enum com_getdropbox_dropbox {
     static let set = AppRecipeSet(
         family: "com-getdropbox-dropbox",
         probes: [
+        // History: docs/app-audits/com-getdropbox-dropbox.md#历史与实测
         // Dropbox (desktop, mac) — the website's "latest" download link. A single
         // 302 from www.dropbox.com/download?plat=mac&full=1&arch=arm64 lands on the
         // versioned package

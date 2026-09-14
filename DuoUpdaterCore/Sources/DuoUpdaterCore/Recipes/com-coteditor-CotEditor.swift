@@ -4,24 +4,25 @@ enum com_coteditor_CotEditor {
     static let set = AppRecipeSet(
         family: "com-coteditor-CotEditor",
         changelogs: [
+        // History: docs/app-audits/com-coteditor-CotEditor.md#历史与实测
         // CotEditor — the GitHub source already renders the release it is
         // OFFERING (the bodies are structured Markdown: `## Improvements`,
-        // `## Known Issues`, measured through the source on both rails), so what
+        // `## Known Issues`), so what
         // these two add is the rest of the rail: the previous releases in the
         // changelog panel.
         //
-        // `per_page=40` with `maxEntries: 20` is the house shape. Measured
-        // 2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease.
+        // `per_page=40` with `maxEntries: 20` is the house shape.
         //
-        // ⚠️ BOTH rails therefore fill their 20, and the beta rail's 20 are mostly
+        // ⚠️ BOTH rails fill their 20 (the newest 40 releases hold at least 20
+        // stable ones), and the beta rail's 20 are mostly
         // STABLE entries — `includesPromotedStable` makes
         // `StructuredChangelogDecoder.decodeGitHubReleases` want every
         // non-prerelease, not only the one that graduates, so the beta rail is
-        // simply the newest 20 releases (7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
+        // simply the newest 20 releases, stable and prerelease interleaved (e.g.
+        // 7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, … when this was written).
         // That is the field's existing behaviour and it is what this rail wants —
-        // the copy can be offered any of them — but it is not "the 6 betas", which
-        // is what an earlier version of this comment claimed. All 6 do fit: they
-        // sit inside the newest 8 releases.
+        // the copy can be offered any of them — but it is not only the prereleases,
+        // which is what an earlier version of this comment claimed.
         //
         // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
         // Yaak's pair (`Recipes/app-yaak-desktop.swift`), and the difference is in the rules, not in taste.
@@ -55,16 +56,15 @@ enum com_coteditor_CotEditor {
         // is what #368 was about: that feed keeps ONE prerelease slot, so every
         // beta but the newest is trimmed out of it, `channel(ofInstalled:)` then
         // misses on both passes, and the copy falls back to the default channel —
-        // where the stable line outranks it by build (843 against 840) and is
+        // where the stable line outranks it by build (843 against 840 in #368) and is
         // three marketing versions older. GitHub keeps every release, and the tag
         // says which train it is on, so the channel needs no lookup that history
         // can invalidate. `SparkleFeedCatalog` therefore does NOT carry the feed:
         // Sparkle answers before GitHub in `SourceStack`, and would take this back.
         //
-        // Measured on the 100 newest releases (2026-09-06): 0 drafts, exactly
-        // three tag shapes — `7.0.9`, `7.1.0-beta`, `7.1.0-beta.6`, no `v` prefix —
-        // and every one of the 100 carries exactly one asset, `CotEditor_<tag>.dmg`,
-        // with no other artifact to disambiguate against.
+        // Tags carry no `v` prefix, and each release carries exactly one asset,
+        // `CotEditor_<tag>.dmg`, so there is no other artifact to disambiguate
+        // against.
         // Mounted the real 7.0.9 dmg: com.coteditor.CotEditor, short `7.0.9`
         // (== the tag), build 843, `LSMinimumSystemVersion` 15.0 matching the
         // feed's own `minimumSystemVersion`, Team HT3Z3A72WZ, notarized.
@@ -74,10 +74,8 @@ enum com_coteditor_CotEditor {
             versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
-        // The beta train is CYCLICAL, and that is what shapes this rule: all six
-        // prereleases in those 100 releases belong to the 7.1.0 cycle that opened
-        // 2026-07-26, and the 94 releases before it — back to 2022-04 — carry
-        // none. The unnumbered `7.1.0-beta` (the cycle's first) is a real shape,
+        // The beta train is CYCLICAL, and that is what shapes this rule. The
+        // unnumbered `-beta` (e.g. `7.1.0-beta`, that cycle's first) is a real shape,
         // which is why the suffix is optional twice over below.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
@@ -139,7 +137,7 @@ enum com_coteditor_CotEditor {
         // WhatCable's entry (`Recipes/uk-whatcable-whatcable.swift`) — but NOT the same anchor, and the difference is
         // load-bearing: WhatCable's is `-beta\.`, which matches the escaped dot in
         // its own `-beta\.[0-9]+` pattern. CotEditor's cycle opens with an
-        // unnumbered `7.1.0-beta`, so its pattern reads `-beta(?:` — `-beta`
+        // unnumbered `-beta` (e.g. `7.1.0-beta`), so its pattern reads `-beta(?:` — `-beta`
         // followed by a parenthesis, never by an escaped dot. Tightening this
         // anchor to WhatCable's literal shape would make the proof report a
         // correct rule as unanchored.

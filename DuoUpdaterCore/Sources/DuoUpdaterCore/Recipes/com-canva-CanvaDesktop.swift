@@ -4,6 +4,7 @@ enum com_canva_CanvaDesktop {
     static let set = AppRecipeSet(
         family: "com-canva-CanvaDesktop",
         probes: [
+        // History: docs/app-audits/com-canva-CanvaDesktop.md#历史与实测
         // Canva — an Electron shell (`NSPrincipalClass` AtomApplication,
         // Squirrel.framework) that self-updates through electron-updater. The feed
         // is not a guess: the bundle's own `Contents/Resources/app-update.yml` names
@@ -15,9 +16,10 @@ enum com_canva_CanvaDesktop {
         // repo, and the iTunes lookup for this bundle id returns 0 results, so the
         // probe is the only surface that answers at all.
         //
-        // The two sides compare like-for-like: the feed's `version` is `1.124.0` and
-        // the shipped bundle's `CFBundleShortVersionString` is `1.124.0`. Its
-        // `CFBundleVersion` is an unrelated `3597652.392500792` that appears nowhere
+        // The two sides compare like-for-like: the feed's `version` and the shipped
+        // bundle's `CFBundleShortVersionString` carry the same string (e.g. `1.124.0`).
+        // Its `CFBundleVersion` is an unrelated number (e.g. `3597652.392500792`) that
+        // appears nowhere
         // in the feed, which is why this is NOT `versionIsBuild`.
         //
         // Every pattern here ends at a run of digits and dots, and that is the
@@ -29,7 +31,7 @@ enum com_canva_CanvaDesktop {
         // `-beta` into the STABLE feed and the pattern matches NOTHING, so the app
         // degrades to "unknown" rather than capturing `1.98.0`, reporting a
         // prerelease as stable, and reading as a permanent downgrade against an
-        // installed 1.124.0. The artifact pattern is pinned the same way, so an
+        // installed stable (e.g. 1.124.0). The artifact pattern is pinned the same way, so an
         // install can never resolve `Canva-1.98.0-beta-universal.dmg`.
         //
         // One-click: the dmg holds `Canva.app` and nothing else — no pkg, no
@@ -37,10 +39,9 @@ enum com_canva_CanvaDesktop {
         // whole update. (The cask's `zap` names a
         // `com.canva.availability-check-agent` LaunchAgent, the one thing that could
         // have argued for `.pkg`; it is in neither the dmg nor a machine that has
-        // run Canva, so whatever writes it, the installer does not.) Verified
-        // 2026-08-27 on the real `Canva-1.124.0-universal.dmg`:
-        // com.canva.CanvaDesktop, 1.124.0, Team 5HD2ARTBFS, `spctl` "Notarized
-        // Developer ID". Unlike Signal, whose feed hash predates its own stapling,
+        // run Canva, so whatever writes it, the installer does not.) The dmg's app is
+        // com.canva.CanvaDesktop under Team 5HD2ARTBFS, notarized (History has the
+        // verification). Unlike Signal, whose feed hash predates its own stapling,
         // Canva's published base64 sha512 matches the served bytes exactly, so the
         // checksum gate is armed on top of the mandatory Team-ID one.
         //

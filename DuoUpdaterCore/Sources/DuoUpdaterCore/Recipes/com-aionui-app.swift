@@ -4,15 +4,14 @@ enum com_aionui_app {
     static let set = AppRecipeSet(
         family: "com-aionui-app",
         probes: [
+        // History: docs/app-audits/com-aionui-app.md#历史与实测
         // AionUi — official electron-builder arm64 manifest. `version` matches the
         // mounted app exactly. com.aionui.app, Team 52JQX2HUSC, notarized.
         //
         // ONE-CLICK via `.versionTemplate`, and NOT via `.bodyPatternRelative`,
         // which is what an electron-builder manifest normally invites. The
         // manifest's `path`/`url` entries are bare filenames, but they do NOT
-        // resolve against the manifest's own directory: measured 2026-08-29,
-        // `…/releases/AionUi-2.1.61-mac-arm64.zip` answers 403 AccessDenied while
-        // `…/releases/2.1.61/AionUi-2.1.61-mac-arm64.zip` answers 200. The real
+        // resolve against the manifest's own directory. The real
         // layout inserts the version as a directory, so the relative case would
         // have produced a link that never downloads.
         //
@@ -25,11 +24,7 @@ enum com_aionui_app {
         // column 0 so it cannot match the indented per-file digests under `files:`
         // — those list the dmg as well, and the first of them is only the zip's by
         // accident of ordering. The top-level digest is by definition the one for
-        // `path:`, which is the zip this template builds. Verified 2026-08-29:
-        // `openssl dgst -sha512 -binary` of the downloaded zip reproduces the
-        // manifest value exactly. Extracted: `com.aionui.app`, 2.1.61, `Developer
-        // ID Application: AionUi Inc. (52JQX2HUSC)`, spctl "accepted / Notarized
-        // Developer ID", stapled, `lipo -archs` = arm64.
+        // `path:`, which is the zip this template builds.
         VendorProbeRecipe(
             bundleID: "com.aionui.app",
             url: URL(string: "https://static.aionui.com/releases/latest-arm64-mac.yml")!,

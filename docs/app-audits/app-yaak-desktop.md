@@ -55,3 +55,30 @@ changelog 的 `maxEntries: 20` 是够不到的上限、不是目标值。这与 
 3. `swift run --package-path application-test channel-verify <dmg> --expect <stable或beta>`。
 4. `swift test --package-path DuoUpdaterCore --filter ActiveAppsIntegrationTests`。
 5. `duo verify --only app.yaak.desktop --samples`：2 GitHub + 2 changelog 全通过。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/app-yaak-desktop.swift — stable + beta ChangelogRecipe（GitHub releases）
+
+转引自 recipe 注释，未复测。整句保留；其中「Zed and UTM's channel-split pairs are identical」迁移时已不成立（Zed 是 `maxEntries: 15`，UTM 的 beta 是 `maxEntries: 40`），代码里已改。
+
+`per_page=40` with `maxEntries: 20` is the registry's house shape (Zed
+and UTM's channel-split pairs are identical), and 20 is a CEILING, not
+a target: measured 2026-09-06, the newest 40 releases hold 12 stable
+and 28 beta, so the stable rail renders 12 entries and the beta rail
+fills its 20. Raising the page to reach 20 stable would mean fetching
+~72 releases on every changelog read, which no other entry here does.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`repos/mountain-loop/yaak/releases?per_page=40` 为 11 个 stable、29 个 prerelease。
+
+### Recipes/app-yaak-desktop.swift — stable + beta GitHub rules
+
+转引自 recipe 注释，未复测。
+
+Verified notarized 2026-09-06.
+
+Latest 100 releases: 72 beta tags, worst gap 5 (2026-09-06).
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：最新 100 个 release 里 73 个 `-beta.N` tag，首个在第 0 位，相邻两个之间最大间隔 5。

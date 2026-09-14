@@ -197,3 +197,41 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
    `bestItem` 仍然给 `7.0.9`/843，但 `evaluate` 给 `upToDate`。`allowedChannels`
    两次都是 `[nil]`——这一步没有被修。同一份 feed 的固定装在
    `SparkleMarketingDowngradeTests`，不必联网也能复现。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-coteditor-CotEditor.swift — stable + beta ChangelogRecipe（GitHub releases）
+
+转引自 recipe 注释，未复测。
+
+CotEditor — the GitHub source already renders the release it is
+OFFERING (the bodies are structured Markdown: `## Improvements`,
+`## Known Issues`, measured through the source on both rails), so what
+these two add is the rest of the rail: the previous releases in the
+changelog panel.
+
+Measured
+2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease.
+
+All 6 do fit: they
+sit inside the newest 8 releases.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`repos/coteditor/CotEditor/releases?per_page=40` 为 33 个 stable、7 个 prerelease，7 个 prerelease 都在最新 10 条以内。
+
+### Recipes/com-coteditor-CotEditor.swift — stable + beta GitHub rules
+
+转引自 recipe 注释，未复测。
+
+Measured on the 100 newest releases (2026-09-06): 0 drafts, exactly
+three tag shapes — `7.0.9`, `7.1.0-beta`, `7.1.0-beta.6`, no `v` prefix —
+and every one of the 100 carries exactly one asset, `CotEditor_<tag>.dmg`,
+with no other artifact to disambiguate against.
+
+The beta train is CYCLICAL, and that is what shapes this rule: all six
+prereleases in those 100 releases belong to the 7.1.0 cycle that opened
+2026-07-26, and the 94 releases before it — back to 2022-04 — carry
+none.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：最新 40 条里 draft 0 个、每条恰好一个资产 `CotEditor_<tag>.dmg`；tag 形状多了一种：`7.1.0-rc`（prerelease，资产 `CotEditor_7.1.0-rc.dmg`），另有 stable `7.1.0`。

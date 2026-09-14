@@ -57,3 +57,31 @@
 ## 建议下一步
 1. 上游 update2 若公开稳定协议，可替换重定向探测。
 
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/ai-perplexity-comet.swift — stable VendorProbe（下载网关，一键 `.fixed`）
+
+转引自 recipe 注释，未复测。
+
+`.redirect` is out because it HEADs, and this vendor's HEAD answers
+`Location: https://www.example.com?status=ok` (measured 2026-08-29; GET
+on the same URL returns the artifact).
+
+Verified 2026-08-29 by fetching
+the gateway with redirects followed — 313,170,645 B, and the dmg mounts
+as "Comet Installer" carrying a real 710 MB `Comet.app` (not a
+downloader stub like 1Password's): `ai.perplexity.comet` 151.0.7922.247,
+`Developer ID Application: Perplexity AI Inc. (7S8W4W365S)`, spctl
+"accepted / Notarized Developer ID", universal (x86_64 + arm64).
+
+### Recipes/ai-perplexity-comet.swift — stable VendorProbe（cask 的 JSON 更新接口）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`c35e112e`（2026-08-17）。
+
+Comet — the cask's JSON update API is rollout-stale (145.x while the
+public download already contains 151.x), so probing it would report a
+downgrade.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：下载网关 307 的 `Location` 目录是 `152.0.7977.197`；formulae.brew.sh 上 cask `comet` 的 `version` 是 `145.2.7632.4581`。JSON 接口本身没有复查（裸 GET 回 "Query argument browser is required"）。

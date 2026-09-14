@@ -18,7 +18,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   changelog 页"。**（c）**：对照**当前代码**（不是对照日期）已经不成立的——改正或删掉，
   理由写进 PR，**不许当成真话搬进历史**。
 - **以句子为单位。** 以实测为主语的句子（"Measured …"、"Verified …"）整句搬走；契约和实测
-  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面四条先于它：
+  缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面五条先于它：
   - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
     "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
     时可以改（记账 diff 里逐条可见），历史里保留原段落全文；整句原样放回代码的，从历史里删掉，
@@ -33,6 +33,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
     file:line，并写明成立条件。反例：第一版 Windscribe 写"`duo verify` files an installed copy
     under its resolved channel"，没写读不到偏好时（文件缺失、解不出、resolver 超时）那份拷贝仍按
     stable 归档。
+  - **没写日期的数字，先分示例还是现状。** 用来展示格式或形状的（示例）留在代码里、标成示例
+    （"e.g."），比如 Canva 注释里说明 feed 与 bundle 是同一个字符串的 `1.124.0`；断言“现在是怎样”的
+    （现状：条数、“最新是 X”、“N 个条目”）连同引入它的日期搬进历史，代码只留结论，比如 1Password
+    的 "item 1 of 89"。现状数字而契约又依赖它仍然成立的，按（c）处理：复测，或改写成不依赖具体值
+    的说法。
 - **搬完单独重读 Swift 文件。** 不看历史、只读留下的注释：每句仍为真（留下的 "today"、"which it
   is today" 也要核——CapCut 那句 "stable is 9.3.0 — which it is today" 在重读时已经不成立），
   没有悬空的 "see below"、"that"、"the question"。
@@ -43,7 +48,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`，
   下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
   结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
-  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。
+  换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。历史是注释当时的带日期快照，不跟代码同步：
+  它和代码里留下的结论重复是无害的，代码以后变了而历史没跟着变也是预期的，不算漂移。
 - **机器状态**：本目录的 `MACHINE_STATE` 规则同样管搬过来的句子。描述"那台机器装了/没有什么"
   的句子改成针对那份拷贝的说法（"the machine measured on 2026-08-27 had …"），不加豁免。这是
   历史正文里唯一允许的改写，PR 里逐条列出。
@@ -158,7 +164,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**WorkBuddy AI（国际站）**](com-workbuddy-workbuddy-ai.md) · `com.workbuddy.workbuddy-ai` — P (one-click) · 按架构分两条 recipe · changelog 页滞后于自己的轨道（厂商侧）· 共用部分链到国内站那份 · 真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
 - [x] [**Little Snitch**](at-obdev-littlesnitch.md) · `at.obdev.littlesnitch` — P(stable/nightly) C(stable only) · 2 channels，共享 bundle id，channel 词烤进 `CFBundleShortVersionString`（`ReleaseChannel.detect()` 新增 0.7 步）· 端点是 Homebrew cask 自己 livecheck 也在用的 obdev 静态 feed，两 cask 均 `auto_updates` 故原本 `.unknown` · **detection-only**：网络防火墙 + System Extension，一键需要真机红→绿验证才能开 · 未装机审计，从官方 dmg 挂载验证 · 2026-08-29
-- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍在维护的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
+- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍可下载的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
 - [x] [**Windscribe**](com-windscribe-client.md) · `com.windscribe.client`（**不是 cask 写的 `com.windscribe.gui.macos`**）— P(stable/beta/guinea pig) C B · 3 channels，共享 bundle id + `ChannelBinding` · 渠道读的是被 **SimpleCrypt 加密**的 `engineSettings.updateChannel`——密钥是厂商开源仓库里的明文常量，字段排在流的第 4 位、在所有 version 分支之前（真实 plist 对齐，三个取值全验过；当场抓出 qChecksum 写成了 Qt4 版本，往返测试结构上抓不到）· 三轨是**成熟度阶梯**不是平行列车（官方文档 + feed 回放确认），所以 beta recipe 读 `beta:[01]`、gp 读 `[0-2]` 再 `selectHighest` 取 max · stable 走更小的 `ChangeLogs/summary` · 一键**结构性拒绝**（dmg 里只有安装器壳，安装要写 LaunchDaemon + 特权 helper + system extension）· changelog 三轨各一条（非 stable 带 `includesPromotedStable`，正是阶梯语义）——代价是 GitHub 分不出 beta 与 guinea pig，面板会多列另一轨和未公告的构建，已钉成断言 · 五份真实构建 + 真机全链验证 ✓ · 2026-09-07
 
 ## Single-channel — GitHub Releases
@@ -268,6 +274,18 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」）。
 这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。
 
+- [ ] [**LM Studio**](ai-elementlabs-lmstudio.md) · `ai.elementlabs.lmstudio` — 仅迁出历史：`/changelog` 根路径改给 Bionic 的记录
+- [ ] [**MarkEdit**](app-cyan-markedit.md) · `app.cyan.markedit` — 仅迁出历史：universal 与 `-apple-silicon` 两个 dmg 的核对
+- [ ] [**ChatWise**](app-chatwise.md) · `app.chatwise` — 仅迁出历史：changelog 页 SvelteKit 壳的大小
+- [ ] [**Zen Browser**](app-zen-browser-zen.md) · `app.zen-browser.zen` — 仅迁出历史：一键 dmg 的签名核对
+- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值
+- [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
+- [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
+- [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
+- [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳
+- [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
+- [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
+- [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

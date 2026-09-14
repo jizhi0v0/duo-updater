@@ -77,3 +77,46 @@
 
 ## 建议下一步
 - changelog：vendor 官网/更新页结构未查，可后续补 ChangelogRecipe。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-anythingllm.swift — stable VendorProbe（`cdn.anythingllm.com`）
+
+转引自 recipe 注释，未复测。
+
+No Sparkle: the real
+bundle (downloaded and mounted 2026-08-30) carries no `SUFeedURL`, and
+its `app-update.yml` points at a leftover electron-vite TEMPLATE repo
+(`electron-vite/electron-vite-react/releases/download/v0.9.9/`), not a
+working updater.
+
+```
+The
+    pair is published together: on 2026-08-30 both carry the same
+    Last-Modified minute (16:34/16:35, 73 s apart), and the mounted
+    dmg's `CFBundleShortVersionString` equals version.txt exactly.
+```
+
+### Recipes/com-anythingllm.swift — ChangelogRecipe（GitHub releases）
+
+转引自 recipe 注释，未复测。
+
+The notes live in the project's
+GitHub releases, and the two are the SAME numbering: `version.txt`
+answered `1.16.1` on 2026-09-03 and the newest release there is tagged
+`v1.16.1` (bodies run 1.7–10.7 KB).
+
+`docs.anythingllm.com/changelog` is NOT the source: it 404s (checked
+2026-09-03).
+
+### Recipes/com-anythingllm.swift — stable VendorProbe（指向 ChangelogRecipe 的那两句）
+
+转引自 recipe 注释，未复测。代码里这两句与 ChangelogRecipe 注释重复，只留了指向那条 recipe 的一句。
+
+Notes live in the project's GitHub releases, on the SAME numbering as
+`version.txt` (`1.16.1` ↔ `v1.16.1`, 2026-09-03) — see the
+`ChangelogRecipe` for `com.anythingllm`, which parses them natively.
+
+`docs.anythingllm.com/changelog` 404s and is not the page.

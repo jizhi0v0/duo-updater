@@ -4,6 +4,7 @@ enum com_anysphere_sand {
     static let set = AppRecipeSet(
         family: "com-anysphere-sand",
         probes: [
+        // History: docs/app-audits/com-anysphere-sand.md#历史与实测
         // Grok Bot — xAI's product, but built and signed by Anysphere and riding
         // Cursor's release infrastructure, which is why it sits next to Cursor
         // rather than under x.ai: `com.anysphere.sand`, Team DCNK4UB866,
@@ -11,7 +12,7 @@ enum com_anysphere_sand {
         //
         // The app is `sand` on that API — not `grok-bot`, not `grokbot`. The
         // endpoint says so itself: any other name 404s with "Invalid app name -
-        // can only download stable for cursor or sand" (measured 2026-08-29).
+        // can only download stable for cursor or sand".
         //
         // Single channel, and that is the vendor's position rather than an
         // assumption. The bundle's `appNameForTrack` maps three tracks
@@ -28,9 +29,9 @@ enum com_anysphere_sand {
         //     could only be probed by reading a filename.
         //   • `/updates/api/update/darwin-arm64/sand/<installed>/stable`, which
         //     the Homebrew cask's livecheck reads, is the app's own Squirrel feed
-        //     and is CONDITIONAL: it answers `{"url":…,"name":"0.30.0"}` when a
+        //     and is CONDITIONAL: it answers e.g. `{"url":…,"name":"0.30.0"}` when a
         //     newer build exists and **204 with an empty body** when the caller is
-        //     already current (measured 2026-08-29 at 0.0.0 and at 0.30.0). An
+        //     already current. An
         //     empty body is also what a broken endpoint looks like, so probing it
         //     would mean teaching the sweep to read silence as good news.
         //
@@ -44,19 +45,18 @@ enum com_anysphere_sand {
         // also serves Cursor's own builds (`/production/`) and the x64/universal
         // variants of this one. Two prefixes, because the vendor publishes the
         // same artifact under both: the API answers `/grokbot/…`, while the
-        // Homebrew cask's url template builds `/sand/…` — measured 2026-08-29,
-        // both 200 with `application/x-apple-diskimage`. If it ever moves to a
+        // Homebrew cask's url template builds `/sand/…`. If it ever moves to a
         // third the pattern stops matching and the one-click quietly goes away,
         // which is the direction this should fail.
         // `.dmg` and not `.pkg`: Electron with Squirrel.framework, and everything
         // it ships lives inside the bundle (`Contents/Frameworks`,
         // `Contents/Helpers`) — no daemon, no launch agent, nothing under
-        // /Library (checked 2026-08-29).
+        // /Library.
         //
         // No `changelogURL`, and not an oversight: xAI publishes no release notes
         // for this desktop app. The only "changelog" x.ai links is
         // `x.ai/api/changelog`, which is the developer console's, on an unrelated
-        // subject and version scheme (checked 2026-08-29).
+        // subject and version scheme.
         VendorProbeRecipe(
             bundleID: "com.anysphere.sand",
             url: URL(string: "https://api2.cursor.sh/updates/api/download/stable/darwin-arm64/sand")!,

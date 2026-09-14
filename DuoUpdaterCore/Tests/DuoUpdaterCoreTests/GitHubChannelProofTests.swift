@@ -97,9 +97,10 @@ struct GitHubChannelProofTests {
                 + "v0.0.36/T3-Code-0.0.36-arm64.dmg")) != nil)
     }
 
-    /// The alpha proof must be able to fail on the only drift it exists to
-    /// catch: the install pattern loosened enough to swallow the nightly train's
-    /// asset names. A synthetic rule with a `.*` version run exercises the
+    /// The alpha proof must be able to fail on the drift it exists to catch: the
+    /// install pattern loosened enough to swallow another train's asset names
+    /// (nightly here; the later `-preview.` series carries the same kind of
+    /// token). A synthetic rule with a `.*` version run exercises the
     /// registered proof exactly as the runtime would.
     @Test func t3CodeAlphaProofFailsWhenThePatternCanMatchNightlyAssets() {
         let loosened = GitHubReleaseRule(

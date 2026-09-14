@@ -105,8 +105,10 @@ enum com_bytedance_inputmethod_doubaoime {
         //
         // `change_log` is one string of `- `-prefixed lines joined by escaped `\n`,
         // so the item pattern splits on those. NOTE the tail alternative is `|$)`,
-        // NOT the `|\\n?$)` the ChatWise recipe (`Recipes/app-chatwise.swift`) used
-        // before it moved to the `.chatwiseReleases` decoder: `\\n?` means "a literal
+        // NOT the `|\\n?$)` the ChatWise recipe used before it moved to the
+        // `.chatwiseReleases` decoder (the retired pattern is recorded on
+        // `ChangelogRecipe.StructuredFormat.chatwiseReleases` in
+        // `Sources/ChangelogRecipe.swift`): `\\n?` means "a literal
         // backslash, optionally followed by n", which requires the body to END in a
         // backslash and therefore drops the last bullet.
         ChangelogRecipe(

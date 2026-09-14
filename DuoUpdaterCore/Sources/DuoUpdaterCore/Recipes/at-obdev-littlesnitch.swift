@@ -62,8 +62,9 @@ enum at_obdev_littlesnitch {
 
         // Little Snitch, NIGHTLY channel — same bundle id, no separate cask
         // `auto_updates` quirk to work around (the nightly cask is ALSO
-        // `auto_updates: true`), and no in-app preference toggle: the stable
-        // bundle carries zero "nightly" strings anywhere. A Nightly install is
+        // `auto_updates: true`), and no in-app preference toggle: the 6.4.1 stable
+        // bundle carried zero "nightly" strings anywhere (History has how that was
+        // checked). A Nightly install is
         // a completely separate download (`little-snitch@nightly` cask, which
         // `conflicts_with` the stable cask) that happens to keep the SAME bundle id.
         //

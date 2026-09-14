@@ -13,7 +13,9 @@ enum app_yaak_desktop {
         // (CotEditor's and Cline's channel-split pairs are identical), and 20 is a
         // CEILING, not a target: this repo's newest 40 releases are mostly beta, so
         // the stable rail renders fewer than 20 entries while the beta rail fills its
-        // 20 (History has the counts).
+        // 20 (History has the counts). Raising the page to reach 20 stable would
+        // multiply every changelog read, and no changelog recipe here fetches more
+        // than 40 releases.
         //
         // `includesPromotedStable` is deliberately absent (false) on the beta
         // recipe, and this is not the same decision UTM's pair makes. Yaak's beta

@@ -65,7 +65,7 @@ enum com_baidu_BaiduNetdisk_mac {
         // Note the page is a JS shell — its eight `<section>`s ship EMPTY and are
         // filled from `/disk/cmsdata?platform=mac&…`, so it is only good as the
         // human-facing fallback; the parsed notes come from a `ChangelogRecipe`
-        // reading that same endpoint (see `ChangelogRecipeRegistry`). The
+        // reading that same endpoint (the `ChangelogRecipe` below in this file). The
         // `feature_tips` field on THIS response is empty for `mac` and is not it.
         VendorProbeRecipe(
             bundleID: "com.baidu.BaiduNetdisk-mac",
@@ -90,7 +90,8 @@ enum com_baidu_BaiduNetdisk_mac {
         // `/disk/cmsdata?platform=<tab>&page=<n>&num=<n>` — which is the same
         // `/disk/cmsdata` endpoint the version probe reads, on its other calling
         // convention. This recipe reads that endpoint directly; the human page is
-        // what `VendorProbeRegistry`'s `changelogURL` points at for the fallback.
+        // what the `VendorProbeRecipe` above in this file points `changelogURL` at for
+        // the fallback.
         //
         // `num=40` matches `maxEntries`, so the request carries 40 releases rather
         // than the whole list. Newest-first, so no `newestLast`.

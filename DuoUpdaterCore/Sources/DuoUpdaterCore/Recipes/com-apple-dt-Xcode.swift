@@ -12,9 +12,12 @@ enum com_apple_dt_Xcode {
         // The `/tutorials/data/…` twin of that URL is the document the shell
         // fetches, and it carries everything.
         //
-        // One page per release train, and every beta of a train shares its page:
-        // the newest beta's notes sit on top, with each earlier beta below it under
-        // `Updates in Xcode <major> Beta N`. So a beta install and a
+        // One page per release train, shared by every build of that train: the page
+        // title names the newest build, and earlier builds' notes, when the page
+        // keeps them, sit below under `Updates in Xcode <major> Beta N` headings. A
+        // page without such headings (an RC or release page can have none) decodes as
+        // a single entry (`StructuredChangelogDecoder.decodeAppleDeveloperReleaseNotes`).
+        // So a beta install and a
         // released install read the same recipe and differ only in the page the
         // template resolves to — e.g. `26.6` → `xcode-26_6`, `27.0 beta 6` → `xcode-27`.
         // See `appleDocVersionToken(for:)` for why that mapping needs its own token

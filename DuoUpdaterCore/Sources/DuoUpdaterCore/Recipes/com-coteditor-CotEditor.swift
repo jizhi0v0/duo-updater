@@ -18,10 +18,11 @@ enum com_coteditor_CotEditor {
         // STABLE entries — `includesPromotedStable` makes
         // `StructuredChangelogDecoder.decodeGitHubReleases` want every
         // non-prerelease, not only the one that graduates, so the beta rail is
-        // simply the newest 20 releases (e.g. 7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
+        // simply the newest 20 releases, stable and prerelease interleaved (e.g.
+        // 7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, … when this was written).
         // That is the field's existing behaviour and it is what this rail wants —
-        // the copy can be offered any of them — but it is not "the 6 betas", which
-        // is what an earlier version of this comment claimed.
+        // the copy can be offered any of them — but it is not only the prereleases,
+        // which is what an earlier version of this comment claimed.
         //
         // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
         // Yaak's pair (`Recipes/app-yaak-desktop.swift`), and the difference is in the rules, not in taste.

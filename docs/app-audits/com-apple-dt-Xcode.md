@@ -10,6 +10,8 @@
 
 转引自 recipe 注释，未复测。
 
+Xcode — Apple's own release notes, which `XcodeReleasesSource` already
+links per release (`links.notes.url` in `xcodereleases.com/data.json`)
 and which the pane could only ever embed: the `/documentation/…` URL
 serves a 17 KB SPA shell with no note text in it (fetched 2026-09-03).
 
@@ -20,3 +22,5 @@ serves a 17 KB SPA shell with no note text in it (fetched 2026-09-03).
 One page per release train, and every beta of a train shares its page:
 the top of `xcode-27-release-notes` IS beta 6's notes, with each earlier
 beta below it under `Updates in Xcode 27 Beta N`.
+
+复测 2026-09-14（UTC 2026-09-14 00:49，只读 GET）：`xcode-27-release-notes.json` 的 `metadata.title` 是 `Xcode 27 RC Release Notes`，全文没有 `Updates in` 标题（109 个 heading，第一个是 `Overview`）。

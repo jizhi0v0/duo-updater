@@ -142,7 +142,9 @@ enum bot_cline_app {
         // as an entry whose version never changes.
         //
         // `per_page=40` / `maxEntries: 20` is the registry's house shape (Yaak,
-        // CotEditor). Both rails fit inside it.
+        // CotEditor). A rail shows every tag of its own only while those tags number
+        // 20 or fewer among the newest 40 releases; desktop ships often, so the
+        // stable rail can reach that cap.
         //
         // `includesPromotedStable` is absent (false) on the beta recipe, taking
         // Yaak's side of that split rather than CotEditor's, and here the reason is

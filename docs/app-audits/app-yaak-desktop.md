@@ -62,9 +62,11 @@ changelog 的 `maxEntries: 20` 是够不到的上限、不是目标值。这与 
 
 ### Recipes/app-yaak-desktop.swift — stable + beta ChangelogRecipe（GitHub releases）
 
-转引自 recipe 注释，未复测。
+转引自 recipe 注释，未复测。整句保留；其中「Zed and UTM's channel-split pairs are identical」迁移时已不成立（Zed 是 `maxEntries: 15`，UTM 的 beta 是 `maxEntries: 40`），代码里已改。
 
-measured 2026-09-06, the newest 40 releases hold 12 stable
+`per_page=40` with `maxEntries: 20` is the registry's house shape (Zed
+and UTM's channel-split pairs are identical), and 20 is a CEILING, not
+a target: measured 2026-09-06, the newest 40 releases hold 12 stable
 and 28 beta, so the stable rail renders 12 entries and the beta rail
 fills its 20. Raising the page to reach 20 stable would mean fetching
 ~72 releases on every changelog read, which no other entry here does.

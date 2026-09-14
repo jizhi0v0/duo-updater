@@ -39,10 +39,8 @@ enum com_anythingllm {
         //
         // Delta/binary patch: not a Sparkle app and the CDN carries no
         // `.delta`/`.patch` artifacts — nothing to consume.
-        // Notes live in the project's GitHub releases, on the SAME numbering as
-        // `version.txt` (e.g. `1.16.1` ↔ `v1.16.1`, 2026-09-03) — see the
-        // `ChangelogRecipe` for `com.anythingllm`, which parses them natively.
-        // `docs.anythingllm.com/changelog` 404s and is not the page.
+        // Notes: see the `ChangelogRecipe` for `com.anythingllm` below, which parses the
+        // project's GitHub releases natively.
         VendorProbeRecipe(
             bundleID: "com.anythingllm",
             url: URL(string: "https://cdn.anythingllm.com/latest/version.txt")!,

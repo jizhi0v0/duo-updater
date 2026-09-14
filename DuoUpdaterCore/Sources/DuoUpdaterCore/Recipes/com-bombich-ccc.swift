@@ -8,10 +8,11 @@ enum com_bombich_ccc {
         // Carbon Copy Cloner — THREE separately downloadable major-version
         // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc` under
         // the same Team `L4F2DED5Q7`. Bombich keeps
-        // all three downloadable (bombich.com/download lists
-        // `?v=ccc5`/`?v=ccc6`/`?v=ccc7` as live download links alongside
-        // `?v=latest`, which is a permanent alias for whichever is newest —
-        // currently ccc7) and crossing generations is a PAID upgrade, not a free
+        // all three downloadable (`download_ccc.php` answers `?v=ccc5`, `?v=ccc6` and
+        // `?v=ccc7`, plus `?v=latest`, a permanent alias for whichever generation is
+        // newest; bombich.com/download links the CCC 5 and 6 downloads and says their
+        // development ceased when CCC 6 and CCC 7 shipped) and crossing generations is
+        // a PAID upgrade, not a free
         // update: "We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5,
         // please purchase a CCC 6 license" (bombich.com/en/kb/ccc/6). CCC 7 also
         // requires Ventura+ (bombich.com/download's own compatibility table),
@@ -59,9 +60,10 @@ enum com_bombich_ccc {
         //
         // `versionPattern` is anchored to major 7 for the same reason, as a second
         // independent guard: if Bombich ever repoints `?v=ccc7` (or drops it), an
-        // `ccc-8.…` filename fails to match and the probe reports nothing rather
-        // than a cross-generation version. Failing closed here is right — a recipe
-        // that goes quiet shows up in the nightly `duo verify` sweep, a recipe
+        // `ccc-8.…` filename fails to match and the probe fails (`ProbeFailed`, a
+        // Failed row) rather than reporting a cross-generation version. Failing closed
+        // here is right — a recipe that fails shows up in the nightly `duo verify`
+        // sweep, a recipe
         // that reports a paid upgrade as a point release does not. The captured
         // marketing version matches the bundle's `CFBundleShortVersionString`
         // exactly (e.g. `7.1.6`, with `8368` matching `CFBundleVersion`), and CCC
@@ -108,9 +110,12 @@ enum com_bombich_ccc {
         // beta (CCC 7) — same bundle id, opted into from
         // CCC's own Settings → Software Update → "Inform me of beta releases".
         // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as stable
-        // to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`). It can also answer
-        // with the plain stable zip, which `versionPattern` does not match, so the
-        // probe then reports nothing. Marketing matches the probed capture group
+        // to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`) while a beta is on
+        // offer. It also answers with the plain stable zip, likely whenever none is
+        // (between beta cycles), and `versionPattern` does not match that: the probe
+        // throws `ProbeFailed` (`VendorProbeSource`), so the row shows a failed check
+        // and `duo verify` reports the recipe as failing. Marketing matches the probed
+        // capture group
         // exactly, so `versionIsBuild` stays the default `false`, same as
         // stable.
         //
@@ -130,8 +135,8 @@ enum com_bombich_ccc {
         // `versionPattern` — major 7,
         // same as stable's — is the only guard available here, and it fails closed:
         // the first CCC 8 beta produces an `ccc-8.…-b<N>.…zip` filename this
-        // pattern does not match, so the probe reports nothing (and surfaces in the
-        // nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
+        // pattern does not match, so the probe fails (a Failed row, and a finding in
+        // the nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
         //
         // No `install`, same reasoning as stable — the privileged-helper
         // footprint applies equally to both channels. `installedVersionPattern`
@@ -164,7 +169,7 @@ enum com_bombich_ccc {
         // so the same pattern applies, anchored to major 6 the way CCC 7's is to
         // major 7 — a per-generation endpoint that ever answered with another
         // generation's file would be a vendor-side change, and this recipe should
-        // go quiet and get triaged rather than quietly report it.
+        // fail and get triaged rather than quietly report it.
         //
         // `installedVersionPattern` pins this to CCC 6 — without it this recipe
         // and CCC 7's would both match a CCC 6 install (nothing else

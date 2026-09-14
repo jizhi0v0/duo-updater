@@ -763,6 +763,13 @@ same check.
 1. ...
 ```
 
+When the app's recipe family has moved history, the audit ends with `## 历史与实测`,
+which holds dated measurements, incidents and rejected approaches
+(`docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). The heading and the
+`// History:` pointer in `Recipes/<family>.swift` come as a pair:
+`check_app_audits.py` fails a heading no pointer points at, and a pointer whose
+doc has no such heading.
+
 ---
 
 ## § Persisting audit results
@@ -789,6 +796,9 @@ Every audit produces a document. This keeps documentation in sync with code.
 **When to update:**
 - After any integration change (new recipe, new channel, fix)
 - The skill should check if a doc exists and update it, not create a duplicate
+- A recipe change that comes with measurements: append them under `## 历史与实测`
+  in the **family's** doc (`<family>` = the recipe filename; one family, one doc)
+  and keep only the contract in the comment
 
 **Index**: maintain `docs/app-audits/README.md` as a one-line-per-app index:
 ```markdown

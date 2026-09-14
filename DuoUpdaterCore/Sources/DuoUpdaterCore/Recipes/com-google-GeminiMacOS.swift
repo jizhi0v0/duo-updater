@@ -30,7 +30,7 @@ enum com_google_GeminiMacOS {
             url: URL(string: "https://update.googleapis.com/service/update2/json")!,
             mode: .responseBody,
             versionPattern: #""manifest":\{"version":"([0-9][0-9.]*)""#,
-            downloadURL: URL(string: "https://gemini.google.com/download"),
+            downloadURL: URL(string: "https://gemini.google/desktop/"),
             install: VendorInstallSpec(
                 // The manifest splits the download in two: a list of CDN bases
                 // and the package name. Join Google's own host with the name.

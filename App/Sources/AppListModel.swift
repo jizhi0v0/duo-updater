@@ -5266,10 +5266,11 @@ final class AppListModel {
         retractRestartNote(result.id, from: &restartWontQuitNotes)
         let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
-            // Not running: the staged swap applies on the app's own next quit, not
-            // on demand from us. Leave the badge; a later check clears it once the
-            // app itself applies the update.
-            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — ShipIt applies on its own next quit")
+            // Not running: the staged swap applies on the app's own next quit (or,
+            // for a swap-on-launch updater, its next open), not on demand from us.
+            // Leave the badge; a later check clears it once the app itself applies
+            // the update.
+            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — its updater applies it on its own")
             return
         }
         let wasFrontmost = AppRestarter.isFrontmost(running)
@@ -5279,24 +5280,33 @@ final class AppListModel {
         // on Amp 2026-08-28, where this spun its full 900 ticks (189 s) and
         // reported `applied=false` for a swap that had already succeeded.
         let old = result.app.versionSide
-        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
+        // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
+        // swap on quit and must not be reopened early. See `StagedApplyTrigger`.
+        let appliesOnLaunch = pendingSelfUpdate[result.id]?.appliesOn == .launch
+        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)")
         for app in running { app.terminate() }
 
-        // Wait for the updater: with all instances quit it swaps the (large) bundle,
-        // then relaunches. Success = on-disk version advances past `old`. We
-        // deliberately do NOT reopen while waiting — that's what made ShipIt abort.
+        // Wait for the updater. Success = on-disk version advances past `old`.
         //
-        // Two phases with very different patience:
+        // Swap-on-quit (ShipIt, Sparkle): with all instances quit it swaps the
+        // bundle, then relaunches. We deliberately do NOT reopen while waiting —
+        // that's what made ShipIt abort. Two phases with very different patience:
         //  • Until it actually quits: short. If it's still up after a few seconds a
         //    save prompt is blocking the quit — bail and leave it staged.
-        //  • Once quit: long. Applying a big update (e.g. Spotify extracting a 161MB
-        //    .tbz and replacing its whole app bundle) takes a while, and a busy or
-        //    slow disk stretches it further — so be patient rather than dropping the
-        //    spinner mid-swap and looking stuck.
+        //  • Once quit: long. Replacing a whole app bundle takes a while, and a busy
+        //    or slow disk stretches it further — so be patient rather than dropping
+        //    the spinner mid-swap and looking stuck.
+        //
+        // Swap-on-launch (Spotify): same quit phase, then launch at once — waiting
+        // for disk first is exactly what spun the full 180 s on 2026-09-14 and only
+        // landed when the timeout's fallback reopened it. After the launch the
+        // swap took ~2 s; `postLaunchTicks` is a generous ceiling, not a guess at it.
         let quitGraceTicks = 25   // ~5s to actually quit (else a save prompt is up)
         let maxTicks = 900        // up to ~180s for a slow swap on a busy disk
+        let postLaunchTicks = 150 // ~30s from our launch to the swap landing
         var applied = false
         var everQuit = false
+        var launchedAtTick: Int?
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
             if RelaunchProgress.hasLanded(
@@ -5306,8 +5316,20 @@ final class AppListModel {
                 applied = true
                 break
             }
+            if let launchedAtTick {
+                // Launched; the old build now quits by itself while its relauncher
+                // swaps, so an empty instance list here is progress, not a failure
+                // to relaunch. The fallback below covers one that never comes back.
+                guard tick - launchedAtTick < postLaunchTicks else { break }
+                continue
+            }
             if AppRestarter.runningInstances(of: result.app).isEmpty {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
+                if appliesOnLaunch {
+                    Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) quit — launching it to apply the staged build")
+                    await relaunchAfterSwap(result.app, activates: wasFrontmost)
+                    launchedAtTick = tick
+                }
             } else if !everQuit && tick >= quitGraceTicks {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. But giving up
@@ -5320,7 +5342,7 @@ final class AppListModel {
                 if let staged = pendingSelfUpdate[result.id] {
                     quitHandoffs[result.id] = QuitHandoff(
                         result: result,
-                        landing: .stagedSwap(to: staged.versionSide),
+                        landing: .staged(staged),
                         // Its quit dialog is up right now, which usually means it
                         // holds the front spot even if it didn't when we started.
                         activates: wasFrontmost
@@ -5342,6 +5364,13 @@ final class AppListModel {
         // where a launch fails: we may be racing a swap that's still rewriting the
         // bundle, and LaunchServices can't open one mid-write. A single dropped
         // `false` here left the app closed with nothing else watching.
+        if launchedAtTick != nil {
+            // The disk read can see the swap a beat before the updater's own open
+            // of the new build registers — don't race it into a second launch.
+            for _ in 0..<15 where AppRestarter.runningInstances(of: result.app).isEmpty {
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+        }
         if AppRestarter.runningInstances(of: result.app).isEmpty {
             await relaunchAfterSwap(result.app, activates: wasFrontmost)
         }
@@ -5430,7 +5459,8 @@ final class AppListModel {
         relaunching.insert(handoff.result.id)
         pinRowOrder()
         defer { relaunching.remove(handoff.result.id); releaseRowOrder() }
-        var landed = !handoff.landing.waitsForDisk  // `.applied` has nothing to wait for
+        // `.applied` has nothing to wait for; `.stagedOnLaunch` waits after the launch.
+        var landed = !handoff.landing.waitsForDisk && !handoff.landing.landsAfterLaunch
         if handoff.landing.waitsForDisk {
             Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the swap to land")
             for _ in 0..<900 {  // same patience as `relaunchStagedUpdate`'s swap wait (~180s)
@@ -5448,7 +5478,8 @@ final class AppListModel {
                 }
             }
         }
-        guard landed || handoff.landing.launchesWithoutLanding else {
+        guard landed || handoff.landing.launchesWithoutLanding
+                || handoff.landing.landsAfterLaunch else {
             // The swap never landed (or disk never reached the version this marker
             // was armed for). Launching now could race a still-working updater, and
             // the marker's promise was specifically "that staged build" — so leave
@@ -5468,6 +5499,18 @@ final class AppListModel {
         }
         Log.app.info("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
         let relaunched = await relaunchAfterSwap(app, activates: handoff.activates)
+        if handoff.landing.landsAfterLaunch && relaunched {
+            // Our launch is what applies it (Spotify); the swap follows within
+            // seconds. Same ceiling as `relaunchStagedUpdate`'s post-launch wait.
+            for _ in 0..<150 {
+                try? await Task.sleep(for: .milliseconds(200))
+                if handoff.landing.isSatisfied(byDisk: await Self.readVersionSideOffMain(app.path)) {
+                    landed = true
+                    break
+                }
+            }
+            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) launched to apply — landed=\(landed, privacy: .public)")
+        }
         if landed {
             // The update this hand-off was armed for is on disk after all, so a red
             // "timed out" note left by the attempt that gave up is no longer true.
@@ -6374,8 +6417,9 @@ final class AppListModel {
             // `hasUpdate`, and a staged row has none — so they'd otherwise sit
             // untouched after "Update All". Relaunching them can't collide with the
             // batch: the installs are done, and the app's own updater does the swap
-            // on quit (we don't reopen). Scoped to the same `autoRestartAfterUpdate`
-            // opt-in as the restart loop above, since it quits running apps.
+            // (on quit, or for Spotify on the reopen `relaunchStagedUpdate` does).
+            // Scoped to the same `autoRestartAfterUpdate` opt-in as the restart
+            // loop above, since it quits running apps.
             for result in results where actionableStaged(result) != nil {
                 if Task.isCancelled { break }
                 await relaunchStagedUpdate(result)

@@ -176,7 +176,7 @@ struct DiagnosticsSettingsPage: View {
 private struct HelperStatusRow: View {
     @ObservedObject var helper: PrivilegedHelperClient
     /// nil until asked. "Switched on" and "actually answers" are different things —
-    /// updating Duo Updater leaves the previous copy of the helper holding the
+    /// updating DuoUpdater leaves the previous copy of the helper holding the
     /// slot — and until you press Check there is no way to see which one you have
     /// short of an update failing.
     @State private var answering: Bool?

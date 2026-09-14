@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Duo Updater's own version and self-update check — separate from the managed
+/// DuoUpdater's own version and self-update check — separate from the managed
 /// app list, which is what the rest of the window is about.
 struct UpdatesSettingsPage: View {
     /// Mirrors Sparkle's `automaticallyDownloadsUpdates` for the toggle. Seeded in

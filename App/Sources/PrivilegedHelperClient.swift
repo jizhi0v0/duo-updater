@@ -78,7 +78,7 @@ final class PrivilegedHelperClient: ObservableObject {
             // A refusal is not proof of a damaged record. macOS also refuses while
             // a background item exists but sits switched OFF, and there the switch
             // — not a system-wide reset — is the whole cure: reported 2026-08-23,
-            // register() was refused and turning Duo Updater on by hand in Login
+            // register() was refused and turning DuoUpdater on by hand in Login
             // Items fixed it outright. `status` does not separate the two cases, so
             // open the pane for both; on the damaged one that costs a window.
             if Self.isRefusal(error) || status == .requiresApproval { openLoginItems() }

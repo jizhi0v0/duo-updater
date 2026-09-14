@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Duo Updater app icon — a stylized Siamese cat ("Duo", the owner's cat).
+"""DuoUpdater app icon — a stylized Siamese cat ("Duo", the owner's cat).
 
 Front-facing color-point Siamese head: cream face, dark seal points on the
 ears + muzzle mask, vivid blue almond eyes. Pure SVG paths/gradients so

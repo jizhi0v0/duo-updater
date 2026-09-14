@@ -6,8 +6,8 @@ import Foundation
 /// A new setting that lands in the middle of a Settings window nobody reopens is
 /// a setting nobody finds. The dot is the smallest thing that fixes that — but it
 /// is only honest if it means "new **to you**", which is why this carries the
-/// version it shipped in rather than a bare "unseen" flag: a user installing Duo
-/// Updater for the first time must not be greeted with dots on features that are
+/// version it shipped in rather than a bare "unseen" flag: a user installing
+/// DuoUpdater for the first time must not be greeted with dots on features that are
 /// simply part of the app they just met.
 public struct SettingsSpotlight: Sendable, Hashable, Identifiable {
     /// Stable identifier, persisted once acknowledged. Never reuse one for a

@@ -2,7 +2,7 @@
 # Run once; launchd schedules this every 300 seconds.
 #
 # Records when Claude's GA redirect and rollout endpoint begin advertising a
-# release. Keeping this independent of Duo Updater's own decision path lets the
+# release. Keeping this independent of DuoUpdater's own decision path lets the
 # resulting timeline distinguish an upstream ramp from a late local observation.
 #
 # A proxy is required on the machine this probe was written for:

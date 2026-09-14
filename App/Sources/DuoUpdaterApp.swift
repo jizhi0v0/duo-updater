@@ -14,7 +14,7 @@ struct DuoUpdaterApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        // First-run onboarding: grant the permissions Duo Updater needs up front
+        // First-run onboarding: grant the permissions DuoUpdater needs up front
         // instead of discovering them mid-update. Auto-opened once by `MenuBarLabel`;
         // re-openable from Settings → Permissions → "Run Setup Again…".
         Window("Welcome to DuoUpdater", id: WelcomeView.windowID) {
@@ -67,7 +67,7 @@ struct DuoUpdaterApp: App {
         .defaultSize(width: 1000, height: 780)
         .windowResizability(.contentMinSize)
 
-        // Duo Updater's own release notes. Its own window, like the Release Log,
+        // DuoUpdater's own release notes. Its own window, like the Release Log,
         // so it survives the popover dismissing — you open it from the menu and
         // then the menu goes away.
         Window("What's New", id: SelfChangelogView.windowID) {

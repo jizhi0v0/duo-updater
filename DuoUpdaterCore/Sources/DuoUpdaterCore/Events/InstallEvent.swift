@@ -1,7 +1,7 @@
 import Foundation
 import CryptoKit
 
-/// One update Duo Updater downloaded and installed: which app, from which
+/// One update DuoUpdater downloaded and installed: which app, from which
 /// version to which, over which source, and what it cost.
 ///
 /// The permanent half of the ledger. A ``RequestEvent`` says a socket carried

@@ -9,7 +9,7 @@ import Foundation
 /// version doesn't move between builds. WeChat DevTools is the canonical case: since
 /// its 2.02 Electron rewrite every build reports `CFBundleShortVersionString`
 /// `36.6.0` (the Electron runtime), so `2.02.a → 2.02.b` looks identical on both
-/// sides and no restart is ever detected. Duo Updater's own scan sees the real
+/// sides and no restart is ever detected. DuoUpdater's own scan sees the real
 /// version (it reads the app's `package.json`), but the running process only ever
 /// tells `lsappinfo` `36.6.0`.
 ///
@@ -31,7 +31,7 @@ public enum PackageRestartState: Sendable, Equatable {
     case settled
 
     /// - Parameters:
-    ///   - onDiskVersion: the app's CURRENT on-disk version as Duo Updater's OWN scan
+    ///   - onDiskVersion: the app's CURRENT on-disk version as DuoUpdater's OWN scan
     ///     reads it (which sees the real version even when `Info.plist` is frozen).
     ///   - stagedVersion: the version the handed-off package installs.
     ///   - stagedAt: when the package was handed to macOS's installer.

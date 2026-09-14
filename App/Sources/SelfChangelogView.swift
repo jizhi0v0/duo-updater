@@ -1,7 +1,7 @@
 import SwiftUI
 import DuoUpdaterCore
 
-/// Duo Updater's own release notes — the one changelog the app could show you and
+/// DuoUpdater's own release notes — the one changelog the app could show you and
 /// didn't. Every other app in the list has a Release Notes pane; this one is ours.
 ///
 /// The notes are the repository's `CHANGELOG.md`, fetched rather than bundled.

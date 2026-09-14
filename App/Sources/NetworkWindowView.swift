@@ -3,7 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 import DuoUpdaterCore
 
-/// Everything Duo Updater put on the network, in one window with two tabs.
+/// Everything DuoUpdater put on the network, in one window with two tabs.
 ///
 /// **Downloads** is the per-app ledger: what each update cost as a file on disk.
 /// **Requests** is the log itself: every fetch, filterable.

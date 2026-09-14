@@ -1,6 +1,6 @@
 import Foundation
 
-/// Which file Duo Updater's own release notes should be read from for the
+/// Which file DuoUpdater's own release notes should be read from for the
 /// language the app is running in, and how a translation that covers only part of
 /// the history is folded onto the English original.
 ///

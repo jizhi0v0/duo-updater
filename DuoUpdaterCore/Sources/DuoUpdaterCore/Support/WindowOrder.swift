@@ -29,7 +29,7 @@ public struct WindowInfo: Sendable, Equatable {
 /// than assumed from having asked for it.
 ///
 /// This exists because ordering a window front is a *request*, and with the Dock
-/// icon hidden — `.accessory`, Duo Updater's default — the first one is refused.
+/// icon hidden — `.accessory`, DuoUpdater's default — the first one is refused.
 /// Logged from the shipped app, opening the workbench from the popover's row menu,
 /// four consecutive times with no variation:
 ///

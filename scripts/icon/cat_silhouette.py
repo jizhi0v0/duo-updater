@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a cute cat-head silhouette icon concept for Duo Updater."""
+"""Generate a cute cat-head silhouette icon concept for DuoUpdater."""
 
 import math
 import os

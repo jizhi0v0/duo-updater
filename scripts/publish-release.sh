@@ -969,7 +969,7 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
 EOF
 
 # The "What's New" window reads CHANGELOG.md in English and, for anyone running
-# Duo Updater in another language, substitutes `changelog/<lang>.md` version by
+# DuoUpdater in another language, substitutes `changelog/<lang>.md` version by
 # version (see SelfChangelogLocalization). A version those files don't cover falls
 # back to English — deliberately, so a translation being behind can never truncate
 # the history or hold up a release. The cost of that choice is that nothing fails

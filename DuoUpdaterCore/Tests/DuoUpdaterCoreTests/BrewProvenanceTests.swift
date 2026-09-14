@@ -49,8 +49,12 @@ import Foundation
 
 private func catalog(with entry: CaskEntry, appFilename: String) -> HomebrewCaskCatalog {
     HomebrewCaskCatalog(testIndex: CaskIndex(
-        byAppFilename: [appFilename.lowercased(): entry],
-        allByBundleID: [:]
+        allByAppFilename: [appFilename.lowercased(): [entry]],
+        allByBundleID: [:],
+        // Pinned, not `HostOS.numericVersion()`: neither fixture entry carries a
+        // `depends_on.macos`, but a defaulted host would make that a property of
+        // the machine running the suite rather than of the fixture.
+        hostOSVersion: "26.0.0"
     ))
 }
 

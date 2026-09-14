@@ -1,0 +1,243 @@
+[
+  {
+    "token": "carbon-copy-cloner",
+    "full_token": "carbon-copy-cloner",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Carbon Copy Cloner"
+    ],
+    "desc": "Hard disk backup and cloning utility",
+    "homepage": "https://bombich.com/",
+    "url": "https://bombich.download/ccc-7.2.8399.zip",
+    "url_specs": {},
+    "version": "7.2,8399",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "92911b5893709784f063e8b1bdb99fb2f2410d1999b4b21f7ad1a1ba1cab7180",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": [
+              "com.bombich.ccc",
+              "com.bombich.cccuseragent"
+            ],
+            "login_item": "CCC User Agent"
+          }
+        ]
+      },
+      {
+        "app": [
+          "Carbon Copy Cloner.app"
+        ],
+        "target": "/Applications/Carbon Copy Cloner.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "/Library/LaunchDaemons/com.bombich.ccchelper.plist",
+              "~/Library/Application Support/com.bombich.ccc",
+              "~/Library/Caches/com.bombich.ccc",
+              "~/Library/HTTPStorages/com.bombich.ccc",
+              "~/Library/Preferences/com.bombich.ccc.plist",
+              "~/Library/Preferences/com.bombich.cccuseragent.plist",
+              "~/Library/Saved Application State/com.bombich.ccc.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "13"
+        ]
+      }
+    },
+    "conflicts_with": {
+      "cask": [
+        "carbon-copy-cloner@6"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "9c0825f65b0cb1723a0eec8cf882cdf2ed10cd16",
+    "languages": [],
+    "ruby_source_path": "Casks/c/carbon-copy-cloner.rb",
+    "ruby_source_checksum": {
+      "sha256": "8e4552d32b44e715d103755b8c8e1081b47ebdb952278c466a5b87c6e0c29674"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura"
+    ],
+    "analytics": {
+      "install": {
+        "30d": {
+          "carbon-copy-cloner": 119
+        },
+        "90d": {
+          "carbon-copy-cloner": 575
+        },
+        "365d": {
+          "carbon-copy-cloner": 2477
+        }
+      }
+    },
+    "generated_date": "2026-09-14"
+  },
+  {
+    "token": "carbon-copy-cloner@6",
+    "full_token": "carbon-copy-cloner@6",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Carbon Copy Cloner 6"
+    ],
+    "desc": "Hard disk backup and cloning utility",
+    "homepage": "https://bombich.com/",
+    "url": "https://bombich.scdn1.secure.raxcdn.com/software/files/ccc-6.1.13.7699.zip",
+    "url_specs": {},
+    "version": "6.1.13.7699",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "680b7934773385f9a012953dd6578b15f58c080140a51ce6fd002787556914bd",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": [
+              "com.bombich.ccc",
+              "com.bombich.cccuseragent"
+            ],
+            "login_item": "CCC User Agent"
+          }
+        ]
+      },
+      {
+        "app": [
+          "Carbon Copy Cloner.app"
+        ],
+        "target": "/Applications/Carbon Copy Cloner.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "/Library/LaunchDaemons/com.bombich.ccchelper.plist",
+              "~/Library/Application Support/com.bombich.ccc",
+              "~/Library/Caches/com.bombich.ccc",
+              "~/Library/Preferences/com.bombich.ccc.plist",
+              "~/Library/Preferences/com.bombich.cccuseragent.plist",
+              "~/Library/Saved Application State/com.bombich.ccc.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "carbon-copy-cloner"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "9c0825f65b0cb1723a0eec8cf882cdf2ed10cd16",
+    "languages": [],
+    "ruby_source_path": "Casks/c/carbon-copy-cloner@6.rb",
+    "ruby_source_checksum": {
+      "sha256": "0e1fe3ba1c874e22a7add04e5eb42d912a24ab4bae27fc8c5ccd1128f5b8c5c6"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ],
+    "analytics": {
+      "install": {
+        "30d": {
+          "carbon-copy-cloner@6": 6
+        },
+        "90d": {
+          "carbon-copy-cloner@6": 21
+        },
+        "365d": {
+          "carbon-copy-cloner@6": 89
+        }
+      }
+    },
+    "generated_date": "2026-09-14"
+  }
+]

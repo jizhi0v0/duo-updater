@@ -195,3 +195,66 @@ duo verify --only cline
 1. 无待办。两轨检测 + 一键 + changelog 均已接入并验证。
 2. 若将来要 Release Log 的历史回填,再评估换 `GitHubReleaseRule`——代价写在上面,
    `listPageSize` 至少要按 beta 的实测最坏间隔 23 行来定。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/bot-cline-app.swift — stable + beta VendorProbe（Tauri `latest.json`）
+
+转引自 recipe 注释，未复测。
+
+So a probe here resolves the same build Cline's own updater would
+install, for everyone on that track. Tauri's manifest is static — no
+device id, no rollout bucket — so "newest on the track" and "the build
+allocated to this machine" are the same object, and the vendor's own
+download button (cline.bot/desktop, measured 2026-09-12, links
+`…/desktop-v0.0.26/Cline_0.0.26_universal.dmg`) hands over that same
+release by hand.
+
+`/releases/latest` therefore
+answers with whichever product shipped last; it returns
+`desktop-v0.0.26` today only because desktop shipped 2026-09-11 and the
+other three last shipped 2026-09-02.
+
+These two manifests are 7,847
+and 2,525 bytes and DO serve `Last-Modified` (measured the same day).
+
+Mounted both real disk images
+(2026-09-12): stable is `bot.cline.app` / `0.0.26`, beta is
+`bot.cline.app.beta` / `0.0.23-beta.1`, both short and build version
+fields identical per copy (hence no `versionIsBuild`), both
+`LSMinimumSystemVersion` 10.13, both universal (x86_64 + arm64), both
+`spctl` accepted as Notarized Developer ID under Team 6F2AYU54ZH.
+
+Both tarballs were downloaded and unpacked
+2026-09-12: each holds exactly one `.app` at the archive root, notarized,
+Team 6F2AYU54ZH.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`repos/cline/cline/releases/latest` 答 `desktop-v0.0.27`。
+
+### Recipes/bot-cline-app.swift — beta VendorProbe（`downloadURL`）
+
+转引自 recipe 注释，未复测。
+
+NOT cline.bot/desktop, which the stable recipe uses: that page
+publishes only the stable dmg and the Windows exe (measured
+2026-09-12 — a scan for any beta artifact URL returns nothing),
+while it mentions the word "beta" in prose.
+
+### Recipes/bot-cline-app.swift — stable + beta ChangelogRecipe（GitHub releases，`tagPattern`）
+
+转引自 recipe 注释，未复测。
+
+Both rails fit inside it today: 13 stable and 6 beta.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`per_page=40` 那一页里 `^desktop-v…$` 14 条、`^desktop-v…-beta.N$` 6 条。
+
+### Recipes/bot-cline-app.swift — beta channel proof（`Cline-Beta_`）
+
+转引自 recipe 注释，未复测。
+
+Verified against the live manifest 2026-09-12 —
+the resolved URL was
+`…/desktop-v0.0.23-beta.1/Cline-Beta_0.0.23-beta.1_universal.app.tar.gz`,
+and the stable manifest's URL matches neither half.

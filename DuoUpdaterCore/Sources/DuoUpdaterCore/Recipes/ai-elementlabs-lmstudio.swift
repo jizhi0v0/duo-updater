@@ -4,6 +4,7 @@ enum ai_elementlabs_lmstudio {
     static let set = AppRecipeSet(
         family: "ai-elementlabs-lmstudio",
         probes: [
+        // History: docs/app-audits/ai-elementlabs-lmstudio.md#历史与实测
         // LM Studio — official version endpoint (same one Homebrew livecheck
         // uses). Compares on marketing version; build suffix is ignored.
         VendorProbeRecipe(
@@ -35,13 +36,11 @@ enum ai_elementlabs_lmstudio {
         // its parent line — cosmetically fine, and a miss just falls back to the
         // embedded page.
         //
-        // 2026-08-09: the bare `/changelog` root is NOT this app's changelog any
-        // more — Element Labs repurposed it for **Bionic**, a different product
-        // ("Bionic Changelog | LM Studio", entries `bionic-v1.0.6` /
-        // `<span class="sr-only">Bionic 1.0.6</span>`). LM Studio itself is still on
-        // the 0.4.x train (`versions-prod.lmstudio.ai` says 0.4.20) and its notes
-        // moved to `/changelog/lmstudio`, with the per-version slug nested one level
-        // deeper. Chasing the rebrand by matching `bionic-v` would have shown Bionic
+        // The bare `/changelog` root is NOT this app's changelog: Element Labs
+        // repurposed it for **Bionic**, a different product (entries `bionic-v…`),
+        // and LM Studio's notes live at `/changelog/lmstudio`, with the per-version
+        // slug nested one level deeper (History has when that changed). Chasing the
+        // rebrand by matching `bionic-v` would have shown Bionic
         // 1.0.x notes to an LM Studio 0.4.x install, so the fix is the new URL plus
         // an href that tolerates both the nested and the old flat slug. The literal
         // `LM Studio ` in the sr-only span is the guard that keeps Bionic entries

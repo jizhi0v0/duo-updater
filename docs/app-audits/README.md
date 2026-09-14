@@ -268,6 +268,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」）。
 这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。
 
+- [ ] [**LM Studio**](ai-elementlabs-lmstudio.md) · `ai.elementlabs.lmstudio` — 仅迁出历史：`/changelog` 根路径改给 Bionic 的记录
+- [ ] [**MarkEdit**](app-cyan-markedit.md) · `app.cyan.markedit` — 仅迁出历史：universal 与 `-apple-silicon` 两个 dmg 的核对
+- [ ] [**Zen Browser**](app-zen-browser-zen.md) · `app.zen-browser.zen` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

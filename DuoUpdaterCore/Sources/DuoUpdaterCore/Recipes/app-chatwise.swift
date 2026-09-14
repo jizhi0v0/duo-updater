@@ -4,7 +4,8 @@ enum app_chatwise {
     static let set = AppRecipeSet(
         family: "app-chatwise",
         probes: [
-        // ChatWise — Squirrel releases endpoint; array of versions, take highest.
+        // ChatWise — Squirrel releases endpoint: a newest-first array of versions, read
+        // first-match (no `selectHighest`), so the first entry is the one reported.
         VendorProbeRecipe(
             bundleID: "app.chatwise",
             url: URL(string: "https://releases.chatwise.app/releases?version=0.0.0&platform=osx")!,

@@ -11,6 +11,7 @@ enum cc_ffitch_shottr {
         // app's CFBundleShortVersionString. A `betaLatestVersion` also lives in the
         // body — the `"latestVersion"` anchor can't match the `"betaLatestVersion"`
         // key (different literal prefix), so a stable install is never offered the
+        // beta build.
         // One-click: the same JSON's `"package"` is the stable `Shottr-<ver>.pkg`.
         // Anchor to `"package"` (leading quote) so it never matches `"betaPackage"`
         // — a stable install is never handed the EAP pkg. (Shottr self-updates via

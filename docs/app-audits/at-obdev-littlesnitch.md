@@ -120,3 +120,46 @@ Mozilla 的 `aN`/`bN`/`esr` 形状,是空格 + 括号构建号）,`ReleaseChanne
    两个 recipe 加 `install:`。
 2. 如果之后需要迁移掉 `littlesnitch6.plist`（主版本号硬编码,或 obdev 撤下该端点）,需要抓包
    真实 `Little Snitch Software Update.app` 对 `software-update.php` 发出的请求,确认参数形状。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/at-obdev-littlesnitch.swift — stable VendorProbe（`littlesnitch6.plist` 的 `final` 条目）
+
+转引自 recipe 注释，未复测。
+
+VERSION SCHEME, verified against the real mounted stable bundle
+(2026-08-29): the feed's `final` entry's `BundleVersion` ("7212") is
+byte-identical to the installed `CFBundleVersion`, and its
+`BundleShortVersionString` ("6.4.1") matches `CFBundleShortVersionString`
+too — so a plain marketing compare would also work for THIS entry, but
+`versionIsBuild` is used anyway to share one comparison basis with the
+nightly recipe below, where the feed's short-version field does NOT
+match the installed bundle.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`littlesnitch6.plist` 的 `final` 条目现在是 `BundleShortVersionString` `6.5` / `BundleVersion` `7303`，`nightly` 条目是 `6.5` / `7301`，两条都是 `InstallationMechanism` `ReplaceBundle`。
+
+### Recipes/at-obdev-littlesnitch.swift — nightly VendorProbe（同一 feed 的 `nightly` 条目）
+
+转引自 recipe 注释，未复测。
+
+Little Snitch, NIGHTLY channel — same bundle id, no separate cask
+`auto_updates` quirk to work around (the nightly cask is ALSO
+`auto_updates: true`), and no in-app preference toggle: the stable
+6.4.1 bundle carries zero "nightly" strings anywhere (grepped the
+whole mounted `.app`, 2026-08-29). A Nightly install is a completely
+separate download (`little-snitch@nightly` cask, which
+`conflicts_with` the stable cask) that happens to keep the SAME bundle
+id — confirmed both from the nightly cask's own `uninstall quit:
+"at.obdev.littlesnitch"` line and directly, by mounting the
+6.5-nightly-(7301) dmg and reading its Info.plist.
+
+CHANNEL SIGNAL: unlike every other same-bundle-id app in this
+registry, Object Development bakes the channel word straight into the
+installed `CFBundleShortVersionString` itself — "6.5 nightly (7301)",
+confirmed against the real mounted nightly bundle (not just the feed).
+
+No `changelogURL`: obdev's public release-notes page
+(`releasenotes6.html`, used above) covers stable only — it has no
+mention of "nightly" anywhere (checked 2026-08-29)

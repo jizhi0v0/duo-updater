@@ -4,6 +4,7 @@ enum ai_perplexity_comet {
     static let set = AppRecipeSet(
         family: "ai-perplexity-comet",
         probes: [
+        // History: docs/app-audits/ai-perplexity-comet.md#历史与实测
         // Comet — the cask's JSON update API is rollout-stale (145.x while the
         // public download already contains 151.x), so probing it would report a
         // downgrade. The official stable download GET redirects to a signed R2 URL
@@ -16,8 +17,7 @@ enum ai_perplexity_comet {
         // signed URL the probe just resolved, and deliberately not `.redirect`.
         //
         // `.redirect` is out because it HEADs, and this vendor's HEAD answers
-        // `Location: https://www.example.com?status=ok` (measured 2026-08-29; GET
-        // on the same URL returns the artifact).
+        // `Location: https://www.example.com?status=ok`.
         //
         // Templating the resolved signed URL would "work" and then rot: every
         // install URL is resolved at CHECK time and stored on the row until the
@@ -46,12 +46,8 @@ enum ai_perplexity_comet {
         // artifact come from one document at PROBE time and from two moments at
         // install time.
         //
-        // Verified 2026-08-29 by fetching
-        // the gateway with redirects followed — 313,170,645 B, and the dmg mounts
-        // as "Comet Installer" carrying a real 710 MB `Comet.app` (not a
-        // downloader stub like 1Password's): `ai.perplexity.comet` 151.0.7922.247,
-        // `Developer ID Application: Perplexity AI Inc. (7S8W4W365S)`, spctl
-        // "accepted / Notarized Developer ID", universal (x86_64 + arm64).
+        // The dmg the gateway serves holds the real `Comet.app`, not a downloader
+        // stub like 1Password's (History has the verification).
         VendorProbeRecipe(
             bundleID: "ai.perplexity.comet",
             url: Self.cometStableGateway,

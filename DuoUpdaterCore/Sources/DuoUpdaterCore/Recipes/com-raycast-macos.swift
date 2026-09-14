@@ -34,10 +34,11 @@ enum com_raycast_macos {
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.raycast.com/"),
-            // /changelog now serves the V2 notes; the v1 archive moved to
-            // /changelog/macos ("Raycast - macOS V1 Changelog"). This is the page
-            // a v1 user's notes actually live on, so it is the one linked here.
-            changelogURL: URL(string: "https://www.raycast.com/changelog/macos"),
+            // /changelog and /changelog/macos both serve the V2 notes; the v1
+            // archive is /changelog/macos-v1 ("Raycast - macOS V1 Changelog",
+            // checked 2026-09-14). This is the page a v1 user's notes actually
+            // live on, so it is the one linked here.
+            changelogURL: URL(string: "https://www.raycast.com/changelog/macos-v1"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""downloadURL"\s*:\s*"(https://[^"]+)""#),
                 kind: .dmg),
@@ -88,9 +89,8 @@ enum com_raycast_macos {
         changelogs: [
         // Raycast v2 — www.raycast.com/changelog, server-rendered (the full notes
         // are in the initial HTML; no hydration step to chase). Since v2 shipped
-        // this URL is the **v2** macOS changelog and the v1 archive moved to
-        // /changelog/macos — the opposite of what the paths suggest, and the reason
-        // this recipe points at the bare /changelog.
+        // this URL is the **v2** macOS changelog, as is /changelog/macos; the v1
+        // archive is /changelog/macos-v1 (checked 2026-09-14).
         //
         // Both trains keep the one bundle id and the one `.stable` channel, so the
         // pair is separated by a version window instead — and this recipe is the
@@ -146,11 +146,17 @@ enum com_raycast_macos {
             maxEntries: 20,
             imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
 
-        // Raycast v1 archive — /changelog/macos, the page titled "Raycast - macOS
+        // Raycast v1 archive — /changelog/macos-v1, the page titled "Raycast - macOS
         // V1 Changelog". Byte-for-byte the same component as the v2 page above, so
         // the patterns are the same three strings; only `source` and the version
-        // window differ. Verified against the live page 2026-08-27: 10 entries,
+        // window differ. Verified against the live page 2026-09-14: 10 entries,
         // 1.104.0 back to 1.95.0, all parsing.
+        //
+        // The archive has moved twice: to /changelog/macos when v2 took over
+        // /changelog, then here once /changelog/macos became a second copy of the
+        // v2 page, which this recipe went on
+        // parsing cleanly — v2 notes for v1 installs. `duo verify` now fails a
+        // windowed recipe any of whose entries fall outside its window.
         //
         // The window is `[1, 2)`, and the LOWER bound is the load-bearing half: a
         // bare `belowAppVersion: "2"` would also swallow the 0.63–0.71 v2 beta
@@ -164,7 +170,7 @@ enum com_raycast_macos {
         // through 2.0.3.0 share one note.)
         ChangelogRecipe(
             bundleID: "com.raycast.macos",
-            source: URL(string: "https://www.raycast.com/changelog/macos")!,
+            source: URL(string: "https://www.raycast.com/changelog/macos-v1")!,
             entryPattern:
                 #"<span id="(?<version>[0-9][0-9.]*)"></span>.*?"#
                 + #"changelogDate">(?<date>[^<]+)</span>.*?"#

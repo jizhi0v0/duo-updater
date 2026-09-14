@@ -86,7 +86,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   which keeps only General + Code and groups them under New / Improved / Fixed
     ///   headings the way the in-app "What's new" does. Notes already cached were one
     ///   unheaded list that also carried Cowork and "No user-facing changes." lines.
-    public static let parserGeneration = 5
+    /// - 6: Raycast's v1 recipe moved its `source` to `/changelog/macos-v1`. The old
+    ///   path had turned into a copy of the v2 page, so notes already cached for a
+    ///   1.104.x install are the 2.x train's.
+    public static let parserGeneration = 6
 
     public let entries: [Entry]
 

@@ -233,7 +233,7 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// across two trains that are BOTH stable.
     ///
     /// Raycast is the case in hand. `www.raycast.com/changelog` became the v2 notes
-    /// when v2 shipped and the v1 archive moved to `/changelog/macos` — same markup,
+    /// when v2 shipped, and the v1 archive now lives at `/changelog/macos-v1` — same markup,
     /// different history — while both trains keep the one bundle id
     /// `com.raycast.macos` and the one `.stable` channel. Without a version window
     /// a 1.104.x install would be shown the 2.x notes.

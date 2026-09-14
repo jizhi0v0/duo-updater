@@ -496,9 +496,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-09-14T08:25:21Z",
+      "lastGoodAt" : "2026-09-14T09:16:05Z",
       "lastGoodEntryCount" : 10,
-      "lastGoodVersion" : "2.3",
+      "lastGoodVersion" : "1.104.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.readdle.pdfexpert-mac:-" : {

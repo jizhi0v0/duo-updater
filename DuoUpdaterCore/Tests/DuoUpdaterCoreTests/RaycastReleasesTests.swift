@@ -225,7 +225,7 @@ private let raycastChangelogFixture = #"""
         #expect(try changelogRecipe().source.absoluteString
             == "https://www.raycast.com/changelog")
         #expect(try v1ChangelogRecipe().source.absoluteString
-            == "https://www.raycast.com/changelog/macos")
+            == "https://www.raycast.com/changelog/macos-v1")
         // The two trains' numbers are NOT two contiguous halves of a line: v1 runs
         // 1.95–1.104, while v2 ran 0.63–0.71 in beta before jumping to 2.0 at GA.
         // So the archive claims exactly [1, 2) and the v2 page takes everything
@@ -238,7 +238,7 @@ private let raycastChangelogFixture = #"""
         for v in ["1.104.25", "1.104.0", "1.99.0", "1.0"] {
             #expect(ChangelogRecipeRegistry.recipe(
                 forBundleID: "com.raycast.macos", version: v)?.source.absoluteString
-                == "https://www.raycast.com/changelog/macos", "\(v) should read the archive")
+                == "https://www.raycast.com/changelog/macos-v1", "\(v) should read the archive")
         }
     }
 
@@ -253,7 +253,7 @@ private let raycastChangelogFixture = #"""
         #expect(catchAll.source.absoluteString == "https://www.raycast.com/changelog")
         #expect(catchAll.covers(appVersion: "1.104.25"))   // it does not exclude 1.x…
         #expect(ChangelogRecipeRegistry.scoped(group, toVersion: "1.104.25")
-            .map(\.source.absoluteString) == ["https://www.raycast.com/changelog/macos"])
+            .map(\.source.absoluteString) == ["https://www.raycast.com/changelog/macos-v1"])
     }
 
     /// With no version in hand the lookup must still answer, and answer with the

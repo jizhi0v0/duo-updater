@@ -83,9 +83,18 @@ recipe 正是在维护这条前置条件，而不是绕过它。
 ## Changelog
 
 - 来源: `https://www.raycast.com/changelog` — ChangelogRecipe（HTML 正则），服务端渲染。
-- **路径是反直觉的**：v2 上线后 `/changelog` 就是 **v2** 的 macOS changelog，
-  v1 存档移到了 `/changelog/macos`（页面标题 "Raycast - macOS V1 Changelog"）。
-  v1 recipe 的 `changelogURL` 已相应改指 `/changelog/macos`。
+- **路径是反直觉的**：v2 上线后 `/changelog` 就是 **v2** 的 macOS changelog。
+  v1 存档**搬过两次**：先在 `/changelog/macos`，后来那条路径也变成了 v2 页
+  （2026-09-14 实测：`<title>` 是 "Raycast - macOS Changelog"，10 条 `2.3` … `0.66`，
+  与 `/changelog` 相同），存档移到 `/changelog/macos-v1`（"Raycast - macOS V1 Changelog"，
+  10 条 `1.104.0` … `1.95.0`，v1 `entryPattern` 全部解析）。
+  v1 的 ChangelogRecipe `source` 和 v1 probe 的 `changelogURL` 都指 `/changelog/macos-v1`。
+- **第二次搬家没有任何东西报出来**：`[1, 2)` recipe 在变成 v2 页的 `/changelog/macos` 上
+  解析得干干净净，1.104.x 用户看到的是 2.x 的 notes；`duo verify` 的滞后检查只管
+  「最新条目落后于检测版本」，2.3 领先于 1.104.x，于是 `verify/baseline.json` 里这条的 `lastGoodVersion`
+  在 `6d60b3c7`（2026-08-28）从 `1.104.0` 变成 `2.1`，之后一路记到 `2.3`，一直是 ✓。
+  现在 `duo verify` 对声明了版本窗口的 recipe 检查**每一条**解析出的条目都在窗口内，
+  否则报 `entriesOutsideVersionWindow`。
 - 版本标签是厂商自己的 **minor 训**（"2.0"、"0.71"），app 报的是四段 build（2.0.6.0）。
   这不是要修的错位：Raycast 一个 minor 出一份 notes、下面挂多个 build。
   JSON API 从另一侧印证了这点 —— `/releases` 列表里 2.0.6.0 / 2.0.5.0 / 2.0.4.0 / 2.0.3.0
@@ -95,9 +104,8 @@ recipe 正是在维护这条前置条件，而不是绕过它。
     返回**逐字节相同**的 body（2026-08-27 三次复测稳定），且给的是某条 release 的
     **Windows 版**文案，而它的 macOS 双胞胎内容不同。
   - `/releases/latest?platform=macos` 平台是对的，但只有一条 release，没有历史。
-- 已知局限：ChangelogRecipe 按 bundleID 索引，两条 train 共用一个 id 且同为 `.stable`，
-  所以**没法给 v1 用户单独挂 v1 存档页的解析**；v1 用户会看到 v2 的 notes 列表
-  （`changelogURL` 指向对了，正文解析仍走 /changelog）。v1 人群随时间收缩，暂不为此加机制。
+- 两条 train 共用一个 bundle id 且同为 `.stable`，所以靠**版本窗口**分开：v1 存档 recipe
+  声明 `[1, 2)`，v2 recipe 不声明窗口、接住其余（包括 0.63–0.71 的 v2 beta）。
 
 ## 一键安装
 
@@ -121,6 +129,7 @@ recipe 正是在维护这条前置条件，而不是绕过它。
 ## 建议下一步
 
 1. 无。检测（两 train）、changelog、一键安装均已接入并对真实端点验证通过：
-   `duo verify --only raycast` → vendor ✓2 / changelog ✓1 / ✗0 ⚠0。
+   `duo verify --only raycast` → vendor ✓2 / changelog ✓2 / ✗0 ⚠0（2026-09-14，
+   v1 存档 recipe 读到 `1.104.0`、10 条；v2 读到 `2.3`、10 条）。
 2. 观察点：v1 train 停更那天，`vendor:com.raycast.macos:stable:v1` 会开始报
    `remoteBehindInstalled` 之类的 advisory —— 那是把 v1 recipe 退役的信号，不是故障。

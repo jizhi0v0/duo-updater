@@ -59,7 +59,7 @@ MAS 版 **App Store**（`MacAppStoreSource`，通用逻辑）。商店副本只�
    ```
    scanned: com.daisydiskapp.DaisyDiskStandAlone 4.34.2/4.34.2 mas=false feed=https://daisydiskapp.com/downloads/appcastFeed.php edKey=false
    result:  source=Sparkle latest=4.34.2/4.34.2 url=https://daisydiskapp.com//download/DaisyDisk.zip edSig=false status=upToDate canAutoInstall=true
-   gate2-4 (SignatureVerifier.verifyInstallArtifact): PASS
+   gate2-4 (SignatureVerifier.verifyInstallArtifact): PASS（下载的 bundle 同时充当"已装副本"传入，Team / bundle id 比较是自己比自己，只实际验到签名有效与架构 / OS 下限）
    ```
 6. **MAS 版是独立 bundle id、独立构建**（Pattern A）。adamId `411643860`（首次审计经 `mas search` 得到）；
    2026-09-14 iTunes lookup 该 id 返回 `bundleId: com.daisydiskapp.DaisyDisk`（没有 `StandAlone` 后缀）、
@@ -104,7 +104,8 @@ appcast 原文），防止改动通用 Sparkle 管线时把这个 app 静默带�
   "没有专属 recipe"，没看 `UpdatePolicy.canAutoInstall` 对 Sparkle 结果的通用分支。）
 - 走的是**无 EdDSA 公钥**的分支（代码注释里叫 unsigned feed，这里 feed 其实带旧式 DSA 签名）：bundle 没有 `SUPublicEDKey`，所以不做 EdDSA；enclosure 是 zip，
   `canAutoInstall` 为 true。信任由 code signature + 同 Team + 同 bundle id 闸承担
-  （`SparkleInstaller` 注释里写的 Fork 那种情况），这几道闸在真实下载上通过（上面第 5 步）。
+  （`SparkleInstaller` 注释里写的 Fork 那种情况）。第 5 步只验到真实下载的签名有效；**下载与一份独立的
+  已装副本之间 Team / bundle id 是否一致没有量过**——而这条分支的信任恰恰全靠它。
   feed 里的 `dsaSignature` 我们不校验。
 - 未做的：没有在真机上把一个旧版本真正装回新版本（端到端）。
 
@@ -122,5 +123,5 @@ appcast 原文），防止改动通用 Sparkle 管线时把这个 app 静默带�
 # codesign -dvv → TeamIdentifier=4CBU3JHV97；spctl -a -vv --type execute → Notarized Developer ID
 # GET https://itunes.apple.com/lookup?id=411643860 → com.daisydiskapp.DaisyDisk 4.34.1
 # swift test --filter DaisyDiskCoverageTests（DuoUpdaterCore）
-# 临时测试同 coconutBattery 那份：→ source=Sparkle, canAutoInstall=true；verifyInstallArtifact PASS
+# 临时测试同 coconutBattery 那份：→ source=Sparkle, canAutoInstall=true；verifyInstallArtifact PASS（自己比自己，Team 闸未真正比对）
 ```

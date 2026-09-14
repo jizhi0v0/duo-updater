@@ -55,7 +55,7 @@ MAS → Xcode → **Sparkle** → HomebrewCask → GitHub →（有 license 时 
    ```
    scanned: com.coconut-flavour.coconutBattery 4.4.0/265 mas=false feed=https://coconut-flavour.com/updates/coconutBattery_4.xml edKey=true
    result:  source=Sparkle latest=4.4.0/265 url=https://www.coconut-flavour.com/downloads/coconutBattery_440_265.zip edSig=true status=upToDate canAutoInstall=true
-   gate2-4 (SignatureVerifier.verifyInstallArtifact): PASS
+   gate2-4 (SignatureVerifier.verifyInstallArtifact): PASS（下载的 bundle 同时充当"已装副本"传入，Team / bundle id 比较是自己比自己，只实际验到签名有效与架构 / OS 下限）
    ed25519 (SignatureVerifier.verifyEdSignature, 下载的 zip 字节 + bundle 的 SUPublicEDKey + feed 的 edSignature): PASS
    ```
 
@@ -70,12 +70,13 @@ MAS → Xcode → **Sparkle** → HomebrewCask → GitHub →（有 license 时 
 
 ## Channel 详情
 
-同一份 feed 用 `<sparkle:channel>` 标签分轨（Pattern C），但 **beta 条目只在 beta 周期内出现**：
+同一份 feed 用 `<sparkle:channel>` 标签分轨（Pattern C）。beta 条目两次观测结果不同：
 
 - 2026-08-29：feed 里有一条 `<sparkle:channel>beta</sparkle:channel>`（`4.4.0b`，build `260`，
   2026-08-28）加一条无 channel 标签的 stable 条目。
 - 2026-09-14：feed 只剩两条，**都没有 channel 标签**——`4.4.0` / `265`（2026-09-09）和
-  `4.3.3` / `218`（2026-06-13）。那条 beta 已经转正成 4.4.0，beta 条目随之撤掉。
+  `4.3.3` / `218`（2026-06-13）。看起来像那条 beta 转正成了 4.4.0、beta 条目随之撤掉，
+  但只有两次快照，**这是推断**，不足以说明这个 vendor 的 beta 条目怎么发、何时撤。
 
 `SparkleAppcastSource` 通用地按"已装版本落在 feed 哪个 item"推断当前 channel，
 理论上 beta 用户不需要新代码。但这条**从没在真实 beta 安装上验证过**，而且现在 feed 里
@@ -101,8 +102,8 @@ MAS → Xcode → **Sparkle** → HomebrewCask → GitHub →（有 license 时 
 - **状态: 通用 Sparkle 路径已经提供，无需新代码。**（首次审计写的是"未实现"——那是错的：
   它只看了"没有专属 recipe"，没看 `UpdatePolicy.canAutoInstall` 对 Sparkle 结果的通用分支。）
 - 走的是**签名 feed** 分支：bundle 有 `SUPublicEDKey`、条目有 `edSignature`、enclosure 是 zip，
-  `canAutoInstall` 为 true（上面探针的输出）。安装时的 EdDSA 闸与 code signature / Team / bundle id
-  闸在真实下载上都通过。
+  `canAutoInstall` 为 true（上面探针的输出）。EdDSA 闸在真实下载上通过；code signature 闸只验到
+  签名有效，Team / bundle id 是拿下载的 bundle 自己比自己，**没有对一份独立的已装副本量过**。
 - 未做的：没有在真机上把一个旧版本真正装回新版本（端到端）。
 - 读的是 feed 的最新 stable 条目，也就是 vendor 自己的 Sparkle 更新会推给用户的同一个包；
   这个 feed 没有灰度/按设备分配的迹象。
@@ -125,9 +126,9 @@ coconutBattery Plus **不是独立 app / 独立 bundle id**，是同一个 `coco
 ## 如何复验
 ```
 # GET https://formulae.brew.sh/api/cask/coconutbattery.json → 4.4.0,265, auto_updates=true
-# GET https://coconut-flavour.com/updates/coconutBattery_4.xml → 顶部 4.4.0/265，无 sparkle:channel（beta 周期外）
+# GET https://coconut-flavour.com/updates/coconutBattery_4.xml → 顶部 4.4.0/265，无 sparkle:channel
 # 下载 coconutBattery_440_265.zip，ditto -x -k 解包 → com.coconut-flavour.coconutBattery 4.4.0/265，SUFeedURL 同上，有 SUPublicEDKey
 # codesign -dvv → TeamIdentifier=R5SC3K86L5；spctl -a -vv --type execute → Notarized Developer ID
 # 临时测试：AppScanner(locations: [解包目录]) + UpdateChecker(sources: SourceStack.make(githubToken: nil))
-#   → source=Sparkle, canAutoInstall=true；verifyInstallArtifact PASS；verifyEdSignature PASS
+#   → source=Sparkle, canAutoInstall=true；verifyInstallArtifact PASS（自己比自己）；verifyEdSignature PASS
 ```

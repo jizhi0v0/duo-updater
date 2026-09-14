@@ -25,6 +25,7 @@ test:
 	python3 scripts/test_app_test_coverage.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
+	swift build --package-path application-test
 	@scripts/app-tests.sh
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py

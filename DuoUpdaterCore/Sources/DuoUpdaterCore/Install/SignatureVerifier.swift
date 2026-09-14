@@ -21,8 +21,11 @@ import Security
 /// and a downgrade must fail with gate 5's "cannot launch" message (the more
 /// severe, still-true problem), not gate 5b's "this would run translated" (which
 /// implies it launches). Like gate 5, it never sees the pkg route: `newApp`
-/// there is handed straight to Installer.app, so `PackageInstaller` stays
-/// gated on signature + Team ID only, same as gate 5. See issue #196.
+/// there is handed straight to Installer.app, so there is no bundle to read the
+/// Mach-O slices out of. See issue #196. Gate 6 is different — it needs only a
+/// plist, which `PackageInstaller` reads out of the payload, so that route does
+/// run it (#639). `PackageInstaller`'s own header carries the one table of which
+/// gates that route runs; do not restate the list here.
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -298,8 +301,9 @@ public enum SignatureVerifier {
     /// Scope: this covers the two routes that swap in a bundle *we* picked by
     /// filename — VendorInstaller and SparkleInstaller. The pkg route
     /// (`PackageInstaller`) hands the file to Installer.app and never sees an
-    /// .app to read, so it stays gated on signature + Team ID only; Homebrew and
-    /// the Mac App Store pick their own architecture and need no gate here.
+    /// .app to read the slices out of — see its header for which gates it does
+    /// run; Homebrew and the Mac App Store pick their own architecture and need
+    /// no gate here.
     static func executableArchitectures(ofAppAt url: URL) -> Set<Int> {
         guard let bundle = Bundle(url: url),
               let archs = bundle.executableArchitectures else { return [] }
@@ -462,8 +466,21 @@ public enum SignatureVerifier {
         ofAppAt appURL: URL, fileManager: FileManager = .default
     ) -> String? {
         let plistURL = BundleLayout.infoPlistURL(for: appURL, fileManager: fileManager)
+        guard let data = try? Data(contentsOf: plistURL) else { return nil }
+        return declaredMinimumSystemVersion(inInfoPlist: data)
+    }
+
+    /// The same rule, over `Info.plist` bytes that never became a bundle on disk.
+    ///
+    /// `PackageInstaller` reads its payload's plist straight out of the package's
+    /// cpio archive, so it has the bytes and no bundle. Split out rather than
+    /// re-derived there: the iPhoneOS decline above and the trim/empty handling
+    /// below are the gate's rule, and a second copy of them is exactly the
+    /// detection-time/install-time divergence `HostOS`'s doc comment warns about.
+    /// Accepts XML and binary plists alike — `PropertyListSerialization` sniffs
+    /// the format, and a payload's plist is routinely binary.
+    static func declaredMinimumSystemVersion(inInfoPlist data: Data) -> String? {
         guard
-            let data = try? Data(contentsOf: plistURL),
             let plist = try? PropertyListSerialization
                 .propertyList(from: data, format: nil) as? [String: Any]
         else { return nil }

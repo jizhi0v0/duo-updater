@@ -36,6 +36,24 @@ import Darwin
 /// post-install architecture verification or automatic architecture rollback.
 /// Architecture compatibility on this route remains dependent on the vendor's
 /// package and system installer; it is not a DuoUpdater architecture guarantee.
+///
+/// ## Which `SignatureVerifier` gates this route runs, as of #639
+///
+/// | Gate | pkg route |
+/// | --- | --- |
+/// | 1 EdDSA over the download | caller's `verifyDownload` (Sparkle only) |
+/// | 2 code signature | **no** — `pkgutil --check-signature` on the package instead |
+/// | 3 Team ID match | yes, against the package's Developer ID Installer cert |
+/// | 4 bundle identifier match | **no** — replaced by the destination check below |
+/// | 5 runnable architecture | **no** (#205, above) |
+/// | 5b architecture downgrade | **no** (#205, above) |
+/// | 6 runnable system version | **yes**, `verifyPayloadSystemVersion` below |
+///
+/// Gate 6 used to be absent here too, and the note above said nothing about it —
+/// so a pkg declaring an `LSMinimumSystemVersion` above this Mac installed to
+/// completion, was reported as a success, and then would not launch. It now runs
+/// the gate against the payload's own plist, through the same
+/// `SignatureVerifier.canRun(minimumSystemVersion:on:)` the `.app` routes use.
 public actor PackageInstaller {
 
     /// The final hand-over keeps its integrity check and `NSWorkspace.open` in one
@@ -46,8 +64,12 @@ public actor PackageInstaller {
     /// Test seam for the package gate. Production always uses `verifyOpenable`;
     /// tests can substitute a deterministic byte-level gate.
     private let packageGate: (@Sendable (URL, URL) async throws -> Void)?
+    /// What gate 6 compares the payload's floor against. A parameter rather than
+    /// a `ProcessInfo` read inside the gate, so a test can pin "this Mac" without
+    /// its answer depending on the machine it runs on (CLAUDE.md).
+    private let osVersion: String
 
-    public init() {
+    public init(osVersion: String = HostOS.numericVersion()) {
         self.handOff = { url, finalIntegrityCheck in
             try await MainActor.run {
                 // No suspension is allowed between this lightweight metadata
@@ -58,17 +80,20 @@ public actor PackageInstaller {
             }
         }
         self.packageGate = nil
+        self.osVersion = osVersion
     }
 
     init(
         opener: @escaping @Sendable (URL) async -> Void,
-        packageGate: (@Sendable (URL, URL) async throws -> Void)? = nil
+        packageGate: (@Sendable (URL, URL) async throws -> Void)? = nil,
+        osVersion: String = HostOS.numericVersion()
     ) {
         self.handOff = { url, finalIntegrityCheck in
             try finalIntegrityCheck()
             await opener(url)
         }
         self.packageGate = packageGate
+        self.osVersion = osVersion
     }
 
     public enum PackageError: LocalizedError {
@@ -80,6 +105,7 @@ public actor PackageInstaller {
         case packageTeamIdentifierMismatch(installed: String, package: String)
         case packageDestinationMismatch(installed: String, destinations: [String])
         case packageDestinationsUnreadable
+        case packageRequiresNewerSystem(required: String, host: String)
 
         public var errorDescription: String? {
             switch self {
@@ -97,6 +123,8 @@ public actor PackageInstaller {
                 return "This package installs to \(destinations.joined(separator: ", ")), not to \(installed). Refusing to install."
             case .packageTeamIdentifierMismatch(let installed, let package):
                 return "Installer Team Identifier mismatch: installed “\(installed)” vs package “\(package)”. Refusing to open it."
+            case .packageRequiresNewerSystem(let required, let host):
+                return "This installer package requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
             }
         }
     }
@@ -551,6 +579,23 @@ public actor PackageInstaller {
         }
 
         let target = installedApp.resolvingSymlinksInPath().standardizedFileURL.path
+        try Self.verifyDestination(target: target, destinations: destinations)
+
+        // Gate 6, the last thing before the package is eligible to be handed over.
+        // Ordered after the destination check on purpose: it reads the payload,
+        // which is the expensive part of this gate, and a package that is not even
+        // for this app should be refused for that reason and without paying it.
+        try await verifyPayloadSystemVersion(toOpen, installedApp: installedApp)
+    }
+
+    /// The package must write to the app being updated. Split out of
+    /// `verifyOpenable` so its three accept/refuse paths are one expression the
+    /// gate that follows cannot be skipped by — each of them used to `return`
+    /// straight out of the gate, which is how a check appended after them would
+    /// silently not run for two of the three.
+    static func verifyDestination(
+        target: String, destinations: Set<String>
+    ) throws {
         guard !destinations.contains(target) else { return }
 
         // The same app kept somewhere other than `/Applications` is still the same
@@ -583,6 +628,156 @@ public actor PackageInstaller {
         throw PackageError.packageDestinationMismatch(
             installed: target,
             destinations: destinations.sorted())
+    }
+
+    // MARK: Gate 6 on the pkg route
+
+    /// Refuse a package whose payload app declares an OS floor above this Mac.
+    ///
+    /// The comparison is `SignatureVerifier.canRun(minimumSystemVersion:on:)` and
+    /// the value read is `LSMinimumSystemVersion` — the same rule, from the same
+    /// source, as gate 6 on the `.app` routes. Never a second implementation: a
+    /// detection-time and an install-time gate that disagree by a patch component
+    /// produce an update offered forever that fails at the last step every time
+    /// (see `HostOS` and `RowActionState`).
+    ///
+    /// Fails OPEN on everything it cannot read — no payload, no plist for this
+    /// app, a compression `tar` does not decode. That matches gate 6's own
+    /// posture (`canRun` returns true for a nil floor) and it is the only honest
+    /// default here: this gate exists to catch a package we can PROVE is wrong
+    /// for the machine, and a pkg route that started refusing whatever it could
+    /// not parse would break installs that work today.
+    nonisolated func verifyPayloadSystemVersion(
+        _ pkg: URL, installedApp: URL
+    ) async throws {
+        let appName = installedApp.deletingPathExtension().lastPathComponent
+        let declared = await Self.payloadMinimumSystemVersion(pkg, appName: appName)
+        guard !SignatureVerifier.canRun(minimumSystemVersion: declared, on: osVersion) else {
+            if declared == nil {
+                Log.install.info(
+                    "gate 6 (pkg) no floor read from \(pkg.lastPathComponent, privacy: .public) — allowing")
+            }
+            return
+        }
+        // Non-nil here: `canRun` calls a nil floor runnable by definition.
+        throw PackageError.packageRequiresNewerSystem(
+            required: declared ?? "?", host: osVersion)
+    }
+
+    /// The `LSMinimumSystemVersion` the package's payload declares for `appName`,
+    /// or nil when the package does not yield one.
+    ///
+    /// The route the header rejects for the architecture gate — `pkgutil
+    /// --expand-full`, or anything else that unpacks the payload to disk — is
+    /// rejected here for the same reason, and the measurements are this file's
+    /// own: on the real 66 MB UU Remote 4.35.0 package, 2026-09-15,
+    /// `--expand-full` took 0.53 s and left **154 MB** on disk. What runs instead
+    /// costs the extracted `Payload` member and nothing more: `xar -xf` copies it
+    /// out as stored (0.10 s, 66 MB — the member is already compressed, so `xar`
+    /// does not recompress), then `tar` reads the cpio archive *through* its
+    /// decompressor twice without ever writing the expansion down — 0.20 s to
+    /// list, 0.20 s to print the one plist. The member is removed immediately.
+    ///
+    /// **Streaming and stopping early would buy nothing, which is worth knowing
+    /// before optimising this.** Measured on that same package: the app's
+    /// `Info.plist` is entry **189 of 190**, at byte 160,919,634 of the
+    /// 160,923,136-byte decompressed stream — 99.998% of the way in. A cpio
+    /// payload has no index; the plist is wherever the archiver put it, and here
+    /// that is the end.
+    ///
+    /// `tar` is `/usr/bin/tar`, i.e. libarchive, which sniffs both the container
+    /// (cpio `odc`, which is what both `pkgbuild` and that vendor package ship)
+    /// and gzip. **Not measured: a `pbzx`-wrapped payload**, which Apple's own
+    /// installers use and which libarchive does not decode. No such package was
+    /// available to test against — none of the 16 pkg recipes was downloaded for
+    /// this change. Such a payload lands on the fail-open path above.
+    ///
+    /// Runs twice per hand-over, like every other invariant in this gate — the
+    /// preliminary pass must refuse before `beforeOpen` retires the user's open
+    /// Installer window, and the final pass must re-establish it after. That is
+    /// the same shape the two content seals already have (the file is hashed
+    /// whole twice, deliberately), and one expansion is released before the next
+    /// begins, so peak disk is one `Payload`, not two.
+    static func payloadMinimumSystemVersion(_ pkg: URL, appName: String) async -> String? {
+        let listing = await Self.runCapturing("/usr/bin/xar", ["-tf", pkg.path])
+        guard listing.code == 0 else { return nil }
+        let payloads = listing.output
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { $0 == "Payload" || $0.hasSuffix("/Payload") }
+        guard !payloads.isEmpty else { return nil }
+
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory
+            .appendingPathComponent("duo-pkg-osfloor-\(UUID().uuidString)", isDirectory: true)
+        guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
+        else { return nil }
+
+        var found: String?
+        for name in payloads {
+            guard let member = Self.scratchMember(named: name, under: scratch) else { continue }
+            if await Self.runCapturing(
+                "/usr/bin/xar", ["-xf", pkg.path, name], cwd: scratch).code == 0,
+               let plistMember = await Self.payloadPlistMember(in: member, appName: appName) {
+                let body = await Self.runCapturingBytes(
+                    "/usr/bin/tar", ["-xOf", member.path, plistMember])
+                if body.code == 0 {
+                    found = SignatureVerifier.declaredMinimumSystemVersion(
+                        inInfoPlist: body.output)
+                }
+            }
+            // A `Payload` runs to hundreds of megabytes, so its removal is off the
+            // cooperative pool — and it happens before the next component is
+            // extracted, not at the end of the loop.
+            await removeItemOffCooperativePool(at: member)
+            if found != nil { break }
+        }
+        await removeItemOffCooperativePool(at: scratch)
+        return found
+    }
+
+    /// Where `xar` will put the member called `name`, or nil if that is not
+    /// inside `scratch`.
+    ///
+    /// The member NAME comes out of the package, and the loop above deletes the
+    /// file it resolves to — so a name containing `..` would let a package choose
+    /// what gets removed. `declaredDestinations` extracts by name too and needs
+    /// no such guard, because it only ever removes the whole scratch directory;
+    /// do not read its shape as saying this one is unnecessary.
+    static func scratchMember(named name: String, under scratch: URL) -> URL? {
+        let member = scratch.appendingPathComponent(name).standardizedFileURL
+        let base = scratch.standardizedFileURL.path
+        guard member.path.hasPrefix(base + "/") else { return nil }
+        return member
+    }
+
+    /// The cpio member holding `appName`'s own `Info.plist`, or nil.
+    private static func payloadPlistMember(in payload: URL, appName: String) async -> String? {
+        let members = await Self.runCapturing("/usr/bin/tar", ["-tf", payload.path])
+        guard members.code == 0 else { return nil }
+        return Self.plistMember(inPayloadListing: members.output, appName: appName)
+    }
+
+    /// Pick `<appName>.app/Contents/Info.plist` out of a payload listing.
+    ///
+    /// Suffix-matched on the whole tail rather than by name alone: a payload's
+    /// paths are relative to the component's `install-location`, which varies
+    /// (`./Applications/Foo.app/…` for a root-installing package, `./Contents/…`
+    /// for one whose payload root is the bundle itself), so there is no prefix to
+    /// anchor on. Matching the tail still cannot select a nested helper, whose
+    /// bundle carries a different name.
+    ///
+    /// `._Info.plist` is an AppleDouble sidecar carrying another file's extended
+    /// attributes — `pkgbuild` emits one beside every file — and it is not a
+    /// plist. It does not end in `/Info.plist`, so the suffix match excludes it;
+    /// stated because the same sidecars already needed handling in
+    /// `appBundlePrefixes` and a future looser match here would read one.
+    static func plistMember(inPayloadListing listing: String, appName: String) -> String? {
+        let needle = "/\(appName).app/Contents/Info.plist"
+        return listing
+            .split(separator: "\n")
+            .map(String.init)
+            .first { $0.hasSuffix(needle) }
     }
 
     /// The `.app` destinations a package declares, as absolute paths.
@@ -753,6 +948,26 @@ public actor PackageInstaller {
             standardError: .mergeIntoOutput, onCancel: .runToCompletion)
         else { return (-1, "") }
         return (outcome.terminationStatus, String(decoding: outcome.standardOutput, as: UTF8.self))
+    }
+
+    /// `runCapturing`, but the bytes as they came.
+    ///
+    /// Two differences from it, both load-bearing for reading a plist out of a
+    /// payload: the output is not decoded as UTF-8 (a bundle's `Info.plist` is
+    /// routinely a *binary* plist, which that decoding would replacement-char its
+    /// way through), and standard error is discarded rather than merged into the
+    /// output (a warning from `tar` merged into the stream would corrupt the
+    /// plist it is meant to be returning). `.runToCompletion` for the same reason
+    /// as every other child here: a killed read reports "no floor declared",
+    /// which is this gate's fail-open answer.
+    private static func runCapturingBytes(
+        _ launchPath: String, _ args: [String], cwd: URL? = nil
+    ) async -> (code: Int32, output: Data) {
+        guard let outcome = try? await ChildProcess.run(
+            launchPath, args, workingDirectory: cwd,
+            standardError: .discard, onCancel: .runToCompletion)
+        else { return (-1, Data()) }
+        return (outcome.terminationStatus, outcome.standardOutput)
     }
 
     /// Given a downloaded file, return the thing to hand to the system installer.

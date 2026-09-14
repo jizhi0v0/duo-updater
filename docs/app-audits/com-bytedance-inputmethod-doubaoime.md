@@ -302,3 +302,35 @@ duo install com.bytedance.inputmethod.doubaoime --yes
    同形，无变更证据（0.5.7 那个不同的命名是内测期的，不算）。真变了 probe 会报
    「resolved no version」，夜扫能抓到；届时要么跟新命名，要么退回只比 `version_name`
    （代价是丢掉同营销版本内的重发检测）。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-bytedance-inputmethod-doubaoime.swift — stable VendorProbe（`/api/v1/app/download_url`）
+
+转引自 recipe 注释，未复测。
+
+The first draft of this recipe compared only the marketing version, on the
+mistaken reading that 90602 had no local counterpart. It does — it is just
+not under a standard key. The cost of that draft was a blind spot for
+same-marketing-version respins (90601 → 90602, both "0.9.6"); comparing the
+vendor's own code closes it.
+
+### Recipes/com-bytedance-inputmethod-doubaoime.swift — ChangelogRecipe（`/api/v1/version/list`）
+
+转引自 recipe 注释，未复测。
+
+Verified against the real
+2026-08-21 response: 6 bullets in, 6 out.
+
+### Recipes/com-bytedance-inputmethod-doubaoime.swift — stable VendorProbe（一键安装包）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`489b3921`（2026-08-28）。
+
+The endpoint hands over
+`DoubaoImeInstaller_v<code>_release.zip`, a ~190 MB stub whose
+`Contents/Resources` holds `DoubaoIme.zip` (170 MB) plus the `install.sh`
+it runs — so `nestedArchivePath` unwraps one level, and the whole gate
+stack (signature, Team, bundle id, architecture) then runs on the real
+`DoubaoIme.app`.

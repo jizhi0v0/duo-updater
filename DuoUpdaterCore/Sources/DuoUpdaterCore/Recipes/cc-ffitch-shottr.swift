@@ -4,13 +4,15 @@ enum cc_ffitch_shottr {
     static let set = AppRecipeSet(
         family: "cc-ffitch-shottr",
         probes: [
+        // History: docs/app-audits/cc-ffitch-shottr.md#历史与实测
         // Shottr — its own JSON version check (the same endpoint baked into the app
         // binary: shottr.cc/api/version.json). NOT a Sparkle appcast — Shottr ships
         // none (no Info.plist SUFeedURL, /appcast.xml 404s), so it reaches us here.
-        // `latestVersion` is the STABLE marketing version (1.9.1), equal to the
+        // `latestVersion` is the STABLE marketing version, equal to the
         // app's CFBundleShortVersionString. A `betaLatestVersion` also lives in the
         // body — the `"latestVersion"` anchor can't match the `"betaLatestVersion"`
         // key (different literal prefix), so a stable install is never offered the
+        // beta build.
         // One-click: the same JSON's `"package"` is the stable `Shottr-<ver>.pkg`.
         // Anchor to `"package"` (leading quote) so it never matches `"betaPackage"`
         // — a stable install is never handed the EAP pkg. (Shottr self-updates via

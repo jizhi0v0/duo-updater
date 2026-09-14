@@ -751,8 +751,8 @@ private func matches(
 @Test func markEditRuleTakesTheUniversalDmg() {
     #expect(extract("v1.34.0", "app.cyan.markedit") == "1.34.0")
     // The universal dmg (x86_64 + arm64, verified with `file`) is the pin; the
-    // `-apple-silicon` dmg is a single arm64 slice and must NOT match, or an Intel
-    // Mac would be offered a build it cannot run.
+    // `-apple-silicon` dmg is a single arm64 slice and must NOT match, so the rule
+    // keeps selecting the one artifact that runs everywhere.
     #expect(matches("MarkEdit-1.34.0.dmg", "app.cyan.markedit"))
     #expect(!matches("MarkEdit-1.34.0-apple-silicon.dmg", "app.cyan.markedit"))
     // The app's own updater payloads are for a different install path.

@@ -76,10 +76,10 @@ GitHub releases 有同一份正文加上完整历史，tag 就是 marketing 版�
 （`v0.38.2` → `stripLeadingV` → `0.38.2`，与 `CFBundleShortVersionString` 一致）。
 recipe 在渲染优先级上高于 `releaseNotesHTML`，所以加了它就是用 20 条历史换 1 条内联。
 
-⚠️ **代价记在这里，而且这条 recipe 是唯一有这个代价的。** `ChangelogPane` 的
+⚠️ **代价记在这里，而且这条 recipe 是唯一有这个代价的。** `ReleaseNotesPane`（`App/Sources/WorkbenchWindowView.swift`）的
 `fallback`（recipe 加载**失败**时走的那条）先看 `changelogURL`、后看
 `releaseNotesHTML`。Rockxy 的 appcast 两样都给了，于是一次抓取失败
-（`api.github.com` 未带 token、60 次/小时/IP，仓库里约 70 个 repo 共用这个额度）
+（未配置 token 时 `api.github.com` 限 60 次/小时/IP，与 DuoUpdater 的其他 GitHub 请求共用）
 会把面板从「原生渲染的内联 notes」变成「嵌一个 GitHub tag 页」。
 Waku 的 appcast notes 是解析不出来的裸 markdown、Shotbase 的 appcast 根本没有 notes，
 所以那两条 recipe 没有东西可失去，只有这条有。
@@ -137,3 +137,21 @@ changelog 那半边的回归证据在 `RockxyChangelogRecipeTests`（fixture 是
    （schema 化的全量发布目录，带 sha256、EdDSA 签名、`minimum_system_version`）。
    今天用不到 —— Sparkle 已经答了检测、GitHub API 已经答了 changelog ——
    但如果哪天 appcast 挪走了，那两个文件是最省事的替代端点。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-amunx-rockxy-community.swift — ChangelogRecipe（GitHub releases）
+
+转引自 recipe 注释，未复测。
+
+What it cannot do is history: the vendor rewrites that file in place, so
+it carries the newest release and nothing else (fetched 2026-09-09: 1
+`<item>`, 2225 bytes).
+
+Measured over the live 40-release page 2026-09-09: 40/40 parse, 0
+prereleases, 0 drafts, 0 empty bodies.
+
+Verified against all 40 bodies:
+the phrase appears in zero extracted items.

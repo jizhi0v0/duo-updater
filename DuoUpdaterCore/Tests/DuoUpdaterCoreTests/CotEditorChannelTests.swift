@@ -339,7 +339,8 @@ struct CotEditorChannelTests {
     /// superseded prerelease until the next cycle opened — while CotEditor's own
     /// updater handed it that release, because Sparkle allows the default channel
     /// to everyone. Nothing else in this file notices: every other case is about
-    /// tags that exist today, and today the newest tag IS a beta.
+    /// tags that already existed when it was written, when the newest tag was a
+    /// beta.
     @Test func aBetaCopyIsOfferedTheReleaseItsTrainGraduatesInto() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [GraduationProtocol.self]

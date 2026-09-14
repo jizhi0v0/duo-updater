@@ -4,6 +4,7 @@ enum at_obdev_littlesnitch {
     static let set = AppRecipeSet(
         family: "at-obdev-littlesnitch",
         probes: [
+        // History: docs/app-audits/at-obdev-littlesnitch.md#历史与实测
         // Little Snitch (Objective Development) — application-firewall / Network
         // Extension. No Sparkle feed: `SUFeedURL` is absent from both a real
         // mounted 6.4.1 (stable) and 6.5-nightly-(7301) bundle (2026-08-29). The
@@ -25,10 +26,9 @@ enum at_obdev_littlesnitch {
         // It's an XML plist ARRAY with one entry per release lifecycle
         // (`nightly`, `final`); `final` is what this recipe reads.
         //
-        // VERSION SCHEME, verified against the real mounted stable bundle
-        // (2026-08-29): the feed's `final` entry's `BundleVersion` ("7212") is
+        // VERSION SCHEME: the feed's `final` entry's `BundleVersion` is
         // byte-identical to the installed `CFBundleVersion`, and its
-        // `BundleShortVersionString` ("6.4.1") matches `CFBundleShortVersionString`
+        // `BundleShortVersionString` matches `CFBundleShortVersionString`
         // too — so a plain marketing compare would also work for THIS entry, but
         // `versionIsBuild` is used anyway to share one comparison basis with the
         // nightly recipe below, where the feed's short-version field does NOT
@@ -62,19 +62,15 @@ enum at_obdev_littlesnitch {
 
         // Little Snitch, NIGHTLY channel — same bundle id, no separate cask
         // `auto_updates` quirk to work around (the nightly cask is ALSO
-        // `auto_updates: true`), and no in-app preference toggle: the stable
-        // 6.4.1 bundle carries zero "nightly" strings anywhere (grepped the
-        // whole mounted `.app`, 2026-08-29). A Nightly install is a completely
-        // separate download (`little-snitch@nightly` cask, which
-        // `conflicts_with` the stable cask) that happens to keep the SAME bundle
-        // id — confirmed both from the nightly cask's own `uninstall quit:
-        // "at.obdev.littlesnitch"` line and directly, by mounting the
-        // 6.5-nightly-(7301) dmg and reading its Info.plist.
+        // `auto_updates: true`), and no in-app preference toggle: the 6.4.1 stable
+        // bundle carried zero "nightly" strings anywhere (History has how that was
+        // checked). A Nightly install is
+        // a completely separate download (`little-snitch@nightly` cask, which
+        // `conflicts_with` the stable cask) that happens to keep the SAME bundle id.
         //
         // CHANNEL SIGNAL: unlike every other same-bundle-id app in this
         // registry, Object Development bakes the channel word straight into the
-        // installed `CFBundleShortVersionString` itself — "6.5 nightly (7301)",
-        // confirmed against the real mounted nightly bundle (not just the feed).
+        // installed `CFBundleShortVersionString` itself — e.g. "6.5 nightly (7301)".
         // Diffing the two Info.plists shows ONLY `CFBundleShortVersionString`
         // and `CFBundleVersion` differ; the bundle id, name and everything else
         // are identical. `ReleaseChannel.detect()` needed a new step for this
@@ -85,10 +81,10 @@ enum at_obdev_littlesnitch {
         //
         // FEED-VS-BUNDLE TRAP (exactly the shape this registry's notes warn
         // about elsewhere): the feed's `BundleShortVersionString` for the
-        // `nightly` entry is plain "6.5" — it STRIPS the " nightly (7301)"
+        // `nightly` entry is the bare number (e.g. "6.5") — it STRIPS the " nightly (<build>)"
         // suffix the real installed bundle carries. Never trust that field for
         // channel detection. `versionIsBuild` sidesteps it entirely by comparing
-        // `BundleVersion` "7301", which DOES match the installed
+        // `BundleVersion` (e.g. "7301"), which DOES match the installed
         // `CFBundleVersion` byte-for-byte.
         //
         // Same static feed as stable, `nightly` lifecycle entry. No `install`,
@@ -96,7 +92,7 @@ enum at_obdev_littlesnitch {
         // explicitly the least-tested of the two by the vendor's own process.
         // No `changelogURL`: obdev's public release-notes page
         // (`releasenotes6.html`, used above) covers stable only — it has no
-        // mention of "nightly" anywhere (checked 2026-08-29) — and the per-build
+        // mention of "nightly" anywhere — and the per-build
         // notes endpoint the feed points at
         // (`releasenotes-legacy-swu.php?version=<build>`) is pinned to whichever
         // build this comment was written against, which would go stale the next

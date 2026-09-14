@@ -6,9 +6,9 @@ enum com_ameba_SwiftBar {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // SwiftBar — the newest release is often a beta prerelease (`v2.1.2-beta-3`),
+        // SwiftBar — the newest release is often a beta prerelease (e.g. `v2.1.2-beta-3`),
         // so `/releases/latest` is what pins the rule to stable. The asset carries
-        // the build number (`SwiftBar.v2.1.1.b597.zip`) that the tag doesn't, so the
+        // the build number (e.g. `SwiftBar.v2.1.1.b597.zip`) that the tag doesn't, so the
         // pattern matches the version-plus-build shape rather than the tag.
         // One-click: com.ameba.SwiftBar, Team X93LWC49WV, notarized.
         GitHubReleaseRule(

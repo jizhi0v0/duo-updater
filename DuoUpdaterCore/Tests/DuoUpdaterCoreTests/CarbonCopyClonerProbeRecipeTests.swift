@@ -14,8 +14,8 @@ import Foundation
 /// `7.1.6` matched the mounted app's `CFBundleShortVersionString` exactly, and
 /// `8368` matched `CFBundleVersion`.
 ///
-/// The generation-scoped `?v=ccc7` is deliberate: `?v=latest` resolves to the
-/// byte-identical file TODAY (also confirmed 2026-08-30) but is a permanent
+/// The generation-scoped `?v=ccc7` is deliberate: `?v=latest` resolved to the
+/// byte-identical file when captured (confirmed 2026-08-30) but is a permanent
 /// alias for whichever generation is newest, so it would start answering with
 /// CCC 8 the day that ships. See `stableRecipeUsesTheGenerationScopedEndpoint`.
 private let cccRedirectFixture = "ccc-7.1.6.8368.zip"
@@ -50,12 +50,11 @@ private let cccBrokenSparkleFeedFixture = ""
 /// group exactly.
 private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
 
-/// CCC 5 and CCC 6, confirmed 2026-08-29 to be independently, currently
-/// maintained generations sharing `com.bombich.ccc` — see the registry
-/// comment above the three stable recipes for the full evidence chain
-/// (real downloaded/expanded zips for all three generations, same Team
-/// `L4F2DED5Q7`, Bombich's own download page listing `?v=ccc5`/`?v=ccc6`/
-/// `?v=ccc7` as live links alongside `?v=latest`).
+/// CCC 5 and CCC 6, confirmed 2026-08-29 to be separately downloadable
+/// generations sharing `com.bombich.ccc` — the full evidence chain (real
+/// downloaded/expanded zips for all three generations, same Team
+/// `L4F2DED5Q7`, what Bombich's download page listed then) is in
+/// `docs/app-audits/com-bombich-ccc.md#历史与实测`.
 private let cccSixRedirectFixture = "ccc-6.1.13.7699.zip"
 
 /// The artifact that does not exist yet. Shaped exactly like every real CCC
@@ -347,10 +346,10 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
     // MARK: - The day CCC 8 ships
 
     /// The CCC 7 recipes must probe a GENERATION-SCOPED endpoint, never the
-    /// `?v=latest` alias. Both resolve to the same file today (verified live
-    /// 2026-08-30, byte-identical `ccc-7.1.6.8368.zip`), which is exactly why
-    /// this needs a test rather than a live check: nothing observable today
-    /// distinguishes the right URL from the wrong one. `?v=latest` is a
+    /// `?v=latest` alias. Both resolve to the same file while CCC 7 is the newest
+    /// generation (on 2026-08-30 both gave `ccc-7.1.6.8368.zip`), which is exactly
+    /// why this needs a test rather than a live check: nothing observable before
+    /// CCC 8 ships distinguishes the right URL from the wrong one. `?v=latest` is a
     /// permanent alias for whichever generation is NEWEST, so on CCC 8's release
     /// day it would hand this CCC-7-scoped recipe a CCC 8 artifact — the phantom
     /// cross-generation upgrade the three-recipe split exists to prevent,

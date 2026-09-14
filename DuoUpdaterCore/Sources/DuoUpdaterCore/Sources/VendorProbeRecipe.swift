@@ -256,11 +256,11 @@ public struct VendorProbeRecipe: Sendable {
     /// nothing.
     ///
     /// Exists for a vendor that keeps more than one MAJOR-VERSION generation
-    /// under one shared bundle id, each independently and currently maintained,
+    /// under one shared bundle id, each still downloadable on its own,
     /// where crossing from one to another is a separate (often separately
     /// priced) product decision, not "the next version of what you have" —
     /// Carbon Copy Cloner is the case in hand: CCC 5/6/7 all report
-    /// `com.bombich.ccc`, Bombich keeps shipping point releases to all three
+    /// `com.bombich.ccc`, Bombich keeps all three downloadable
     /// (`ccc-5.1.28.6213.zip`, `ccc-6.1.13.7699.zip`, `ccc-7.1.6.8368.zip`, all
     /// live 2026-08-29), and upgrading between majors needs a new license
     /// ("We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5, please

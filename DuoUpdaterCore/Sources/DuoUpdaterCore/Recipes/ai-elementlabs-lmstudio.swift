@@ -4,6 +4,7 @@ enum ai_elementlabs_lmstudio {
     static let set = AppRecipeSet(
         family: "ai-elementlabs-lmstudio",
         probes: [
+        // History: docs/app-audits/ai-elementlabs-lmstudio.md#历史与实测
         // LM Studio — official version endpoint (same one Homebrew livecheck
         // uses). Compares on marketing version; build suffix is ignored.
         VendorProbeRecipe(
@@ -13,7 +14,7 @@ enum ai_elementlabs_lmstudio {
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://lmstudio.ai/changelog/lmstudio"),
             // Feed has no link — build the dmg path from version + build, both of
-            // which are REQUIRED in the path (…/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
+            // which are REQUIRED in the path (e.g. …/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
             // dropping the build 404s). Team D65G88RHWN.
             install: VendorInstallSpec(
                 urlSource: .bodyTemplate(
@@ -23,9 +24,9 @@ enum ai_elementlabs_lmstudio {
         ],
         changelogs: [
         // LM Studio — Next.js changelog index. The index page already carries the
-        // *full* release notes for the latest ~10 versions inline (the visible
+        // *full* release notes for the latest versions inline (the visible
         // truncation is a CSS mask only; the markup is complete), so we parse it
-        // directly rather than the per-version pages. Each entry is:
+        // directly rather than the per-version pages. Each entry is, e.g.:
         //   <a href="/changelog/lmstudio/lmstudio-v0.4.20">
         //     <span class="sr-only">LM Studio 0.4.20</span></a>
         //   …<div class="markdown-body …"><p><strong>Build 1</strong></p>
@@ -35,13 +36,11 @@ enum ai_elementlabs_lmstudio {
         // its parent line — cosmetically fine, and a miss just falls back to the
         // embedded page.
         //
-        // 2026-08-09: the bare `/changelog` root is NOT this app's changelog any
-        // more — Element Labs repurposed it for **Bionic**, a different product
-        // ("Bionic Changelog | LM Studio", entries `bionic-v1.0.6` /
-        // `<span class="sr-only">Bionic 1.0.6</span>`). LM Studio itself is still on
-        // the 0.4.x train (`versions-prod.lmstudio.ai` says 0.4.20) and its notes
-        // moved to `/changelog/lmstudio`, with the per-version slug nested one level
-        // deeper. Chasing the rebrand by matching `bionic-v` would have shown Bionic
+        // The bare `/changelog` root is NOT this app's changelog: Element Labs
+        // repurposed it for **Bionic**, a different product (entries `bionic-v…`),
+        // and LM Studio's notes live at `/changelog/lmstudio`, with the per-version
+        // slug nested one level deeper (History has when that changed). Chasing the
+        // rebrand by matching `bionic-v` would have shown Bionic
         // 1.0.x notes to an LM Studio 0.4.x install, so the fix is the new URL plus
         // an href that tolerates both the nested and the old flat slug. The literal
         // `LM Studio ` in the sr-only span is the guard that keeps Bionic entries

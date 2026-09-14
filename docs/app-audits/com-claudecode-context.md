@@ -6,7 +6,7 @@
 - 观测版本: `0.5.0`（short == build）
 - 自更新机制: 无（无 `SUFeedURL`）
 - 分发: GitHub Releases (`matt1398/claude-devtools`) / Homebrew cask `claude-devtools`
-  （cask 有 `depends_on arch: :x86_64`，但 repo 一直发 arm64 dmg）
+  （cask 按架构选 arm64 或 x64 dmg——2026-09-14 读 formulae.brew.sh 的 cask JSON 核对，此前记的 `depends_on arch: :x86_64` 已不在）
 
 ## 覆盖矩阵
 

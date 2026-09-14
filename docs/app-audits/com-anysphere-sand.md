@@ -164,3 +164,38 @@ notes。x.ai 站内唯一带 changelog 的链接是 `x.ai/api/changelog`，标�
 - 该 app 的自更新走 Squirrel，我们的一键是 best-effort 覆盖，遵循既有策略。
 - 若接口哪天把 `downloadUrl` 换成第三个路径前缀，或改回 `.zip`（Squirrel feed 那条
   已经在发 zip 了），一键会静默消失但检测不受影响；sweep 会报 install 侧失配。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-anysphere-sand.swift — stable VendorProbe（`api2.cursor.sh` download API）
+
+转引自 recipe 注释，未复测。
+
+The
+endpoint says so itself: any other name 404s with "Invalid app name -
+can only download stable for cursor or sand" (measured 2026-08-29).
+
+```
+`/updates/api/update/darwin-arm64/sand/<installed>/stable`, which
+    the Homebrew cask's livecheck reads, is the app's own Squirrel feed
+    and is CONDITIONAL: it answers `{"url":…,"name":"0.30.0"}` when a
+    newer build exists and **204 with an empty body** when the caller is
+    already current (measured 2026-08-29 at 0.0.0 and at 0.30.0).
+```
+
+Two prefixes, because the vendor publishes the
+same artifact under both: the API answers `/grokbot/…`, while the
+Homebrew cask's url template builds `/sand/…` — measured 2026-08-29,
+both 200 with `application/x-apple-diskimage`.
+
+`.dmg` and not `.pkg`: Electron with Squirrel.framework, and everything
+it ships lives inside the bundle (`Contents/Frameworks`,
+`Contents/Helpers`) — no daemon, no launch agent, nothing under
+/Library (checked 2026-08-29).
+
+No `changelogURL`, and not an oversight: xAI publishes no release notes
+for this desktop app. The only "changelog" x.ai links is
+`x.ai/api/changelog`, which is the developer console's, on an unrelated
+subject and version scheme (checked 2026-08-29).

@@ -1,7 +1,7 @@
 # Carbon Copy Cloner
 
 ## 基本信息
-- Bundle ID: `com.bombich.ccc`——**三个独立、各自仍在维护的大版本代际（5/6/7）共用同一个
+- Bundle ID: `com.bombich.ccc`——**三个独立、各自仍可下载的大版本代际（5/6/7）共用同一个
   bundle id**，2026-08-29 下载并展开三份真实 zip 核实：
   - CCC 7: `ccc-7.1.6.8368.zip`，`CFBundleShortVersionString` 7.1.6 / `CFBundleVersion` 8368
   - CCC 6: `ccc-6.1.13.7699.zip`，6.1.13 / 7699
@@ -41,10 +41,10 @@
 302 到一个真实的 beta 构件（`ccc-7.1.7-b7.8389.zip`），完全不需要抓包或猜 `SUFeedURL`
 的请求形状。
 
-**2026-08-29 补记 2（关键正确性问题，用户指出）：CCC 有多个仍在维护的大版本，
+**2026-08-29 补记 2（关键正确性问题，用户指出）：CCC 有多个仍可下载的大版本，
 `?v=latest` 只会给最新的那个（CCC 7），跨代际比较是错的。**
 Bombich 的下载页（`bombich.com/download`）标着 macOS 兼容矩阵：CCC 7 需要 Ventura+，
-CCC 6 覆盖 Catalina–Sonoma，CCC 5 覆盖 High Sierra–Big Sur——三条线现在都还在发布点版本
+CCC 6 覆盖 Catalina–Sonoma，CCC 5 覆盖 High Sierra–Big Sur——三条线都还能下载
 （下载页同时列着 `?v=ccc5`/`?v=ccc6`/`?v=ccc7` 三个可用链接，不只是 `?v=latest` 那个别名）。
 升代际是**付费升级**，不是免费更新："We do not sell CCC 4 or CCC 5 licenses. To use CCC 4
 or 5, please purchase a CCC 6 license"（bombich.com/en/kb/ccc/6）。
@@ -212,3 +212,121 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 4. **CCC 5/6 beta 轨道**：未确认是否存在，不是本次范围；如果以后要查，起点是
    `?v=<ccc5|ccc6>beta` 这类同构猜测,或者装一份 5/6 真机在偏好里勾选 beta 开关看
    `SUFeedURL` 请求变化。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-bombich-ccc.swift — CCC 7 stable VendorProbe（`?v=ccc7`）
+
+转引自 recipe 注释，未复测。
+
+Carbon Copy Cloner — THREE independently maintained major-version
+generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc`,
+confirmed 2026-08-29 by downloading and expanding all three real zips:
+`com.bombich.ccc` 5.1.28/6213, `com.bombich.ccc` 6.1.13/7699,
+`com.bombich.ccc` 7.1.6/8368 — same Team `L4F2DED5Q7`.
+
+stable (CCC 7) — the app DOES ship a Sparkle
+`SUFeedURL` (`https://api.bombich.com/updates/ccc`, confirmed reading
+the real Info.plist inside the vendor's own download), so it is not the
+"no Sparkle at all" case it first looks like.
+
+But that feed answers
+every request we tried — plain GET, several User-Agents including a
+Sparkle-shaped one, an `appVersion` query param, and the same
+`URLSession`/UA `SparkleAppcastSource` itself sends — with HTTP 200 and
+a ZERO-BYTE body (verified 2026-08-29, five variants, all `Content-Length: 0`).
+
+Both 302 (through a second hop at
+`api.bombich.com/download/ccc?v=…`) to the same versioned filename on the
+CDN today — `ccc-7.1.6.8368.zip`, both confirmed 2026-08-30 with plain
+HEAD requests (the exact request `.redirectFilename` issues), which
+follow both hops and land on the CDN URL without downloading the 27 MB
+body.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`download_ccc.php?v=ccc7` 与 `?v=latest` 经 `api.bombich.com/download/ccc?v=…` 都落到 `ccc-7.2.8399.zip`（逐跳 GET、不跟随重定向，只读 `Location`）；`api.bombich.com/updates/ccc` 仍是 HTTP 200、`content-length: 0`。
+
+### Recipes/com-bombich-ccc.swift — CCC 7 beta VendorProbe（`?v=latestbeta`）
+
+转引自 recipe 注释，未复测。
+
+The blocker recorded on 2026-08-29 (needs the user's own packet
+capture — `?v=beta` redirects to the plain download page, and
+`?v=latest-beta` just resolves to the stable zip) turned out to be a
+wrong guess at the query param spelling, not a real auth wall:
+`?v=latestbeta` (no hyphen) 302s through the same two-hop chain as
+stable to a genuine beta artifact —
+`ccc-7.1.7-b7.8389.zip` — confirmed 2026-08-29 by downloading and
+expanding the real zip: `CFBundleShortVersionString="7.1.7-b7"
+CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`, Team
+`L4F2DED5Q7`, notarized.
+
+`?v=latestbeta` is itself a "latest" alias, and unlike stable there is
+no per-generation twin to switch to: probed 2026-08-30, `?v=ccc7beta`
+and `?v=ccc7-beta` both answer with the STABLE ccc7 zip (the endpoint
+prefix-matches `ccc7` and ignores the rest) and `?v=beta7` falls back to
+the plain download page.
+
+`installedVersionPattern`
+scopes this to CCC 7 for the same reason stable's does — there is no
+evidence CCC 5/6 currently ship a beta at all (`?v=beta`/`?v=latestbeta`
+only ever answered with a CCC 7 artifact, 2026-08-29), so this is
+scoped to what was actually observed, not assumed to generalize.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`?v=latestbeta` 落到的是 stable 的 `ccc-7.2.8399.zip`，没有 `-b<N>`，beta 的 `versionPattern` 不匹配。
+
+### Recipes/com-bombich-ccc.swift — CCC 6 stable VendorProbe（`?v=ccc6`）
+
+转引自 recipe 注释，未复测。
+
+stable (CCC 6) — DOES carry a Sparkle `SUFeedURL`
+(`https://update.bombich.com/software/updates/ccc.php`, read from the
+mounted 6.1.13 bundle) — a DIFFERENT literal URL than CCC 7's
+(`api.bombich.com/updates/ccc`), so this is not simply "same feed,
+different app".
+
+But it 301s → 302s straight into that exact CCC 7
+feed URL and returns the identical HTTP 200 + zero-byte body (verified
+2026-08-29 following the full redirect chain) — so Bombich's whole
+Sparkle update backend is dead across all three generations, not a
+CCC-7-specific outage, and `SparkleAppcastSource` is a dead end here
+too.
+
+Same `download_ccc.php` endpoint
+as detection, `v=ccc6`
+instead of `latest`/`latestbeta` — confirmed 2026-08-29 with a plain
+HEAD request: two-hop redirect to `ccc-6.1.13.7699.zip`, matching the
+mounted bundle's `CFBundleShortVersionString`/`CFBundleVersion`
+exactly.
+
+changelogURL: CCC 6's own release-notes page (distinct from CCC 7's
+`ccc7_rn.html`) — verified 200 with real per-version content
+2026-08-29, titled "CCC 6 Release Notes".
+
+No `install`: same privileged-helper footprint as CCC 7 (confirmed by
+the same category of components in the mounted 6.1.13 app), so
+detection-only for the same reason.
+
+复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`?v=ccc6` 仍落到 `ccc-6.1.13.7699.zip`，`?v=ccc5` 仍落到 `ccc-5.1.28.6213.zip`。
+
+### Recipes/com-bombich-ccc.swift — CCC 5 stable VendorProbe（`?v=ccc5`）
+
+转引自 recipe 注释，未复测。
+
+`v=ccc5` confirmed 2026-08-29: two-hop redirect to
+`ccc-5.1.28.6213.zip`, matching the mounted bundle's
+`CFBundleShortVersionString`/`CFBundleVersion` exactly (Team
+`L4F2DED5Q7`, same as 6 and 7).
+
+changelogURL is CCC 5's own release-notes page, verified
+200 2026-08-29.
+
+### Recipes/com-bombich-ccc.swift — CCC 7 beta VendorProbe（`changelogURL`）
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`3b875e57`（2026-08-29）。
+
+No `changelogURL` beyond what's already public: the same
+`ccc7_rn_beta.html` page the stable investigation already found
+(lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
+than re-verified as a separate discovery.

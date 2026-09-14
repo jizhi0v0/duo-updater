@@ -4,24 +4,25 @@ enum com_coteditor_CotEditor {
     static let set = AppRecipeSet(
         family: "com-coteditor-CotEditor",
         changelogs: [
+        // History: docs/app-audits/com-coteditor-CotEditor.md#历史与实测
         // CotEditor — the GitHub source already renders the release it is
         // OFFERING (the bodies are structured Markdown: `## Improvements`,
-        // `## Known Issues`, measured through the source on both rails), so what
+        // `## Known Issues`), so what
         // these two add is the rest of the rail: the previous releases in the
         // changelog panel.
         //
-        // `per_page=40` with `maxEntries: 20` is the house shape. Measured
-        // 2026-09-06: the newest 40 releases hold 34 stable and 6 prerelease.
+        // `per_page=40` with `maxEntries: 20` is the house shape.
         //
-        // ⚠️ BOTH rails therefore fill their 20, and the beta rail's 20 are mostly
+        // ⚠️ BOTH rails fill their 20 (the newest 40 releases hold at least 20
+        // stable ones), and the beta rail's 20 are mostly
         // STABLE entries — `includesPromotedStable` makes
         // `StructuredChangelogDecoder.decodeGitHubReleases` want every
         // non-prerelease, not only the one that graduates, so the beta rail is
-        // simply the newest 20 releases (7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, …).
+        // simply the newest 20 releases, stable and prerelease interleaved (e.g.
+        // 7.1.0-beta.6, 7.0.9, 7.1.0-beta.5, … when this was written).
         // That is the field's existing behaviour and it is what this rail wants —
-        // the copy can be offered any of them — but it is not "the 6 betas", which
-        // is what an earlier version of this comment claimed. All 6 do fit: they
-        // sit inside the newest 8 releases.
+        // the copy can be offered any of them — but it is not only the prereleases,
+        // which is what an earlier version of this comment claimed.
         //
         // ⚠️ `includesPromotedStable: true` on the beta recipe is the OPPOSITE of
         // Yaak's pair (`Recipes/app-yaak-desktop.swift`), and the difference is in the rules, not in taste.
@@ -55,26 +56,15 @@ enum com_coteditor_CotEditor {
         // is what #368 was about: that feed keeps ONE prerelease slot, so every
         // beta but the newest is trimmed out of it, `channel(ofInstalled:)` then
         // misses on both passes, and the copy falls back to the default channel —
-        // where the stable line outranks it by build (843 against 840) and is
+        // where the stable line outranks it by build (843 against 840 in #368) and is
         // three marketing versions older. GitHub keeps every release, and the tag
         // says which train it is on, so the channel needs no lookup that history
         // can invalidate. `SparkleFeedCatalog` therefore does NOT carry the feed:
         // Sparkle answers before GitHub in `SourceStack`, and would take this back.
         //
-        // Measured on the 100 newest releases (2026-09-06): 0 drafts, no `v`
-        // prefix, and every one of the 100 carries exactly one asset,
-        // `CotEditor_<tag>.dmg`, with no other artifact to disambiguate against.
-        //
-        // ⚠️ That sweep also recorded "exactly three tag shapes — `7.0.9`,
-        // `7.1.0-beta`, `7.1.0-beta.6`" and the rule below was written to those
-        // three. It was a true reading of a page taken mid-cycle, and it MISSED A
-        // PHASE: the whole tag history (`git ls-remote --tags`, 365 tags, measured
-        // 2026-09-14) holds 87 `-beta*` and 38 `-rc*`, and every minor cycle back
-        // to 2.0.0 runs `-beta` → `-rc` → the plain release. The 7.1.0 cycle had
-        // simply not reached its rc yet on 2026-09-06 — `7.1.0-rc` shipped
-        // 2026-09-10 (asset `CotEditor_7.1.0-rc.dmg`, read off the releases API
-        // 2026-09-14), and 7.1.0 stable two days after it. A shape census taken
-        // inside one window is a census of that window.
+        // Tags carry no `v` prefix, and each release carries exactly one asset,
+        // `CotEditor_<tag>.dmg`, so there is no other artifact to disambiguate
+        // against.
         // Mounted the real 7.0.9 dmg: com.coteditor.CotEditor, short `7.0.9`
         // (== the tag), build 843, `LSMinimumSystemVersion` 15.0 matching the
         // feed's own `minimumSystemVersion`, Team HT3Z3A72WZ, notarized.
@@ -84,28 +74,23 @@ enum com_coteditor_CotEditor {
             versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
-        // The beta train is CYCLICAL, and that is what shapes this rule: the six
-        // prereleases in those 100 releases all belong to the 7.1.0 cycle that
-        // opened 2026-07-26, and the 94 releases before it — back to 2022-04 —
-        // carry none.
+        // The beta train is CYCLICAL, and that is what shapes this rule. It runs in
+        // TWO phases and the counter is optional in BOTH: a cycle goes `-beta`,
+        // `-beta.N` …, then `-rc`, then the plain release it graduates into (e.g.
+        // `7.1.0-beta`, `7.1.0-beta.6`, `7.1.0-rc`, `7.0.0-rc.2`, `7.1.0`). That
+        // is why the suffix is optional twice over below, and why `-rc` is an
+        // alternative rather than an afterthought: all four prerelease shapes have
+        // to be accepted here.
         //
-        // ONE train, TWO phases, and the counter is optional in both: a cycle runs
-        // `7.1.0-beta`, `7.1.0-beta.2` … `7.1.0-beta.6`, `7.1.0-rc`, (`-rc.2` when
-        // there is one — `7.0.0-rc.2` and `2.2.0-rc.3` are real), then the plain
-        // `7.1.0`. All four prerelease shapes have to be accepted here, which is
-        // why the suffix is optional twice over below AND why `-rc` is an
-        // alternative rather than an afterthought.
-        //
-        // What the `-beta`-only version of this pattern did during an rc window,
-        // replayed rather than reasoned about: `settle` walks the page newest-first
-        // and takes the first tag the pattern accepts, so between 2026-09-10 and
-        // 2026-09-12 it skipped `7.1.0-rc` and landed on `7.0.9`. A copy on
-        // `7.1.0-beta.6` was therefore never offered the rc, and its row named
-        // 7.0.9 — the READOUT failure described further down, arriving through a
-        // phase the pattern could not see rather than through a patch release.
-        // It went unreported — the window was two days wide and 7.1.0 landed on
-        // top of it — and the replay above is where it comes from rather than a
-        // machine that hit it. The next cycle's rc window is the one this fixes.
+        // ⚠️ A pattern blind to one phase does not error, which is how the
+        // `-beta`-only version of it survived a whole rc window: `settle` walks the
+        // page newest-first and takes the first tag the pattern accepts, so it
+        // skipped the rc and landed on the previous stable. The copy was offered
+        // nothing and its row named that older release — the READOUT failure
+        // described further down, arriving through a phase the pattern could not
+        // see rather than through a patch release. Nothing reported it, and nothing
+        // could: the sweep asks whether the pattern still matches, not whether what
+        // it matched is the right release. History has the dated replay.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
         // same call WhatCable's beta rule makes, for the same two reasons, and
@@ -168,7 +153,7 @@ enum com_coteditor_CotEditor {
         // WhatCable's entry (`Recipes/uk-whatcable-whatcable.swift`) — but NOT the same anchor, and the difference is
         // load-bearing: WhatCable's is `-beta\.`, which matches the escaped dot in
         // its own `-beta\.[0-9]+` pattern. CotEditor's cycle opens with an
-        // unnumbered `7.1.0-beta`, so its pattern reads `-beta(?:` — `-beta`
+        // unnumbered `-beta` (e.g. `7.1.0-beta`), so its pattern reads `-beta(?:` — `-beta`
         // followed by a parenthesis, never by an escaped dot. Tightening this
         // anchor to WhatCable's literal shape would make the proof report a
         // correct rule as unanchored.

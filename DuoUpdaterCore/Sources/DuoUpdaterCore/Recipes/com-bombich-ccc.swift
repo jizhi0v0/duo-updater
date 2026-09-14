@@ -4,15 +4,15 @@ enum com_bombich_ccc {
     static let set = AppRecipeSet(
         family: "com-bombich-ccc",
         probes: [
-        // Carbon Copy Cloner — THREE independently maintained major-version
-        // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc`,
-        // confirmed 2026-08-29 by downloading and expanding all three real zips:
-        // `com.bombich.ccc` 5.1.28/6213, `com.bombich.ccc` 6.1.13/7699,
-        // `com.bombich.ccc` 7.1.6/8368 — same Team `L4F2DED5Q7`. Bombich still
-        // ships point releases to all three (bombich.com/download lists
-        // `?v=ccc5`/`?v=ccc6`/`?v=ccc7` as live download links alongside
-        // `?v=latest`, which is a permanent alias for whichever is newest —
-        // currently ccc7) and crossing generations is a PAID upgrade, not a free
+        // History: docs/app-audits/com-bombich-ccc.md#历史与实测
+        // Carbon Copy Cloner — THREE separately downloadable major-version
+        // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc` under
+        // the same Team `L4F2DED5Q7`. Bombich keeps
+        // all three downloadable (`download_ccc.php` answers `?v=ccc5`, `?v=ccc6` and
+        // `?v=ccc7`, plus `?v=latest`, a permanent alias for whichever generation is
+        // newest; bombich.com/download links the CCC 5 and 6 downloads and says their
+        // development ceased when CCC 6 and CCC 7 shipped) and crossing generations is
+        // a PAID upgrade, not a free
         // update: "We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5,
         // please purchase a CCC 6 license" (bombich.com/en/kb/ccc/6). CCC 7 also
         // requires Ventura+ (bombich.com/download's own compatibility table),
@@ -22,22 +22,21 @@ enum com_bombich_ccc {
         // Each generation therefore gets its own recipe, gated with
         // `installedVersionPattern` so `VendorProbeSource` only offers a
         // same-generation point release — never routes a CCC 5/6 install through
-        // `?v=latest`'s CCC 7 answer just because "7.1.6" sorts numerically
+        // `?v=latest`'s CCC 7 answer just because, e.g., "7.1.6" sorts numerically
         // above "5.1.28"/"6.1.13". Without this gate every CCC 5/6 install in
         // this registry would have been a phantom cross-generation "update"
         // forever, silently, the same shape of bug `VersionComparator`'s
         // "never compare across namespaces" rule exists to prevent — just one
         // this registry had not modeled before because no other vendor here
-        // keeps multiple ACTIVELY maintained generations under one bundle id.
+        // keeps multiple generations downloadable side by side under one bundle id.
         //
         // stable (CCC 7) — the app DOES ship a Sparkle
-        // `SUFeedURL` (`https://api.bombich.com/updates/ccc`, confirmed reading
-        // the real Info.plist inside the vendor's own download), so it is not the
+        // `SUFeedURL` (`https://api.bombich.com/updates/ccc`), so it is not the
         // "no Sparkle at all" case it first looks like. But that feed answers
         // every request we tried — plain GET, several User-Agents including a
         // Sparkle-shaped one, an `appVersion` query param, and the same
         // `URLSession`/UA `SparkleAppcastSource` itself sends — with HTTP 200 and
-        // a ZERO-BYTE body (verified 2026-08-29, five variants, all `Content-Length: 0`).
+        // a ZERO-BYTE body.
         // `SparkleAppcastSource` would parse that into an empty item list and
         // report "no update" forever: a silent dead source, not a missing one.
         // Homebrew's cask carries `auto_updates: true`, so `HomebrewCaskSource`
@@ -47,10 +46,8 @@ enum com_bombich_ccc {
         // `livecheck` block relies on — but this recipe probes `?v=ccc7`, NOT the
         // `?v=latest` the cask uses. Both 302 (through a second hop at
         // `api.bombich.com/download/ccc?v=…`) to the same versioned filename on the
-        // CDN today — `ccc-7.1.6.8368.zip`, both confirmed 2026-08-30 with plain
-        // HEAD requests (the exact request `.redirectFilename` issues), which
-        // follow both hops and land on the CDN URL without downloading the 27 MB
-        // body. They stop being the same file the day CCC 8 ships: `?v=latest` is
+        // CDN while CCC 7 is the newest generation. They stop being the same file
+        // the day CCC 8 ships: `?v=latest` is
         // a permanent alias for whichever generation is NEWEST, so it would then
         // answer this CCC-7-scoped recipe with a CCC 8 artifact and hand every CCC
         // 7 install a phantom paid major-version "update" — the exact bug
@@ -63,17 +60,19 @@ enum com_bombich_ccc {
         //
         // `versionPattern` is anchored to major 7 for the same reason, as a second
         // independent guard: if Bombich ever repoints `?v=ccc7` (or drops it), an
-        // `ccc-8.…` filename fails to match and the probe reports nothing rather
-        // than a cross-generation version. Failing closed here is right — a recipe
-        // that goes quiet shows up in the nightly `duo verify` sweep, a recipe
-        // that reports a paid upgrade as a point release does not. `7.1.6` matches the installed app's `CFBundleShortVersionString`
-        // exactly (`8368` matches `CFBundleVersion`), and CCC bumps its marketing
-        // version on every release (7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
+        // `ccc-8.…` filename fails to match and the probe fails (`ProbeFailed`, a
+        // Failed row) rather than reporting a cross-generation version. Failing closed
+        // here is right — a recipe that fails shows up in the nightly `duo verify`
+        // sweep, a recipe
+        // that reports a paid upgrade as a point release does not. The captured
+        // marketing version matches the bundle's `CFBundleShortVersionString`
+        // exactly (e.g. `7.1.6`, with `8368` matching `CFBundleVersion`), and CCC
+        // bumps its marketing version on every release (e.g. 7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
         // quarterly per `https://bombich.com/software/updates/ccc7_rn.html`) — not
         // a frozen-marketing app — so the default marketing-only comparison
         // (`versionIsBuild: false`) is correct, no build-number routing needed.
         // The filename's marketing segment is 2 OR 3 dot-groups depending on era
-        // (`ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
+        // (e.g. `ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
         // which is exactly why the cask's own `livecheck` comment calls out a
         // "variable number of parts" — the pattern below accepts both, always
         // taking everything before the trailing 3+ digit build segment.
@@ -110,46 +109,39 @@ enum com_bombich_ccc {
 
         // beta (CCC 7) — same bundle id, opted into from
         // CCC's own Settings → Software Update → "Inform me of beta releases".
-        // The blocker recorded on 2026-08-29 (needs the user's own packet
-        // capture — `?v=beta` redirects to the plain download page, and
-        // `?v=latest-beta` just resolves to the stable zip) turned out to be a
-        // wrong guess at the query param spelling, not a real auth wall:
-        // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as
-        // stable to a genuine beta artifact —
-        // `ccc-7.1.7-b7.8389.zip` — confirmed 2026-08-29 by downloading and
-        // expanding the real zip: `CFBundleShortVersionString="7.1.7-b7"
-        // CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`, Team
-        // `L4F2DED5Q7`, notarized. Marketing matches the probed capture group
+        // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as stable
+        // to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`) while a beta is on
+        // offer. It also answers with the plain stable zip, likely whenever none is
+        // (between beta cycles), and `versionPattern` does not match that: the probe
+        // throws `ProbeFailed` (`VendorProbeSource`), so the row shows a failed check
+        // and `duo verify` reports the recipe as failing. Marketing matches the probed
+        // capture group
         // exactly, so `versionIsBuild` stays the default `false`, same as
         // stable.
         //
         // CHANNEL SIGNAL: `CFBundleShortVersionString` carries a short `-b<N>`
-        // suffix ("7.1.7-b7") that `ReleaseChannel.detect()` needed a new
+        // suffix (e.g. "7.1.7-b7") that `ReleaseChannel.detect()` needed a new
         // bundle-id-scoped rule for (step 0.8) — it is neither the Mozilla
         // `b<N>` shape (requires exactly one dot, no dash) nor the full-word
         // `-beta<N>` shape (GitHub Desktop's), so without that rule this would
         // silently read as `.stable`.
         //
         // No `changelogURL` beyond what's already public: the same
-        // `ccc7_rn_beta.html` page the stable investigation already found
-        // (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
-        // than re-verified as a separate discovery.
+        // `ccc7_rn_beta.html` page the stable investigation already found is reused
+        // here directly rather than re-verified as a separate discovery.
         //
         // `?v=latestbeta` is itself a "latest" alias, and unlike stable there is
-        // no per-generation twin to switch to: probed 2026-08-30, `?v=ccc7beta`
-        // and `?v=ccc7-beta` both answer with the STABLE ccc7 zip (the endpoint
-        // prefix-matches `ccc7` and ignores the rest) and `?v=beta7` falls back to
-        // the plain download page. So the anchor on `versionPattern` — major 7,
+        // no per-generation twin to switch to. So the anchor on
+        // `versionPattern` — major 7,
         // same as stable's — is the only guard available here, and it fails closed:
         // the first CCC 8 beta produces an `ccc-8.…-b<N>.…zip` filename this
-        // pattern does not match, so the probe reports nothing (and surfaces in the
-        // nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
+        // pattern does not match, so the probe fails (a Failed row, and a finding in
+        // the nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
         //
         // No `install`, same reasoning as stable — the privileged-helper
         // footprint applies equally to both channels. `installedVersionPattern`
         // scopes this to CCC 7 for the same reason stable's does — there is no
-        // evidence CCC 5/6 currently ship a beta at all (`?v=beta`/`?v=latestbeta`
-        // only ever answered with a CCC 7 artifact, 2026-08-29), so this is
+        // evidence CCC 5/6 currently ship a beta at all, so this is
         // scoped to what was actually observed, not assumed to generalize.
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
@@ -163,24 +155,21 @@ enum com_bombich_ccc {
             installedVersionPattern: #"^7\."#),
 
         // stable (CCC 6) — DOES carry a Sparkle `SUFeedURL`
-        // (`https://update.bombich.com/software/updates/ccc.php`, read from the
-        // mounted 6.1.13 bundle) — a DIFFERENT literal URL than CCC 7's
+        // (`https://update.bombich.com/software/updates/ccc.php`) — a DIFFERENT
+        // literal URL than CCC 7's
         // (`api.bombich.com/updates/ccc`), so this is not simply "same feed,
         // different app". But it 301s → 302s straight into that exact CCC 7
-        // feed URL and returns the identical HTTP 200 + zero-byte body (verified
-        // 2026-08-29 following the full redirect chain) — so Bombich's whole
+        // feed URL and returns the identical HTTP 200 + zero-byte body — so
+        // Bombich's whole
         // Sparkle update backend is dead across all three generations, not a
         // CCC-7-specific outage, and `SparkleAppcastSource` is a dead end here
         // too. No MAS listing, no GitHub repo. Same `download_ccc.php` endpoint
-        // as detection, `v=ccc6`
-        // instead of `latest`/`latestbeta` — confirmed 2026-08-29 with a plain
-        // HEAD request: two-hop redirect to `ccc-6.1.13.7699.zip`, matching the
-        // mounted bundle's `CFBundleShortVersionString`/`CFBundleVersion`
-        // exactly. Same filename shape as CCC 7 (`ccc-<marketing>.<build>.zip`),
+        // as detection, `v=ccc6` instead of `ccc7`/`latestbeta`. Same filename
+        // shape as CCC 7 (`ccc-<marketing>.<build>.zip`),
         // so the same pattern applies, anchored to major 6 the way CCC 7's is to
         // major 7 — a per-generation endpoint that ever answered with another
         // generation's file would be a vendor-side change, and this recipe should
-        // go quiet and get triaged rather than quietly report it.
+        // fail and get triaged rather than quietly report it.
         //
         // `installedVersionPattern` pins this to CCC 6 — without it this recipe
         // and CCC 7's would both match a CCC 6 install (nothing else
@@ -196,11 +185,9 @@ enum com_bombich_ccc {
         // being three different endpoints.
         //
         // changelogURL: CCC 6's own release-notes page (distinct from CCC 7's
-        // `ccc7_rn.html`) — verified 200 with real per-version content
-        // 2026-08-29, titled "CCC 6 Release Notes".
+        // `ccc7_rn.html`).
         //
-        // No `install`: same privileged-helper footprint as CCC 7 (confirmed by
-        // the same category of components in the mounted 6.1.13 app), so
+        // No `install`: same privileged-helper footprint as CCC 7, so
         // detection-only for the same reason.
         //
         // `hostRequirement.minimumSystemVersion`: 10.15, read from the real 6.1.13
@@ -223,14 +210,11 @@ enum com_bombich_ccc {
             installedVersionPattern: #"^6\."#),
 
         // stable (CCC 5) — same reasoning as CCC 6 above, one generation older.
-        // `v=ccc5` confirmed 2026-08-29: two-hop redirect to
-        // `ccc-5.1.28.6213.zip`, matching the mounted bundle's
-        // `CFBundleShortVersionString`/`CFBundleVersion` exactly (Team
-        // `L4F2DED5Q7`, same as 6 and 7). Same filename shape, same pattern,
+        // Same filename shape, same pattern,
         // anchored to major 5 for the same reason CCC 6's is to major 6.
         // `installedVersionPattern` pins this to CCC 5 for the identical reason
-        // CCC 6's does. changelogURL is CCC 5's own release-notes page, verified
-        // 200 2026-08-29. No `install`, same reasoning as the other two.
+        // CCC 6's does. changelogURL is CCC 5's own release-notes page. No
+        // `install`, same reasoning as the other two.
         //
         // `hostRequirement.minimumSystemVersion`: 10.10, read from the real
         // 5.1.28 binary's `LSMinimumSystemVersion` — and this one has a second,

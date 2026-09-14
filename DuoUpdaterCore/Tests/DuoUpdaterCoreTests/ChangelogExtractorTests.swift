@@ -2297,7 +2297,8 @@ private let doubaoImeVersionListFixture = #"""
 """#
 
 /// The LAST bullet is the point of this test. The obvious item pattern to copy here
-/// is ChatWise's, whose tail alternative is `\\n?$` — a literal backslash, optionally
+/// was ChatWise's regex (retired for the `.chatwiseReleases` decoder), whose tail
+/// alternative was `\\n?$` — a literal backslash, optionally
 /// followed by `n`, then end-of-string. A body that ends in text rather than a
 /// backslash never satisfies it, so the final bullet is silently dropped. Six in,
 /// six out.

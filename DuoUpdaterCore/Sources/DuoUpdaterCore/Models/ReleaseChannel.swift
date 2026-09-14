@@ -91,6 +91,11 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      channel abbreviates to a `-b<N>` suffix ("7.1.7-b7") distinct from
     ///      both pre-release shapes step 4 already recognizes. See the block
     ///      comment on the check.
+    ///   0.9. A sixth bundle-id-scoped rule — CotEditor, whose one prerelease
+    ///      train spells its two phases `-beta[.N]` and `-rc[.N]`. Step 4 reads
+    ///      only the numbered beta shape, so the UNNUMBERED `7.1.0-beta` and
+    ///      every `-rc` tag read as `.stable` without this. See the block
+    ///      comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -215,6 +220,40 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         if bundleID == "com.bombich.ccc",
            let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
            fullyMatches(#"[0-9]+(\.[0-9]+)+-b[0-9]+"#, version) {
+            return .beta
+        }
+
+        // 0.9 CotEditor — Stable and its prerelease train share bundle id
+        //     `com.coteditor.CotEditor` and `CFBundleName` ("CotEditor" — no
+        //     channel word for step 3), so the version string is the only local
+        //     signal, and step 4 reads only PART of the shapes this vendor ships.
+        //
+        //     The train is one train with two phases, and the tag history says so:
+        //     every minor cycle back to 2.0.0 runs `-beta` → `-rc` → the plain
+        //     release, with the counter optional in both phases (measured over all
+        //     365 tags, `git ls-remote --tags`, 2026-09-14: 87 `-beta*`, 38 `-rc*`,
+        //     e.g. `7.1.0-beta`, `7.1.0-beta.6`, `7.1.0-rc`, `7.0.0-rc.2`). Of
+        //     those four shapes step 4 catches exactly ONE — `-beta\.[0-9]+` — so
+        //     `7.1.0-beta` and every `-rc` build read as `.stable` and are served
+        //     the stable rule, which names the PREVIOUS stable release. Replayed,
+        //     not observed on a machine: during the `7.1.0-rc` window (published
+        //     2026-09-10, two days before 7.1.0) that path resolves 7.0.9 from
+        //     `/releases/latest` and `evaluate` calls an rc copy up to date beside
+        //     it — so the row would have read "7.0.9", with an Update button
+        //     nowhere in sight.
+        //
+        //     `.beta` and not `.rc`, deliberately. `ReleaseChannel.rc` is for a
+        //     train the vendor publishes as its own channel (WeChat DevTools ships
+        //     稳定版/预发布版/开发版 as three parallel downloads); CotEditor
+        //     publishes one. Its own updater subscribes to a single Sparkle
+        //     channel for the whole train — `Bundle.main.version.isPrerelease ||
+        //     checksUpdatesForBeta` → `["prerelease"]` — and `CotEditorChannel`
+        //     restores exactly that line. `.rc` here would name a channel no
+        //     `GitHubReleaseRule` serves, so an rc copy would be offered nothing at
+        //     all: strictly worse than the bug it would be fixing.
+        if bundleID == "com.coteditor.CotEditor",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-(beta|rc)(\.[0-9]+)?"#, version) {
             return .beta
         }
 

@@ -1,17 +1,19 @@
 # CotEditor
 
-审计日期：2026-09-06。**结论：已接入 —— 走 GitHub 两条规则 + 一个 ChannelBinding，
-appcast 故意不读。**
+审计日期：2026-09-06，**2026-09-14 补一轮（rc 相位）**。**结论：已接入 —— 走 GitHub
+两条规则 + 一个 ChannelBinding，appcast 故意不读。**
 
-三次改口，按顺序记着，因为每一步都是量出来的：
+四次改口，按顺序记着，因为每一步都是量出来的：
 
 1. 第一版补 `SparkleFeedCatalog` 地址走 appcast，端到端 `7.0.8 → 7.0.9` 装成功了，
    但**旧 beta 会被推降级包**，于是撤回（见「为什么当初没接」）。
 2. 补了降级守卫（#368 / PR #375）。守卫挡住了伤害，但没解决盲区：那台
    `7.1.0-beta.3` 从「按 Update 就降级」变成「行里写着 7.0.9、状态已是最新」，
    feed 里的 `7.1.0-beta.6` 它**仍然看不见**。
-3. 现在这一版**换源**：GitHub 保留全部 release，tag 自己说明在哪条轨，
+3. **换源**：GitHub 保留全部 release，tag 自己说明在哪条轨，
    渠道判断不再依赖「能不能在 feed 里找到自己」——盲区从根上消失。
+4. 2026-09-14：**beta 规则和 `ReleaseChannel.detect` 都只认了这条轨的一半相位**。
+   见下面「rc 相位」。
 
 ## 基本信息
 
@@ -85,9 +87,12 @@ INSTALLED 7.1.0-beta.6/845  detect=beta  allowed=[prerelease, nil]
 stable  versionPattern  ^([0-9]+\.[0-9]+\.[0-9]+)$
         installAsset    ^CotEditor_[0-9.]+\.dmg$
 beta    usePrereleases: true
-        versionPattern  ^([0-9]+\.[0-9]+\.[0-9]+-beta(?:\.[0-9]+)?)$
-        installAsset    ^CotEditor_[0-9.]+-beta(?:\.[0-9]+)?\.dmg$
+        versionPattern  ^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?)$
+        installAsset    ^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?\.dmg$
 ```
+
+（beta 那两条的现行形状。这一节以下到「rc 相位」之前，写的是 2026-09-06 那一版
+——那时 beta pattern 还是 `-beta` 锚死的，后来先放开了 plain tag、再放开了 `-rc`。）
 
 最新 100 条 release 实测（2026-09-06，Python 独立复算，不是读 Swift 得出的）：
 0 条草稿；**每条 release 恰好一个资产**（100/100）；tag 只有三种形状
@@ -156,6 +161,103 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
 
 本机 `duo check coteditor`（装着 beta.6）：`source=GitHub`、`latestVersion=7.1.0-beta.6`、
 `status=up-to-date`。
+
+## rc 相位（2026-09-14）
+
+**这条轨有两个相位，我只接了一个。** tag 全量（`git ls-remote --tags`，365 条，
+2026-09-14 实测）：
+
+| 形状 | 条数 | 例 |
+|---|---|---|
+| `-beta` / `-beta.N` | 87 | `7.1.0-beta`、`7.1.0-beta.6` |
+| `-rc` / `-rc.N` | 38 | `7.1.0-rc`、`7.0.0-rc.2`、`2.2.0-rc.3` |
+
+**从 2.0.0 起每一个 minor 轮都是 `-beta` → `-rc` → 正式版**，两个相位的计数器都可省。
+`7.1.0-rc` 2026-09-10 作为 prerelease 发布（资产 `CotEditor_7.1.0-rc.dmg`，
+2026-09-14 经 releases API 读到），7.1.0 正式版 09-12。
+
+2026-09-06 那轮扫的是**最新 100 条 release**，记下「tag 只有三种形状」——那是一份真实
+读数，但它是**在一个窗口里**取的：7.1.0 轮当时还没走到 rc。**在一个窗口里做的形状普查，
+普查的是那个窗口。**
+
+两处各自独立地漏掉了同一个相位：
+
+1. **beta 规则的两条 pattern**。`settle` 从最新往下走、取第一个 pattern 收的 tag，
+   所以 09-10 到 09-12 那两天它**跳过 `7.1.0-rc`、落到 `7.0.9`**：跑 `7.1.0-beta.6`
+   的副本拿不到 rc，行里写的是 7.0.9、状态「已是最新」。不报错、不空白、所有闸全绿。
+2. **`ReleaseChannel.detect` 没有 rc 规则**。把这个函数对本 bundle id 整段复算
+   （Python，2026-09-14）：
+
+   ```
+   7.0.9        -> stable     7.1.0-beta.6 -> beta
+   7.1.0        -> stable     7.1.0-beta.3 -> beta
+   7.1.0-rc     -> stable  ←  7.1.0-beta   -> stable  ←
+   7.0.0-rc.2   -> stable  ←  6.2.0-rc     -> stable  ←
+   ```
+
+   step 4 只有 `-beta<N>` 和 `-beta.<N>` 两个形状，所以**除了「带编号的 beta」，
+   这条轨上的每一种 tag 都判成 `.stable`**——`-rc` 全部，以及**每轮的第一个 beta
+   `7.1.0-beta`（原报告没提到，同一个缺陷）**。判成 `.stable` 就由 stable 规则应答，
+   而 stable 规则给的是上一个正式版。
+
+修法：
+
+- beta 规则两条 pattern 各加一个 `-rc(?:\.[0-9]+)?` 分支（见上面的形状）。
+  365 条 tag 全量复算：新 pattern 收 38/38 条 rc、86/87 条 beta（少的那条是
+  2015 年的 `2.2.0-beta+1`，带 SemVer build metadata，旧 pattern 也不收）、
+  stable pattern 对 125 条 prerelease **一条都不收**。
+- `ReleaseChannel.detect` 加一条 bundle-id 限定规则（0.9），
+  `[0-9]+(\.[0-9]+)+-(beta|rc)(\.[0-9]+)?` → **`.beta`，不是 `.rc`**。
+  理由不是省事：`ReleaseChannel.rc` 的定义是「厂商自己发布成一条独立渠道的 RC 轨」
+  （微信开发者工具的稳定版/预发布版/开发版是三个并行下载），而 CotEditor 只有一条轨
+  ——它自己的 updater 对整条轨只订一个 Sparkle 渠道
+  （`Bundle.main.version.isPrerelease || checksUpdatesForBeta` → `["prerelease"]`），
+  `CotEditorChannel` 还原的就是这行。判成 `.rc` 会指向一条**没有任何
+  `GitHubReleaseRule` 应答的渠道**，rc 副本将什么都拿不到，比现在更糟。
+- 渠道证明的 anchor 从 `^true$|-beta` 改成 `^true$|^(?=.*-beta)(?=.*-rc)`。
+  旧 anchor 在 pattern 对 `-rc` 全盲的整段时间里**一直是绿的**——和它之前那个
+  `.artifact` proof 在 pattern 对转正全盲时一直绿是同一个形状。两个 lookahead 而不是
+  `-beta.*-rc`，是为了只断言「两个相位都在」而不断言先后：换个顺序是重写、不是回归。
+
+changelog 那两条**不用改**：`decodeGitHubReleases` 按 release 的 `prerelease` 标志分轨，
+不看 tag 形状，所以 rc 本来就进 beta 轨、不进 stable 轨。
+
+### 这个缺陷为什么扫不出来（2026-09-14 实测）
+
+仓库自己的巡检刚好在这个 PR 开着的时候跑了一轮（`verify/baseline.json`，
+sweep `2026-09-14T02:25:07Z`，随 #613 落到 main）。**修复前**的规则在那一轮里是这样的：
+
+```
+github:coteditor/CotEditor:beta    lastGoodVersion 7.1.0   consecutiveActionable 0
+github:coteditor/CotEditor:stable  lastGoodVersion 7.1.0   consecutiveActionable 0
+```
+
+beta 轨解出来的是**正式版 7.1.0** —— 因为 pattern 收 plain tag，而此刻最新的就是它。
+全绿，零 actionable。rc 窗口里它会解出 `7.0.9`，**同样全绿**：规则总能解出点什么，
+`duo verify` 走的是「pattern 还匹不匹配得到东西」，不是「匹配到的是不是该匹配的那一条」。
+
+同一份 baseline 里的反例，正好说明差别在哪：
+
+```
+vendor:com.bombich.ccc:beta   versionPatternNoMatch   consecutiveActionable 2   issue #612
+```
+
+CCC 的 beta pattern 是**硬锚**的，所以它那一轮的周期一结束就匹配不到任何东西，扫出红、
+自动开了 issue。CotEditor 的后缀是可选的——这是刻意的，副本必须能拿到转正版——
+**代价就是它永远红不了**。两条规则，两种错法，只有一种会被闸看见。
+
+所以这个相位缺口不是「巡检漏了一轮」，是**巡检结构上看不见**。能看见它的只有
+`CotEditorChannelTests` 里那条打 rc 窗口的用例。
+
+⚠️ **顺手撞见、没修的一处（不是本 app 的）**：`ChannelProofRegistry.preReleaseTokens`
+——「stable recipe 解出来的 URL 里不许出现 prerelease 词」那道反向闸——**没有 `rc`**。
+所以厂商把这个相位拼成 `-beta` 时它报，拼成 `-rc` 时它静默。没在这个 PR 里补，
+因为 `rc` 只有两个字母、这条正则要打**每一条 stable recipe 解出来的真实 URL**，
+误命中的代价是「给一条完全正确的 recipe 在每台机器上报红」——正是这套机制存在的目的
+的反面。要补得先跑一轮加了 `rc` 的全量 `duo verify` 确认没有 stable URL 被命中。
+**CotEditor 自己这段时间不受影响**：它 stable 规则的 `installAssetPattern` 是
+`^CotEditor_[0-9.]+\.dmg$`，根本匹配不到 `-rc` 的资产名。理由记在
+`ChannelArtifactProof.swift` 那个常量旁边。
 
 ## 还差什么
 

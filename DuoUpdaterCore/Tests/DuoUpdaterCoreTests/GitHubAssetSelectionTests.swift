@@ -123,6 +123,43 @@ struct GitHubAssetSelectionTests {
          ["OpenLens-6.5.2-366-arm64.dmg", "OpenLens-6.5.2-367-arm64.dmg"]),
     ]
 
+    /// Registry patterns whose alternation chooses between TAGS rather than
+    /// between the assets of ONE release.
+    ///
+    /// `multiCandidatePatternsAreAllCovered` is deliberately syntactic — any `|`
+    /// or `\-` run counts — and that default is the right one: a pattern with a
+    /// choice to make has to prove the choice is order-independent. But a `|` is
+    /// not always a choice within a release. CotEditor's beta rule accepts both
+    /// phases of its one prerelease train (`-beta[.N]`, `-rc[.N]`) plus the plain
+    /// release it graduates into, and this vendor publishes exactly ONE asset per
+    /// release, `CotEditor_<tag>.dmg` (measured over the newest 100, 2026-09-06).
+    /// The branches therefore span tags, and no release's asset list can present
+    /// two candidates.
+    ///
+    /// **Why not just add it to `multiCandidateCases`.** Every entry in that table
+    /// is a real co-occurrence — KeePassXC's respins, Goose's neutral/Intel pair,
+    /// two architectures under one tag — and its doc says so. Putting CotEditor
+    /// there would mean writing a listing this vendor does not publish under a
+    /// table that claims its listings are real, which is the fixture-wider-than-
+    /// the-vendor failure this repo keeps re-learning. The exemption is explicit
+    /// and carries its reason instead.
+    ///
+    /// **It is not a free pass.** `names` is still exercised by
+    /// `crossTagAlternationsStillSelectIndependentlyOfOrder` below — labelled for
+    /// what it is, a shape the vendor does not ship, used only to drive the
+    /// selector — and `everyCrossTagExemptionIsStillEarned` fails the build on an
+    /// exemption that no longer matches an ambiguous registry pattern, the way
+    /// `mayLookAlike` does and `mayBeBlank` (#271) does not.
+    static let crossTagAlternations:
+        [(pattern: String, names: [String], reason: String)] = [
+        (#"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?\.dmg$"#,
+         // Not a listing: these two tags are two different releases, and each
+         // release carries only its own dmg. Here to drive the selector.
+         ["CotEditor_7.1.0-rc.dmg", "CotEditor_7.1.0-beta.6.dmg"],
+         "one prerelease train with two phases (-beta[.N] -> -rc[.N] -> the plain release); "
+             + "one asset per release, so the branches select between tags and never within one"),
+    ]
+
     /// Selection must not depend on the order GitHub happens to list assets in.
     ///
     /// This is the property the `-2`-loses-to-`-1` respin bug violated, stated
@@ -159,12 +196,58 @@ struct GitHubAssetSelectionTests {
     /// skip the property above.
     @Test func multiCandidatePatternsAreAllCovered() {
         let covered = Set(Self.multiCandidateCases.map(\.pattern))
-        let ambiguous = Set(
-            GitHubReleaseRegistry.rules.compactMap(\.installAssetPattern)
-                .filter { $0.contains("|") || $0.contains(#"\-"#) })
-        for pattern in ambiguous.sorted() {
+            .union(Self.crossTagAlternations.map(\.pattern))
+        for pattern in Self.ambiguousRegistryPatterns.sorted() {
             #expect(covered.contains(pattern),
                     "\(pattern) can match several assets from one release but no order-independence case covers it")
+        }
+    }
+
+    /// The registry patterns the gate above judges, factored out so the gate and
+    /// the staleness check below read the SAME set rather than two copies of the
+    /// same filter.
+    static var ambiguousRegistryPatterns: Set<String> {
+        Set(GitHubReleaseRegistry.rules.compactMap(\.installAssetPattern)
+            .filter { $0.contains("|") || $0.contains(#"\-"#) })
+    }
+
+    /// An exemption that no longer matches anything is a permanent free pass for
+    /// whatever drifts into its place — `mayLookAlike`'s rule, and the hole
+    /// `mayBeBlank` still has (#271). So each one must still name a live,
+    /// still-ambiguous registry pattern, must not double as a `multiCandidateCases`
+    /// entry (the two tables say opposite things), and must carry a reason.
+    @Test func everyCrossTagExemptionIsStillEarned() {
+        let live = Self.ambiguousRegistryPatterns
+        let realCoOccurrences = Set(Self.multiCandidateCases.map(\.pattern))
+        for entry in Self.crossTagAlternations {
+            #expect(live.contains(entry.pattern),
+                    "\(entry.pattern) is exempted as a cross-tag alternation but no registry rule carries it (or it is no longer ambiguous) — drop the exemption")
+            #expect(!realCoOccurrences.contains(entry.pattern),
+                    "\(entry.pattern) is in both tables: it cannot both admit two assets from one release and not")
+            #expect(!entry.reason.isEmpty, "\(entry.pattern) is exempted with no reason")
+        }
+    }
+
+    /// The exemption buys the pattern out of `multiCandidateCases`, not out of the
+    /// property. Same assertion as `selectionIsIndependentOfListOrder` — if two
+    /// matching names ever DID land in one release, selection must not depend on
+    /// the order GitHub listed them in.
+    @Test(arguments: crossTagAlternations)
+    func crossTagAlternationsStillSelectIndependentlyOfOrder(
+        testCase: (pattern: String, names: [String], reason: String)
+    ) {
+        func assets(_ names: [String]) -> [(name: String, url: URL, size: Int64?)] {
+            names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!,
+                         size: Int64?.none) }
+        }
+        for arch in [HostArch.arm64, HostArch.x86_64] {
+            func pick(_ names: [String]) -> String? {
+                GitHubReleaseRule.installableAsset(
+                    from: assets(names), matching: testCase.pattern, preferring: arch,
+                    allowingIntelTranslation: true)?.url.lastPathComponent
+            }
+            #expect(pick(testCase.names) == pick(testCase.names.reversed()),
+                    "\(testCase.pattern) on \(arch) is order-dependent")
         }
     }
 

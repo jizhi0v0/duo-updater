@@ -74,9 +74,23 @@ enum com_coteditor_CotEditor {
             versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
-        // The beta train is CYCLICAL, and that is what shapes this rule. The
-        // unnumbered `-beta` (e.g. `7.1.0-beta`, that cycle's first) is a real shape,
-        // which is why the suffix is optional twice over below.
+        // The beta train is CYCLICAL, and that is what shapes this rule. It runs in
+        // TWO phases and the counter is optional in BOTH: a cycle goes `-beta`,
+        // `-beta.N` …, then `-rc`, then the plain release it graduates into (e.g.
+        // `7.1.0-beta`, `7.1.0-beta.6`, `7.1.0-rc`, `7.0.0-rc.2`, `7.1.0`). That
+        // is why the suffix is optional twice over below, and why `-rc` is an
+        // alternative rather than an afterthought: all four prerelease shapes have
+        // to be accepted here.
+        //
+        // ⚠️ A pattern blind to one phase does not error, which is how the
+        // `-beta`-only version of it survived a whole rc window: `settle` walks the
+        // page newest-first and takes the first tag the pattern accepts, so it
+        // skipped the rc and landed on the previous stable. The copy was offered
+        // nothing and its row named that older release — the READOUT failure
+        // described further down, arriving through a phase the pattern could not
+        // see rather than through a patch release. Nothing reported it, and nothing
+        // could: the sweep asks whether the pattern still matches, not whether what
+        // it matched is the right release. History has the dated replay.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
         // same call WhatCable's beta rule makes, for the same two reasons, and
@@ -122,8 +136,10 @@ enum com_coteditor_CotEditor {
             bundleID: "com.coteditor.CotEditor",
             owner: "coteditor", repo: "CotEditor",
             usePrereleases: true,
-            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?)$"#,
-            installAssetPattern: #"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?)?\.dmg$"#,
+            versionPattern:
+                #"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?)$"#,
+            installAssetPattern:
+                #"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?\.dmg$"#,
             installerKind: .dmg,
             channel: .beta),
         ],
@@ -145,7 +161,22 @@ enum com_coteditor_CotEditor {
         // ⚠️ This was an `.artifact(#"/download/[0-9.]+-beta…/"#)` for a day, from
         // when the rule was `-beta`-only. It passed the whole time, and would have
         // gone on passing right up to the release it was wrong about.
+        //
+        // ⚠️ The anchor requires BOTH phases, and that is the lesson of this
+        // entry's own history rather than belt-and-braces: `^true$|-beta` went on
+        // passing while the pattern was blind to every `-rc` tag, exactly as the
+        // `.artifact` proof before it went on passing while the pattern was blind
+        // to the graduation. An anchor that names only the phase somebody happened
+        // to have measured is a proof about that sweep, not about the train.
+        //
+        // Written as two lookaheads rather than `-beta.*-rc` so it asserts
+        // PRESENCE and not ORDER: swapping the two alternatives in the pattern is
+        // a rewrite with no behaviour change, and a proof that reddens on it would
+        // be teaching the next person that the anchor is noise. `^true$` is the
+        // `usePrereleases` half — `recipeAnchor` requires a match in EVERY named
+        // field, and `true` carries neither token.
         ChannelProofKey("com.coteditor.CotEditor", .beta):
-            .recipeAnchor(#"^true$|-beta"#, in: ["usePrereleases", "versionPattern"]),
+            .recipeAnchor(#"^true$|^(?=.*-beta)(?=.*-rc)"#,
+                          in: ["usePrereleases", "versionPattern"]),
         ])
 }

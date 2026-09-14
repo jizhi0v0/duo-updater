@@ -69,7 +69,10 @@ struct GitHubListPageSizeTests {
         // beta tags, worst gap 1 (7.1.0-beta.6 → 7.1.0-beta.5, with 7.0.9 between
         // them). Correct arithmetic on a rule that was wrong — kept visible,
         // because a floor recorded here is only ever as sound as the pattern it
-        // was measured against.
+        // was measured against. The pattern has since been widened again (it now
+        // takes `-rc` as well as `-beta`), and this floor is UNCHANGED by that
+        // rather than unreviewed: widening an accept-set can only move the first
+        // hit earlier, and 1 is already the bottom.
         "com.coteditor.CotEditor/beta": 1,
     ]
 

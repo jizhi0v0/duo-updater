@@ -20,13 +20,33 @@ struct CotEditorChannelTests {
         GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
     }
 
-    /// Real tags from the 100 newest releases (2026-09-06), including the shape
-    /// that is easy to miss: the cycle's first prerelease is `7.1.0-beta`, with
-    /// no number after `beta`.
+    /// Real tags, newest first over the part that is the live release page.
+    ///
+    /// Every one of these exists (`git ls-remote --tags`, 365 tags, 2026-09-14),
+    /// and the list is chosen to hold all FOUR prerelease shapes this vendor
+    /// ships, because a fixture that holds only the shapes somebody had in front
+    /// of them is how the rc phase went missing in the first place:
+    ///
+    ///   * `7.1.0-beta` — the cycle's first, no number after `beta`;
+    ///   * `7.1.0-beta.6` — the numbered beta;
+    ///   * `7.1.0-rc` — the rc phase, no number (published 2026-09-10);
+    ///   * `7.0.0-rc.2` — the numbered rc, which a second candidate produces.
+    ///
+    /// Plus `7.1.0`, the plain release both phases graduate into (2026-09-12).
     private static let tags = [
-        "7.1.0-beta.6", "7.0.9", "7.1.0-beta.5", "7.1.0-beta.4", "7.1.0-beta.3",
-        "7.0.8", "7.1.0-beta.2", "7.1.0-beta", "7.0.7", "7.0.6", "6.2.3", "4.1.5",
+        "7.1.0", "7.1.0-rc", "7.1.0-beta.6", "7.0.9", "7.1.0-beta.5",
+        "7.1.0-beta.4", "7.1.0-beta.3", "7.0.8", "7.1.0-beta.2", "7.1.0-beta",
+        "7.0.7", "7.0.6", "7.0.0-rc.2", "7.0.0-rc", "7.0.0-beta.3", "6.2.3",
+        "4.1.5",
     ]
+
+    /// A tag is on the prerelease train when it carries EITHER phase. Spelled
+    /// once, because the case below used to ask `tag.contains("-beta")` and would
+    /// therefore have asserted that the stable pattern is allowed to accept
+    /// `7.1.0-rc`.
+    private static func isPrerelease(_ tag: String) -> Bool {
+        tag.contains("-beta") || tag.contains("-rc")
+    }
 
     /// Both halves of what makes the beta rule a beta rule, asserted against the
     /// registry rather than restated. Deleting either rule fails here.
@@ -47,7 +67,8 @@ struct CotEditorChannelTests {
     ///
     /// The stable pattern must refuse every prerelease — a stable copy offered a
     /// beta is the harm this repo cares most about. The beta pattern must accept
-    /// BOTH, because this vendor's train runs in cycles and a copy on
+    /// EVERY tag: both phases of the one prerelease train (`-beta*`, `-rc*`) and
+    /// the plain release, because this vendor's train runs in cycles and a copy on
     /// `7.1.0-beta.6` has to be able to take the `7.1.0` that graduates from it.
     ///
     /// Patterns are read off the registry, so a rule edited in either direction
@@ -61,7 +82,7 @@ struct CotEditorChannelTests {
         for tag in Self.tags {
             let s = VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern)
             let b = VendorProbeRecipe.extractVersion(from: tag, pattern: beta.versionPattern)
-            if tag.contains("-beta") {
+            if Self.isPrerelease(tag) {
                 #expect(s == nil, "the stable pattern accepted a prerelease: \(tag)")
             } else {
                 #expect(s == tag)
@@ -69,16 +90,25 @@ struct CotEditorChannelTests {
             #expect(b == tag, "the beta pattern must accept every tag, including \(tag)")
             if s != nil { counts.acceptedByStable += 1 } else { counts.refusedByStable += 1 }
         }
-        #expect(counts == (acceptedByStable: 6, refusedByStable: 6))
+        #expect(counts == (acceptedByStable: 7, refusedByStable: 10))
+        // The fixture has to keep holding both phases, or the loop above is only
+        // ever measuring the beta half again.
+        #expect(Self.tags.filter { $0.contains("-rc") }.count == 3)
+        #expect(Self.tags.filter { $0.contains("-beta") }.count == 7)
     }
 
-    /// The unnumbered `7.1.0-beta` is a real release (the cycle's first, 2026-07-26)
-    /// and it is the one shape a `-beta\.[0-9]+` pattern copied from Yaak would
-    /// silently drop. Kept as its own case so the reason survives.
-    @Test func theCyclesFirstPrereleaseHasNoNumberAndStillMatches() throws {
+    /// Each phase's FIRST candidate carries no number, and each is the shape a
+    /// pattern written from the other phase silently drops: `7.1.0-beta` is what a
+    /// `-beta\.[0-9]+` pattern copied from Yaak loses, and `7.1.0-rc` is what the
+    /// `-beta`-only pattern this rule shipped with lost. Kept as one case so both
+    /// reasons survive next to each other.
+    @Test func neitherPhasesFirstCandidateCarriesANumberAndBothStillMatch() throws {
         let beta = try #require(Self.rules.first { $0.channel == .beta })
-        #expect(VendorProbeRecipe.extractVersion(
-            from: "7.1.0-beta", pattern: beta.versionPattern) == "7.1.0-beta")
+        for tag in ["7.1.0-beta", "7.1.0-rc", "7.1.0-beta.6", "7.0.0-rc.2"] {
+            #expect(VendorProbeRecipe.extractVersion(
+                from: tag, pattern: beta.versionPattern) == tag,
+                "the beta rule must accept \(tag) — it is a phase of the one train")
+        }
     }
 
     /// The asset patterns follow the version patterns, and are asymmetric for the
@@ -93,11 +123,17 @@ struct CotEditorChannelTests {
             name.range(of: pattern, options: .regularExpression) != nil
         }
         #expect(matches(stable, "CotEditor_7.0.9.dmg"))
-        #expect(!matches(stable, "CotEditor_7.1.0-beta.6.dmg"))
-        #expect(!matches(stable, "CotEditor_7.1.0-beta.dmg"))
+        for prerelease in ["CotEditor_7.1.0-beta.6.dmg", "CotEditor_7.1.0-beta.dmg",
+                           "CotEditor_7.1.0-rc.dmg", "CotEditor_7.0.0-rc.2.dmg"] {
+            #expect(!matches(stable, prerelease),
+                    "the stable rule must never install \(prerelease)")
+        }
 
-        #expect(matches(beta, "CotEditor_7.1.0-beta.6.dmg"))
-        #expect(matches(beta, "CotEditor_7.1.0-beta.dmg"))
+        for prerelease in ["CotEditor_7.1.0-beta.6.dmg", "CotEditor_7.1.0-beta.dmg",
+                           "CotEditor_7.1.0-rc.dmg", "CotEditor_7.0.0-rc.2.dmg"] {
+            #expect(matches(beta, prerelease),
+                    "the beta rule serves the whole train, \(prerelease) included")
+        }
         #expect(matches(beta, "CotEditor_7.1.0.dmg"),
                 "the beta rule has to be able to install the release its train graduates into")
     }
@@ -120,6 +156,22 @@ struct CotEditorChannelTests {
         let beta = try #require(Self.rules.first { $0.channel == .beta })
         #expect(beta.versionPattern.range(of: pattern, options: .regularExpression) != nil,
                 "the anchor no longer matches the field it anchors to")
+
+        // ⚠️ And it has to be able to FAIL on each phase separately. `^true$|-beta`
+        // was the anchor while the pattern was blind to every `-rc` tag, and it
+        // passed the whole time — the same way the `.artifact` proof before it
+        // passed while the pattern was blind to the graduation. These two are the
+        // rc-shaped and beta-shaped versions of that regression, written as inputs
+        // rather than as a note asking the next person to remember.
+        func anchored(_ versionPattern: String) -> Bool {
+            versionPattern.range(of: pattern, options: .regularExpression) != nil
+        }
+        #expect(!anchored(#"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?)$"#),
+                "the anchor passes a pattern that dropped the rc phase — that is the bug it exists to catch")
+        #expect(!anchored(#"^([0-9]+\.[0-9]+\.[0-9]+(?:-rc(?:\.[0-9]+)?)?)$"#),
+                "the anchor passes a pattern that dropped the beta phase")
+        // Order is a rewrite, not a regression: the anchor must not redden on it.
+        #expect(anchored(#"^([0-9]+\.[0-9]+\.[0-9]+(?:-rc(?:\.[0-9]+)?|-beta(?:\.[0-9]+)?)?)$"#))
     }
 
     /// Every non-stable GitHub rule carrying an install spec needs a proof, and
@@ -152,6 +204,36 @@ struct CotEditorChannelTests {
         #expect(effective(installed: "7.1.0-beta.3", box: false) == .beta)
         #expect(effective(installed: "7.0.9", box: true) == .beta)
         #expect(effective(installed: "7.0.9", box: false) == .stable)
+
+        // ⚠️ Every shape on this vendor's prerelease train, THREE of which
+        // `detect()` answered `.stable` before the scoped rule went in (measured
+        // by replaying the whole function for this bundle id). The vendor's own
+        // line is `isPrerelease || checksUpdatesForBeta` and `isPrerelease` is
+        // true of all four, so a `.stable` answer is the half the binding
+        // explicitly does NOT cover going silently wrong.
+        //
+        //   * `7.1.0-rc` / `7.0.0-rc.2` — step 4 has no rc shape at all. During the
+        //     rc window a copy on one of these was served the STABLE rule, whose
+        //     newest accepted tag was the previous release: the row read "7.0.9".
+        //   * `7.1.0-beta` — the cycle's FIRST beta. Step 4's two beta shapes are
+        //     `-beta<N>` and `-beta.<N>`; neither accepts a bare `-beta`. Not in
+        //     the report this fix came from, and the same defect.
+        //   * `7.1.0-beta.6` — the CONTROL, and the only one step 4 already read
+        //     correctly. It is in the loop so a scoped rule that swallowed the
+        //     generic path (or a generic path deleted as "covered now") still has
+        //     to answer for it.
+        for prerelease in ["7.1.0-rc", "7.0.0-rc.2", "7.1.0-beta", "7.1.0-beta.6"] {
+            #expect(detect(prerelease) == .beta,
+                    "\(prerelease) is on the prerelease train, whatever the box says")
+            #expect(effective(installed: prerelease, box: false) == .beta)
+        }
+        // And the graduation is NOT on it — the one-way cost the rule documents.
+        #expect(detect("7.1.0") == .stable)
+
+        // `.beta` and not `.rc`: one vendor train, one channel our rules serve.
+        // `.rc` would name a channel no `GitHubReleaseRule` answers, so an rc copy
+        // would be offered nothing at all.
+        #expect(Self.rules.contains { $0.channel == .rc } == false)
         // Stated separately: the false case produces NO resolution at all, which
         // is what leaves `detect()` in charge above.
         #expect(CotEditorChannel.resolve(checksUpdatesForBeta: false) == nil)
@@ -286,6 +368,70 @@ struct CotEditorChannelTests {
         #expect(VersionComparator.isNewer("7.1.0", than: "7.1.0-beta.6"))
     }
 
+    /// The rc WINDOW, driven through the source: `7.1.0-rc` is the newest release
+    /// and the graduation has not happened yet.
+    ///
+    /// This is the case the shipped pattern got wrong, and the shape of the
+    /// failure is why no one saw it. The rule did not error and the row did not go
+    /// blank: `settle` walks the page newest-first taking the first tag the
+    /// pattern accepts, so a `-beta`-only pattern SKIPPED `7.1.0-rc` and landed on
+    /// `7.0.9` — a real release, a real dmg, every gate green. A copy on
+    /// `7.1.0-beta.6` was told the latest version is 7.0.9 and offered nothing;
+    /// the rc it should have been handed was two rows up.
+    ///
+    /// Both halves are asserted because each fails on its own: the SHORT VERSION
+    /// (which release was resolved) and the STATUS (what the row then says). The
+    /// pre-fix behaviour is `shortVersion == "7.0.9"` with `status == .upToDate`,
+    /// so a case asserting only the status would have been green against the bug.
+    @Test func duringTheRCWindowTheBetaRailResolvesTheRCAndNotThePreviousStable() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [RCWindowProtocol.self]
+        let source = GitHubReleasesSource(session: URLSession(configuration: config))
+
+        func app(_ short: String, _ build: String) -> InstalledApp {
+            InstalledApp(
+                name: "CotEditor", bundleID: Self.bundleID,
+                shortVersion: short, buildVersion: build,
+                path: URL(fileURLWithPath: "/Applications/CotEditor.app"),
+                isMASApp: false, sparkleFeedURL: nil,
+                releaseChannel: ReleaseChannel.detect(
+                    name: "CotEditor", bundleID: Self.bundleID,
+                    keystoneChannel: nil, version: short))
+        }
+
+        let onBeta = app("7.1.0-beta.6", "845")
+        #expect(onBeta.releaseChannel == .beta)
+        let forBeta = try #require(try await source.latestVersion(for: onBeta))
+        #expect(forBeta.shortVersion == "7.1.0-rc")
+        #expect(forBeta.downloadURL?.lastPathComponent == "CotEditor_7.1.0-rc.dmg")
+        #expect(UpdateChecker.evaluate(installed: onBeta, remote: forBeta)
+            == .updateAvailable(latest: "7.1.0-rc"))
+
+        // And the copy already ON the rc: it has to stay on the beta rail rather
+        // than being handed back to the stable rule, which is what `detect()`
+        // returning `.stable` for `-rc` did. `.upToDate` here is only meaningful
+        // BECAUSE the resolved release is the rc — before the fix this copy also
+        // read `.upToDate`, against `7.0.9`.
+        let onRC = app("7.1.0-rc", "846")
+        #expect(onRC.releaseChannel == .beta)
+        let forRC = try #require(try await source.latestVersion(for: onRC))
+        #expect(forRC.shortVersion == "7.1.0-rc")
+        #expect(UpdateChecker.evaluate(installed: onRC, remote: forRC) == .upToDate)
+
+        // The ordering the whole rail rests on, stated rather than assumed.
+        #expect(VersionComparator.isNewer("7.1.0-rc", than: "7.1.0-beta.6"))
+        #expect(VersionComparator.isNewer("7.1.0", than: "7.1.0-rc"))
+    }
+
+    /// ⚠️ And deliberately NO end-to-end mirror for an rc copy on that same
+    /// graduation page ("an rc copy is offered the release it graduates into").
+    /// One was written and removed for the reason the note below gives about the
+    /// stable mirror: it could not fail. Under the reading this fix replaced, an
+    /// rc copy detected `.stable` and went to the STABLE rule — which resolves the
+    /// same `7.1.0` off `/releases/latest` — so the case was green with and
+    /// without the rule it claimed to cover. What actually differs between the two
+    /// readings is the rc WINDOW, and that is pinned above, where it fails.
+
     /// ⚠️ There is deliberately NO end-to-end mirror of the case above for a
     /// stable copy ("a stable copy is not handed the prerelease in the same
     /// page"). One was written and removed: it could not fail. A stable rule reads
@@ -297,6 +443,50 @@ struct CotEditorChannelTests {
     /// (`theStablePatternRefusesPrereleasesAndTheBetaOneDoesNot`), and the
     /// list-endpoint fallback that could reach a prerelease is `stableOnly`'s job,
     /// which is shared machinery this rule does not touch.
+
+    /// The rc WINDOW: `7.1.0-rc` newest, the graduation not yet published, and
+    /// `7.0.9` — the tag a `-beta`-only pattern lands on — directly beneath the
+    /// prereleases. Shaped like the real API's fields, one `CotEditor_<tag>.dmg`
+    /// per release the way this vendor publishes.
+    ///
+    /// `/releases/latest` answers `7.0.9`, which is what GitHub really does during
+    /// an rc window: it excludes prereleases. That is the row a stable copy gets,
+    /// and it is also what a mis-detected rc copy got.
+    private final class RCWindowProtocol: URLProtocol, @unchecked Sendable {
+        static let releases = """
+        [
+          {"tag_name":"7.1.0-rc","prerelease":true,"draft":false,"published_at":"2026-09-10T01:00:00Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.1.0-rc","body":"### Improvements\\n- Release candidate.",
+           "assets":[{"name":"CotEditor_7.1.0-rc.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.1.0-rc/CotEditor_7.1.0-rc.dmg","size":26490000}]},
+          {"tag_name":"7.1.0-beta.6","prerelease":true,"draft":false,"published_at":"2026-09-05T01:33:07Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.1.0-beta.6","body":"### Improvements\\n- Beta six.",
+           "assets":[{"name":"CotEditor_7.1.0-beta.6.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.1.0-beta.6/CotEditor_7.1.0-beta.6.dmg","size":26458624}]},
+          {"tag_name":"7.0.9","prerelease":false,"draft":false,"published_at":"2026-09-05T01:32:59Z",
+           "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.0.9","body":"### Improvements\\n- Nine.",
+           "assets":[{"name":"CotEditor_7.0.9.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.0.9/CotEditor_7.0.9.dmg","size":25609728}]}
+        ]
+        """
+
+        static let latest = """
+        {"tag_name":"7.0.9","prerelease":false,"draft":false,"published_at":"2026-09-05T01:32:59Z",
+         "html_url":"https://github.com/coteditor/CotEditor/releases/tag/7.0.9","body":"### Improvements\\n- Nine.",
+         "assets":[{"name":"CotEditor_7.0.9.dmg","browser_download_url":"https://github.com/coteditor/CotEditor/releases/download/7.0.9/CotEditor_7.0.9.dmg","size":25609728}]}
+        """
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            let path = request.url?.path ?? ""
+            let body = path.hasSuffix("/releases/latest") ? Self.latest : Self.releases
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        override func stopLoading() {}
+    }
 
     /// A releases page with the graduation in it: `7.1.0` stable above the
     /// `7.1.0-beta.6` it graduates from. Shaped like the real API's fields, with

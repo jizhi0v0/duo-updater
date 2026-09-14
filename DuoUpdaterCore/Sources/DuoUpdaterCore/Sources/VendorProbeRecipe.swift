@@ -616,6 +616,16 @@ public struct VendorProbeRecipe: Sendable {
     /// same failure-open shape as `displayVersionPattern`. Meaningless for
     /// `.redirectFilename`/`.zipEntryPlist`, where the probed text is a URL or a
     /// single plist value rather than a document.
+    ///
+    /// ⚠️ Applied to the entry `highestVersionEntry` already PICKED, not before
+    /// picking — "pick highest, then refuse", where Sparkle's `usableItems` is
+    /// "filter, then pick". Right for a feed with one entry per channel (Little
+    /// Snitch: one `final`, one `nightly`). Wrong for a feed that buckets ONE
+    /// version by OS into several entries (WeChat): the first-listed bucket
+    /// wins the strict-newer tie-break, and if that is the capped one the whole
+    /// probe is refused although an applicable sibling exists. Don't adopt
+    /// these on such a feed without moving the window into the candidate
+    /// filter first.
     public let minimumSystemVersionPattern: String?
     public let maximumSystemVersionPattern: String?
 
@@ -1079,16 +1089,28 @@ public struct VendorProbeRecipe: Sendable {
     /// `compare(max, host) == .orderedAscending` — so a "26.99" ceiling admits
     /// 26.6.0 and refuses 27.0.0, and a nil or empty bound never refuses.
     ///
+    /// A bound with no digit in it (`any`, `latest`, `-`) is treated as absent,
+    /// the guard `SignatureVerifier.canRun(minimumSystemVersion:on:)` already
+    /// applies to a bundle's floor. Without it a text CEILING fails closed:
+    /// `VersionComparator` ranks a text token below a number, so `"any"` reads
+    /// as below every host and every Mac is refused — and the sweep reports it
+    /// as `skipped`, green. (A text floor happens to fail open by the same
+    /// ordering; guarded anyway so the two sides cannot drift.)
+    ///
     /// Pure, so the gate is testable off whatever machine the tests run on; the
     /// source passes its own `hostOSVersion`.
     public static func osWindowRefusal(
         minimum: String?, maximum: String?, osVersion: String
     ) -> String? {
-        if let minOS = minimum, !minOS.isEmpty,
+        func numeric(_ bound: String?) -> String? {
+            guard let bound, bound.rangeOfCharacter(from: .decimalDigits) != nil else { return nil }
+            return bound
+        }
+        if let minOS = numeric(minimum),
            VersionComparator.compare(osVersion, minOS) == .orderedAscending {
             return "the vendor states this release needs macOS \(minOS) or newer; this Mac runs \(osVersion)"
         }
-        if let maxOS = maximum, !maxOS.isEmpty,
+        if let maxOS = numeric(maximum),
            VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
             return "the vendor caps this release at macOS \(maxOS); this Mac runs \(osVersion)"
         }

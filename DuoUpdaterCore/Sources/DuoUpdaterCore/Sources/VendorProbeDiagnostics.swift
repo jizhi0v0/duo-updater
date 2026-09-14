@@ -25,6 +25,15 @@ import Foundation
 public enum ProbeFailure: Error, Sendable, Equatable {
     /// Toolbox-managed, channel gate refused, or no recipe for this bundle id.
     case notApplicable(String)
+    /// The version resolved, and the response says this release is not for the
+    /// macOS this Mac runs (`minimum`/`maximumSystemVersionPattern`, #634).
+    /// Classified `.notApplicable` — nothing to retry until the vendor moves the
+    /// bound — but kept apart from it because the two accuse different things:
+    /// `.notApplicable` means the recipe does not cover this Mac (no identity,
+    /// wrong track), this means the recipe works and the vendor said no. So
+    /// `latestVersion(for:)` does NOT record it as a recipe-health miss, and a
+    /// sweep's `skipped` line names the cap rather than a bare "not applicable".
+    case outsideVendorOSWindow(String)
     /// `URLError` and friends — DNS, TLS, timeout, connection lost.
     case transport(urlErrorCode: Int, String)
     /// The response wasn't HTTP at all (file:// or a mangled proxy response).
@@ -108,7 +117,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
 
     public var classification: Classification {
         switch self {
-        case .notApplicable:
+        case .notApplicable, .outsideVendorOSWindow:
             return .notApplicable
         case .buildLineageUnavailable(let inner):
             return inner.classification
@@ -129,6 +138,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     public var kind: String {
         switch self {
         case .notApplicable: return "notApplicable"
+        case .outsideVendorOSWindow: return "outsideVendorOSWindow"
         case .transport: return "transport"
         case .nonHTTPResponse: return "nonHTTPResponse"
         case .httpStatus(let code): return "httpStatus\(code)"
@@ -149,6 +159,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     public var detail: String {
         switch self {
         case .notApplicable(let why): return why
+        case .outsideVendorOSWindow(let why): return why
         case .transport(let code, let message): return "URLError \(code): \(message)"
         case .nonHTTPResponse: return "response was not HTTPURLResponse"
         case .httpStatus(let code): return "HTTP \(code)"

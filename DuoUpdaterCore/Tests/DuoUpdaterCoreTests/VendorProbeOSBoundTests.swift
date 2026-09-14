@@ -21,7 +21,12 @@ import Foundation
 ///  - remove `maximumSystemVersionPattern` from the stable Little Snitch recipe
 ///    → `aCappedStableIsNotOfferedToAMacAboveTheCap` and
 ///    `everyRecipeOnASharedEndpointReadsTheSameBounds` red;
-///  - stop appending `.osBoundPatternNoMatch` → `aPatternThatMatchesNothingWarnsAndAdmits` red;
+///  - stop appending `.osBoundPatternNoMatch` → `aPatternThatMatchesNothingWarnsAndAdmits`
+///    and `aRefusalKeepsTheWarningsCollectedBeforeIt` red;
+///  - `fail(...)` at the refusal without `warnings:` → `aRefusalKeepsTheWarningsCollectedBeforeIt` red;
+///  - drop the digit guard in `osWindowRefusal` → `aTextBoundIsTreatedAsAbsent` red;
+///  - remove `minimumSystemVersionPattern` from BOTH Little Snitch recipes →
+///    `everyRecipeOnASharedEndpointReadsTheSameBounds` red (the anti-vacuity floor);
 ///  - read the bounds from `body.text` instead of `scope` → `eachEntryReadsItsOwnCeiling`
 ///    red (the nightly entry is listed first and says 27.99; a whole-body
 ///    first-match would hand the stable recipe the nightly's cap).
@@ -81,7 +86,7 @@ import Foundation
         let stableOutcome = await source.probeDiagnostic(stable.with(url: server.url))
         #expect(stableOutcome.remote == nil)
         #expect(stableOutcome.failure?.classification == .notApplicable)
-        #expect(stableOutcome.failure?.kind == ProbeFailure.notApplicable("").kind)
+        #expect(stableOutcome.failure?.kind == "outsideVendorOSWindow")
 
         let nightlyOutcome = await source.probeDiagnostic(nightly.with(url: server.url))
         #expect(nightlyOutcome.remote?.version == "7301")
@@ -148,6 +153,42 @@ import Foundation
         #expect(outcome.warnings.contains(.osBoundPatternNoMatch))
     }
 
+    /// A refusal keeps the warnings collected on the way to it. The floor key is
+    /// renamed (pattern misses, warns) while the ceiling still reads 26.99 and
+    /// refuses a 27.0.0 host: the outcome must carry BOTH the refusal and the
+    /// warning, or the sweep sees `skipped` with nothing to say why the read
+    /// might be wrong.
+    @Test func aRefusalKeepsTheWarningsCollectedBeforeIt() async throws {
+        let (stable, _) = try Self.littleSnitchRecipes()
+        let renamedFloor = VendorProbeRecipe(
+            bundleID: stable.bundleID, url: stable.url, mode: .responseBody,
+            versionPattern: stable.versionPattern,
+            versionIsBuild: true,
+            minimumSystemVersionPattern: #"<key>MinOSVersion</key>\s*<string>([^<]+)</string>"#,
+            maximumSystemVersionPattern: stable.maximumSystemVersionPattern,
+            entryStartPattern: stable.entryStartPattern)
+        let server = try RecipeVerificationTests.StubServer(
+            body: LittleSnitchFeedFixture.body20260829, contentType: "application/xml")
+        defer { server.stop() }
+
+        let outcome = await VendorProbeSource(hostOSVersion: "27.0.0")
+            .probeDiagnostic(renamedFloor.with(url: server.url))
+        #expect(outcome.remote == nil)
+        #expect(outcome.failure?.kind == "outsideVendorOSWindow")
+        #expect(outcome.warnings.contains(.osBoundPatternNoMatch))
+    }
+
+    /// A bound with no digit in it is a bound the vendor did not state, not a
+    /// ceiling below every Mac. `VersionComparator` ranks text below numbers, so
+    /// without the guard `any` refuses everyone.
+    @Test func aTextBoundIsTreatedAsAbsent() {
+        #expect(VendorProbeRecipe.osWindowRefusal(minimum: nil, maximum: "any", osVersion: "27.0.0") == nil)
+        #expect(VendorProbeRecipe.osWindowRefusal(minimum: nil, maximum: "-", osVersion: "27.0.0") == nil)
+        #expect(VendorProbeRecipe.osWindowRefusal(minimum: "latest", maximum: nil, osVersion: "10.0.0") == nil)
+        // A digit somewhere still counts as a version, however odd the spelling.
+        #expect(VendorProbeRecipe.osWindowRefusal(minimum: nil, maximum: "26.99", osVersion: "27.0.0") != nil)
+    }
+
     // MARK: - Derived from the registry
 
     /// Every OS-bound pattern in the registry compiles. Same guard every other
@@ -175,19 +216,25 @@ import Foundation
     /// written — not when someone remembers this suite.
     @Test func everyRecipeOnASharedEndpointReadsTheSameBounds() {
         let byURL = Dictionary(grouping: VendorProbeRegistry.recipes, by: \.url)
-        var declaring = 0
-        for (url, recipes) in byURL where recipes.count > 1 {
-            let mins = Set(recipes.map { $0.minimumSystemVersionPattern != nil })
-            let maxes = Set(recipes.map { $0.maximumSystemVersionPattern != nil })
-            #expect(mins.count == 1 && maxes.count == 1, """
+        let shared = byURL.filter { $0.value.count > 1 }
+        for (url, recipes) in shared {
+            // One (floor, ceiling) flag pair per recipe; a shared document has one.
+            let declared = Set(recipes.map {
+                [$0.minimumSystemVersionPattern != nil, $0.maximumSystemVersionPattern != nil]
+            })
+            #expect(declared.count == 1, """
                 recipes on \(url.absoluteString) disagree on whether the document states \
                 an OS window: \(recipes.map { "\($0.recipeID) min=\($0.minimumSystemVersionPattern != nil) max=\($0.maximumSystemVersionPattern != nil)" })
                 """)
-            if maxes == [true] { declaring += 1 }
         }
         // Anti-vacuity: Little Snitch's two recipes share one URL and declare
-        // both bounds. If that stops being true the guard above is checking
+        // BOTH bounds. If that stops being true the guard above is checking
         // nothing, and this line says so instead of staying green.
-        #expect(declaring >= 1, "no shared endpoint declares an OS ceiling; the guard above is vacuous")
+        let declaringBoth = shared.values.contains { recipes in
+            recipes.allSatisfy {
+                $0.minimumSystemVersionPattern != nil && $0.maximumSystemVersionPattern != nil
+            }
+        }
+        #expect(declaringBoth, "no shared endpoint declares both OS bounds; the guard above is vacuous")
     }
 }

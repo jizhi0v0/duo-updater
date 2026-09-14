@@ -146,6 +146,16 @@ public struct VendorProbeSource: UpdateSource {
             // verdict for all of them — a broken channel recipe reads healthy on
             // the strength of its sibling's success. Same reasoning, same fix as
             // `GitHubReleasesSource`.
+            // A release the vendor states is not for this macOS is neither a
+            // broken recipe nor a missing identity: the version resolved, the
+            // vendor said no. Not a health miss — recorded as one, Diagnostics
+            // would show a working recipe as broken for the whole cap-lag window
+            // (weeks, every macOS major). See `ProbeFailure.outsideVendorOSWindow`.
+            if case .outsideVendorOSWindow = outcome.failure {
+                Log.source.info(
+                    "vendor probe not for this Mac \(bundleID, privacy: .public): \(detail, privacy: .public)")
+                return nil
+            }
             await RecipeHealth.shared.recordMiss(
                 id: outcome.recipeID, source: name, detail: detail)
 
@@ -527,10 +537,19 @@ public struct VendorProbeSource: UpdateSource {
         func elapsed() -> Int {
             Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
         }
-        func fail(_ failure: ProbeFailure, status: Int? = nil, sample: String? = nil) -> ProbeOutcome {
+        // `warnings` is for a failure reached AFTER the version resolved (the OS
+        // window refusal): the warnings collected on the way there — a bound
+        // pattern that stopped matching, entry slicing that fell back — are the
+        // only trace of WHY the refusal read the value it did, and the sweep is
+        // the only thing that will ever look. Dropping them made a vendor's
+        // reformatting indistinguishable from the vendor's decision.
+        func fail(
+            _ failure: ProbeFailure, status: Int? = nil, sample: String? = nil,
+            warnings: [ProbeWarning] = []
+        ) -> ProbeOutcome {
             ProbeOutcome(
                 recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
-                remote: nil, failure: failure, httpStatus: status,
+                remote: nil, failure: failure, warnings: warnings, httpStatus: status,
                 bodySample: sample, elapsedMs: elapsed())
         }
 
@@ -717,7 +736,9 @@ public struct VendorProbeSource: UpdateSource {
             minimum: minOS, maximum: maxOS, osVersion: hostOSVersion) {
             Log.source.notice(
                 "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(version, privacy: .public) not for this Mac — \(refusal, privacy: .public)")
-            return fail(.notApplicable(refusal), status: body.status, sample: sample)
+            return fail(
+                .outsideVendorOSWindow(refusal), status: body.status, sample: sample,
+                warnings: warnings)
         }
         // A recipe whose build ids carry no order of their own reads that order
         // from a second document. Fetched only after the version read succeeded, so

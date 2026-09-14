@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a restrained Siamese-cat app icon concept for Duo Updater.
+"""Generate a restrained Siamese-cat app icon concept for DuoUpdater.
 
 This version intentionally avoids the "AI render" look:
 - simple geometry

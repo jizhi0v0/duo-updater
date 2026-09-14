@@ -1,6 +1,6 @@
 import Foundation
 
-/// Parses Duo Updater's OWN `CHANGELOG.md` into a `Changelog`.
+/// Parses DuoUpdater's OWN `CHANGELOG.md` into a `Changelog`.
 ///
 /// That file is the single source of truth for release notes — `publish-release.sh`
 /// lifts a version's section straight into the GitHub release and the Sparkle

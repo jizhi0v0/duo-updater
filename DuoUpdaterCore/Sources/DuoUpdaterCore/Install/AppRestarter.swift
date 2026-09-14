@@ -448,7 +448,7 @@ public enum AppRestarter {
     /// caller's `defer` never runs and the row stays on "Relaunching…"
     /// indefinitely: its Restart button is dead behind the re-entry guard, and the
     /// self-update idle probe — which refuses to fire while anything is still
-    /// waiting to be relaunched — keeps Duo Updater from updating *itself* until
+    /// waiting to be relaunched — keeps DuoUpdater from updating *itself* until
     /// it is quit. Giving up does not get the app open, but it stops one wedged
     /// launch from taking the rest of the app down with it.
     ///

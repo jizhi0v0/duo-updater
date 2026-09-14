@@ -135,7 +135,7 @@ struct MenuContentView: View {
             // the app is already active, so no click is spent on activation.
             //
             // The cost, accepted deliberately: clicking the menu bar icon now takes
-            // focus from whatever you were in, and if a Duo Updater window is parked
+            // focus from whatever you were in, and if a DuoUpdater window is parked
             // on another Space, macOS may follow it there — so a peek at the popover
             // from a fullscreen app can leave fullscreen. The alternative, deferring
             // activation until the first interaction, is the bug above wearing a

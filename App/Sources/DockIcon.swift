@@ -1,7 +1,7 @@
 import AppKit
 import DuoUpdaterCore
 
-/// Whether Duo Updater shows a Dock icon, or lives in the menu bar only.
+/// Whether DuoUpdater shows a Dock icon, or lives in the menu bar only.
 ///
 /// The bundle declares `LSUIElement`, so every launch starts in the menu bar with
 /// no Dock icon — the default, and the only way to avoid a Dock icon flashing up

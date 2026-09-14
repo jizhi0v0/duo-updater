@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import DuoUpdaterCore
 
-/// Every request Duo Updater made, as a log you can interrogate.
+/// Every request DuoUpdater made, as a log you can interrogate.
 ///
 /// The log **is** the view: no summary page in front of it and no drill-down
 /// behind it. What sits on top is not a lifetime total but the answer to

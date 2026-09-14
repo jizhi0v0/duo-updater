@@ -330,7 +330,7 @@ public enum Check {
     }
 
     /// The stderr line for a gap. The Full Disk Access sentence is the app's own
-    /// (`RowActionViews`: "Without Full Disk Access, Duo Updater can't read the
+    /// (`RowActionViews`: "Without Full Disk Access, DuoUpdater can't read the
     /// builds TestFlight offers you, so it can't say whether this beta is current"),
     /// with `duo` in it, because the two should explain one permission one way.
     ///

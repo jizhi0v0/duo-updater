@@ -24,9 +24,9 @@
             <sparkle:shortVersionString>0.3.94</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from Duo Updater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.
+            <description sparkle:format="markdown"><![CDATA[**Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from DuoUpdater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.
 
-**Apps that need an administrator password to update themselves are no longer updated twice.** When an app like Tailscale had already downloaded its own update and was waiting for a restart, Duo Updater couldn't see it and still offered Update, which could collide with the app's own installer. The row now offers Relaunch instead, and Update All leaves it alone.
+**Apps that need an administrator password to update themselves are no longer updated twice.** When an app like Tailscale had already downloaded its own update and was waiting for a restart, DuoUpdater couldn't see it and still offered Update, which could collide with the app's own installer. The row now offers Relaunch instead, and Update All leaves it alone.
 
 **The Homebrew section can now update Homebrew itself.** When a new Homebrew release is out, a row at the top offers to run `brew update` for you. It stays hidden if you've set `HOMEBREW_NO_AUTO_UPDATE`.
 

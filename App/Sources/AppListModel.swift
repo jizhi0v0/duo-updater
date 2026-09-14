@@ -1011,7 +1011,7 @@ final class AppListModel {
 
     // MARK: - "We updated ourselves while you weren't looking"
 
-    /// The version Duo Updater silently updated itself to since the user last saw
+    /// The version DuoUpdater silently updated itself to since the user last saw
     /// release notes, or nil. Drives the bright sparkles beside the menu's version.
     ///
     /// Computed once at launch rather than on every read: the running version

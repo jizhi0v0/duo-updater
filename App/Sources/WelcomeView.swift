@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import DuoUpdaterCore
 
-/// First-run onboarding. Surfaces the macOS permission Duo Updater needs *before*
+/// First-run onboarding. Surfaces the macOS permission DuoUpdater needs *before*
 /// it blocks an update mid-flight, so the user grants it deliberately instead of
 /// being interrupted by a system prompt the first time they hit Update.
 ///

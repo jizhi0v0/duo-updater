@@ -13,7 +13,7 @@ version being shipped, so this file is the single source of truth.
 
 ## 0.3.50
 
-**豆包输入法 now gets checked.** It was in the list — Duo Updater looks inside
+**豆包输入法 now gets checked.** It was in the list — DuoUpdater looks inside
 `/Library/Input Methods` — but nothing knew where to ask about it.
 
 **Zed's release notes come back instead of an error.** GitHub lets an
@@ -48,7 +48,7 @@ guard their own quit with a dialog.
 @Test func aWrappedParagraphIsOneItem() throws {
     let log = try #require(SelfChangelogParser.parse(selfChangelogFixture))
     #expect(log.entries[0].items[0]
-        == "**豆包输入法 now gets checked.** It was in the list — Duo Updater looks inside `/Library/Input Methods` — but nothing knew where to ask about it.")
+        == "**豆包输入法 now gets checked.** It was in the list — DuoUpdater looks inside `/Library/Input Methods` — but nothing knew where to ask about it.")
 }
 
 /// Markdown syntax is declared: the bold lead that opens every paragraph is the

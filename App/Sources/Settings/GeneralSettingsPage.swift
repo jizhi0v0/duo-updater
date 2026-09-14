@@ -196,7 +196,7 @@ struct GeneralSettingsPage: View {
 
     /// What DuoUpdater does about TestFlight betas (`TestFlightDetection`).
     ///
-    /// Here rather than under Updates, which is Duo Updater's own self-update: this
+    /// Here rather than under Updates, which is DuoUpdater's own self-update: this
     /// is the same question as the two pickers above — how much to do about one
     /// source — and the tip on a TestFlight row sends the reader to this page.
     ///

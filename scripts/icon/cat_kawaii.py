@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate a cuter Siamese-cat icon concept for Duo Updater.
+"""Generate a cuter Siamese-cat icon concept for DuoUpdater.
 
 Design goals:
 - unmistakably a cat
 - more rounded and friendly
 - flat/vector feel, no AI-rendered texture
-- keep Duo Updater's blue refresh motif in the background
+- keep DuoUpdater's blue refresh motif in the background
 """
 
 import math

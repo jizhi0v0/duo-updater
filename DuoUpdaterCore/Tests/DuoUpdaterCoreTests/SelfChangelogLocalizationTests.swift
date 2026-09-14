@@ -149,7 +149,7 @@ private func englishVersions() throws -> [String] {
 
 /// The translations move together, and they cover a hole-free run of the newest
 /// releases. Neither is cosmetic: a language quietly left behind reads to its
-/// speakers as "Duo Updater stopped writing release notes", and a hole in the
+/// speakers as "DuoUpdater stopped writing release notes", and a hole in the
 /// middle of the run is a window that changes language halfway down.
 ///
 /// Deliberately NOT "covers the newest English version": that would fail the

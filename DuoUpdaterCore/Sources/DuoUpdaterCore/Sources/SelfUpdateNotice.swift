@@ -1,8 +1,8 @@
 import Foundation
 
-/// Whether to tell the user that Duo Updater updated itself, and to what.
+/// Whether to tell the user that DuoUpdater updated itself, and to what.
 ///
-/// Duo Updater installs its own updates silently and on purpose — it waits for the
+/// DuoUpdater installs its own updates silently and on purpose — it waits for the
 /// machine to be idle and swaps itself without a prompt, because a tool that nags
 /// you about itself is a tool that interrupts the work it exists to protect. The
 /// cost of that design is that the user ends up on a version they never agreed to

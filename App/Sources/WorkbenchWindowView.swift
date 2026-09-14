@@ -1673,14 +1673,14 @@ private enum ChangelogLayout: String, CaseIterable {
 /// `columns` — a master/detail with a version list on the left and the selected
 /// version's notes on the right, best for content-heavy changelogs; or `list` — one
 /// long top-down scroll, better when each version is only a line or two.
-/// Internal, not private: the self-changelog window renders Duo Updater's own
+/// Internal, not private: the self-changelog window renders DuoUpdater's own
 /// release notes through the very same view, so they look like every other app's
 /// rather than a second, drifting layout.
 struct ChangelogEntriesView: View {
     /// How an entry's items should read.
     ///
     /// A vendor changelog is a list of short lines, and a bullet in front of each
-    /// is exactly right. Duo Updater's own notes are not that shape: they are
+    /// is exactly right. DuoUpdater's own notes are not that shape: they are
     /// prose paragraphs opening with a bold lead sentence, and a `•` in front of
     /// ten lines of prose reads as a list item that forgot to end. Same data, same
     /// view, different typesetting — this stays a presentation choice rather than
@@ -1695,7 +1695,7 @@ struct ChangelogEntriesView: View {
     /// The version the reader is on, marked in the rail. Nil for a vendor
     /// changelog, where the row itself is already about the app they have.
     var runningVersion: String?
-    /// Duo Updater's own history uses compact version + date rows. Vendor
+    /// DuoUpdater's own history uses compact version + date rows. Vendor
     /// changelogs retain the two-line treatment because their titles can be long.
     var showsDatesInline: Bool = false
     /// Whether to offer the side-by-side / long-scroll switch.

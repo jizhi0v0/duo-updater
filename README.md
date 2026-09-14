@@ -13,7 +13,7 @@ own updater, it hands over instead of fighting it; when it can't do something
 safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
 
 <p align="center">
-  <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button. A row at the bottom offers to upgrade outdated Homebrew packages." width="420">
+  <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, a small badge for what the app is built with, and an Update button. A hover card over Microsoft Word reads: Native — a native Mac app, built straight on Apple's frameworks, not a cross-platform runtime. A row at the bottom reports Homebrew packages up to date." width="420">
 </p>
 
 Each row says what you are going from and to, and the button says what will

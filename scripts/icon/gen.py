@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate macOS app-icon candidate SVGs for Duo Updater.
+"""Generate macOS app-icon candidate SVGs for DuoUpdater.
 
 Pure geometry -> SVG (gradients + paths only, so ImageMagick's built-in SVG
 renderer handles it cleanly). Render with:  magick -background none X.svg out.png

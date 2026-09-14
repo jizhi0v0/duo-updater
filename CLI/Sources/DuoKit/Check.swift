@@ -110,7 +110,7 @@ public enum Check {
             ? "duo: TestFlight was not started — without Full Disk Access, duo can't read"
                 + " what it would refresh"
             : "duo: TestFlight was not started — detection is off, so nothing would read"
-                + " what it refreshed (Duo Updater ▸ Settings ▸ General)"
+                + " what it refreshed (DuoUpdater ▸ Settings ▸ General)"
     }
 
     /// A row worth acting on: an update the user has not hidden.
@@ -344,7 +344,7 @@ public enum Check {
         switch gap {
         case .detectionOff:
             return "duo: TestFlight betas were not checked — detection is off"
-                + " (Duo Updater ▸ Settings ▸ General)."
+                + " (DuoUpdater ▸ Settings ▸ General)."
         case .storeUnread(fullDiskAccessMissing: true):
             return "duo: TestFlight betas were not checked — without Full Disk Access,"
                 + " duo can't read the builds TestFlight offers you, so it can't say"

@@ -118,10 +118,10 @@ struct WelcomeView: View {
                 .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
 
             VStack(spacing: 8) {
-                Text("Welcome to Duo Updater")
+                Text("Welcome to DuoUpdater")
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
-                Text("A few quick steps let Duo Updater keep your apps updated without interrupting you. You set these once — they persist across launches.")
+                Text("A few quick steps let DuoUpdater keep your apps updated without interrupting you. You set these once — they persist across launches.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -146,7 +146,7 @@ struct WelcomeView: View {
             PermissionCard(
                 systemImage: "internaldrive",
                 title: String(localized: "Full Disk Access"),
-                detail: String(localized: "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything."),
+                detail: String(localized: "Lets DuoUpdater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything."),
                 status: fullDiskAccessCardStatus,
                 action: { model.presentFullDiskAccessPermissionFlow() }
             )
@@ -228,9 +228,9 @@ struct WelcomeView: View {
 
     private var appManagementDetail: String {
         if model.appManagementStatus == .unknown {
-            return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.")
+            return String(localized: "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.")
         }
-        return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).")
+        return String(localized: "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).")
     }
 
     // MARK: - Full Disk Access (optional)

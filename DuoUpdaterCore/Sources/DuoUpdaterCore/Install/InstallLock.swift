@@ -49,7 +49,7 @@ public final class InstallLock: @unchecked Sendable {
         public var errorDescription: String? {
             switch self {
             case .heldByAnother:
-                return String(localized: "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.")
+                return String(localized: "Another update is being installed right now — by DuoUpdater or by `duo` in a terminal. Try again once it finishes.")
             case .unavailable(let reason):
                 return String(localized: "Couldn’t take the install lock: \(reason)")
             }

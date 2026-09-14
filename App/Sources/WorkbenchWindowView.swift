@@ -216,7 +216,7 @@ struct WorkbenchWindowView: View {
                     description: Text("Pick an app to read its changelog."))
             }
         }
-        .navigationTitle("Duo Updater")
+        .navigationTitle("DuoUpdater")
         .toolbar {
             // Download traffic has its own window now (NetworkWindowView), so the
             // detail pane is always Release Notes and needs no lens switcher.

@@ -605,9 +605,9 @@ extension TestFlightUnboundedReason {
     var rowHelp: String {
         switch self {
         case .checkingOff:
-            return String(localized: "TestFlight checking is off, so Duo Updater can’t say whether this beta is current")
+            return String(localized: "TestFlight checking is off, so DuoUpdater can’t say whether this beta is current")
         case .noFullDiskAccess:
-            return String(localized: "Duo Updater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current")
+            return String(localized: "DuoUpdater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current")
         case .storeSilent:
             return String(localized: "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current")
         }
@@ -638,11 +638,11 @@ struct TestFlightUnboundedTip: View {
             Group {
                 switch reason {
                 case .checkingOff:
-                    Text("Duo Updater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.")
+                    Text("DuoUpdater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.")
                 case .noFullDiskAccess:
-                    Text("Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
+                    Text("Without Full Disk Access, DuoUpdater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
                 case .storeSilent:
-                    Text("TestFlight hasn’t told Duo Updater this beta’s latest build yet. Refreshing asks TestFlight to check.")
+                    Text("TestFlight hasn’t told DuoUpdater this beta’s latest build yet. Refreshing asks TestFlight to check.")
                 }
             }
             .font(.callout)
@@ -744,9 +744,9 @@ struct FullDiskAccessTip: View {
     static func reason(_ need: FullDiskAccessNeed) -> some View {
         switch need {
         case .testFlight:
-            Text("Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
+            Text("Without Full Disk Access, DuoUpdater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
         case .cotEditorChannel:
-            Text("Without Full Disk Access, Duo Updater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.")
+            Text("Without Full Disk Access, DuoUpdater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.")
         }
     }
 }

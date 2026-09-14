@@ -105,9 +105,9 @@ final class PrivilegedHelperClient: ObservableObject {
     private static func explain(_ error: Error, status: SMAppService.Status) -> String {
         guard isRefusal(error) else { return error.localizedDescription }
         if status == .requiresApproval {
-            return String(localized: "macOS is waiting for your approval. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — it's open now.")
+            return String(localized: "macOS is waiting for your approval. Switch DuoUpdater on under “Allow in the Background” in Login Items & Extensions — it's open now.")
         }
-        return String(localized: "macOS refused the registration. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
+        return String(localized: "macOS refused the registration. Switch DuoUpdater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
     }
 
     func unregister() {

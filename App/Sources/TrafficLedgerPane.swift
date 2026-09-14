@@ -209,7 +209,7 @@ struct TrafficLedgerPane: View {
             Image(systemName: "info.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("Counts only what Duo Updater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound.")
+            Text("Counts only what DuoUpdater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

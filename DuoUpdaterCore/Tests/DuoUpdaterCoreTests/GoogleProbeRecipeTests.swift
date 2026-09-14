@@ -80,6 +80,18 @@ struct GoogleProbeRecipeTests {
             + "ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/Gemini-1.94.11.734.dmg")
     }
 
+    /// "Open page" opens `downloadURL`, so it must be the desktop landing page.
+    /// Two wrong answers, neither of which `PageURLTests` can see: the old
+    /// `gemini.google.com/download` answered 404 or a /sorry bot challenge
+    /// (both seen 2026-09-14), and the page's own
+    /// "Download for macOS" button, `gemini.google/download/mac/`, has no file
+    /// extension but 302s straight to the dmg — the browser would download a file.
+    /// This pins the choice; it cannot tell whether the page is still up.
+    @Test func geminiSendsAHumanToTheDesktopPageRatherThanItsRedirect() throws {
+        let recipe = try #require(googleRecipe("com.google.GeminiMacOS"))
+        #expect(recipe.downloadURL?.absoluteString == "https://gemini.google/desktop/")
+    }
+
     /// The feed states the bundle's own string — a plain `2.8.1`, the same value
     /// the mounted artifact reports (2026-08-16).
     @Test func antigravityReadsTheFeedsMarketingVersion() throws {

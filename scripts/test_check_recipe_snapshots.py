@@ -259,6 +259,14 @@ class Snapshots(unittest.TestCase):
         self.anchor()
         self.assertEqual(crs.main(root=self.root, minimum=10), 1)
 
+    # Mutation: `guarded < minimum` becomes `<=`. A tree with exactly `minimum`
+    # guarded families is a real run and must pass.
+    def test_the_floor_admits_a_tree_at_exactly_the_minimum(self):
+        self.anchor()
+        self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=2), 0)
+
     # Mutation: lower `main`'s default floor. Called without `minimum`, a
     # two-family tree must not pass as a real run.
     def test_the_default_floor_refuses_a_small_tree(self):

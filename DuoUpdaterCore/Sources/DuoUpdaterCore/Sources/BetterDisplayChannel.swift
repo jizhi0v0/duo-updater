@@ -20,10 +20,10 @@ import Foundation
 ///
 /// Note for anyone adding a changelog recipe here later: the internal track's
 /// `<sparkle:releaseNotesLink>` is `changelog.html?tag=pre`, and that tag is a
-/// ROLLING GitHub release (published 2023-06-14, 26 assets accumulated across
-/// v3.0.5…v5.0.4) whose body is static boilerplate about what internal builds
-/// are — there are no per-version notes on that track at all. Only `pre` and
-/// stable items point at a real per-version tag.
+/// ROLLING GitHub release (published 2023-06-14; its assets keep accumulating,
+/// e.g. 26 across v3.0.5…v5.0.4 on 2026-08-26) whose body is static boilerplate
+/// about what internal builds are — there are no per-version notes on that track
+/// at all. Only `pre` and stable items point at a real per-version tag.
 ///
 /// Why a binding at all, when `SparkleAppcastSource` already infers the channel
 /// from the running build: the inference cannot see an opt-in the user has not

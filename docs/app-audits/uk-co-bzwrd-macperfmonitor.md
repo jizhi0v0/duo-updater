@@ -57,7 +57,7 @@ headingPattern  \n###\s+(?<heading>[^\n]+)
 `Recipes/uk-co-bzwrd-macperfmonitor.swift` 的 `ChangelogRecipe` 逐字补上。
 
 跟仓库里那条同形的 CopilotForXcode recipe（也是读 repo 的 `CHANGELOG.md`）比，四处不同，
-都是这份文件逼出来的——下面两条、再下面的「第三处」，和第四处 `headingPattern`：
+都是这份文件逼出来的——下面两条、再下面的「第三处」（第二条里 `\n\[` 那个边界的展开，单列是因为它是复审补的），和第四处 `headingPattern`：
 
 1. **版本号带方括号**，而且方括号里要求首字符是数字 —— 这一条是用来挡掉文件顶部的
    `## [Unreleased]`。那是个有真实条目的小节，描述的是还装不了的构建。
@@ -76,8 +76,7 @@ Keep a Changelog 文件，`### Added` / `### Fixed` 这类组标题都是真的�
 而不只是当条目的终止边界用。CopilotForXcode 那条没有这个字段。
 
 更正 2026-09-15：本节原写「两处不同」，但同一节里已经列了「第三处」，`headingPattern` 加进代码后
-又多了一处，计数一直没改；recipe 注释里的 "Two things differ" 同样没改，已一并改成三处（那边把 `\n\[`
-算在第二条里）。
+又多了一处，计数一直没改；recipe 注释里的 "Two things differ" 同样没改，已一并改成三处。两边数的是同一组东西：本节的「第三处」就是第二条里那个 `\n\[` 边界，代码注释不单列它，所以是三处。
 
 ### 实测
 

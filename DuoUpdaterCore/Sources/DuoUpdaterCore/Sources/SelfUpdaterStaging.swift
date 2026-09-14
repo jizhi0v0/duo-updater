@@ -14,11 +14,17 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     public let buildVersion: String?
     /// The staged `.app` inside the ShipIt cache (not yet installed).
     public let stagedBundlePath: URL
+    /// What makes the app's own updater swap this build in.
+    public let appliesOn: StagedApplyTrigger
 
-    public init(version: String, buildVersion: String?, stagedBundlePath: URL) {
+    public init(
+        version: String, buildVersion: String?, stagedBundlePath: URL,
+        appliesOn: StagedApplyTrigger = .quit
+    ) {
         self.version = version
         self.buildVersion = buildVersion
         self.stagedBundlePath = stagedBundlePath
+        self.appliesOn = appliesOn
     }
 
     /// What identifies this staged build when the question is "is this a
@@ -46,6 +52,22 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     public var versionSide: VersionSide {
         VersionSide(marketing: version, build: buildVersion)
     }
+}
+
+/// The event on which an app's own updater applies a build it has staged.
+///
+/// Decides what Relaunch has to do. For `.quit` we must quit and then keep our
+/// hands off until disk moves — reopening early makes ShipIt abort with "App
+/// Still Running Error". For `.launch` the quit alone does nothing: disk never
+/// moves until someone opens the app again, so waiting for it is a guaranteed
+/// timeout.
+public enum StagedApplyTrigger: Sendable, Hashable {
+    /// Squirrel's ShipIt and Sparkle's parked installer: swap once every
+    /// instance has quit.
+    case quit
+    /// Spotify: the next launch of the *old* build spawns `sp_relauncher`, which
+    /// swaps the bundle and opens the new one.
+    case launch
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -187,11 +209,18 @@ public enum SelfUpdaterStaging {
     /// Spotify's native staged update. Spotify's own updater downloads the next
     /// build to `~/Library/Application Support/Spotify/PersistentCache/Update/`
     /// (a `spotify-autoupdate-<ver>.tbz` plus an `update.json` carrying
-    /// `version_from`/`version_to`/`update_path`) and applies it on the app's next
-    /// quit — the "Spotify has been updated to version X. Please restart to
-    /// install." state. That's the same situation as a ShipIt staged update, so we
-    /// surface it as **Relaunch** rather than letting the vendor probe offer a
-    /// 164MB re-download of bytes Spotify already has on disk.
+    /// `version_from`/`version_to`/`update_path`) — the "Spotify has been updated
+    /// to version X. Please restart to install." state. We surface it as
+    /// **Relaunch** rather than letting the vendor probe offer a 164MB re-download
+    /// of bytes Spotify already has on disk.
+    ///
+    /// **It applies on the next launch, not the next quit** — unlike ShipIt.
+    /// Measured 2026-09-14 on this machine's copy (1.2.98.301 staged 1.3.0.277,
+    /// with the build already unpacked to `Update/temp/Spotify.app`): after a
+    /// quit, disk stayed on 1.2.98.301 for the full 180 s the relaunch waited.
+    /// The moment the old build was opened again it spawned `sp_relauncher`, the
+    /// bundle was swapped and 1.3.0.277 was running two seconds later, with the
+    /// `Update/` directory consumed. Hence `appliesOn: .launch`.
     private static func spotifyStaged(
         for app: InstalledApp,
         requireNewerThanInstalled: Bool = true,
@@ -236,11 +265,13 @@ public enum SelfUpdaterStaging {
                   VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
         }
 
-        // stagedBundlePath is informational here (the relaunch action quits the
-        // app and lets Spotify perform the swap), so point it at the staged .tbz.
+        // stagedBundlePath is informational here (the relaunch action quits and
+        // reopens the app and lets Spotify perform the swap), so point it at the
+        // staged .tbz.
         return StagedSelfUpdate(
             version: versionTo, buildVersion: nil,
-            stagedBundlePath: URL(fileURLWithPath: updatePath))
+            stagedBundlePath: URL(fileURLWithPath: updatePath),
+            appliesOn: .launch)
     }
 
     /// Parse a string-keyed dictionary from either a property list or JSON.

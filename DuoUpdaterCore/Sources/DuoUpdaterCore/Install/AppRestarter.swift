@@ -258,6 +258,38 @@ public enum AppRestarter {
         return UpdatePolicy.runtimeBundlePath(candidateBundleURL) == target
     }
 
+    /// Whether any process at all is running an executable from inside `bundle`
+    /// — not just the LaunchServices-registered instances `runningInstances`
+    /// sees. Chromium-based apps spawn their helpers (GPU, renderer, network)
+    /// without LaunchServices: with Spotify up, `NSWorkspace` listed only its main
+    /// process while `ps` showed six `Spotify Helper` processes (2026-09-14), so
+    /// "no running instances" does not mean the bundle has gone quiet.
+    public static func hasProcesses(insideBundle bundle: URL) -> Bool {
+        let bundlePath = bundle.resolvingSymlinksInPath().path
+        let capacity = Int(proc_listallpids(nil, 0)) + 64
+        guard capacity > 64 else { return false }
+        var pids = [pid_t](repeating: 0, count: capacity)
+        let count = Int(pids.withUnsafeMutableBytes {
+            proc_listallpids($0.baseAddress, Int32($0.count))
+        })
+        guard count > 0 else { return false }
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        for pid in pids.prefix(min(count, capacity)) where pid > 0 {
+            let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
+            guard length > 0 else { continue }
+            let path = String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            if isExecutable(path, insideBundlePath: bundlePath) { return true }
+        }
+        return false
+    }
+
+    /// Path-component containment, so `/Applications/Foo.app` does not claim
+    /// `/Applications/Foo.app.old/…` or `/Applications/Foo.application/…`.
+    static func isExecutable(_ executablePath: String, insideBundlePath bundlePath: String) -> Bool {
+        let prefix = bundlePath.hasSuffix("/") ? bundlePath : bundlePath + "/"
+        return executablePath.hasPrefix(prefix)
+    }
+
     /// Was one of these instances the app the user is actually looking at?
     ///
     /// Must be read *before* anything is quit — it decides whether the relaunch

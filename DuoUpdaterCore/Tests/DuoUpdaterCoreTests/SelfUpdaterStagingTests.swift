@@ -68,6 +68,9 @@ struct SelfUpdaterStagingTests {
                 for: app(at: installed, short: "1.9659.4", build: "1.9659.4"),
                 cachesDirectory: caches)
             #expect(result?.version == "1.10628.0")
+            // ShipIt swaps on quit — reopening early is what makes it abort, so
+            // this must not pick up Spotify's launch-first order.
+            #expect(result?.appliesOn == .quit)
         }
     }
 
@@ -231,6 +234,22 @@ struct SelfUpdaterStagingTests {
                 for: spotifyApp(short: "1.2.92.147.g5b8f9367"),
                 applicationSupportDirectory: appSupport)
             #expect(result?.version == "1.2.92.148")
+        }
+    }
+
+    /// Spotify applies its staged build on the next *launch*; a quit alone leaves
+    /// disk untouched. Tagged `.quit`, Relaunch waited the full 180 s for a swap
+    /// that could not start until its own timeout fallback reopened the app
+    /// (measured 2026-09-14, 1.2.98.301 → 1.3.0.277).
+    @Test func spotifyStagingAppliesOnLaunch() throws {
+        try withScratch { root in
+            let appSupport = try writeSpotifyStaging(
+                in: root, from: "1.2.98.301", to: "1.3.0.277")
+            let result = try #require(SelfUpdaterStaging.staged(
+                for: spotifyApp(short: "1.2.98.301"),
+                applicationSupportDirectory: appSupport))
+            #expect(result.appliesOn == .launch)
+            #expect(RelaunchLanding.staged(result) == .stagedOnLaunch(to: result.versionSide))
         }
     }
 

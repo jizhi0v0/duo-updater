@@ -227,4 +227,33 @@ import Foundation
     @Test func allNestedBackOnNoResultsIsVacuouslyTrue() {
         #expect(AppRestarter.allNestedBack([]))
     }
+
+    // MARK: - hasProcesses(insideBundle:)
+
+    /// A helper nested anywhere inside the bundle counts; a sibling whose name
+    /// merely starts with the bundle's does not.
+    @Test func executableContainmentIsByPathComponent() {
+        let bundle = "/ZZFixture/Apps/Fixture.app"
+        #expect(AppRestarter.isExecutable(
+            "/ZZFixture/Apps/Fixture.app/Contents/Frameworks/Fixture Helper (GPU).app/Contents/MacOS/Fixture Helper (GPU)",
+            insideBundlePath: bundle))
+        #expect(AppRestarter.isExecutable(
+            "/ZZFixture/Apps/Fixture.app/Contents/MacOS/Fixture", insideBundlePath: bundle + "/"))
+        #expect(!AppRestarter.isExecutable(
+            "/ZZFixture/Apps/Fixture.app.duoupdater-old/Contents/MacOS/Fixture", insideBundlePath: bundle))
+        #expect(!AppRestarter.isExecutable(
+            "/ZZFixture/Apps/Fixture.application/Contents/MacOS/Fixture", insideBundlePath: bundle))
+    }
+
+    /// The process enumeration itself, measured against the one process whose
+    /// executable this test knows on every host: its own. A fabricated bundle
+    /// finds nothing.
+    @Test func hasProcessesSeesThisTestProcessAndNotAFabricatedBundle() throws {
+        let ownDirectory = URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath().deletingLastPathComponent()
+        #expect(AppRestarter.hasProcesses(insideBundle: ownDirectory))
+        let fabricated = URL(fileURLWithPath: "/ZZFixture-\(UUID().uuidString)/Fixture.app")
+        #expect(!FileManager.default.fileExists(atPath: fabricated.path))
+        #expect(!AppRestarter.hasProcesses(insideBundle: fabricated))
+    }
 }

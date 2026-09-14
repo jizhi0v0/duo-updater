@@ -25,11 +25,27 @@ public enum RelaunchLanding: Sendable, Equatable {
     /// promise was that specific build.
     case stagedSwap(to: VersionSide)
 
+    /// The app's own updater swaps on its next *launch* (Spotify — see
+    /// `StagedApplyTrigger.launch`). The opposite order from `.stagedSwap`:
+    /// launch as soon as the app is gone, because nothing lands until we do, then
+    /// wait for disk to reach this build. Waiting first is a guaranteed timeout
+    /// that leaves the app closed.
+    case stagedOnLaunch(to: VersionSide)
+
     /// App Store swaps once the app is gone (we quit it ourselves on the user's
     /// Relaunch tap). Launch once disk moves past this pre-install version — and
     /// launch anyway if it never does: we closed the user's app for an update, so
     /// it comes back whether or not the store delivered one.
     case appStoreSwap(past: VersionSide)
+
+    /// The landing for a build the app's own updater has staged — the one place
+    /// that turns `StagedApplyTrigger` into an order of operations.
+    public static func staged(_ staged: StagedSelfUpdate) -> RelaunchLanding {
+        switch staged.appliesOn {
+        case .quit: return .stagedSwap(to: staged.versionSide)
+        case .launch: return .stagedOnLaunch(to: staged.versionSide)
+        }
+    }
 
     /// True once what is on disk satisfies this landing.
     ///
@@ -42,7 +58,7 @@ public enum RelaunchLanding: Sendable, Equatable {
         switch self {
         case .applied:
             return true
-        case .stagedSwap(let target):
+        case .stagedSwap(let target), .stagedOnLaunch(let target):
             guard !disk.isEmpty else { return false }
             return VersionComparator.hasReached(target, disk: disk)
         case .appStoreSwap(let baseline):
@@ -73,15 +89,29 @@ public enum RelaunchLanding: Sendable, Equatable {
     /// the target, so a marker left pointing at the old build would have relayed
     /// correctly anyway. Re-targeting just keeps the landing test exact.
     public func retargeted(nowStaged: VersionSide?) -> RelaunchLanding? {
-        guard case .stagedSwap = self else { return self }
-        guard let nowStaged, !nowStaged.isEmpty else { return nil }
-        return .stagedSwap(to: nowStaged)
+        switch self {
+        case .stagedSwap, .stagedOnLaunch:
+            guard let nowStaged, !nowStaged.isEmpty else { return nil }
+            if case .stagedOnLaunch = self { return .stagedOnLaunch(to: nowStaged) }
+            return .stagedSwap(to: nowStaged)
+        case .applied, .appStoreSwap:
+            return self
+        }
     }
 
-    /// Whether this landing has to poll disk at all.
+    /// Whether this landing has to poll disk *before* the app is launched.
     public var waitsForDisk: Bool {
-        if case .applied = self { return false }
-        return true
+        switch self {
+        case .applied, .stagedOnLaunch: return false
+        case .stagedSwap, .appStoreSwap: return true
+        }
+    }
+
+    /// Whether the landing only happens once we have launched the app, so the
+    /// disk poll comes after the launch instead of before it.
+    public var landsAfterLaunch: Bool {
+        if case .stagedOnLaunch = self { return true }
+        return false
     }
 
     /// Whether the app is reopened even if the landing never happens. Only the

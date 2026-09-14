@@ -4,13 +4,14 @@ enum com_raycast_macos {
     static let set = AppRecipeSet(
         family: "com-raycast-macos",
         probes: [
+        // History: docs/app-audits/com-raycast-macos.md#历史与实测
         // Raycast keeps TWO trains open, and which one a Mac belongs to is decided
         // by the machine, not by a user preference — so both are stable-channel
         // recipes separated by `hostRequirement`, not by `channel`.
         //
         //   v1 (this recipe): `releases.raycast.com`, universal, still shipping
-        //      (1.104.25 on 2026-08-18). This is the train for every Mac that
-        //      cannot run v2.
+        //      as of 2026-08-18 (History has the version). This is the train for
+        //      every Mac that cannot run v2.
         //   v2 (below): `x.raycast-releases.com`, arm64-only, macOS 26+.
         //
         // Neither endpoint gates: both answer any client the same way regardless
@@ -22,9 +23,7 @@ enum com_raycast_macos {
 
         // Raycast v1 — official "latest release" endpoint; `version` is first.
         // Carries an explicit `variant` for the same reason v2 does: a duplicated
-        // (bundleID, channel) group must declare every member deliberately. Its
-        // verify baseline entry was renamed with it (`…:stable` → `…:stable:v1`)
-        // rather than left to start over.
+        // (bundleID, channel) group must declare every member deliberately.
         // One-click: the same JSON's `downloadURL` is the dmg (a
         // worker.raycast-releases.com proxy URL wrapping a presigned R2 object;
         // resolved fresh from each probe so its signed expiry is never stale).
@@ -64,8 +63,8 @@ enum com_raycast_macos {
         //   "builds":[{…,"url":…}],"download_url":"https://x-r2.…arm64.dmg",
         //   "checksum":"<md5>"}
         // `version` is the marketing string the installed bundle reports verbatim
-        // (2.0.6.0 == CFBundleShortVersionString, verified on this machine), so no
-        // `versionIsBuild`. The install URL is the top-level `download_url` — a
+        // (e.g. 2.0.6.0 == CFBundleShortVersionString; History has the check), so
+        // no `versionIsBuild`. The install URL is the top-level `download_url` — a
         // plain, unsigned R2 object, unlike v1's presigned link — and the `.dmg`
         // suffix in the pattern keeps it off the Windows `.msix` builds listed in
         // `builds`. `checksum` is an MD5 hex digest, which `checksumPattern`
@@ -115,12 +114,12 @@ enum com_raycast_macos {
         // on the readable SUFFIX, which survives a rebuild; the hash does not.
         //
         // Versions here are the vendor's own MINOR labels — "2.0", "0.71" — while
-        // the app reports a four-segment build (2.0.6.0). That is not a mismatch to
-        // fix: Raycast publishes one set of notes per minor train and ships several
-        // builds under it (the JSON API confirms this from the other side — its
-        // /releases list hands 2.0.6.0, 2.0.5.0, 2.0.4.0 and 2.0.3.0 byte-identical
-        // changelog text). The 0.6x–0.71 entries are the v2 BETA train, which is
-        // what preceded the 2.0 GA number.
+        // the app reports a four-segment build (e.g. 2.0.6.0). That is not a
+        // mismatch to fix: Raycast publishes one set of notes per minor train and
+        // ships several builds under it (the JSON API's /releases list confirms
+        // this from the other side, handing builds of one minor byte-identical
+        // changelog text; History has which). The 0.6x–0.71 entries are the v2
+        // BETA train, which is what preceded the 2.0 GA number.
         //
         // The single itemPattern deliberately matches `h2` and `li` together rather
         // than listing them as fallbacks: itemPatterns are tried in order and the
@@ -162,12 +161,12 @@ enum com_raycast_macos {
         // bare `belowAppVersion: "2"` would also swallow the 0.63–0.71 v2 beta
         // builds, whose notes are on the v2 page above, not here.
         //
-        // Its newest entry is 1.104.0 (December 16, 2025) while the v1 endpoint is
-        // serving 1.104.25 — not a stale page. Raycast publishes one set of notes
-        // per MINOR and ships patches under it, and v1 has been on patches alone
-        // since v2 development took over; 1.104.x installs belong under the 1.104.0
-        // entry. (The same grouping is visible on the v2 side, where 2.0.6.0
-        // through 2.0.3.0 share one note.)
+        // A newest entry older than what the v1 endpoint serves does not make this
+        // a stale page (History has both versions when this was written). Raycast
+        // publishes one set of notes per MINOR and ships patches under it, and v1
+        // has been on patches alone since v2 development took over; 1.104.x
+        // installs belong under the 1.104.0 entry. (The same grouping is visible
+        // on the v2 side; History has the builds.)
         ChangelogRecipe(
             bundleID: "com.raycast.macos",
             source: URL(string: "https://www.raycast.com/changelog/macos-v1")!,

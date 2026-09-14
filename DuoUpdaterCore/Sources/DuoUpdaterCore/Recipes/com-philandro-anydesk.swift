@@ -4,23 +4,21 @@ enum com_philandro_anydesk {
     static let set = AppRecipeSet(
         family: "com-philandro-anydesk",
         probes: [
+        // History: docs/app-audits/com-philandro-anydesk.md#历史与实测
         // AnyDesk — the plain-text changelog its own Homebrew cask reads for
         // livecheck, and the one thing on that host a script can fetch: the
         // download page and `anydesk.com/en/changelog/mac-os` both answer 403 with
         // a Cloudflare challenge even under a full Safari UA, which is why an
         // earlier sweep wrote this app off entirely. `changelog.txt` answers 200.
         //
-        // Every platform's releases share the file, newest first, as
+        // Every platform's releases share the file, newest first, as e.g.
         // `22.07.2026 - 9.7.3 (macOS)`. The `(macOS)` anchor is load-bearing and
-        // `selectHighest` must stay off: Windows is on a HIGHER number (9.7.14 the
-        // day this was written), so an unanchored or highest-wins pattern reports
-        // a version this app will never install.
+        // `selectHighest` must stay off: Windows is on a HIGHER number (History
+        // has the values), so an unanchored or highest-wins pattern reports a
+        // version this app will never install.
         //
-        // Verified 2026-08-16 on the downloaded dmg: AnyDesk.app 9.7.3,
-        // com.philandro.anydesk, Developer ID `AnyDesk Software GmbH (KHRWM533LU)`
-        // — the same Team as the installed copy — notarized and accepted by
-        // `spctl`. The dmg URL carries no version, but it does not need to: it
-        // always serves the release this file names first (its `Last-Modified`,
+        // The dmg URL carries no version, but it does not need to: it always
+        // serves the release this file names first (its `Last-Modified`,
         // 2026-07-22, matches that entry's date).
         VendorProbeRecipe(
             bundleID: "com.philandro.anydesk",
@@ -48,9 +46,8 @@ enum com_philandro_anydesk {
         //   - Visibility and online status for AnyDesk One Chat can be set manually
         //
         // The `(macOS)` anchor is load-bearing for exactly the reason the probe's
-        // is: Windows runs on a HIGHER number (9.7.15 the day this was written), so
-        // an unanchored pattern lists another platform's releases under this app.
-        // 80 macOS entries on the live file (2026-09-03), newest 9.7.3.
+        // is: Windows runs on a HIGHER number (History has the values), so an
+        // unanchored pattern lists another platform's releases under this app.
         //
         // `[^\n]` in the item pattern, not `.`: every pattern is compiled with
         // dot-matches-newline, so `^-\s+(?<item>.+)$` would swallow the whole

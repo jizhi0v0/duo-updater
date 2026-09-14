@@ -4,16 +4,20 @@ enum com_sublimemerge {
     static let set = AppRecipeSet(
         family: "com-sublimemerge",
         probes: [
+        // History: docs/app-audits/com-sublimemerge.md#历史与实测
         // Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
-        // (no usable API; mirrors the Sublime Text 4 recipe in `Recipes/com-sublimetext-4.swift` — same vendor,
-        // same page shape). The /download page's latest marker
-        // `<p class="latest"><i>Version:</i> Build 2125</p>` precedes the descending
-        // history, so the anchored "Build NNNN" is newest. CRITICAL: capture the
-        // FULL "Build NNNN" string — installed CFBundleShortVersionString is
-        // literally "Build 2125", and a bare "2125" would read as a perpetual
-        // phantom update (VersionComparator ranks a number above adjacent text).
-        // Builds are 2xxx (not 4xxx like Sublime Text); the class="latest" anchor
-        // already makes it single-match. Detection only.
+        // (mirrors the Sublime Text 4 recipe in
+        // `Recipes/com-sublimetext-4.swift` — same vendor, same page shape, and
+        // the same bare-number JSON update check, here
+        // `sublimemerge.com/updates/stable_update_check`). The /download page's
+        // latest marker (e.g. `<p class="latest"><i>Version:</i> Build 2125</p>`)
+        // precedes the descending history, so the anchored "Build NNNN" is newest.
+        // CRITICAL: capture the FULL "Build NNNN" string — the app's
+        // CFBundleShortVersionString has the form "Build NNNN" (e.g. "Build 2125"),
+        // and a bare "2125" would read as a perpetual phantom update
+        // (VersionComparator ranks a number above adjacent text). Builds are 2xxx
+        // (not 4xxx like Sublime Text); the class="latest" anchor already makes it
+        // single-match.
         VendorProbeRecipe(
             bundleID: "com.sublimemerge",
             url: URL(string: "https://www.sublimemerge.com/download")!,
@@ -24,8 +28,7 @@ enum com_sublimemerge {
             // literal template `sublime_merge_build_${version}_mac.zip` for JS to
             // fill, so it's rebuilt from the same "latest" marker, taking the BARE
             // build number (the version keeps its "Build " prefix to match what the
-            // bundle reports; a URL can't carry it). Verified 2026-08-09 on build
-            // 2125: `Sublime Merge.app`, Team Z6D26JE4Y4, accepted by spctl.
+            // bundle reports; a URL can't carry it).
             install: VendorInstallSpec(
                 urlSource: .bodyTemplate(
                     "https://download.sublimetext.com/sublime_merge_build_{0}_mac.zip",

@@ -4,11 +4,12 @@ enum com_shotbase_app {
     static let set = AppRecipeSet(
         family: "com-shotbase-app",
         changelogs: [
+        // History: docs/app-audits/com-shotbase-app.md#历史与实测
         // Shotbase — GitHub releases, because the appcast carries no notes at all.
         //
-        // `updates.shotbase.com/appcast.xml` is a stock Sparkle 2.9.5 feed served
-        // off GitHub Pages, and `SparkleAppcastSource` already answers for the app
-        // from it. What it cannot do is render notes: not one of the seven items
+        // `updates.shotbase.com/appcast.xml` is a stock Sparkle feed served off
+        // GitHub Pages, and `SparkleAppcastSource` already answers for the app
+        // from it. What it cannot do is render notes: not one of its items
         // carries a `<description>` or a `<sparkle:releaseNotesLink>`, so there is
         // neither inline text to parse NOR a page to fall back to in a web view —
         // the pane would simply be blank.

@@ -48,8 +48,8 @@
    "hash":"d712c37e…","timestamp":1788277155505,"sha256hash":"52c46d6d…"}
   ```
 - 取 `productVersion`。**不能取 `version`**——那是 commit，40 位 hex，拿去和 `1.27.0`
-  比会永远比不出结果。`name` 今天也是 `1.28.0`，但协议里 `name` 是允许厂商塞人话串的
-  那个字段。
+  比会永远比不出结果。`name` 审计当天（2026-09-06）也是 `1.28.0`（2026-09-14 复测两者都是
+  `1.29.0`），但协议里 `name` 是允许厂商塞人话串的那个字段。
 - ⚠️ **这是条件端点**（2026-09-06 实测）:
   | 末段 commit | 响应 |
   |---|---|
@@ -90,10 +90,13 @@
   「正则在这页上够得到多少」，不是「读者能翻多少历史」。
 - ⚠️ **锚定 `data-component-part` 到底买到了什么，是量出来的，不是想当然的**：同一页底部
   确实还带一份 RSC payload，但**那份里一个 `</div>` 都没有**，靠元素结构就已经排除了
-  （把它接在真实条目后面，条数和版本都不变）。锚定真正防住的是另一件事：去掉它，**最新那条
-  的日期**会读成页面自己的 `<div class="eyebrow">Release Notes</div>`。测试
-  `theAnchorsAreWhatKeepThePageHeaderOutOfTheNewestDate` 钉的就是这个，fixture 为此特意
-  带上了页头。
+  （把它接在真实条目后面，条数和版本都不变）。页面自己的 `<div class="eyebrow">Release Notes</div>`
+  也不是靠锚定挡在**最新那条的日期**之外的：recipe 最初那一版里是，但条目间隔加了
+  tempering 之后，tempering 的哨兵就是 label 属性本身——去掉三个属性前缀、保留 tempering，
+  结果不变；只有 tempering 也去掉时页头才会被读成日期（`d8c3a6dc`，2026-09-06 实测）。
+  测试 `theNewestEntrysDateIsItsOwnLabelNotThePageHeader` 钉的是这个结果，fixture 为此特意
+  带上了页头；锚定本身由两条 `aDamagedEntryCannotBorrow…` 用例钉住。（2026-09-14 更正：
+  这里原先写的是「锚定防住页头」，引用的测试名也已改掉。）
 
 ## 一键安装
 - 状态: **支持**
@@ -128,3 +131,78 @@ duo verify --only qoder.ide
 
 ## 建议下一步
 - 无。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-qoder-ide.swift — stable VendorProbe（条件端点）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（旧版本的 commit 得到最新版的 JSON，当前版本的 commit 得到 204 空 body，保留了实测日期），两个 commit 和版本号搬到这里。唯一的改写：一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被量的机器的说法。
+
+⚠️ CONDITIONAL ENDPOINT — the reason the last path segment is `latest`
+and not a commit. Measured 2026-09-06: the commit of the 1.27.0 installed on the machine measured that day
+(`a48791e9…`) is answered with the 1.28.0 JSON, and the CURRENT 1.28.0
+commit (`68cf4c38…`) is answered **204, empty body**. Sending this
+machine's own commit would make one response shape mean two things —
+"you are current" on a Mac that has it, "the endpoint is broken" in a
+sweep that has no install — which is exactly how a check goes quietly
+dead (the trap the Mozilla AUS recipes (`Recipes/org-mozilla-firefox.swift`) document at length).
+`latest` is the token this repo's own VS Code recipes already use in
+that slot, and Qoder answers it with the newest build: every user and
+every sweep then sends the identical request, an answer is always
+expected, and empty is unambiguously a failure.
+
+### Recipes/com-qoder-ide.swift — stable VendorProbe（`productVersion` 与 `name`）
+
+转引自 recipe 注释，未复测。"though both read "1.28.0" today" 里的版本号迁移时已过期（见下面的复测），代码里改成了带复测日期的说法；本文件「更新检测」一节里同一句也改了。
+
+`productVersion`, not `name`, though both read "1.28.0" today: `name`
+is the field the protocol lets a vendor put a human string in, and
+`productVersion` is the one defined to be the version. `version` is the
+COMMIT — matching it would compare a 40-hex string against `1.27.0`
+forever.
+
+复测 2026-09-14（约 07:28 UTC，只读 GET `center.qoder.sh/algo/api/update/darwin-arm64/stable/latest`）：`name` 与 `productVersion` 都是 `1.29.0`，`url` 指向 `…/release/1.29.0/Qoder-darwin-arm64.zip`。
+
+### Recipes/com-qoder-ide.swift — stable VendorProbe（一键 zip 与单渠道）
+
+转引自 recipe 注释，未复测。两段整段原文；代码里留下的是结论（解包后 short == build == 端点的 `productVersion`，Team 与被更新的 app 一致所以过闸），签名细节搬到这里。第一段唯一的改写：Team 比较那句里的版本号那一半是一处本机状态措辞（具体版本号），改成了针对那台被核对的机器的说法；「和被更新的 app 比较 Team」这层意思保留，句子本身按上面的规则改了措辞。第二段在代码里只把 "measured same day" 改成了具体日期——它原本指的是前一段里被搬走的那个日期；历史里照录原文。
+
+The install spec takes the zip the API itself names, not the
+`Qoder-IDE-darwin-arm64.dmg` the download page hands a human. Same
+release, and the zip needs no mount. Verified 2026-09-06 by unpacking
+it: `Qoder IDE.app`, `com.qoder.ide`, CFBundleShortVersionString ==
+CFBundleVersion == 1.28.0 == the API's `productVersion`, arm64-only,
+signed "Developer ID Application: Alibaba.com Singapore E-Commerce
+Private Limited (T27K5A5ZWD)" and accepted by `spctl` as Notarized
+Developer ID — the same Team as the 1.27.0 copy installed on the machine verified that day, so the swap
+passes the VendorInstaller gate.
+
+Single channel: `stable` is the only quality this server answers —
+`/api/update/darwin-arm64/insider/latest` 404s (measured same day).
+
+### Recipes/com-qoder-ide.swift — ChangelogRecipe（docs 站，`data-component-part` 锚定）
+
+转引自 recipe 注释，未复测。两段整段原文，代码里留下的是结论。第一段的计数原句没写日期，引入它的提交是 `d8c3a6dc`（2026-09-06）。
+
+Nor, any longer, is it what keeps the page's own
+`<div class="eyebrow">Release Notes</div>` header out of the newest
+entry's date. That WAS true of the first version of this recipe, and
+stopped being true when the gaps below were tempered — the sentinel they
+temper on is the label attribute, so it does that job now. Measured on
+both live pages: stripping the three attribute prefixes while keeping
+the tempered gaps changes nothing at all (108 and 7 entries, same
+versions, same dates); the header is only captured when the tempering
+goes too.
+
+Measured on the real pages 2026-09-06: the pattern MATCHES 108 blocks on
+the IDE page (1.28.0 back to 0.1.15) and 7 on the app's (0.1.8 back to
+0.1.0), versions and dates agreeing with the products' own version
+endpoints exactly. Two numbers below that, and neither is 108:
+`ChangelogExtractor` yields 107, because 1.19.1's notes are prose with no
+`<li>` and an entry with no items is dropped; and the pane shows the
+`maxEntries` default of 40, which neither recipe overrides. 108 is the
+pattern's reach over the page, not history a reader gets.
+
+复测 2026-09-14（约 07:28 UTC，只读 GET 两页，只数了块，没有跑 `ChangelogExtractor`）：IDE 页 109 个 `update-label` 块，Qoder 页 11 个；按 `update-content` 到 `</div></div></div>` 切出的正文里，两页带属性的 `<li …>` 都是 0 个——代码里 "no entry on either page carries an attribute there today" 因此原样保留。

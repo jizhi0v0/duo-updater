@@ -68,3 +68,24 @@
 
 1. ~~加 stable 检测~~ 已完成：`VendorProbeRecipe` 注册在 `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`（"2026-08-29 TimeMachineEditor" 区块），回归测试在 `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/VendorProbeRecipeTests.swift`（同名区块，3 条：pattern 命中、pattern 不误伤相邻的 macOS 版本号、install spec 校验）
 2. 无待办事项——这是单 channel、无 changelog、无增量更新的最简形态，探测+一键均已覆盖并经真实端点验证（2026-08-29 `duo verify --only tclementdev`：`status: ok, version: 5.2.2, warnings: []`）
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tclementdev-timemachineeditor-application.swift — stable VendorProbe（一键 pkg）
+
+转引自 recipe 注释，未复测。两段整段原文。第一段代码里留下的是结论（探测到的版本就是 marketing 字段，所以不用 `versionIsBuild`，保留了核对日期），`PackageInfo` 的字段和签名搬到这里。第二段代码里只去掉了没写日期的包大小，它来自引入这段的提交 `0752d8e5`（2026-08-29）。
+
+Verified against the real artifact, not just the page text: the pkg was
+downloaded and expanded 2026-08-29.
+`PackageInfo` reads `CFBundleShortVersionString="5.2.2"
+CFBundleVersion="219" CFBundleIdentifier="com.tclementdev.timemachineeditor.application"`
+— the probed "5.2.2" matches the MARKETING field exactly, so no
+`versionIsBuild`. Signed "Developer ID Installer: Thomas CLEMENT
+(68GTH78H6S)", notarized.
+
+Delta/binary patch: not checked for — this is not a Sparkle app (no
+`SUFeedURL`, no `Sparkle.framework` in the bundle) and the download is a
+~1MB pkg with no companion `.delta`/`.patch` artifact anywhere on the
+page, so there is nothing here to consume.

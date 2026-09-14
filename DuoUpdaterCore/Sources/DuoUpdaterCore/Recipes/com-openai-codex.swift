@@ -4,6 +4,7 @@ enum com_openai_codex {
     static let set = AppRecipeSet(
         family: "com-openai-codex",
         probes: [
+        // History: docs/app-audits/com-openai-codex.md#历史与实测
         // Codex — the endpoint ChatGPT's own updater asks, not the feed it ships
         // configured with. Those are different answers, which is the whole reason
         // this recipe looks like this.
@@ -14,11 +15,10 @@ enum com_openai_codex {
         // `backendAppcastEnabled: true`, and Sparkle then asks the endpoint below,
         // which 307s to a per-target `appcast-<version>.xml`. The static file is a
         // PUBLISHING manifest; the redirect target is what the vendor is actually
-        // shipping. On 2026-08-22 they disagreed for hours — the static feed listed
-        // 26.818.41705 (published 06:11Z, real zip, real signature) while every
-        // machine asking the endpoint was told 26.818.41509 was newest. Installing
-        // the published-but-unshipped build starts a fight the app wins: its own
-        // Sparkle stages 41509, waits for a quit, and our restart is the quit.
+        // shipping, and the two can disagree for hours (History has the
+        // 2026-08-22 case). Installing the published-but-unshipped build starts a
+        // fight the app wins: its own Sparkle stages the build the endpoint named,
+        // waits for a quit, and our restart is the quit.
         //
         // That is also why this REPLACES the static feed rather than joining it as
         // a second endpoint. `VendorProbeSource.best(of:)` takes the highest, sound
@@ -26,50 +26,41 @@ enum com_openai_codex {
         // this machine may legitimately install". The publishing manifest doesn't.
         //
         // `app_version` is required (omit it, or send something unparseable, and
-        // there is no redirect) but does not participate: 0.0.0, the installed
-        // version, and 99.999.99999 all resolved to the same target. A sentinel is
-        // deliberate — if OpenAI ever does step upgrades, 0.0.0 is the value most
-        // likely to be rejected outright, which `duo verify` reports, rather than
-        // to answer plausibly and wrongly. The app also sends `os-version` and a
-        // `codex_cache_bust` counter; neither changes the redirect target
-        // (measured 2026-08-24: os-version 13.0.0 / 26.0.0 / 27.0.0 / omitted
-        // resolve alike, and the counter is not stable even across the app's own
-        // checks — 8, then 2, then 4), so this URL stays as short as it can be.
+        // there is no redirect) but does not participate (History has the values
+        // tried). A sentinel is deliberate — if OpenAI ever does step upgrades,
+        // 0.0.0 is the value most likely to be rejected outright, which
+        // `duo verify` reports, rather than to answer plausibly and wrongly. The
+        // app also sends `os-version` and a `codex_cache_bust` counter; neither
+        // changed the redirect target when measured (2026-08-24; History has the
+        // values), so this URL stays as short as it can be.
         //
         // `installation_id` selects the rollout bucket and grants nothing; see
         // `ProbeIdentity` for why it never reaches a log, a report, or the
         // recipe's own recorded URL.
         //
         // `plan_type` is the second thing the endpoint keys on, and unlike
-        // `app_version` it decides the answer. Measured 2026-08-24, same
-        // installation_id, only this parameter varying:
+        // `app_version` it decides the answer. Measured 2026-08-24 (History has
+        // the table), the consumer values (`free`, `go`, `plus`, `pro`, `team`)
+        // resolved to a newer build than `business`, `enterprise` and `ent26`,
+        // and `unknown`, omitted or nonsense landed with the enterprise ones.
         //
-        //     free | go | plus | pro | team   → appcast-26.818.61809.xml
-        //     business | enterprise | ent26   → appcast-26.818.41509.xml
-        //     unknown | omitted | nonsense    → appcast-26.818.41509.xml
+        // Two rollout tracks, not per-tier builds. This is the "enterprise-plan
+        // recognition" of openai/codex 0.146.0 (PRs #35238, #35537): business
+        // tiers roll out behind consumer ones so IT can qualify a build.
         //
-        // Two rollout tracks, not per-tier builds: the five consumer values
-        // return byte-identical XML, as do the three enterprise ones. The
-        // enterprise feed does not merely sort 61809 lower — it has no such
-        // item. This is the "enterprise-plan recognition" of openai/codex
-        // 0.146.0 (PRs #35238, #35537): business tiers roll out behind consumer
-        // ones so IT can qualify a build.
-        //
-        // The split is a WINDOW, not a standing structure: by 15:29Z the same
-        // day every value above — `business`, `enterprise` and omitted included
-        // — resolved to 26.818.61809. So nothing can assert on the split, and
-        // `duo verify` cannot tell whether this parameter is doing anything:
-        // outside the window both answers agree. It earns its place only inside
-        // the window, which is exactly when getting it wrong starts the fight
-        // described below.
+        // The split is a WINDOW, not a standing structure: later the same day
+        // every value resolved to the newer build. So nothing can assert on the
+        // split, and `duo verify` cannot tell whether this parameter is doing
+        // anything: outside the window both answers agree. It earns its place
+        // only inside the window, which is exactly when getting it wrong starts
+        // the fight described below.
         //
         // So omitting it is not neutral — it silently books this machine onto
-        // the enterprise track. That is what made `duo verify` report "remote is
-        // BEHIND the installed copy" while ChatGPT itself was installing 61809.
-        // And hardcoding a consumer value is worse than omitting: on an actual
-        // business account we would offer a build that account's own updater
-        // refuses, which is precisely the fight described above — its Sparkle
-        // stages the older build, waits for a quit, and our restart is the quit.
+        // the enterprise track. And hardcoding a consumer value is worse than
+        // omitting: on an actual business account we would offer a build that
+        // account's own updater refuses, which is precisely the fight described
+        // above — its Sparkle stages the older build, waits for a quit, and our
+        // restart is the quit.
         //
         // Hence reading the real value. It is an account attribute rather than a
         // machine id, so it lives with the account state in `~/.codex/auth.json`
@@ -82,16 +73,11 @@ enum com_openai_codex {
         // track: the same answer we gave before this parameter existed.
         //
         // What is shared is the FILE and the LOGIN EVENTS. The VALUE is not.
-        // Measured on one machine, 2026-08-24:
-        //
-        //   * signing out of ChatGPT.app DELETES `~/.codex/auth.json`, after
-        //     which `codex login status` reports "Not logged in" — the app
-        //     drives that file;
-        //   * signing in again through `codex` recreates it, and the app returns
-        //     to a signed-in state on its own;
-        //   * but with the file holding a `team` token while the app's session
-        //     was `free`, the app sent `plan_type=free` and never touched the
-        //     file (mtime unchanged). It does not consult this file to answer.
+        // When measured on one machine (2026-08-24; History has the steps),
+        // signing out of ChatGPT.app deleted `~/.codex/auth.json` and signing in
+        // again through `codex` recreated it, but with the file holding a
+        // different plan from the app's session the app sent its session's plan
+        // and never touched the file. It does not consult this file to answer.
         //
         // The app builds its value from the live session of the ACTIVE account
         // (`setSparkleQueryParams({beta, planType})`, fed from the account
@@ -145,10 +131,9 @@ enum com_openai_codex {
             // The tempting alternative is the direct artifact the site's button
             // serves, `codex-app-prod/Codex.dmg`. Do not use it, and not only
             // because `PageURLTests` requires a page: that dmg tracks the
-            // PUBLISHING manifest. Its Last-Modified was 06:12:52Z on 2026-08-22,
-            // ninety seconds after 26.818.41705 published — the very build the
-            // rollout was still withholding. Pointing anything at it walks straight
-            // back into the fight this recipe exists to end.
+            // PUBLISHING manifest (History has the Last-Modified that showed it).
+            // Pointing anything at it walks straight back into the fight this
+            // recipe exists to end.
             downloadURL: URL(string: "https://chatgpt.com/download/"),
             changelogURL: URL(string: "https://developers.openai.com/codex/changelog?type=codex-app")!,
             // Redirect followed (the default), so the body parsed here is the

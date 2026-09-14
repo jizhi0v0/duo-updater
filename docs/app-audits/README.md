@@ -21,8 +21,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   缠在同一句、拆开就得改写的，整句留下。**含日期或数字不等于该搬**——下面五条先于它：
   - **结论留下，只搬测量。** CapCut 的 "only the beta recipe is exposed to this"、Windscribe 的
     "`duo verify` pays all three" 留在代码；桶的表格、字节数、日期进历史。拆出结论需要改几个字
-    时可以改（记账 diff 里逐条可见），历史里保留原段落全文；整句原样放回代码的，从历史里删掉，
-    一句话只住一处。
+    时可以改（记账 diff 里逐条可见），历史里保留原段落全文（见下面补充第 3 条）；整段原样留在
+    代码里、一句都没搬也没改（只加 "e.g." 标记不算改）的段落，不进历史。
   - **更正跟着它更正的说法走。** 注释写着"X 以前成立、现在不成立"时，在同一个 PR 里把代码里
     （以及复述它的测试注释里）的旧说法改掉，不许只把更正搬走、把旧说法留下。反例：第一版把
     CapCut「`capcutpc_beta` 的坑已不存在」那段搬进历史，代码和 `CapCutProbeRecipeTests` 里剩下的
@@ -62,6 +62,34 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
   指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
   审计新增行数）要回答的。
+- **补充七条**（#615 三轮复审的教训，上面各条没有覆盖到的）：
+  1. **机器状态怎么划**：拿身份、Team 或 bundle 和"被更新的那个 app"比较的措辞原样保留
+     （"matching the install"、"the installed copy's team"、"same Team as the installed app"）。
+     某一台机器上的**具体值**——版本号、build、路径、某个文件在或不在——是机器状态，要改写，
+     哪怕它挂在 "installed" 这个词上（"the installed 1.27.0 commit"、"the installed version"）。
+     这条管的是某台机器被观测到有什么：假设场景里的泛称（"an update against an installed 2.9.x"）、
+     引用的工具输出（"remote is BEHIND the installed copy"）、同一版本每份拷贝都一样的属性
+     （"this bundle's own build date"、某版本报出的 build 号、某个字段的格式）都不是机器状态，原样
+     保留。一句里两样都有时，只改"那台机器装的是哪个版本"那一半；拿不准时原样保留。
+     **来源标注只说改了哪一类**（例如「改写了一处本机状态措辞：具体版本号」），不以任何语言复述
+     被替换掉的短语——翻译过来的引用也算引用。
+  2. **从厂商现状句里删掉日期或 "when checked"，就造出了一句无时间的断言，按（c）处理**：先复测，
+     或者把日期留着。反例：#615 第一版从 Gemini 的 "(302 → /sorry, observed 2026-08-16)" 里删掉
+     日期，剩下 "the download page answers a plain fetch with Google's bot challenge (302 → /sorry)"，
+     而那页复测时回的是 404。
+  3. **一段里只要有一句被搬走或被改写，历史里就放这一段的整段原文**，不是只放那一句；同一段里
+     仍原样留在代码的句子也跟着出现在历史里——历史是带日期的快照，这种重复是有意的。只有整段
+     原样留在代码里的段落不进历史。只加一个 "e.g." 标记不算改写，不进历史——但只限本来就是示例形状
+     的数字；描述当前状态的数字照旧按上面「数字」那条带日期搬走。任何改写或任何（c）更正都把整段原文
+     送进历史；有复测或更正说明的，另起一行写在后面。
+  4. **grep 副本的范围是整个仓库**，只排除各审计文档里的 `## 历史与实测` 一节、`CHANGELOG.md`、
+     `changelog/`、`verify/baseline.json`，以及测试 fixture 和抓下来的响应体——它们是历史记录或数据，
+     不是断言。（以前列过一份目录清单，漏了 `Recipes/` 以外的 `Sources/`、`CLI/` 和别的 family
+     的审计文档。）
+  5. **改索引、台账或 skill 的某一行时，核这一行其余的说法**：在本批范围内的一起改，不在的列进 PR
+     的 Found in passing。
+  6. **改写里的量词**（"a few"、"ONE"、"all"、"never"）必须和历史里记下的计数一致。
+  7. **改过的注释行按周围行的宽度重新折行。**
 
 ---
 
@@ -194,7 +222,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Yaak**](app-yaak-desktop.md) · `app.yaak.desktop` — G(stable/beta，两轨一键 arm64 dmg) · 共享 bundle id，beta 由版本后缀 `-beta.N` 分流（`detect` 第 4 步），两轨各自锚死资产名 · changelog 走 GitHub release body 的结构化解码，两轨分开 · ⚠️ 厂商 2025-11-11 改过 macOS 资产名（此前是 `_aarch64_darwin.dmg`），最新 100 条里最老的 8 条是旧名，现有 pattern 不收——按新旧边界钉在用例里 · 2026-09-06
 - [x] [**Chatbox**](xyz-chatboxapp-app.md) · `xyz.chatboxapp.app` — P (one-click arm64 dmg + feed sha512) · **端到端验过**：装 1.22.6 → 一键到 1.23.1，日志里 `verifyingSignature` 证明 sha512 闸真的跑了 ✓ · **已接 changelog**（厂商 changelog 页，30 条，验过不吃 download 链接）· 2026-09-03
 - [x] [**AnythingLLM**](com-anythingllm.md) · `com.anythingllm` — P (one-click arm64 dmg) · 真包 1.16.1 挂载验证 ✓ · **已接 changelog**（GitHub releases，`version.txt` 与 tag 同号；`docs.anythingllm.com/changelog` 404 不是源）· 2026-09-03
-- [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30
+- [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
 - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
 - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
@@ -305,6 +333,21 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对
 - [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量
 - [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退
+- [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对
+- [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 仅迁出历史：一键 pkg 的签名核对、changelog 页的排查
+- [ ] [**ChatGPT（原 Codex 桌面端）**](com-openai-codex.md) · `com.openai.codex` — 仅迁出历史：静态 feed 与灰度端点不一致、`plan_type` 两条轨的测量
+- [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对、group D「只检测」说法的更正
+- [ ] [**AweSun**](com-oray-sunlogin-macclient.md) · `com.oray.sunlogin.macclient` — 仅迁出历史：changelog 接口「50 bytes」的复查
+- [ ] [**AnyDesk**](com-philandro-anydesk.md) · `com.philandro.anydesk` — 仅迁出历史：一键 dmg 的签名核对、各平台版本号
+- [ ] [**Postman**](com-postmanlabs-mac.md) · `com.postmanlabs.mac` — 仅迁出历史：旧正则截断条目的计数
+- [ ] [**PureMac**](com-puremac-app.md) · `com.puremac.app` — 仅迁出历史：`cli-v1.0.0` tag 被读成版本号
+- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对
+- [ ] [**Shotbase**](com-shotbase-app.md) · `com.shotbase.app` — 仅迁出历史：appcast 条目数
+- [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
+- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
+- [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
+- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
+- [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — family 占位：stable 未审计，尚无迁出内容；同 family 的 Insiders 已审计（见上「未编入分类」）
 
 ## 非 app 文档

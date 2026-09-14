@@ -8,7 +8,7 @@
 
 ### Recipes/com-google-GeminiMacOS.swift — stable VendorProbe（Omaha `update2/json`）
 
-转引自 recipe 注释，未复测。唯一的改写：第二段原文说验证是在“装着的那份”上做的、第三段原文说“装着的 app”报的版本，两处都按本目录的机器状态规则改成了针对那台被量的机器的说法。第三段原句没写日期；它紧挨着 "(Checked 2026-08-22.)"，引入它的提交也是 `0afc3ef4`（2026-08-22）。
+转引自 recipe 注释，未复测。唯一的改写：第二段和第三段各一处本机状态措辞（核对所在的拷贝、那份拷贝报出的版本），两处都按本目录的机器状态规则改成了针对那台被量的机器的说法。第三段原句没写日期；它紧挨着 "(Checked 2026-08-22.)"，引入它的提交也是 `0afc3ef4`（2026-08-22）。
 
 The
 published download URL carries no version (`.../release2/Gemini.dmg`,

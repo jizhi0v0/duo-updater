@@ -4,11 +4,15 @@ enum com_t3tools_t3code {
     static let set = AppRecipeSet(
         family: "com-t3tools-t3code",
         githubRules: [
-        // T3 Code — two trains, ONE bundle id (`com.t3tools.t3code`), one repo.
+        // History: docs/app-audits/com-t3tools-t3code.md#历史与实测
+        // T3 Code — two covered trains, ONE bundle id (`com.t3tools.t3code`), one
+        // repo; a `-preview.` release series has also appeared (tags since
+        // 2026-09-12, releases since 2026-09-13) and is not covered.
         // `ReleaseChannel.detect()` reads the display name: the primary build is
-        // `T3 Code (Alpha).app` (→ .alpha) and the prerelease train is
+        // `T3 Code (Alpha).app` (→ .alpha) and the nightly prerelease train is
         // `T3 Code (Nightly).app` (→ .nightly), verified on the mounted artifacts.
-        // Neither carries SUFeedURL; the cask is auto_updates, so Homebrew defers.
+        // Neither the alpha nor the nightly build carries SUFeedURL; the cask is
+        // auto_updates, so Homebrew defers.
         //
         // The alpha train tags plain `vX.Y.Z` and is NOT prerelease-flagged, so
         // `/releases/latest` answers for it; the anchored pattern keeps the
@@ -28,18 +32,16 @@ enum com_t3tools_t3code {
         // pattern is anchored to the nightly shape end to end. The app reports the
         // whole string as BOTH marketing and build, so the extracted version must
         // keep it intact rather than truncate to `X.Y.Z` — a nightly install shows
-        // `0.0.37-nightly.20260830.1227` on both sides, and `VersionComparator`
+        // e.g. `0.0.37-nightly.20260830.1227` on both sides, and `VersionComparator`
         // orders the date/seq runs numerically. One-click: same Team
         // ARK85ZXQ4Z, verified on the mounted nightly artifact. The asset name
         // carries `-nightly.` — which is also why the alpha pattern above cannot
         // drift onto this train: its `[0-9.]+` run refuses the dash.
-        // listPageSize: measured 2026-09-04 against the newest 100 releases —
-        // first-match index 0, worst run between two nightly tags is 2 (the
-        // alpha train's occasional release lands a single non-nightly entry in
-        // between, e.g. `v0.0.39-nightly.20260902.1252`→
-        // `v0.0.38-nightly.20260901.1250`). 5 keeps 2.5x headroom; real page
-        // measured at 11.9 KB gzipped for per_page=3 (12,157 bytes; an earlier
-        // comment rounded the same measurement to 9 KB), vs 64 KB at per_page=20.
+        // listPageSize: releases of this repo's other trains land between two
+        // nightly tags, so the newest nightly need not be first in the list. 5 was
+        // sized for 2.5x headroom over the widest run measured on 2026-09-04, and
+        // a later recheck found a wider run (History has both, and the page
+        // sizes).
         GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
@@ -64,10 +66,12 @@ enum com_t3tools_t3code {
         // arm64.dmg`) carry `-nightly.<date>.<seq>` between the version and
         // `-arm64`, which `[0-9.]+` refuses. So the proof is an anchor on that
         // field, not on the artifact: it fails the day someone loosens the
-        // pattern enough to match nightly names (e.g. a `.*` run), which is the
-        // only other train this repo publishes. What it cannot do is catch a
-        // vendor-launched stable train with identical naming — nothing in the
-        // URL would distinguish it, and `/releases/latest` would return it; the
+        // pattern enough to match nightly names (e.g. a `.*` run). The `-preview.`
+        // release series that has appeared since (tags since 2026-09-12, releases
+        // since 2026-09-13) names its assets with a token that `[0-9.]+` refuses
+        // the same way (History has the recheck). What it cannot do is catch a
+        // vendor-launched stable train with identical naming — nothing in the URL
+        // would distinguish it, and `/releases/latest` would return it; the
         // anchor documents that exposure rather than pretending to close it.
         ChannelProofKey("com.t3tools.t3code", .alpha):
             .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),

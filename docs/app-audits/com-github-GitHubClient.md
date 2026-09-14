@@ -8,7 +8,7 @@
 
 ### Recipes/com-github-GitHubClient.swift — stable / beta GitHubReleaseRule（一键 `GitHub.Desktop-arm64.zip`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文末句用第一人称的“这台机器”说 beta 是装着的那份，按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：末句一处本机状态措辞（那台机器装的是哪个渠道的拷贝），按本目录的机器状态规则改成了针对那台被验证的机器的说法。
 
 Both verified end-to-end 2026-06-06: stable `GitHub.Desktop-arm64.zip`
 (3.5.12) and beta (3.5.12-beta2) are the same notarized Developer ID build

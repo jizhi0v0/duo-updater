@@ -66,7 +66,7 @@ otherwise be a prose release's last item.
 
 ### Recipes/com-electron-ollama.swift — stable GitHubReleaseRule（一键 `Ollama-darwin.zip`）
 
-转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：原文说的是“装着的那份”在漂移，按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入）；代码里已改写成「那次检查的 bundle 也没有 `SUFeedURL`，这样的拷贝没有别的检测源，没有这条 rule 时行里只有 changelog recipe」。
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：一处本机状态措辞（那台机器上那份拷贝的版本），按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入）；代码里已改写成「那次检查的 bundle 也没有 `SUFeedURL`，这样的拷贝没有别的检测源，没有这条 rule 时行里只有 changelog recipe」。
 
 Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
 which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so

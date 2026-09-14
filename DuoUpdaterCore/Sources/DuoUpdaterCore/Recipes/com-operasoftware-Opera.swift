@@ -21,26 +21,24 @@ enum com_operasoftware_Opera {
         // sorting ahead of v9.x, a LibreOffice patch someday reaching two digits)
         // the alphabetically-first-or-last entry silently stops being the numeric
         // maximum, and a template built from it would download an OLDER build than
-        // the one just reported as available. `VendorInstallSpec.URLSource` has no
-        // "take the true max of every match" mode — only first (`bodyPattern`/
-        // `bodyTemplate`) or last (`bodyPatternLast`) — so none of it can be made
-        // to agree with `selectHighest`'s numeric max safely. All three are
-        // therefore detection-only, even though every one of them mounts to a
-        // genuine, notarized, Developer-ID-signed app (verified in each recipe's own comment) — the
-        // blocker is this URL-construction gap, not the artifact.
+        // the one just reported as available. So all three build the install URL
+        // with `.versionTemplate`, which fills in the version the probe RESOLVED
+        // rather than a match over the listing, and all three are one-click; each
+        // mounts to a genuine, notarized, Developer-ID-signed app (verified in
+        // each recipe's own comment, and for Opera in its audit History).
 
+        // History: docs/app-audits/com-operasoftware-Opera.md#历史与实测
         // Opera — `get.geo.opera.com` is Opera's own CDN mirror index, one folder
-        // per released version (`134.0.5954.56/`), each holding a `mac/` dir with
-        // `Opera_<version>_Setup.dmg`. The `href="…/"` anchor matches nothing but
-        // version folders on this page (checked: every 4-dot-separated number in
-        // the raw body is inside an `href`, none appear elsewhere — no stray dates
-        // or sizes share that shape here).
+        // per released version (e.g. `134.0.5954.56/`), each holding a `mac/` dir
+        // with `Opera_<version>_Setup.dmg`. The `href="…/"` anchor matches nothing
+        // but version folders on this page (checked: every 4-dot-separated number
+        // in the raw body is inside an `href`, none appear elsewhere — no stray
+        // dates or sizes share that shape here).
         //
-        // VERSION SCHEME TRAP: verified 2026-08-16 by mounting
-        // `Opera_134.0.5954.56_Setup.dmg` — it holds `Opera.app`, notarized
-        // Developer ID (Team A2P9LX4JPN, "Opera Software AS"), spctl accepted. But
-        // `CFBundleShortVersionString` is only `"134.0"` while `CFBundleVersion` is
-        // `"134.0.5954.56"` — exactly what the folder name carries. Comparing the
+        // VERSION SCHEME TRAP: `CFBundleShortVersionString` is only major.minor
+        // (e.g. `"134.0"`) while `CFBundleVersion` is the four-part version (e.g.
+        // `"134.0.5954.56"`) — exactly what the folder name carries (verified
+        // 2026-08-16 on a mounted dmg; History has the details). Comparing the
         // 4-part folder version against the 2-part marketing string would read
         // every release as a phantom major upgrade forever, so this is a build
         // comparison (`versionIsBuild`), not a marketing one.
@@ -58,13 +56,10 @@ enum com_operasoftware_Opera {
             // on this alphabetically-sorted index.
             //
             // Despite the "Setup" in the filename this dmg is NOT a stub
-            // downloader (the 1Password trap): verified 2026-08-16 by mounting
-            // `Opera_134.0.5954.56_Setup.dmg` (260,530,261 B) — it carries
-            // `Opera.app` itself, 560 MB on disk, com.operasoftware.Opera,
-            // universal (x86_64 + arm64), Team A2P9LX4JPN (Opera Software AS),
-            // notarized Developer ID, spctl accepted. Its `CFBundleVersion` is
-            // `134.0.5954.56`, i.e. exactly the folder name this recipe compares,
-            // which is what makes the template safe as well as the comparison.
+            // downloader (the 1Password trap): mounted on 2026-08-16 it carried
+            // `Opera.app` itself (History has the details). Its `CFBundleVersion`
+            // is exactly the folder name this recipe compares, which is what makes
+            // the template safe as well as the comparison.
             install: VendorInstallSpec(
                 urlSource: .versionTemplate(
                     "https://get.geo.opera.com/pub/opera/desktop/"
@@ -83,8 +78,8 @@ enum com_operasoftware_Opera {
         //
         // `{major}`, not `{version}`: the page covers a whole major line, and
         // Opera ships a new major every few weeks, so a fixed URL would quietly
-        // stop covering the installed build. `source` is the current page, used
-        // only if no version is ever supplied.
+        // stop covering the installed build. `source` is one fixed major's page,
+        // used only if no version is ever supplied.
         //
         // The page also carries developer/beta builds of the same major (the
         // `…5960.0` shapes). That is fine and deliberate: entries are listed

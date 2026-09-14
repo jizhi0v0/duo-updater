@@ -6,6 +6,7 @@ enum com_tclementdev_timemachineeditor_application {
         probes: [
         // MARK: - 2026-08-29 TimeMachineEditor
 
+        // History: docs/app-audits/com-tclementdev-timemachineeditor-application.md#历史与实测
         // TimeMachineEditor has no Sparkle feed (confirmed: the vendor's own pkg,
         // downloaded and expanded 2026-08-29, carries no `SUFeedURL` in its app's
         // Info.plist and no `Sparkle.framework`), no MAS listing, no GitHub repo —
@@ -25,13 +26,10 @@ enum com_tclementdev_timemachineeditor_application {
         // it cannot drift onto the nearby "macOS 10.13" floor mentioned in the same
         // sentence.
         //
-        // Verified against the real artifact, not just the page text: the pkg was
-        // downloaded and expanded 2026-08-29.
-        // `PackageInfo` reads `CFBundleShortVersionString="5.2.2"
-        // CFBundleVersion="219" CFBundleIdentifier="com.tclementdev.timemachineeditor.application"`
-        // — the probed "5.2.2" matches the MARKETING field exactly, so no
-        // `versionIsBuild`. Signed "Developer ID Installer: Thomas CLEMENT
-        // (68GTH78H6S)", notarized.
+        // The probed version matches the pkg's MARKETING field
+        // (`CFBundleShortVersionString`) exactly, so no `versionIsBuild` (verified
+        // 2026-08-29 against the expanded pkg; History has the fields and the
+        // signature).
         //
         // kind MUST be `.pkg`, not `.dmg`/`.zip`: the payload installs siblings
         // outside the `.app` — `/Library/LaunchDaemons/
@@ -48,8 +46,8 @@ enum com_tclementdev_timemachineeditor_application {
         //
         // Delta/binary patch: not checked for — this is not a Sparkle app (no
         // `SUFeedURL`, no `Sparkle.framework` in the bundle) and the download is a
-        // ~1MB pkg with no companion `.delta`/`.patch` artifact anywhere on the
-        // page, so there is nothing here to consume.
+        // pkg with no companion `.delta`/`.patch` artifact anywhere on the page,
+        // so there is nothing here to consume.
         VendorProbeRecipe(
             bundleID: "com.tclementdev.timemachineeditor.application",
             url: URL(string: "https://tclementdev.com/timemachineeditor/")!,

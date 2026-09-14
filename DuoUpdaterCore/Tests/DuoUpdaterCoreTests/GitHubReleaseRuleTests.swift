@@ -379,7 +379,7 @@ private func matches(
 }
 
 /// PureMac ships a second product out of the same releases: `cli-v1.0.0`
-/// (2026-08-17) carries only `puremac-cli-1.0.0.tar.gz` and GitHub marks it
+/// (2026-08-17) carries only `puremac-cli-1.0.0.tar.gz` and GitHub marked it
 /// latest. Unanchored, the default pattern read that as 1.0.0 — and a remote
 /// *behind* the installed 2.9.x evaluates to "up to date", so every real update
 /// disappeared silently. CI's own baseline had recorded `lastGoodVersion: 1.0.0`.

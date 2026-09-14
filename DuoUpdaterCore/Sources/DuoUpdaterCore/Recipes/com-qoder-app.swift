@@ -6,7 +6,8 @@ enum com_qoder_app {
         probes: [
         // Shared rationale for Qoder (2026-09-06): Recipes/com-qoder-ide.swift.
 
-        // Qoder (the app) — the vendor publishes a 1.4 KB `manifest.json` beside
+        // History: docs/app-audits/com-qoder-app.md#历史与实测
+        // Qoder (the app) — the vendor publishes a small `manifest.json` beside
         // the artifacts for its own installer to read: a top-level `version` plus
         // one entry per platform with a sha256. Unconditional, tiny, and JSON, so
         // it is preferred over every HTML surface this product has.
@@ -32,8 +33,8 @@ enum com_qoder_app {
         // `[0-9.]+` path segment is not required to equal the `version` this
         // reports, and `versionTemplate` is not used for the same reason.
         //
-        // The download page hands a human `Qoder-Installer-mac-arm64.zip`: a
-        // 238 MB stub (`com.qoder.installer`, its own bundle id) whose
+        // The download page hands a human `Qoder-Installer-mac-arm64.zip`: a stub
+        // (`com.qoder.installer`, its own bundle id) whose
         // `Contents/Resources/payload/Qoder-<version>-mac-arm64.zip` holds the
         // real app — the DoubaoIme shape `nestedArchivePath` exists for, and one
         // this recipe deliberately does NOT need. The same release ships
@@ -41,10 +42,8 @@ enum com_qoder_app {
         // names and what this installs; the payload path could not be spelled as
         // a fixed `nestedArchivePath` anyway, since it carries the version.
         //
-        // Verified 2026-09-06 on the artifact the manifest resolved to:
-        // `Qoder.app`, `com.qoder.app`, short == build == 0.1.8 == the manifest's
-        // `version`, arm64-only, "Developer ID Application: BRIGHT ZENITH PRIVATE
-        // LIMITED (B6U242QL73)", notarized, matching the installed copy's Team.
+        // On the artifact the manifest resolved to, short == build == the
+        // manifest's `version` (verified 2026-09-06; History has the check).
         //
         // HOST SPLIT, deliberately followed rather than rewritten: the manifest is
         // served from `download.qoder.com` and its artifact URLs point at

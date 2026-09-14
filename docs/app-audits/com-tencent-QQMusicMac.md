@@ -181,3 +181,59 @@ $ duo check --json --all | grep qqmusic
 
 回归测试：`DuoUpdaterCore/Tests/DuoUpdaterCoreTests/QQMusicProbeRecipeTests.swift`
 （14 例，fixture 保留 Windows / iPhone / 遗留 Mac 三个诱饵对象）。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tencent-QQMusicMac.swift — stable VendorProbe（`download.js`，锚定与版本粒度）
+
+转引自 recipe 注释，未复测。三段整段原文。代码里留下的是结论：查询参数不起作用（保留了实测日期）；两个 Mac 对象靠带版本号的 dmg 文件名区分；文件名里的 `Build01` 不是 `CFBundleVersion`。当天的版本号、日期、「各匹配一次」和别的平台的版本号搬到这里；`73276` 在代码里标成了示例。唯一的改写：第三段括号里一处本机状态措辞（具体版本号），按本目录的机器状态规则改成了针对那台被核对的机器的说法。原句没写日期的，引入它们的提交日期是 2026-08-29（与本段实测同日）。
+
+URL: every query parameter the site sends
+(`cv`/`ct`/`format`/`platform`/`g_tk`/`jsonpCallback`/…) is INERT —
+measured 2026-08-29, the bare path, the site's full query, and a minimal
+query all return byte-identical bodies with identical `Last-Modified`
+and `Cache-Control: max-age=600`, and the callback name is always
+`MusicJsonCallback` regardless of `jsonpCallback`. So the bare path is
+registered: fewer tokens to go stale, same answer.
+
+ANCHORING — the body holds TWO `"Ftype":2,"Ftitle":"Mac"` objects. `ID:2`
+is the live client (11.8.1, 2026-08-03); `ID:15` is a 2020-era legacy
+record still parked in the table (7.0.0, "QQ音乐Mac7.0全新改版", link
+`QQMusicMac_Mgr.dmg`). Both patterns therefore key on the VERSIONED Mac
+dmg filename `QQMusicMac<ver>Build<nn>.dmg` rather than on `Ftitle`, an
+`ID`, or a `Fversion` label: the legacy entry's link has no version in it
+(`QQMusicMac_Mgr`), so `QQMusicMac[0-9]` excludes it structurally, and
+the Windows/Android/iOS links carry different filename stems. One match
+each in the live body.
+
+FROZEN-MARKETING GRANULARITY, stated rather than assumed: the `Build01`
+in the filename is the vendor's respin ordinal for that marketing
+version, NOT the app's `CFBundleVersion` (the 11.8.1 installed on the machine checked that day reports
+build `73276`). Comparing it as a build would be a cross-namespace
+comparison, so this stays a marketing-only recipe (`versionIsBuild`
+false): a same-marketing respin (11.8.1 Build01 → Build02) is invisible
+here, never a phantom update. Tencent does move the marketing version
+(the same body has Windows at 22.5.2 and iPhone at 20.7.5), so this is a
+granularity limit, not a dead discriminator.
+
+复测 2026-09-14（约 07:28 与 08:22 UTC，只读 GET `y.qq.com/download/download.js`）：`ID` 2 的 Mac 对象是 `最新版:11.9.1`，`Fdesc` 以 `发布时间：2026-09-02` 结尾、不含转义引号；`ID` 15 仍是 `最新版:7.0.0`、链接 `QQMusicMac_Mgr.dmg`；全文 `QQMusicMac<ver>Build<nn>.dmg` 只匹配一次；Windows PC 是 `最新版:22.6.1`，iPhone 是 `最新版:20.8.5`。代码里 "No live note carries a quote today" 因此原样保留。
+
+### Recipes/com-tencent-QQMusicMac.swift — stable VendorProbe（一键 dmg）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`Flink1` 302 到带版本号的 dmg、`sign` 每次现铸；镜像里只有 `QQMusic.app`，所以 kind 是 `.dmg`，保留了核对日期），大小、bundle 字段、Team、`spctl`、`lipo` 搬到这里。两处改写：两处本机状态措辞（某个文件在不在、具体版本号），都按本目录的机器状态规则改成了针对那台被核对的机器的说法；和被更新的 app 比较 Team 的那一处原样保留。
+
+One-click verified 2026-08-29 by resolving and opening the artifact this
+recipe builds: `Flink1` 302s to
+`dldir.y.qq.com/…/QQMusicMac11.8.1Build01.dmg?sign=…` (the `sign` is
+minted per request by the redirect; the one in the body is the redirect's
+own token, read fresh from the live body at apply time). The 97 MB image
+holds `QQMusic.app` AND NOTHING ELSE — no pkg, no daemon, no
+LaunchAgents/LaunchDaemons/PrivilegedHelperTools sibling on the machine verified that day
+— which is what makes `.dmg` (bundle swap only) the correct kind rather
+than `.pkg`. Bundle id `com.tencent.QQMusicMac`, `CFBundleShortVersionString`
+11.8.1 / `CFBundleVersion` 73276 (identical to the copy installed on the machine verified that day), Team
+`FN2V63AD2J` (Tencent Technology (Shanghai) Company Limited — the
+installed copy's team, which the VendorInstaller signature gate enforces),
+`spctl -a -t install` "Notarized Developer ID", `lipo -archs` x86_64 arm64.

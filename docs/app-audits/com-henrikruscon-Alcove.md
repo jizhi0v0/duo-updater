@@ -8,7 +8,7 @@
 
 ### Recipes/com-henrikruscon-Alcove.swift — 公开 VendorProbe（`download.tryalcove.com/latest`，detection-only）
 
-转引自 recipe 注释，未复测。唯一的改写：原文说与“装着的授权版”逐 build 一致，按本目录的机器状态规则改成了针对那台被量的机器的说法。第一段括号里的 "see GitHubReleasesSource" 迁移时已经指不到东西（`GitHubReleasesSource.swift` 里没有 Alcove）。
+转引自 recipe 注释，未复测。唯一的改写：一处本机状态措辞（那台机器上授权版的 build），按本目录的机器状态规则改成了针对那台被量的机器的说法。第一段括号里的 "see GitHubReleasesSource" 迁移时已经指不到东西（`GitHubReleasesSource.swift` 里没有 Alcove）。
 
 The old endpoint (update.tryalcove.com) is GONE — verified 2026-07-29 it no
 longer resolves at all (NXDOMAIN), so the previous recipe silently produced
@@ -50,7 +50,7 @@ There is no GitHub rule: the
 
 ### Recipes/com-henrikruscon-Alcove.swift — ChangelogRecipe（`api.tryalcove.com/changelog`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文说与 2026-08-22 “装着的那份”一致，按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：一处本机状态措辞（那台机器上那份拷贝的版本），按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 Newest is 1.7.9, matching
 the copy installed on the machine checked on 2026-08-22.

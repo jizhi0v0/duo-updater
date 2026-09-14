@@ -4,27 +4,26 @@ enum com_sublimetext_4 {
     static let set = AppRecipeSet(
         family: "com-sublimetext-4",
         probes: [
-        // Sublime Text 4 — self-updates, so it reaches us here. NOTE: HTML scrape
-        // (no usable API: the /updates/.../updatecheck endpoint 404s and the cask
-        // has no livecheck). The /download page is server-rendered: its latest
-        // marker `<p class="latest"><i>Version:</i> Build 4200</p>` precedes the
+        // History: docs/app-audits/com-sublimetext-4.md#历史与实测
+        // Sublime Text 4 — self-updates, so it reaches us here. NOTE: HTML scrape.
+        // The vendor's JSON update check (`/updates/4/stable_update_check`, which
+        // the Homebrew cask's livecheck reads) states the build as a bare number
+        // (`"latest_version": 4200` when checked 2026-09-14), not the "Build NNNN"
+        // string the bundle reports (see CRITICAL below). The /download page is
+        // server-rendered: its latest marker
+        // `<p class="latest"><i>Version:</i> Build 4200</p>` precedes the
         // descending history, so the FIRST "Build NNNN" is newest. CRITICAL:
         // capture the FULL "Build NNNN" string, not the bare 4-digit build — the
         // installed CFBundleShortVersionString is literally "Build 4200" (with the
         // space), and VersionComparator ranks a number above adjacent text, so a
         // bare "4200" vs "Build 4200" reads as a perpetual phantom update. Keeping
-        // the "Build " prefix makes it compare like-for-like. Detection only.
+        // the "Build " prefix makes it compare like-for-like.
         VendorProbeRecipe(
             bundleID: "com.sublimetext.4",
             url: URL(string: "https://www.sublimetext.com/download")!,
             mode: .responseBody,
             versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+4[0-9]{3})"#,
             changelogURL: URL(string: "https://www.sublimetext.com/download"),
-            // One-click verified 2026-08-09 on build 4200: `Sublime Text.app` in the
-            // archive, bundle id and Team (Z6D26JE4Y4) matching the installed copy,
-            // its CFBundleShortVersionString literally "Build 4200" like the probe's
-            // value, spctl "Notarized Developer ID".
-            //
             // The page ships the download link as a TEMPLATE — the literal string
             // `sublime_text_build_${version}_mac.zip`, with JS filling it in — so
             // there is no href to lift. Rebuild it from the same "latest" marker the

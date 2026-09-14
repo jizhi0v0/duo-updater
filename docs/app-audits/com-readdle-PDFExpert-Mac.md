@@ -246,3 +246,44 @@ duo install ~/Applications/"PDF Expert.app" --yes --json
   所以至少全量 `--scan` 会明说"这个声明的地址被换掉了"，而不再打印"已被 SparkleAppcastSource
   覆盖"这句假话；但 `--gaps` 的筛法没动。
 - MAS 副本这次没有取到实物，`_MASReceipt` 分流路径没有在这个 app 上实测过（机制本身是通用的）。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-readdle-PDFExpert-Mac.swift — ChangelogRecipe（`pem3/changelog`）
+
+转引自 recipe 注释，未复测。三段整段原文；代码里去掉的是没写日期的现状数字（3.5 KB、88 个标题 / 85 个版本、「全页 88 条」）；重复的版本改成带 2026-09-14 复测日期的快照（哪三个版本、3.10.2x 那两对在第 11–14 个标题）；"for two of those the two bodies are different text"、第二份正文被静默丢掉、"both fall outside the `maxEntries` window anyway except 3.10.2x" 原样留在代码里；清洗后没有短于四个字符的条目改成了「核对时」的说法。这些数字来自引入它们的提交 `90790999`（2026-09-04）。
+
+PDF Expert — the appcast's `sparkle:releaseNotesLink` is
+`pem3/changelog.html`, a 3.5 KB page holding ONLY the newest release's
+paragraph, so the pane could show one version and no history. The
+vendor's multi-version page is the `sparkle:fullReleaseNotesLink` beside
+it (`pem3/changelog`) — a link element `SparkleAppcastParser` does not
+read at all, which is why this is a recipe and not a feed field.
+
+88 headings, 85 distinct versions: `3.10.23`, `3.10.22` and `3.9.2` each
+appear TWICE, and for two of those the two bodies are different text
+(3.10.23 is "Meet Draw on Mac…" in one and "Hello from the team!…" in
+the other). `ChangelogExtractor` dedupes on version + title and the
+title is nil here, so the second body of each pair is dropped silently.
+Left as is rather than worked around: which of two same-numbered
+paragraphs is the real one is the vendor's question, not a regex's, and
+both fall outside the `maxEntries` window anyway except 3.10.2x.
+
+`body` runs to the next heading or `</body>`, and items are the runs of
+text between the `<br />`s — `[^<]+` cannot cross a tag, so the split is
+the markup's own. The `(?:^|>)` prefix is why the run starts where the
+text does: without it the engine simply resumes one character past the
+`<` it stopped on and every item after the first reads "br />…".
+`\s*(?:-\s+)?` then drops the leading dash the pre-3.1 entries spell
+their bullets with ("- Stability and performance improvements") — the
+`\s*` is load-bearing there, since a run opens on the newline after
+`<br />` and the dash is not at the match start until that is consumed.
+Empty runs (the `<br /><br />` pairs the older entries pad paragraphs
+with) clean to "" and are dropped by the default `minItemLength` of 1;
+no larger floor is set, because across all 88 entries of the live page
+there is not one cleaned item shorter than four characters, so a floor
+would be a knob no input measures and a trap for the first short note.
+
+复测 2026-09-14（约 08:04 UTC，只读 GET `pdfexpert.com/pem3/changelog`，39,043 B）：89 个 `Version` 标题、86 个不同版本号，最新是 `3.13.3`；出现两次的仍是 `3.10.22`、`3.10.23`、`3.9.2`。代码里 "A few versions appear TWICE" 与这组计数一致。按 `maxEntries: 20`，`3.10.23` / `3.10.22` 两对排在第 11–14 个标题，`3.9.2` 那对在第 35–36 个，所以代码里「除 3.10.2x 外都在窗口之外」仍成立。没有重算清洗后的最短条目。

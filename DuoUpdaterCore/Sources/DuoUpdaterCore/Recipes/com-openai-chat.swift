@@ -6,42 +6,36 @@ enum com_openai_chat {
         probes: [
         // MARK: - 2026-08-30 ChatGPT Classic
 
+        // History: docs/app-audits/com-openai-chat.md#历史与实测
         // ChatGPT Classic (`com.openai.chat`) — OpenAI's PREVIOUS desktop app,
         // kept alive in maintenance mode (its release notes literally push the
-        // new ChatGPT app: "Or, try the new ChatGPT app"). Still updating as of
-        // 2026-08-30 (1.2026.184 / build 1784145287, published 2026-07-15), and
-        // the installed base is real — but its bundle carries NO `SUFeedURL`
-        // (verified against the mounted dmg), so the generic Sparkle source
-        // can't see it even though the vendor publishes a Sparkle feed. The
-        // feed at `sidekick/public/sparkle_public_appcast.xml` is EXACTLY the
-        // endpoint Homebrew's own `chatgpt-classic` cask names in its
-        // `livecheck` block (`strategy :sparkle`) — a third-party witness that
-        // this is the vendor's intended version surface.
+        // new ChatGPT app: "Or, try the new ChatGPT app"; History has the release
+        // it was still shipping), and the installed base is real — but its bundle
+        // carries NO `SUFeedURL` (verified against the mounted dmg), so the
+        // generic Sparkle source can't see it even though the vendor publishes a
+        // Sparkle feed. The feed at `sidekick/public/sparkle_public_appcast.xml`
+        // is EXACTLY the endpoint Homebrew's own `chatgpt-classic` cask names in
+        // its `livecheck` block (`strategy :sparkle`) — a third-party witness
+        // that this is the vendor's intended version surface.
         //
         // Feed shape: one `<item>` whose `sparkle:shortVersionString` is the
         // marketing version (matches CFBundleShortVersionString; the build
-        // `sparkle:version` == CFBundleVersion 1784145287, same namespace, so
-        // no versionIsBuild). The enclosure is an UNVERSIONED moving pointer
+        // `sparkle:version` == CFBundleVersion (e.g. 1784145287), same namespace,
+        // so no versionIsBuild). The enclosure is an UNVERSIONED moving pointer
         // (`ChatGPT_Classic.pkg`), but version and enclosure come from the SAME
         // feed entry — freshness is guaranteed by construction, better than a
         // separate version.txt + /latest/ dmg pairing.
         //
         // ⚠️ DETECTION-ONLY, and it has to be: `PackageInstaller` would refuse
         // this pkg every time. The gate in `verifyOpenable` is fail-closed on
-        // declared destinations, and this package declares none. Measured
-        // 2026-09-03 against the real 78 MB artifact, and re-checked by running
-        // `destinations(inPackageInfo:)` and `destinations(inBomListing:)` on its
-        // actual bytes — both return the empty set:
+        // declared destinations, and this package declares none: its
+        // `PackageInfo` has no `<bundle path=…>` element, and the Bom's only
+        // `.app`-bearing path is a `.app.zip`, so no path COMPONENT ends in
+        // `.app` (History has the 2026-09-03 measurement on the real artifact).
         //
-        //   * `PackageInfo` carries `install-location="/"` and an EMPTY
-        //     `<bundle-version/>`; there is no `<bundle path=…>` element at all.
-        //   * The Bom's only `.app`-bearing line is
-        //     `./Library/Application Support/OpenAI/ChatGPT Classic Update/
-        //     ChatGPT Classic.app.zip` — a zip, so no path COMPONENT ends in
-        //     `.app` and `appBundlePrefixes` yields nothing.
-        //
-        // So an `install:` here resolves, downloads 78 MB, and then throws
-        // `packageDestinationsUnreadable` — a permanently broken Update button.
+        // So an `install:` here resolves, downloads the whole package, and then
+        // throws `packageDestinationsUnreadable` — a permanently broken Update
+        // button.
         //
         // That is only the first reason. The pkg does not place the app at all:
         // its `postinstall` ditto-extracts the staged zip and then installs to
@@ -59,10 +53,7 @@ enum com_openai_chat {
         //
         // Detection is unaffected and is what this recipe is for. Anyone adding
         // one-click later has to solve the destination gate AND the relocation,
-        // not just flip a flag. Verified signing, for the record: "Developer ID
-        // Installer: OpenAI OpCo, LLC (2DC432GLL2)", notarized, trusted
-        // timestamp 2026-07-15, same Team as the installed bundle. Feed also
-        // declares `hardwareRequirements=arm64` and minimumSystemVersion 14.0.
+        // not just flip a flag.
         VendorProbeRecipe(
             bundleID: "com.openai.chat",
             url: URL(string: "https://persistent.oaistatic.com/sidekick/public/sparkle_public_appcast.xml")!,
@@ -70,16 +61,15 @@ enum com_openai_chat {
             versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
             downloadURL: URL(string: "https://chatgpt.com/download/")),
 
-        // Deliberately NOT covered by a ChangelogRecipe, checked 2026-09-03 against the real
-        // bytes rather than assumed:
+        // Deliberately NOT covered by a ChangelogRecipe:
         //
         //   * **ChatGPT Classic** (`com.openai.chat`). Its Sparkle appcast has a
-        //     `<description>`, so it LOOKS like a changelog source — the content
-        //     is vendor marketing, not release notes: "&#8220;Install Update&#8221;
-        //     to keep using ChatGPT Classic", then "[Recommended] Or, try the new
-        //     ChatGPT app" with a link to the replacement product. One `<item>`,
-        //     no per-version history, and the same copy would render under every
-        //     future build. Rendering that as "what is new" is worse than the
-        //     web-view fallback, which at least shows it as the vendor's page.
+        //     `<description>`, so it LOOKS like a changelog source — but checked
+        //     against the real bytes (2026-09-03; History quotes them), the
+        //     content was vendor marketing pointing at the replacement product,
+        //     not release notes. One `<item>`, no per-version history, and the
+        //     same copy would render under every future build. Rendering that as
+        //     "what is new" is worse than the web-view fallback, which at least
+        //     shows it as the vendor's page.
         ])
 }

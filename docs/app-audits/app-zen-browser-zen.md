@@ -8,7 +8,7 @@
 
 ### Recipes/app-zen-browser-zen.swift — GitHub rule（`zen.macos-universal.dmg`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文说这个 app 在“本地”没有装，按本目录的机器状态规则改成了针对做验证那台机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：一处本机状态措辞（这个 app 装没装），按本目录的机器状态规则改成了针对做验证那台机器的说法。
 
 Best-effort one-click: the `zen.macos-universal.dmg` wraps `Zen.app` —
 verified 2026-06-06 a notarized Developer ID build (Team 9V5K9TP787, Mauro

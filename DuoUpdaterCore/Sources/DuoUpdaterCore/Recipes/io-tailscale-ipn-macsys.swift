@@ -4,14 +4,15 @@ enum io_tailscale_ipn_macsys {
     static let set = AppRecipeSet(
         family: "io-tailscale-ipn-macsys",
         probes: [
+        // History: docs/app-audits/io-tailscale-ipn-macsys.md#历史与实测
         // Tailscale — official package index. `MacZipsVersion` is the macsys
         // build (top-level `Version` is the Linux/Windows train — wrong here).
         // Three public tracks share `io.tailscale.ipn.macsys`; the channel gate
         // routes each install to its own endpoint per the app's opt-in toggle
         // (see `TailscaleChannel`). `pkgs.tailscale.com/rc` 404s, but that's just
         // the wrong guessed path — the real release-candidate track lives at
-        // `pkgs.tailscale.com/release-candidate/` (verified 2026-08-21: HTTP 200,
-        // same JSON shape as stable/unstable below).
+        // `pkgs.tailscale.com/release-candidate/` (when checked, 2026-08-21, it
+        // answered 200 with the same JSON shape as stable/unstable below).
         VendorProbeRecipe(
             bundleID: "io.tailscale.ipn.macsys",
             url: URL(string: "https://pkgs.tailscale.com/stable/?mode=json")!,
@@ -32,7 +33,7 @@ enum io_tailscale_ipn_macsys {
         //
         // On version numbers: per Tailscale's own docs the RC track carries the
         // *next patch of the current stable line*, so it normally reads equal to
-        // stable (right after a promotion — both were 1.102.3 on 2026-08-21) or
+        // stable (right after a promotion; History has a dated case) or
         // ahead of it (while a patch is being tested), not behind. Either way
         // nothing here depends on that: `VersionComparator.isNewer` requires
         // strictly-greater, so an equal or lower RC version offers no update

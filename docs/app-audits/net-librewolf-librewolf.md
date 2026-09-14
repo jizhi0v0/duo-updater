@@ -70,3 +70,36 @@ Firefox/Thunderbird 之外的单轨判定）。
 swift run --package-path application-test channel-verify --check net.librewolf.librewolf --expect stable
 swift run --package-path application-test channel-verify "/Applications/LibreWolf.app" --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/net-librewolf-librewolf.swift — VendorProbe（版本源在 Codeberg）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（旧 GitLab 项目停在当前线之前、会变成陈旧探针；cask 的 livecheck 读同一个 Codeberg `releases/latest`），147.0.4 / 151.x 和 2026-06-04 对照装机副本的那次核对搬到这里。唯一的改写：一处本机状态措辞（被核对的那份装机副本），按本目录的机器状态规则改成了针对那台被核对的机器的说法。
+
+LibreWolf — release tags, newest first; tag is "<firefox-version>-<packaging>"
+(e.g. "151.0.3-1") and we capture only the upstream Firefox version so it
+compares equal to the installed app's `CFBundleShortVersionString` (keeping
+"-1" would read as a perpetual update). No auto-updater — genuinely useful.
+Real installed bundle id is `net.librewolf.librewolf` (NOT
+`org.mozilla.librewolf` — LibreWolf re-brands the Mozilla source). Version
+source is **Codeberg**, not GitLab: LibreWolf migrated, and the old GitLab
+repos are abandoned (project 44042130/bsys6 caps at 147.0.4 while current
+is 151.x → a stale probe). The brew cask's own livecheck reads this same
+Codeberg `releases/latest`. Verified 2026-06-04 against the cask installed on the machine verified that day:
+app reports `151.0.3-1`; `tag_name` is `151.0.3-1` → captures `151.0.3`.
+
+### Recipes/net-librewolf-librewolf.swift — VendorProbe（为什么只检测）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论和日期（checked 2026-08-09 时 dmg 里的 app 是 ad-hoc 签名、Gatekeeper 直接拒绝），Gatekeeper 的原话搬到这里。
+
+DETECTION ONLY, and not for lack of a URL — the release does publish
+`librewolf-<ver>-macos-arm64-package.dmg`. Checked it on 2026-08-09: the
+`LibreWolf.app` inside is ad-hoc signed (`TeamIdentifier=not set`) and
+Gatekeeper rejects it outright ("code has no resources but signature
+indicates they must be present"). `VendorInstaller`'s same-Team gate would
+refuse it anyway, and rightly: there is no signing identity to compare the
+installed copy against. Don't wire one-click here unless LibreWolf starts
+shipping a Developer ID build.

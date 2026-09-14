@@ -4,6 +4,7 @@ enum dev_warp_Warp_Stable {
     static let set = AppRecipeSet(
         family: "dev-warp-Warp-Stable",
         probes: [
+        // History: docs/app-audits/dev-warp-Warp-Stable.md#历史与实测
         // Warp — Preview / Dev. One JSON lists every channel's version, each tagged
         // with the channel name in its suffix (`…preview_01`), so a per-channel
         // pattern is unambiguous. Channels ship as separate bundle ids
@@ -11,18 +12,20 @@ enum dev_warp_Warp_Stable {
         // `dev.warp.Warp-Stable` recipe below. Both capture groups matter: the app
         // reports the feed's `v<stamp>.<channel>_NN` as `<stamp>.NN`, so the
         // counter is joined back on (see `VendorProbeRecipe.version(of:in:)`).
-        // Confirmed against real bundles on all three tracks in
-        // `application-test/records/dev-warp-Warp-Stable.md` — including dev's
-        // `_00`, which the app does spell out as a trailing `.00`.
+        // Confirmed against real bundles on all three tracks — including dev's
+        // `_00`, which the app does spell out as a trailing `.00`. (The record of
+        // that check was never tracked in git; the audit's channel-verify section,
+        // `docs/app-audits/dev-warp-Warp-Stable.md`, covers the three tracks.)
         //
         // PREVIEW installs one-click; DEV deliberately does not. `app.warp.dev/
         // download?package=dmg&channel=preview` really does serve WarpPreview.app
-        // (verified 2026-08-09: dev.warp.Warp-Preview, Team 2BBY89MBSN, notarized,
-        // version matching the JSON). The same URL with `channel=dev` ignores the
+        // (dev.warp.Warp-Preview, Team 2BBY89MBSN, notarized, version matching the
+        // JSON; checked 2026-08-09). The same URL with `channel=dev` ignores the
         // parameter and hands back **Warp.app / dev.warp.Warp-Stable** — wiring that
         // would install Stable over a Dev install, the cross-channel swap the whole
         // channel gate exists to prevent. Note the Content-Type on both is
-        // `text/html` despite the body being a 300 MB disk image; don'"'"'t trust it.
+        // `text/html` despite the body being a disk image of a few hundred MB;
+        // don'"'"'t trust it.
         //
         // The JSON still lists `beta` and `canary`, but Warp abandoned both tracks
         // (beta froze at 2024-12, canary at 2022-09 — see 2026-06-04 audit), so we
@@ -65,19 +68,21 @@ enum dev_warp_Warp_Stable {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://releases\.warp\.dev/stable/[^"]+\.dmg)"#),
                 kind: .dmg),
-            // GET 302s straight to the 320 MB dmg — DON'T follow; read the small
+            // GET 302s straight to the full dmg — DON'T follow; read the small
             // redirect body, whose href carries both the version and the dmg URL.
             followRedirects: false),
         ],
         changelogs: [
-        // Warp — read the machine-readable feed, not the docs site. As of mid-2026
-        // docs.warp.dev sits behind a Vercel "Security Checkpoint" JS bot wall that
-        // returns HTTP 429 + a challenge page to any non-browser fetch, so the old
-        // Starlight-HTML scrape (year-pinned `/changelog/2026/`) went permanently
-        // dark. `releases.warp.dev/channel_versions.json` is the same ungated
-        // endpoint the vendor probe already uses and carries a full per-channel,
-        // per-version `changelogs` map (date + markdown sections) — richer and far
-        // more stable than scraping rendered HTML. One recipe per channel; both
+        // Warp — read the machine-readable feed, not the docs site. When this
+        // recipe moved (mid-2026), docs.warp.dev sat behind a Vercel "Security
+        // Checkpoint" JS bot wall that returned HTTP 429 + a challenge page to any
+        // non-browser fetch, so the old Starlight-HTML scrape (year-pinned
+        // `/changelog/2026/`) went dark; a 2026-09-14 recheck got plain 200s
+        // (History has it). `releases.warp.dev/channel_versions.json` is the same
+        // ungated endpoint the vendor probe already uses and carries a full
+        // per-channel, per-version `changelogs` map (date + markdown sections) —
+        // richer and far more stable than scraping rendered HTML. One recipe per
+        // channel; both
         // point at the same JSON but the `channel` selects the sub-feed (and gives
         // each its own cache slot — see `ChangelogService`). The entries are NOT in
         // newest-first document order in the JSON, so the structured decoder sorts
@@ -87,7 +92,7 @@ enum dev_warp_Warp_Stable {
         // ships a real `dev.warp.Warp-Dev` build and the probe tracks its version
         // fine, but the vendor publishes no notes for that track. `changelogs.dev`
         // holds exactly one entry — and it is fixture data, unchanged for years
-        // (verified 2026-08-09):
+        // (when checked, 2026-08-09 and 2026-09-14):
         //   "v0.2026.08.07.08.31.dev_00": { "date": "2021-11-23T10:07:01-06:00",
         //     "sections": [ { "title": "dev", "items": ["dev 1", "dev 2"] } ],
         //     "oz_updates": ["[TEST] Testing Oz recent updates!", …] }

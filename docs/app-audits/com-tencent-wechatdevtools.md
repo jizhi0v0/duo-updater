@@ -148,3 +148,15 @@ swift run --package-path application-test channel-verify ~/Downloads/wechat_devt
 swift run --package-path application-test channel-verify ~/Downloads/wechat_devtools_2.02.2608182_darwin_arm64.pkg --expect nightly
 swift run --package-path application-test channel-verify /Applications/wechatwebdevtools.app --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tencent-wechatdevtools.swift — VendorProbe（为什么不用旧的 `download_redirect` 端点）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「measured 2026-08-18, it ignores … and 302s …」改成了「when checked (2026-08-18) it ignored … and 302'd …」，核对的内容原样。
+
+NOT the old `servicewechat.com/wxa-dev-logic/download_redirect?…&
+version_type=N` endpoint: measured 2026-08-18, it ignores `version_type`
+entirely and 302s all three values to the same Stable dmg.

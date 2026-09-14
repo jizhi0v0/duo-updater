@@ -183,3 +183,80 @@ beta 5.0.5 对 stable 4.7.5 被报成「macOS 上可能不存在的幽灵版本�
   `lastGoodVersion` 依赖跑 sweep 那台机器装了哪个版本；今天两种锚都给出 5.0.5，所以
   `verify/baseline.json` 不会因换机器而打架，但换机器后若出现 `version went BACKWARDS`
   的 finding，先查这一条再怀疑上游。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-utmapp-UTM.swift — beta ChangelogRecipe（`maxEntries: 40` 的余量）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是理由（这一侧从同一页 40 条里读两类发布，毕业版最先被挤出），前 40 条里的预览/正式数、`v4.7.5` 的位置与余量搬到这里。原句没写日期，引入它的提交是 `32a25021`（2026-09-03）。
+
+40, not stable's 20: this side reads BOTH kinds out of one 40-entry
+page, so a 20-entry cap would spend part of the window on releases
+the preview history is not about — and the entry pushed out first is
+the graduated one an install is actually being offered, which is the
+whole reason this recipe keeps final releases. Measured on the live
+page: within the top 40 there are 24 previews and 16 final releases,
+`v4.7.5` sits at index 7, and 33 further releases would have to ship
+before it fell out. At the old cap of 20 that margin was 13.
+
+### Recipes/com-utmapp-UTM.swift — beta GitHubReleaseRule（`prerelease` 位不是平行轨）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（每条小版本线先出预览再在更高的补丁号毕业；只给预览装机看 prerelease 会在每次毕业时卡住，给它「最新的任何发布」又会跨线），全部发布的计数、毕业次数和最长空窗搬到这里。原句没写日期，引入它的提交是 `e6373df9`（2026-09-03）。
+
+What that bit does NOT mean here is "a parallel Beta train". Measured
+over all 131 releases: 78 are prereleases, and each minor line ships
+previews and then graduates at a higher patch number (`v4.7.0…v4.7.3`
+are "(Beta)", `v4.7.4`/`v4.7.5` are not). Confining a preview install to
+prereleases therefore strands it at every graduation — 14 times in the
+real history, worst window 2024-11-27 → 2025-07-09 with four stable
+releases published into the silence — while offering it the newest
+release of any kind walks a `v4.7.3` install onto a `v5.0.5` preview
+instead of its own line's `v4.7.5`. Hence the line-anchored scope.
+
+### Recipes/com-utmapp-UTM.swift — stable GitHubReleaseRule（真 DMG 的核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`UTM.dmg` 里是 com.utmapp.UTM、Team WDNLXAD4W8、严格深度签名有效、Gatekeeper 接受，checked 2026-09-03），大小、SHA-256 和版本/build 搬到这里。
+
+Real v5.0.5 DMG verified 2026-09-03: 302,621,893 bytes, SHA-256
+713afe73c711f01344b8766654be531cd391ed2e30931206f43b5159f143764f;
+com.utmapp.UTM 5.0.5 (124), Team WDNLXAD4W8, strict deep signature
+valid, Gatekeeper `accepted, source=Notarized Developer ID`.
+
+### Recipes/com-utmapp-UTM.swift — beta GitHubReleaseRule（`listPageSize` 保持默认 20）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是条件与结论（按 GitHub 的 `prerelease` 位筛；预览爆发期最新稳定版会落在几条之后，相邻稳定版之间隔过近 10 条；20 覆盖两者），2026-09-04 的位置、间隔、98/100 和一条更早注释的错误配对搬到这里。倒数第二句的主语在迁移前就已丢失，见下面的更正。
+
+listPageSize deliberately left at the 20 default — do NOT copy the
+"first-match index 0" number from the stable rule above or from any
+simple per-repo table: `.installedMajorLineOrNewestStable` doesn't
+walk for the first tag match, it needs `lineAnchoredCeiling` to find
+EITHER the newest release in the installed major line OR the newest
+STABLE release within the fetched page (whichever's newer) — missing
+both makes it decline rather than offer anything. Measured 2026-09-04
+against the newest 100 releases, filtering on GitHub's own
+`prerelease` bit (not the version pattern, which nearly every tag
+matches — 98/100): the newest STABLE release currently sits at index
+6 (UTM is mid-preview-burst right now), and the worst gap between genuinely CONSECUTIVE stable
+releases in the newest 100 is 9 (`v4.0.8`→`v3.2.4`). An earlier
+comment named `v3.1.4`→`v2.4.1` as the worst pair; those two are not
+consecutive — `v3.0.4-2` (prerelease: false) sits between them.
+covers both; trimming it below ~15 would be gambling on the burst
+never growing past what's been observed once already.
+
+更正 2026-09-14：「covers both;」这句缺主语。`4d7d376c`（2026-09-04）写的是 "A page of 20 comfortably covers both;"，改写那段测量时把主语丢了，拆文件前的 `4adf2227^`（`GitHubReleasesSource.swift:2370`）已经是这样。代码里补回了 "A page of 20 covers both;"。
+
+复测 2026-09-14（11:02 UTC，只读 `gh api repos/utmapp/UTM/releases?per_page=100`）：最新稳定版 `v4.7.5` 在第 6 位（第 0–5 位是 `v5.0.5`…`v5.0.0`，都是 prerelease）；相邻两个稳定版的位置差最大是 9（`v4.0.8`→`v3.2.4`）；100 条里 45 条不是 prerelease。`v5.0.5`（2026-09-02）仍是 prerelease。
+
+### Recipes/com-utmapp-UTM.swift — `githubChannelProofs`（beta 的 `.recipeAnchor` 管得到什么）
+
+转引自 recipe 注释，未复测。整段原文；代码里只去掉了「because the previous version of this comment overstated it」这个从句（关于这条注释早先版本的说明），其余原样。原句没写日期，引入它的提交是 `e6373df9`（2026-09-03）。
+
+Be clear about the reach of that, because the previous version of this
+comment overstated it: a `.recipeAnchor` reflects the REGISTRY's field
+values, so it fails when someone edits this rule back to `.newest`, and
+it cannot see anything about the code in `resolve` that reads the field.
+`UTMGitHubChannelTests.aPreviewInstallWhoseLineGraduatedIsOfferedThatGraduation`
+is what covers the code: delete the ceiling and it offers a v5 preview
+to a 4.7 install.

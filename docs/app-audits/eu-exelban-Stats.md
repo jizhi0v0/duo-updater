@@ -62,3 +62,21 @@ against the installed copy"）——现在确认过了，故开启一键。
 
 ## 建议下一步
 无。检测 + 一键 + changelog 均已覆盖。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/eu-exelban-Stats.swift — GitHubReleaseRule（一键 `Stats.dmg` 的核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（dmg 根目录的 `Stats.app`、bundle id、Team、与装着那份一致、版本字段等于 tag，checked 2026-08-08），被核对的 v3.0.10 搬到这里。
+
+One-click: the single `Stats.dmg` asset was verified 2026-08-08 against
+v3.0.10 — `Stats.app` at the dmg root (beside the usual /Applications
+symlink), bundle id eu.exelban.Stats, notarized Developer ID build signed
+by Team RP2S87B72W (Serhiy Mytrovtsiy), matching the installed copy, so
+the swap passes the VendorInstaller gate. Its
+`CFBundleShortVersionString` (3.0.10) equals the tag, so the probed
+version is the marketing version we compare against — no build-number
+trap. Stats has its own in-app updater but ships no Sparkle feed, so this
+is a plain one-click.

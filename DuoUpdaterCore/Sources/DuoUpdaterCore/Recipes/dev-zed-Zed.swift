@@ -4,16 +4,15 @@ enum dev_zed_Zed {
     static let set = AppRecipeSet(
         family: "dev-zed-Zed",
         changelogs: [
-        // Zed Preview and Stable — both used to scrape the 2+ MB server-rendered
-        // zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
-        // with an `<article>` of `<li>` items). Replaced 2026-08-21 with the
-        // GitHub Releases API list we already fetch for version detection
-        // (the `githubRules` in this file, bundle ids
-        // `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response instead of two
-        // multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
-        // (see `StructuredFormat.zedGitHubReleases`). Both channels share this one
-        // recipe's URL; `StructuredChangelogDecoder` splits on `channel` the same
-        // way it does for Warp.
+        // History: docs/app-audits/dev-zed-Zed.md#历史与实测
+        // Zed Preview and Stable — read from the GitHub Releases API list we
+        // already fetch for version detection (the `githubRules` in this file,
+        // bundle ids `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response
+        // instead of the two multi-megabyte zed.dev/releases/{preview,stable} HTML
+        // pages this replaced on 2026-08-21 (History has the old scrape and its
+        // equivalence check; see `StructuredFormat.zedGitHubReleases`). Both
+        // channels share this one recipe's URL; `StructuredChangelogDecoder` splits
+        // on `channel` the same way it does for Warp.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed-Preview",
             source: URL(
@@ -34,7 +33,7 @@ enum dev_zed_Zed {
         // Zed Stable — same repo, but stable ships as non-prerelease tags
         // (`vX.Y.Z`, no `-pre`). `usePrereleases: false` (default) reads
         // `/releases/latest`, which GitHub computes excluding prereleases, so it
-        // returns the newest stable (`v1.5.3`) and never a `-pre` build; the
+        // returns the newest stable (e.g. `v1.5.3`) and never a `-pre` build; the
         // default pattern strips the `v` → `1.5.3`, matching the installed
         // `dev.zed.Zed`'s `CFBundleShortVersionString`. Channel-gated to `.stable`
         // (default) so it can't be served to the Preview install that ships under
@@ -66,11 +65,10 @@ enum dev_zed_Zed {
         // bundle id dev.zed.Zed-Preview — verified 2026-06-06 to match the install.
         // The rule resolves the right tag (prerelease), so each channel gets its own
         // dmg/bundle id; the gate enforces the Team match. arm64 only.
-        // listPageSize: measured 2026-09-04 against the newest 100 releases —
-        // the newest is always a `-pre` tag (first-match index 0) and the worst
-        // run of non-`-pre` tags between two `-pre` releases is 3 (index gap;
-        // e.g. `v1.5.1-pre`→`v1.5.0-pre`). 5 keeps ~67% headroom over that and
-        // was the real page measured at 32 KB, vs 104 KB at the old per_page=20.
+        // listPageSize: runs of non-`-pre` tags sit between `-pre` releases. 5 was
+        // sized for ~67% headroom over the widest such run measured on 2026-09-04,
+        // and a 2026-09-14 recheck found the same run (History has the positions
+        // and the page sizes).
         GitHubReleaseRule(
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
@@ -84,7 +82,7 @@ enum dev_zed_Zed {
         githubChannelProofs: [
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
-        // `…/download/v1.18.0-pre/Zed-aarch64.dmg`.
+        // e.g. `…/download/v1.18.0-pre/Zed-aarch64.dmg`.
         ChannelProofKey("dev.zed.Zed-Preview", .preview): .artifact(#"/download/v[0-9.]+-pre/"#),
         ])
 }

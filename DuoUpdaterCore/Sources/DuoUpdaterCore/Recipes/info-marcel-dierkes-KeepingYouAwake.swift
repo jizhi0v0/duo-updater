@@ -6,7 +6,7 @@ enum info_marcel_dierkes_KeepingYouAwake {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // KeepingYouAwake — tags are bare `1.6.8`, one zip per release.
+        // KeepingYouAwake — tags are bare, e.g. `1.6.8`, one zip per release.
         // One-click: info.marcel-dierkes.KeepingYouAwake, Team 5KESHV9W85, notarized.
         GitHubReleaseRule(
             bundleID: "info.marcel-dierkes.KeepingYouAwake",

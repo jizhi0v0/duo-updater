@@ -4,12 +4,13 @@ enum com_workbuddy_workbuddy_ai {
     static let set = AppRecipeSet(
         family: "com-workbuddy-workbuddy-ai",
         probes: [
+        // History: docs/app-audits/com-workbuddy-workbuddy-ai.md#历史与实测
         // WorkBuddy ships as TWO separate apps, not two channels of one. Tencent
         // runs an international site and a China site, each with its own bundle
         // id, its own app name, its own update host and its own release train:
         //
-        //   com.workbuddy.workbuddy-ai  "WorkBuddy AI.app"  www.workbuddy.ai  5.4.2
-        //   com.workbuddy.workbuddy     "WorkBuddy.app"     www.workbuddy.cn  5.3.14
+        //   com.workbuddy.workbuddy-ai  "WorkBuddy AI.app"  www.workbuddy.ai
+        //   com.workbuddy.workbuddy     "WorkBuddy.app"     www.workbuddy.cn
         //
         // Both are Electron, both signed by Team FN2V63AD2J (Tencent Technology
         // (Shanghai) Company Limited), and the two builds carry byte-identical
@@ -27,13 +28,13 @@ enum com_workbuddy_workbuddy_ai {
         //
         // TRAP, and the reason `version=0.0.0` is pinned into the URL: this is a
         // "should I update?" service, not a "what is the latest?" one. Passing the
-        // version you already run returns **204 No Content** (measured 2026-08-27:
-        // 5.3.14 → 204 on the CN host, 5.4.2 → 204 on the intl host), which would
+        // version you already run returns **204 No Content** (measured 2026-08-27
+        // on both hosts; History has the versions sent), which would
         // make the probe go dark precisely when it should say "up to date". An
         // impossibly old version is what turns it into a latest-version query.
         //
         // TRAP, version scheme: the endpoint reports a FOUR-segment string
-        // ("5.4.2.36857725") whose last segment is a build counter that appears
+        // (e.g. "5.4.2.36857725") whose last segment is a build counter that appears
         // NOWHERE in the installed bundle — both `CFBundleShortVersionString` and
         // `CFBundleVersion` are the bare "5.4.2". Comparing the raw field would
         // read 36857725 > (nothing) forever, the permanent phantom update
@@ -45,15 +46,18 @@ enum com_workbuddy_workbuddy_ai {
         // The optional fourth segment keeps the pattern matching if the vendor
         // ever drops back to a plain three-part version.
         //
-        // Architecture: the endpoint serves both Macs and currently answers the
-        // same version to each, but the `url` it hands back is arch-specific
-        // (`/darwin-arm64/…` vs `/darwin-x64/…`). One recipe reading the arm64
-        // endpoint would therefore offer an Intel Mac a zip it cannot run. Hence
-        // one recipe per architecture, split by `hostRequirement` rather than by
-        // channel (the Raycast v1/v2 shape) so exactly one is eligible on any
-        // given Mac, and the install pattern is additionally pinned to its own
-        // `darwin-<arch>` path so a recipe cannot resolve the other arch's
-        // artifact even if the endpoint were to start ignoring the query.
+        // Architecture: the endpoint serves both Macs and answered the same version
+        // to each when checked (2026-08-27, 2026-09-14), but the `url` it hands
+        // back is arch-specific (`/darwin-arm64/…` vs
+        // `/darwin-x64/…`). Hence one recipe per architecture, split by
+        // `hostRequirement` rather than by channel (the Raycast v1/v2 shape) so
+        // exactly one is eligible on any given Mac — `VendorProbeSource` drops a
+        // recipe whose architectures do not include `HostArch.current`, so on the
+        // arm64 Macs DuoUpdater runs on (`App/project.yml`, `ARCHS: arm64`) the
+        // x86_64 recipe is never consulted. The install pattern is additionally
+        // pinned to its own `darwin-<arch>` path so a recipe cannot resolve the
+        // other arch's artifact even if the endpoint were to start ignoring the
+        // query.
         //
         // Sites: the two recipes are one helper apart, and BOTH CDN paths are
         // `/workbuddy/saas/darwin-<arch>/`, so the path alone does not say which
@@ -71,15 +75,14 @@ enum com_workbuddy_workbuddy_ai {
         // (intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
         // `download.codebuddy.cn`). The `sha256hash` field alongside it is a
         // SHA-256 hex digest, which `checksumPattern` (SHA-512, base64) cannot
-        // consume, so it is left unused and Team FN2V63AD2J gates the swap.
-        // Verified 2026-08-27 against both vendor DMGs at the same paths: the
-        // `.dmg` sibling of each `.zip` matches the published installer byte
-        // count, and both bundles are Developer ID signed under FN2V63AD2J.
+        // consume, so it is left unused and Team FN2V63AD2J gates the swap
+        // (History has the dated check of both vendor DMGs).
         //
         // Changelog: each site's page is the one the app itself links (the build
-        // branches on `isOverseas()`); the intl page ran behind its own train at
-        // the time of writing (newest entry 5.2.7 against a 5.4.2 release) while
-        // the CN page was current.
+        // branches on `isOverseas()`); the intl page has run behind its own train
+        // (History has the versions), which is what the intl ChangelogRecipe's
+        // `acknowledgedStaleEntry` is for — see
+        // `Recipes/com-workbuddy-workbuddy.swift`.
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
             assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .arm64,

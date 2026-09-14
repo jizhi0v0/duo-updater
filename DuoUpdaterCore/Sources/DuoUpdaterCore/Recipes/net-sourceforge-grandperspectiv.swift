@@ -4,11 +4,12 @@ enum net_sourceforge_grandperspectiv {
     static let set = AppRecipeSet(
         family: "net-sourceforge-grandperspectiv",
         probes: [
+        // History: docs/app-audits/net-sourceforge-grandperspectiv.md#历史与实测
         // GrandPerspective — Developer ID (Erwin Bonsma, 3Z75QZGN66), notarized,
-        // stapled ticket; `spctl -a -t exec` accepts the mounted app. One-click
-        // verified 2026-08-16 against the 3.7.2 dmg: `CFBundleIdentifier` and
-        // `CFBundleShortVersionString` on the mounted app match what the probe
-        // reports.
+        // stapled ticket; `spctl -a -t exec` accepts the mounted app. One-click:
+        // `CFBundleIdentifier` and `CFBundleShortVersionString` on the mounted app
+        // match what the probe reports (checked 2026-08-16; History has the dmg
+        // version).
         VendorProbeRegistry.sourceForgeMacRecipe(
             bundleID: "net.sourceforge.grandperspectiv",
             project: "grandperspectiv",

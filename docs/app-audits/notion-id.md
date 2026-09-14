@@ -100,3 +100,64 @@ PY
 ```
 
 要复核「arm64 是另一条轨」这条结论，把 `Notion-arm64-<ver>.zip` 下下来读 `Contents/Resources/app-update.yml` 的 `channel:` 字段即可。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/notion-id.swift — VendorProbe（读 307 的 `Location`）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「a ~203 MB dmg」换成了「the full dmg」。原句没写日期，引入它的提交是 `599e8dde`（2026-06-04）。
+
+Notion desktop — public "latest" download redirect. www.notion.so/
+desktop/mac/download 307s straight to the versioned installer
+(…/Notion-<ver>-universal.dmg); the version is in that `Location`
+filename. It redirects on BOTH HEAD and GET, but the target is a
+~203 MB dmg, so don't follow — read the small 307 Location. Use the
+`.so` host: it's a single hop, whereas `.com/desktop/mac/download`
+bounces through app.notion.com first. ChangelogRecipe(notion.id) renders
+notes. One-click: the very same `/desktop/mac/download` 307 IS the
+installer link — the install spec HEAD-follows it to the versioned
+universal dmg and swaps in place (on top of Notion's own self-updater).
+
+### Recipes/notion-id.swift — ChangelogRecipe（页面是空壳，数据走 `loadPageChunk`）
+
+转引自 recipe 注释，未复测。整段原文；代码里只去掉了「19 KB」。原句没写日期，引入它的提交是 `5bae327d`（2026-08-22）。
+
+The rendered HTML is a 19 KB empty Next.js shell — zero content. The real
+notes come from Notion's own internal, unauthenticated page-rendering API,
+which only answers a POST:
+```
+  POST https://notion.notion.site/api/v3/loadPageChunk
+  {"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,
+   "cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}
+```
+(`source` below is set to that API URL directly — there is nothing
+useful to fetch at the human-facing page URL itself.) See
+`StructuredChangelogDecoder.decodeNotionPageChunk` for the response shape
+(`recordMap.block`, double-`value` wrapping, and the page block's
+`content` array as the true reading order) and how the header/text/
+bulleted_list blocks are grouped into releases.
+
+### Recipes/notion-id.swift — ChangelogRecipe（2026-08-22 的现场核对）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（标题是带 `v` 的版本、新到旧、是真实的桌面构建而不是产品公告标题，verified live 2026-08-22），当天读到的版本顺序搬到这里，版本号标成了示例。
+
+Verified live 2026-08-22: the header text is "v7.31.0" (`v` stripped so
+the rail label reads "7.31.0", matching the installed build the vendor
+probe's `.redirectFilename` reports) and the release order runs
+v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
+the product-announcement post titles the old recipe surfaced.
+
+### Recipes/notion-id.swift — ChangelogRecipe（`acknowledgedStaleEntry`）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论和日期（2026-09-11 读到的页面最新标题落后于下载重定向给的版本，是厂商没写说明），两个版本号与页面块的编辑时间搬到这里；被确认的版本就是紧挨着的 `acknowledgedStaleEntry` 的值。
+
+`acknowledgedStaleEntry` (#493): read live 2026-09-11, the page's newest
+header is still v7.32.0 ("Released" 2026-08-31; the page block was last
+edited 2026-09-01 01:22 UTC), while `www.notion.so/desktop/mac/download` already
+307s to `Notion-7.33.0-universal.dmg`. The decoder reads the page
+correctly — Notion has not written the 7.33.0 notes — so the sweep's
+"a whole release behind" is the vendor's lag, not ours. Named rather than
+switched off: once the page moves, to 7.33.0 or anywhere else, the check
+runs again.

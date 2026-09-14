@@ -65,3 +65,19 @@
 
 ## 建议下一步
 无。检测 + 一键 + changelog 均已覆盖。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/io-agentsview-desktop.swift — GitHubReleaseRule（没有 mac dmg 的发布）
+
+转引自 recipe 注释，未复测。整段原文；代码里把「Two of the last forty releases shipped」改成了「Some releases ship」，两个具体版本留在代码里。原句没写日期，引入它的提交是 `a1579897`（2026-08-30）。
+
+AgentsView — browser for past AI coding sessions, no SUFeedURL,
+GitHub v-tags. Two of the last forty releases shipped no mac dmg at
+all (v0.41.0 and v0.33.1 were tar.gz-only) — the release walk skips
+them and one-click lands on the newest dmg-bearing release, same
+semantics the cask livecheck encodes. The aarch64 dmg is arm64-only
+(AgentsView_{v}_x64.dmg is the Intel twin); Team 2YMZH84KR8,
+notarized. Mounted v0.41.1: io.agentsview.desktop, short == build.

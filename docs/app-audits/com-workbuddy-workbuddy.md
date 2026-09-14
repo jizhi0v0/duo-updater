@@ -84,11 +84,12 @@
 ### 陷阱三：架构
 
 端点两个架构都服务，且目前对两者回同一个版本 —— 但它给回的 `url` 是分架构的
-（`/darwin-arm64/…` vs `/darwin-x64/…`）。一条读 arm64 端点的 recipe 会给 Intel Mac
-递一个跑不了的 zip。所以每站注册**两条 recipe**，用 `hostRequirement` 分流
+（`/darwin-arm64/…` vs `/darwin-x64/…`）。所以每站注册**两条 recipe**，用 `hostRequirement` 分流
 （Raycast v1/v2 的形状），任一台 Mac 上恰好一条合格；install 正则再各自钉死自己的
 `darwin-<arch>` 路径，这样即便端点哪天开始无视 `platform` 参数，也解析不出另一架构
 的产物。
+
+更正 2026-09-14：这一节原来在分两条 recipe 之前还有一句「一条读 arm64 端点的 recipe 会给 Intel Mac 递一个跑不了的 zip」。DuoUpdater 只跑在 arm64 上（`App/project.yml` 的 `ARCHS: arm64`），`VendorProbeSource` 按 `HostArch.current` 丢掉宿主跑不了的 recipe，所以 x86_64 那条在任何 DuoUpdater 宿主上都不会被用到，那句删了。「目前对两者回同一个版本」2026-09-14 复测两站仍成立。recipe 注释的同一处更正见 [com-workbuddy-workbuddy-ai.md](com-workbuddy-workbuddy-ai.md) 的「历史与实测」。
 
 ## Changelog
 
@@ -165,3 +166,55 @@ duo verify --only workbuddy                                                # 4 v
 swift run --package-path application-test channel-verify <WorkBuddy DMG>
 duo verify --only workbuddy      # 4 vendor probes ✓ 4  ⚠ 0  ✗ 0
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-workbuddy-workbuddy.swift — 国内站 ChangelogRecipe（没有日期的旧条目）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「19 of」换成了「some of」。原句没写日期，引入它的提交是 `577ce43d`（2026-08-27）。
+
+The heading text between version and date varies by era — "版本发布 🚀",
+"Lanched 🚀" (the vendor's own typo), or nothing at all on the oldest
+entries — so the pattern skips anything that is not a tag or a paren
+rather than trying to enumerate the variants. The date group is optional
+for the same reason: 19 of the CN page's older entries have no date.
+
+### Recipes/com-workbuddy-workbuddy.swift — 国内站 ChangelogRecipe（`</h2>\s*<ul>` 相邻的代价）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（最旧的一批国内站条目用另一种标记所以解析不到，但 `maxEntries` 是 40、能解析的远不止 40，所以不花钱），「17 oldest」「newest 58」和 2026-08-27 对两页的核对搬到这里。
+
+`</h2>\s*<ul>` adjacency is deliberate: it is what keeps a heading whose
+notes are laid out some other way from swallowing the NEXT release's
+list. It costs the 17 oldest CN entries (4.5.0–4.7.5, which use a
+different markup), and that is free — `maxEntries` stops at 40 and the
+newest 58 all parse. Verified against both live pages 2026-08-27: CN 58
+entries, newest 5.3.14 with 14 items; intl 2 entries, newest 5.2.7.
+
+复测 2026-09-14：见本节最后一组。
+
+### Recipes/com-workbuddy-workbuddy.swift — 国内站 ChangelogRecipe（国际站页面本来就只有两条）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（国际站页面停在 5.2.7——`acknowledgedStaleEntry` 点名的就是它——而它自己的端点已经发了更新的版本，when checked 2026-08-27、2026-08-28、2026-09-14；国内站同一正则解出几十条），国际站的条数 2、端点版本 5.4.2 和国内站条数 58 搬到这里。
+
+The intl page IS that short: it carries two entries and stops at 5.2.7
+(2026-07-17) while its own endpoint ships 5.4.2. A future reader finding
+"only 2 entries" has found the vendor's page, not a broken recipe — the
+CN page, parsed by the identical pattern, returns 58.
+
+### Recipes/com-workbuddy-workbuddy.swift — 国内站 ChangelogRecipe（国际站的 `acknowledgedStaleEntry`）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（`duo verify` 拿 5.2.7 比更新的探测版本、判「recipe degraded」且永远清不掉；确认项点名 5.2.7 而不是关掉检查），5.4.2 和 2026-08-28 的复查搬到这里。
+
+That is also why the intl recipe carries `acknowledgedStaleEntry`
+(issue #88). `duo verify` reads 5.2.7 against a detected 5.4.2, calls it
+a whole release behind, and files "recipe degraded" — a complaint that
+can never clear, because there is nothing on our side to fix. Re-checked
+live 2026-08-28: intl still 2 entries topping out at 5.2.7, CN still
+parsing, newest 5.3.14 (2026-08-17). The acknowledgement names 5.2.7
+rather than switching the check off, so the day the pattern slips to an
+older section — or the vendor finally publishes — the sweep speaks up
+again.
+
+复测 2026-09-14（11:03 UTC，只读 GET，按 `ChangelogRecipeRegistry.workBuddyEntryPattern` 在 Python 里用 DOTALL 复算）：`www.workbuddy.cn/docs/workbuddy/Changelog` 164,156 B，89 个版本标题，其中 19 个没有括号日期，解析出 72 条，最新 5.5.6（2026-09-10），最旧解析到 4.8.0；`www.workbuddy.ai/docs/workbuddy/Changelog` 33,162 B，解析出 2 条，最新 5.2.7（2026-07-17），另一条 5.2.3。同时 `/v2/update?platform=workbuddy-darwin-{arm64,x64}&version=0.0.0`：国际站两个架构都回 `5.5.2.37849279`，国内站两个架构都回 `5.3.14.36279234`。

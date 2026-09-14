@@ -4,6 +4,7 @@ enum net_imput_helium {
     static let set = AppRecipeSet(
         family: "net-imput-helium",
         changelogs: [
+        // History: docs/app-audits/net-imput-helium.md#历史与实测
         // Helium — its GitHub releases, again with regexes rather than
         // `.gitHubReleases`: the body is a hash dump followed by two fenced commit
         // logs, and `GitHubMarkdownParser`'s prose pass would render the md5/sha
@@ -25,8 +26,8 @@ enum net_imput_helium {
         // letters and a colon, so no line of them can match at a line start.
         //
         // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`: the capture runs
-        // BEFORE the JSON unescape, so a commit subject containing `\"` — five of
-        // them in the current 40-release window — would be cut at the backslash and
+        // BEFORE the JSON unescape, so a commit subject containing `\"` (History has
+        // how many the release window held) would be cut at the backslash and
         // shown as half a line. Same trap `StructuredFormat.postmanReleaseNotes`
         // documents as the reason that format abandoned regex.
         //
@@ -37,9 +38,9 @@ enum net_imput_helium {
         //
         // `"prerelease":false` for the same reason as Headlamp (`Recipes/com-microsoft-Headlamp.swift`), and it is not
         // theoretical here: the vendor tags a build as prerelease for a day or two
-        // before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
-        // would show notes for a version this app is not being offered. 33 entries
-        // on the live endpoint, newest 0.16.3.1 — the version the appcast serves.
+        // before the appcast picks it up (History has a dated case, and the entry
+        // count then), and listing it would show notes for a version this app is
+        // not being offered.
         //
         // `\s*` around every colon: this endpoint serves the SAME document compact
         // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
@@ -66,9 +67,9 @@ enum net_imput_helium {
         ],
         githubRules: [
         // Helium — Chromium-based AI browser (imputnet/helium-macos). Bare tags
-        // (`0.16.2.1`, no v), and the repo DOES cut prerelease releases with
-        // the same all-digit tag shape (`0.16.1.1`) — /releases/latest excludes
-        // prereleases, so the stable rule never sees them. One-click pins the
+        // (e.g. `0.16.2.1`, no v), and the repo DOES cut prerelease releases with
+        // the same all-digit tag shape (e.g. `0.16.1.1`) — /releases/latest
+        // excludes prereleases, so the stable rule never sees them. One-click pins the
         // arm64 dmg; the x86_64 dmg ships beside it. Mounted 0.16.2.1:
         // net.imput.helium, short == build == tag, Team S4Q33XPHB4, notarized.
         GitHubReleaseRule(
@@ -87,8 +88,8 @@ enum net_imput_helium {
         //
         // Reading it buys two things the GitHub rule cannot: the beta train
         // (`<sparkle:channel>beta</sparkle:channel>` on one item), and the delta
-        // patches every item publishes — ~40 MB against a 124 MB full download.
-        // Its enclosures are RELATIVE (`assets/helium_….dmg`), which Sparkle
+        // patches every item publishes — about a third of the full download
+        // (History has the sizes). Its enclosures are RELATIVE (`assets/helium_….dmg`), which Sparkle
         // resolves against the appcast URL and we now do too; before that fix
         // this entry would have produced a schemeless, unfetchable download.
         "net.imput.helium": URL(string: "https://updates.helium.computer/mac/appcast-arm64.xml")!,
@@ -98,9 +99,9 @@ enum net_imput_helium {
         // (`SparkleFeedCatalog`) for the beta train and the delta patches. That
         // trade costs the notes: the GitHub release body was carrying them, and
         // the vendor's appcast has no `<description>` and no
-        // `sparkle:releaseNotesLink` on any of its 9 items. Without this entry
-        // the move would have silently emptied the notes pane, so the fallback
-        // points back at the releases the body lives on.
+        // `sparkle:releaseNotesLink` on any of its items (History has the count).
+        // Without this entry the move would have silently emptied the notes pane,
+        // so the fallback points back at the releases the body lives on.
         "net.imput.helium": URL(string: "https://github.com/imputnet/helium-macos/releases")!,
         ])
 }

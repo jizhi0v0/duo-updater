@@ -138,3 +138,17 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 ## 建议下一步
 1. 厂商重开 stable 时：加锚 `"stable"` 的 recipe，核对 lineage 是否分轨（见 Channel 详情）。
 2. 让 App 层的 Restart 徽标也认 lineage（单独的 PR）。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-zarifpour-superconductor.swift — VendorProbe（读的是唯一轨上的最新构建）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「a 302 to the same URL on 2026-09-10」改成了「a 302 to the same URL when checked, 2026-09-10 and 2026-09-14」。
+
+Reads the newest build on the only track — the dmg the site's own
+Download button (`super.engineering/api/download`, a 302 to the same URL
+on 2026-09-10) and the app's updater hand every user.
+
+复测 2026-09-14（11:40 UTC，只读、不跟随重定向）：`super.engineering/api/download` 302 → `https://releases.superconductor.so/nightly/Superconductor-nightly-33171b9c-arm64.dmg`，与同一时刻 `latest.json` 的 `"nightly".url` 相同（`date` `2026-09-14`）。

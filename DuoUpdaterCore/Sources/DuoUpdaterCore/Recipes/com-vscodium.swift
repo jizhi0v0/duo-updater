@@ -6,7 +6,8 @@ enum com_vscodium {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // VSCodium — VS Code without the Microsoft build. Tags are bare
+        // History: docs/app-audits/com-vscodium.md#历史与实测
+        // VSCodium — VS Code without the Microsoft build. Tags are bare, e.g.
         // `1.126.04524` (the trailing group is VSCodium's own build stamp and IS
         // part of the installed CFBundleShortVersionString, so the default pattern's
         // multi-dot capture keeps it). The release carries every platform plus a
@@ -30,7 +31,8 @@ enum com_vscodium {
         // before "Insiders"), so `detect`'s bundle-id-suffix step does not fire.
         // What actually resolves it to `.preview` is the display name step: the
         // installed app's CFBundleName/CFBundleDisplayName is "VSCodium -
-        // Insiders" (confirmed below), and "Insiders" is a standalone word there.
+        // Insiders" (see `docs/app-audits/com-vscodium-VSCodiumInsiders.md`), and
+        // "Insiders" is a standalone word there.
         // `ChannelGuardTests.vscodiumInsidersDisplayNameSignalsPreview` pins our
         // half of this against `ReleaseChannel.detect`. It cannot pin the VENDOR's
         // half: the display name is their string, and if VSCodium ever glues it
@@ -40,7 +42,7 @@ enum com_vscodium {
         //
         // CRUCIAL — this is the SECOND instance of a trap the VS Code Insiders
         // recipe (`Recipes/com-microsoft-VSCode.swift`) already hit, not a VSCodium quirk:
-        // tags carry the `-insider` suffix (`1.126.04518-insider`), which IS
+        // tags carry the `-insider` suffix (e.g. `1.126.04518-insider`), which IS
         // part of both CFBundleShortVersionString and CFBundleVersion on the
         // installed app — verified by downloading the real asset and reading
         // Info.plist directly (not just trusting the tag). The default pattern
@@ -67,15 +69,12 @@ enum com_vscodium {
         // which is the right answer for a host class that is all we ship to
         // (`App/project.yml`, `ARCHS: arm64`).
         //
-        // One-click: verified 2026-08-27 by downloading the real
-        // VSCodium-darwin-arm64-1.126.04518-insider.zip and reading the
-        // extracted app directly — CFBundleIdentifier
-        // com.vscodium.VSCodiumInsiders, CFBundleShortVersionString/
-        // CFBundleVersion both "1.126.04518-insider", `codesign -dv` shows
-        // TeamIdentifier VC39D2VNQ7 (same team as stable) with a stapled
-        // notarization ticket, and `spctl -a --type execute` returns "accepted,
-        // source=Notarized Developer ID" — passes VendorInstaller's same-Team
-        // gate.
+        // One-click: the arm64 zip's app is com.vscodium.VSCodiumInsiders, its
+        // CFBundleShortVersionString and CFBundleVersion both carry the
+        // `-insider` tag, TeamIdentifier VC39D2VNQ7 (same team as stable) with a
+        // stapled notarization ticket, and `spctl` accepts it as "Notarized
+        // Developer ID" — passes VendorInstaller's same-Team gate (checked on a
+        // real download 2026-08-27; History has the version and the commands).
         GitHubReleaseRule(
             bundleID: "com.vscodium.VSCodiumInsiders",
             owner: "VSCodium", repo: "vscodium-insiders",
@@ -96,8 +95,9 @@ enum com_vscodium {
         // permanent false acquittal, and the proof could not have failed for any
         // input. Live releases could not show this: every real tag in that repo
         // carries `-insider` too, so the loose pattern and the anchored one agree
-        // on all 57 of them and disagree only on the artifact this exists to
-        // catch. Caught in adversarial review of #101, not by measurement.
+        // on every one of them (History has the count) and disagree only on the
+        // artifact this exists to catch. Caught in adversarial review of #101,
+        // not by measurement.
         ChannelProofKey("com.vscodium.VSCodiumInsiders", .preview):
             .artifact(#"/download/[^/]*-insider"#),
         ])

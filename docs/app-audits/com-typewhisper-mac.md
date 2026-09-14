@@ -95,3 +95,28 @@ Sparkle feed 才是。
 
 ## 建议下一步
 无。三轨检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-typewhisper-mac.swift — ChangelogRecipe（mac 与 Windows 卡片数）
+
+转引自 recipe 注释，未复测。整段原文；代码里的卡片数改成了「History has the card counts」。原句没写日期，引入它的提交是 `cff8d0ed`（2026-08-31）。
+
+TypeWhisper — no notes in the appcast either. The official changelog
+page is the vendor's own, and it interleaves **macOS and Windows**
+releases in one list (203 mac cards, 167 Windows ones), so the entry
+pattern is anchored on the platform badge that precedes the version
+heading. Getting that wrong shows Windows notes under a Mac version.
+
+### Recipes/com-typewhisper-mac.swift — ChangelogRecipe（tempered 扫描修掉的两条跨卡片条目）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（普通惰性扫描会越过没有 prose 的卡片、把下一张卡的说明挂到错版本上；tempered 之后没有条目跨卡片），当时出错的两个版本和「194 entries」搬到这里。原句没写日期，引入它的提交是 `cff8d0ed`（2026-08-31）。
+
+The gap between the heading and the date is a TEMPERED lazy scan
+(`(?:(?!>macOS</span><h3|>Windows</span><h3).)*?`), not a plain `.*?`:
+a handful of old cards carry no prose block, and a plain lazy scan ran
+past them into the NEXT card and filed its notes under the wrong
+version — two entries did exactly that (0.6.1, 0.5.1) before this was
+tempered. With it: 194 entries, none spanning a card boundary.

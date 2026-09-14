@@ -4,9 +4,10 @@ enum com_tigervnc_tigervnc {
     static let set = AppRecipeSet(
         family: "com-tigervnc-tigervnc",
         probes: [
+        // History: docs/app-audits/com-tigervnc-tigervnc.md#历史与实测
         // TigerVNC — Developer ID (Brian Hinz, S5LX88A9BW), notarized; `spctl`
-        // accepts the mounted app. One-click verified 2026-08-16 against the
-        // 1.16.0 dmg the same way.
+        // accepts the app mounted from the one-click dmg (checked 2026-08-16;
+        // History has the dmg version).
         VendorProbeRegistry.sourceForgeMacRecipe(
             bundleID: "com.tigervnc.tigervnc",
             project: "tigervnc",

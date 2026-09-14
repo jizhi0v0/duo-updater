@@ -4,11 +4,12 @@ enum notion_id {
     static let set = AppRecipeSet(
         family: "notion-id",
         probes: [
+        // History: docs/app-audits/notion-id.md#历史与实测
         // Notion desktop — public "latest" download redirect. www.notion.so/
         // desktop/mac/download 307s straight to the versioned installer
         // (…/Notion-<ver>-universal.dmg); the version is in that `Location`
-        // filename. It redirects on BOTH HEAD and GET, but the target is a
-        // ~203 MB dmg, so don't follow — read the small 307 Location. Use the
+        // filename. It redirects on BOTH HEAD and GET, but the target is the
+        // full dmg, so don't follow — read the small 307 Location. Use the
         // `.so` host: it's a single hop, whereas `.com/desktop/mac/download`
         // bounces through app.notion.com first. ChangelogRecipe(notion.id) renders
         // notes. One-click: the very same `/desktop/mac/download` 307 IS the
@@ -38,7 +39,7 @@ enum notion_id {
         // This is the recipe wired up for `notion.id`; see `NOT REGISTERED` below
         // for the *other* Notion recipe this replaces and why.
         //
-        // The rendered HTML is a 19 KB empty Next.js shell — zero content. The real
+        // The rendered HTML is an empty Next.js shell — zero content. The real
         // notes come from Notion's own internal, unauthenticated page-rendering API,
         // which only answers a POST:
         //   POST https://notion.notion.site/api/v3/loadPageChunk
@@ -51,20 +52,19 @@ enum notion_id {
         // `content` array as the true reading order) and how the header/text/
         // bulleted_list blocks are grouped into releases.
         //
-        // Verified live 2026-08-22: the header text is "v7.31.0" (`v` stripped so
-        // the rail label reads "7.31.0", matching the installed build the vendor
-        // probe's `.redirectFilename` reports) and the release order runs
-        // v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
-        // the product-announcement post titles the old recipe surfaced.
+        // Release headers are `v`-prefixed versions (e.g. "v7.31.0"; `v` stripped
+        // so the rail label reads "7.31.0", matching the installed build the
+        // vendor probe's `.redirectFilename` reports), newest first, real desktop
+        // builds, not the product-announcement post titles the old recipe
+        // surfaced (verified live 2026-08-22; History has the order read).
         //
-        // `acknowledgedStaleEntry` (#493): read live 2026-09-11, the page's newest
-        // header is still v7.32.0 ("Released" 2026-08-31; the page block was last
-        // edited 2026-09-01 01:22 UTC), while `www.notion.so/desktop/mac/download` already
-        // 307s to `Notion-7.33.0-universal.dmg`. The decoder reads the page
-        // correctly — Notion has not written the 7.33.0 notes — so the sweep's
-        // "a whole release behind" is the vendor's lag, not ours. Named rather than
-        // switched off: once the page moves, to 7.33.0 or anywhere else, the check
-        // runs again.
+        // `acknowledgedStaleEntry` (#493): when checked (2026-09-11; History has
+        // both versions), the page's newest header was the version named below
+        // while `www.notion.so/desktop/mac/download` already 307'd to the next
+        // release. The decoder reads the page correctly — Notion had not written
+        // the newer notes — so the sweep's "a whole release behind" is the
+        // vendor's lag, not ours. Named rather than switched off: once the page
+        // moves, to a newer release or anywhere else, the check runs again.
         ChangelogRecipe(
             bundleID: "notion.id",
             source: URL(string: "https://notion.notion.site/api/v3/loadPageChunk")!,

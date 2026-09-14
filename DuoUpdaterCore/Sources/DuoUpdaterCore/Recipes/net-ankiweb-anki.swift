@@ -6,8 +6,9 @@ enum net_ankiweb_anki {
         githubRules: [
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
-        // Anki — tags are date-shaped with a zero-padded month (`26.08.1`) while the
-        // app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
+        // History: docs/app-audits/net-ankiweb-anki.md#历史与实测
+        // Anki — tags are date-shaped with a zero-padded month (e.g. `26.08.1`)
+        // while the app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
         // compares digit runs numerically, so 08 == 8 and the two read as the same
         // version — no phantom update.
         //
@@ -22,8 +23,8 @@ enum net_ankiweb_anki {
         // bundle's real architectures (`SignatureVerifier.verifyRunnableArchitecture`).
         // Team ZL66D3NMZM and notarization verified on BOTH dmgs.
         //
-        // CLOSED GAP (was verified on this machine 2026-08-16, and was never a rule
-        // bug): Anki stamps `CFBundleVersion` as a literal "1" for every build. When
+        // CLOSED GAP (verified 2026-08-16, and was never a rule bug): Anki stamps
+        // `CFBundleVersion` as a literal "1" for every build. When
         // the installed short version has no patch component (26.08 → app reports
         // "26.8"), `UpdateChecker.evaluate`'s "vendor folded the build into the
         // version" fallback rebuilt it as "26.8" + "1" = "26.8.1" and concluded the

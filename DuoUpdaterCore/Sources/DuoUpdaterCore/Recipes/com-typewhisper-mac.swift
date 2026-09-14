@@ -4,9 +4,10 @@ enum com_typewhisper_mac {
     static let set = AppRecipeSet(
         family: "com-typewhisper-mac",
         changelogs: [
+        // History: docs/app-audits/com-typewhisper-mac.md#历史与实测
         // TypeWhisper — no notes in the appcast either. The official changelog
         // page is the vendor's own, and it interleaves **macOS and Windows**
-        // releases in one list (203 mac cards, 167 Windows ones), so the entry
+        // releases in one list (History has the card counts), so the entry
         // pattern is anchored on the platform badge that precedes the version
         // heading. Getting that wrong shows Windows notes under a Mac version.
         //
@@ -16,10 +17,10 @@ enum com_typewhisper_mac {
         //
         // The gap between the heading and the date is a TEMPERED lazy scan
         // (`(?:(?!>macOS</span><h3|>Windows</span><h3).)*?`), not a plain `.*?`:
-        // a handful of old cards carry no prose block, and a plain lazy scan ran
-        // past them into the NEXT card and filed its notes under the wrong
-        // version — two entries did exactly that (0.6.1, 0.5.1) before this was
-        // tempered. With it: 194 entries, none spanning a card boundary.
+        // a handful of old cards carry no prose block, and a plain lazy scan runs
+        // past them into the NEXT card and files its notes under the wrong
+        // version. With it, no entry spans a card boundary (History has the
+        // entries that did, and the counts).
         //
         // Every train lands in one list, so a stable install sees the daily
         // entries above its own release. That is the vendor's page as published;

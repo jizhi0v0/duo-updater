@@ -200,3 +200,151 @@ duo install → backed up → downloading → extracting → verifyingCodeSignat
    名字变了这道保护会**静默失效**——判据是这三个字符串还在不在 `WeTypeUpdater` 二进制里。
 3. `zip_download_url` 与 `zip_version` 出自同一份 manifest、同一次响应，
    不存在"版本和产物指向不同发布"的漂移面。这条是这个 recipe 比多数 recipe 更稳的地方。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（开头三段：版本从 changelog 页读的那一版）
+
+转引自 recipe 注释，未复测。三段整段原文，迁移时都已不成立（描述的是被替换掉的读页面的 recipe），见下面的更正。代码里第一段只留下了到 appcast 冻结为止的那部分，并改成指向现在的 manifest；后两段删了。
+
+WeType (微信输入法) — Tencent's input method. Installs under
+`/Library/Input Methods` (not /Applications), now scanned by AppScanner.
+No standard source resolves it: its bundled Sparkle has NO SUFeedURL in
+Info.plist (set at runtime), and the hardcoded public appcast froze at
+1.4.1 (2025-07) while 2.x updates ride an in-app WeChat push channel — so
+the only public "what's the latest macOS version" surface is the official
+changelog page. It's a Next.js page but the data is server-rendered inline
+(an `__next_f` RSC blob, no JS needed): a flat list of release objects for
+ALL platforms — `"platform":1`=iOS, `2`=Android, `3`=macOS, `4`=Windows.
+CRUCIAL anchor: `version` precedes `platform` in each object, so the
+pattern ties the captured version to its OWN object's `"platform":3` —
+`[^"]*` can't cross a structural quote, so it can't span into an adjacent
+(e.g. iOS) object. Without that gate, a bare/highest version pattern would
+grab a higher non-macOS version (iOS is at 3.4.0) → a phantom update.
+`content_html` carries no raw `"` (quotes are `&quot;`-encoded), so the
+`[^"]*` field bounds hold.
+
+We compare BUILDS, not the marketing version: the page names the current
+installer as `WeTypeInstaller_2.2.2_647_<letter>.zip`, and the installed
+bundle's `CFBundleVersion` is that same `647`, so both sides speak the
+same scheme. Those installer links exist only for the CURRENT release
+(verified 2026-08-16: the whole page yields exactly one version/build
+pair). `displayVersionPattern` keeps the row reading `2.2.2` rather than a
+bare `647`, and it reads that string out of the SAME filename — which
+matters twice over: display extraction is first-match with no
+`selectHighest`, and this page lists releases oldest-first, so the
+`"platform":3`-gated object pattern would have shown the very first
+macOS release ever published beside the current build.
+
+If a future page ever drops the installer links, the build pattern misses
+and the probe degrades to "unknown" — never to a wrong version.
+
+更正 2026-09-14：这三段描述的是 `2c9e99a4`（2026-08-20）之前的 VendorProbe——从 `z.weixin.qq.com/web/change-log/macos` 读版本。现在的 VendorProbe 读 `?channel=InstallInfo` manifest（`versionPattern` 取 `zip_version` 的第 4 段、`displayVersionPattern` 取前 3 段，`Recipes/com-tencent-inputmethod-wetype.swift` 的 `VendorProbeRecipe`），所以这三段对当前代码不成立。页面按 `"platform":3` 锚定的那部分说明对 ChangelogRecipe 仍然成立，它自己的注释里有。
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（2026-08-16 一键撤回）
+
+转引自 recipe 注释，未复测。整段原文，从代码里删了：开头的「DETECTION ONLY」迁移时已不成立（见下面的更正），其余是撤回那次的证据。代码里留下的是一键段里的「withdrawn 2026-08-16 after a user lost their WeType settings; History has the evidence」。唯一的改写：三处本机状态措辞（那台机器上被观测到的文件时间与版本、提权替换没跑过的那台机器、一键工作所在的机器），按本目录的机器状态规则改成了针对那台被检查的机器的说法。
+
+DETECTION ONLY — the one-click was built, shipped in 0.3.25, and then
+WITHDRAWN on 2026-08-16 after a user lost their WeType settings during
+that work. State the evidence plainly, because it does not add up to a
+proof and the decision does not depend on one:
+```
+  * `/Library/Input Methods/WeType.app` was never replaced by us — on the
+    machine checked that day its mtime is still the vendor install's (Aug 6) and it is 2.2.2/647.
+    The elevated swap never actually ran on that machine.
+  * What DID run, during the one-click work on that machine, was a staged OLDER copy
+    (2.2.1) placed in `~/Applications`, installed over, and the running
+    input method restarted twice. `~/Library/Application Support/WeType/`
+    `userDict` and `mmkv` were rewritten inside that window.
+```
+So the swap is not convicted; a second, older copy of an input method
+registering itself is. Either way the blast radius is the user's own
+dictionary and settings, and this class of app is not one to learn on.
+
+更正 2026-09-14：「DETECTION ONLY」不成立——`489b3921`（2026-08-28）重新接入了一键（`install: VendorInstallSpec(… kind: .zip)`，输入法走 `InPlaceSwap.rotateContents` 的 Contents 轮换并带 `InputMethodDataBackup` 快照）；代码里的一键段说明了为什么。
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（留给以后再看的真实 payload）
+
+转引自 recipe 注释，未复测。整段原文，迁移时已不成立，从代码里删了，见下面的更正。
+
+Kept for whoever revisits this: the real payload (not the ~3 MB stub the
+page links) is `download.weread.qq.com/app/wxkb/mac/<ver>/WeType_<ver>_<build>.zip`,
+constructible from the version+build this recipe already extracts, and
+verified in 2026-08 to be a notarized `WeType.app`, Team 88L2Q4487U.
+The missing piece is not the URL — it is doing the vendor installer's
+registration/migration, which nothing here does.
+
+更正 2026-09-14：「which nothing here does」不成立——`489b3921`（2026-08-28）起一键走 Contents 轮换，保留已注册的 `.app` 路径，不需要复刻安装器的注册；payload 也不再由版本+build 拼出，而是直接读 manifest 的 `zip_download_url`。代码里现有的「`zip_download_url` is the real payload」一段说的是现状。
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（读厂商安装器读的接口）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「an 8 MB stub」换成了「a stub」。原句没写日期，引入它的提交是 `2c9e99a4`（2026-08-20）。
+
+Read the endpoint the vendor's OWN installer reads, not the marketing
+page. `WeTypeInstaller.app` is an 8 MB stub that ships no payload — it
+GETs `?channel=InstallInfo`, which 302s to a per-build JSON manifest:
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（上一版读的是安装器壳的版本）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是警告（那些文件名里的数字是安装器 stub 自己的版本，不是 app 的；用错 namespace 的 recipe 不会失败，只会答错号），手上 stub 与它装出的版本、以及夜扫抓到它的经过搬到这里。原句没写日期，引入它的提交是 `2c9e99a4`（2026-08-20）。
+
+The previous recipe read `WeTypeInstaller_<x.y.z>_<build>_<letter>.zip`
+filenames off `z.weixin.qq.com/web/change-log/macos`. Those numbers are
+**the installer stub's own version, not the app's** — the stub in hand
+is 2.2.0 (643) and installs 2.2.3 (657). The two tracked each other
+closely enough for a while to look right, which is exactly how a
+wrong-scheme recipe survives: it never fails, it just answers with a
+number from the wrong namespace. `remote is BEHIND the installed copy`
+in the nightly sweep is what finally caught it.
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（那个页面自己也滞后）
+
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（页面自己也滞后，所以文件名和 notes 都不是版本源），当时 Mac 2.2.2 / 在发 2.2.3 这个例子搬到这里。原句没写日期，引入它的提交是 `2c9e99a4`（2026-08-20）。
+
+That page also lags on its own account — its embedded per-platform JSON
+still listed Mac at 2.2.2 while 2.2.3 was shipping — so neither the
+filenames nor the notes on it are a version source.
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（一键在 2026-08-28 恢复）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「— see above」换成了撤回原因和指向这里的说明（「see above」指的那段已搬到这里）。
+
+ONE-CLICK, restored 2026-08-28 (withdrawn 2026-08-16 — see above), and
+the reason it is back is that the install now has the same SHAPE as the
+vendor's own update rather than the shape of its installer.
+
+### Recipes/com-tencent-inputmethod-wetype.swift — VendorProbe（`zip_download_url` 是真包）
+
+转引自 recipe 注释，未复测。整段原文；代码里只把「the ~3 MB stub」换成了「the small stub」。原句没写日期，引入它的提交是 `489b3921`（2026-08-28），更早的 `a982671f`（2026-08-16）里已有「~3 MB stub」。
+
+`zip_download_url` is the real payload, not the ~3 MB stub the marketing
+page links: a notarized `WeType.app`, Team 88L2Q4487U, which the code
+signature + Team + bundle-id gates check before anything moves. The
+response also carries `zip_download_md5`; `checksumPattern` is SHA-512
+base64, so it is deliberately NOT wired up rather than mis-declared.
+
+### Recipes/com-tencent-inputmethod-wetype.swift — ChangelogRecipe（与 VendorProbe 同一个页面）
+
+转引自 recipe 注释，未复测。整段原文；开头一句迁移时已不准确，代码里改写了，见下面的更正；其余原样。
+
+WeType (微信输入法) — same official changelog page as its VendorProbe.
+Next.js page with the data server-rendered inline (an `__next_f` RSC blob,
+no JS needed): a flat list of release objects for ALL platforms, tagged
+`"platform":1`=iOS / `2`=Android / `3`=macOS / `4`=Windows. The entry
+pattern ties the captured version/body to its OWN object's `"platform":3`
+(version precedes platform; `[^"]*` can't cross a structural quote, so it
+can't bleed into an adjacent platform's object) — so only macOS releases
+become entries. The notes live in `content_html`, where each line is its
+own tag — usually `<h2>` (including the dash-bulleted lines), sometimes
+`<ul><li>` or `<p>` — so itemPatterns try all three. No human per-entry
+date is published (only a unix `release_date`), so `date` is omitted
+rather than shown as a raw epoch. CRUCIAL: the list runs oldest→newest, so
+`newestLast` flips it to newest-first before the cap. Quotes inside notes
+are `&quot;`-encoded (no raw `"`), so the `[^"]*` field bounds hold and the
+default HTML entity decode renders them. A parse miss falls back to
+embedding this same page (the VendorProbe's changelogURL).
+
+更正 2026-09-14：自 `2c9e99a4`（2026-08-20）起 VendorProbe 不再读这个页面（读 `?channel=InstallInfo`），这个页面只是它的 `changelogURL`。代码里改成「the official changelog page its VendorProbe names as `changelogURL`」。

@@ -10,6 +10,11 @@
 
 转引自 recipe 注释，未复测。
 
+That is true for DETECTION and wrong for INSTALL: that link
+serves `Microsoft_365_and_Office_<build>_Installer.pkg`, which declares
+eight destinations — Word, Excel, PowerPoint, Outlook, OneNote, OneDrive,
+AutoUpdate and a Defender shim.
+
 Verified 2026-08-19 by parsing the real 2.7 GB suite package.
 
 `FullUpdaterLocation` in the MAU manifest is a standalone 592 MB

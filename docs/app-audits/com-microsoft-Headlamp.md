@@ -51,3 +51,17 @@ old slug with a 301 to `/repositories/<id>/…`, and URLSession drops
 the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
 whatever token the user configured. Three rules were quietly doing
 that.
+
+### Recipes/com-microsoft-Headlamp.swift — stable GitHubReleaseRule（`listPageSize`）
+
+转引自 recipe 注释，未复测。
+
+listPageSize: measured 2026-09-04 against the newest 100 releases —
+first-match index 0 (the interleaved `headlamp-helm-`/`headlamp-plugin-`
+tags this comment warns about don't match `^v…$`), worst run between
+two app tags is 4 (`v0.23.0`→`v0.22.0`). 8 keeps 2x headroom; a
+per_page=5 was measured at 42 KB (barely less than per_page=3's
+40 KB — `body` dominates either way), so 8 doesn't cost meaningfully
+more than 5 while leaving real margin over the observed gap of 4.
+
+复测 2026-09-14（03:15 UTC，只读 GET `repos/kubernetes-sigs/headlamp/releases?per_page=100`）：首个 `v…` app tag 在第 0 位，相邻两个 app tag 之间最多隔 3 个 release。没有复测响应大小。

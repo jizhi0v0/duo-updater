@@ -8,7 +8,7 @@
 
 ### Recipes/com-github-GitHubClient.swift — stable / beta GitHubReleaseRule（一键 `GitHub.Desktop-arm64.zip`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文末句说 beta 是装在 "this machine" 上的那份拷贝，按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：原文末句用第一人称的“这台机器”说 beta 是装着的那份，按本目录的机器状态规则改成了针对那台被验证的机器的说法。
 
 Both verified end-to-end 2026-06-06: stable `GitHub.Desktop-arm64.zip`
 (3.5.12) and beta (3.5.12-beta2) are the same notarized Developer ID build
@@ -17,7 +17,7 @@ on the machine verified that day.
 
 ### Recipes/com-github-GitHubClient.swift — beta GitHubReleaseRule（`listPageSize`）
 
-转引自 recipe 注释，未复测。这句的测量部分仍留在代码里；搬到这里的是整句原文，代码里去掉的只有描述测量那台机器的 "not installed on the measuring machine, so"。
+转引自 recipe 注释，未复测。代码里只留下为什么需要这个页大小（条件），带日期的位置与间隔都在这里。
 
 listPageSize: not installed on the measuring machine, so measured
 directly against the live endpoint (2026-09-04, newest 100 releases):

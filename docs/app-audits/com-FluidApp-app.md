@@ -62,8 +62,9 @@
 - **读的是**: 人人可手动下载的 GA（GitHub latest stable）。同一条 dmg 挂在
   官方 Releases 页上，不是灰度分配。
 - 包是 universal（x86_64 + arm64 一个文件），文件名没有 arch token；这与
-  Goose.zip（文件名中性、内容却是 arm64-only）不同，Intel 宿主拿到的也是
-  带 x86_64 slice 的同一份。
+  Goose.zip（文件名中性、内容却是 arm64-only）不同，但对 DuoUpdater 没有差别：它只跑在
+  Apple silicon 上（`App/project.yml`），这份包带 arm64 slice，安装闸也会读真实架构
+  （`SignatureVerifier.verifyRunnableArchitecture`）。
 
 ### 验证记录（2026-08-30，v1.6.9）
 下载 `Fluid-oss-1.6.9.dmg` 只读挂载核对：

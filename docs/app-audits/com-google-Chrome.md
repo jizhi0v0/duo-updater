@@ -84,7 +84,7 @@ Developer ID", and a version in the same 4-part form the API reports.
 
 ### Recipes/com-google-Chrome.swift — ChangelogRecipe（Chrome Releases 博客 *Stable updates* 标签页）
 
-转引自 recipe 注释，未复测。最后一段原句没写日期；日期取自引入这句话的提交：`da0845c5`（2026-09-02）。
+转引自 recipe 注释，未复测。最后一段原句没写日期；日期取自引入这句话的提交：`da0845c5`（2026-09-02）。那段第一句的边界在代码里改成了引用 `ChromeChangelogPatternTests` 实际断言的值（100 000 匹配、300 000 不匹配）。
 
 Measured against the live 852 KB page (6 posts) with the old form:
 renaming the closing `</script>` ran past 150 s, and a page whose
@@ -94,7 +94,9 @@ caller is awaiting.
 Same seven mutations, new form: worst case 0.074 s, and the pristine
 page still yields the identical two entries.
 
-Chrome's second post is
+A possessive/atomic run silently stops matching past ~250 000
+characters — measured: 100 000 matches, 250 000 does not, and the
+failure is a quiet "no match", not an error. Chrome's second post is
 a 324 KB body, so that form drops it and the pane loses an entry with
 nothing anywhere saying so.
 

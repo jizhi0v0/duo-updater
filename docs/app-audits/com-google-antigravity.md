@@ -28,7 +28,7 @@ where a size delta gave away a hash computed before stapling.
 
 ### Recipes/com-google-antigravity.swift — IDE VendorProbe（`com.google.antigravity-ide`）
 
-转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`7a0110cd`（2026-08-22）。第一段唯一的改写：原文 "It was installed and scanned but matched no recipe" 按本目录的机器状态规则改成了针对那台被量的机器的说法。第三段迁移时已不成立：页面并非 JS 渲染，那次读的是 gzip 压缩流（见下一组的更正），代码里已改写成指向 IDE 的 `ChangelogRecipe`。
+转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`7a0110cd`（2026-08-22）。第一段唯一的改写：原文说这个 app“装着、被扫到了”却没匹配到 recipe，按本目录的机器状态规则改成了针对那台被量的机器的说法。第三段迁移时已不成立：页面并非 JS 渲染，那次读的是 gzip 压缩流（见下一组的更正），代码里已改写成指向 IDE 的 `ChangelogRecipe`。
 
 Different
 bundle id (`com.google.antigravity-ide`), different version line (2.5.5

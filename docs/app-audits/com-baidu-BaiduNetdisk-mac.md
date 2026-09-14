@@ -257,7 +257,7 @@ GET 正常（Range GET 返回 206，`Accept-Ranges: bytes`，断点续传可用�
 
 ### Recipes/com-baidu-BaiduNetdisk-mac.swift — stable VendorProbe（`/disk/cmsdata?do=client`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "(the installed copy's team)" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：原文括号里说那是“装着的那份”的 team，按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 It answers
 anonymously — no cookie, no Referer, the browser-like default UA is fine

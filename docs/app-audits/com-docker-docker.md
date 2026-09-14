@@ -113,7 +113,7 @@ find "<Docker.app>/Contents/MacOS/Docker Desktop.app/Contents" \
 
 ### Recipes/com-docker-docker.swift — stable VendorProbe（一键 `Docker.dmg`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "over an installed 4.86.0" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：原文说 4.86.0 是“装着的”那份，按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 On 2026-08-17 it listed 4.86.0 (build
 236216) ahead of 4.87.0 (236836), so a first-match download fetched
@@ -126,7 +126,7 @@ Developer ID". 573 MB, arm64-specific feed path.
 
 ### Recipes/com-docker-docker.swift — ChangelogRecipe（`release-notes.md`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "the installed version here" 按本目录的机器状态规则改成了针对那台被量的机器的说法。
+转引自 recipe 注释，未复测。唯一的改写：原文末尾说 4.87.0 是“这里装着的”版本，按本目录的机器状态规则改成了针对那台被量的机器的说法。
 
 `docs.docker.com/desktop/release-notes.md` serves `text/markdown`
 directly (the `.md` twin of the HTML page), 142 versions deep, newest

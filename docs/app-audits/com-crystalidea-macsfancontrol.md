@@ -8,9 +8,9 @@
 
 ### Recipes/com-crystalidea-macsfancontrol.swift — stable GitHubReleaseRule（一键 `macsfancontrol.zip`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "matching the install" 按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。
 
 One-click installs `macsfancontrol.zip`, which wraps `Macs Fan Control.app`:
 verified 2026-06-06 it's a notarized Developer ID build (Team ACC5R6RH47,
 Ilya Parniuk) reporting version 1.5.21 == tag, bundle id
-com.crystalidea.macsfancontrol matching the copy installed on the machine verified that day → passes the gate.
+com.crystalidea.macsfancontrol matching the install → passes the gate.

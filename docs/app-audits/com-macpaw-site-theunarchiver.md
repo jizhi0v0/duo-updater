@@ -8,8 +8,8 @@
 
 ### Recipes/com-macpaw-site-theunarchiver.swift — stable VendorProbe（DevMate appcast，一键 zip）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "matching the installed copy" 按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。
 
 One-click verified 2026-08-09 on the 4.3.9 archive from this same
 feed: `The Unarchiver.app` inside, bundle id and Team (S8EX82NJP6)
-matching the copy installed on the machine verified that day, spctl "Notarized Developer ID".
+matching the installed copy, spctl "Notarized Developer ID".

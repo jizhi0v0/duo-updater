@@ -8,13 +8,7 @@
 
 ### Recipes/com-google-android-studio.swift — Canary / Beta VendorProbe（releases-list JSON）
 
-转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`cd608174`（2026-06-19）。
-
-```
-(An earlier "highest across all previews" version wrongly pushed
- `2026.1.3 Canary 1` at a Beta install that was already current; and the
- original channel-pure "Canary only" wrongly hid the RC the user wanted.
-```
+转引自 recipe 注释，未复测。
 
 With two feature trains open at once, a newer
 train's Canary can publish AFTER an older train's RC — 2026-08-27 had
@@ -24,7 +18,7 @@ the older train's RC.
 
 ### Recipes/com-google-android-studio.swift — `channelProofs`（Canary / Beta 的 artifact marker）
 
-转引自 recipe 注释，未复测。这句和上一组那句写的是同一次观测，一个写 2026-08-27、一个写 2026-08-26，两处原文照录，没有核对哪个对。
+转引自 recipe 注释，未复测。这句和上一组那句写的是同一次观测，一个写 2026-08-27、一个写 2026-08-26，两处原文照录。两句都由同一个提交 `57e9b6ef` 引入（2026-08-27 11:09 +0800，即 UTC 2026-08-27 03:09），`git log` 定不了是哪一天观测的——未解决。
 
 (It is NOT
 legitimate merely because the RC was the most recently PUBLISHED item —

@@ -94,7 +94,7 @@ channel 门先于比较，所以不构成跨轨推送。
 ```
 
 ## 建议下一步
-无。两轨检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+无。两轨检测与一键由泛化 Sparkle 源覆盖；changelog 由 `Recipes/com-github-CopilotForXcode.swift` 的 `ChangelogRecipe` 解 repo 的 `CHANGELOG.md`（见上「Changelog」）。（更正 2026-09-14：原先这里写 changelog 也「零代码」，与本文「Changelog」一节及 2026-08-31 新增的 recipe 矛盾。）
 
 ## 历史与实测
 

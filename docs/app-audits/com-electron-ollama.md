@@ -27,7 +27,7 @@
 - 端点: `https://api.github.com/repos/ollama/ollama/releases/latest`。
 - 验证（2026-06-06）: `ollama.com/install.sh` 与 `ollama.com/download/Ollama.dmg` 均 307→ github `releases/latest/download`；latest zip 内 `.app` 自报 `CFBundleShortVersionString = 0.30.6`，与 tag `v0.30.6` 同构，无幽灵更新。
 - 备选（未采用）: redirect-VendorProbe 抠最终 path 的 `v0.30.6`，可免 GitHub API 60/时限流；本次保留 API 方式（用户决定，2026-06-06）。
-- 注意事项: 本机版本 0.24.0 与 cask 0.30.4 漂移，说明 `auto_updates` cask 不能当检测源。
+- 注意事项: 审计当天观测到的那份拷贝是 0.24.0、cask 已是 0.30.4，两者漂移，说明 `auto_updates` cask 不能当检测源。
 
 ## Changelog
 - 来源: `ChangelogRecipe` + `ChangelogCatalog`
@@ -66,7 +66,7 @@ otherwise be a prose release's last item.
 
 ### Recipes/com-electron-ollama.swift — stable GitHubReleaseRule（一键 `Ollama-darwin.zip`）
 
-转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：原文 "the installed copy drifts" 按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入），代码里已改写成「没有这条 rule 时」。
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`0ca0f173`（2026-06-06）、`df241b20`（2026-06-06）。唯一的改写：原文说的是“装着的那份”在漂移，按本目录的机器状态规则改成了针对那台被量的机器的说法。第一句里的 "with no detection source — only a changelog recipe" 说的是这条 rule 接入之前（同一个提交接入），代码里已改写成「没有这条 rule 时」。
 
 Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
 which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so

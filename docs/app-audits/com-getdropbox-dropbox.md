@@ -8,7 +8,13 @@
 
 ### Recipes/com-getdropbox-dropbox.swift — stable VendorProbe（一键 `Dropbox%20<ver>.dmg`）
 
-转引自 recipe 注释，未复测。
+转引自 recipe 注释，未复测。第一段原句没写日期；日期取自引入这句话的提交：`599e8dde`（2026-06-04）。
+
+The target is a
+~200 MB dmg, so don't follow — read the small 302 Location
+(followRedirects:false).
+
+复测 2026-09-14（05:18 UTC，对 dmg 只发 HEAD）：重定向落到 `Dropbox%20268.4.4124.dmg`，`Content-Length` 398,329,648；`…268.4.4124.arm64.dmg` 是 387,752,941。代码里去掉了具体大小。
 
 (Homebrew
 cask has no livecheck; its url/version confirm this host + build.)

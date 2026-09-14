@@ -13,7 +13,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —        | —   | —      | ✓           |
-| **preview**  | —       | —        | —   | —      | ✗（已停更） |
+| **preview**  | —       | —        | —   | —      | ✓（2026-08-26 接入，见下） |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**。
 
@@ -25,10 +25,15 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 状态 |
 |---------|-----------|-----------|----------|------|
 | stable | `com.longbridge.app.desktop` | 独立 | 默认 stable | ✓ |
-| preview（旧） | `com.longbridge.app.desktop.preview` | 独立 | bundle id / 显示名 / 版本后缀 | ✗ 已停更，不接 |
+| preview | `com.longbridge.app.desktop.preview` | 独立 | bundle id / 显示名 / 版本后缀 | ✓ VendorProbe + changelog + 一键（`55721c0e`） |
 
 旧 preview 实包 `0.15.0-preview.0` 已验证为独立 Bundle ID，生产
 `ReleaseChannel.detect()` 正确识别为 `.preview`；stable 配方不会跨渠道命中它。
+
+**更正（2026-09-14）**：本文原先把 preview 记为「已停更，不接」。那是 2026-08-25 从一个旧包倒推的，
+2026-08-26 的 `55721c0e` 已按活轨接入（`Recipes/com-longbridge-app-desktop.swift`，`channel: .preview`）。
+2026-09-14 只读 GET 复测：preview 索引 `/desktop/release-notes/preview/` 列出 `v1.0.0-preview.1` 与
+`v1.0.0-preview.0`，`preview/latest.json` 是 `1.0.0-preview.1`（2026-09-08 发布），资产带 `sha256`。
 
 ## 更新检测
 - 源: VendorProbe。
@@ -77,7 +82,7 @@ WebView 才逃过。判据现在改成正面证据（二进制里必须有 `taur
 Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 ## 已知问题
-- preview 渠道已经停止更新；保留为明确的死轨记录，不添加旧 endpoint recipe。
+- （已更正）原先这里写 preview「已经停止更新、不添加 recipe」；preview 实际在更新且已接入，见「Channel 详情」的更正。
 - 官方 manifest 发布十六进制 SHA-256，而 VendorInstallSpec 的内联 checksum 闸当前只支持
   base64 SHA-512；运行时仍由强制签名 / Team ID 闸保护。
 

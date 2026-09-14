@@ -211,7 +211,12 @@ and this body has ZERO — 29 `<p>` and 154 `<br>` instead — so
 `SparkleAppcastSource` leaves `structuredChangelog` nil and the pane fell
 to raw-HTML rendering of the whole blob.
 
-7 of the 34 are the literal label "更新内容", not a version;
+```
+The headings are not a clean version list, which is what rules out
+teaching the generic parser this shape:
+  * 7 of the 34 are the literal label "更新内容", not a version;
+  * several carry a suffix — "3.6.0 改进", and "2.5.2改进" with no space.
+```
 
 Yields 29 entries, validated against the live feed.
 

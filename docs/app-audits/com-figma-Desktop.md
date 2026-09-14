@@ -72,20 +72,16 @@
 
 ### Recipes/com-figma-Desktop.swift — stable VendorProbe（一键 `Figma-<ver>.zip`）
 
-转引自 recipe 注释，未复测。唯一的改写：原文 "== the installed app" 按本目录的机器状态规则改成了针对那台被验证的机器的说法。
+转引自 recipe 注释，未复测。
 
 Confirmed 2026-06-06: the
 downloaded Figma-126.4.13.zip is a notarized Developer ID build, Team
-T8RA8NE3B7 (Figma, Inc.), bundle id com.figma.Desktop == the app installed on the machine verified that day, so the VendorInstaller Team gate passes.
+T8RA8NE3B7 (Figma, Inc.), bundle id com.figma.Desktop == the installed
+app, so the VendorInstaller Team gate passes.
 
 ### Recipes/com-figma-Desktop.swift — beta VendorProbe（`com.figma.DesktopBeta`）
 
 转引自 recipe 注释，未复测。
-
-Pattern A (independent installs), so no cross-channel
-risk — this recipe only ever resolves against a real Figma Beta install,
-which detects as `.beta` (verified via channel-verify on the 126.6.2
-bundle).
 
 Same signer as stable (Team T8RA8NE3B7,
 confirmed 2026-06-06 on the real FigmaBeta-126.6.2.zip), so one-click is

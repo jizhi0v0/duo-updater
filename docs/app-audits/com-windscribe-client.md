@@ -54,6 +54,12 @@
 - 厂商 API 认定在 **beta / guinea pig 轨**的 51 个版本，GitHub 上**没有一个**是
   `prerelease: false`（即不会漏进 `/releases/latest`）
 
+更正 2026-09-15：第一条的「全部」和下一段矛盾——那 19 个里的 2.15.9 在 GitHub 上没有 release，
+所以最多只能是「GitHub 上有 release 的那些都是 `prerelease: false`」。这一点复测没能完整核实：
+19 个里有 6 个条目的 `url` 读不出版本号、没对上，其余在 GitHub 上找到的 12 个都是
+`prerelease: false`。数字见
+「历史与实测」里「`.gitHubReleases` 只留正式版，收尾批次」那一组。
+
 **那为什么版本源仍然是 VendorProbe。** 同一次实测里那 19 个 release 轨版本，有 1 个
 （**2.15.9**，2025-06-02）**GitHub 上根本没有对应的 release**。厂商 API 有它。
 `/releases/latest` 在那段时间会一直答 2.15.8，直到 7 周后 2.16.11 发布为止——

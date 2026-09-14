@@ -289,9 +289,9 @@ struct WindscribeProbeRecipeTests {
     ///
     /// `.gitHubReleases` keeps stable releases only. That is load-bearing here
     /// rather than incidental — Windscribe publishes its beta and guinea-pig
-    /// builds as GitHub prereleases (measured across every release since 2024:
-    /// all 19 release-track versions are `prerelease: false`, and none of the 51
-    /// prerelease-track versions are), so the format's filter is exactly the
+    /// builds as GitHub prereleases (measured 2026-09-07 across every release
+    /// since 2024: release-track versions are `prerelease: false` and
+    /// prerelease-track versions are not), so the format's filter is exactly the
     /// track split, and a copy would otherwise be shown notes for a track it
     /// never opted into.
     ///

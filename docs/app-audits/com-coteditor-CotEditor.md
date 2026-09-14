@@ -222,6 +222,33 @@ installed=7.0.9/843        box=on   → 7.1.0-beta.6  CotEditor_7.1.0-beta.6.dmg
 changelog 那两条**不用改**：`decodeGitHubReleases` 按 release 的 `prerelease` 标志分轨，
 不看 tag 形状，所以 rc 本来就进 beta 轨、不进 stable 轨。
 
+### 这个缺陷为什么扫不出来（2026-09-14 实测）
+
+仓库自己的巡检刚好在这个 PR 开着的时候跑了一轮（`verify/baseline.json`，
+sweep `2026-09-14T02:25:07Z`，随 #613 落到 main）。**修复前**的规则在那一轮里是这样的：
+
+```
+github:coteditor/CotEditor:beta    lastGoodVersion 7.1.0   consecutiveActionable 0
+github:coteditor/CotEditor:stable  lastGoodVersion 7.1.0   consecutiveActionable 0
+```
+
+beta 轨解出来的是**正式版 7.1.0** —— 因为 pattern 收 plain tag，而此刻最新的就是它。
+全绿，零 actionable。rc 窗口里它会解出 `7.0.9`，**同样全绿**：规则总能解出点什么，
+`duo verify` 走的是「pattern 还匹不匹配得到东西」，不是「匹配到的是不是该匹配的那一条」。
+
+同一份 baseline 里的反例，正好说明差别在哪：
+
+```
+vendor:com.bombich.ccc:beta   versionPatternNoMatch   consecutiveActionable 2   issue #612
+```
+
+CCC 的 beta pattern 是**硬锚**的，所以它那一轮的周期一结束就匹配不到任何东西，扫出红、
+自动开了 issue。CotEditor 的后缀是可选的——这是刻意的，副本必须能拿到转正版——
+**代价就是它永远红不了**。两条规则，两种错法，只有一种会被闸看见。
+
+所以这个相位缺口不是「巡检漏了一轮」，是**巡检结构上看不见**。能看见它的只有
+`CotEditorChannelTests` 里那条打 rc 窗口的用例。
+
 ⚠️ **顺手撞见、没修的一处（不是本 app 的）**：`ChannelProofRegistry.preReleaseTokens`
 ——「stable recipe 解出来的 URL 里不许出现 prerelease 词」那道反向闸——**没有 `rc`**。
 所以厂商把这个相位拼成 `-beta` 时它报，拼成 `-rc` 时它静默。没在这个 PR 里补，

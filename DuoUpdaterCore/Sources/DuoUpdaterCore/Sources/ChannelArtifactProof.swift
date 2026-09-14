@@ -115,14 +115,18 @@ public enum ChannelProofRegistry {
     /// pattern the author happened to write, and nothing re-derives it. Most of
     /// the rules this map covers gate the channel in their `versionPattern` — a stable tag
     /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
-    /// sweep of 2026-08-27 found nothing misresolving. THREE do not, and they are
-    /// the three carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha
+    /// sweep of 2026-08-27 found nothing misresolving. FOUR do not, and they are
+    /// the four carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha
     /// because their patterns hold no channel token at all (each is byte-identical
-    /// to a stable pattern), and WhatCable's beta because its token is OPTIONAL —
-    /// deliberately, so it accepts the stable tag its betas graduate into.
+    /// to a stable pattern), and WhatCable's beta and CotEditor's beta because
+    /// their token is OPTIONAL — deliberately, so each accepts the stable tag its
+    /// prereleases graduate into.
     /// (Counted, not eyeballed: an earlier revision said "all three rules below
     /// gate the channel", the next said WhatCable was the only one that did not,
-    /// and both were wrong.) What was missing is any
+    /// and both were wrong. It then read THREE for as long as CotEditor's entry
+    /// had been registered without being counted — recounted 2026-09-14, and the
+    /// count is the thing this parenthesis exists to keep honest.) What was
+    /// missing is any
     /// statement that this is REQUIRED. A future rule written with the registry's
     /// default `v?([0-9]+(?:\.[0-9]+)+)` plus `usePrereleases: true` plus a
     /// non-stable channel would have no discriminator at all, and nothing
@@ -133,11 +137,11 @@ public enum ChannelProofRegistry {
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write. THREE entries are not provable that
+    /// against what someone meant to write. FOUR entries are not provable that
     /// way and carry `.recipeAnchor` proofs instead — UTM's beta and T3 Code's
-    /// alpha, because neither tag nor asset names a channel, and WhatCable's beta,
-    /// because its artifact is allowed to be stable's. See each entry for what its
-    /// anchor does and does not cover.
+    /// alpha, because neither tag nor asset names a channel, and WhatCable's beta
+    /// and CotEditor's beta, because each one's artifact is allowed to be
+    /// stable's. See each entry for what its anchor does and does not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] =
         AppRecipeIndex.merged(\.githubChannelProofs, into: "ChannelProofRegistry.githubProofs")
 
@@ -265,6 +269,23 @@ public enum ChannelProofRegistry {
     /// random contents would otherwise produce occasional false hits. The
     /// surrounding `(?<![a-z0-9])`/`(?![a-z0-9])` guards keep `dl.devmate.com` and
     /// friends from tripping a bare substring match.
+    ///
+    /// ⚠️ **`rc` is NOT in this list, and that is a gap rather than a decision** —
+    /// noticed 2026-09-14 while widening CotEditor's beta rule to read the `-rc`
+    /// phase of its train. A stable recipe resolving `…/7.1.0-rc/App.dmg` is
+    /// reported when the vendor spells that phase `-beta` and passes silently when
+    /// they spell it `-rc`, and release candidates are a phase many vendors ship
+    /// (CotEditor alone has 38 `-rc*` tags).
+    ///
+    /// Not closed here because closing it needs a measurement this list cannot be
+    /// changed without: `rc` is two characters, this regex runs against every
+    /// stable recipe's RESOLVED URL, and a false hit is a red finding filed on
+    /// every machine for a recipe working exactly as written — the failure mode
+    /// the rest of this file exists to avoid. The measurement is a full
+    /// `duo verify` sweep with `rc` added, checking that no stable URL trips it.
+    /// CotEditor's own stable rule is not exposed meanwhile: its
+    /// `installAssetPattern` is `^CotEditor_[0-9.]+\.dmg$`, which cannot match a
+    /// `-rc` asset name at all.
     static let preReleaseTokens =
         #"(?i)(?<![a-z0-9])(beta|canary|nightly|alpha|insider|snapshot|preview|eap|esr|ptb|devedition)(?![a-z0-9])"#
 }

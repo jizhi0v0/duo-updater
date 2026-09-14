@@ -61,10 +61,20 @@ enum com_coteditor_CotEditor {
         // can invalidate. `SparkleFeedCatalog` therefore does NOT carry the feed:
         // Sparkle answers before GitHub in `SourceStack`, and would take this back.
         //
-        // Measured on the 100 newest releases (2026-09-06): 0 drafts, exactly
-        // three tag shapes — `7.0.9`, `7.1.0-beta`, `7.1.0-beta.6`, no `v` prefix —
-        // and every one of the 100 carries exactly one asset, `CotEditor_<tag>.dmg`,
-        // with no other artifact to disambiguate against.
+        // Measured on the 100 newest releases (2026-09-06): 0 drafts, no `v`
+        // prefix, and every one of the 100 carries exactly one asset,
+        // `CotEditor_<tag>.dmg`, with no other artifact to disambiguate against.
+        //
+        // ⚠️ That sweep also recorded "exactly three tag shapes — `7.0.9`,
+        // `7.1.0-beta`, `7.1.0-beta.6`" and the rule below was written to those
+        // three. It was a true reading of a page taken mid-cycle, and it MISSED A
+        // PHASE: the whole tag history (`git ls-remote --tags`, 365 tags, measured
+        // 2026-09-14) holds 87 `-beta*` and 38 `-rc*`, and every minor cycle back
+        // to 2.0.0 runs `-beta` → `-rc` → the plain release. The 7.1.0 cycle had
+        // simply not reached its rc yet on 2026-09-06 — `7.1.0-rc` shipped
+        // 2026-09-10 (asset `CotEditor_7.1.0-rc.dmg`, read off the releases API
+        // 2026-09-14), and 7.1.0 stable two days after it. A shape census taken
+        // inside one window is a census of that window.
         // Mounted the real 7.0.9 dmg: com.coteditor.CotEditor, short `7.0.9`
         // (== the tag), build 843, `LSMinimumSystemVersion` 15.0 matching the
         // feed's own `minimumSystemVersion`, Team HT3Z3A72WZ, notarized.
@@ -74,11 +84,28 @@ enum com_coteditor_CotEditor {
             versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^CotEditor_[0-9.]+\.dmg$"#,
             installerKind: .dmg),
-        // The beta train is CYCLICAL, and that is what shapes this rule: all six
-        // prereleases in those 100 releases belong to the 7.1.0 cycle that opened
-        // 2026-07-26, and the 94 releases before it — back to 2022-04 — carry
-        // none. The unnumbered `7.1.0-beta` (the cycle's first) is a real shape,
-        // which is why the suffix is optional twice over below.
+        // The beta train is CYCLICAL, and that is what shapes this rule: the six
+        // prereleases in those 100 releases all belong to the 7.1.0 cycle that
+        // opened 2026-07-26, and the 94 releases before it — back to 2022-04 —
+        // carry none.
+        //
+        // ONE train, TWO phases, and the counter is optional in both: a cycle runs
+        // `7.1.0-beta`, `7.1.0-beta.2` … `7.1.0-beta.6`, `7.1.0-rc`, (`-rc.2` when
+        // there is one — `7.0.0-rc.2` and `2.2.0-rc.3` are real), then the plain
+        // `7.1.0`. All four prerelease shapes have to be accepted here, which is
+        // why the suffix is optional twice over below AND why `-rc` is an
+        // alternative rather than an afterthought.
+        //
+        // What the `-beta`-only version of this pattern did during an rc window,
+        // replayed rather than reasoned about: `settle` walks the page newest-first
+        // and takes the first tag the pattern accepts, so between 2026-09-10 and
+        // 2026-09-12 it skipped `7.1.0-rc` and landed on `7.0.9`. A copy on
+        // `7.1.0-beta.6` was therefore never offered the rc, and its row named
+        // 7.0.9 — the READOUT failure described further down, arriving through a
+        // phase the pattern could not see rather than through a patch release.
+        // It went unreported — the window was two days wide and 7.1.0 landed on
+        // top of it — and the replay above is where it comes from rather than a
+        // machine that hit it. The next cycle's rc window is the one this fixes.
         //
         // **The pattern accepts stable tags too, and that is the design** — the
         // same call WhatCable's beta rule makes, for the same two reasons, and
@@ -124,8 +151,10 @@ enum com_coteditor_CotEditor {
             bundleID: "com.coteditor.CotEditor",
             owner: "coteditor", repo: "CotEditor",
             usePrereleases: true,
-            versionPattern: #"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?)$"#,
-            installAssetPattern: #"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?)?\.dmg$"#,
+            versionPattern:
+                #"^([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?)$"#,
+            installAssetPattern:
+                #"^CotEditor_[0-9.]+(?:-beta(?:\.[0-9]+)?|-rc(?:\.[0-9]+)?)?\.dmg$"#,
             installerKind: .dmg,
             channel: .beta),
         ],
@@ -147,7 +176,22 @@ enum com_coteditor_CotEditor {
         // ⚠️ This was an `.artifact(#"/download/[0-9.]+-beta…/"#)` for a day, from
         // when the rule was `-beta`-only. It passed the whole time, and would have
         // gone on passing right up to the release it was wrong about.
+        //
+        // ⚠️ The anchor requires BOTH phases, and that is the lesson of this
+        // entry's own history rather than belt-and-braces: `^true$|-beta` went on
+        // passing while the pattern was blind to every `-rc` tag, exactly as the
+        // `.artifact` proof before it went on passing while the pattern was blind
+        // to the graduation. An anchor that names only the phase somebody happened
+        // to have measured is a proof about that sweep, not about the train.
+        //
+        // Written as two lookaheads rather than `-beta.*-rc` so it asserts
+        // PRESENCE and not ORDER: swapping the two alternatives in the pattern is
+        // a rewrite with no behaviour change, and a proof that reddens on it would
+        // be teaching the next person that the anchor is noise. `^true$` is the
+        // `usePrereleases` half — `recipeAnchor` requires a match in EVERY named
+        // field, and `true` carries neither token.
         ChannelProofKey("com.coteditor.CotEditor", .beta):
-            .recipeAnchor(#"^true$|-beta"#, in: ["usePrereleases", "versionPattern"]),
+            .recipeAnchor(#"^true$|^(?=.*-beta)(?=.*-rc)"#,
+                          in: ["usePrereleases", "versionPattern"]),
         ])
 }

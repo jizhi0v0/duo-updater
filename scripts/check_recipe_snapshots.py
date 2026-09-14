@@ -30,9 +30,9 @@ Two ways the list can lie are checked. A `PENDING` family that already carries a
 `// History:` pointer has been migrated and was not deleted. A `PENDING` family
 whose slug sorts at or below `LAST_MIGRATED` sits inside the range the batches
 have already covered, so a batch either skipped it or forgot to delete it (2d
-skipped WeType; `OUT_OF_ORDER` records that, and fails once it is stale). What is
-NOT checked: that a batch bumps `LAST_MIGRATED`, or that nobody adds a family to
-`PENDING` by hand. The boundary is a constant rather than derived from where the
+skipped WeType; `OUT_OF_ORDER` records that, and fails once it is stale). Each
+batch PR must bump `LAST_MIGRATED` to its last family; nothing checks that it
+did, or that nobody adds a family to `PENDING` by hand. The boundary is a constant rather than derived from where the
 pointers are because new families are now expected to carry a pointer too, and
 one landing late in the alphabet would drag a derived boundary past every
 pending family.
@@ -43,7 +43,8 @@ Comment lines are joined per paragraph (a run of non-blank `//` lines) and split
 into sentences, because the sentences wrap: Windscribe's "measured on the newest
 40" ends one line and "releases (2026-09-07): 9 are stable" starts the next, and
 a line scanner sees neither half. Indented lines are excerpts (README: 缩进的摘录)
-and are data, not prose. A sentence is flagged when it matches one of `SHAPES`;
+and are data, not prose. A History pointer token is taken out of its line and
+the rest of the line is scanned. A sentence is flagged when it matches one of `SHAPES`;
 see the comment on each.
 
 Allowed, because the migration batches and the convention keep them in code:
@@ -74,16 +75,34 @@ grep finds the whole catch-up worklist.
 ## What it does NOT do
 
 It is a net, not a proof. Replayed against the four migration batches, it flags
-80 of the 169 dated sentences those batches moved or rewrote (about 47%; the
+85 of the 169 dated sentences those batches moved or rewrote (about 50%; the
 denominator also holds rewrites that kept their date). Many misses are a
 trailing "(measured <date>)" after a value, a shape the batches themselves
 treated inconsistently and #621 decision 1 keeps. Two wider shapes (a value right
 before "on <date>", a verb-date-value with no punctuation) caught 14 more of those
-sentences and also flagged Windscribe's test-replay dates, so they were left out.
+sentences, measured before `count-then-dated-paren` was added, and also flagged
+Windscribe's test-replay dates, so they were left out.
 
-Undated snapshots ("(38 entries)", "the newest 13 have none") are out of scope:
-without a date there is no shape to tell a snapshot from a contract. Rewording
-to dodge a shape also dodges the check; the point is to make the shape
+Verified misses, each a sentence this script passes today:
+
+  * a noun subject, or a verb outside `OBSERVED`: "A live fetch on <date> showed
+    …", "Today (<date>) the feed holds …", "Mounted the … dmg <date>:",
+    "Response on <date>: HTTP 200";
+  * a version between the verb and the date ("Verified 1.2.3 on <date>: …"),
+    because `measurement-led` does not cross a period;
+  * indented prose and indented bullets, which are read as excerpts;
+  * `date-led` only where a sentence starts, which in practice is the start of a
+    paragraph: "… moved. <date>: …" is not split there;
+  * "History has …" exempts the sentence it sits in, snapshot included;
+  * dates that are not ISO (`Sep 14, 2026`), and trailing `// …` or `/* … */`
+    comments, which are never read;
+  * undated snapshots ("(38 entries)", "the newest 13 have none"): without a
+    date there is no shape to tell a snapshot from a contract;
+  * a forgotten `LAST_MIGRATED` bump is silent for the batch's families that got
+    no pointer. Each batch PR must bump it; the success line prints it, so it is
+    in every `make test` log.
+
+Rewording to dodge a shape also dodges the check; the point is to make the shape
 unwelcome, and to name where it belongs, not to be unfoolable.
 """
 
@@ -192,19 +211,27 @@ SHAPES = {
         rf"\b\d[\d,]*\s+(?:\w+\s+)?{COUNTED}\s+(?:on|as\s+of)\s+{DATE}", re.I), False),
     # "still shipping as of 2026-08-18"
     "as-of": (re.compile(rf"\bas\s+of\s+{DATE}", re.I), False),
+    # "121 entries parse from the live page (2026-08-31), head 14.8" — a count,
+    # then the day it was counted in parentheses, inside one clause.
+    "count-then-dated-paren": (re.compile(
+        rf"\b\d[\d,]*\s+(?:\w+\s+)?{COUNTED}\b[^.;:()]{{0,60}}?\(\s*{DATE}\s*\)",
+        re.I), False),
 }
 
 # The sentence already names where the measurement lives.
 HISTORY_REFERENCE = re.compile(
     r"\bHistory\s+(?:has|quotes|records|keeps|holds)\b|[(,]\s*History\)")
-# The pointer line itself, as `check_app_audits.py` reads it.
+# The pointer itself, as `check_app_audits.py` reads it. Only the token (and a
+# leading "History:") is taken out of the prose; the rest of that line is scanned.
 HISTORY_POINTER = re.compile(r"docs/app-audits/[A-Za-z0-9._-]+\.md#历史与实测")
+POINTER_TOKEN = re.compile(r"(?:\bHistory:\s*)?" + HISTORY_POINTER.pattern)
 # 补充七条 rule 2. A known dodge; see the docstring.
 WHEN_CHECKED = re.compile(
     rf"\bwhen\s+(?:checked|verified|measured)\b[^.;]{{0,40}}{DATE}", re.I)
 
 MARKER = "snapshot-lint:allow"
-REASON = re.compile(re.escape(MARKER) + r"\s*[—-]\s*(\S.*)")
+# At least one word character: "— " and "— ." are not reasons.
+REASON = re.compile(re.escape(MARKER) + r"\s*[—-]\s*(.*\w.*)")
 ABBREVIATION = re.compile(r"\b(?:e\.g|i\.e|etc|vs|cf|approx|no)\.$", re.I)
 
 # One sentence per shape that must be caught, and allowed sentences that must
@@ -222,6 +249,8 @@ CANARIES = {
                 "changelog any more.",
     "count-on-date": "Shape (51 entries on 2026-09-14): `## v1.0.914.1` headings.",
     "as-of": "The v1 train is still shipping as of 2026-08-18.",
+    "count-then-dated-paren": "121 entries parse from the live page (2026-08-31), "
+                              "head 14.8.",
 }
 ALLOWED_CANARIES = [
     "Both answer any client the same way (measured 2026-08-27 across "
@@ -312,8 +341,8 @@ def scan(text, shapes=None):
     """(offences, stale marker lines) for one family file's text."""
     offences, stale = [], []
     for paragraph in paragraphs(text):
-        prose = [(n, t) for n, t in paragraph
-                 if not t.startswith(MARKER) and not HISTORY_POINTER.search(t)]
+        prose = [(n, POINTER_TOKEN.sub("", t)) for n, t in paragraph
+                 if not t.startswith(MARKER)]
         markers = [(n, t) for n, t in paragraph if t.startswith(MARKER)]
         joined = " ".join(t for _, t in prose)
         hits = [(line_at(prose, offset), shape, matched)
@@ -350,7 +379,7 @@ def pending_problems(families, pointed, pending, last_migrated, out_of_order):
     for slug in sorted(pending, key=str.lower):
         if slug not in families:
             problems.append(f"PENDING `{slug}` names no family in {RECIPES} — "
-                            "renamed or deleted; take it out")
+                            "if renamed, rename the entry; if deleted, take it out")
         elif slug in pointed:
             problems.append(f"PENDING `{slug}` already has a History pointer, so a "
                             "batch migrated it — delete it from PENDING")
@@ -438,7 +467,8 @@ def main(root=None, pending=PENDING, last_migrated=LAST_MIGRATED,
     offences, stale, listing = found["offences"], found["stale"], found["pending_problems"]
     if not offences and not stale and not listing:
         print(f"✓ no dated snapshots in migrated recipe comments — "
-              f"{found['guarded']} families guarded, {found['pending']} pending migration")
+              f"{found['guarded']} families guarded, {found['pending']} pending migration, "
+              f"last migrated {last_migrated}")
         return 0
 
     for problem in listing:

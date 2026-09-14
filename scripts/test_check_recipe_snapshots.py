@@ -8,6 +8,8 @@ comment lines from #607, #610, #622 and #623 as they stood at 2370b8ac, trimmed 
 the paragraph but with their line wrapping, which a line scanner cannot see.
 """
 
+import contextlib
+import io
 import pathlib
 import shutil
 import sys
@@ -26,7 +28,7 @@ WRAPPED = """\
         // marks all 31 the same way — it has no idea which track a build is on.
 """
 
-# Verbatim from #610, #623 and #622, one paragraph each, with the shape
+# Verbatim from #610, #623, #622 and a pre-2c MacWhisper comment, one paragraph each, with the shape
 # each must be reported under.
 REAL = {
     "dated-narrative": """\
@@ -42,6 +44,12 @@ REAL = {
         // the patterns are the same three strings; only `source` and the version
         // window differ. Verified against the live page 2026-09-14: 10 entries,
         // 1.104.0 back to 1.95.0, all parsing.
+""",
+    # Verbatim from `com-goodsnooze-MacWhisper.swift` at 27d23704, before batch 2c
+    # moved it; the new changelog-recipe.md text tells authors to move exactly this.
+    "count-then-dated-paren": """\
+        // headings are dropped; the items read fine without them. 121 entries
+        // parse from the live page (2026-08-31), head 14.8.
 """,
 }
 ASIDE_NARRATIVE = """\
@@ -157,6 +165,34 @@ class Snapshots(unittest.TestCase):
         self.assertEqual(found["offences"], [], found)
         self.assertEqual(found["stale"], [])
 
+    # Mutation: widen the WHEN_CHECKED window from the match's neighbourhood to the
+    # whole sentence. A "when checked" far up the sentence must not excuse a
+    # snapshot at its other end.
+    def test_when_checked_excuses_only_what_is_next_to_it(self):
+        self.anchor()
+        self.write("zz-fixture", swift(
+            "        // When checked (2026-09-14) the feed carried one build, which was the\n"
+            "        // vendor's usual cadence for this train at the time, and a day later,\n"
+            "        // on 2026-09-15 it said `1.2.3` was newest.\n"))
+        self.assertEqual(self.kinds(self.review()), ["dated-narrative"])
+
+    # Mutation: drop pointer LINES from the prose instead of only the pointer token.
+    def test_the_rest_of_a_pointer_line_is_scanned(self):
+        self.anchor()
+        self.write("zz-fixture", swift(
+            "        // History: docs/app-audits/zz-fixture.md#历史与实测 — Verified 2026-10-01:\n"
+            "        // 12 entries, newest 1.2.3.\n"))
+        self.assertEqual(self.kinds(self.review()), ["measurement-led"])
+
+    # Same mutation, the inline form of the pointer.
+    def test_an_inline_pointer_does_not_hide_its_line(self):
+        self.anchor()
+        self.write("zz-fixture", swift(
+            "        // The page is rendered server-side, and its\n"
+            "        // Shape (51 entries on 2026-09-14) (see docs/app-audits/zz-fixture.md#历史与实测)\n"
+            "        // is one heading per release.\n"))
+        self.assertEqual(self.kinds(self.review()), ["count-on-date"])
+
     # Mutation: check PENDING families too, or skip families not in PENDING.
     def test_a_pending_family_is_skipped_and_a_new_family_is_guarded(self):
         self.anchor()
@@ -172,6 +208,7 @@ class Snapshots(unittest.TestCase):
         found = self.review(pending=frozenset({"zz-gone"}))
         self.assertEqual(len(found["pending_problems"]), 1, found)
         self.assertIn("names no family", found["pending_problems"][0])
+        self.assertIn("if renamed, rename the entry", found["pending_problems"][0])
 
     # Mutation: delete the "already has a History pointer" check.
     def test_pending_family_with_a_pointer_is_a_problem(self):
@@ -194,6 +231,16 @@ class Snapshots(unittest.TestCase):
                             out_of_order={"aa-skipped": "skipped"})
         self.assertIn("no longer applies", " ".join(found["pending_problems"]))
 
+    # Mutation: drop the "now sorts above LAST_MIGRATED" half of the OUT_OF_ORDER
+    # stale check. The entry is still pending, but no longer out of order.
+    def test_out_of_order_above_the_boundary_is_stale(self):
+        self.write("bb-last", swift("        // ok.\n"))
+        self.write("cc-late", swift("        // ok.\n"))
+        found = self.review(pending=frozenset({"cc-late"}), last="bb-last",
+                            out_of_order={"cc-late": "was skipped"})
+        self.assertEqual(len(found["pending_problems"]), 1, found)
+        self.assertIn("no longer applies", found["pending_problems"][0])
+
     # Mutation: let LAST_MIGRATED name a missing family.
     def test_last_migrated_must_name_a_family(self):
         self.anchor()
@@ -214,6 +261,15 @@ class Snapshots(unittest.TestCase):
                                        + "        // snapshot-lint:allow\n"))
         # The snapshot stays reported next to the bare marker.
         self.assertEqual(sorted(self.kinds(self.review())), ["measurement-led", "no-reason"])
+
+    # Mutation: loosen REASON to accept an empty or punctuation-only reason.
+    def test_a_dash_with_no_words_after_it_is_not_a_reason(self):
+        self.anchor()
+        for tail in ["—", "— ", "— .", "- …"]:
+            with self.subTest(tail=tail):
+                self.write("zz-fixture", swift(REAL["measurement-led"]
+                                               + f"        // snapshot-lint:allow {tail}\n"))
+                self.assertIn("no-reason", self.kinds(self.review()))
 
     # Mutation: scope a marker to the whole comment block instead of its paragraph.
     def test_a_marker_does_not_reach_the_next_paragraph(self):
@@ -259,6 +315,14 @@ class Snapshots(unittest.TestCase):
         self.assertEqual(crs.main(root=self.root, pending=frozenset(), last_migrated="aa-0",
                                   out_of_order={}, minimum=10), 1)
 
+    # Mutation: lower `main`'s default floor. Called without `minimum`, a
+    # two-family tree must not pass as a real run.
+    def test_the_default_floor_refuses_a_small_tree(self):
+        self.anchor()
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, pending=frozenset(),
+                                      last_migrated="aa-0", out_of_order={}), 1)
+
     # Mutation: delete the canary check in `main`. A shape that stops matching
     # then fails nothing on a tree whose snapshots are all exempted.
     def test_a_broken_shape_fails_the_canaries(self):
@@ -273,8 +337,12 @@ class Snapshots(unittest.TestCase):
     def test_a_clean_tree_passes(self):
         self.anchor()
         self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
-        self.assertEqual(crs.main(root=self.root, pending=frozenset(), last_migrated="aa-0",
-                                  out_of_order={}, minimum=1), 0)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(crs.main(root=self.root, pending=frozenset(),
+                                      last_migrated="aa-0", out_of_order={}, minimum=1), 0)
+        # Captured so the `make test` log holds one success line, the real run's.
+        self.assertIn("last migrated aa-0", out.getvalue())
 
 
 if __name__ == "__main__":

@@ -1004,8 +1004,8 @@ public enum Verify {
     }
 
     /// Second opinion from Homebrew, for the ~35% of vendor bundle ids the cask
-    /// catalog can resolve (measured against the live catalog, not assumed —
-    /// `byBundleID` is derived from each cask's `uninstall: quit:` field, so
+    /// catalog can resolve (measured against the live catalog, not assumed — the
+    /// bundle-id key is built from each cask's `uninstall: quit:` field, so
     /// coverage is partial by construction).
     ///
     /// **Deliberately one-directional.** A cask *behind* our probe is the normal
@@ -1049,7 +1049,10 @@ public enum Verify {
 
     /// Which of a bundle's casks speaks for this channel — by position in `tokens`.
     ///
-    /// Stable takes the first, as the bundle-id index always has. A non-stable
+    /// Stable takes the first in catalog order. (That is this function's own
+    /// choice — the catalog hands out every cask for a bundle id and picks none;
+    /// `HomebrewCaskSource` makes a different choice, on the host and the
+    /// Caskroom.) A non-stable
     /// channel takes only a cask named for it (`utm@beta` for `.beta`) and nothing
     /// otherwise: the catalog is in token order, so the first cask is the
     /// unsuffixed one (`utm` before `utm@beta`), and a beta rule measured

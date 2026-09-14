@@ -42,41 +42,54 @@ hiding a cask from the index is the failure mode this whole area exists to
 remove, so an unreadable declaration admits everyone.
 
 `<=` is parsed even though the catalog contains none today. Treat "there is a
-`<=` cask" as unmeasured rather than as false-forever.
+`<=` cask" as unmeasured rather than as false-forever — and note that zero live
+occurrences is precisely why its test is hand-built: nothing real exercises that
+branch, so a reversed comparison would wait silently for the first vendor to ship
+one and then hide that cask.
 
-## §2 Why the indexes are no longer first-writer-wins (issue #638)
+## §2 Why the indexes stopped answering with one cask (issue #638)
 
-141 `.app` filenames are claimed by more than one cask; 38 of those groups
-disagree about `depends_on.macos`. Until #638 both indexes were pure catalog
-order, so the shape below resolved to the cask brew itself refuses to install:
+**141** `.app` filenames are claimed by more than one cask — that is the raw
+catalog; **135** after the `version == "latest"` filter the indexer applies, which
+is the number that matters here. **35** of those groups disagree about
+`depends_on.macos` under the code's own reading, where a missing key and a
+rendered `{}` are both "unconstrained" (counting the raw JSON text instead, where
+`null` and `{}` look different, gives 38 — that difference is notation, not
+casks). Until #638 both indexes were pure catalog order, so the shape below
+resolved to the cask brew itself refuses to install:
 
 | cask | version | `depends_on.macos` | artifact |
 |---|---|---|---|
 | `onyx` (catalog position 5636) | 5.0.4 | `== [11,12,13,14,15,26]` | `OnyX.app` |
 | `onyx@beta` (5637) | 5.1.0,260910 | `>= 27` | `OnyX.app` |
 
-On macOS 27 `byAppFilename["onyx.app"]` was always `onyx`: a user on 5.1.0 fell
-to `.unknown` (the provenance gate asks for the `onyx` token, which isn't
+On macOS 27 the `onyx.app` lookup was always `onyx`: a user on 5.1.0 fell to
+`.unknown` (the provenance gate asks for the `onyx` token, which isn't
 installed), and a user still on 5.0.4 was told "up to date" about a build that
 cannot be installed there at all. Neither cask names a bundle id, so the
 `utm`/`utm@beta` escape hatch (`entries(forBundleID:)`) did not apply.
 
-The rule now has two halves, and the second one matters as much as the first.
+**The index now picks nothing.** Both keys keep every claiming cask in catalog
+order (`allByAppFilename`, `allByBundleID`) and there is no single-answer
+accessor, because choosing needs two facts the catalog does not have: the host's
+macOS version and which cask the Caskroom holds. Indexing is therefore a pure
+function of the catalog bytes — no host reaches it at all.
 
-**In the index**: both keys keep every declaring cask in catalog order
-(`allByAppFilename`, `allByBundleID`), and both single answers are derived from
-them by the same rule — the first entry this host admits, else the first entry,
-so a host outside every cask's window still gets an answer rather than a hole.
-Deriving both the same way is deliberate: the two lookups for one key cannot
-disagree, and a hand-built test index cannot make them disagree either.
+**`HomebrewCaskSource` picks**, with the cask that is actually **installed**
+beating the one that is merely runnable, and `CaskEntry.preferred(among:
+hostOSVersion:)` — first admitted, else first — breaking ties among installed
+ones. Host preference alone would have swapped which half of the pair is broken
+rather than fixing it: someone who installed `onyx` on macOS 26 and then upgraded
+to 27 would ask the Caskroom for `onyx@beta`, miss, and drop from a correct "up
+to date" row to `.unknown`; there is no OnyX recipe in either registry to catch
+them. Installed-beats-runnable answers both users.
 
-**In the source**: `HomebrewCaskSource` asks for *all* candidates and prefers the
-cask that is actually **installed** here, using the host preference only to break
-a tie among installed ones. Host-preference alone would have swapped which half
-of the pair is broken rather than fixing it: someone who installed `onyx` on
-macOS 26 and then upgraded to 27 would ask the Caskroom for `onyx@beta`, miss,
-and drop from a correct "up to date" row to `.unknown` — there is no OnyX recipe
-in either registry to catch them. Installed-beats-runnable answers both users.
+**One copy of the rule, on purpose.** The first version of this change also kept
+a host-filtered `byAppFilename` / `byBundleID` on `CaskIndex`. Review found that
+nothing in production read them — deleting them and reverting to `entries.first`
+changed nothing a user could see — so every mutation aimed at those maps was
+evidence about dead code, not about behaviour. The accessors are gone and the
+source calls the shared rule.
 
 ## §3 What the bundle-id side could **not** be tested against
 
@@ -91,7 +104,7 @@ constraint), both declaring `com.bombich.ccc` — which only separates below mac
 ## §4 Not verified
 
 Nothing here was observed on a macOS 27 machine; there is none to hand. The host
-version is injected (`HomebrewCaskCatalog(hostOSVersion:)`, defaulted to
+version is injected (`HomebrewCaskSource(hostOSVersion:)`, defaulted to
 `HostOS.numericVersion()` exactly like `SignatureVerifier`'s `osVersion`), so the
 rule is exercised as a pure function against fixtures built from real response
 bodies — see `HomebrewCaskMacOSConstraintTests`, whose header carries the

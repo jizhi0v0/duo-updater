@@ -52,17 +52,18 @@ public struct HomebrewCaskSource: UpdateSource {
         // of the matching casks here. A filename/id collision with an uninstalled
         // cask is not ours to update.
         //
-        // Ask every candidate rather than only the index's preferred one. When a
-        // vendor splits an `.app` across two casks by macOS (`onyx` `== 11…26`,
-        // `onyx@beta` `>= 27` — issue #638), the cask this Mac *can* install and
-        // the cask it *did* install disagree for anyone who upgraded macOS without
-        // switching casks, and answering "no cask" for them would replace a
-        // correct row with `.unknown`. Installed beats runnable; among several
-        // installed (not a shape brew allows for one `.app`, but the index cannot
-        // know that) the index's host preference breaks the tie.
-        let preferred = candidates.first { $0.admits(hostOSVersion) } ?? candidates[0]
+        // Ask every candidate rather than only the one this Mac could install.
+        // When a vendor splits an `.app` across two casks by macOS (`onyx`
+        // `== 11…26`, `onyx@beta` `>= 27` — issue #638), the cask this Mac *can*
+        // install and the cask it *did* install disagree for anyone who upgraded
+        // macOS without switching casks, and answering "no cask" for them would
+        // replace a correct row with `.unknown`. Installed beats runnable; among
+        // several installed (not a shape brew allows for one `.app`, but the index
+        // cannot know that) the host breaks the tie, via the one shared copy of
+        // that rule.
+        let preferred = CaskEntry.preferred(among: candidates, hostOSVersion: hostOSVersion)
         let installed = candidates.filter { inventory.isInstalled(caskToken: $0.token) }
-        guard let entry = installed.first(where: { $0.token == preferred.token })
+        guard let entry = installed.first(where: { $0.token == preferred?.token })
                 ?? installed.first
         else { return nil }
 

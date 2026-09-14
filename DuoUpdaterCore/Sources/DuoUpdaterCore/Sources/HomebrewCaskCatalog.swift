@@ -142,46 +142,36 @@ public struct CaskEntry: Sendable {
     func admits(_ hostOSVersion: String) -> Bool {
         macOS?.admits(hostOSVersion) ?? true
     }
+
+    /// Which of several casks claiming one key this Mac should be offered:
+    /// catalog order decides, but only among the casks it can actually install —
+    /// the first admitted entry, else the first entry, so a host outside every
+    /// cask's window still gets an answer instead of a hole.
+    ///
+    /// The **only** copy of that rule. It used to exist twice, once here as a
+    /// derived `CaskIndex.byAppFilename` / `byBundleID` and once inside
+    /// `HomebrewCaskSource`, and the index copy had no production consumer at all
+    /// — deleting it changed nothing a user could see, which also meant every
+    /// mutation aimed at it was evidence about dead code.
+    static func preferred(among entries: [CaskEntry], hostOSVersion: String) -> CaskEntry? {
+        entries.first { $0.admits(hostOSVersion) } ?? entries.first
+    }
 }
 
 /// Two lookup tables over the cask catalog: by `.app` filename (the primary,
 /// most reliable key) and by bundle identifier (a fallback for casks that
 /// install via `pkg` and so declare no `.app` artifact, e.g. AweSun).
+///
+/// Both keep **every** cask claiming a key, in catalog order. Picking one is the
+/// caller's job (`HomebrewCaskSource`), because the pick needs two facts the
+/// catalog does not have: the host's macOS version and which cask the Caskroom
+/// actually holds. Indexing is therefore host-independent — a pure function of
+/// the catalog bytes.
 struct CaskIndex: Sendable {
     /// Every cask installing each `.app` filename, in catalog order.
     let allByAppFilename: [String: [CaskEntry]]
     /// Every cask declaring each bundle id, in catalog order.
     let allByBundleID: [String: [CaskEntry]]
-    /// The one of those each single-answer lookup gives out: the first entry whose
-    /// `depends_on.macos` admits this host, falling back to the first entry when
-    /// none does. For a bundle shipped as `utm` and `utm@beta` — neither
-    /// constrained — that is still the stable one, i.e. catalog order decides only
-    /// among equally-runnable casks. Both are derived here rather than passed in,
-    /// so a hand-built index cannot answer a lookup and its `all…` sibling
-    /// differently, and so the two keys cannot drift apart from each other.
-    let byAppFilename: [String: CaskEntry]
-    let byBundleID: [String: CaskEntry]
-
-    /// `hostOSVersion` has no default on purpose: it is the one host fact this
-    /// type reads, and a defaulted one would let a test quietly index against
-    /// whatever Mac it runs on (CLAUDE.md, "测试不能问宿主").
-    init(
-        allByAppFilename: [String: [CaskEntry]],
-        allByBundleID: [String: [CaskEntry]],
-        hostOSVersion: String
-    ) {
-        self.allByAppFilename = allByAppFilename
-        self.allByBundleID = allByBundleID
-        self.byAppFilename = allByAppFilename.compactMapValues { Self.preferred($0, hostOSVersion) }
-        self.byBundleID = allByBundleID.compactMapValues { Self.preferred($0, hostOSVersion) }
-    }
-
-    /// Catalog order decides, but only among casks this Mac can install: the first
-    /// admitted entry, else the first entry, so a host outside every cask's window
-    /// still gets an answer instead of a hole.
-    private static func preferred(_ entries: [CaskEntry], _ hostOSVersion: String) -> CaskEntry? {
-        entries.first { $0.admits(hostOSVersion) } ?? entries.first
-    }
 }
 
 /// Loads the full Homebrew Cask catalog from formulae.brew.sh once and indexes
@@ -225,60 +215,37 @@ public actor HomebrewCaskCatalog {
     private var indexNeverExpires = false
 
     private let session: URLSession
-    /// The macOS this Mac runs, injected exactly like `SignatureVerifier`'s
-    /// `osVersion`: the indexing rule below is otherwise a pure function of the
-    /// catalog bytes, and a test that read `ProcessInfo` here would measure the
-    /// machine it happens to run on instead of the rule.
-    private let hostOSVersion: String
-
-    public init(session: URLSession = .updates, hostOSVersion: String = HostOS.numericVersion()) {
+    public init(session: URLSession = .updates) {
         self.session = session
-        self.hostOSVersion = hostOSVersion
     }
 
     /// Test seam: seed a fixed index so source-level tests run offline instead of
-    /// fetching the ~2 MB live catalog. No `hostOSVersion` parameter, deliberately:
-    /// this seam never re-indexes, so the host that matters is the one the seeded
-    /// `CaskIndex` was built with — a parameter here would look like it filtered
-    /// something and wouldn't.
+    /// fetching the ~2 MB live catalog.
     init(testIndex: CaskIndex) {
         self.session = .shared
-        self.hostOSVersion = HostOS.numericVersion()
         self.index = testIndex
         self.indexNeverExpires = true
     }
 
     /// Test seam for an expired, previously-good index plus a controlled session.
-    init(
-        session: URLSession, staleTestIndex: CaskIndex, loadedAt: Date,
-        hostOSVersion: String = HostOS.numericVersion()
-    ) {
+    init(session: URLSession, staleTestIndex: CaskIndex, loadedAt: Date) {
         self.session = session
-        self.hostOSVersion = hostOSVersion
         self.index = staleTestIndex
         self.indexLoadedAt = loadedAt
     }
 
-    /// Look up the cask that installs an app with the given bundle filename.
-    public func entry(forAppFilename filename: String) async throws -> CaskEntry? {
-        try await loadedIndex().byAppFilename[filename.lowercased()]
-    }
-
-    /// Every cask installing this `.app` filename, in catalog order — for a caller
-    /// that can tell which one is actually installed here (`HomebrewCaskSource`)
-    /// rather than having to take the one this Mac merely *could* install.
+    /// Every cask installing this `.app` filename, in catalog order. There is no
+    /// single-answer sibling on purpose: choosing needs the host's macOS version
+    /// and the Caskroom's contents, neither of which the catalog has, so the pick
+    /// lives at the one call site that holds both (`HomebrewCaskSource`, via
+    /// `CaskEntry.preferred(among:hostOSVersion:)`).
     public func entries(forAppFilename filename: String) async throws -> [CaskEntry] {
         try await loadedIndex().allByAppFilename[filename.lowercased()] ?? []
     }
 
-    /// Fallback lookup by bundle identifier, for casks with no `.app` artifact.
-    public func entry(forBundleID bundleID: String) async throws -> CaskEntry? {
-        try await loadedIndex().byBundleID[bundleID.lowercased()]
-    }
-
-    /// Every cask declaring this bundle id, in catalog order. For a caller that
-    /// must pick among a bundle's channel casks (`utm` / `utm@beta`) instead of
-    /// taking whichever sorts first.
+    /// Every cask declaring this bundle id, in catalog order — the fallback key
+    /// for casks with no `.app` artifact, and the one a caller uses to pick among
+    /// a bundle's channel casks (`utm` / `utm@beta`).
     public func entries(forBundleID bundleID: String) async throws -> [CaskEntry] {
         try await loadedIndex().allByBundleID[bundleID.lowercased()] ?? []
     }
@@ -288,8 +255,7 @@ public actor HomebrewCaskCatalog {
         // Coalesce concurrent callers onto a single in-flight load.
         if let loadTask { return try await resolve(loadTask) }
 
-        let host = hostOSVersion
-        let task = Task { try await Self.fetchAndIndex(session: session, hostOSVersion: host) }
+        let task = Task { try await Self.fetchAndIndex(session: session) }
         loadTask = task
         return try await resolve(task)
     }
@@ -326,9 +292,7 @@ public actor HomebrewCaskCatalog {
         return Date().timeIntervalSince(indexLoadedAt) >= Self.indexTTL
     }
 
-    private static func fetchAndIndex(
-        session: URLSession, hostOSVersion: String
-    ) async throws -> CaskIndex {
+    private static func fetchAndIndex(session: URLSession) async throws -> CaskIndex {
         let url = URL(string: "https://formulae.brew.sh/api/cask.json")!
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
@@ -352,13 +316,13 @@ public actor HomebrewCaskCatalog {
             throw CaskError.badStatus(http.statusCode)
         }
 
-        return try index(fromCatalogJSON: data, hostOSVersion: hostOSVersion)
+        return try index(fromCatalogJSON: data)
     }
 
-    /// The whole indexing rule, as a pure function of the catalog bytes and the
-    /// host's macOS version — so it can be replayed against a fixture built from
-    /// real response bodies without a network or a particular Mac.
-    static func index(fromCatalogJSON data: Data, hostOSVersion: String) throws -> CaskIndex {
+    /// The whole indexing rule, as a pure function of the catalog bytes — so it
+    /// can be replayed against a fixture built from real response bodies, with no
+    /// network and nothing read off the machine running it.
+    static func index(fromCatalogJSON data: Data) throws -> CaskIndex {
         // artifacts is a heterogeneous array, so walk the JSON manually rather
         // than fighting Codable over its shape.
         guard let casks = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -383,12 +347,11 @@ public actor HomebrewCaskCatalog {
                 macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"])
             )
 
-            // Both keys keep every declaring cask, in catalog order; `CaskIndex`
-            // derives the single answer for each with the same host preference.
-            // Keeping the alternatives is what lets `HomebrewCaskSource` resolve
-            // the cask that is actually *installed* rather than only the one this
-            // Mac could install. Why this isn't plain first-writer-wins any more
-            // (the `onyx` / `onyx@beta` split, issue #638):
+            // Both keys keep every declaring cask, in catalog order. Keeping the
+            // alternatives instead of dropping all but the first is what lets
+            // `HomebrewCaskSource` resolve the cask that is actually *installed*,
+            // and the one this Mac can run, rather than whichever token sorted
+            // first (the `onyx` / `onyx@beta` split, issue #638):
             // `docs/engine-notes/homebrew-cask-catalog.md` §2.
             for appName in appFilenames(in: cask["artifacts"]) {
                 byApp[appName.lowercased(), default: []].append(entry)
@@ -397,8 +360,7 @@ public actor HomebrewCaskCatalog {
                 allByBundle[bundleID.lowercased(), default: []].append(entry)
             }
         }
-        return CaskIndex(
-            allByAppFilename: byApp, allByBundleID: allByBundle, hostOSVersion: hostOSVersion)
+        return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle)
     }
 
     /// Extract the `.app` filenames from a cask's `artifacts` array. Each app

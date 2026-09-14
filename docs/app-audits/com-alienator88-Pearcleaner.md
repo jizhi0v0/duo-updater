@@ -10,7 +10,8 @@
 
 转引自 recipe 注释，未复测。
 
-verified 2026-06-06 the dmg's `Pearcleaner.app` is a
+One-click installs the universal
+`Pearcleaner.dmg`: verified 2026-06-06 the dmg's `Pearcleaner.app` is a
 notarized Developer ID build (Team BK8443AXLU, Marius Lupascu) reporting
 CFBundleShortVersionString 5.4.3 == tag, bundle id com.alienator88.Pearcleaner
 matching the install — so the in-place swap passes the VendorInstaller gate.

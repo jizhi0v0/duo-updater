@@ -162,4 +162,8 @@ confirmed against the real mounted nightly bundle (not just the feed).
 
 No `changelogURL`: obdev's public release-notes page
 (`releasenotes6.html`, used above) covers stable only — it has no
-mention of "nightly" anywhere (checked 2026-08-29)
+mention of "nightly" anywhere (checked 2026-08-29) — and the per-build
+notes endpoint the feed points at
+(`releasenotes-legacy-swu.php?version=<build>`) is pinned to whichever
+build this comment was written against, which would go stale the next
+nightly ships.

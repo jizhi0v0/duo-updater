@@ -10,9 +10,11 @@
 
 转引自 recipe 注释，未复测。唯一的改写：原文 "not installed locally" 按本目录的机器状态规则改成了针对做验证那台机器的说法。
 
+Best-effort one-click: the `zen.macos-universal.dmg` wraps `Zen.app` —
 verified 2026-06-06 a notarized Developer ID build (Team 9V5K9TP787, Mauro
 Baladés) reporting version 1.20.2b == tag (the trailing `b` kept, matching
 CFBundleShortVersionString), bundle id app.zen-browser.zen.
 
-not installed on the machine this was verified on, so the Team-gate
+A Firefox fork
+with its own updater, so a fallback; not installed on the machine this was verified on, so the Team-gate
 enforces the match at install time.

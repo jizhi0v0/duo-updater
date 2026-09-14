@@ -28,7 +28,9 @@ Developer ID 2BUA8C4S2C, notarized) and is a trap: it contains
 `1Password Installer.app` (`com.1password.1password-installer`, 21 MB), a
 stub that fetches the real app.
 
+```
 items are ASCENDING (8.7.0 from 2022 first, 89 of them), so
     `newestLast` flips them — the HTML page was newest-first;
+```
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`releases.1password.com/mac/stable/index.xml` 有 91 个 `1Password for Mac` 条目，第一个是 `8.7.0`、最后一个是 `8.12.36`。

@@ -173,14 +173,17 @@ notes。x.ai 站内唯一带 changelog 的链接是 `x.ai/api/changelog`，标�
 
 转引自 recipe 注释，未复测。
 
+The
 endpoint says so itself: any other name 404s with "Invalid app name -
 can only download stable for cursor or sand" (measured 2026-08-29).
 
+```
 `/updates/api/update/darwin-arm64/sand/<installed>/stable`, which
     the Homebrew cask's livecheck reads, is the app's own Squirrel feed
     and is CONDITIONAL: it answers `{"url":…,"name":"0.30.0"}` when a
     newer build exists and **204 with an empty body** when the caller is
     already current (measured 2026-08-29 at 0.0.0 and at 0.30.0).
+```
 
 Two prefixes, because the vendor publishes the
 same artifact under both: the API answers `/grokbot/…`, while the

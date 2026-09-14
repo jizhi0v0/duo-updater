@@ -18,6 +18,8 @@ so nothing reachable states a version.
 
 复测 2026-09-14（05:18 UTC，只读 GET，不跟随重定向，默认 UA 与 Safari UA 各一次）：`https://gemini.google.com/download` 两次都回 404，没有 `Location`——不再是 302 到 /sorry。代码里只留下「没有能访问到的页面给出版本号」。
 
+复测 2026-09-14（05:29–05:31 UTC，只读 GET/HEAD，不跟随重定向，默认 UA 与 Safari UA 各一次）：`gemini.google.com/mac`、`gemini.google.com/download/mac` 同样 404；`gemini.google/mac` 与 `gemini.google/mac/` 301 到 `https://gemini.google/desktop/`，那页 200，标题 "Gemini for desktop: download the AI app for Windows & macOS"，全文没有版本号。`downloadURL` 因此改成这一页。页上 "Download for macOS" 按钮是 `/download/mac/`，它 302 到 `https://dl.google.com/release2/j33ro/release/Gemini.dmg`——不拿它当 `downloadURL`：“Open page” 打开它会直接下载文件，而 `PageURLTests` 只看扩展名，看不出来。同一时刻 Omaha 那条 POST 回 200，manifest `1.113.6.866`，拼出 `https://dl.google.com/release2/gemini/jkwdnlueryriaqpop7vitq2c7i_1.113.6.866/Gemini-1.113.6.866.dmg`，HEAD 200、`content-length` 139838410 与 manifest 的 `size` 一致（没下载）。回应比 2026-08-16 的 fixture 多了 `actions` 块和 `www.google.com/dl` 两个 codebase，两条字段 pattern 取到的仍是上面这个 URL。
+
 Verified 2026-08-16 on the copy installed on the machine verified that day: manifest `1.94.11.734`
 against `CFBundleShortVersionString` 1.94.11.734 — the same scheme, so
 no build-vs-marketing trap here.

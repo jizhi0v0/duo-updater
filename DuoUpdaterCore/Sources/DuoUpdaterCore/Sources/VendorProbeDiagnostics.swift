@@ -283,6 +283,17 @@ public enum ProbeWarning: Sendable, Equatable {
     /// spelling needs support without reproducing a response that may already
     /// have moved.
     case publishedAtUnreadable(String)
+    /// `minimumSystemVersionPattern` or `maximumSystemVersionPattern` is set but
+    /// matched nothing, so the release was admitted with that bound treated as
+    /// absent. The version keeps resolving; what is lost is the one guard that
+    /// keeps a build the vendor capped below this macOS from being offered.
+    ///
+    /// The same shape as `displayPatternNoMatch`: a pattern the recipe author
+    /// wrote down, found nothing, and nothing failed. Failing open is the right
+    /// call — a vendor reformatting the key must not read as "this build is not
+    /// for your Mac" — but it must not stay silent either, because the sweep is
+    /// the only thing that will ever notice the ceiling stopped being read.
+    case osBoundPatternNoMatch
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.
     ///
@@ -334,6 +345,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .displayPatternNoMatch: return "displayPatternNoMatch"
         case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"
         case .publishedAtUnreadable: return "publishedAtUnreadable"
+        case .osBoundPatternNoMatch: return "osBoundPatternNoMatch"
         }
     }
 }

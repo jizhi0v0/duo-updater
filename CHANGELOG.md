@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.95
+
+**Little Snitch is no longer reported as current when its maker says that build isn't for your macOS.** Objective Development's feed states the macOS range each build supports; after a macOS upgrade the row could keep pointing at a build capped below the system you were now running. Builds outside the stated range are left out until the vendor raises the cap.
+
 ## 0.3.94
 
 **Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from DuoUpdater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.

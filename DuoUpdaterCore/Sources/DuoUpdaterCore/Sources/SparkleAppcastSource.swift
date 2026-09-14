@@ -235,11 +235,18 @@ public struct SparkleAppcastSource: UpdateSource {
             guard item.version != nil || item.shortVersionString != nil else { return false }
             // Default channel ∪ the user's channel — never a higher one.
             guard allowed.contains(normalizeChannel(item.channel)) else { return false }
-            // Honor minimum system version when declared.
-            if let minOS = item.minimumSystemVersion, !minOS.isEmpty,
-               VersionComparator.compare(osVersion, minOS) == .orderedAscending {
-                return false
-            }
+            // Honor minimum system version when declared. The predicate is
+            // `SignatureVerifier.canRun` — literally the expression that used to
+            // be written out here, and the one gate 6 makes against a downloaded
+            // bundle's `LSMinimumSystemVersion` and `UpdateChecker.evaluate` now
+            // makes against `RemoteVersion.minimumSystemVersion` (#640). One
+            // copy, because the whole point of `HostOS` is that these three must
+            // not be able to disagree. (`canRun` also fails open on a value with
+            // no digit in it; the inline version reached the same verdict by the
+            // same `compare` call, since a text token ranks below a numeric one.)
+            guard SignatureVerifier.canRun(
+                minimumSystemVersion: item.minimumSystemVersion, on: osVersion)
+            else { return false }
             // And the maximum — the vendor saying "this build is not for an OS
             // this new", which is the only way any source we read can express
             // "we haven't adapted to macOS 27 yet". The PREDICATE is Sparkle's

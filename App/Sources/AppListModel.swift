@@ -2116,25 +2116,6 @@ final class AppListModel {
         }
     }
 
-    /// Start loading TestFlight's inventory (off-main) and wait only briefly, then
-    /// take whatever's ready. Its DB is in another app's sandbox container, so
-    /// `open()` is gated by the "access data from other apps" TCC prompt and blocks
-    /// until the user answers — local reads are otherwise milliseconds, so a timeout
-    /// here means "the prompt is up". On timeout we return an empty, `accessible ==
-    /// false` inventory so the caller proceeds unfrozen, and hand back the still-
-    /// running loader so it can re-apply once the user clicks Allow (callers that
-    /// don't need that, e.g. a single-app recheck, just ignore the loader).
-    private static func beginTestFlightLoad(
-        timeout: Duration = .seconds(2)
-    ) async -> (inventory: TestFlightInventory, pendingLoader: Task<TestFlightInventory, Never>?) {
-        let loader = Task.detached(priority: .utility) { await TestFlightInventory.loadOffPool(qos: .utility) }
-        if let loaded = await firstResult(of: loader, within: timeout) {
-            return (loaded, nil)
-        }
-        Log.scan.info("TestFlight: read pending (TCC prompt unanswered) — proceeding without it")
-        return (TestFlightInventory(macRows: [], accessible: false), loader)
-    }
-
     /// When the TestFlight read was blocked by the TCC prompt, keep awaiting the
     /// detached loader — the blocked `open()` returns the instant the user answers.
     /// If they granted access, re-run the check so TestFlight tagging appears with

@@ -102,6 +102,64 @@ import Foundation
         #expect(installed.stability == .release)
     }
 
+    /// The top of the real index on 2026-09-14: Xcode 27 RC 1 above the beta ladder.
+    /// Kept apart from `feed`, whose newest beta is meant to have nothing above it.
+    static let rcFeed = Data("""
+    [
+      {"name":"Xcode","_versionOrder":27000000901,
+       "version":{"number":"27.0","build":"27A266a","release":{"rc":1}}},
+      {"name":"Xcode","_versionOrder":27000000006,
+       "version":{"number":"27.0","build":"27A5252f","release":{"beta":6}}},
+      {"name":"Xcode","_versionOrder":27000000005,
+       "version":{"number":"27.0","build":"27A5237l","release":{"beta":5}}},
+      {"name":"Xcode","_versionOrder":26006000999,
+       "version":{"number":"26.6","build":"17F113","release":{"release":true}}}
+    ]
+    """.utf8)
+
+    private static func installedXcode(build: String) -> InstalledApp {
+        let path = "/Applications/ZZFixture-Xcode-beta.app"
+        #expect(!FileManager.default.fileExists(atPath: path))
+        return InstalledApp(
+            name: "Xcode",
+            bundleID: XcodeReleasesSource.bundleID,
+            shortVersion: "27.0",
+            buildVersion: build,
+            path: URL(fileURLWithPath: path),
+            isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+
+    /// The reported row: beta 5 installed, RC 1 out. The source offered the RC, and
+    /// the engine then compared the two builds as strings — `27A5237l` beats
+    /// `27A266a` because 5237 > 266 — so the row read "up to date" with the RC drawn
+    /// as a downgrade. The verdict has to come from the index's order, as the offer
+    /// did.
+    @Test func aBetaIsOfferedItsRCAndTheEngineAgrees() throws {
+        #expect(VersionComparator.isNewer("27A5237l", than: "27A266a"),
+                "precondition: this ordering is why the build string cannot decide it")
+        let remote = try #require(XcodeReleasesSource.remote(
+            forBuild: "27A5237l", in: XcodeReleasesSource.parse(Self.rcFeed)))
+        #expect(remote.version == "27A266a")
+
+        let app = Self.installedXcode(build: "27A5237l")
+        let status = UpdateChecker.evaluate(installed: app, remote: remote)
+        #expect(status == .updateAvailable(latest: "27.0 RC 1 (27A266a)"))
+        #expect(UpdatePolicy.laggingRemoteVersion(
+            UpdateResult(app: app, remote: remote, status: status)) == nil)
+    }
+
+    /// And once the RC is installed: offered itself, current, and not a downgrade.
+    @Test func theInstalledRCIsUpToDate() throws {
+        let remote = try #require(XcodeReleasesSource.remote(
+            forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.rcFeed)))
+        let app = Self.installedXcode(build: "27A266a")
+        let status = UpdateChecker.evaluate(installed: app, remote: remote)
+        #expect(status == .upToDate)
+        #expect(UpdatePolicy.laggingRemoteVersion(
+            UpdateResult(app: app, remote: remote, status: status)) == nil)
+    }
+
     /// An unrecognised seed. Guessing a track here is how a beta user gets offered a
     /// downgrade, so the source declines to answer and the row reads "unknown".
     @Test func anUnknownBuildIsNotGuessedAt() {

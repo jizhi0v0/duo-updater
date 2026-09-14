@@ -76,8 +76,12 @@ import Foundation
     ///
     /// 5 (Claude Desktop's `.claudeDesktopChangelog`) moves neither fixture: it is
     /// one app's recipe. Pinned by `ClaudeDesktopChangelogTests`.
+    ///
+    /// 6 (Raycast v1's `source` moved to `/changelog/macos-v1`) moves neither
+    /// fixture: it is one app's recipe. Pinned by `RaycastReleasesTests` and
+    /// `ChangelogVersionWindowTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 5)
+        #expect(Changelog.parserGeneration == 6)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

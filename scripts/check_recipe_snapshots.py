@@ -118,26 +118,11 @@ INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
 # Families no batch has migrated yet. Delete a batch's families here in that
 # batch's PR; delete the whole list after the last batch.
 PENDING = frozenset({
-    "now-typeless-desktop", "org-alacritty",
-    "org-audacityteam-audacity", "org-blenderfoundation-blender", "org-darktable",
-    "org-flameshot-Flameshot", "org-gimp-gimp", "org-gnome-Meld", "org-gnu-Emacs",
-    "org-godotengine-godot", "org-grunenberg-EasyFind", "org-inkscape-Inkscape",
-    "org-jkiss-dbeaver-core-product", "org-keepassxc-keepassxc",
-    "org-libreoffice-script", "org-localsend-localsendApp", "org-mozilla-firefox",
-    "org-mozilla-thunderbird", "org-openlogi-openlogi", "org-pgadmin-pgadmin4",
-    "org-qbittorrent-qBittorrent", "org-RedisLabs-RedisInsight-V2", "org-tabby",
-    "org-torproject-torbrowser", "org-upscayl-Upscayl", "org-videolan-vlc",
-    "org-whispersystems-signal-desktop", "org-winehq-wine-staging-wine",
-    "org-xquartz-X11", "org-zaproxy-zap-ZAP", "org-zotero-zotero",
-    "pl-maketheweb-cleanshotx", "pro-betterdisplay-BetterDisplay",
-    "ru-starmel-OpenSuperWhisper", "sh-brew-app", "sh-paseo-desktop", "sh-waku",
-    "tv-plex-desktop", "uk-co-bzwrd-macperfmonitor", "uk-whatcable-whatcable",
-    "xyz-chatboxapp-app",
 })
 
 # The last family of the last merged batch, in `AppRecipeIndex`'s order (slug,
 # case-insensitive). Bump it in the batch PR that deletes its families above.
-LAST_MIGRATED = "notion-id"
+LAST_MIGRATED = "xyz-chatboxapp-app"
 
 # PENDING families that sort inside the migrated range on purpose, with why.
 OUT_OF_ORDER = {

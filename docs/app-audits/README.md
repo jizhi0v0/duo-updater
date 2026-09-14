@@ -273,7 +273,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
-- [x] [**Mac Performance Monitor**](uk-co-bzwrd-macperfmonitor.md) · `uk.co.bzwrd.macperfmonitor` — S(stable) C · 检测本来就通（bundle 自带 `SUFeedURL`，指向 release 资产）· **appcast 一条说明都没有**（无 `releaseNotesLink`/`fullReleaseNotesLink`/`description`），release 正文只有一句"See CHANGELOG.md"，已加 recipe 解仓库的 Keep-a-Changelog 文件（17 条，`[Unreleased]` 排除）· 用户报 #374 · 未验真包 · 2026-09-06
+- [x] [**Mac Performance Monitor**](uk-co-bzwrd-macperfmonitor.md) · `uk.co.bzwrd.macperfmonitor` — S(stable) C · 检测本来就通（bundle 自带 `SUFeedURL`，指向 release 资产）· 1.7.1 及以前 **appcast 一条说明都没有**（无 `releaseNotesLink`/`fullReleaseNotesLink`/`description`）、release 正文只有一句"See CHANGELOG.md"（2.0.0 起 appcast 唯一的那条带 HTML `description`，正文也带完整说明，都只覆盖最新一版；2026-09-14 复测），已加 recipe 解仓库的 Keep-a-Changelog 文件（2026-09-06 为 17 条，2026-09-14 复测 19 条，`[Unreleased]` 排除）· 用户报 #374 · 未验真包 · 2026-09-06
 - [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) C · 两轨 tag 过、共享 bundle id · **两轨真包验证 ✓**（stable 0.51.0 未被推 prerelease；prerelease 0.51.182 留在本轨）· feed 与 release 正文都无实质说明，已加 recipe 解 repo 的 `CHANGELOG.md`（21 条）· 2026-08-31
 - [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 全无 inline，只有 `releaseNotesLink`，当前条目共用同一张**不分版本**的总页（2026-09-14：211 条里 179 条，含最新）；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
 - [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · ⚠️ **已停产**（OpenAI 2026-08-09 停止运行，feed 停在 1.2026.189.1）· 真包挂载验证 ✓ · 原审计误称「无 delta」，实测 head 条目 5 个 `<sparkle:deltas>`；无 changelog · 2026-08-31
@@ -362,6 +362,23 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Bear**](net-shinyfrog-bear.md) · `net.shinyfrog.bear` — 仅迁出历史：App Store 探测用例的上线核对
 - [ ] [**GrandPerspective**](net-sourceforge-grandperspectiv.md) · `net.sourceforge.grandperspectiv` — 仅迁出历史：一键 dmg 的核对
 - [ ] [**WhatsApp**](net-whatsapp-WhatsApp.md) · `net.whatsapp.WhatsApp` — 仅迁出历史：一键 dmg 的核对、两次 App Store lookup 的版本差、catalog key 大小写那次事故
+- [ ] [**Alacritty**](org-alacritty.md) · `org.alacritty` — 仅迁出历史：七个只检测 rule 共享说明里的签名核对
+- [ ] [**GIMP**](org-gimp-gimp.md) · `org.gimp.gimp` — 仅迁出历史：`gimp_versions.json` 的实测、`STABLE` 结构说法的更正、包身份核对
+- [ ] [**Meld**](org-gnome-Meld.md) · `org.gnome.Meld` — 仅迁出历史：上游与重打包的版本、releases 接口的实测、包身份核对
+- [ ] [**Emacs for Mac OS X**](org-gnu-Emacs.md) · `org.gnu.Emacs` — 仅迁出历史：一键 dmg 的挂载核对
+- [ ] [**EasyFind**](org-grunenberg-EasyFind.md) · `org.grunenberg.EasyFind` — 仅迁出历史：一键 zip 的核对
+- [ ] [**Inkscape**](org-inkscape-Inkscape.md) · `org.inkscape.Inkscape` — 仅迁出历史：媒体主机上 dmg 路径的发现、Intel 说法的更正、wiki TOC 的计数
+- [ ] [**DBeaver Community**](org-jkiss-dbeaver-core-product.md) · `org.jkiss.dbeaver.core.product` — 仅迁出历史：一键 dmg 的核对
+- [ ] [**LibreOffice**](org-libreoffice-script.md) · `org.libreoffice.script` — 仅迁出历史：镜像重定向的核对、Intel 与架构选择说法的更正、版本段数陷阱的包核对
+- [ ] [**LocalSend**](org-localsend-localsendApp.md) · `org.localsend.localsendApp` — 仅迁出历史：「v1.18.0 是最新 macOS 版本」的更正
+- [ ] [**pgAdmin 4**](org-pgadmin-pgadmin4.md) · `org.pgadmin.pgadmin4` — 仅迁出历史：两段挂载核对、Intel 说法的更正
+- [ ] [**qBittorrent**](org-qbittorrent-qBittorrent.md) · `org.qbittorrent.qBittorrent` — 仅迁出历史：dmg 签名被拒的核对
+- [ ] [**Wine Staging**](org-winehq-wine-staging-wine.md) · `org.winehq.wine-staging.wine` — 仅迁出历史：「`.tar.xz` 解不开」的更正、两条线的版本
+- [ ] [**XQuartz**](org-xquartz-X11.md) · `org.xquartz.X11` — 仅迁出历史：pkg 签名与 `Distribution` 的核对
+- [ ] [**Zotero**](org-zotero-zotero.md) · `org.zotero.zotero` — 仅迁出历史：10.0 与 9.0.6 两次挂载核对
+- [ ] [**BetterDisplay**](pro-betterdisplay-BetterDisplay.md) · `pro.betterdisplay.BetterDisplay` — 仅迁出历史：changelog 空壳页、`pre` release 与贡献者名单的计数
+- [ ] [**Waku**](sh-waku.md) · `sh.waku` — 仅迁出历史：notes 文件的探测、GitHub releases 的条数
+- [ ] [**Plex**](tv-plex-desktop.md) · `tv.plex.desktop` — 仅迁出历史：「cask 没有 livecheck」的更正、feed 的实测
 
 ## 非 app 文档
 

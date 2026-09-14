@@ -60,3 +60,24 @@
 swift run --package-path application-test channel-verify "/tmp/Signal.app"      --expect stable
 swift run --package-path application-test channel-verify "/tmp/Signal Beta.app" --expect beta
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-whispersystems-signal-desktop.swift — stable / beta VendorProbe（为什么不挂 `checksumPattern`）
+
+转引自 recipe 注释，未复测。整段原文：编号列表的第 2 条，续行缩进三格，整条用代码块围起来保留缩进。它上面那句 "Two per-channel gotchas, both found 2026-08-09:" 原样留在代码里，这一条的日期出自那一句。代码里把 "(+2563 bytes on both channels)" 改成 "(larger on both channels; History has the byte count)"，其余原样，重新折行。本审计也记着同一个字节数。
+
+```
+2. NO checksumPattern, deliberately. The yml's `sha512`/`size` describe
+   the dmg as electron-builder emitted it, *before* Signal's CI signs and
+   staples it; the CDN serves the stapled file (+2563 bytes on both
+   channels), so the feed hash can never match the bytes we download and a
+   checksum gate would abort every install. (Typeless reads a structurally
+   identical feed with delta 0 — this is Signal's pipeline, not
+   electron-builder's, so don't "fix" it by copying Typeless.) Integrity
+   still rests on VendorInstaller's mandatory gates, verified against both
+   real dmgs: notarized Developer ID, Team U68MSDN6DR on both channels,
+   and a signed bundle id that pins each channel to its own install.
+```

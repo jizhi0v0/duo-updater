@@ -4,6 +4,7 @@ enum org_videolan_vlc {
     static let set = AppRecipeSet(
         family: "org-videolan-vlc",
         probes: [
+        // History: docs/app-audits/org-videolan-vlc.md#历史与实测
         // VLC — official Sparkle appcast. Lists releases ascending, so
         // highestVersion (not first) picks the current one.
         //
@@ -24,7 +25,7 @@ enum org_videolan_vlc {
         ],
         changelogs: [
         // VLC — two-stage. `source` is the newest-first releases index; the
-        // `indexLinkPattern` follows its first per-version link (currently
+        // `indexLinkPattern` follows its first per-version link (e.g.
         // /vlc/releases/3.0.23.html) to the detail page, which avoids version-pinning
         // *and* the merge trap: VLC folds 3.0.19/3.0.20 — and 3.0.22/3.0.23 — onto a
         // single page, so the page is not always named after the latest version;

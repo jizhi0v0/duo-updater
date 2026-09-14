@@ -4,6 +4,7 @@ enum org_localsend_localsendApp {
     static let set = AppRecipeSet(
         family: "org-localsend-localsendApp",
         githubRules: [
+        // History: docs/app-audits/org-localsend-localsendApp.md#历史与实测
         // Shared rationale for 2026-08-16 coverage batch: Recipes/com-ccswitch-desktop.swift.
 
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
@@ -14,9 +15,9 @@ enum org_localsend_localsendApp {
         // without producing a macOS build: v1.18.1 (2026-08-12) ships four `.apk`
         // files and says so in its own release notes — "Android+iOS only hotfix".
         // Reading the tag alone reported a 1.18.0 → 1.18.1 update that nobody can
-        // ever install. With the pattern set, resolution walks back to v1.18.0,
-        // which is genuinely the newest macOS release (Homebrew's cask and the
-        // vendor's own download page both agree).
+        // ever install. With the pattern set, resolution walks back past such a tag
+        // to the newest release that does carry the dmg — v1.18.0 at the time
+        // (History has the cross-check; v1.18.2 has shipped a dmg since).
         //
         // The CLI tarballs (`LocalSend-CLI-1.18.0-macos-arm-64.tar.gz`) and the
         // Windows zip share the prefix, so the pattern anchors both ends.

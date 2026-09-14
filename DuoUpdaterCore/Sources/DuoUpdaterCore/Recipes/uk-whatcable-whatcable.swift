@@ -4,26 +4,27 @@ enum uk_whatcable_whatcable {
     static let set = AppRecipeSet(
         family: "uk-whatcable-whatcable",
         githubRules: [
+        // History: docs/app-audits/uk-whatcable-whatcable.md#历史与实测
         // WhatCable — an open-source menu-bar app (`uk.whatcable.whatcable`) that
         // reads what each USB-C/Thunderbolt cable plugged into the Mac can
         // actually do. Distributed from its own GitHub releases: one constant
-        // asset name, `WhatCable.zip`, on every one of the newest 100 releases
-        // (measured 2026-09-06). The `whatcable-cli-<version>.zip` beside it is
-        // the standalone CLI, a different artifact — the app bundle ships its own
-        // copy at `Contents/Helpers/whatcable`, which is what Homebrew's cask
-        // symlinks — so the pattern is anchored end to end and cannot drift onto
-        // it.
+        // asset name, `WhatCable.zip`, on every release checked (2026-09-06 and
+        // 2026-09-14; History has the counts). The `whatcable-cli-<version>.zip`
+        // beside it is the standalone CLI, a different artifact — the app bundle
+        // ships its own copy at `Contents/Helpers/whatcable`, which is what
+        // Homebrew's cask symlinks — so the pattern is anchored end to end and
+        // cannot drift onto it.
         //
         // Homebrew has a `whatcable` cask, and it is deliberately not the source
         // here: it is `auto_updates true`, which this repo treats as "the app
         // updates itself, Homebrew defers" (see `HomebrewCaskSource`).
         //
-        // One-click verified 2026-09-06 on the real v1.4.0 asset: `WhatCable.app`,
-        // `uk.whatcable.whatcable`, CFBundleShortVersionString 1.4.0 == the tag,
+        // One-click: the release asset holds `WhatCable.app`,
+        // `uk.whatcable.whatcable`, CFBundleShortVersionString == the tag,
         // universal (x86_64 + arm64), signed "Developer ID Application: Darryl
         // Morley (M4RUJ7W6MP)" and accepted by `spctl` as Notarized Developer ID —
         // the same Team as the installed copy, so the swap passes the
-        // VendorInstaller gate.
+        // VendorInstaller gate (checked 2026-09-06; History has the version).
         //
         // Notes: the release bodies are full Markdown (v1.4.0's runs to several
         // hundred words of per-area headings and bullets), so `GitHubMarkdownParser`
@@ -43,7 +44,7 @@ enum uk_whatcable_whatcable {
         // is refused by the stable rule's channel gate and, without this, would
         // have no source at all and read "Failed" indefinitely. That is not
         // hypothetical: it is the exact shape of the Alfred regression documented
-        // on its `.beta` recipe in `VendorProbeRecipe`.
+        // on its `.beta` recipe in `Recipes/com-runningwithcrayons-Alfred.swift`.
         //
         // The vendor's own updater has the matching opt-in — `receiveBetaUpdates`
         // in `uk.whatcable.whatcable`'s defaults, whose comment in the app's
@@ -74,9 +75,8 @@ enum uk_whatcable_whatcable {
         //     a red `duo verify` finding on EVERY machine — the sweep walks rules,
         //     not installs — for a rule that is working exactly as written. Not a
         //     remote prospect: the beta train did not exist at all until
-        //     `v1.2.0-beta.1`, release 115 of the 135 this repo has published.
-        //     (An earlier draft said "79 releases in". That was a position inside
-        //     the newest-100 page read as a position in the repo's history.)
+        //     `v1.2.0-beta.1`, more than a hundred releases into this repo's
+        //     history (History has the count).
         //
         // ⚠️ And the cost, which is real and one-way: taking that graduation puts
         // the copy on `1.5.0`, `ReleaseChannel.detect` then reads it as `.stable`,
@@ -102,12 +102,12 @@ enum uk_whatcable_whatcable {
         // WhatCable does not have — one line, and its betas are its next release,
         // not a parallel v-next.)
         //
-        // listPageSize: measured 2026-09-06 over the newest 100 releases — every
-        // one of the 100 tags matches this pattern and carries `WhatCable.zip`,
-        // so first-match index is 0 and the gap is 0. The floor is 1; 5 is kept
-        // for headroom against a draft or a platform-partial release, and costs
-        // 5.9 KB gzipped against 23.8 KB at the default 20. `probesNewestFirst`
-        // means the common round is a page of one anyway.
+        // listPageSize: every release checked has a tag this pattern matches and
+        // carries `WhatCable.zip` (2026-09-06 and 2026-09-14; History has the
+        // counts and the page sizes), so first-match index is 0 and the gap is 0.
+        // The floor is 1; 5 is kept for headroom against a draft or a
+        // platform-partial release. `probesNewestFirst` means the common round is
+        // a page of one anyway.
         GitHubReleaseRule(
             bundleID: "uk.whatcable.whatcable",
             owner: "darrylmorley", repo: "whatcable",

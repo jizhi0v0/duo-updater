@@ -4,17 +4,20 @@ enum org_gnome_Meld {
     static let set = AppRecipeSet(
         family: "org-gnome-Meld",
         probes: [
-        // Meld — TRAP: upstream GNOME Meld (gitlab.gnome.org) is at 3.24.0, but
-        // there is no official macOS build; the only one is a third-party repack
-        // by dehesselle (`gitlab.com/dehesselle/meld_macos`) that stalled the
-        // wrapped app at upstream 3.22.3 and instead versions ITS OWN repacks with
-        // a trailing `+<build>` (`v3.22.3+105`). Reading gitlab.gnome.org would
-        // report an update (3.24.0) this macOS build can never actually install.
+        // History: docs/app-audits/org-gnome-Meld.md#历史与实测
+        // Meld — TRAP: upstream GNOME Meld (gitlab.gnome.org) is ahead of the
+        // version any macOS build wraps (when checked, 2026-08-16 and 2026-09-14;
+        // History has the versions), but there is no official macOS build; the
+        // only one is a third-party repack by dehesselle
+        // (`gitlab.com/dehesselle/meld_macos`) that stalled the wrapped app at an
+        // older upstream release and instead versions ITS OWN repacks with a
+        // trailing `+<build>` (e.g. `v3.22.3+105`). Reading gitlab.gnome.org would
+        // report an update this macOS build can never actually install.
         // Probed `gitlab.com/api/v4/projects/dehesselle%2Fmeld_macos/releases`
-        // (status 200, 24296 bytes / 7 releases when checked 2026-08-16), whose
-        // default order (`order_by=released_at&sort=desc`, confirmed by the
-        // response's own `Link` header) puts the newest release first, so
-        // first-match is correct without `selectHighest`.
+        // (History has the response), whose default order
+        // (`order_by=released_at&sort=desc`, confirmed by the response's own `Link`
+        // header) puts the newest release first, so first-match is correct without
+        // `selectHighest`.
         //
         // The mounted arm64 dmg's `CFBundleShortVersionString` is `3.22.3` and
         // `CFBundleVersion` is `105` — i.e. the tag's two halves map to the
@@ -31,9 +34,9 @@ enum org_gnome_Meld {
         // `checksumPattern`; the downloaded arm64 dmg's sha256 was independently
         // verified to match that header byte-for-byte, but that's outside what
         // `checksumPattern` can express (base64 SHA-512 only).
-        // Installed-bundle identity confirmed 2026-08-16: `org.gnome.Meld`,
-        // notarized Developer ID, Team SW3D6BB6A6 (Rene de Hesselle) — `spctl`
-        // accepted as "Notarized Developer ID".
+        // Bundle identity: `org.gnome.Meld`, notarized Developer ID, Team
+        // SW3D6BB6A6 (Rene de Hesselle) — `spctl` accepted it as "Notarized
+        // Developer ID" (checked 2026-08-16).
         VendorProbeRecipe(
             bundleID: "org.gnome.Meld",
             url: URL(string: "https://gitlab.com/api/v4/projects/dehesselle%2Fmeld_macos/releases")!,

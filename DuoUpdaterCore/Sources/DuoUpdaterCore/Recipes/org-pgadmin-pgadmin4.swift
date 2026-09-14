@@ -4,6 +4,7 @@ enum org_pgadmin_pgadmin4 {
     static let set = AppRecipeSet(
         family: "org-pgadmin-pgadmin4",
         probes: [
+        // History: docs/app-audits/org-pgadmin-pgadmin4.md#历史与实测
         // Shared rationale for 2026-08-16 group D (directory indexes): Recipes/com-operasoftware-Opera.swift.
 
         // pgAdmin4 — `ftp.postgresql.org/pub/pgadmin/pgadmin4/` lists both version
@@ -15,10 +16,10 @@ enum org_pgadmin_pgadmin4 {
         // The mac artifact is one level deeper (`v9.17/macos/pgadmin4-9.17-arm64.dmg`),
         // which is what makes this the same shape as LibreOffice (`Recipes/org-libreoffice-script.swift`).
         //
-        // Verified 2026-08-16 by mounting `pgadmin4-9.17-arm64.dmg`: `pgAdmin 4.app`,
-        // CFBundleShortVersionString exactly `"9.17"` (matches the probe 1:1, no
-        // build/marketing mismatch here), notarized Developer ID, Team TCHGL2R7C5
-        // ("David Page"), spctl accepted.
+        // The mounted arm64 dmg's `pgAdmin 4.app` reports a CFBundleShortVersionString
+        // equal to the folder's version (matches the probe 1:1, no build/marketing
+        // mismatch here), notarized Developer ID, Team TCHGL2R7C5 ("David Page"),
+        // spctl accepted (checked 2026-08-16; History has the version).
         VendorProbeRecipe(
             bundleID: "org.pgadmin.pgadmin4",
             url: URL(string: "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/")!,
@@ -33,15 +34,15 @@ enum org_pgadmin_pgadmin4 {
             // before `v9.17`, and that day this template still builds the right
             // URL because it is handed the number that won the comparison).
             //
-            // Verified 2026-08-16 by mounting `pgadmin4-9.17-arm64.dmg`
-            // (233,075,920 B): `pgAdmin 4.app`, org.pgadmin.pgadmin4,
-            // CFBundleShortVersionString `9.17` — exactly what the index publishes,
-            // so no scheme mismatch — Team TCHGL2R7C5 (David Page), notarized
-            // Developer ID, spctl accepted. (`CFBundleVersion` is an unrelated
-            // `4280.88`; the recipe compares marketing, which is the field that
-            // agrees.) arm64-only artifact, like the other arm64-pinned recipes
-            // here; an Intel Mac is refused by the runnable-arch gate rather than
-            // given a build it can't run.
+            // The mounted arm64 dmg holds `pgAdmin 4.app`, org.pgadmin.pgadmin4,
+            // with a CFBundleShortVersionString that is exactly what the index
+            // publishes, so no scheme mismatch — Team TCHGL2R7C5 (David Page),
+            // notarized Developer ID, spctl accepted (checked 2026-08-16; History
+            // has the version and size). (`CFBundleVersion` is an unrelated
+            // number, e.g. `4280.88`; the recipe compares marketing, which is the
+            // field that agrees.) arm64-only artifact, like the other arm64-pinned
+            // recipes here — Apple silicon is every host DuoUpdater runs on
+            // (`App/project.yml`, `ARCHS: arm64`).
             install: VendorInstallSpec(
                 urlSource: .versionTemplate(
                     "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/"

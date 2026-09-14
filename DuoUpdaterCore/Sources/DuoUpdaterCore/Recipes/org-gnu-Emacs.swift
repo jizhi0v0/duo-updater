@@ -4,6 +4,7 @@ enum org_gnu_Emacs {
     static let set = AppRecipeSet(
         family: "org-gnu-Emacs",
         probes: [
+        // History: docs/app-audits/org-gnu-Emacs.md#历史与实测
         // Emacs for Mac OS X — the maintainer's own Atom feed, newest entry first.
         // `<title>Emacs Version 30.2-2</title>`.
         //
@@ -17,9 +18,9 @@ enum org_gnu_Emacs {
         // duplicate plain-text title inside `<content>`) and captures only the two
         // numeric segments, dropping any `-N` tail.
         //
-        // One-click verified 2026-08-16 by mounting the 30.2-2 dmg: Emacs.app is
-        // org.gnu.Emacs, CFBundleShortVersionString 30.2, Team 5BRAQAFB8B
-        // (Galvanix), notarized Developer ID. The install pattern reuses the same
+        // One-click: the dmg's Emacs.app is org.gnu.Emacs, Team 5BRAQAFB8B
+        // (Galvanix), notarized Developer ID (checked 2026-08-16 on a mounted dmg;
+        // History has the version). The install pattern reuses the same
         // `<title>`-scoped entry's `<link type="binary/octet-stream">` href, so it
         // always fetches the dmg for the version just matched (suffix included,
         // since that's the real filename) rather than a template that would guess

@@ -118,3 +118,29 @@ VLC 没有这条——nightly 的 arm64/x86_64 dmg 是分开发布的两个文�
    `downloadURL` 指到 nightly 目录页而不是 dmg（对照
    `PageURLTests.detectionOnlyRecipesCarryAPage` 的约束）。
 2. 不必现在做——这不是本 issue 的范围，本 issue 只是把"一键必拒"这条写下来存档。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-videolan-vlc.swift — ChangelogRecipe（两段式）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "(currently /vlc/releases/3.0.23.html)" 改成示例 "(e.g. …)"，原句没写日期，引入它的提交是 `2af36691`（2026-06-02）；其余原样。
+
+VLC — two-stage. `source` is the newest-first releases index; the
+`indexLinkPattern` follows its first per-version link (currently
+/vlc/releases/3.0.23.html) to the detail page, which avoids version-pinning
+*and* the merge trap: VLC folds 3.0.19/3.0.20 — and 3.0.22/3.0.23 — onto a
+single page, so the page is not always named after the latest version;
+following the real href is correct where templating a version would 404.
+(The companion NEWS file at code.videolan.org is behind an Anubis
+proof-of-work wall, so it can't be fetched — hence the marketing page.)
+The detail page is mostly marketing, but the "X Fixes" section carries the
+real changelog. Its heading reads "3.0.22/3.0.23 Fixes" (the slash form
+lists the superseded build), so `(?:[\d.]+/)*` skips the leading versions
+and captures the final one. The Fixes block shares a single <section> with
+the "3.0 Highlights" / "3.0 Features" marketing lists, so the body lookahead
+must stop at the next <h1> — bounding to </section> would swallow those
+feature bullets. No per-entry date is printed.
+
+复测 2026-09-14（13:59 UTC，只读 GET `www.videolan.org/vlc/releases/`）：第一个 per-version 链接仍是 `/vlc/releases/3.0.23.html`，其后是 `3.0.21.html`、`3.0.20.html`。

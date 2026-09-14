@@ -94,8 +94,8 @@ private let betterDisplayOlderReleasesFixture = #"""
     /// link `changelog.html?tag=pre`, a rolling release whose body is boilerplate
     /// (see `BetterDisplayChannel`). It is registered explicitly against the
     /// pre-release feed BECAUSE the lookup's last resort is the `.stable` recipe:
-    /// without this registration someone on an internal 5.x build would be shown
-    /// the 4.x stable notes.
+    /// without this registration someone on an internal build would be shown the
+    /// `.stable` rail, which mixes 4.x and 5.x releases (History has the check).
     @Test func theInternalTrackReadsPreReleasesNotStable() throws {
         #expect(try recipe(.unstable).channel == .unstable)
         #expect(try recipe(.stable).channel == .stable)

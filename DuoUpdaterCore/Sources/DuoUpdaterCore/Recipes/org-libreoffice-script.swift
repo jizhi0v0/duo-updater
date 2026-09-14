@@ -4,6 +4,7 @@ enum org_libreoffice_script {
     static let set = AppRecipeSet(
         family: "org-libreoffice-script",
         probes: [
+        // History: docs/app-audits/org-libreoffice-script.md#历史与实测
         // Shared rationale for 2026-08-16 group D (directory indexes): Recipes/com-operasoftware-Opera.swift.
 
         // LibreOffice — `download.documentfoundation.org/libreoffice/stable/` is a
@@ -12,28 +13,27 @@ enum org_libreoffice_script {
         //
         // ONE-CLICK, via `.versionTemplate`. The mac artifact sits two levels below
         // the index, at a path that is fully determined by the version:
-        // `<ver>/mac/aarch64/LibreOffice_<ver>_MacOS_aarch64.dmg` (HEAD 2026-08-16:
-        // 302 to a MirrorBrain mirror, e.g. `mirror.usi.edu` / `mirror.fcix.net` —
-        // the mirror changes per request, which is why the URL is built from the
-        // canonical host and never cached). An earlier note here called the deeper
-        // path a blocker; it isn't — what would have been a blocker is
-        // `.bodyTemplate`, whose regexes take the FIRST match while this index is
-        // sorted alphabetically and `selectHighest` deliberately picks a different
-        // entry, so the URL could name an older release than the one reported.
-        // `.versionTemplate` fills the resolved version instead, which is exactly
-        // the string that was compared.
+        // `<ver>/mac/aarch64/LibreOffice_<ver>_MacOS_aarch64.dmg`. That URL answers
+        // with a 302 to a MirrorBrain mirror (e.g. `mirror.usi.edu` /
+        // `mirror.fcix.net`; checked by HEAD 2026-08-16 and 2026-09-14) — the
+        // mirror changes per request, which is why the URL is built from the
+        // canonical host and never cached. The deeper path is not a blocker;
+        // `.bodyTemplate` would be, because its regexes take the FIRST match while
+        // this index is sorted alphabetically and `selectHighest` deliberately
+        // picks a different entry, so the URL could name an older release than the
+        // one reported. `.versionTemplate` fills the resolved version instead,
+        // which is exactly the string that was compared.
         //
         // aarch64 only, like the other arm64-pinned recipes here (GIMP, pgAdmin,
-        // Meld). On an Intel Mac the download is refused by the runnable-arch gate
-        // rather than installed — the fail-safe direction; LibreOffice does publish
-        // an x86-64 dmg, and picking between them needs arch-aware plumbing the
-        // vendor path doesn't have yet (only the GitHub rules do).
+        // Meld): Apple silicon is every host DuoUpdater runs on (`App/project.yml`,
+        // `ARCHS: arm64`), so the x86-64 dmg LibreOffice also publishes is never
+        // the one wanted.
         //
-        // VERSION SCHEME TRAP (the one flagged in the brief): the index publishes
-        // 3-segment versions (`26.2.5`) but the installed bundle reports 4
-        // (`CFBundleShortVersionString` AND `CFBundleVersion` both `26.2.5.2`,
-        // verified 2026-08-16 by mounting the aarch64 dmg — notarized Developer ID,
-        // Team 7P5S3ZLCN7, "The Document Foundation", spctl accepted). Comparing a
+        // VERSION SCHEME TRAP: the index publishes 3-segment versions (e.g.
+        // `26.2.5`) but the installed bundle reports 4, in both
+        // `CFBundleShortVersionString` and `CFBundleVersion` (e.g. `26.2.5.2`). The
+        // aarch64 dmg is notarized Developer ID, Team 7P5S3ZLCN7, "The Document
+        // Foundation", spctl accepted (checked 2026-08-16 by mounting it). Comparing a
         // bare `26.2.5` against `26.2.5.2` is safe either way `VersionComparator`
         // treats missing trailing components as `0`: it reads the installed copy as
         // (at worst) equal, never triggers a phantom update. The only blind spot is

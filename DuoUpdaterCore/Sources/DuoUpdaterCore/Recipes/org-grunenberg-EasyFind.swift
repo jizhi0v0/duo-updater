@@ -4,6 +4,7 @@ enum org_grunenberg_EasyFind {
     static let set = AppRecipeSet(
         family: "org-grunenberg-EasyFind",
         probes: [
+        // History: docs/app-audits/org-grunenberg-EasyFind.md#历史与实测
         // EasyFind (DEVONtechnologies) — no Sparkle at all: the app carries
         // neither `Sparkle.framework` nor an `SUFeedURL` (verified 2026-08-16 by
         // unpacking the shipped zip), so a copy installed from the vendor's site
@@ -12,16 +13,17 @@ enum org_grunenberg_EasyFind {
         // direct-download ones.
         //
         // The source is the shared freeware page, which lists several unrelated
-        // apps with their own version numbers (1.9.11, 6.0.1, 4.5.3 …). The
+        // apps with their own version numbers (e.g. 1.9.11, 6.0.1, 4.5.3 …). The
         // pattern is anchored to EasyFind's own download PATH rather than to any
         // "Version X" text, so it cannot drift onto a neighbour's number:
         //   …/download/freeware/easyfind/5.0.2/EasyFind.app.zip
         // The install URL is the same link, read from the same page — no
         // templating, so a vendor rename of the artifact can't silently 404.
         //
-        // One-click verified 2026-08-16 against that zip: `EasyFind.app`,
-        // org.grunenberg.EasyFind, 5.0.2, Team 679S2QUWR8 (DEVONtechnologies,
-        // LLC), notarized Developer ID, spctl accepted.
+        // One-click: that zip holds `EasyFind.app`, org.grunenberg.EasyFind, at the
+        // same version as the download path, Team 679S2QUWR8 (DEVONtechnologies,
+        // LLC), notarized Developer ID, spctl accepted (checked 2026-08-16; History
+        // has the version).
         VendorProbeRecipe(
             bundleID: "org.grunenberg.EasyFind",
             url: URL(string: "https://www.devontechnologies.com/apps/freeware")!,

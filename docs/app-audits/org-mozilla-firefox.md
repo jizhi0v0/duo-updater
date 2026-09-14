@@ -224,3 +224,112 @@ swift run --package-path application-test channel-verify /tmp/ff-dev.dmg    --ex
 ```
 duo verify --only mozilla          # 9 条 vendor probe + 3 条 changelog
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-mozilla-firefox.swift — Release / ESR VendorProbe（开头的说明）
+
+转引自 recipe 注释，未复测。整段原文；代码里两处带值的核对改成只留日期的 "(checked on real Beta and ESR bundles 2026-06-04; History has the versions)" 与 "(checked for all five product codes 2026-06-17; History has the versions)"，核对到的版本号搬到这里；其余原样。
+
+Firefox — `product-details` carries Release and ESR. Beta, Developer
+Edition and Nightly are NOT readable there and go to Mozilla's own
+update service instead; see the block above those three recipes.
+Release, Beta and ESR all ship as
+`org.mozilla.firefox`; the channel is told apart by `application.ini`
+RemotingName (`firefox`/`firefox-beta`/`firefox-esr` — see
+`ReleaseChannel`), NOT the version suffix, because the installed
+`CFBundleShortVersionString` DROPS the `b`/`esr` (verified on real
+bundles 2026-06-04: Beta reports `152.0`, ESR `140.11.0`). So three
+recipes share that bundle id and are picked by the install's detected
+channel. Developer Edition (`org.mozilla.firefoxdeveloperedition`,
+RemotingName `firefox-dev`) and Nightly (`org.mozilla.nightly`) have
+their own ids. Where `product-details` IS the source (Release, ESR) the
+captured version keeps the feed's `esr` form: it sorts as a pre-release
+(never phantoms against the suffix-less install) while a real bump still
+compares newer. One-click: identical mechanism to
+Thunderbird — `download.mozilla.org/?product=…-latest&os=osx` 302→ the
+per-channel `.dmg` (verified 2026-06-17: firefox-latest 152.0,
+-beta-latest 152.0b10, -esr-latest 140.12.0esr, -devedition-latest
+152.0b10, -nightly-latest 154.0a1). All Mozilla-signed (Team `43AQ936H96`),
+so VendorInstaller's same-Team gate is satisfied / fails closed. Note Dev
+Edition's product code is `firefox-devedition-latest` (its dmg lives under
+/pub/devedition/, not /pub/firefox/).
+
+### Recipes/org-mozilla-firefox.swift — 预发布渠道（为什么读不了 `product-details`）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "produced exactly zero update notices" 改成现在时 "gives"，句末括号改成 "(checked 2026-08-30 against real bundles; History has how both halves went unnoticed before that)"；beta 那半边 2026-06-04 被记成可接受限制、nightly 那半边一直没人注意到的经过搬到这里。
+
+Beta, Developer Edition and Nightly cannot be tracked from
+`product-details` at all, and the reason is on the DISK side, not the
+feed's. An installed Firefox beta reports `CFBundleShortVersionString`
+= "155.0" for the whole cycle — the `b5` is stripped — so a feed that
+says "155.0b5" is measured against "155.0" and the tokenizer ranks the
+pre-release BELOW the release: `isNewer` is false for every build of
+the cycle. Nightly is worse: Mozilla ships one EVERY DAY and they are
+all called `157.0a1`, so a ~4-week cycle produced exactly zero update
+notices. (Measured 2026-08-30 against real bundles; the beta half was
+recorded as an accepted limitation on 2026-06-04, the nightly half was
+never noticed because "remote == installed" had been written down as a
+*good* sign — no phantom updates — without taking the next step.)
+
+### Recipes/org-mozilla-firefox.swift — 预发布渠道（`BuildID` 两边逐字节一致的核对）
+
+转引自 recipe 注释，未复测。整段原文；连同它后面缩进的摘录（五个 channel 的 build id）。代码里留下的是结论（AUS 回的 `BuildID` 与包里的逐字节相同），核对的日期与做法挂在句末，build id 表搬到这里。
+
+The bundle does carry a per-build number — `CFBundleVersion` is
+`<major><yy>.<month>.<day>`, `15526.8.26` for 155.0b5 — but no Mozilla
+endpoint publishes it, so it cannot be the comparison key. What both
+sides DO share is `application.ini`'s `BuildID`: the app's own updater
+asks `aus5.mozilla.org` (the URL is in `application.ini` itself, under
+`[AppUpdate]`) and that service answers with the same `BuildID`, byte
+for byte. Verified 2026-08-30 on all five channels by unpacking the
+official dmg and diffing against the live response:
+
+```
+    FF beta        20260826090609    FF dev  20260826090609
+    FF nightly     20260829211045    TB beta 20260826184332
+    TB daily       20260829100815
+```
+
+### Recipes/org-mozilla-firefox.swift — 预发布渠道（锚点写死，以及锚点的实测约束）
+
+转引自 recipe 注释，未复测。整段原文；连同它后面缩进的三条约束。代码里把 "Measured constraints on the anchor (2026-08-30):" 改成 "The anchor has to meet these constraints (measured 2026-08-30; History has the requests and answers):"，三条约束只留条件：watershed 的具体请求与应答（`ver=124.0` → 125.0 Beta 9、`125.0` 起给当前 build、nightly 的 `90.0a1`）、build id 下限的具体日期、`Darwin 20`…`27` 与「10 次相同请求、10 个相同应答」搬到这里；下限改写成「当时落在这个锚点的 2025-01-01 之下很远」。本审计「锚点是写死的」一节有同一组约束的中文表。
+
+**The URL is a fixed anchor, and that is deliberate.** AUS is a
+*conditional* endpoint: it answers "what is newer than the version and
+build you name", so passing this machine's own build would make an empty
+`<updates></updates>` mean "you are current" — and the same empty
+response in a sweep, which has no installed app, would mean "broken".
+One response shape, two meanings, is how a check goes quietly dead.
+With a frozen anchor every user and the nightly sweep send the SAME
+request, an answer is always expected, and empty is unambiguously a
+failure. Measured constraints on the anchor (2026-08-30):
+
+```
+  • The version must be at or above Mozilla's newest *watershed*.
+    `ver=124.0` is answered with the 125.0 Beta 9 watershed build;
+    `125.0` and everything above gets the current one. Nightly has no
+    watershed (`90.0a1` still gets today's build).
+  • The build id must be newer than roughly 2023-01-15 — below that AUS
+    answers nothing, on every channel, regardless of version.
+  • The OS version does not affect the answer (`Darwin 20`…`27` all
+    agree), and there is no throttling: 10 identical requests, 10
+    identical answers.
+```
+
+### Recipes/org-mozilla-firefox.swift — 预发布渠道（锚点不能是问题的复印件）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "rather than the current 157.0a1" 改成 "rather than the current nightly version"（原句没写日期，引入它的提交是 `9e6bf386`，2026-08-30），括号里 "90.0a1 still gets today's build" 这条实测改成不带值的说法。
+
+The five recipes' anchors are set so the answer can never be a copy of the
+question: `RecipeSanity` warns when an extracted version appears
+verbatim in the request URL, which is exactly the shape a pattern
+matching the URL instead of the body would take. Nightly is anchored at
+120.0a1 rather than the current 157.0a1 for that reason (nightly has no
+watershed at all — 90.0a1 still gets today's build).
+Thunderbird's `application.ini` names `aus.thunderbird.net`, which 302s
+to the same path on `aus5.mozilla.org`. We follow Thunderbird's own host
+rather than short-cutting to the redirect target: if the two ever
+diverge, the app's URL is the one that stays right.

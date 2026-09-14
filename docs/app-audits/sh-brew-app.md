@@ -85,3 +85,22 @@ v0.1.2 起全部是正式版（2026-09-13 实测）；cask 只有一个 token。
 
 ## 建议下一步
 - 无。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/sh-brew-app.swift — ChangelogRecipe（tag、cask 与 bundle 是同一个号）
+
+转引自 recipe 注释，未复测。整段原文；代码里把末尾 "`v0.4.0` ↔ cask `0.4.0` ↔ … `0.4.0` (2026-09-13)" 改成不带值的 "the bundle's `CFBundleShortVersionString` is that number too (checked 2026-09-13; History has the versions)"；其余原样。
+
+BrewUI (Homebrew's official GUI, cask `homebrew-app`) — the version comes
+from `HomebrewCaskSource`, which carries no notes at all: its only link
+is the cask's `formulae.brew.sh` listing. The notes are the project's
+GitHub releases, which are also where the cask downloads from
+(`…/BrewUI/releases/download/v#{version}/Homebrew-#{version}.zip`), so
+tag and cask version are the same number by construction: `v0.4.0`
+↔ cask `0.4.0` ↔ the bundle's `CFBundleShortVersionString` `0.4.0`
+(2026-09-13).
+
+复测 2026-09-14（13:57 UTC，`gh api 'repos/Homebrew/BrewUI/releases?per_page=100'`）：10 个 release，最新的是 `v0.4.1`，只有 `v0.1.0` 与 `v0.1.1` 标了 prerelease。cask 版本与 bundle 没有复测。

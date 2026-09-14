@@ -4,14 +4,15 @@ enum pro_betterdisplay_BetterDisplay {
     static let set = AppRecipeSet(
         family: "pro-betterdisplay-BetterDisplay",
         changelogs: [
+        // History: docs/app-audits/pro-betterdisplay-BetterDisplay.md#历史与实测
         // BetterDisplay — the same GitHub release bodies the vendor's own page was
         // already showing, rendered natively instead of in a web view.
         //
         // The appcast carries no `<description>`; every item points
         // `<sparkle:releaseNotesLink>` at
         // `waydabber.github.io/BetterDisplay/changelog.html?tag=<tag>`. That page is
-        // an EMPTY shell — fetched 2026-08-27, 1149 bytes, no body content at all.
-        // Its inline script reads `?tag`, GETs
+        // an EMPTY shell with no body content at all (checked 2026-08-27 and
+        // 2026-09-14; History has the size). Its inline script reads `?tag`, GETs
         // `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` (the old
         // repo name, still redirecting) and renders `response.body` with marked.js.
         // So the web view was rendering GitHub markdown the whole time, minus our
@@ -24,7 +25,9 @@ enum pro_betterdisplay_BetterDisplay {
         // split on GitHub's `prerelease` flag, and BetterDisplay resolves its
         // channel from two Settings toggles rather than from the bundle id (see
         // `BetterDisplayChannel`):
-        //   * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
+        //   * `.stable`   → prerelease: false — e.g. v4.3.6, v4.3.5; since v5.0.5
+        //                 that includes 5.x releases as well as 4.x ones (checked
+        //                 2026-09-14; History has the tags).
         //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
         //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
         //                 (v5.0.0/v5.0.1), which are excluded from what we OFFER
@@ -38,22 +41,22 @@ enum pro_betterdisplay_BetterDisplay {
         //                 pre track is where those builds come from and the closest
         //                 true history for them; without this third registration the
         //                 channel-aware lookup would fall back to `.stable` and show
-        //                 an internal 5.x user the 4.x notes.
+        //                 an internal-track user the stable releases' notes instead.
         //
         // That rolling `pre` release cannot leak into either rail as an entry titled
         // "pre": GitHub orders this endpoint by `created_at`, and `pre` was created
-        // 2022-04-06 while the 40th-newest release is 2025-01-03 (both read
-        // 2026-08-27). It is far outside a `per_page=40` window and sinks further
-        // with every release the vendor cuts.
+        // 2022-04-06, years before the 40th-newest release when checked (2026-08-27
+        // and 2026-09-14; History has that release's date). It is far outside a
+        // `per_page=40` window and sinks further with every release the vendor cuts.
         //
-        // `skipSections` drops the contributor roster. It is not a changelog: 18 of
-        // the newest 40 releases carry it, and between them they use only TWO
-        // distinct texts — the same paragraph repeated down a 15-row rail. The
-        // vendor gives no marker for it (no HTML comment, no `<details>` anywhere in
-        // those 40 bodies), so the heading IS the marker, and they have spelled it
-        // two ways. Both are listed. `### Localization Improvements` (v3.3.4) is
-        // deliberately NOT listed — that one holds real changes, which is why the
-        // match is whole-heading rather than a substring.
+        // `skipSections` drops the contributor roster. It is not a changelog: about
+        // half of the newest 40 releases carried it when checked (2026-08-27 and
+        // 2026-09-14; History has the counts), the roster repeated down a 15-row
+        // rail. The vendor gives no marker for it (no HTML comment, no `<details>`
+        // in the 40 bodies checked), so the heading IS the marker, and they have
+        // spelled it two ways. Both are listed. `### Localization Improvements`
+        // (v3.3.4) is deliberately NOT listed — that one holds real changes, which
+        // is why the match is whole-heading rather than a substring.
         ChangelogRecipe(
             bundleID: BetterDisplayChannel.bundleID,
             source: URL(

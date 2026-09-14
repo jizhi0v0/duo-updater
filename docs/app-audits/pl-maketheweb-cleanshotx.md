@@ -74,3 +74,20 @@ CleanShot 不是真正的多 channel 应用——"channel"是订阅授权校验�
 ```
 swift run --package-path application-test channel-verify --scan pl.maketheweb.cleanshotx --expect stable
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/pl-maketheweb-cleanshotx.swift — ChangelogRecipe（号码到列表之间的间隙为什么要回火）
+
+转引自 recipe 注释，未复测。整段原文；代码里 "All 102 blocks on today's page carry a `ul.changes`" 改成 "Every block on the page carried a `ul.changes` when checked (2026-09-01 and 2026-09-14; …)"（原句没写日期，引入它的提交是 `4a6c8d2d`，2026-09-01 16:40 UTC，同一注释开头写着 "Re-derived 2026-09-01"），"Costs 0.6 ms over the whole 183 KB page" 改成不带值的说法；其余原样，重新折行。本审计「2026-09-01：5.0 发布」一节也记着 102 这个数。
+
+That gap is tempered rather than a plain `.*?` so it cannot leave the
+block it started in. All 102 blocks on today's page carry a
+`ul.changes`, so a lazy `.*?` finds the right one — but the day one of
+them doesn't, a lazy gap silently pairs that version with the *next*
+one's notes, which is the failure that reads as correct. Costs 0.6 ms
+over the whole 183 KB page.
+
+复测 2026-09-14（13:59 UTC，只读 GET `cleanshot.com/changelog`，Safari UA，解压后 183,359 B）：`<div class="version"` 共 102 个，102 个都带 `ul.changes`；recipe 的 entryPattern 解析出 102 条，第一条 `5.0`。耗时没有复测。

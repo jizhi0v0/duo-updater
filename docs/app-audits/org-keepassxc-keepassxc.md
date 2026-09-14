@@ -101,3 +101,36 @@ issue 提的疑点——"`@snapshot` cask 这条 URL 是 x86_64，但**另有路
    `channel: .preview`（或对应枚举）的 GitHubReleaseRule 或 VendorProbeRecipe，
    **省略 `installAssetPattern`/`install:`**。
 2. 不必现在做——这不是本 issue 的范围，本 issue 只是把"一键必拒"这条写下来存档。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/org-keepassxc-keepassxc.swift — GitHubReleaseRule（重打包资产怎么选）
+
+转引自 recipe 注释，未复测。整段原文。这段描述的选择机制迁移时已不成立：`installableAsset` 不再按 GitHub 列出的顺序取第一个，`-2` 的 known issue 也早已去掉。代码里整段改写了，见下面的更正；「资产列表按文件名不区分大小写排序」的观测与日期不再支撑任何结论，只留在这里。
+
+Caveat, stated plainly because the tests cannot close it: a respun release
+keeps BOTH files (tag 2.7.11 ships `-2.7.11-1-arm64.dmg` AND
+`-2.7.11-arm64.dmg`), so the pattern matches more than one asset and
+`installableAsset` — first arch-native match wins — is settled by whatever
+order GitHub happens to return. That order is undocumented (the Releases
+API states no sort for assets); what this repo's listings actually show,
+observed 2026-08-16, is case-insensitive by filename — `keepassxc-2.7.12-
+src.tar.xz` comes back ahead of `KeePassXC-2.7.12-Win64…`, which plain
+byte order could never produce. Under both that order and byte order the
+digit sorts ahead of a letter, so `-1-` comes before the plain name and the
+respin is what installs — which is what we want, but by observation, not by
+contract. The same ordering means a SECOND respin would LOSE: `-1-` also
+sorts before `-2-`, so `-2` would be passed over.
+`keepassxcRespinIsTheAssetSelected` pins the selection semantics on the
+real 2.7.11 asset list and records the `-2` case as a known issue, so the
+gap stays visible instead of looking closed. The blast radius is small and
+bounded: every candidate is the same version, same Team G2S7P7J672 and
+notarized, so the worst case is a superseded packaging of the version the
+user was going to get anyway — never a cross-train swap.
+One-click: org.keepassxc.keepassxc, Team G2S7P7J672, notarized.
+
+更正 2026-09-14：提交 `f710b243`（2026-08-27，"fix(github): pick a respun asset by version, not by list position"）之后，`GitHubReleaseRule.installableAsset`（`Sources/GitHubReleasesSource.swift:281-316`）在同一架构层级里经 `newest(among:)`（`:318` 起的文档注释，`:346`）按 `VersionComparator` 比较整个文件名、取最高的那个，列出顺序不再起作用；`GitHubReleaseRuleTests.keepassxcRespinIsTheAssetSelected`（`Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift:648`）断言真实 2.7.11 列表选 `-1`、`-2` 在两种顺序下都胜出、`-10` 胜过 `-9`，没有 `withKnownIssue`——测试这一半是紧随其后的提交 `5cdd94a8`（2026-08-27，"test: pin the four fixes, registry-derived where the registry decides"）做的，它的提交说明写着 #80 那条 `withKnownIssue`（"a -2 respin loses to -1"）改成直接断言。代码里改成描述现在的选择规则和这条用例实际钉住的东西。
+
+复测 2026-09-14（13:57 UTC，`gh api repos/keepassxreboot/keepassxc/releases/tags/2.7.12` 与 `…/tags/2.7.11`）：两份资产列表仍按文件名不区分大小写排序——2.7.12 里 `keepassxc-2.7.12-src.tar.xz` 排在 `KeePassXC-2.7.12-Win64-LegacyWindows.msi` 之前；2.7.11 里 `KeePassXC-2.7.11-1-arm64.dmg` 排第一，`KeePassXC-2.7.11-arm64.dmg` 排在所有 `-1-` 资产之后。

@@ -77,3 +77,43 @@
 
 ## 建议下一步
 - changelog：找 Microsoft 官方的 M365 Copilot app release notes 页并接上。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-microsoft-m365copilot.swift — stable VendorProbe（fwlink → pkg，`versionIsBuild`）
+
+转引自 recipe 注释，未复测。
+
+Same
+shape as the Office family: the cask is `auto_updates`, and the
+vendor's "latest" fwlink 302s to a versioned pkg on the Office CDN
+(`Microsoft_365_Copilot_universal_1.2608.0301_Installer.pkg`,
+observed 2026-08-30).
+
+One-click `kind: .pkg` is mandatory: the pkg installs the app PLUS
+`Microsoft AutoUpdate` (Office16_all_autoupdate) as a sibling —
+verified by expanding the real pkg 2026-08-30 (payload contains
+com.microsoft.autoupdate2).
+
+复测 2026-09-14（03:16 UTC，HEAD 不跟随重定向）：`go.microsoft.com/fwlink/?linkid=2325438` 302 到 `aka.ms/M365CopilotForMac`，后者 301 到 `res.cdn.office.net/…/Microsoft_365_Copilot_universal_1.2608.0301_Installer.pkg`。
+
+### Recipes/com-microsoft-m365copilot.swift — 不接 ChangelogRecipe 的理由
+
+转引自 recipe 注释，未复测。
+
+Deliberately NOT covered by a ChangelogRecipe, checked 2026-09-03 against the real
+bytes rather than assumed:
+
+```
+`learn.microsoft.com/en-us/microsoft-365-copilot/release-notes` is
+    organised by DATE and then by PRODUCT (Excel, Word, Outlook,
+    PowerPoint, OneNote, Viva Insights, …) for the whole Microsoft 365
+    Copilot service. The string `1.2608` — the build our probe reads
+    out of the pkg filename — appears ZERO times on the page, so no
+    version-keyed recipe can bind, and a date-keyed one would show
+    Excel and Outlook features under the Copilot app's row.
+```
+
+复测 2026-09-14（03:16 UTC，只读 GET，跟随重定向）：该地址现在 301 到 `learn.microsoft.com/en-us/microsoft-365/copilot/release-notes`；页面按日期 `<h2>`（如 "August 25, 2026"）再按产品 `<h3>`（"Microsoft 365 Copilot Chat"、"PowerPoint"、"Outlook" 等）组织，`1.2608` 出现 0 次，也没有任何 `1.26xx` 形状的串。

@@ -85,3 +85,50 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 1. 监控 stable manifest 的 `version`、`published_at`、`assets[].url` 字段形状。
 2. 若 VendorInstallSpec 将来支持按 host architecture 选 URL，再补 Intel 一键安装。
 
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-longbridge-app-desktop.swift — preview VendorProbe（`com.longbridge.app.desktop.preview`）
+
+转引自 recipe 注释，未复测。前两段原句没写日期；日期取自引入这些句子的提交：`55721c0e`（2026-08-26）。
+
+The channel has been DE-LISTED from the vendor's site but not retired:
+`/desktop/release-notes/preview/` still returns 200 while rendering an
+EMPTY version list (stable's index server-renders 48 links), and
+`/desktop/preview/` is 404 — there is no download landing page. The
+per-version notes pages, this manifest, and the artifacts are all still
+published, so a user who already runs Preview can be updated in place;
+they just cannot discover a new one through the website. That is why
+`changelogURL` points at the (currently empty) preview index rather than
+a version-specific page: it is the right place conceptually and will
+repopulate on its own if the vendor restores the listing.
+
+Two structural differences from the stable manifest, both deliberate
+here: the version carries a `-preview.N` suffix (so the pattern requires
+it — the stable pattern's trailing quote cannot match this shape, and
+this one cannot match stable's, verified both directions against the
+live bodies), and preview assets ship WITHOUT the `sha256` field stable
+includes. No checksum is asserted either way (`checksumPattern` wants a
+base64 SHA-512), so this costs nothing today, but it is a sign the
+preview manifest is maintained at a lower standard than stable's.
+
+Verified 2026-08-26 against the downloaded 0.19.0-preview.1 artifact
+(75,399,519 B): com.longbridge.app.desktop.preview, arm64,
+Team 45NG8MW7WK — the SAME team as stable, which is what
+`VendorInstaller`'s signature gate requires — spctl accepted as
+Notarized Developer ID.
+
+复测 2026-09-14（03:15 UTC，只读 GET）：`/desktop/release-notes/preview/` 回 200，列出 2 个版本（`./v1.0.0-preview.0`、`./v1.0.0-preview.1`），不再是空列表；stable 索引列出 49 个版本；`/desktop/preview/` 仍是 404；preview `latest.json` 是 `1.0.0-preview.1`（`published_at` 2026-09-08），它的资产**带** `sha256`（与 stable 的 `latest.json` 一样，各 6 处）。代码里 "DE-LISTED / currently empty" 与 "ship WITHOUT the `sha256`" 两处已按这次复测改写。
+
+### Recipes/com-longbridge-app-desktop.swift — preview ChangelogRecipe
+
+转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`55721c0e`（2026-08-26）。
+
+`source` is the preview index. The vendor currently renders it EMPTY
+(see the VendorProbeRecipe comment), which makes it a correct no-version
+fallback for the same reason stable's index is: it yields nothing and
+the UI embeds the page instead of inventing an entry.
+
+复测 2026-09-14：preview 与 stable 两个索引页里 `Release Date` 都出现 0 次。

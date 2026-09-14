@@ -4,6 +4,7 @@ enum com_microsoft_Outlook {
     static let set = AppRecipeSet(
         family: "com-microsoft-Outlook",
         probes: [
+        // History: docs/app-audits/com-microsoft-Outlook.md#历史与实测
         // Microsoft Outlook — Office suite, unified version. Uses the Office
         // AutoUpdate XML manifest (same CDN product tree as the fwlinks), an
         // ARRAY of update dicts. MAU-managed.
@@ -12,19 +13,13 @@ enum com_microsoft_Outlook {
         // newest release comes first, which is why every first-match pattern here
         // reads out of the same (first) dict.
         //
-        // One-click repaired 2026-08-09. The old install spec read
-        // `<key>Update Version Location</key>`, a key Microsoft has since removed
-        // — the version still resolved, so the row quietly degraded to
-        // detection-only with no error anywhere. Today's payload keys, and what
-        // each actually points at (verified against the live manifest):
+        // The manifest's payload keys, and what each points at:
         //
         //   Location / Payload      → `Outlook_<baseline>_to_<new>_Delta.pkg` on
-        //                             the 24 delta entries — a PARTIAL payload
-        //                             (504MB, 185 bundles, installKBytes 1117435)
-        //   BinaryUpdaterLocation   → `…_BinaryDelta.pkg`, a 18–216MB binary patch
+        //                             the delta entries — a PARTIAL payload
+        //   BinaryUpdaterLocation   → `…_BinaryDelta.pkg`, a binary patch
         //   FullUpdaterLocation     → `Microsoft_Outlook_<build>_Updater.pkg`, the
-        //                             full standalone package (1.29GB, 210 bundles,
-        //                             installKBytes 2664652, choice customLocation
+        //                             full standalone package (choice customLocation
         //                             /Applications)
         //
         // Only the full updater is installable. Neither delta carries a baseline
@@ -48,12 +43,12 @@ enum com_microsoft_Outlook {
         // filename guard is what makes a delta unmatchable no matter how the
         // manifest is reordered.
         //
-        // Version scheme: `Update Version` is the BUILD (16.109.26053122), not the
-        // marketing string — the pkg's own Distribution declares
-        // CFBundleShortVersionString 16.109.3 / CFBundleVersion 16.109.26053122 —
+        // Version scheme: `Update Version` is the BUILD (e.g. 16.109.26053122), not the
+        // marketing string — the pkg's own Distribution declares both (e.g.
+        // CFBundleShortVersionString 16.109.3 / CFBundleVersion 16.109.26053122) —
         // hence `versionIsBuild`. Signed `Developer ID Installer: Microsoft
         // Corporation (UBF8T346G9)`, the same Team as the installed app (read from
-        // the pkg's xar signature 2026-08-09, no full download needed).
+        // the pkg's xar signature).
         VendorProbeRecipe(
             bundleID: "com.microsoft.Outlook",
             url: URL(string: "https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409OPIM2019.xml")!,

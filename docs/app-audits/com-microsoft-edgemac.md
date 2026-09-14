@@ -84,3 +84,29 @@ swift run --package-path application-test channel-verify "…/Microsoft Edge.app
 swift run --package-path application-test channel-verify "…/Microsoft Edge Beta.app" --expect beta
 swift run --package-path application-test channel-verify "…/Microsoft Edge Dev.app"  --expect dev
 ```
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-microsoft-edgemac.swift — Dev VendorProbe（为什么没有 `changelogURL`）
+
+转引自 recipe 注释，未复测。
+
+`learn.microsoft.com/en-us/deployedge/toc.json`
+(2026-08-28) carries eight `relnote*` paths — Beta, Stable, Mobile Beta,
+Mobile Stable, three `-archive-` companions, and the security page — and
+not one of them is Dev. Four plausible Dev spellings all 404
+(`…relnote-dev-channel`, `…relnotes-dev-channel`, `…relnote-dev`,
+`…relnote-archive-dev-channel`), and Learn's own search API returns Beta,
+Security and the release schedule for "Edge Dev channel release notes".
+
+### Recipes/com-microsoft-edgemac.swift — Beta VendorProbe（`trackClosedPattern`）
+
+转引自 recipe 注释，未复测。
+
+Measured 2026-09-10 on the live body, both directions: with Beta's
+MacOS list empty this matches and Dev/Stable do not; two hours later,
+with 154.0.4258.9 back under Beta, it stops matching.
+
+复测 2026-09-14（03:15 UTC，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`）：product 顺序仍是 Dev、Beta、Stable、EdgeUpdate、Policy；三个频道都有 MacOS release（Dev 155.0.4268.0、Beta 154.0.4258.12、Stable 153.0.4234.32），列表里没有 Canary。没有复跑 `trackClosedPattern` 本身。

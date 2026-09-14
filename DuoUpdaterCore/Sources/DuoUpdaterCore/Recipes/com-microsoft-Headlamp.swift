@@ -4,11 +4,12 @@ enum com_microsoft_Headlamp {
     static let set = AppRecipeSet(
         family: "com-microsoft-Headlamp",
         changelogs: [
+        // History: docs/app-audits/com-microsoft-Headlamp.md#历史与实测
         // Headlamp — its GitHub releases, read with regexes rather than through
         // `structuredFormat: .gitHubReleases`, because that decoder deliberately
         // refuses this body: `GitHubMarkdownParser` bails on a Markdown TABLE, and
-        // Headlamp writes its whole changelog as tables (142 table rows in v0.45.0
-        // — its own doc comment names this app as the reason the guard exists). So
+        // Headlamp writes its whole changelog as tables (its own doc comment names
+        // this app as the reason the guard exists). So
         // the pane had nothing structured to show and fell back to embedding the
         // releases page.
         //
@@ -20,16 +21,15 @@ enum com_microsoft_Headlamp {
         // is attribution, not a change.
         //
         // The bullet pattern behind it is not redundancy for its own sake: the
-        // table layout starts at 0.44.0, and the older releases still on the page
-        // (0.30.0 … 0.43.0) are plain bullet lists. First-pattern-wins picks per
+        // table layout starts at 0.44.0, and the older releases on the page are
+        // plain bullet lists. First-pattern-wins picks per
         // entry, so both eras render.
         //
-        // That bullet is `[-*]`, both markers, because this vendor changed marker
-        // mid-history: 0.36.0 and newer write `- `, 0.38.0 and 0.30.0 … 0.35.0
-        // write `* `. A `-`-only pattern does not fail on those — it yields an
-        // entry with no items, which `ChangelogExtractor` drops, so 8 of the 18
-        // releases simply vanished from the rail while the recipe still reported
-        // success. Measured against the live endpoint, not inferred.
+        // That bullet is `[-*]`, both markers, because this vendor has used both
+        // (History has which releases use which). A `-`-only pattern does not fail
+        // on the `* ` ones — it yields an entry with no items, which
+        // `ChangelogExtractor` drops, so those releases vanish from the rail while
+        // the recipe still reports success.
         //
         // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`, because the
         // capture happens BEFORE the JSON unescape: a cell containing `\"` would
@@ -43,15 +43,16 @@ enum com_microsoft_Headlamp {
         // and `headlamp-plugin-*` tags its own `GitHubReleaseRule` already filters.
         // The gaps between fields refuse to cross a `"tag_name":` so a release with
         // a null body cannot pair one release's version with the next one's notes.
-        // 18 entries on the live endpoint (2026-09-03), newest 0.45.0.
         //
         // `\s*` around every colon: this endpoint serves the SAME document compact
-        // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
-        // and which one you get is not the recipe's to choose — it varied by
-        // request on 2026-09-03. A pattern written against either form alone reads
+        // (e.g. `"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
+        // and which one you get is not the recipe's to choose — it has varied by
+        // request. A pattern written against either form alone reads
         // as a clean "the vendor restyled their page" failure against the other.
-        // The registry's other GitHub-API recipes never met this because they go
-        // through `Decodable`, which cannot see whitespace at all.
+        // The GitHub-API recipes that go through `Decodable` never meet this,
+        // because it cannot see whitespace at all; Helium's
+        // (`Recipes/net-imput-helium.swift`) is also a regex and carries the same
+        // `\s*`.
         ChangelogRecipe(
             bundleID: "com.microsoft.Headlamp",
             source: URL(
@@ -82,14 +83,12 @@ enum com_microsoft_Headlamp {
         // a preview build.) One-click: com.microsoft.Headlamp, Team 5N2JF58U87,
         // notarized.
         //
-        // ⚠️ Renamed headlamp-k8s/headlamp
-        // -> kubernetes-sigs/headlamp (measured 2026-08-29). The canonical name
-        // is pinned here on purpose, and it is not cosmetic: GitHub answers the
+        // ⚠️ Renamed headlamp-k8s/headlamp -> kubernetes-sigs/headlamp. The canonical
+        // name is pinned here on purpose, and it is not cosmetic: GitHub answers the
         // old slug with a 301 to `/repositories/<id>/…`, and URLSession drops
         // `Authorization` while following it — the fetch that actually returns
-        // the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
-        // whatever token the user configured. Three rules were quietly doing
-        // that. See #135.
+        // the releases comes back ANONYMOUS, whatever token the user configured.
+        // See #135.
         // listPageSize: measured 2026-09-04 against the newest 100 releases —
         // first-match index 0 (the interleaved `headlamp-helm-`/`headlamp-plugin-`
         // tags this comment warns about don't match `^v…$`), worst run between

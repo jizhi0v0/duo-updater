@@ -6,8 +6,8 @@ enum com_microsoft_Powerpoint {
         probes: [
         // Microsoft PowerPoint — Office suite, unified version. The fwlink 302s to
         // a versioned .pkg on the Office CDN. MAU-managed. The pkg filename carries
-        // the BUILD (`16.109.26053122`, = the app's CFBundleVersion), not the
-        // shorter marketing CFBundleShortVersionString (`16.109.3`), so
+        // the BUILD (e.g. `16.109.26053122`, = the app's CFBundleVersion), not the
+        // shorter marketing CFBundleShortVersionString (e.g. `16.109.3`), so
         // versionIsBuild routes it to the build-vs-build comparison — otherwise the
         // build would read as "newer" than the marketing version forever.
         VendorProbeRecipe(

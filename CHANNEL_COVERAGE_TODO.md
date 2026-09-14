@@ -491,6 +491,9 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   每版说明页、CDN 清单、DMG 直链都还在。另外 preview 的 asset **不带 `sha256`**（stable 带），
   是清单降级维护的信号。若 preview 真的停产，表现会是 `latest.json` 长期不动 —— 由夜间 `duo verify`
   全量扫描的版本停滞告警兜底，不需要提前拆 recipe。
+  **2026-09-14 复测**（只读 GET）：上面两条站点状态都变了——`/desktop/release-notes/preview/` 重新列出
+  `v1.0.0-preview.0`、`v1.0.0-preview.1` 两个版本，preview `latest.json`（`1.0.0-preview.1`，2026-09-08 发布）的
+  asset 现在也带 `sha256`；`/desktop/preview/` 仍是 404。
 
 ### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
 

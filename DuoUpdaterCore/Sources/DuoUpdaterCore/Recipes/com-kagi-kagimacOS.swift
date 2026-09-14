@@ -8,16 +8,17 @@ enum com_kagi_kagimacOS {
         // (`26_0`, the same path the Homebrew cask download uses; the bare
         // /updates/appcast.xml is a STALE stub frozen at 1.0.0 — don't use it). The
         // feed lists releases ASCENDING, so selectHighest (not first match, which is
-        // the oldest 0.99) picks the current build. We extract
+        // the oldest, e.g. 0.99) picks the current build. We extract
         // `sparkle:shortVersionString` (MARKETING version, e.g. 1.0.8) — NOT
-        // `sparkle:version` (the build, e.g. 147/147.1). A vendor probe can only
-        // populate `shortVersion`, so UpdateChecker compares against the installed
-        // CFBundleShortVersionString (1.0.8); feeding the build "147.1" would compare
+        // `sparkle:version` (the build, e.g. 147/147.1). Without `versionIsBuild` a
+        // vendor probe populates only `shortVersion` (`VendorProbeSource`), so
+        // UpdateChecker compares against the installed
+        // CFBundleShortVersionString (e.g. 1.0.8); feeding the build (e.g. "147.1") would compare
         // 147 > 1 and invent a permanent phantom update. Trade-off: blind to a
         // build-only rebuild at an unchanged marketing version — the conservative,
         // never-lie choice. One-click: the feed is ASCENDING, so the install takes
         // the LAST `<enclosure url=…zip>` (newest) — `.bodyPatternLast`, mirroring
-        // `selectHighest` on the version side; first-match would grab the oldest 0.99.
+        // `selectHighest` on the version side; first-match would grab the oldest.
         // (Orion self-updates via Sparkle; fallback behind the same-Team gate.)
         VendorProbeRecipe(
             bundleID: "com.kagi.kagimacOS",

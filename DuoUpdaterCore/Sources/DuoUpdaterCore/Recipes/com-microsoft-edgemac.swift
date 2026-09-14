@@ -4,6 +4,7 @@ enum com_microsoft_edgemac {
     static let set = AppRecipeSet(
         family: "com-microsoft-edgemac",
         probes: [
+        // History: docs/app-audits/com-microsoft-edgemac.md#历史与实测
         // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
         // products; each per-channel pattern scopes to that Product's first
         // (newest) MacOS release. Distinct bundle ids (`…edgemac[.Beta/.Dev]`) so
@@ -30,14 +31,9 @@ enum com_microsoft_edgemac {
         // `microsoft-edge-relnotes-security`, plural.
         //
         // Dev gets NO `changelogURL` at all, and that is the measured answer
-        // rather than a guess. `learn.microsoft.com/en-us/deployedge/toc.json`
-        // (2026-08-28) carries eight `relnote*` paths — Beta, Stable, Mobile Beta,
-        // Mobile Stable, three `-archive-` companions, and the security page — and
-        // not one of them is Dev. Four plausible Dev spellings all 404
-        // (`…relnote-dev-channel`, `…relnotes-dev-channel`, `…relnote-dev`,
-        // `…relnote-archive-dev-channel`), and Learn's own search API returns Beta,
-        // Security and the release schedule for "Edge Dev channel release notes".
-        // Microsoft stopped publishing Dev channel notes; pointing the button at
+        // rather than a guess (History has the measurement: Learn's own table of
+        // contents lists no Dev release-notes page, and the plausible Dev spellings
+        // 404). Microsoft stopped publishing Dev channel notes; pointing the button at
         // Beta's or Stable's page would show a Dev user another train's changes,
         // which is worse than showing none (same call as Thunderbird Daily, `Recipes/org-mozilla-thunderbird.swift`).
         VendorProbeRecipe(
@@ -60,10 +56,6 @@ enum com_microsoft_edgemac {
             // product's block is present and contains no MacOS release at all.
             // Consulted only after the version pattern already missed, so a
             // publishing track can never be talked into looking closed.
-            //
-            // Measured 2026-09-10 on the live body, both directions: with Beta's
-            // MacOS list empty this matches and Dev/Stable do not; two hours later,
-            // with 154.0.4258.9 back under Beta, it stops matching.
             //
             // ⚠️ **Beta only, on purpose.** `VendorInstallTests` builds its dormancy
             // exemption from the *presence* of this declaration, not from whether it

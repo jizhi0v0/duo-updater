@@ -64,7 +64,7 @@ swift run --package-path application-test channel-verify /tmp/WarpDev.dmg     --
 
 ### Recipes/dev-warp-Warp-Stable.swift — Preview / Dev VendorProbe（版本里的构建计数器）
 
-转引自 recipe 注释，未复测。整段原文；末句指向的记录文件迁移时已不在当前树里（`4ff9a902` 起不再跟踪），代码里改写了，见下面的更正。这里还有一处不是机器状态的改写：原文末句里那份记录文件的完整路径换成了「[an untracked local record]」——`scripts/check_app_audits.py` 不允许审计文档里出现指向未跟踪记录目录里某个文件的路径，逐字保留会让检查失败。
+转引自 recipe 注释，未复测。整段原文；末句指向的记录文件迁移时已不在当前树里（`4ff9a902` 起不再跟踪），代码里改写了，见下面的更正。这里还有一处不是机器状态的改写：原文末句里那份记录文件的完整路径换成了「[an untracked local record]」——`scripts/check_app_audits.py` 不允许审计文档里出现指向未跟踪记录目录里某个文件的路径，逐字保留会让检查失败。下面的更正换一种写法点名了同一个文件，因为它配了 `git show 19296da7:` 这个任何人都能复现的读法，不再是只有一个人读得到的路径。
 
 Warp — Preview / Dev. One JSON lists every channel's version, each tagged
 with the channel name in its suffix (`…preview_01`), so a per-channel

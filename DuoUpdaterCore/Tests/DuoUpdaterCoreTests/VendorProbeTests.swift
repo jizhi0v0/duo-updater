@@ -28,8 +28,9 @@ import Foundation
 // blob. As of 2026-07-13 every macOS version field is variable-ized (`mac_version:l`),
 // so the one durable literal is the consumer `macos/ToDesk_<ver>.pkg` filename. The
 // page also carries DaaS (enterprise) pkg links `ToDesk_DaaS_v1.1.0.1.pkg` /
-// `…-v1.1.0.1_392.pkg` that appear FIRST; anchoring on `ToDesk_<digit>` skips them
-// (they read `ToDesk_D…`) and, in this fixture, lands the consumer GA build. On the
+// `…-v1.1.0.1_392.pkg` that appear first in this fixture; anchoring on
+// `ToDesk_<digit>` skips them (they read `ToDesk_D…`) and, in this fixture, lands
+// the consumer GA build. On the
 // live page of 2026-09-14 a consumer GRAY link (`…/macos/ToDesk_5.1.0.0.pkg`, 10% rollout)
 // came first, so first-match read the gray build there — see the recipe comment.
 // Regression guard below: the retired `mac_version:"…"` anchor must no longer match

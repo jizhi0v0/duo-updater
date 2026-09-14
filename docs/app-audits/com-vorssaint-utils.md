@@ -194,7 +194,7 @@ budget. Verified 2026-09-05: `repos/vorssaintapp/vorssaint-utils` answers
 
 ### Recipes/com-vorssaint-utils.swift — beta GitHubReleaseRule（`listPageSize`）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是条件（`-beta.` tag 少且连续，但稳定版会把最新的 beta tag 往后推），「5 keeps margin」这个无时间的余量说法按下面的复测改成了带日期的位置加条件（2026-09-14 在第 3 位：再来一个稳定版仍在 5 条的页里，再来两个就不在），2026-09-04 的计数、位置和页大小搬到这里。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是条件（`-beta.` tag 少且连续，但稳定版会把最新的 beta tag 往后推），「5 keeps margin」这个无时间的余量说法按下面的复测改成了带日期的位置加条件（2026-09-14 在列表下标 3，即从 0 数起的第 3 位：再来一个稳定版仍在 5 条的页里，再来两个就不在），2026-09-04 的计数、位置和页大小搬到这里。
 
 listPageSize: measured 2026-09-04 — only 4 `-beta.` tags exist in the
 repo's whole history (73 releases scanned), all consecutive

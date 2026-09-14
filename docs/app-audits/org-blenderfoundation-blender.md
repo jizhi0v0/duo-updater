@@ -32,7 +32,8 @@
 ## Changelog
 - 来源: `ChangelogRecipe`
 - 跟随 channel: 否
-- Recipe 状态: 已有但 **version-pinned** to `https://developer.blender.org/docs/release_notes/5.1/`
+- Recipe 状态: 已有，`sourceTemplate` 按目标版本的 major.minor 取页：`https://developer.blender.org/docs/release_notes/{majorMinor}/`（有可提供的更新时取它的版本，否则取已装版本）。LTS 页（标题与 "was released on" 句都带 `LTS`、没有 Corrective Releases 小节）同样解析；开发中的 minor（"is currently in Alpha/Beta"）解析为零条，回落到嵌入网页。
+- `duo verify` 的覆盖：模板 recipe 需要一个版本才能取页，Blender 没有 vendor/GitHub 源，所以**没装 Blender 的机器上这条是 `skipped`**，模板页不会被扫到。
 
 ## 一键安装
 - 状态: Homebrew-managed only
@@ -40,11 +41,11 @@
 - 阻塞: direct-install detection not implemented.
 
 ## 已知问题
-- Changelog URL is pinned to a released minor and there is no released-only index. Bumping the pin alone does not work for 5.2 LTS: the entry pattern parses 0 entries on that page (see 历史与实测). Until a fix lands, 5.2 users are shown the 5.1 notes.
+- dev-docs 没有「只列已发布版本」的索引（导航把开发中的 minor 排在最前），所以不走 `indexLinkPattern`，改走按 major.minor 的模板。
+- 模板 recipe 在没装 Blender 的机器上 `duo verify` 为 `skipped`（见上）。
 
 ## 建议下一步
-1. Keep current Homebrew + version-pinned changelog coverage.
-2. Rework the ChangelogRecipe so it follows the current release (the 5.2 page's "LTS" heading and intro and its missing corrective-releases section all break the current pattern), then update the fixture.
+1. Keep current Homebrew + `{majorMinor}`-templated changelog coverage. A new Blender minor needs no recipe edit.
 
 ## 历史与实测
 
@@ -69,3 +70,30 @@ a new Blender ships (same as the old Warp/Ghostty version-pins) — Blender
 exposes no released-only index to follow.
 
 更正 2026-09-14（13:59–14:01 UTC，只读 GET，Safari UA，不跟随重定向）：`developer.blender.org/docs/release_notes/5.2/` 200，`<h1>` 是 "Blender 5.2 LTS Release Notes"，正文 "was released on July 14, 2026"；`/5.3/` 的 `<h1>` 是 "Blender 5.3 Release Notes"，正文 "Blender 5.3 is currently in"；`/docs/release_notes/` 的导航依次列 5.3、5.2 LTS、4.5 LTS、5.1、5.0。recipe 的 `source` 仍是 `/5.1/`（`Recipes/org-blenderfoundation-blender.swift:27`）。只把钉的版本改成 5.2 会得到 0 条，原因有三处，都是在 13:59 UTC 取回的 5.2 页上用本地 Python 按 recipe 的 `entryPattern` 复算的：(1) `<h1>` 是 "Blender 5.2 LTS Release Notes"，而 pattern 要求 `Blender\s+<version>\s+Release Notes`；(2) 引言是 `<p>Blender 5.2 LTS was released on July 14, 2026.`，而 pattern 要求 `Blender\s+[\d.]+\s+was released on`；(3) 页上没有 `id="corrective-releases"` 的 `<h2>`（5.1 那页有 1 个，5.2 那页 0 个；5.2 的 `<h2>` 只有 `compatibility` 与 `bugfixes`），而 body 的 lookahead 要求它。
+
+### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe 从钉 `/5.1/` 改为 `{majorMinor}` 模板
+
+2026-09-14，只读 GET，Safari UA。在上面「更正」之外补两处代码事实：版本窗口（`minimumAppVersion` / `belowAppVersion`）两个都没设，所以 `ChangelogRecipeSelection` 对任何版本都选中这条 recipe，5.2 用户看到 5.1 的说明时没有任何警告；`verify/baseline.json` 记着 `lastGoodVersion` 5.1，而 `Verify.sweepChangelog` 的 lag 检查要一个版本来比，Blender 没有 vendor/GitHub 源，版本只能来自扫描到的 Blender 拷贝，所以只在装了 Blender 的机器上才会触发。
+
+逐页取回的结构（`<h1>` / 发布句 / `<h2 id>`）：
+
+    5.1  "Blender 5.1 Release Notes"      "Blender 5.1 was released on March 17, 2026."       compatibility, bugfixes, corrective-releases
+    5.2  "Blender 5.2 LTS Release Notes"  "Blender 5.2 LTS was released on July 14, 2026."    compatibility, bugfixes
+    5.0  "Blender 5.0 Release Notes"      "Blender 5.0 was released on November 18, 2025."    compatibility, bugfixes, corrective-releases
+    4.5  "Blender 4.5 LTS Release Notes"  "Blender 4.5 LTS was released on July 15, 2025."    compatibility, bugfixes
+    4.2  "Blender 4.2 LTS Release Notes"  "Blender 4.2 LTS was released on July 16, 2024."    compatibility
+    5.3  "Blender 5.3 Release Notes"      "Blender 5.3 is currently in Alpha until September 30, 2026."  compatibility
+
+旧 `entryPattern` 在这些页上用 Python 复算：5.1、5.0 各 1 条，5.2、4.5、4.2、5.3 都是 0 条。上面「更正」列的三处原因缺一个都不行：前两处加上可选的 `LTS` 仍是 0 条，lookahead 再接受 `</article>` 才是 1 条。所以旧注释那句 "has to be bumped by hand" 照做，结果是静默的零条回落。LTS 页的修复列表在单独的 LTS 页上（5.2 页正文指向 `blender.org/download/lts/5-2/`），这就是它没有 Corrective Releases 小节的原因。
+
+新 recipe 走生产路径 `ChangelogService.loadDiagnostic`（15:24 UTC，打真实页面）：
+
+    5.2.1  → /5.2/  1 条  5.2  July 14, 2026      24 项
+    5.1.2  → /5.1/  1 条  5.1  March 17, 2026     24 项
+    5.0.1  → /5.0/  1 条  5.0  November 18, 2025  31 项
+    4.5.3  → /4.5/  1 条  4.5  July 15, 2025      22 项
+    4.2.14 → /4.2/  1 条  4.2  July 16, 2024      15 项
+    5.3.0  → /5.3/  0 条
+    (无版本) → source /5.2/  1 条  5.2
+
+`BlenderChangelogRecipeTests` 的 5.1、5.2、5.3 fixture 是这次取回页面的 `<h1>` … `</article>` 切片。

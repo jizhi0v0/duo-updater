@@ -7,30 +7,33 @@ enum org_blenderfoundation_blender {
         // History: docs/app-audits/org-blenderfoundation-blender.md#历史与实测
         // Blender — developer.blender.org/docs/release_notes/<major.minor>/ is the
         // clean per-version notes page (the blender.org/download marketing pages are
-        // sprawling splash pages with no parseable block). Each page is an <h1>
-        // "Blender 5.1 Release Notes", a <p>"Blender 5.1 was released on DATE."</p>,
-        // then module-section <ul>s and Compatibility/Bugfixes lists up to the
-        // "Corrective Releases" heading. We surface a COARSE summary (changed-module
-        // list + compat/bugfix bullets). Requiring the literal "was released on" is a
-        // GUARD: the dev-docs nav lists in-development versions first, whose intros
-        // read "is currently in Alpha/Beta" and so DON'T match — yielding zero
-        // entries (safe embed fallback) rather than a partial changelog. URL is
-        // version-pinned to a RELEASED minor (same as the old Warp/Ghostty
-        // version-pins) — Blender exposes no released-only index to follow. ⚠️
-        // Bumping the pin alone does not work for 5.2: that page's `<h1>` and intro
-        // say "5.2 LTS" and it has no `corrective-releases` heading, so this
-        // pattern parses 0 entries there and the pane silently falls back to the
-        // embed (checked 2026-09-14; History has the details). Until the recipe is
-        // reworked, a 5.2 user is shown the 5.1 notes.
+        // sprawling splash pages with no parseable block). One page per MINOR, with
+        // its patch releases folded in, so the URL is templated on `{majorMinor}`:
+        // the page always matches the target build, and nothing needs bumping when
+        // Blender ships. `source` is only the fallback for a load with no version.
+        //
+        // Each page is an <h1> "Blender X.Y Release Notes" — "Blender X.Y LTS
+        // Release Notes" on an LTS minor — then a <p>"Blender X.Y [LTS] was released
+        // on DATE."</p>, then module-section <ul>s and Compatibility/Bugfixes lists.
+        // We surface a COARSE summary (changed-module list + compat/bugfix bullets).
+        // The body ends at the "Corrective Releases" <h2> where there is one, else at
+        // </article>: LTS pages have no such heading (their fixes live on a separate
+        // LTS page), and a lookahead that insisted on it matched nothing there.
+        //
+        // Requiring the literal "was released on" is a GUARD: daily/alpha/beta builds
+        // share the bundle id, and an in-development minor's page reads "is currently
+        // in Alpha/Beta" instead, so it yields zero entries (safe embed fallback)
+        // rather than a partial changelog.
         ChangelogRecipe(
             bundleID: "org.blenderfoundation.blender",
-            source: URL(string: "https://developer.blender.org/docs/release_notes/5.1/")!,
+            source: URL(string: "https://developer.blender.org/docs/release_notes/5.2/")!,
             entryPattern:
-                #"<h1[^>]*>Blender\s+(?<version>\d+\.\d+(?:\.\d+)?)\s+Release Notes.*?</h1>\s*"#
-                + #"<p>Blender\s+[\d.]+\s+was released on\s+(?<date>[^.<]+)\.</p>"#
+                #"<h1[^>]*>Blender\s+(?<version>\d+\.\d+(?:\.\d+)?)(?:\s+LTS)?\s+Release Notes.*?</h1>\s*"#
+                + #"<p>Blender\s+[\d.]+(?:\s+LTS)?\s+was released on\s+(?<date>[^.<]+)\.</p>"#
                 + #"(?<body>.*?)"#
-                + #"(?=<h2[^>]*id="corrective-releases")"#,
+                + #"(?=<h2[^>]*id="corrective-releases"|</article>)"#,
             itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#],
-            maxEntries: 1),
+            maxEntries: 1,
+            sourceTemplate: "https://developer.blender.org/docs/release_notes/{majorMinor}/"),
         ])
 }

@@ -49,9 +49,14 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// there would silently stop covering the installed build at the next major,
     /// and majors ship every few weeks.
     ///
-    /// `{appleDocVersion}` is the third, for `developer.apple.com` release notes,
+    /// `{majorMinor}` is the version's first two components (`5.2.1` → `5.2`), for
+    /// vendors who publish one page per MINOR release and fold its patch releases
+    /// into it (Blender's `release_notes/5.2/`). `{major}` would pick one page for
+    /// a whole major line, and `{version}` would 404 on every patch release.
+    ///
+    /// `{appleDocVersion}` is the fourth, for `developer.apple.com` release notes,
     /// whose path spells the version its own way (`26.6` → `26_6`, `27.0` → `27`).
-    /// See `appleDocVersionToken(for:)` for why neither of the other two can stand
+    /// See `appleDocVersionToken(for:)` for why none of the other three can stand
     /// in for it.
     public let sourceTemplate: String?
 
@@ -646,6 +651,14 @@ public struct ChangelogRecipe: Codable, Sendable {
             let major = token.split(separator: ".").first.map(String.init) ?? token
             urlString = urlString.replacingOccurrences(of: "{major}", with: major)
         }
+        if urlString.contains("{majorMinor}") {
+            // Leading numeric run only, like `appleDocVersionToken`: a display
+            // version can carry a suffix after its numbers.
+            let majorMinor = token.prefix { $0.isNumber || $0 == "." }
+                .split(separator: ".").prefix(2).joined(separator: ".")
+            urlString = urlString.replacingOccurrences(
+                of: "{majorMinor}", with: majorMinor.isEmpty ? token : majorMinor)
+        }
         if urlString.contains("{appleDocVersion}") {
             urlString = urlString.replacingOccurrences(
                 of: "{appleDocVersion}", with: Self.appleDocVersionToken(for: token))
@@ -669,6 +682,9 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// Apple's page, which is what every Xcode row did before this recipe existed.
     /// Pinned in `XcodeReleaseNotesChangelogTests` so the gap is a recorded
     /// measurement rather than something the next reader has to rediscover.
+    ///
+    /// `{majorMinor}` can't express this either: it spells `26.0.1` as `26.0`,
+    /// not `26_0_1`.
     ///
     /// Neither `{version}` nor `{major}` can express this, and both get it wrong
     /// in a way that shows the user another release's notes rather than failing:

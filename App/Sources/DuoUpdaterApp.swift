@@ -17,7 +17,7 @@ struct DuoUpdaterApp: App {
         // First-run onboarding: grant the permissions Duo Updater needs up front
         // instead of discovering them mid-update. Auto-opened once by `MenuBarLabel`;
         // re-openable from Settings → Permissions → "Run Setup Again…".
-        Window("Welcome to Duo Updater", id: WelcomeView.windowID) {
+        Window("Welcome to DuoUpdater", id: WelcomeView.windowID) {
             WelcomeView(model: model)
         }
         .defaultSize(width: 560, height: 700)
@@ -27,7 +27,7 @@ struct DuoUpdaterApp: App {
         // The unified workbench — opened from the popover, lives on its own so it
         // survives the popover dismissing. Holds release notes and Settings (via a
         // toolbar gear); download traffic moved to its own window. Shares the model.
-        Window("Duo Updater", id: WorkbenchWindowView.windowID) {
+        Window("DuoUpdater", id: WorkbenchWindowView.windowID) {
             WorkbenchWindowView(model: model)
         }
         .defaultSize(width: 900, height: 600)

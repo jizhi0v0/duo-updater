@@ -182,7 +182,7 @@ import DuoUpdaterCore
         let (_, t) = run([], gap: gap)
         #expect(t.out == ["Everything is up to date."])
         #expect(t.err == [
-            "duo: TestFlight betas were not checked — detection is off (Duo Updater ▸ Settings ▸ General)."
+            "duo: TestFlight betas were not checked — detection is off (DuoUpdater ▸ Settings ▸ General)."
         ])
     }
 

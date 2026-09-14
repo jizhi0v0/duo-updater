@@ -4059,43 +4059,43 @@
         }
       }
     },
-    "A few quick steps let Duo Updater keep your apps updated without interrupting you. You set these once — they persist across launches.": {
+    "A few quick steps let DuoUpdater keep your apps updated without interrupting you. You set these once — they persist across launches.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein paar kurze Schritte, damit Duo Updater deine Apps aktuell hält, ohne dich zu stören. Einmal eingerichtet, bleibt es über Neustarts hinweg erhalten."
+            "value": "Ein paar kurze Schritte, damit DuoUpdater deine Apps aktuell hält, ohne dich zu stören. Einmal eingerichtet, bleibt es über Neustarts hinweg erhalten."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Unos pocos pasos rápidos permiten que Duo Updater mantenga tus apps actualizadas sin molestarte. Se configuran una vez y se mantienen entre aperturas."
+            "value": "Unos pocos pasos rápidos permiten que DuoUpdater mantenga tus apps actualizadas sin molestarte. Se configuran una vez y se mantienen entre aperturas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quelques étapes rapides permettent à Duo Updater de maintenir vos applications à jour sans vous déranger. Réglez-les une fois — elles persistent d'un lancement à l'autre."
+            "value": "Quelques étapes rapides permettent à DuoUpdater de maintenir vos applications à jour sans vous déranger. Réglez-les une fois — elles persistent d'un lancement à l'autre."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "いくつかの簡単な手順で、Duo Updaterが邪魔をせずにアプリを最新の状態に保てるようになります。一度設定すれば、以降の起動でも保持されます。"
+            "value": "いくつかの簡単な手順で、DuoUpdaterが邪魔をせずにアプリを最新の状態に保てるようになります。一度設定すれば、以降の起動でも保持されます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Несколько быстрых шагов позволят Duo Updater обновлять ваши приложения, не отвлекая вас. Настройте один раз — параметры сохранятся между запусками."
+            "value": "Несколько быстрых шагов позволят DuoUpdater обновлять ваши приложения, не отвлекая вас. Настройте один раз — параметры сохранятся между запусками."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只需几个简单步骤，就能让 Duo Updater 在不打扰你的情况下保持应用更新。设置一次即可，之后每次启动都会保留。"
+            "value": "只需几个简单步骤，就能让 DuoUpdater 在不打扰你的情况下保持应用更新。设置一次即可，之后每次启动都会保留。"
           }
         }
       }
@@ -4182,43 +4182,43 @@
         }
       }
     },
-    "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not Duo Updater's to record, so this is not a log of everything your Mac sends.": {
+    "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not DuoUpdater's to record, so this is not a log of everything your Mac sends.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine Seite mit Versionshinweisen wird in einer Webansicht geladen, die ihre eigenen Bilder und Schriften abruft, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt. Diese Anfragen kann Duo Updater nicht erfassen — dies ist also kein Protokoll von allem, was Ihr Mac sendet."
+            "value": "Eine Seite mit Versionshinweisen wird in einer Webansicht geladen, die ihre eigenen Bilder und Schriften abruft, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt. Diese Anfragen kann DuoUpdater nicht erfassen — dies ist also kein Protokoll von allem, was Ihr Mac sendet."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una página de notas de versión se carga en una vista web que descarga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte. Esas peticiones no son de Duo Updater, así que este no es un registro de todo lo que envía tu Mac."
+            "value": "Una página de notas de versión se carga en una vista web que descarga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte. Esas peticiones no son de DuoUpdater, así que este no es un registro de todo lo que envía tu Mac."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une page de notes de version s’ouvre dans une vue web qui récupère ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts. Ces requêtes ne sont pas celles de Duo Updater : ceci n’est donc pas un journal de tout ce que votre Mac envoie."
+            "value": "Une page de notes de version s’ouvre dans une vue web qui récupère ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts. Ces requêtes ne sont pas celles de DuoUpdater : ceci n’est donc pas un journal de tout ce que votre Mac envoie."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リリースノートのページは Web ビューで開かれ、画像やフォントを自分で取得します。App Store と Homebrew の更新は別のツールが行います。それらは Duo Updater の記録できる範囲ではないため、これは Mac が送信するすべての記録ではありません。"
+            "value": "リリースノートのページは Web ビューで開かれ、画像やフォントを自分で取得します。App Store と Homebrew の更新は別のツールが行います。それらは DuoUpdater の記録できる範囲ではないため、これは Mac が送信するすべての記録ではありません。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Страница с заметками о выпуске открывается в веб-представлении, которое само загружает изображения и шрифты, а обновления из App Store и Homebrew выполняют отдельные инструменты. Эти запросы Duo Updater не записывает, поэтому это не журнал всего, что отправляет ваш Mac."
+            "value": "Страница с заметками о выпуске открывается в веб-представлении, которое само загружает изображения и шрифты, а обновления из App Store и Homebrew выполняют отдельные инструменты. Эти запросы DuoUpdater не записывает, поэтому это не журнал всего, что отправляет ваш Mac."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "发布说明是在一个 Web 视图里打开的，图片和字体由它自己去取；App Store 和 Homebrew 的更新则由各自的工具完成。这些请求不归 Duo Updater 记录，所以这里不是你这台 Mac 发出的全部流量。"
+            "value": "发布说明是在一个 Web 视图里打开的，图片和字体由它自己去取；App Store 和 Homebrew 的更新则由各自的工具完成。这些请求不归 DuoUpdater 记录，所以这里不是你这台 Mac 发出的全部流量。"
           }
         }
       }
@@ -5428,43 +5428,43 @@
         }
       }
     },
-    "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.": {
+    "Another update is being installed right now — by DuoUpdater or by `duo` in a terminal. Try again once it finishes.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gerade wird bereits ein Update installiert – von Duo Updater oder von `duo` im Terminal. Versuche es erneut, sobald es fertig ist."
+            "value": "Gerade wird bereits ein Update installiert – von DuoUpdater oder von `duo` im Terminal. Versuche es erneut, sobald es fertig ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ya se está instalando otra actualización, desde Duo Updater o desde `duo` en el terminal. Inténtalo de nuevo cuando termine."
+            "value": "Ya se está instalando otra actualización, desde DuoUpdater o desde `duo` en el terminal. Inténtalo de nuevo cuando termine."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une autre mise à jour est en cours d’installation — par Duo Updater ou par `duo` dans un terminal. Réessaie une fois qu’elle est terminée."
+            "value": "Une autre mise à jour est en cours d’installation — par DuoUpdater ou par `duo` dans un terminal. Réessaie une fois qu’elle est terminée."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "現在、別のアップデートをインストール中です（Duo Updater か、ターミナルの `duo`）。完了してからもう一度お試しください。"
+            "value": "現在、別のアップデートをインストール中です（DuoUpdater か、ターミナルの `duo`）。完了してからもう一度お試しください。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сейчас уже устанавливается другое обновление — через Duo Updater или через `duo` в терминале. Повторите, когда оно завершится."
+            "value": "Сейчас уже устанавливается другое обновление — через DuoUpdater или через `duo` в терминале. Повторите, когда оно завершится."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前已有一个更新正在安装 —— 来自 Duo Updater 或终端里的 `duo`。等它完成后再试一次。"
+            "value": "当前已有一个更新正在安装 —— 来自 DuoUpdater 或终端里的 `duo`。等它完成后再试一次。"
           }
         }
       }
@@ -5592,43 +5592,43 @@
         }
       }
     },
-    "App Management lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting.": {
+    "App Management lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "„App-Verwaltung“ erlaubt es Duo Updater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads). macOS kann dies nicht automatisch gewähren – die Schaltfläche öffnet die Systemeinstellungen mit einem Bereich, in den du DuoUpdater ziehst.\n\nDas Erteilen über diesen Bereich löst nicht das übliche „Beenden & erneut öffnen“ des Systems aus, daher wirkt eine neue Berechtigung möglicherweise erst nach einem Neustart von DuoUpdater. Nutze danach unten „Neu starten“."
+            "value": "„App-Verwaltung“ erlaubt es DuoUpdater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads). macOS kann dies nicht automatisch gewähren – die Schaltfläche öffnet die Systemeinstellungen mit einem Bereich, in den du DuoUpdater ziehst.\n\nDas Erteilen über diesen Bereich löst nicht das übliche „Beenden & erneut öffnen“ des Systems aus, daher wirkt eine neue Berechtigung möglicherweise erst nach einem Neustart von DuoUpdater. Nutze danach unten „Neu starten“."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "«Gestión de apps» permite que Duo Updater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas). macOS no puede concederlo mediante programación; el botón abre Ajustes del Sistema con un panel al que debes arrastrar DuoUpdater.\n\nConceder el permiso desde ese panel no activa el habitual «Salir y volver a abrir» del sistema, así que un permiso nuevo puede no surtir efecto hasta que reinicies DuoUpdater. Usa «Reabrir» abajo después de concederlo."
+            "value": "«Gestión de apps» permite que DuoUpdater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas). macOS no puede concederlo mediante programación; el botón abre Ajustes del Sistema con un panel al que debes arrastrar DuoUpdater.\n\nConceder el permiso desde ese panel no activa el habitual «Salir y volver a abrir» del sistema, así que un permiso nuevo puede no surtir efecto hasta que reinicies DuoUpdater. Usa «Reabrir» abajo después de concederlo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "« Gestion des applications » permet à Duo Updater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs). macOS ne peut pas l'accorder par programmation — le bouton ouvre les Réglages Système avec un panneau où glisser DuoUpdater.\n\nAccorder via ce panneau ne déclenche pas le « Quitter et rouvrir » habituel du système, donc une nouvelle autorisation peut ne prendre effet qu'au redémarrage de DuoUpdater. Utilisez « Relancer » ci-dessous après l'avoir accordée."
+            "value": "« Gestion des applications » permet à DuoUpdater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs). macOS ne peut pas l'accorder par programmation — le bouton ouvre les Réglages Système avec un panneau où glisser DuoUpdater.\n\nAccorder via ce panneau ne déclenche pas le « Quitter et rouvrir » habituel du système, donc une nouvelle autorisation peut ne prendre effet qu'au redémarrage de DuoUpdater. Utilisez « Relancer » ci-dessous après l'avoir accordée."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「Appの管理」により、Duo UpdaterはApp Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）を置き換えられるようになります。macOSはこれをプログラムで許可することができません — このボタンをクリックすると、DuoUpdaterをドラッグするパネルとともにシステム設定が開きます。\n\nそのパネルから許可しても、システム通常の「終了して再度開く」はトリガーされないため、新しい許可はDuoUpdaterを再起動するまで反映されない場合があります。許可後は下の「再起動」を使用してください。"
+            "value": "「Appの管理」により、DuoUpdaterはApp Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）を置き換えられるようになります。macOSはこれをプログラムで許可することができません — このボタンをクリックすると、DuoUpdaterをドラッグするパネルとともにシステム設定が開きます。\n\nそのパネルから許可しても、システム通常の「終了して再度開く」はトリガーされないため、新しい許可はDuoUpdaterを再起動するまで反映されない場合があります。許可後は下の「再起動」を使用してください。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Управление приложениями позволяет Duo Updater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки). macOS не может выдать это разрешение программно — кнопка открывает Системные настройки с панелью, куда нужно перетащить DuoUpdater.\n\nПредоставление через эту панель не вызывает обычное системное «Закрыть и открыть заново», поэтому новое разрешение может не вступить в силу до перезапуска DuoUpdater. Используйте «Перезапустить» ниже после предоставления доступа."
+            "value": "Управление приложениями позволяет DuoUpdater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки). macOS не может выдать это разрешение программно — кнопка открывает Системные настройки с панелью, куда нужно перетащить DuoUpdater.\n\nПредоставление через эту панель не вызывает обычное системное «Закрыть и открыть заново», поэтому новое разрешение может не вступить в силу до перезапуска DuoUpdater. Используйте «Перезапустить» ниже после предоставления доступа."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "“应用管理”权限允许 Duo Updater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 无法以编程方式授予该权限 — 此按钮会打开系统设置，其中有一个面板，你需要把 DuoUpdater 拖进去。\n\n通过该面板授权不会触发系统通常的“退出并重新打开”，因此新授权可能要等 DuoUpdater 重启后才会生效。授权后请使用下方的“重新启动”。"
+            "value": "“应用管理”权限允许 DuoUpdater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 无法以编程方式授予该权限 — 此按钮会打开系统设置，其中有一个面板，你需要把 DuoUpdater 拖进去。\n\n通过该面板授权不会触发系统通常的“退出并重新打开”，因此新授权可能要等 DuoUpdater 重启后才会生效。授权后请使用下方的“重新启动”。"
           }
         }
       }
@@ -5961,43 +5961,43 @@
         }
       }
     },
-    "Apps and versions you've told Duo Updater to leave alone.": {
+    "Apps and versions you've told DuoUpdater to leave alone.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apps und Versionen, die du Duo Updater in Ruhe zu lassen gebeten hast."
+            "value": "Apps und Versionen, die du DuoUpdater in Ruhe zu lassen gebeten hast."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apps y versiones que le has pedido a Duo Updater que no toque."
+            "value": "Apps y versiones que le has pedido a DuoUpdater que no toque."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Applications et versions que vous avez demandé à Duo Updater de laisser tranquilles."
+            "value": "Applications et versions que vous avez demandé à DuoUpdater de laisser tranquilles."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterに手を付けないよう指示したアプリとバージョン。"
+            "value": "DuoUpdaterに手を付けないよう指示したアプリとバージョン。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложения и версии, которые вы попросили Duo Updater не трогать."
+            "value": "Приложения и версии, которые вы попросили DuoUpdater не трогать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你已告知 Duo Updater 不做处理的应用和版本。"
+            "value": "你已告知 DuoUpdater 不做处理的应用和版本。"
           }
         }
       }
@@ -7787,25 +7787,25 @@
         }
       }
     },
-    "CotEditor: Duo Updater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.": {
+    "CotEditor: DuoUpdater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "CotEditor: Duo Updater liest den Update-Kanal. Ohne den Zugriff wird CotEditor mit seinen stabilen Versionen verglichen, auch wenn du Vorabversionen gewählt hast."
+            "value": "CotEditor: DuoUpdater liest den Update-Kanal. Ohne den Zugriff wird CotEditor mit seinen stabilen Versionen verglichen, auch wenn du Vorabversionen gewählt hast."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "CotEditor: Duo Updater lee su canal de actualización. Sin él, CotEditor se compara con sus versiones estables aunque hayas elegido versiones preliminares."
+            "value": "CotEditor: DuoUpdater lee su canal de actualización. Sin él, CotEditor se compara con sus versiones estables aunque hayas elegido versiones preliminares."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "CotEditor : Duo Updater lit son canal de mise à jour. Sans cet accès, CotEditor est comparé à ses versions stables même si vous avez choisi les préversions."
+            "value": "CotEditor : DuoUpdater lit son canal de mise à jour. Sans cet accès, CotEditor est comparé à ses versions stables même si vous avez choisi les préversions."
           }
         },
         "ja": {
@@ -7817,13 +7817,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "CotEditor: Duo Updater читает его канал обновлений. Без доступа CotEditor сравнивается со стабильными версиями, даже если вы выбрали предварительные."
+            "value": "CotEditor: DuoUpdater читает его канал обновлений. Без доступа CotEditor сравнивается со стабильными версиями, даже если вы выбрали предварительные."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "CotEditor：Duo Updater 会读取它的更新渠道。不授权时，即使你选择了预发布版本，CotEditor 也会按正式版检查。"
+            "value": "CotEditor：DuoUpdater 会读取它的更新渠道。不授权时，即使你选择了预发布版本，CotEditor 也会按正式版检查。"
           }
         }
       }
@@ -8033,49 +8033,49 @@
         }
       }
     },
-    "Counts only what Duo Updater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound.": {
+    "Counts only what DuoUpdater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Counts only what Duo Updater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound."
+            "value": "Counts only what DuoUpdater downloaded itself. Homebrew, the App Store, and apps with their own built-in updater fetch their own bytes, so this total is a lower bound."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zählt nur, was Duo Updater selbst heruntergeladen hat. Homebrew, der App Store und Apps mit eigenem Updater laden ihre Bytes selbst — dieser Gesamtwert ist daher eine Untergrenze."
+            "value": "Zählt nur, was DuoUpdater selbst heruntergeladen hat. Homebrew, der App Store und Apps mit eigenem Updater laden ihre Bytes selbst — dieser Gesamtwert ist daher eine Untergrenze."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo cuenta lo que Duo Updater descargó por su cuenta. Homebrew, la App Store y las apps con su propio actualizador descargan sus bytes aparte, así que este total es un mínimo."
+            "value": "Solo cuenta lo que DuoUpdater descargó por su cuenta. Homebrew, la App Store y las apps con su propio actualizador descargan sus bytes aparte, así que este total es un mínimo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ne compte que ce que Duo Updater a téléchargé lui-même. Homebrew, l’App Store et les apps dotées de leur propre outil de mise à jour téléchargent leurs octets de leur côté : ce total est donc un minimum."
+            "value": "Ne compte que ce que DuoUpdater a téléchargé lui-même. Homebrew, l’App Store et les apps dotées de leur propre outil de mise à jour téléchargent leurs octets de leur côté : ce total est donc un minimum."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自身がダウンロードしたぶんのみを集計します。Homebrew、App Store、独自のアップデータを持つ App は自前でダウンロードするため、この合計は下限値です。"
+            "value": "DuoUpdater 自身がダウンロードしたぶんのみを集計します。Homebrew、App Store、独自のアップデータを持つ App は自前でダウンロードするため、この合計は下限値です。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Учитывается только то, что Duo Updater скачал сам. Homebrew, App Store и приложения с собственным механизмом обновления загружают свои байты отдельно, поэтому этот итог — нижняя граница."
+            "value": "Учитывается только то, что DuoUpdater скачал сам. Homebrew, App Store и приложения с собственным механизмом обновления загружают свои байты отдельно, поэтому этот итог — нижняя граница."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只统计 Duo Updater 自己下载的字节。Homebrew、App Store，以及自带更新器的 app 由它们自行下载，因此这个总数是下界。"
+            "value": "只统计 DuoUpdater 自己下载的字节。Homebrew、App Store，以及自带更新器的 app 由它们自行下载，因此这个总数是下界。"
           }
         }
       }
@@ -8912,371 +8912,371 @@
         }
       }
     },
-    "Duo Updater": {
+    "DuoUpdater": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater"
+            "value": "DuoUpdater"
           }
         }
       }
     },
-    "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.": {
+    "DuoUpdater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of DuoUpdater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit DuoUpdater anyway.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater prüft eigenständig stündlich auf eigene Updates. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich.\n\nEingeschaltet wird sie heruntergeladen und dann in einem ruhigen Moment angewendet – ohne Aufforderung, ohne Klicken. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von Duo Updater ist geöffnet, und du arbeitest in einer anderen App; dort startet es sich selbst neu. Bis ein solcher Moment kommt, wartet es einfach und installiert ohnehin, wenn du Duo Updater beendest."
+            "value": "DuoUpdater prüft eigenständig stündlich auf eigene Updates. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich.\n\nEingeschaltet wird sie heruntergeladen und dann in einem ruhigen Moment angewendet – ohne Aufforderung, ohne Klicken. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von DuoUpdater ist geöffnet, und du arbeitest in einer anderen App; dort startet es sich selbst neu. Bis ein solcher Moment kommt, wartet es einfach und installiert ohnehin, wenn du DuoUpdater beendest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de Duo Updater abierta y que estás trabajando en otra app; entonces se reabre por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras Duo Updater."
+            "value": "DuoUpdater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de DuoUpdater abierta y que estás trabajando en otra app; entonces se reabre por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras DuoUpdater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de Duo Updater n'est ouverte, et que vous travaillez dans une autre application ; il se relance alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez Duo Updater."
+            "value": "DuoUpdater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de DuoUpdater n'est ouverte, et que vous travaillez dans une autre application ; il se relance alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez DuoUpdater."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterは1時間ごとに自身の更新を自動的に確認します。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。\n\nオンの場合、静かなタイミングでダウンロードされ適用されます — プロンプトもクリックも不要です。静かなタイミングとは、何も確認やインストールが行われておらず、Duo Updaterのウインドウが開かれておらず、あなたが他のアプリで作業していることを意味し、その際に自身を再起動します。そのタイミングが来るまでは単に待機し、いずれにせよDuo Updaterを終了したときにインストールされます。"
+            "value": "DuoUpdaterは1時間ごとに自身の更新を自動的に確認します。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。\n\nオンの場合、静かなタイミングでダウンロードされ適用されます — プロンプトもクリックも不要です。静かなタイミングとは、何も確認やインストールが行われておらず、DuoUpdaterのウインドウが開かれておらず、あなたが他のアプリで作業していることを意味し、その際に自身を再起動します。そのタイミングが来るまでは単に待機し、いずれにせよDuoUpdaterを終了したときにインストールされます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater самостоятельно проверяет собственные обновления каждый час. Если выключено, новая версия показывает подсказку и ждёт вас.\n\nЕсли включено, обновление загружается и применяется в тихий момент — без подсказок и кликов. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно Duo Updater не открыто, а вы работаете в другом приложении; он перезапускается сам. Пока такой момент не наступит, он просто ждёт и устанавливает обновление, когда вы всё равно закрываете Duo Updater."
+            "value": "DuoUpdater самостоятельно проверяет собственные обновления каждый час. Если выключено, новая версия показывает подсказку и ждёт вас.\n\nЕсли включено, обновление загружается и применяется в тихий момент — без подсказок и кликов. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно DuoUpdater не открыто, а вы работаете в другом приложении; он перезапускается сам. Пока такой момент не наступит, он просто ждёт и устанавливает обновление, когда вы всё равно закрываете DuoUpdater."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 Duo Updater 窗口，并且你正在其他应用中工作；届时它会自行重新启动。在这样的时刻到来之前它只会等待，并在你退出 Duo Updater 时顺便安装。"
+            "value": "DuoUpdater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 DuoUpdater 窗口，并且你正在其他应用中工作；届时它会自行重新启动。在这样的时刻到来之前它只会等待，并在你退出 DuoUpdater 时顺便安装。"
           }
         }
       }
     },
-    "Duo Updater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current": {
+    "DuoUpdater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater hat keinen Festplattenvollzugriff, um die Builds zu lesen, die TestFlight dir anbietet – daher lässt sich nicht sagen, ob diese Beta aktuell ist"
+            "value": "DuoUpdater hat keinen Festplattenvollzugriff, um die Builds zu lesen, die TestFlight dir anbietet – daher lässt sich nicht sagen, ob diese Beta aktuell ist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater no tiene acceso total al disco para leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día"
+            "value": "DuoUpdater no tiene acceso total al disco para leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater n’a pas l’accès complet au disque pour lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour"
+            "value": "DuoUpdater n’a pas l’accès complet au disque pour lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater に TestFlight から提供されるビルドを読み取るためのフルディスクアクセスがないため、このベータ版が最新かどうか判断できません"
+            "value": "DuoUpdater に TestFlight から提供されるビルドを読み取るためのフルディスクアクセスがないため、このベータ版が最新かどうか判断できません"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "У Duo Updater нет полного доступа к диску, чтобы прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия"
+            "value": "У DuoUpdater нет полного доступа к диску, чтобы прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 没有完全磁盘访问权限，读不到 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新"
+            "value": "DuoUpdater 没有完全磁盘访问权限，读不到 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新"
           }
         }
       }
     },
-    "Duo Updater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.": {
+    "DuoUpdater isn’t checking TestFlight betas. Turn it on in Settings → General to see whether this beta is current.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater prüft TestFlight-Betas nicht. Schalte es unter „Einstellungen“ → „Allgemein“ ein, um zu sehen, ob diese Beta aktuell ist."
+            "value": "DuoUpdater prüft TestFlight-Betas nicht. Schalte es unter „Einstellungen“ → „Allgemein“ ein, um zu sehen, ob diese Beta aktuell ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater no está comprobando las betas de TestFlight. Actívalo en Ajustes → General para ver si esta beta está al día."
+            "value": "DuoUpdater no está comprobando las betas de TestFlight. Actívalo en Ajustes → General para ver si esta beta está al día."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater ne vérifie pas les bêtas TestFlight. Activez-le dans Réglages → Général pour voir si cette bêta est à jour."
+            "value": "DuoUpdater ne vérifie pas les bêtas TestFlight. Activez-le dans Réglages → Général pour voir si cette bêta est à jour."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater は TestFlight のベータ版を確認していません。設定 → 一般 でオンにすると、このベータ版が最新かどうかがわかります。"
+            "value": "DuoUpdater は TestFlight のベータ版を確認していません。設定 → 一般 でオンにすると、このベータ版が最新かどうかがわかります。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater не проверяет бета-версии TestFlight. Включите проверку в «Настройки» → «Основные», чтобы узнать, актуальна ли эта бета-версия."
+            "value": "DuoUpdater не проверяет бета-версии TestFlight. Включите проверку в «Настройки» → «Основные», чтобы узнать, актуальна ли эта бета-версия."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 没有在检测 TestFlight 测试版。在「设置」→「通用」中打开，即可知道此测试版是否已是最新。"
+            "value": "DuoUpdater 没有在检测 TestFlight 测试版。在「设置」→「通用」中打开，即可知道此测试版是否已是最新。"
           }
         }
       }
     },
-    "Duo Updater itself": {
+    "DuoUpdater itself": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater selbst"
+            "value": "DuoUpdater selbst"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El propio Duo Updater"
+            "value": "El propio DuoUpdater"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater lui-même"
+            "value": "DuoUpdater lui-même"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自身"
+            "value": "DuoUpdater 自身"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сам Duo Updater"
+            "value": "Сам DuoUpdater"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自身"
+            "value": "DuoUpdater 自身"
           }
         }
       }
     },
-    "Duo Updater logs the requests it makes on your behalf here — update checks, release notes, and its own downloads.": {
+    "DuoUpdater logs the requests it makes on your behalf here — update checks, release notes, and its own downloads.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater protokolliert hier die Anfragen, die es für Sie stellt: Update-Prüfungen, Versionshinweise und eigene Downloads."
+            "value": "DuoUpdater protokolliert hier die Anfragen, die es für Sie stellt: Update-Prüfungen, Versionshinweise und eigene Downloads."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater registra aquí las solicitudes que hace por ti: comprobaciones de actualizaciones, notas de versión y sus propias descargas."
+            "value": "DuoUpdater registra aquí las solicitudes que hace por ti: comprobaciones de actualizaciones, notas de versión y sus propias descargas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater consigne ici les requêtes qu’il effectue pour vous : vérifications de mises à jour, notes de version et ses propres téléchargements."
+            "value": "DuoUpdater consigne ici les requêtes qu’il effectue pour vous : vérifications de mises à jour, notes de version et ses propres téléchargements."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater があなたの代わりに行うリクエスト（更新チェック、リリースノート、自身のダウンロード）をここに記録します。"
+            "value": "DuoUpdater があなたの代わりに行うリクエスト（更新チェック、リリースノート、自身のダウンロード）をここに記録します。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Здесь Duo Updater записывает запросы, которые делает за вас: проверки обновлений, заметки о выпусках и собственные загрузки."
+            "value": "Здесь DuoUpdater записывает запросы, которые делает за вас: проверки обновлений, заметки о выпусках и собственные загрузки."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 会把它替你发起的请求记在这里——检查更新、获取更新说明，以及它自己的下载。"
+            "value": "DuoUpdater 会把它替你发起的请求记在这里——检查更新、获取更新说明，以及它自己的下载。"
           }
         }
       }
     },
-    "Duo Updater runs from the menu bar only. The pending-update count moves to the menu-bar icon — the Dock badge needs a Dock icon to sit on.": {
+    "DuoUpdater runs from the menu bar only. The pending-update count moves to the menu-bar icon — the Dock badge needs a Dock icon to sit on.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater läuft nur über die Menüleiste. Die Anzahl ausstehender Updates wandert zum Menüleistensymbol – das Dock-Abzeichen braucht ein Dock-Symbol, auf dem es sitzen kann."
+            "value": "DuoUpdater läuft nur über die Menüleiste. Die Anzahl ausstehender Updates wandert zum Menüleistensymbol – das Dock-Abzeichen braucht ein Dock-Symbol, auf dem es sitzen kann."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater solo funciona desde la barra de menús. El contador de actualizaciones pendientes pasa al icono de la barra de menús; la insignia del Dock necesita un icono del Dock donde ubicarse."
+            "value": "DuoUpdater solo funciona desde la barra de menús. El contador de actualizaciones pendientes pasa al icono de la barra de menús; la insignia del Dock necesita un icono del Dock donde ubicarse."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater fonctionne uniquement depuis la barre de menus. Le nombre de mises à jour en attente se déplace vers l'icône de la barre de menus — le badge du Dock a besoin d'une icône de Dock sur laquelle s'afficher."
+            "value": "DuoUpdater fonctionne uniquement depuis la barre de menus. Le nombre de mises à jour en attente se déplace vers l'icône de la barre de menus — le badge du Dock a besoin d'une icône de Dock sur laquelle s'afficher."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterはメニューバーからのみ動作します。保留中の更新件数はメニューバーアイコンに表示されます — Dockバッジを表示するにはDockアイコンが必要です。"
+            "value": "DuoUpdaterはメニューバーからのみ動作します。保留中の更新件数はメニューバーアイコンに表示されます — Dockバッジを表示するにはDockアイコンが必要です。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater работает только из строки меню. Счётчик ожидающих обновлений переходит на значок в строке меню — значку в Dock нужен сам значок Dock, на котором отображаться."
+            "value": "DuoUpdater работает только из строки меню. Счётчик ожидающих обновлений переходит на значок в строке меню — значку в Dock нужен сам значок Dock, на котором отображаться."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 仅在菜单栏中运行。待处理更新数会显示在菜单栏图标上 — Dock 角标需要有 Dock 图标才能显示。"
+            "value": "DuoUpdater 仅在菜单栏中运行。待处理更新数会显示在菜单栏图标上 — Dock 角标需要有 Dock 图标才能显示。"
           }
         }
       }
     },
-    "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on.": {
+    "DuoUpdater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater aktualisiert sich getrennt von der verwalteten App-Liste über von Sparkle signierte Direktdownloads. Die Schaltfläche oben erzwingt sofort eine Prüfung, unabhängig davon, ob automatische Installationen aktiviert sind."
+            "value": "DuoUpdater aktualisiert sich getrennt von der verwalteten App-Liste über von Sparkle signierte Direktdownloads. Die Schaltfläche oben erzwingt sofort eine Prüfung, unabhängig davon, ob automatische Installationen aktiviert sind."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater se actualiza por separado de la lista de apps gestionadas, mediante descargas directas firmadas con Sparkle. El botón de arriba fuerza una comprobación ahora mismo, estén activadas o no las instalaciones automáticas."
+            "value": "DuoUpdater se actualiza por separado de la lista de apps gestionadas, mediante descargas directas firmadas con Sparkle. El botón de arriba fuerza una comprobación ahora mismo, estén activadas o no las instalaciones automáticas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater se met à jour séparément de la liste des applications gérées, via des téléchargements directs signés par Sparkle. Le bouton ci-dessus force une vérification immédiate, que les installations automatiques soient activées ou non."
+            "value": "DuoUpdater se met à jour séparément de la liste des applications gérées, via des téléchargements directs signés par Sparkle. Le bouton ci-dessus force une vérification immédiate, que les installations automatiques soient activées ou non."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterは管理対象アプリの一覧とは別に、Sparkle署名済みの直接ダウンロードによって自身を更新します。 上のボタンは、自動インストールのオン・オフにかかわらず、今すぐ確認を強制します。"
+            "value": "DuoUpdaterは管理対象アプリの一覧とは別に、Sparkle署名済みの直接ダウンロードによって自身を更新します。 上のボタンは、自動インストールのオン・オフにかかわらず、今すぐ確認を強制します。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater обновляет себя отдельно от списка управляемых приложений через прямые загрузки, подписанные Sparkle. Кнопка выше принудительно запускает проверку прямо сейчас, независимо от того, включена ли автоматическая установка."
+            "value": "DuoUpdater обновляет себя отдельно от списка управляемых приложений через прямые загрузки, подписанные Sparkle. Кнопка выше принудительно запускает проверку прямо сейчас, независимо от того, включена ли автоматическая установка."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 通过 Sparkle 签名的直接下载来更新自身，与受管理的应用列表分开处理。 上方的按钮无论自动安装是否开启，都会立即强制检查一次。"
+            "value": "DuoUpdater 通过 Sparkle 签名的直接下载来更新自身，与受管理的应用列表分开处理。 上方的按钮无论自动安装是否开启，都会立即强制检查一次。"
           }
         }
       }
     },
-    "Duo Updater's own version.": {
+    "DuoUpdater's own version.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die eigene Version von Duo Updater."
+            "value": "Die eigene Version von DuoUpdater."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La propia versión de Duo Updater."
+            "value": "La propia versión de DuoUpdater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La version de Duo Updater lui-même."
+            "value": "La version de DuoUpdater lui-même."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater自体のバージョン。"
+            "value": "DuoUpdater自体のバージョン。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Собственная версия Duo Updater."
+            "value": "Собственная версия DuoUpdater."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自身的版本。"
+            "value": "DuoUpdater 自身的版本。"
           }
         }
       }
@@ -9568,43 +9568,43 @@
         }
       }
     },
-    "Every fetch Duo Updater makes itself: update checks, release notes, and the downloads it installs for you.": {
+    "Every fetch DuoUpdater makes itself: update checks, release notes, and the downloads it installs for you.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jeder Abruf, den Duo Updater selbst durchführt: Update-Prüfungen, Versionshinweise und die Downloads, die es für Sie installiert."
+            "value": "Jeder Abruf, den DuoUpdater selbst durchführt: Update-Prüfungen, Versionshinweise und die Downloads, die es für Sie installiert."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cada petición que hace el propio Duo Updater: comprobaciones de actualizaciones, notas de versión y las descargas que instala por ti."
+            "value": "Cada petición que hace el propio DuoUpdater: comprobaciones de actualizaciones, notas de versión y las descargas que instala por ti."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chaque requête que Duo Updater effectue lui-même : vérifications de mises à jour, notes de version et téléchargements qu’il installe pour vous."
+            "value": "Chaque requête que DuoUpdater effectue lui-même : vérifications de mises à jour, notes de version et téléchargements qu’il installe pour vous."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自身が行うすべての取得——アップデートの確認、リリースノート、そしてインストールのためのダウンロード。"
+            "value": "DuoUpdater 自身が行うすべての取得——アップデートの確認、リリースノート、そしてインストールのためのダウンロード。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Каждый запрос, который Duo Updater делает сам: проверки обновлений, заметки о выпуске и загрузки, которые он для вас устанавливает."
+            "value": "Каждый запрос, который DuoUpdater делает сам: проверки обновлений, заметки о выпуске и загрузки, которые он для вас устанавливает."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 自己发出的每一次请求：检查更新、取发布说明，以及替你下载的安装包。"
+            "value": "DuoUpdater 自己发出的每一次请求：检查更新、取发布说明，以及替你下载的安装包。"
           }
         }
       }
@@ -10353,43 +10353,43 @@
         }
       }
     },
-    "Full Disk Access lets Duo Updater check these apps": {
+    "Full Disk Access lets DuoUpdater check these apps": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mit Festplattenvollzugriff kann Duo Updater diese Apps prüfen"
+            "value": "Mit Festplattenvollzugriff kann DuoUpdater diese Apps prüfen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Con el acceso total al disco, Duo Updater puede comprobar estas apps"
+            "value": "Con el acceso total al disco, DuoUpdater puede comprobar estas apps"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’accès complet au disque permet à Duo Updater de vérifier ces apps"
+            "value": "L’accès complet au disque permet à DuoUpdater de vérifier ces apps"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フルディスクアクセスがあれば、Duo Updater でこれらの App を確認できます"
+            "value": "フルディスクアクセスがあれば、DuoUpdater でこれらの App を確認できます"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полный доступ к диску позволит Duo Updater проверять эти приложения"
+            "value": "Полный доступ к диску позволит DuoUpdater проверять эти приложения"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "授予完全磁盘访问权限后，Duo Updater 才能检查这些 App"
+            "value": "授予完全磁盘访问权限后，DuoUpdater 才能检查这些 App"
           }
         }
       }
@@ -11009,43 +11009,43 @@
         }
       }
     },
-    "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window.": {
+    "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the DuoUpdater window.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew hat diese Pakete nicht aus ihren Taps gelesen – etwa weil einem Tap nicht vertraut wird –, daher können ihre Updates nicht geprüft werden. Sie stehen im Brew-Bereich des Duo Updater-Fensters."
+            "value": "Homebrew hat diese Pakete nicht aus ihren Taps gelesen – etwa weil einem Tap nicht vertraut wird –, daher können ihre Updates nicht geprüft werden. Sie stehen im Brew-Bereich des DuoUpdater-Fensters."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew no leyó estos paquetes desde sus taps (por ejemplo, porque un tap no es de confianza), así que no se pueden comprobar sus actualizaciones. Aparecen en la sección Brew de la ventana de Duo Updater."
+            "value": "Homebrew no leyó estos paquetes desde sus taps (por ejemplo, porque un tap no es de confianza), así que no se pueden comprobar sus actualizaciones. Aparecen en la sección Brew de la ventana de DuoUpdater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew n’a pas lu ces paquets depuis leurs taps (par exemple parce qu’un tap n’est pas approuvé), leurs mises à jour ne peuvent donc pas être vérifiées. Ils sont listés dans la section Brew de la fenêtre Duo Updater."
+            "value": "Homebrew n’a pas lu ces paquets depuis leurs taps (par exemple parce qu’un tap n’est pas approuvé), leurs mises à jour ne peuvent donc pas être vérifiées. Ils sont listés dans la section Brew de la fenêtre DuoUpdater."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew がこれらのパッケージを tap から読み込まなかったため（tap が信頼されていない場合など）、アップデートを確認できません。Duo Updater ウインドウの Brew セクションに一覧があります。"
+            "value": "Homebrew がこれらのパッケージを tap から読み込まなかったため（tap が信頼されていない場合など）、アップデートを確認できません。DuoUpdater ウインドウの Brew セクションに一覧があります。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew не прочитал эти пакеты из их tap (например, потому что tap не отмечен как доверенный), поэтому их обновления проверить нельзя. Они перечислены в разделе Brew окна Duo Updater."
+            "value": "Homebrew не прочитал эти пакеты из их tap (например, потому что tap не отмечен как доверенный), поэтому их обновления проверить нельзя. Они перечислены в разделе Brew окна DuoUpdater."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 没有从 tap 读取这些软件包（例如 tap 未被信任），因此无法检查它们的更新。它们列在 Duo Updater 窗口的 Brew 部分。"
+            "value": "Homebrew 没有从 tap 读取这些软件包（例如 tap 未被信任），因此无法检查它们的更新。它们列在 DuoUpdater 窗口的 Brew 部分。"
           }
         }
       }
@@ -11501,43 +11501,43 @@
         }
       }
     },
-    "How often Duo Updater checks, and what it does when it finds something.": {
+    "How often DuoUpdater checks, and what it does when it finds something.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wie oft Duo Updater prüft und was er bei einem Fund tut."
+            "value": "Wie oft DuoUpdater prüft und was er bei einem Fund tut."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Con qué frecuencia comprueba Duo Updater y qué hace cuando encuentra algo."
+            "value": "Con qué frecuencia comprueba DuoUpdater y qué hace cuando encuentra algo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À quelle fréquence Duo Updater vérifie, et ce qu'il fait en cas de trouvaille."
+            "value": "À quelle fréquence DuoUpdater vérifie, et ce qu'il fait en cas de trouvaille."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterが確認する頻度と、見つかった際の動作。"
+            "value": "DuoUpdaterが確認する頻度と、見つかった際の動作。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Как часто Duo Updater проверяет обновления и что делает при их обнаружении."
+            "value": "Как часто DuoUpdater проверяет обновления и что делает при их обнаружении."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 检查更新的频率，以及发现更新时的操作。"
+            "value": "DuoUpdater 检查更新的频率，以及发现更新时的操作。"
           }
         }
       }
@@ -11870,43 +11870,43 @@
         }
       }
     },
-    "Install Duo Updater's own updates silently": {
+    "Install DuoUpdater's own updates silently": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eigene Updates von Duo Updater im Hintergrund installieren"
+            "value": "Eigene Updates von DuoUpdater im Hintergrund installieren"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instalar en segundo plano las propias actualizaciones de Duo Updater"
+            "value": "Instalar en segundo plano las propias actualizaciones de DuoUpdater"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installer silencieusement les mises à jour de Duo Updater lui-même"
+            "value": "Installer silencieusement les mises à jour de DuoUpdater lui-même"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater自体の更新を自動的（無通知）にインストールする"
+            "value": "DuoUpdater自体の更新を自動的（無通知）にインストールする"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Устанавливать собственные обновления Duo Updater незаметно"
+            "value": "Устанавливать собственные обновления DuoUpdater незаметно"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "静默安装 Duo Updater 自身的更新"
+            "value": "静默安装 DuoUpdater 自身的更新"
           }
         }
       }
@@ -12485,125 +12485,125 @@
         }
       }
     },
-    "Lets Duo Updater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything.": {
+    "Lets DuoUpdater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit kann Duo Updater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – und die TestFlight-Prüfung hat unter „Einstellungen“ → „Allgemein“ einen eigenen Schalter, der diese Berechtigung braucht, um überhaupt etwas lesen zu können."
+            "value": "Damit kann DuoUpdater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – und die TestFlight-Prüfung hat unter „Einstellungen“ → „Allgemein“ einen eigenen Schalter, der diese Berechtigung braucht, um überhaupt etwas lesen zu können."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite a Duo Updater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: además, la comprobación de TestFlight tiene su propio ajuste en Ajustes → General, que necesita este permiso para poder leer algo."
+            "value": "Permite a DuoUpdater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: además, la comprobación de TestFlight tiene su propio ajuste en Ajustes → General, que necesita este permiso para poder leer algo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à Duo Updater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — et la vérification TestFlight a son propre réglage dans Réglages → Général, qui a besoin de cette autorisation pour lire quoi que ce soit."
+            "value": "Permet à DuoUpdater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — et la vérification TestFlight a son propre réglage dans Réglages → Général, qui a besoin de cette autorisation pour lire quoi que ce soit."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。なお TestFlight の確認には 設定 → 一般 に独立したスイッチがあり、そのスイッチが何かを読み取るにはこの許可が必要です。"
+            "value": "DuoUpdater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。なお TestFlight の確認には 設定 → 一般 に独立したスイッチがあり、そのスイッチが何かを読み取るにはこの許可が必要です。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет Duo Updater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — и у проверки TestFlight есть собственный переключатель в «Настройки» → «Основные», которому этот доступ нужен, чтобы вообще что-то прочитать."
+            "value": "Позволяет DuoUpdater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — и у проверки TestFlight есть собственный переключатель в «Настройки» → «Основные», которому этот доступ нужен, чтобы вообще что-то прочитать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让 Duo Updater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
+            "value": "让 DuoUpdater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
           }
         }
       }
     },
-    "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).": {
+    "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erlaubt Duo Updater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads)."
+            "value": "Erlaubt DuoUpdater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads)."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite que Duo Updater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas)."
+            "value": "Permite que DuoUpdater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas)."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à Duo Updater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs)."
+            "value": "Permet à DuoUpdater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs)."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "App Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）をDuo Updaterが置き換えられるようにします。"
+            "value": "App Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）をDuoUpdaterが置き換えられるようにします。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет Duo Updater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки)."
+            "value": "Позволяет DuoUpdater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки)."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "允许 Duo Updater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。"
+            "value": "允许 DuoUpdater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。"
           }
         }
       }
     },
-    "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.": {
+    "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erlaubt Duo Updater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads). macOS meldet den Status auf diesem System nicht – erteile die Berechtigung sicherheitshalber."
+            "value": "Erlaubt DuoUpdater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads). macOS meldet den Status auf diesem System nicht – erteile die Berechtigung sicherheitshalber."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite que Duo Updater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas). macOS no informa su estado en este sistema; concédelo para estar seguro."
+            "value": "Permite que DuoUpdater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas). macOS no informa su estado en este sistema; concédelo para estar seguro."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à Duo Updater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs). macOS ne signale pas son état sur ce système — autorisez-la par précaution."
+            "value": "Permet à DuoUpdater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs). macOS ne signale pas son état sur ce système — autorisez-la par précaution."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "App Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）をDuo Updaterが置き換えられるようにします。このシステムではmacOSが状態を報告していません — 念のため許可してください。"
+            "value": "App Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）をDuoUpdaterが置き換えられるようにします。このシステムではmacOSが状態を報告していません — 念のため許可してください。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет Duo Updater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки). macOS не сообщает его статус в этой системе — предоставьте разрешение на всякий случай."
+            "value": "Позволяет DuoUpdater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки). macOS не сообщает его статус в этой системе — предоставьте разрешение на всякий случай."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "允许 Duo Updater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 未在此系统上报告其状态 — 为安全起见请授予该权限。"
+            "value": "允许 DuoUpdater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 未在此系统上报告其状态 — 为安全起见请授予该权限。"
           }
         }
       }
@@ -14459,43 +14459,43 @@
         }
       }
     },
-    "Not a filter Duo Updater knows — this narrows nothing.": {
+    "Not a filter DuoUpdater knows — this narrows nothing.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein Filter, den Duo Updater kennt – das schränkt nichts ein."
+            "value": "Kein Filter, den DuoUpdater kennt – das schränkt nichts ein."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No es un filtro que Duo Updater conozca: no acota nada."
+            "value": "No es un filtro que DuoUpdater conozca: no acota nada."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce n’est pas un filtre connu de Duo Updater — il ne restreint rien."
+            "value": "Ce n’est pas un filtre connu de DuoUpdater — il ne restreint rien."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater が知らない条件です。何も絞り込みません。"
+            "value": "DuoUpdater が知らない条件です。何も絞り込みません。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater не знает такого фильтра — он ничего не сужает."
+            "value": "DuoUpdater не знает такого фильтра — он ничего не сужает."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 不认识这个条件——它什么也没筛掉。"
+            "value": "DuoUpdater 不认识这个条件——它什么也没筛掉。"
           }
         }
       }
@@ -19708,43 +19708,43 @@
         }
       }
     },
-    "Some of your apps keep what Duo Updater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n%@\n\nYou can grant it later in Duo Updater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.": {
+    "Some of your apps keep what DuoUpdater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n%@\n\nYou can grant it later in DuoUpdater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Einige deiner Apps legen das, was Duo Updater zum Prüfen braucht, dort ab, wo macOS nur mit Festplattenvollzugriff hineinschauen lässt. Nichts davon verlässt deinen Mac.\n\n%@\n\nDu kannst ihn später in Duo Updater unter Einstellungen → Diagnose erteilen oder in Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff."
+            "value": "Einige deiner Apps legen das, was DuoUpdater zum Prüfen braucht, dort ab, wo macOS nur mit Festplattenvollzugriff hineinschauen lässt. Nichts davon verlässt deinen Mac.\n\n%@\n\nDu kannst ihn später in DuoUpdater unter Einstellungen → Diagnose erteilen oder in Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Algunas de tus apps guardan lo que Duo Updater necesita para comprobarlas donde macOS solo le deja mirar con acceso total al disco. Nada de lo que lee sale de tu Mac.\n\n%@\n\nPuedes concederlo más tarde en Duo Updater, en Ajustes → Diagnóstico, o en Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco."
+            "value": "Algunas de tus apps guardan lo que DuoUpdater necesita para comprobarlas donde macOS solo le deja mirar con acceso total al disco. Nada de lo que lee sale de tu Mac.\n\n%@\n\nPuedes concederlo más tarde en DuoUpdater, en Ajustes → Diagnóstico, o en Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Certaines de vos apps rangent ce dont Duo Updater a besoin pour les vérifier là où macOS ne le laisse regarder qu’avec l’accès complet au disque. Rien de ce qui est lu ne quitte votre Mac.\n\n%@\n\nVous pourrez l’accorder plus tard dans Duo Updater, sous Réglages → Diagnostic, ou dans Réglages Système → Confidentialité et sécurité → Accès complet au disque."
+            "value": "Certaines de vos apps rangent ce dont DuoUpdater a besoin pour les vérifier là où macOS ne le laisse regarder qu’avec l’accès complet au disque. Rien de ce qui est lu ne quitte votre Mac.\n\n%@\n\nVous pourrez l’accorder plus tard dans DuoUpdater, sous Réglages → Diagnostic, ou dans Réglages Système → Confidentialité et sécurité → Accès complet au disque."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "一部の App は、Duo Updater が確認に必要とする情報を、フルディスクアクセスがないと macOS が読ませない場所に保管しています。読み取った内容が Mac の外に出ることはありません。\n\n%@\n\n後から Duo Updater の「設定」→「診断」、またはシステム設定の「プライバシーとセキュリティ」→「フルディスクアクセス」で許可できます。"
+            "value": "一部の App は、DuoUpdater が確認に必要とする情報を、フルディスクアクセスがないと macOS が読ませない場所に保管しています。読み取った内容が Mac の外に出ることはありません。\n\n%@\n\n後から DuoUpdater の「設定」→「診断」、またはシステム設定の「プライバシーとセキュリティ」→「フルディスクアクセス」で許可できます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Некоторые ваши приложения хранят то, что нужно Duo Updater для их проверки, там, куда macOS пускает только с полным доступом к диску. Ничего из прочитанного не покидает ваш Mac.\n\n%@\n\nПредоставить его можно позже в Duo Updater: Настройки → Диагностика, или в «Системных настройках» → «Конфиденциальность и безопасность» → «Полный доступ к диску»."
+            "value": "Некоторые ваши приложения хранят то, что нужно DuoUpdater для их проверки, там, куда macOS пускает только с полным доступом к диску. Ничего из прочитанного не покидает ваш Mac.\n\n%@\n\nПредоставить его можно позже в DuoUpdater: Настройки → Диагностика, или в «Системных настройках» → «Конфиденциальность и безопасность» → «Полный доступ к диску»."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你的部分 App 把 Duo Updater 检查它们所需的信息存放在只有完全磁盘访问权限才能读取的位置。读取的内容不会离开你的 Mac。\n\n%@\n\n之后可在 Duo Updater 的「设置」→「诊断」中授权，或前往「系统设置」→「隐私与安全性」→「完全磁盘访问权限」。"
+            "value": "你的部分 App 把 DuoUpdater 检查它们所需的信息存放在只有完全磁盘访问权限才能读取的位置。读取的内容不会离开你的 Mac。\n\n%@\n\n之后可在 DuoUpdater 的「设置」→「诊断」中授权，或前往「系统设置」→「隐私与安全性」→「完全磁盘访问权限」。"
           }
         }
       }
@@ -20206,25 +20206,25 @@
         }
       }
     },
-    "TestFlight betas (%@): Duo Updater reads the builds TestFlight offers you. Without it, their rows show a question mark.": {
+    "TestFlight betas (%@): DuoUpdater reads the builds TestFlight offers you. Without it, their rows show a question mark.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight-Betas (%@): Duo Updater liest die Builds, die TestFlight dir anbietet. Ohne den Zugriff zeigen diese Zeilen ein Fragezeichen."
+            "value": "TestFlight-Betas (%@): DuoUpdater liest die Builds, die TestFlight dir anbietet. Ohne den Zugriff zeigen diese Zeilen ein Fragezeichen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Betas de TestFlight (%@): Duo Updater lee las compilaciones que TestFlight te ofrece. Sin él, esas filas muestran un signo de interrogación."
+            "value": "Betas de TestFlight (%@): DuoUpdater lee las compilaciones que TestFlight te ofrece. Sin él, esas filas muestran un signo de interrogación."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bêtas TestFlight (%@) : Duo Updater lit les versions que TestFlight vous propose. Sans cet accès, ces lignes affichent un point d’interrogation."
+            "value": "Bêtas TestFlight (%@) : DuoUpdater lit les versions que TestFlight vous propose. Sans cet accès, ces lignes affichent un point d’interrogation."
           }
         },
         "ja": {
@@ -20236,30 +20236,30 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Бета-версии TestFlight (%@): Duo Updater читает сборки, которые предлагает вам TestFlight. Без доступа в этих строках будет вопросительный знак."
+            "value": "Бета-версии TestFlight (%@): DuoUpdater читает сборки, которые предлагает вам TestFlight. Без доступа в этих строках будет вопросительный знак."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight 测试版（%@）：Duo Updater 会读取 TestFlight 向你提供的版本。不授权时，这些行显示问号。"
+            "value": "TestFlight 测试版（%@）：DuoUpdater 会读取 TestFlight 向你提供的版本。不授权时，这些行显示问号。"
           }
         }
       }
     },
-    "TestFlight checking is off, so Duo Updater can’t say whether this beta is current": {
+    "TestFlight checking is off, so DuoUpdater can’t say whether this beta is current": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die TestFlight-Prüfung ist aus – daher kann Duo Updater nicht sagen, ob diese Beta aktuell ist"
+            "value": "Die TestFlight-Prüfung ist aus – daher kann DuoUpdater nicht sagen, ob diese Beta aktuell ist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La comprobación de TestFlight está desactivada, así que Duo Updater no puede saber si esta beta está al día"
+            "value": "La comprobación de TestFlight está desactivada, así que DuoUpdater no puede saber si esta beta está al día"
           }
         },
         "fr": {
@@ -20288,25 +20288,25 @@
         }
       }
     },
-    "TestFlight hasn’t told Duo Updater this beta’s latest build yet. Refreshing asks TestFlight to check.": {
+    "TestFlight hasn’t told DuoUpdater this beta’s latest build yet. Refreshing asks TestFlight to check.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight hat Duo Updater den neuesten Build dieser Beta noch nicht mitgeteilt. Beim Aktualisieren wird TestFlight gebeten nachzusehen."
+            "value": "TestFlight hat DuoUpdater den neuesten Build dieser Beta noch nicht mitgeteilt. Beim Aktualisieren wird TestFlight gebeten nachzusehen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight aún no le ha indicado a Duo Updater la compilación más reciente de esta beta. Al actualizar se le pide a TestFlight que lo compruebe."
+            "value": "TestFlight aún no le ha indicado a DuoUpdater la compilación más reciente de esta beta. Al actualizar se le pide a TestFlight que lo compruebe."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight n’a pas encore indiqué à Duo Updater la dernière version de cette bêta. Actualiser demande à TestFlight de vérifier."
+            "value": "TestFlight n’a pas encore indiqué à DuoUpdater la dernière version de cette bêta. Actualiser demande à TestFlight de vérifier."
           }
         },
         "ja": {
@@ -20318,13 +20318,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight ещё не сообщил Duo Updater последнюю сборку этой бета-версии. Обновление попросит TestFlight проверить."
+            "value": "TestFlight ещё не сообщил DuoUpdater последнюю сборку этой бета-версии. Обновление попросит TestFlight проверить."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight 尚未告知 Duo Updater 此测试版的最新版本。刷新会请 TestFlight 检查。"
+            "value": "TestFlight 尚未告知 DuoUpdater 此测试版的最新版本。刷新会请 TestFlight 检查。"
           }
         }
       }
@@ -20370,43 +20370,43 @@
         }
       }
     },
-    "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets Duo Updater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing.": {
+    "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets DuoUpdater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight führt die Builds, die es dir anbietet, in einer eigenen Datenbank, und nur TestFlight selbst bringt diese Datenbank je auf den neuesten Stand. Beide „Ein“-Einstellungen brauchen Festplattenvollzugriff, um sie zu lesen; ohne die Berechtigung sagen die Beta-Zeilen das.\n\n„Beim Aktualisieren“ liest, was bereits da ist, und bittet TestFlight um eine frische Antwort, wenn du auf „Aktualisieren“ drückst. „Aktuell halten“ lässt Duo Updater außerdem von sich aus fragen – höchstens einmal pro Stunde, und immer dann, wenn erkennbar ist, dass eine Beta ohne es weitergezogen ist. Dabei wird TestFlight jeweils für ein paar Sekunden im Hintergrund gestartet (rund 0,7 MB). Bei „Aus“ wird nichts gelesen, und die Beta-Zeilen sagen das, statt zu raten."
+            "value": "TestFlight führt die Builds, die es dir anbietet, in einer eigenen Datenbank, und nur TestFlight selbst bringt diese Datenbank je auf den neuesten Stand. Beide „Ein“-Einstellungen brauchen Festplattenvollzugriff, um sie zu lesen; ohne die Berechtigung sagen die Beta-Zeilen das.\n\n„Beim Aktualisieren“ liest, was bereits da ist, und bittet TestFlight um eine frische Antwort, wenn du auf „Aktualisieren“ drückst. „Aktuell halten“ lässt DuoUpdater außerdem von sich aus fragen – höchstens einmal pro Stunde, und immer dann, wenn erkennbar ist, dass eine Beta ohne es weitergezogen ist. Dabei wird TestFlight jeweils für ein paar Sekunden im Hintergrund gestartet (rund 0,7 MB). Bei „Aus“ wird nichts gelesen, und die Beta-Zeilen sagen das, statt zu raten."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight guarda las compilaciones que te ofrece en su propia base de datos, y solo TestFlight la pone al día. Ambos ajustes de «activado» necesitan acceso total al disco para leerla; sin el permiso, las filas de betas lo indican.\n\n«Al actualizar» lee lo que ya hay y le pide a TestFlight una respuesta nueva cuando pulsas Actualizar. «Mantener al día» además deja que Duo Updater pregunte por su cuenta —como mucho una vez por hora, y siempre que detecte que una beta ha avanzado sin él—, lo que inicia TestFlight en segundo plano unos segundos cada vez (unos 0,7 MB). Desactivado, no se lee nada y las filas de betas lo dicen en lugar de adivinar."
+            "value": "TestFlight guarda las compilaciones que te ofrece en su propia base de datos, y solo TestFlight la pone al día. Ambos ajustes de «activado» necesitan acceso total al disco para leerla; sin el permiso, las filas de betas lo indican.\n\n«Al actualizar» lee lo que ya hay y le pide a TestFlight una respuesta nueva cuando pulsas Actualizar. «Mantener al día» además deja que DuoUpdater pregunte por su cuenta —como mucho una vez por hora, y siempre que detecte que una beta ha avanzado sin él—, lo que inicia TestFlight en segundo plano unos segundos cada vez (unos 0,7 MB). Desactivado, no se lee nada y las filas de betas lo dicen en lugar de adivinar."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight conserve les versions qu’il vous propose dans sa propre base de données, et lui seul la met à jour. Les deux réglages « activés » ont besoin de l’accès complet au disque pour la lire ; sans l’autorisation, les lignes des bêtas l’indiquent.\n\n« À l’actualisation » lit ce qui s’y trouve déjà et demande une réponse fraîche à TestFlight quand vous appuyez sur Actualiser. « Garder à jour » laisse en plus Duo Updater demander de lui-même — au plus une fois par heure, et dès qu’il constate qu’une bêta a avancé sans lui — ce qui lance TestFlight en arrière-plan quelques secondes à chaque fois (environ 0,7 Mo). Désactivé, rien n’est lu et les lignes des bêtas le disent au lieu de deviner."
+            "value": "TestFlight conserve les versions qu’il vous propose dans sa propre base de données, et lui seul la met à jour. Les deux réglages « activés » ont besoin de l’accès complet au disque pour la lire ; sans l’autorisation, les lignes des bêtas l’indiquent.\n\n« À l’actualisation » lit ce qui s’y trouve déjà et demande une réponse fraîche à TestFlight quand vous appuyez sur Actualiser. « Garder à jour » laisse en plus DuoUpdater demander de lui-même — au plus une fois par heure, et dès qu’il constate qu’une bêta a avancé sans lui — ce qui lance TestFlight en arrière-plan quelques secondes à chaque fois (environ 0,7 Mo). Désactivé, rien n’est lu et les lignes des bêtas le disent au lieu de deviner."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight は提供するビルドを自身のデータベースに保持しており、そのデータベースを更新できるのは TestFlight 自身だけです。「オン」の 2 つの設定はどちらも、それを読むためにフルディスクアクセスを必要とします。権限がない場合、ベータ版の行にはその旨が表示されます。\n\n「更新したときだけ」は、すでにあるものを読み取り、「更新」を押したときに TestFlight へ最新の情報を求めます。「常に最新に」では、それに加えて Duo Updater が自分から問い合わせます（1 時間に 1 回まで、およびベータ版が知らないうちに進んだと分かったとき）。そのたびに TestFlight がバックグラウンドで数秒起動します（約 0.7 MB）。オフの場合は何も読み取らず、ベータ版の行は推測せずにその旨を表示します。"
+            "value": "TestFlight は提供するビルドを自身のデータベースに保持しており、そのデータベースを更新できるのは TestFlight 自身だけです。「オン」の 2 つの設定はどちらも、それを読むためにフルディスクアクセスを必要とします。権限がない場合、ベータ版の行にはその旨が表示されます。\n\n「更新したときだけ」は、すでにあるものを読み取り、「更新」を押したときに TestFlight へ最新の情報を求めます。「常に最新に」では、それに加えて DuoUpdater が自分から問い合わせます（1 時間に 1 回まで、およびベータ版が知らないうちに進んだと分かったとき）。そのたびに TestFlight がバックグラウンドで数秒起動します（約 0.7 MB）。オフの場合は何も読み取らず、ベータ版の行は推測せずにその旨を表示します。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight хранит предлагаемые вам сборки в собственной базе данных, и обновляет её только сам TestFlight. Обоим включённым режимам нужен полный доступ к диску, чтобы её прочитать; без разрешения строки бета-версий сообщают об этом.\n\n«При обновлении» читает то, что уже есть, и просит у TestFlight свежий ответ, когда вы нажимаете «Обновить». «Поддерживать актуальность» вдобавок позволяет Duo Updater спрашивать самому — не чаще раза в час и всякий раз, когда видно, что бета-версия ушла вперёд без него. Каждый раз TestFlight на несколько секунд запускается в фоне (около 0,7 МБ). При «Выключено» ничего не читается, и строки бета-версий сообщают об этом вместо догадок."
+            "value": "TestFlight хранит предлагаемые вам сборки в собственной базе данных, и обновляет её только сам TestFlight. Обоим включённым режимам нужен полный доступ к диску, чтобы её прочитать; без разрешения строки бета-версий сообщают об этом.\n\n«При обновлении» читает то, что уже есть, и просит у TestFlight свежий ответ, когда вы нажимаете «Обновить». «Поддерживать актуальность» вдобавок позволяет DuoUpdater спрашивать самому — не чаще раза в час и всякий раз, когда видно, что бета-версия ушла вперёд без него. Каждый раз TestFlight на несколько секунд запускается в фоне (около 0,7 МБ). При «Выключено» ничего не читается, и строки бета-версий сообщают об этом вместо догадок."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight 把提供给你的 build 存在它自己的数据库里，而只有 TestFlight 自己会让这份数据库前进。两个「开」的选项都需要完全磁盘访问权限才能读它；没有权限时，测试版所在的行会如实说明。\n\n「我刷新时」读取已经在那里的内容，并在你按下刷新时请 TestFlight 给一个新答案。「保持最新」还允许 Duo Updater 自己去问——每小时最多一次，以及每当它看出某个测试版已经在它不知情的情况下更新过。每次都会在后台启动 TestFlight 几秒钟（约 0.7 MB）。选择关闭时什么都不读，测试版所在的行会照实说明，而不是猜。"
+            "value": "TestFlight 把提供给你的 build 存在它自己的数据库里，而只有 TestFlight 自己会让这份数据库前进。两个「开」的选项都需要完全磁盘访问权限才能读它；没有权限时，测试版所在的行会如实说明。\n\n「我刷新时」读取已经在那里的内容，并在你按下刷新时请 TestFlight 给一个新答案。「保持最新」还允许 DuoUpdater 自己去问——每小时最多一次，以及每当它看出某个测试版已经在它不知情的情况下更新过。每次都会在后台启动 TestFlight 几秒钟（约 0.7 MB）。选择关闭时什么都不读，测试版所在的行会照实说明，而不是猜。"
           }
         }
       }
@@ -21489,7 +21489,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaters Hintergrund-Helper einschalten"
+            "value": "DuoUpdaters Hintergrund-Helper einschalten"
           }
         },
         "es": {
@@ -22754,43 +22754,43 @@
         }
       }
     },
-    "Welcome to Duo Updater": {
+    "Welcome to DuoUpdater": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Willkommen bei Duo Updater"
+            "value": "Willkommen bei DuoUpdater"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bienvenido a Duo Updater"
+            "value": "Bienvenido a DuoUpdater"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bienvenue dans Duo Updater"
+            "value": "Bienvenue dans DuoUpdater"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterへようこそ"
+            "value": "DuoUpdaterへようこそ"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добро пожаловать в Duo Updater"
+            "value": "Добро пожаловать в DuoUpdater"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "欢迎使用 Duo Updater"
+            "value": "欢迎使用 DuoUpdater"
           }
         }
       }
@@ -22877,43 +22877,43 @@
         }
       }
     },
-    "What's New — Duo Updater's own release notes": {
+    "What's New — DuoUpdater's own release notes": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neuigkeiten – die eigenen Versionshinweise von Duo Updater"
+            "value": "Neuigkeiten – die eigenen Versionshinweise von DuoUpdater"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Novedades: notas de la versión del propio Duo Updater"
+            "value": "Novedades: notas de la versión del propio DuoUpdater"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nouveautés — notes de version de Duo Updater lui-même"
+            "value": "Nouveautés — notes de version de DuoUpdater lui-même"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新機能について — Duo Updater 自体のリリースノート"
+            "value": "新機能について — DuoUpdater 自体のリリースノート"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что нового — заметки о выпуске самого Duo Updater"
+            "value": "Что нового — заметки о выпуске самого DuoUpdater"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新功能 — Duo Updater 自身的发行说明"
+            "value": "新功能 — DuoUpdater 自身的发行说明"
           }
         }
       }
@@ -22959,125 +22959,125 @@
         }
       }
     },
-    "Where Duo Updater looks for installed apps.": {
+    "Where DuoUpdater looks for installed apps.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wo Duo Updater nach installierten Apps sucht."
+            "value": "Wo DuoUpdater nach installierten Apps sucht."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dónde busca Duo Updater las apps instaladas."
+            "value": "Dónde busca DuoUpdater las apps instaladas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Où Duo Updater recherche les applications installées."
+            "value": "Où DuoUpdater recherche les applications installées."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterがインストール済みアプリを探す場所。"
+            "value": "DuoUpdaterがインストール済みアプリを探す場所。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Где Duo Updater ищет установленные приложения."
+            "value": "Где DuoUpdater ищет установленные приложения."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 在哪里查找已安装的应用。"
+            "value": "DuoUpdater 在哪里查找已安装的应用。"
           }
         }
       }
     },
-    "Without Full Disk Access, Duo Updater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.": {
+    "Without Full Disk Access, DuoUpdater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ohne Festplattenvollzugriff kann Duo Updater die Builds, die TestFlight dir anbietet, nicht lesen – daher lässt sich nicht sagen, ob diese Beta aktuell ist."
+            "value": "Ohne Festplattenvollzugriff kann DuoUpdater die Builds, die TestFlight dir anbietet, nicht lesen – daher lässt sich nicht sagen, ob diese Beta aktuell ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin acceso total al disco, Duo Updater no puede leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día."
+            "value": "Sin acceso total al disco, DuoUpdater no puede leer las compilaciones que TestFlight te ofrece, así que no puede saber si esta beta está al día."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sans l’accès complet au disque, Duo Updater ne peut pas lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour."
+            "value": "Sans l’accès complet au disque, DuoUpdater ne peut pas lire les versions que TestFlight vous propose : impossible de dire si cette bêta est à jour."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フルディスクアクセスがないと、Duo Updater は TestFlight から提供されるビルドを読み取れないため、このベータ版が最新かどうか判断できません。"
+            "value": "フルディスクアクセスがないと、DuoUpdater は TestFlight から提供されるビルドを読み取れないため、このベータ版が最新かどうか判断できません。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без полного доступа к диску Duo Updater не может прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия."
+            "value": "Без полного доступа к диску DuoUpdater не может прочитать сборки, которые предлагает TestFlight, поэтому нельзя сказать, актуальна ли эта бета-версия."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有完全磁盘访问权限，Duo Updater 无法读取 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新。"
+            "value": "没有完全磁盘访问权限，DuoUpdater 无法读取 TestFlight 向你提供的版本，因此无法判断此测试版是否已是最新。"
           }
         }
       }
     },
-    "Without Full Disk Access, Duo Updater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.": {
+    "Without Full Disk Access, DuoUpdater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ohne Festplattenvollzugriff kann Duo Updater nicht sehen, ob du in CotEditor Vorabversionen gewählt hast, daher werden nur stabile Versionen angeboten."
+            "value": "Ohne Festplattenvollzugriff kann DuoUpdater nicht sehen, ob du in CotEditor Vorabversionen gewählt hast, daher werden nur stabile Versionen angeboten."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin acceso total al disco, Duo Updater no puede ver si elegiste versiones preliminares en CotEditor, así que solo se ofrecen sus versiones estables."
+            "value": "Sin acceso total al disco, DuoUpdater no puede ver si elegiste versiones preliminares en CotEditor, así que solo se ofrecen sus versiones estables."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sans l’accès complet au disque, Duo Updater ne peut pas voir si vous avez choisi les préversions dans CotEditor : seules ses versions stables sont proposées."
+            "value": "Sans l’accès complet au disque, DuoUpdater ne peut pas voir si vous avez choisi les préversions dans CotEditor : seules ses versions stables sont proposées."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フルディスクアクセスがないと、CotEditor でプレリリースを選んでいるかどうかを Duo Updater が確認できないため、安定版だけが提示されます。"
+            "value": "フルディスクアクセスがないと、CotEditor でプレリリースを選んでいるかどうかを DuoUpdater が確認できないため、安定版だけが提示されます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без полного доступа к диску Duo Updater не видит, выбраны ли в CotEditor предварительные версии, поэтому предлагаются только стабильные."
+            "value": "Без полного доступа к диску DuoUpdater не видит, выбраны ли в CotEditor предварительные версии, поэтому предлагаются только стабильные."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有完全磁盘访问权限，Duo Updater 无法得知你是否在 CotEditor 中选择了预发布版本，因此只会提供正式版。"
+            "value": "没有完全磁盘访问权限，DuoUpdater 无法得知你是否在 CotEditor 中选择了预发布版本，因此只会提供正式版。"
           }
         }
       }
@@ -23820,84 +23820,84 @@
         }
       }
     },
-    "macOS is waiting for your approval. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — it's open now.": {
+    "macOS is waiting for your approval. Switch DuoUpdater on under “Allow in the Background” in Login Items & Extensions — it's open now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS wartet auf deine Zustimmung. Aktiviere Duo Updater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das Fenster ist jetzt offen."
+            "value": "macOS wartet auf deine Zustimmung. Aktiviere DuoUpdater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das Fenster ist jetzt offen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS espera tu aprobación. Activa Duo Updater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: ya está abierto."
+            "value": "macOS espera tu aprobación. Activa DuoUpdater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: ya está abierto."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS attend votre approbation. Activez Duo Updater sous « Autoriser en arrière-plan » dans Ouverture et extensions — la fenêtre est déjà ouverte."
+            "value": "macOS attend votre approbation. Activez DuoUpdater sous « Autoriser en arrière-plan » dans Ouverture et extensions — la fenêtre est déjà ouverte."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOSが承認を待っています。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuo Updaterをオンにしてください — いま開いています。"
+            "value": "macOSが承認を待っています。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuoUpdaterをオンにしてください — いま開いています。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS ждёт вашего подтверждения. Включите Duo Updater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — он уже открыт."
+            "value": "macOS ждёт вашего подтверждения. Включите DuoUpdater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — он уже открыт."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS 正在等待你批准。请在“登录项与扩展”的“允许在后台”中开启 Duo Updater — 该页面已为你打开。"
+            "value": "macOS 正在等待你批准。请在“登录项与扩展”的“允许在后台”中开启 DuoUpdater — 该页面已为你打开。"
           }
         }
       }
     },
-    "macOS refused the registration. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.": {
+    "macOS refused the registration. Switch DuoUpdater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS hat die Registrierung abgelehnt. Aktiviere Duo Updater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das allein behebt es meistens. Wird Duo Updater dort nicht aufgeführt oder ändert das Aktivieren nichts, ist der Datensatz von macOS zu diesem Hintergrundelement beschädigt und erfordert einen systemweiten Reset: Führe „sudo sfltool resetbtm“ im Terminal aus und starte neu. Das löscht die Genehmigungen für Hintergrundelemente aller Apps, sodass du die anderen ebenfalls erneut genehmigen musst."
+            "value": "macOS hat die Registrierung abgelehnt. Aktiviere DuoUpdater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das allein behebt es meistens. Wird DuoUpdater dort nicht aufgeführt oder ändert das Aktivieren nichts, ist der Datensatz von macOS zu diesem Hintergrundelement beschädigt und erfordert einen systemweiten Reset: Führe „sudo sfltool resetbtm“ im Terminal aus und starte neu. Das löscht die Genehmigungen für Hintergrundelemente aller Apps, sodass du die anderen ebenfalls erneut genehmigen musst."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS rechazó el registro. Activa Duo Updater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: con eso suele bastar. Si Duo Updater no aparece ahí, o activarlo no cambia nada, el registro que macOS tiene de este elemento en segundo plano está dañado y requiere un restablecimiento a nivel de sistema: ejecuta «sudo sfltool resetbtm» en Terminal y reinicia. Esto borra los permisos de elementos en segundo plano de todas las apps, así que tendrás que volver a aprobar las demás."
+            "value": "macOS rechazó el registro. Activa DuoUpdater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: con eso suele bastar. Si DuoUpdater no aparece ahí, o activarlo no cambia nada, el registro que macOS tiene de este elemento en segundo plano está dañado y requiere un restablecimiento a nivel de sistema: ejecuta «sudo sfltool resetbtm» en Terminal y reinicia. Esto borra los permisos de elementos en segundo plano de todas las apps, así que tendrás que volver a aprobar las demás."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS a refusé l'enregistrement. Activez Duo Updater sous « Autoriser en arrière-plan » dans Ouverture et extensions — cela suffit le plus souvent. Si Duo Updater n'y figure pas, ou si l'activer ne change rien, l'enregistrement de cet élément en arrière-plan est corrompu et nécessite une réinitialisation au niveau système : exécutez « sudo sfltool resetbtm » dans le Terminal et redémarrez. Cela efface les autorisations d'éléments en arrière-plan pour toutes les applications, vous devrez donc réapprouver les autres aussi."
+            "value": "macOS a refusé l'enregistrement. Activez DuoUpdater sous « Autoriser en arrière-plan » dans Ouverture et extensions — cela suffit le plus souvent. Si DuoUpdater n'y figure pas, ou si l'activer ne change rien, l'enregistrement de cet élément en arrière-plan est corrompu et nécessite une réinitialisation au niveau système : exécutez « sudo sfltool resetbtm » dans le Terminal et redémarrez. Cela efface les autorisations d'éléments en arrière-plan pour toutes les applications, vous devrez donc réapprouver les autres aussi."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOSが登録を拒否しました。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuo Updaterをオンにしてください — たいていはこれだけで直ります。そこにDuo Updaterが表示されない場合や、オンにしても変わらない場合は、このバックグラウンド項目に関するmacOSの記録が破損しており、システムレベルのリセットが必要です。ターミナルで「sudo sfltool resetbtm」を実行して再起動してください。これによりすべてのアプリのバックグラウンド項目の承認がクリアされるため、他のアプリも再承認が必要になります。"
+            "value": "macOSが登録を拒否しました。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuoUpdaterをオンにしてください — たいていはこれだけで直ります。そこにDuoUpdaterが表示されない場合や、オンにしても変わらない場合は、このバックグラウンド項目に関するmacOSの記録が破損しており、システムレベルのリセットが必要です。ターミナルで「sudo sfltool resetbtm」を実行して再起動してください。これによりすべてのアプリのバックグラウンド項目の承認がクリアされるため、他のアプリも再承認が必要になります。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS отклонила регистрацию. Включите Duo Updater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — обычно этого достаточно. Если Duo Updater там нет или включение ничего не меняет, запись macOS об этом фоновом элементе повреждена и нужен сброс на уровне системы: выполните «sudo sfltool resetbtm» в Терминале и перезагрузитесь. Это очистит разрешения фоновых элементов для всех приложений, так что остальные придётся одобрить заново."
+            "value": "macOS отклонила регистрацию. Включите DuoUpdater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — обычно этого достаточно. Если DuoUpdater там нет или включение ничего не меняет, запись macOS об этом фоновом элементе повреждена и нужен сброс на уровне системы: выполните «sudo sfltool resetbtm» в Терминале и перезагрузитесь. Это очистит разрешения фоновых элементов для всех приложений, так что остальные придётся одобрить заново."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS 拒绝了注册。请在“登录项与扩展”的“允许在后台”中开启 Duo Updater — 通常这样就能解决。如果那里没有 Duo Updater，或者开启后仍无效，说明 macOS 关于此后台项目的记录已损坏，需要系统级重置：在终端中运行“sudo sfltool resetbtm”并重启。这会清除所有应用的后台项目授权，因此你需要重新批准其他应用。"
+            "value": "macOS 拒绝了注册。请在“登录项与扩展”的“允许在后台”中开启 DuoUpdater — 通常这样就能解决。如果那里没有 DuoUpdater，或者开启后仍无效，说明 macOS 关于此后台项目的记录已损坏，需要系统级重置：在终端中运行“sudo sfltool resetbtm”并重启。这会清除所有应用的后台项目授权，因此你需要重新批准其他应用。"
           }
         }
       }

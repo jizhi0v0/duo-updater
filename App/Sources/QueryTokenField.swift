@@ -138,7 +138,7 @@ struct QueryTokenField: View {
             ? Color.orange.opacity(0.5)
             : Color.accentColor.opacity(0.45), lineWidth: 1))
         .help(isIgnored
-              ? String(localized: "Not a filter Duo Updater knows — this narrows nothing.")
+              ? String(localized: "Not a filter DuoUpdater knows — this narrows nothing.")
               : token)
     }
 

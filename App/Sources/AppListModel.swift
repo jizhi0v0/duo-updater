@@ -5599,8 +5599,8 @@ final class AppListModel {
 
         let reasons = lines.joined(separator: "\n")
         let alert = NSAlert()
-        alert.messageText = String(localized: "Full Disk Access lets Duo Updater check these apps")
-        alert.informativeText = String(localized: "Some of your apps keep what Duo Updater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n\(reasons)\n\nYou can grant it later in Duo Updater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.")
+        alert.messageText = String(localized: "Full Disk Access lets DuoUpdater check these apps")
+        alert.informativeText = String(localized: "Some of your apps keep what DuoUpdater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n\(reasons)\n\nYou can grant it later in DuoUpdater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.")
         alert.addButton(withTitle: String(localized: "Grant…"))
         alert.addButton(withTitle: String(localized: "Not Now"))
         NSApp.activate(ignoringOtherApps: true)
@@ -5616,9 +5616,9 @@ final class AppListModel {
         switch need {
         case .testFlight:
             let names = ListFormatter.localizedString(byJoining: apps.map(\.name).sorted())
-            return String(localized: "TestFlight betas (\(names)): Duo Updater reads the builds TestFlight offers you. Without it, their rows show a question mark.")
+            return String(localized: "TestFlight betas (\(names)): DuoUpdater reads the builds TestFlight offers you. Without it, their rows show a question mark.")
         case .cotEditorChannel:
-            return String(localized: "CotEditor: Duo Updater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.")
+            return String(localized: "CotEditor: DuoUpdater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.")
         }
     }
 

@@ -31,15 +31,15 @@ struct UpdatesSettingsPage: View {
     var body: some View {
         SettingsPage(section: .updates) {
             SettingsCard(
-                footer: "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on."
+                footer: "DuoUpdater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on."
             ) {
                 versionRow
             }
 
             SettingsCard(
-                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway."
+                footer: "DuoUpdater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of DuoUpdater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit DuoUpdater anyway."
             ) {
-                Toggle("Install Duo Updater's own updates silently", isOn: $installsAutomatically)
+                Toggle("Install DuoUpdater's own updates silently", isOn: $installsAutomatically)
                     .settingsRow()
             }
         }
@@ -53,7 +53,7 @@ struct UpdatesSettingsPage: View {
         HStack(spacing: 14) {
             appIcon
             VStack(alignment: .leading, spacing: 2) {
-                Text("Duo Updater")
+                Text("DuoUpdater")
                     .font(.system(.title3, weight: .semibold))
                 Text(currentVersionLine)
                     .font(.callout)

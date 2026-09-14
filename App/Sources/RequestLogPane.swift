@@ -113,7 +113,7 @@ struct RequestLogPane: View {
         ("purpose:download", "App downloads"),
         ("purpose:check", "Update checks"),
         ("purpose:notes", "Release notes"),
-        ("purpose:self", "Duo Updater itself"),
+        ("purpose:self", "DuoUpdater itself"),
         ("took>5s", "Slower than 5 s"),
     ]
 
@@ -912,10 +912,10 @@ struct RequestLogPane: View {
                 VStack(alignment: .leading, spacing: 10) {
                     explain(
                         String(localized: "Recorded here"),
-                        String(localized: "Every fetch Duo Updater makes itself: update checks, release notes, and the downloads it installs for you."))
+                        String(localized: "Every fetch DuoUpdater makes itself: update checks, release notes, and the downloads it installs for you."))
                     explain(
                         String(localized: "Not recorded here"),
-                        String(localized: "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not Duo Updater's to record, so this is not a log of everything your Mac sends."))
+                        String(localized: "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not DuoUpdater's to record, so this is not a log of everything your Mac sends."))
                 }
                 .padding(14)
                 .frame(width: 340)
@@ -928,7 +928,7 @@ struct RequestLogPane: View {
             systemImage: isFiltered ? "line.3.horizontal.decrease.circle" : "network.slash",
             description: Text(isFiltered
                 ? "No request in this range matches that filter."
-                : "Duo Updater logs the requests it makes on your behalf here — update checks, release notes, and its own downloads."))
+                : "DuoUpdater logs the requests it makes on your behalf here — update checks, release notes, and its own downloads."))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -951,7 +951,7 @@ struct RequestLogPane: View {
     static func label(for purpose: RequestPurpose) -> String {
         switch purpose {
         case .install:        return String(localized: "App downloads")
-        case .selfUpdate:     return String(localized: "Duo Updater itself")
+        case .selfUpdate:     return String(localized: "DuoUpdater itself")
         case .catalog:        return String(localized: "Homebrew catalog")
         case .versionCheck:   return String(localized: "Update checks")
         case .changelog:      return String(localized: "Release notes")

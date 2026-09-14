@@ -80,12 +80,12 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// Short line under the page title.
     var subtitle: String {
         switch self {
-        case .general:     return String(localized: "How often Duo Updater checks, and what it does when it finds something.")
-        case .folders:     return String(localized: "Where Duo Updater looks for installed apps.")
-        case .updates:     return String(localized: "Duo Updater's own version.")
+        case .general:     return String(localized: "How often DuoUpdater checks, and what it does when it finds something.")
+        case .folders:     return String(localized: "Where DuoUpdater looks for installed apps.")
+        case .updates:     return String(localized: "DuoUpdater's own version.")
         case .github:      return String(localized: "Lift GitHub's anonymous rate limit for apps tracked through Releases.")
         case .alcove:      return String(localized: "Alcove keeps release notes and installable builds behind its license.")
-        case .ignored:     return String(localized: "Apps and versions you've told Duo Updater to leave alone.")
+        case .ignored:     return String(localized: "Apps and versions you've told DuoUpdater to leave alone.")
         case .diagnostics: return String(localized: "Permissions, last check, and the health of each detection recipe.")
         }
     }

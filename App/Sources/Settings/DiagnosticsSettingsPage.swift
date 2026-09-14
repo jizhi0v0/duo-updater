@@ -44,7 +44,7 @@ struct DiagnosticsSettingsPage: View {
     private var permissionsCard: some View {
         SettingsCard(
             header: "Permissions",
-            footer: "App Management lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting."
+            footer: "App Management lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting."
         ) {
             // App Management has no *public* status API, but the private
             // TCCAccessPreflight SPI lets us read it — so show a real check when granted.

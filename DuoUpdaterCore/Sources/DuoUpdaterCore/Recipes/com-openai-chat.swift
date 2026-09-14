@@ -10,9 +10,10 @@ enum com_openai_chat {
         // ChatGPT Classic (`com.openai.chat`) — OpenAI's PREVIOUS desktop app,
         // kept alive in maintenance mode (its release notes literally push the
         // new ChatGPT app: "Or, try the new ChatGPT app"; History has the release
-        // it was still shipping). Its bundle carries NO `SUFeedURL` (verified
-        // against the mounted dmg), so the generic Sparkle source can't see it
-        // even though the vendor publishes a Sparkle feed. The
+        // it was still shipping), and the installed base is real — but its bundle
+        // carries NO `SUFeedURL` (verified against the mounted dmg), so the
+        // generic Sparkle source can't see it even though the vendor publishes a
+        // Sparkle feed. The
         // feed at `sidekick/public/sparkle_public_appcast.xml` is EXACTLY the
         // endpoint Homebrew's own `chatgpt-classic` cask names in its
         // `livecheck` block (`strategy :sparkle`) — a third-party witness that

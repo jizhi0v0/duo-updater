@@ -6,15 +6,16 @@ enum com_sublimemerge {
         probes: [
         // History: docs/app-audits/com-sublimemerge.md#历史与实测
         // Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
-        // (mirrors the Sublime Text 4 recipe in `Recipes/com-sublimetext-4.swift` — same vendor,
-        // same page shape, and the same bare-number JSON update check, here
+        // (mirrors the Sublime Text 4 recipe in
+        // `Recipes/com-sublimetext-4.swift` — same vendor, same page shape, and
+        // the same bare-number JSON update check, here
         // `sublimemerge.com/updates/stable_update_check`). The /download page's
-        // latest marker
-        // `<p class="latest"><i>Version:</i> Build 2125</p>` precedes the descending
-        // history, so the anchored "Build NNNN" is newest. CRITICAL: capture the
-        // FULL "Build NNNN" string — installed CFBundleShortVersionString is
-        // literally "Build 2125", and a bare "2125" would read as a perpetual
-        // phantom update (VersionComparator ranks a number above adjacent text).
+        // latest marker (e.g. `<p class="latest"><i>Version:</i> Build 2125</p>`)
+        // precedes the descending history, so the anchored "Build NNNN" is newest.
+        // CRITICAL: capture the FULL "Build NNNN" string — installed
+        // CFBundleShortVersionString is literally of the form "Build 2125", and a
+        // bare "2125" would read as a perpetual phantom update (VersionComparator
+        // ranks a number above adjacent text).
         // Builds are 2xxx (not 4xxx like Sublime Text); the class="latest" anchor
         // already makes it single-match.
         VendorProbeRecipe(

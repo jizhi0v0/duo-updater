@@ -5,10 +5,12 @@ enum com_t3tools_t3code {
         family: "com-t3tools-t3code",
         githubRules: [
         // History: docs/app-audits/com-t3tools-t3code.md#历史与实测
-        // T3 Code — two trains, ONE bundle id (`com.t3tools.t3code`), one repo.
-        // `ReleaseChannel.detect()` reads the display name: the primary build is
-        // `T3 Code (Alpha).app` (→ .alpha) and the prerelease train is
-        // `T3 Code (Nightly).app` (→ .nightly), verified on the mounted artifacts.
+        // T3 Code — two covered trains, ONE bundle id (`com.t3tools.t3code`), one
+        // repo; a third, `-preview.` prerelease train, has appeared since and is
+        // not covered (see the alpha proof below). `ReleaseChannel.detect()` reads
+        // the display name: the primary build is `T3 Code (Alpha).app` (→ .alpha)
+        // and the nightly prerelease train is `T3 Code (Nightly).app` (→ .nightly),
+        // verified on the mounted artifacts.
         // Neither carries SUFeedURL; the cask is auto_updates, so Homebrew defers.
         //
         // The alpha train tags plain `vX.Y.Z` and is NOT prerelease-flagged, so

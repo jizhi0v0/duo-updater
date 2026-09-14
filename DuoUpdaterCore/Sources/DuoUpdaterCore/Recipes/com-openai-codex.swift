@@ -73,11 +73,11 @@ enum com_openai_codex {
         // track: the same answer we gave before this parameter existed.
         //
         // What is shared is the FILE and the LOGIN EVENTS. The VALUE is not.
-        // When measured (2026-08-24; History has the steps), signing out of
-        // ChatGPT.app deleted `~/.codex/auth.json` and signing in again through
-        // `codex` recreated it, but with the file holding a different plan from
-        // the app's session the app sent its session's plan and never touched
-        // the file. It does not consult this file to answer.
+        // When measured on one machine (2026-08-24; History has the steps),
+        // signing out of ChatGPT.app deleted `~/.codex/auth.json` and signing in
+        // again through `codex` recreated it, but with the file holding a
+        // different plan from the app's session the app sent its session's plan
+        // and never touched the file. It does not consult this file to answer.
         //
         // The app builds its value from the live session of the ACTIVE account
         // (`setSparkleQueryParams({beta, planType})`, fed from the account

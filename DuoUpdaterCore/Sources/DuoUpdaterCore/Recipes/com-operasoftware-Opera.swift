@@ -29,11 +29,11 @@ enum com_operasoftware_Opera {
 
         // History: docs/app-audits/com-operasoftware-Opera.md#历史与实测
         // Opera — `get.geo.opera.com` is Opera's own CDN mirror index, one folder
-        // per released version (e.g. `134.0.5954.56/`), each holding a `mac/` dir with
-        // `Opera_<version>_Setup.dmg`. The `href="…/"` anchor matches nothing but
-        // version folders on this page (checked: every 4-dot-separated number in
-        // the raw body is inside an `href`, none appear elsewhere — no stray dates
-        // or sizes share that shape here).
+        // per released version (e.g. `134.0.5954.56/`), each holding a `mac/` dir
+        // with `Opera_<version>_Setup.dmg`. The `href="…/"` anchor matches nothing
+        // but version folders on this page (checked: every 4-dot-separated number
+        // in the raw body is inside an `href`, none appear elsewhere — no stray
+        // dates or sizes share that shape here).
         //
         // VERSION SCHEME TRAP: `CFBundleShortVersionString` is only major.minor
         // (e.g. `"134.0"`) while `CFBundleVersion` is the four-part version (e.g.

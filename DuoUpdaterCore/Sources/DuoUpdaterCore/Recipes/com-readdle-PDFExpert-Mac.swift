@@ -24,7 +24,8 @@ enum com_readdle_PDFExpert_Mac {
         // version + title and the title is nil here, so the second body of each
         // pair is dropped silently. Left as is rather than worked around: which of
         // two same-numbered paragraphs is the real one is the vendor's question,
-        // not a regex's.
+        // not a regex's, and both fall outside the `maxEntries` window anyway
+        // except 3.10.2x.
         //
         // `body` runs to the next heading or `</body>`, and items are the runs of
         // text between the `<br />`s — `[^<]+` cannot cross a tag, so the split is

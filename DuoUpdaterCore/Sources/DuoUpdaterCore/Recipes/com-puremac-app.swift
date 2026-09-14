@@ -11,10 +11,10 @@ enum com_puremac_app {
         // One-click: com.puremac.app, Team H3WXHVTP97, notarized.
         //
         // The tag is anchored because this repo ships a *second product* out of
-        // the same releases: `cli-v…` tags carrying only a CLI tarball, which
-        // GitHub can mark latest (History has the first one). The default pattern
-        // is unanchored, so it reads such a tag as a version (`cli-v1.0.0` as
-        // 1.0.0) — which, against the app's own higher version, evaluates as "up
+        // the same releases: a `cli-v…` tag carrying only a CLI tarball, which
+        // GitHub can mark latest (History has the one there is). The default
+        // pattern is unanchored, so it reads such a tag as a version (`cli-v1.0.0`
+        // as 1.0.0) — which, against the app's own higher version, evaluates as "up
         // to date" and hides every real update. The macOS-asset gate already walks
         // past such a release, but the number it walks past should never parse in
         // the first place: one guard against a silent no-update is not enough.

@@ -253,11 +253,14 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· **2026-08-31 复验发现 tip 轨当时被判成 default**（tip 包 short 与 default 条目同为 `0.10.8`，渠道推断按文档序先撞上 short），引擎已修为两趟匹配；tip 条目本身无 changelog · 2026-08-31
 - [x] [**PDF Expert**](com-readdle-PDFExpert-Mac.md) · `com.readdle.PDFExpert-Mac` — S C · ⚠️ bundle 的 `SUFeedURL` 指着一份 **2022 年冻结**的 feed（build 764），其中一条没有 `maximumSystemVersion`，于是通用 Sparkle 源在现代 Mac 上读到 2.5.22 并判「已是最新」——零报错、cask 又是 `auto_updates` 无人兜底，这个 app 一直是隐形的。新增 `SparkleFeedCatalog.supersededFeeds` 按**死地址**（不是 bundle id）换到 pem3 feed；判据是 pem3 的 `edSignature` 用装机 bundle 自己的 `SUPublicEDKey` 验签通过 ✓。changelog 走 recipe 解 `fullReleaseNotesLink` 那张页（88 条，appcast 那份只有最新一版）· **一键真机端到端 ✓**（降到官方 3.13.1 再让引擎装回 3.13.2，走的是 781 KB 增量包而非 128 MB 全量，签名/公证/回滚点全绿）· 2026-09-04
 - [x] [**CodeEdit**](app-codeedit-CodeEdit.md) · `app.codeedit.CodeEdit` — S · 每个 release 的 appcast 只有一条、且都打 `dev` tag（没有默认 channel），落后一版的副本会读成 unknown；加常量 `ChannelBinding` 放行 `dev` · 真包 v0.3.6 挂载验证 ✓ · 2026-09-12
+- [x] [**coconutBattery**](com-coconut-flavour-coconutBattery.md) · `com.coconut-flavour.coconutBattery` — S · cask 是 `auto_updates`（Homebrew 让位），Sparkle 排在前面先应答 · 签名 feed，通用一键 ✓ · 真包 4.4.0 验证 ✓ · 2026-09-14 feed 无 beta 条目（08-29 有），beta needs-verify · 2026-09-14 复核
+- [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
 
 ## Investigated — blocked safely
 
 - [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
 - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
+- [x] [**macFUSE**](io-macfuse-preferencepanes-macfuse.md) · `io.macfuse.preferencepanes.macfuse` — 装的是 `.prefPane` + `/Library/Filesystems/macfuse.fs`（嵌套的 `macfuse.app` 自报 `1.0`），都不在 `AppScanner` 的扫描目录里；GitHub 侧可行但接不到检查，是扫描模型的缺口不是 recipe 缺口 · 2026-09-14 复核
 
 ## 未编入分类（补录 2026-08-30）
 

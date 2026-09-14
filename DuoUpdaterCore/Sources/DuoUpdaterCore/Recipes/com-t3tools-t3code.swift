@@ -36,9 +36,9 @@ enum com_t3tools_t3code {
         // drift onto this train: its `[0-9.]+` run refuses the dash.
         // listPageSize: releases of this repo's other trains land between two
         // nightly tags, so the newest nightly need not be first in the list. 5 was
-        // sized for 2.5x headroom over the widest run measured on 2026-09-04; the
-        // 2026-09-14 recheck found a wider run of 4 (History has both, and the
-        // page sizes).
+        // sized for 2.5x headroom over the widest run measured on 2026-09-04, and
+        // a later recheck found a wider run (History has both, and the page
+        // sizes).
         GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",

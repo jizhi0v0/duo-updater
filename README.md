@@ -1,4 +1,4 @@
-# Duo Updater
+# DuoUpdater
 
 A macOS menu-bar app that finds updates for the apps you already have, and
 installs them the way each app expects to be updated.
@@ -13,7 +13,7 @@ own updater, it hands over instead of fighting it; when it can't do something
 safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
 
 <p align="center">
-  <img src="assets/menu-bar.png" alt="The Duo Updater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button. A row at the bottom offers to upgrade outdated Homebrew packages." width="420">
+  <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button. A row at the bottom offers to upgrade outdated Homebrew packages." width="420">
 </p>
 
 Each row says what you are going from and to, and the button says what will
@@ -44,7 +44,7 @@ whose page resists parsing fall back to the page itself in a `WKWebView`. Some
 app names are blurred here; they are only this machine's library.
 
 <p align="center">
-  <img src="assets/settings.png" alt="Duo Updater's General settings: check interval, post-update behaviour including automatic restart and rollback backups, concurrency, and install routing for App Store and self-updating apps." width="760">
+  <img src="assets/settings.png" alt="DuoUpdater's General settings: check interval, post-update behaviour including automatic restart and rollback backups, concurrency, and install routing for App Store and self-updating apps." width="760">
 </p>
 
 Most of the settings are about how much autonomy you want to give it — whether

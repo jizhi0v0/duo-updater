@@ -425,7 +425,7 @@ struct MenuContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("Duo Updater")
+                    Text("DuoUpdater")
                         .font(.system(size: 16, weight: .medium))
                     if let version = AppListModel.runningSelfVersion {
                         // The version and the sparkles are ONE button, not a label
@@ -454,7 +454,7 @@ struct MenuContentView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("What's New — Duo Updater's own release notes")
+                        .help("What's New — DuoUpdater's own release notes")
                         .accessibilityLabel("What's New")
                     }
                 }
@@ -865,7 +865,7 @@ private struct BrewUncheckedMark: View {
             .accessibilityAction { showTip = true }
             .popover(isPresented: $showTip, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the Duo Updater window."))
+                    Text(String(localized: "Homebrew didn’t read these packages from their taps — for example because a tap isn’t trusted — so their updates can’t be checked. They’re listed in the Brew section of the DuoUpdater window."))
                         .font(.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)

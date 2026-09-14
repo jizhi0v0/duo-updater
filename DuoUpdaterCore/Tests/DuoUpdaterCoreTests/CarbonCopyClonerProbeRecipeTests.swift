@@ -50,6 +50,24 @@ private let cccBrokenSparkleFeedFixture = ""
 /// group exactly.
 private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
 
+/// What `?v=latestbeta` answers with BETWEEN cycles — the build the beta train
+/// graduated into, which is a plain stable filename. Captured 2026-09-14 with
+/// the same HEAD-and-follow request `.redirectFilename` issues:
+///   `https://bombich.com/software/download_ccc.php?v=latestbeta`
+///   → 302 → `https://api.bombich.com/download/ccc?v=latestbeta`
+///   → 302 → `https://bombich.download/ccc-7.2.8399.zip`
+/// `?v=ccc7` and `?v=latest` resolved to the same filename in the same run, so
+/// the beta endpoint is not answering with something of its own. (The CDN host
+/// has also moved off `bombich.scdn1.secure.raxcdn.com` since the 2026-08-30
+/// captures above; `.redirectFilename` reads the final URL's last path
+/// component, so the recipe never saw the difference.)
+///
+/// That the 7.1.7 betas graduated as 7.2 rather than as a 7.1.7 is the vendor's
+/// own text: `ccc7_rn.html` has no 7.1.7 section at all (7.1.6 → 7.2) and 7.2's
+/// "What's new" is the beta page's cycle list item for item, down to "During our
+/// latest beta testing cycle". See `docs/app-audits/com-bombich-ccc.md`.
+private let cccGraduatedStableFixture = "ccc-7.2.8399.zip"
+
 /// CCC 5 and CCC 6, confirmed 2026-08-29 to be separately downloadable
 /// generations sharing `com.bombich.ccc` — the full evidence chain (real
 /// downloaded/expanded zips for all three generations, same Team
@@ -176,12 +194,51 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
             from: cccBetaRedirectFixture, pattern: recipe.versionPattern) == nil)
     }
 
-    /// Symmetric to the above: the beta pattern (which requires the `-b<N>`
-    /// suffix) must not match an ordinary stable filename either.
-    @Test func betaPatternDoesNotMatchAStableFilename() throws {
+    /// NOT symmetric to the above, on purpose — and this is the assertion the
+    /// `-b<N>`-required pattern got backwards. This train runs in cycles, and
+    /// between cycles `?v=latestbeta` answers with the build the train graduated
+    /// into, so a beta pattern that rejects a plain filename rejects the vendor's
+    /// ordinary resting state: the probe throws, the row shows a failed check,
+    /// and `duo verify` — which walks recipes, not installs — files a red finding
+    /// on every machine. Same call CotEditor's beta rule makes, for the same
+    /// reasons; see the registry comment.
+    ///
+    /// Mutation: drop the `?` from `(?:-b[0-9]+)?` in the beta `versionPattern`
+    /// (i.e. restore the shipped pattern) — this reads nil and fails.
+    @Test func betaPatternReadsTheGraduatedStableFilenameOnPurpose() throws {
         let recipe = try #require(self.betaRecipe())
         #expect(VendorProbeRecipe.extractVersion(
-            from: cccRedirectFixture, pattern: recipe.versionPattern) == nil)
+            from: cccGraduatedStableFixture, pattern: recipe.versionPattern) == "7.2")
+        // An open cycle still reads its own build — the suffix became optional,
+        // not ignored. Both halves are needed, and the second one catches its own
+        // mutation: dropping `-b[0-9]+` from the pattern entirely leaves the line
+        // above passing (`7.2` still reads) while this one goes nil — measured,
+        // not assumed, because the `\.[0-9]{3,}` that follows no longer lines up
+        // with `-b7.8389` and the whole match fails rather than truncating.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccBetaRedirectFixture, pattern: recipe.versionPattern) == "7.1.7-b7")
+        // The historical two-segment marketing form is reachable through the
+        // relaxed arm too, and must read the same version the stable recipe reads
+        // from it rather than swallowing the build segment.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccTwoSegmentMarketingFixture, pattern: recipe.versionPattern) == "7.1")
+    }
+
+    /// The ordering the fix depends on, asserted rather than assumed: a copy on
+    /// the last prerelease of a closed cycle must read the graduation as NEWER,
+    /// or the relaxed pattern resolves a version that is never offered.
+    ///
+    /// Cheaper here than CotEditor's equivalent and worth saying why: `7.2` beats
+    /// `7.1.7-b7` at the SECOND component, so this never reaches the
+    /// `.text`-versus-padded-`.number(0)` rule `7.1.0` / `7.1.0-beta.6` needs. The
+    /// reverse direction is asserted too — it is what stops a stale between-cycles
+    /// answer from being offered to a copy that is already ahead of it.
+    @Test func theGraduationOutranksTheLastPrereleaseOfItsCycle() {
+        #expect(VersionComparator.isNewer("7.2", than: "7.1.7-b7"))
+        #expect(!VersionComparator.isNewer("7.1.7-b7", than: "7.2"))
+        // And the shape a future cycle will graduate through, where the padding
+        // rule IS what decides: a bare `7.3` against its own `7.3-b1`.
+        #expect(VersionComparator.isNewer("7.3", than: "7.3-b1"))
     }
 
     /// Each generation's `hostRequirement.minimumSystemVersion` is pinned as a
@@ -238,6 +295,18 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
         #expect(ReleaseChannel.detect(
             name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
             keystoneChannel: nil, version: "7.1.6") == .stable)
+        // The graduation reads `.stable` too, and that is deliberately left
+        // alone: a copy that takes the build its beta cycle graduated into stops
+        // being a beta copy, so the stable recipe serves it from then on. Pinned
+        // here because it is the one-way cost of the beta recipe accepting a
+        // stable filename — the decision is in the registry comment, and this is
+        // what makes it a checked decision rather than a remark. Nothing in this
+        // repo reads CCC's own "Inform me of beta releases" preference, so there
+        // is no `ChannelBinding` to override this the way `CotEditorChannel`
+        // overrides the equivalent for CotEditor.
+        #expect(ReleaseChannel.detect(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            keystoneChannel: nil, version: "7.2") == .stable)
         // Scoped to this bundle id: an unrelated app with a superficially
         // similar-looking tail is not swept up by this rule.
         #expect(ReleaseChannel.detect(
@@ -393,15 +462,27 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
         let everyFilename = [
             cccFiveRedirectFixture, cccSixRedirectFixture, cccRedirectFixture,
             cccTwoSegmentMarketingFixture, cccBetaRedirectFixture,
+            cccGraduatedStableFixture,
             cccEightRedirectFixture, cccEightBetaRedirectFixture,
         ]
         /// What each recipe is allowed to read, keyed by filename. Anything not
         /// listed for a recipe must come back nil.
+        ///
+        /// The beta row is the widest on purpose and that is the change this
+        /// matrix now pins: its `-b<N>` is optional, so every CCC 7 filename is
+        /// legitimately readable through it (see the registry comment on why
+        /// between-cycles resolution has to work). What it must STILL refuse is
+        /// another generation — which is now carried by the major-7 anchor alone,
+        /// since requiring `-b` used to reject `cccEightRedirectFixture` as a side
+        /// effect and no longer does.
         let expected: [(VendorProbeRecipe, [String: String])] = [
-            (ccc7, [cccRedirectFixture: "7.1.6", cccTwoSegmentMarketingFixture: "7.1"]),
+            (ccc7, [cccRedirectFixture: "7.1.6", cccTwoSegmentMarketingFixture: "7.1",
+                    cccGraduatedStableFixture: "7.2"]),
             (ccc6, [cccSixRedirectFixture: "6.1.13"]),
             (ccc5, [cccFiveRedirectFixture: "5.1.28"]),
-            (beta, [cccBetaRedirectFixture: "7.1.7-b7"]),
+            (beta, [cccBetaRedirectFixture: "7.1.7-b7", cccRedirectFixture: "7.1.6",
+                    cccTwoSegmentMarketingFixture: "7.1",
+                    cccGraduatedStableFixture: "7.2"]),
         ]
         for (recipe, allowed) in expected {
             for filename in everyFilename {
@@ -458,5 +539,84 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
             .probeDiagnostic(beta.with(url: url(cccEightBetaRedirectFixture)))
         #expect(betaFuture.remote == nil, "a CCC 8 beta zip must not resolve through the CCC 7 beta recipe")
         #expect(betaFuture.failure != nil)
+
+        // The beta recipe against a CCC 8 STABLE filename — newly reachable, and
+        // the reason this half exists. `?v=latestbeta` is a "latest" alias with
+        // no per-generation twin, so on CCC 8's release day it will answer this
+        // recipe with a CCC 8 build; between cycles that build is a plain
+        // `ccc-8.…zip`, which the `-b`-required pattern used to reject as a side
+        // effect of requiring the suffix. Only the major-7 anchor stops it now.
+        let betaFutureStable = await VendorProbeSource()
+            .probeDiagnostic(beta.with(url: url(cccEightRedirectFixture)))
+        #expect(betaFutureStable.remote == nil,
+                "a CCC 8 stable zip must not resolve through the CCC 7 beta recipe")
+        #expect(betaFutureStable.failure != nil)
+
+        // Positive control for that half from the same stub: the between-cycles
+        // answer the recipe is now supposed to read.
+        let betaGraduated = await VendorProbeSource()
+            .probeDiagnostic(beta.with(url: url(cccGraduatedStableFixture)))
+        #expect(betaGraduated.remote?.shortVersion == "7.2")
+    }
+
+    /// The user-visible bug, end to end through `VendorProbeSource` rather than
+    /// through the extractor: a copy on the last prerelease of a closed cycle
+    /// detects as `.beta` (step 0.8), passes the channel gate onto the beta
+    /// recipe and `installedVersionPattern`'s `^7\.`, and is offered the build
+    /// its own train graduated into. Before the fix this whole path ended in
+    /// `ProbeFailed` and the row showed a failed check.
+    ///
+    /// Served from the stub rather than the live endpoint so it keeps asserting
+    /// the between-cycles behaviour after the vendor opens the next cycle —
+    /// `betaEndpointStillResolvesAVersionLive` below is the live half.
+    ///
+    /// Mutation: restore the `-b[0-9]+`-required pattern — `latestVersion` goes
+    /// nil and both expectations fail.
+    @Test func aBetaCopyIsOfferedTheBuildItsCycleGraduatedInto() async throws {
+        let server = try RecipeVerificationTests.StubServer(body: "", contentType: "application/zip")
+        defer { server.stop() }
+        let beta = try #require(self.betaRecipe())
+        let endpoint = URL(
+            string: "http://127.0.0.1:\(server.port)/\(cccGraduatedStableFixture)")!
+
+        let source = VendorProbeSource(recipes: [beta.with(url: endpoint)])
+        let installed = InstalledApp(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            shortVersion: "7.1.7-b7", buildVersion: "8389",
+            path: URL(fileURLWithPath: "/Applications/Carbon Copy Cloner.app"),
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: ReleaseChannel.detect(
+                name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+                keystoneChannel: nil, version: "7.1.7-b7"))
+        #expect(installed.releaseChannel == .beta)
+
+        let remote = try await source.latestVersion(for: installed)
+        // Marketing-only recipe (`versionIsBuild: false`), so the comparable
+        // value rides in `shortVersion` — same as the CCC 6 live test above.
+        let offered = try #require(remote?.shortVersion)
+        #expect(offered == "7.2")
+        // Resolving it is only half the fix; it has to out-rank the installed
+        // prerelease or nothing is ever offered.
+        #expect(VersionComparator.isNewer(offered, than: "7.1.7-b7"))
+    }
+
+    /// The live half, and the one written to survive the vendor changing state.
+    /// `?v=latestbeta` answers with a beta filename while a cycle is open and
+    /// with the graduated stable between cycles, so asserting a VERSION here
+    /// would go red on the vendor's schedule. What must hold in both states is
+    /// that the recipe resolves a CCC 7 version at all — which is exactly the
+    /// property that broke, and exactly what the nightly sweep files on.
+    ///
+    /// Mutation: restore the `-b[0-9]+`-required pattern — red today (the
+    /// endpoint is between cycles), green while a cycle is open. That asymmetry
+    /// is the point: this test is the live tripwire, and the stub-served tests
+    /// above are what hold the behaviour down when it is not armed.
+    @Test func betaEndpointStillResolvesAVersionLive() async throws {
+        let beta = try #require(self.betaRecipe())
+        let outcome = await VendorProbeSource().probeDiagnostic(beta)
+        let version = try #require(
+            outcome.remote?.shortVersion,
+            "?v=latestbeta resolved nothing — failure: \(String(describing: outcome.failure))")
+        #expect(version.hasPrefix("7."), "resolved \(version), which is not a CCC 7 version")
     }
 }

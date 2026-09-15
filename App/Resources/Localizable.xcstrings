@@ -6248,6 +6248,47 @@
         }
       }
     },
+    "Built with the %@ SDK.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit dem %@ SDK gebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compilada con el SDK de %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compilée avec le SDK %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ SDK でビルドされています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собрано с SDK %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 %@ SDK 编译。"
+          }
+        }
+      }
+    },
     "brew update finished, but Homebrew is still %@.": {
       "extractionState": "manual",
       "localizations": {

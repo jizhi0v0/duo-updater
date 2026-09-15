@@ -33,6 +33,10 @@ struct RuntimeTag: View {
     /// the cases where the runtime label alone is not the whole answer. Empty is
     /// normal — nothing is claimed when nothing was read.
     var frameworks: LinkedFrameworks = []
+    /// The SDK the same binary was linked against, shown in the click-through
+    /// detail for every runtime — unlike `frameworks`, it is not implied by any of
+    /// the labels. Nil shows nothing.
+    var buildSDK: BuildSDK?
     /// Edge of the square the mark is drawn in. The default suits a list row; the
     /// workbench's detail header sets it larger to sit beside a `.title2` name.
     var size: CGFloat = 12
@@ -133,6 +137,15 @@ struct RuntimeTag: View {
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
+                }
+                if let sdk = Self.sdkLine(buildSDK) {
+                    Text(sdk)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // The same gap below the description the frameworks line
+                        // takes, whichever of the two comes first.
+                        .padding(.top, Self.linkedLine(runtime, frameworks) == nil ? 2 : 0)
                 }
             }
         }
@@ -247,6 +260,18 @@ struct RuntimeTag: View {
         guard !names.isEmpty else { return nil }
         let list = ListFormatter.localizedString(byJoining: names)
         return String(localized: "Links \(list).", comment: "Detail line: which Apple frameworks the app's binary links")
+    }
+
+    /// The SDK line under the frameworks line, or nil when the binary recorded
+    /// none. The platform and version are joined before they reach the string so
+    /// a translation places one token rather than reordering two; both halves are
+    /// Apple's own spelling and stay Latin in every language, like the runtime
+    /// names.
+    static func sdkLine(_ sdk: BuildSDK?) -> String? {
+        guard let sdk else { return nil }
+        let name = "\(sdk.platform.displayName) \(sdk.version)"
+        return String(localized: "Built with the \(name) SDK.",
+                      comment: "Detail line: the SDK the app's binary was linked against, e.g. “macOS 27.0”")
     }
 
     /// The tooltip — and, since the mark has no text, the only place the name of

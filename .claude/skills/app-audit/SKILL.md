@@ -772,7 +772,8 @@ same check.
 When the app's recipe family has moved history, the audit ends with `## 历史与实测`,
 which holds dated measurements, incidents and rejected approaches
 (`docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). The heading and the
-`// History:` pointer in `Recipes/<family>.swift` come as a pair:
+`// History:` pointer in the family's file (`Recipes/<family>.swift`, or
+`Resources/Recipes/<family>.json5` for a family written as data) come as a pair:
 `check_app_audits.py` fails a heading no pointer points at, and a pointer whose
 doc has no such heading.
 
@@ -849,13 +850,13 @@ suggestions. Use this decision table:
 |---------|--------|-----|
 | Needs VendorProbe recipe | → `/fragile-recipe <app>` (VendorProbe path) | Pass the endpoint URL, version pattern, and channel from the audit |
 | Needs ChangelogRecipe | → `/fragile-recipe <app>` (Changelog path) | Pass the changelog URL and markup structure from the audit |
-| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`), then re-record goldens (below) |
+| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` (or its `.json5` under `Resources/Recipes/`) directly | Add the rule to its `githubRules` with owner/repo/pattern/channel (new Swift family: also a line in `AppRecipeIndex.swiftFamilies`), then re-record goldens (below) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
-| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint, then re-record goldens (below) |
+| Needs channel added to existing probe | → Edit the family's file under `Recipes/` (or its `.json5` under `Resources/Recipes/`) | Duplicate the stable recipe in its `probes`, change channel + endpoint, then re-record goldens (below) |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |
 | Already fully covered | → Write/update audit doc only | No code change needed |
 
-Any edit to a family file under `Recipes/` (or to `AppRecipeIndex.all`) changes
+Any edit to a family file under `Recipes/` or `Resources/Recipes/` (or to `AppRecipeIndex.swiftFamilies`) changes
 what `RecipeGoldenTests` expects. Re-record the goldens from the repository root
 and commit the diff with the recipe; the recording run fails on purpose, so rerun
 without the variable to see it pass (the `/fragile-recipe` path does this in its
@@ -999,7 +1000,7 @@ Verification harness:
 Core (read as needed):
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + detect()
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` — per-app preference resolvers
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` — one app family's probes, GitHub rules, changelog recipes and channel proofs (`AppRecipeIndex.swift` lists the families)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift`, or `…/Resources/Recipes/<family>.json5` for a family written as data — one app family's probes, GitHub rules, changelog recipes and channel proofs (`AppRecipeIndex.swift` lists the Swift families and merges in the `.json5` ones; editing a `.json5`: `/fragile-recipe` SKILL.md)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` — probe struct + `VendorProbeRegistry` (derived)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift` — GitHub rule struct + `GitHubReleaseRegistry` (derived)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` — changelog recipe struct + `ChangelogRecipeRegistry` (derived)

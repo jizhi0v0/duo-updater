@@ -227,10 +227,11 @@ release and the detail parse yields sane entries — the same Python snippet, wi
 
 ## Register + test
 
-Add the recipe to the `changelogs:` of the app's family file under
-`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/`, and the family to
-`AppRecipeIndex.all` if it is new. `ChangelogRecipeRegistry.recipes` is derived
-from that index.
+Add the recipe to the `changelogs` of the app's family file: a `.swift` under
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` (and the family to
+`AppRecipeIndex.swiftFamilies` if it is new), or a `.json5` under
+`Resources/Recipes/` (SKILL.md, "Editing a `.json5` family").
+`ChangelogRecipeRegistry.recipes` is derived from `AppRecipeIndex.all`.
 
 The comment states the page's shape and why the patterns are anchored. Entry
 counts, the newest version you saw and the date you checked go to the family

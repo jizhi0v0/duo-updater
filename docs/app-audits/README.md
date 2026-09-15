@@ -6,7 +6,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## 从 recipe 注释迁出的历史
 
-`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` 的注释只留**当前契约**；
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift`（写成数据的 family 是
+`Resources/Recipes/<family>.json5`，注释是整行 `//`，规矩相同）的注释只留**当前契约**；
 带日期的验证记录、事故经过、实测、否决过的方案搬进该 family 的审计文档。步骤与
 [`docs/engine-notes/README.md`](../engine-notes/README.md) 的
 「Checklist for migrating a comment here」相同——(a)/(b)/(c) 三类、搬之前复核、
@@ -42,10 +43,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   is today" 也要核——CapCut 那句 "stable is 9.3.0 — which it is today" 在重读时已经不成立），
   没有悬空的 "see below"、"that"、"the question"。
 - **接收位置**：`docs/app-audits/<family>.md` 末尾的固定标题 `## 历史与实测`（逐字，
-  `scripts/check_app_audits.py` 认这一整行）。`<family>` 是 recipe 文件名去掉 `.swift`，
+  `scripts/check_app_audits.py` 认这一整行）。`<family>` 是 recipe 文件名去掉 `.swift` 或 `.json5`，
   一个 family 一份——family 里另一个 app 有自己的审计时也一样，历史进 family 那份，
   需要时再链过去。
-- **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`，
+- **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`（数据 family 写
+  `### Resources/Recipes/<family>.json5 — …`），
   下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
   结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
   换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。历史是注释当时的带日期快照，不跟代码同步：
@@ -59,9 +61,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   `## 历史与实测`。登记在下面索引的「仅迁出历史（未审计）」一节，**永远不打勾**；日后真审计了
   再挪到对应分类。
 - **检查**：`check_app_audits.py` 要求每个回链指向 git 跟踪的文件、文件里有那一行标题、
-  `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
+  `Recipes/` 与 `Resources/Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
   指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
-  审计新增行数）要回答的。`check_recipe_snapshots.py` 扫描 `Recipes/` 下每个 family（包括新
+  审计新增行数）要回答的。`check_recipe_snapshots.py` 扫描 `Recipes/` 与 `Resources/Recipes/` 下每个 family（包括新
   family）的当前注释，拦带日期的实测（形状清单和豁免见脚本）。
 - **补充七条**（#615 三轮复审的教训，上面各条没有覆盖到的）：
   1. **机器状态怎么划**：拿身份、Team 或 bundle 和"被更新的那个 app"比较的措辞原样保留

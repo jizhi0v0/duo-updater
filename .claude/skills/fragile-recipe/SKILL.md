@@ -193,12 +193,34 @@ Vendor probe (same `Sources/` dir):
 - `VendorProbeSource.swift` — the runtime that runs recipes (don't usually touch)
 - tests live alongside the other `*Tests.swift` for probes
 
-Recipes themselves (`DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/`):
-- `<family>.swift` — one file per app family (its primary bundle id, dots as
-  dashes — the `docs/app-audits/` slug), holding that app's entries of every kind
-- `AppRecipeIndex.swift` — the one list of families, sorted by slug; every
-  registry above is derived from it
+Recipes themselves:
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<family>.swift` — one file per
+  app family (its primary bundle id, dots as dashes — the `docs/app-audits/`
+  slug), holding that app's entries of every kind
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes/<family>.json5` — a
+  family written as data instead: the same kinds, as JSON (see below)
+- `Recipes/AppRecipeIndex.swift` — `swiftFamilies`, the hand-kept list of the Swift
+  families, sorted by slug; `AppRecipeIndex.all` merges it with the `.json5`
+  files, and every registry above is derived from `all`
 
 Adding a recipe almost always means editing exactly one file: the family's file
-under `Recipes/` (and a line in `AppRecipeIndex.all` if the family is new), plus
-its fixture test.
+(a `.swift` under `Recipes/`, plus a line in `AppRecipeIndex.swiftFamilies` if the
+family is new; or its `.json5`, which needs no index line), plus its fixture test.
+
+Editing a `.json5` family:
+- **Dialect.** Plain JSON plus whole-line `//` comments, nothing else: no trailing
+  commas, `/* */`, `//` after code on the same line, single quotes or unquoted
+  keys, and no key twice in one object. The decoder would accept most of those and
+  keeps the first of two duplicate keys without a word, so
+  `scripts/check_recipe_json5.py` (in `make test`) refuses them.
+- **Keys** are the Swift stored property names; an enum with a payload is an object
+  tagged `"kind"`; leave out anything at its default. The convention is on
+  `RecipeCoding`, the file's top level on `RecipeFamilyFile`.
+- **Escaping.** A Swift raw string `#"\d+\.\d+"#` is written `"\\d+\\.\\d+"`:
+  every backslash doubled, every `"` inside the pattern written `\"`. A pattern
+  Swift joined with `+` across lines is one JSON string on one line.
+- **Comments** go where they would go in Swift: a block of whole-line `//` right
+  before the entry it is about, or before the field inside the entry. Step 6
+  applies to them unchanged; the snapshot and History-pointer checks read them.
+- **A file that does not decode** traps on first access to the index, naming the
+  file and the coding path.

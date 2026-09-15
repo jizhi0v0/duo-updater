@@ -167,10 +167,11 @@ build and the host is the vendor's own.
 
 ## Register + test
 
-Add the recipe to the `probes:` of the app's family file under
+Add the recipe to the `probes` of the app's family file — a `.swift` under
 `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` (and the family to
-`AppRecipeIndex.all` if it is new — `VendorProbeRegistry.recipes` is derived from
-that index), with a comment naming where the version lives, the Team ID if it installs, and any
+`AppRecipeIndex.swiftFamilies` if it is new) or a `.json5` under `Resources/Recipes/`
+(SKILL.md, "Editing a `.json5` family"); `VendorProbeRegistry.recipes` is derived
+from `AppRecipeIndex.all` — with a comment naming where the version lives, the Team ID if it installs, and any
 rollout/format gotcha (study the neighbors for their quirks, like Chrome's
 fractional rollout or VLC's ascending appcast, not for their dated verification
 logs). Measurements go to the family audit's `## 历史与实测`, not the comment; see

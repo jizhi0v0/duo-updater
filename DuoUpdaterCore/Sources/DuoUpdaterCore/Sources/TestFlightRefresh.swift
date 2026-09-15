@@ -97,11 +97,13 @@ public struct TestFlightRefresh: Sendable {
     /// What one attempt did. Every case is a thing the caller may want to say out
     /// loud — nothing here is a silent no-op.
     public enum Outcome: Sendable, Equatable {
-        /// The store changed and then held still for ``settleInterval`` — the
-        /// sync finished, and the caller may read the store.
+        /// The store changed, held still for ``settleInterval``, and was no longer
+        /// mid-rebuild (`TestFlightInventory.isRebuilding`) — the sync finished, and
+        /// the caller may read the store.
         case refreshed(after: Duration)
-        /// The store changed but the deadline arrived before it ever went quiet,
-        /// so whether the sync finished is **unknown**. Deliberately not
+        /// The store changed but the deadline arrived before it settled — either it
+        /// never went quiet, or it went quiet with TestFlight still waiting on its
+        /// second request — so whether the sync finished is **unknown**. Deliberately not
         /// ``refreshed``: a caller that reads the store on this signal can read it
         /// mid-sync, which is exactly what happened on 2026-09-10 — the refresh
         /// announced success at +10s, the data landed at +40s, and the check in the
@@ -153,10 +155,11 @@ public struct TestFlightRefresh: Sendable {
     /// establish that the work is a network round trip whose tail is long, not
     /// where the tail ends. For a store that settles the larger number costs
     /// nothing: the loop returns as soon as it does, so a healthy refresh still
-    /// comes back in the 15–25s the same trials measured. Two cases wait all 90s:
-    /// a store that keeps moving, and one that never changes at all
-    /// (`noChange`), which has no write to
-    /// settle after. All five trials above wrote, so that second case is unmeasured.
+    /// comes back in the 15–25s the same trials measured. Three cases wait all 90s:
+    /// a store that keeps moving, one that stays mid-rebuild (TestFlight never gets
+    /// its second request back), and one that never changes at all (`noChange`),
+    /// which has no write to settle after. All five trials above wrote, so that last
+    /// case is unmeasured.
     public static let defaultDeadline: Duration = .seconds(90)
 
     /// How often to look at the store while waiting.
@@ -179,6 +182,16 @@ public struct TestFlightRefresh: Sendable {
     /// refresh finished during the pause and reported the +1s write. The first fix
     /// used three and did exactly that — caught by the unit case, not by hand.
     /// One trace, so the margin is deliberate rather than fitted.
+    ///
+    /// ⚠️ **Quiet is not enough on its own, and no interval can make it so.** The
+    /// pause inside the burst is TestFlight waiting on its second catalogue request,
+    /// so it is as long as that request: 3.0–17.7s on one Mac on 2026-09-15. At 16:55
+    /// that day a sync was declared finished 6.5s after the request went out, the
+    /// instance was ended, the request never landed, and the store stayed half built
+    /// until TestFlight next ran — an available beta read as up to date for half an
+    /// hour. So the wait also requires the store to have left that state
+    /// (`storeRebuilding`, `TestFlightInventory.isRebuilding`); this interval only
+    /// decides how long it must stay quiet once it has.
     public static let settleInterval: Duration = .seconds(6)
 
     // Effects, injected so the decision table is testable without launching
@@ -197,6 +210,10 @@ public struct TestFlightRefresh: Sendable {
     let testsNothing: @Sendable () async -> Bool
     /// Whether this Mac is signed in to the App Store (`notSignedIn`); nil is no signal.
     let appStoreSignedIn: @Sendable () async -> Bool?
+    /// Whether the store is still between TestFlight's two catalogue requests
+    /// (`TestFlightInventory.isRebuilding`). Asked only once the store has gone
+    /// quiet, so a healthy sync costs one extra read.
+    let storeRebuilding: @Sendable () async -> Bool
 
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
@@ -205,7 +222,8 @@ public struct TestFlightRefresh: Sendable {
         storeStamp: @escaping @Sendable () -> Date? = Self.storeStamp,
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         testsNothing: @escaping @Sendable () async -> Bool = Self.storeTestsNothing,
-        appStoreSignedIn: @escaping @Sendable () async -> Bool? = Self.appStoreSignIn
+        appStoreSignedIn: @escaping @Sendable () async -> Bool? = Self.appStoreSignIn,
+        storeRebuilding: @escaping @Sendable () async -> Bool = Self.storeIsRebuilding
     ) {
         self.locate = locate
         self.spawn = spawn
@@ -214,6 +232,7 @@ public struct TestFlightRefresh: Sendable {
         self.sleep = sleep
         self.testsNothing = testsNothing
         self.appStoreSignedIn = appStoreSignedIn
+        self.storeRebuilding = storeRebuilding
     }
 
     /// Run one attempt. Never throws: every failure is an `Outcome` the caller can
@@ -272,15 +291,18 @@ public struct TestFlightRefresh: Sendable {
                 continue
             }
             // Quiet for long enough after a write — see `settleInterval` for why
-            // the first write is not the answer.
-            if let lastChange, waited - lastChange >= settle {
+            // the first write is not the answer — and not quiet because TestFlight
+            // is still waiting on its second request. Ending the instance there
+            // freezes the store half built, so that case keeps waiting, and a
+            // deadline reached in it is reported as unsettled below.
+            if let lastChange, waited - lastChange >= settle, await !storeRebuilding() {
                 return .refreshed(after: lastChange)
             }
         }
         // Ran out of time. It still changed, so say so rather than pretending
         // nothing happened — but do NOT call it a refresh: the store never held
-        // still, so the sync may well be in flight, and the caller is about to
-        // read it.
+        // still, or held still half built, so the sync may well be in flight, and
+        // the caller is about to read it.
         if let lastChange { return .changedWithoutSettling(lastChange: lastChange) }
         return .noChange
     }
@@ -301,6 +323,12 @@ public struct TestFlightRefresh: Sendable {
     /// called from `run()`, which is async (see `offCooperativePool`).
     public static let storeTestsNothing: @Sendable () async -> Bool = {
         await offCooperativePool { TestFlightInventory().isTestingNothing }
+    }
+
+    /// Whether the store is mid-rebuild (`TestFlightInventory.isRebuilding`). False
+    /// when it cannot be read, so an unreadable store never holds a refresh open.
+    public static let storeIsRebuilding: @Sendable () async -> Bool = {
+        await offCooperativePool { TestFlightInventory().isRebuilding }
     }
 
     /// Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read off the

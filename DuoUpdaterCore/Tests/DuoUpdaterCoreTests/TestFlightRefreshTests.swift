@@ -63,8 +63,12 @@ struct TestFlightRefreshTests {
         stamp: Stamp = Stamp(),
         testsNothing: Bool = false,
         appStoreSignedIn: Bool? = nil,
+        rebuilding: @escaping @Sendable () -> Bool = { false },
         spy: Spy
     ) -> TestFlightRefresh {
+        // Every effect injected, `storeRebuilding` included: its default reads the
+        // real store, and a case must not answer differently on a Mac that happens to
+        // have TestFlight mid-sync.
         TestFlightRefresh(
             locate: { installed ? bundle : nil },
             spawn: { url in
@@ -75,7 +79,57 @@ struct TestFlightRefreshTests {
             storeStamp: { stamp.read() },
             sleep: { _ in spy.slept() },
             testsNothing: { testsNothing },
-            appStoreSignedIn: { appStoreSignedIn })
+            appStoreSignedIn: { appStoreSignedIn },
+            storeRebuilding: { rebuilding() })
+    }
+
+    /// Answers "rebuilding" for the first `times` questions, then "done".
+    private final class Rebuild: @unchecked Sendable {
+        private let lock = NSLock()
+        private var remaining: Int
+        private(set) var asked = 0
+        init(times: Int) { remaining = times }
+        func ask() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            asked += 1
+            guard remaining > 0 else { return false }
+            remaining -= 1
+            return true
+        }
+    }
+
+    /// **Quiet is not finished while TestFlight waits on its second request.**
+    /// Replay of 2026-09-15 16:55: writes, a silence longer than `settle`, and the
+    /// store still half built. The old rule ended the instance there, the request
+    /// never landed, and an available beta read as current for half an hour.
+    ///
+    /// Here the only write is on the 2nd read (+0.5s), so quiet-for-3s is met by
+    /// +3.5s, and the store reports rebuilding for four more polls. Mutation: drop
+    /// `await !storeRebuilding()` from the settle rule — the refresh is reported at
+    /// the first quiet poll, `rebuild.asked` is 0, and both expectations fail.
+    @Test func aQuietStoreStillMidRebuildIsNotYetARefresh() async {
+        let spy = Spy()
+        let rebuild = Rebuild(times: 4)
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), rebuilding: { rebuild.ask() }, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30), settle: .seconds(3))
+        #expect(outcome == .refreshed(after: .milliseconds(500)))
+        #expect(rebuild.asked == 5)
+        // The four rebuilding answers each cost a poll: settled at +3.5s, returned at +5.5s.
+        #expect(spy.sleeps == 11)
+    }
+
+    /// A rebuild that outlasts the deadline is reported as unsettled, never as a
+    /// refresh, and the instance is still ended. Mutation: drop
+    /// `await !storeRebuilding()` — the quiet store is reported refreshed and this
+    /// fails.
+    @Test func aRebuildStillRunningAtTheDeadlineIsNotCalledARefresh() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), rebuilding: { true }, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(10), settle: .seconds(3))
+        #expect(outcome == .changedWithoutSettling(lastChange: .milliseconds(500)))
+        #expect(spy.terminated == [Self.spawnedPID])
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when

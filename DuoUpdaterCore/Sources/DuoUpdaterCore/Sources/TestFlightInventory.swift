@@ -141,6 +141,20 @@ public struct TestFlightInventory: Sendable {
     /// not run — see `readTesters`, and `isTesting(bundleID:)` for what nil means.
     private let testerBundleIDs: Set<String>?
 
+    /// Whether this read caught TestFlight partway through rebuilding its store, so
+    /// what it says about which builds exist is not an answer yet. See
+    /// `rebuildingSQL` for the shape and how it was measured.
+    ///
+    /// `false` when the store is complete, and also when the query did not prepare:
+    /// a schema change must cost this guard, never every TestFlight verdict.
+    public let isRebuilding: Bool
+
+    /// Whether the build rows could be queried at all. `false` when the store opened
+    /// but neither row query prepared — the "schema just didn't match" read, which
+    /// comes back `accessible` and empty. Only `awaitingRebuild` asks: such a read
+    /// says nothing about whether a rebuild has finished.
+    public let rowsReadable: Bool
+
     /// Whether we actually opened the TestFlight database. `false` means the file
     /// was missing or the read was blocked/denied — notably the "access data from
     /// other apps" TCC gate. The UI uses this to tell "we read it and there was
@@ -156,11 +170,13 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, macInstalledRows, iosRows, iosAvailableRows, frontiers, testers, opened) =
+        let (rows, macInstalledRows, iosRows, iosAvailableRows, frontiers, testers, rebuilding, readable, opened) =
             Self.readRows(at: url)
         self.accessible = opened
+        self.rowsReadable = readable
         self.frontierByBundleID = frontiers
         self.testerBundleIDs = testers
+        self.isRebuilding = rebuilding
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
         self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
 
@@ -219,11 +235,15 @@ public struct TestFlightInventory: Sendable {
         availableIOSRows: [(bundleID: String, shortVersion: String, build: String)]? = nil,
         frontiers: [String: Frontier] = [:],
         testers: Set<String>? = nil,
+        rebuilding: Bool = false,
+        rowsReadable: Bool = true,
         accessible: Bool = true
     ) {
         self.accessible = accessible
+        self.rowsReadable = rowsReadable
         self.frontierByBundleID = frontiers
         self.testerBundleIDs = testers
+        self.isRebuilding = rebuilding
         self.iosBuildsByBundleID = Self.buildIndex(installedIOSRows)
         // The database always yields the installed rows as a subset of the
         // available ones, so a fixture that names only the installed rows gets the
@@ -426,7 +446,7 @@ public struct TestFlightInventory: Sendable {
     /// which is a claim that read never made.
     typealias Reading = (
         rows: [Row], macInstalledRows: [Row]?, iosRows: [Row], iosAvailableRows: [Row],
-        frontiers: [String: Frontier], testers: Set<String>?, opened: Bool)
+        frontiers: [String: Frontier], testers: Set<String>?, rebuilding: Bool, rowsReadable: Bool, opened: Bool)
 
     /// How long to wait for the database to open before treating it as
     /// unreachable. Generous: a cold sandboxed sqlite open is milliseconds, so
@@ -461,7 +481,7 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil, [], [], [:], nil, false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil, [], [], [:], nil, false, false, false) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
@@ -472,7 +492,7 @@ public struct TestFlightInventory: Sendable {
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
         } ?? (rows: [], macInstalledRows: nil, iosRows: [], iosAvailableRows: [],
-              frontiers: [:], testers: nil, opened: false)
+              frontiers: [:], testers: nil, rebuilding: false, rowsReadable: false, opened: false)
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -483,7 +503,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], nil, [], [], [:], nil, false)
+            return ([], nil, [], [], [:], nil, false, false, false)
         }
         defer { sqlite3_close(db) }
 
@@ -500,6 +520,7 @@ public struct TestFlightInventory: Sendable {
         if var reading = runRowQuery(db, sql: Self.rowsWithInstallStatusSQL, hasInstallStatus: true) {
             reading.frontiers = readFrontiers(db)
             reading.testers = readTesters(db)
+            reading.rebuilding = readRebuilding(db)
             return reading
         }
         Log.scan.error("""
@@ -509,6 +530,7 @@ public struct TestFlightInventory: Sendable {
         if var reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
             reading.frontiers = readFrontiers(db)
             reading.testers = readTesters(db)
+            reading.rebuilding = readRebuilding(db)
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed")
@@ -517,7 +539,7 @@ public struct TestFlightInventory: Sendable {
         // one cannot prepare — and the whole reason the frontier got its own query is
         // that each signal fails on its own. Returning here without trying made the
         // implication run backwards.
-        return ([], nil, [], [], readFrontiers(db), readTesters(db), true)  // we opened it; the schema just didn't match
+        return ([], nil, [], [], readFrontiers(db), readTesters(db), readRebuilding(db), false, true)  // we opened it; the schema just didn't match
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -696,14 +718,125 @@ public struct TestFlightInventory: Sendable {
         // `hasInstallStatus == false` means the status column was never selected,
         // so "installed here" is unknown for mac rows, not empty.
         return (rows, hasInstallStatus ? macInstalledRows : nil,
-                iosRows, iosAvailableRows, [:], nil, true)
+                iosRows, iosAvailableRows, [:], nil, false, true, true)
     }
+
+    /// Whether the store is between TestFlight's two catalogue requests.
+    ///
+    /// **Its own query, and its own failure**, like the frontier and the testers: a
+    /// schema that breaks it answers `false`, which switches this guard off and
+    /// changes no verdict.
+    private static func readRebuilding(_ db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, Self.rebuildingSQL, -1, &stmt, nil) == SQLITE_OK else {
+            sqlite3_finalize(stmt)
+            Log.scan.error("TestFlight DB rebuild query did not prepare — a store read mid-rebuild will not be recognized")
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
+        return sqlite3_column_int64(stmt, 0) == 1
+    }
+
+    /// A store TestFlight has started rebuilding and not finished: the account is
+    /// testing apps, **none** of those app rows carries its bundle id, and no build
+    /// row carries its build id.
+    ///
+    /// Measured 2026-09-15 by backing the store up every 0.3s: six syncs on two Macs
+    /// (macOS 27 and 26.6), a cold launch by hand, and a sign-in. Each launch empties
+    /// the store, puts back placeholders for the installed builds, then applies
+    /// `/v4/accounts/<id>/apps` — every app row, named and `ZISTESTER = 1`, but with
+    /// `ZBUNDLEID` NULL on all of them and only the installed build rows present —
+    /// and only when `/v4/accounts/<id>/appDetails` (~557 KB) lands does it fill in
+    /// bundle ids and every offered build. That gap lasted 2.9–6.1s in those runs and
+    /// is exactly as long as the second request, seen at 3.0–17.7s the same day. A
+    /// TestFlight that is ended inside it, or loses the network, leaves the store
+    /// there, and an installed build then reads as the newest one: an update
+    /// disappears until TestFlight next runs.
+    ///
+    /// Why this shape and not "fewer rows than last time": the legitimate ways a
+    /// store shrinks were measured the same day and carry none of it. Stopping a beta
+    /// that is not installed deletes that app's rows in place and leaves every other
+    /// row its bundle id. A signed-out store is placeholders only — `ZISTESTER = 0`,
+    /// no name — identical, down to `Z_OPT`, to the brief stage before the app list
+    /// lands, so that stage is deliberately **not** matched: it cannot be told from a
+    /// sign-out, and a store stuck on a sign-out must not read as forever rebuilding.
+    /// (An empty store, the first stage, is not matched either. A reader waiting on
+    /// this can therefore stop on one of those two stages, which are the older #518
+    /// window; this guard does not close it.)
+    ///
+    /// "None", not "any", on both halves, and both halves at once — because a
+    /// **false positive here costs more than a miss**: a complete store that matched
+    /// would hold every reader in a 90-second wait on every round, and every sync,
+    /// the Refresh button's included, would run to its deadline. One app row that
+    /// never gains a bundle id must not do that, and neither must an account whose
+    /// app rows all lack one for a reason nobody measured. In the stage matched here
+    /// every build row lacked `ZBUILDID` too (the installed ones are all there is);
+    /// in every complete snapshot all but one had it. One Apple Account was measured,
+    /// so none of this is proof that it always holds.
+    private static let rebuildingSQL = """
+        SELECT EXISTS (SELECT 1 FROM ZTFAPPMODEL WHERE ZISTESTER = 1)
+           AND NOT EXISTS (SELECT 1 FROM ZTFAPPMODEL WHERE ZISTESTER = 1 AND ZBUNDLEID IS NOT NULL)
+           AND NOT EXISTS (SELECT 1 FROM ZTFAPPBUNDLEMODEL WHERE ZBUILDID IS NOT NULL);
+        """
 
     /// `ZPLATFORMRAW` values, both named because both are now matched positively.
     private static let macOSPlatform: Int64 = 3
     private static let iOSPlatform: Int64 = 1
     /// `ZINSTALLSTATUSRAW` for "this build is the one installed on this machine".
     private static let installedHere: Int64 = 1
+}
+
+extension TestFlightInventory {
+    /// `first`, or — when it caught the store mid-rebuild — the first later read
+    /// that did not, reading again every `interval` until `cap` has passed.
+    ///
+    /// Returns the last read either way, so the caller asks `isRebuilding` of the
+    /// answer: still true means the rebuild outlasted the wait, and the rows must be
+    /// left as they are rather than answered from half a store. A later read that
+    /// comes back unopened ends the wait and is returned, so the caller's own "did
+    /// not open" handling applies; one that does not come back at all (nil, a bounded
+    /// read that timed out) ends it too, returning the half-built read before it —
+    /// the rows are then left alone, which is the safe side of not knowing. A read that
+    /// opened but whose rows would not query (`rowsReadable`) is skipped, not taken.
+    ///
+    /// **Why a wait and not a later event.** The file watcher that starts most of
+    /// these reads hears a TestFlight launch begin and then nothing: measured
+    /// 2026-09-12, events stop about a second in while the rewrite continues. The
+    /// write that finishes the rebuild is therefore not reported, and a reader that
+    /// gave up on the first half-built read would have nothing to bring it back —
+    /// measured 2026-09-15, a cold launch read at +10s answered an available beta as
+    /// up to date, and nothing re-read when the store filled in at +20s.
+    ///
+    /// `cap` counts the sleeps, not the reads: a caller whose read is itself bounded
+    /// (the app's is, at 2s) waits up to `cap` plus that bound per read.
+    ///
+    /// `nonisolated(nonsending)` so it runs where it is called: the app's `read` is a
+    /// main-actor closure, and handing one to a plain nonisolated async function is
+    /// a sending error under Swift 6. The read itself hops off the main thread.
+    nonisolated(nonsending) public static func awaitingRebuild(
+        _ first: TestFlightInventory,
+        interval: Duration = .seconds(1),
+        cap: Duration = TestFlightRefresh.defaultDeadline,
+        sleep: @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        read: () async -> TestFlightInventory?
+    ) async -> TestFlightInventory {
+        var current = first
+        var waited: Duration = .zero
+        while current.accessible, current.isRebuilding, waited < cap {
+            await sleep(interval)
+            waited += interval
+            guard let next = await read() else { return current }
+            // Opened, but the rows would not query: not an answer about the rebuild.
+            // Observed 2026-09-15 on a store left half built by a terminated
+            // TestFlight: one read inside this wait failed to prepare, came back
+            // empty and not rebuilding, ended the wait, and the betas were answered
+            // "not testing" from nothing. Cause not established.
+            if next.accessible, !next.rowsReadable { continue }
+            current = next
+        }
+        return current
+    }
 }
 
 extension TestFlightInventory.Frontier {

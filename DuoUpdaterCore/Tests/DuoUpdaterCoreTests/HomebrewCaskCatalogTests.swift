@@ -48,7 +48,7 @@ struct HomebrewCaskCatalogTests {
             token: "fixture", version: "2.0", url: nil,
             autoUpdates: false, isPkg: false)
         let index = CaskIndex(
-            byAppFilename: ["fixture.app": entry],
+            allByAppFilename: ["fixture.app": [entry]],
             allByBundleID: ["com.example.fixture": [entry]])
         let before = DelayedFailureProtocol.counter.count
         let catalog = HomebrewCaskCatalog(
@@ -56,18 +56,18 @@ struct HomebrewCaskCatalogTests {
             staleTestIndex: index,
             loadedAt: Date().addingTimeInterval(-HomebrewCaskCatalog.indexTTL - 1))
 
-        async let byName = catalog.entry(forAppFilename: "Fixture.app")
-        async let byID = catalog.entry(forBundleID: "com.example.fixture")
+        async let byName = catalog.entries(forAppFilename: "Fixture.app")
+        async let byID = catalog.entries(forBundleID: "com.example.fixture")
         let (nameResult, idResult) = try await (byName, byID)
 
-        #expect(nameResult?.token == "fixture")
-        #expect(idResult?.token == "fixture")
+        #expect(nameResult.map(\.token) == ["fixture"])
+        #expect(idResult.map(\.token) == ["fixture"])
         #expect(DelayedFailureProtocol.counter.count - before == 1)
 
         // The failure backoff serves stale data without immediately downloading the
         // full catalog again for the next app in the same check.
-        let third = try await catalog.entry(forAppFilename: "Fixture.app")
-        #expect(third?.token == "fixture")
+        let third = try await catalog.entries(forAppFilename: "Fixture.app")
+        #expect(third.map(\.token) == ["fixture"])
         #expect(DelayedFailureProtocol.counter.count - before == 1)
     }
 }

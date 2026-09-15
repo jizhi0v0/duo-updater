@@ -18,7 +18,7 @@ import Foundation
 ///
 /// Concurrent callers requesting the same URL while a fetch is in-flight are
 /// coalesced onto a single `Task` (the same pattern ``HomebrewCaskCatalog`` uses
-/// for its 5 MB catalog download), so each recipe is fetched at most once per
+/// for its ~2 MB catalog download), so each recipe is fetched at most once per
 /// TTL window regardless of how many detail windows race.
 ///
 /// Thread-safe via Swift's actor isolation. ``ChangelogService`` is the only

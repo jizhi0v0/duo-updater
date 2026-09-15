@@ -25,6 +25,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Little Snitch is no longer reported as current when its maker says that build isn't for your macOS.** Objective Development's feed states the macOS range each build supports; after a macOS upgrade the row could keep pointing at a build capped below the system you were now running. Builds outside the stated range are left out until the vendor raises the cap.
 
+**Homebrew apps that ship as two packages — one for older systems, one for the newest — are now read from the right one.** OnyX splits that way for macOS 27, and DuoUpdater looked only at the package meant for older systems: it either showed nothing for OnyX at all, or called it up to date against a version Homebrew refuses to install on 27. Whichever of the two you installed is now the one DuoUpdater follows.
+
 ## 0.3.94
 
 **Homebrew packages from taps you haven't trusted show up again.** Since Homebrew 6, brew quietly skips packages from untrusted taps when it lists what's installed, so they disappeared from DuoUpdater with no explanation. They're now listed as "Not checked · tap not trusted", with the `brew trust` command ready to copy — and once you run it (or an upgrade) in Terminal, the window catches up as soon as you switch back.

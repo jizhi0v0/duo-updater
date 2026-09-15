@@ -36,11 +36,12 @@ struct UpdatesSettingsPage: View {
                 versionRow
             }
 
-            SettingsCard(
-                footer: "DuoUpdater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of DuoUpdater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit DuoUpdater anyway."
-            ) {
-                Toggle("Install DuoUpdater's own updates silently", isOn: $installsAutomatically)
-                    .settingsRow()
+            SettingsCard {
+                SettingsToggle(
+                    "Install DuoUpdater's own updates silently",
+                    detail: "Installs at a quiet moment and relaunches DuoUpdater — no prompt. Off, a new version shows a prompt and waits for you.",
+                    info: "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, no DuoUpdater window is open, and you’re working in another app. Until one comes it waits — and installs when you quit DuoUpdater anyway.",
+                    isOn: $installsAutomatically)
             }
         }
         .task { installsAutomatically = AppUpdater.shared.installsUpdatesAutomatically }

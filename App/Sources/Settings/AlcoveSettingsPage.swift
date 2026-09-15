@@ -45,7 +45,8 @@ struct AlcoveSettingsPage: View {
         SettingsPage(section: .alcove) {
             SettingsCard(
                 header: "Alcove license key",
-                footer: "Alcove publishes release notes and installable builds only to its licensed update channel, so your license key (Alcove → Settings → License) is what unlocks changelogs and one-click updates here. It’s stored in the Keychain, never synced off this Mac, and only ever sent to api.tryalcove.com — the same place Alcove sends it. Without it, DuoUpdater still detects new Alcove versions, but can’t show what changed or install them for you — you’ll be sent to Alcove’s download page (or just let Alcove update itself)."
+                headerInfo: "Alcove publishes release notes and installable builds only to its licensed update channel. The key is stored in the Keychain, never synced off this Mac, and only ever sent to api.tryalcove.com — the same place Alcove sends it.",
+                footer: "Your license key unlocks Alcove’s release notes and one-click updates here. Without it, DuoUpdater still detects new versions but sends you to Alcove’s download page (or you can let Alcove update itself)."
             ) {
                 if editing { editor } else { savedRow }
             }

@@ -42,20 +42,20 @@ struct DiagnosticsSettingsPage: View {
     // MARK: - Permissions
 
     private var permissionsCard: some View {
-        SettingsCard(
-            header: "Permissions",
-            footer: "App Management lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting."
-        ) {
+        SettingsCard(header: "Permissions") {
             // App Management has no *public* status API, but the private
             // TCCAccessPreflight SPI lets us read it — so show a real check when granted.
-            SettingsField(title: "App Management") {
+            SettingsField(title: "App Management", detail: "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads)") {
                 if model.appManagementStatus == .granted {
                     Label("Granted", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .labelStyle(.titleAndIcon)
                 } else {
+                    // macOS can't grant it programmatically; the flow is a panel the
+                    // user drags the app into, which the button would not otherwise say.
                     Button("Grant…") { model.presentAppManagementPermissionFlow() }
                         .settingsGlassButton()
+                        .help("Open System Settings with a panel to drag DuoUpdater into")
                 }
             }
             SettingsDivider()
@@ -76,15 +76,24 @@ struct DiagnosticsSettingsPage: View {
             // updates run without a password each time.
             HelperStatusRow(helper: model.helperClient)
             SettingsDivider()
-            HStack(spacing: 10) {
-                Button("Run Setup Again…") {
-                    openWindow(id: WelcomeView.windowID)
-                    model.surfaceWindow(sceneID: WelcomeView.windowID)
-                }
-                .settingsGlassButton()
-                Button("Relaunch DuoUpdater") { Self.relaunch() }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Button("Run Setup Again…") {
+                        openWindow(id: WelcomeView.windowID)
+                        model.surfaceWindow(sceneID: WelcomeView.windowID)
+                    }
                     .settingsGlassButton()
-                Spacer(minLength: 0)
+                    Button("Relaunch DuoUpdater") { Self.relaunch() }
+                        .settingsGlassButton()
+                    Spacer(minLength: 0)
+                }
+                // Next to the button it is about. Granting through the drag panel
+                // doesn't trigger the system's usual "Quit & Reopen", so a fresh
+                // grant can read Granted above and still not be in effect.
+                Text("Just granted a permission? It may not take effect until DuoUpdater relaunches.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .settingsRow()
         }

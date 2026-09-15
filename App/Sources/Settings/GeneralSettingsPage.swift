@@ -107,18 +107,19 @@ struct GeneralSettingsPage: View {
     }
 
     private var afterUpdateCard: some View {
-        SettingsCard(
-            header: "After an update",
-            footer: "After updating a running app, relaunch it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Relaunch” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated."
-        ) {
+        SettingsCard(header: "After an update") {
             Toggle("Notify me when updates are found", isOn: $prefs.notifyOnUpdates)
                 .settingsRow()
             SettingsDivider()
-            Toggle("Relaunch updated apps automatically", isOn: $prefs.autoRestartAfterUpdate)
-                .settingsRow()
+            SettingsToggle(
+                "Relaunch updated apps automatically",
+                detail: "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.",
+                isOn: $prefs.autoRestartAfterUpdate)
             SettingsDivider()
-            Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)
-                .settingsRow()
+            SettingsToggle(
+                "Keep a backup so updates can be rolled back",
+                detail: "One previous version per app, kept in Application Support and replaced by the next update.",
+                isOn: $prefs.keepBackups)
             SettingsDivider()
             Toggle("Delete a backup once its app is uninstalled", isOn: $prefs.pruneOrphanBackups)
                 .settingsRow()
@@ -158,34 +159,36 @@ struct GeneralSettingsPage: View {
 
     private var routingCard: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.cardSpacing) {
-            SettingsCard(
-                header: "Install routing",
-                footer: "Mac App Store updates currently use the full-download route via mas. It’s the more predictable option for release builds and doesn’t require Accessibility access."
-            ) {
-                AdaptivePickerRow(title: Text("App Store updates")) {
-                    Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
-                        ForEach(Preferences.AppStoreUpdateStrategy
-                            .visibleCases(current: prefs.appStoreUpdateStrategy)) { strategy in
-                            Text(strategy.label).tag(strategy)
+            SettingsCard(header: "Install routing") {
+                VStack(alignment: .leading, spacing: 4) {
+                    AdaptivePickerRow(title: Text("App Store updates")) {
+                        Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
+                            ForEach(Preferences.AppStoreUpdateStrategy
+                                .visibleCases(current: prefs.appStoreUpdateStrategy)) { strategy in
+                                Text(strategy.label).tag(strategy)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                    PickerOptionDetail(appStoreStrategyDetail)
                 }
                 .settingsRow()
             }
 
-            SettingsCard(
-                footer: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Always replace” — the default — downloads the vendor’s own installer and applies it whether or not the app is running, quitting and relaunching it afterwards. Switch to “Defer while running” if you would rather nothing touched an app while it is open: it then installs only when the app is closed, and offers an Open button instead while it is running, leaving the update to the app itself."
-            ) {
-                AdaptivePickerRow(title: Text("Self-updating apps")) {
-                    Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
-                        ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
-                            Text(policy.label).tag(policy)
+            SettingsCard {
+                VStack(alignment: .leading, spacing: 4) {
+                    AdaptivePickerRow(title: Text("Self-updating apps")) {
+                        Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
+                            ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
+                                Text(policy.label).tag(policy)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                    PickerOptionDetail(String(localized: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …)."))
+                    PickerOptionDetail(vendorPolicyDetail)
                 }
                 .settingsRow()
             }
@@ -200,28 +203,82 @@ struct GeneralSettingsPage: View {
     /// is the same question as the two pickers above — how much to do about one
     /// source — and the tip on a TestFlight row sends the reader to this page.
     ///
-    /// The footer names the permission and the cost because both are real and
-    /// neither is visible from the picker: the two "on" states need Full Disk
-    /// Access, and only the third starts an app the user did not start.
+    /// The description under the picker names the permission and the cost because
+    /// both are real and neither is visible from the picker: the two "on" states need
+    /// Full Disk Access, and only the third starts an app the user did not start.
+    /// Those stay on screen; only why TestFlight has to be started is behind the ⓘ.
     private var testFlightCard: some View {
-        SettingsCard(
-            footer: "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets DuoUpdater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing."
-        ) {
-            AdaptivePickerRow(title: Text("TestFlight betas")) {
-                Picker("TestFlight betas", selection: $prefs.testFlightDetection) {
-                    ForEach(Preferences.TestFlightDetection.allCases) { detection in
-                        Text(detection.label).tag(detection)
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 4) {
+                AdaptivePickerRow(title: HStack(spacing: 4) {
+                    Text("TestFlight betas")
+                    SettingsInfoButton("TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date — so a fresh answer means starting TestFlight. Reading the database needs Full Disk Access; without it, beta rows say so.")
+                }) {
+                    Picker("TestFlight betas", selection: $prefs.testFlightDetection) {
+                        ForEach(Preferences.TestFlightDetection.allCases) { detection in
+                            Text(detection.label).tag(detection)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    // The rows on screen were answered under the old setting and nothing
+                    // else revisits them until the next round, so the change is settled
+                    // here — a `didSet` on `Preferences` cannot, it knows no model.
+                    .onChange(of: prefs.testFlightDetection) { model.testFlightDetectionChanged() }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                // The rows on screen were answered under the old setting and nothing
-                // else revisits them until the next round, so the change is settled
-                // here — a `didSet` on `Preferences` cannot, it knows no model.
-                .onChange(of: prefs.testFlightDetection) { model.testFlightDetectionChanged() }
+                PickerOptionDetail(testFlightDetectionDetail)
             }
             .settingsRow()
         }
+    }
+
+    // MARK: - Option descriptions
+
+    // What the SELECTED option does, rather than a footer walking through every
+    // option: the reader sees the consequence of the choice they just made, next
+    // to the control, in a third of the text.
+
+    private var appStoreStrategyDetail: String {
+        switch prefs.appStoreUpdateStrategy {
+        case .full:
+            return String(localized: "Downloads the whole app again through mas. The predictable route for release builds, and it needs no Accessibility access.")
+        case .incremental:
+            return String(localized: "Presses App Store’s own Update button, so only what changed is downloaded. Needs Accessibility access, and is still being evaluated.")
+        }
+    }
+
+    private var vendorPolicyDetail: String {
+        switch prefs.vendorInstallPolicy {
+        case .alwaysOverwrite:
+            return String(localized: "The default. Downloads the vendor’s own installer and applies it even while the app is open, quitting and relaunching it afterwards.")
+        case .deferWhenRunning:
+            return String(localized: "Nothing touches an app while it is open: it installs only once the app is closed, and offers Open instead, leaving the update to the app itself.")
+        }
+    }
+
+    private var testFlightDetectionDetail: String {
+        switch prefs.testFlightDetection {
+        case .off:
+            return String(localized: "Nothing is read, and beta rows say detection is off instead of guessing.")
+        case .whenAsked:
+            return String(localized: "Reads what TestFlight already knows, and asks it for a fresh answer when you press Refresh. Needs Full Disk Access.")
+        case .keepFresh:
+            return String(localized: "Also asks TestFlight on its own — at most once an hour, or when a beta has moved on — starting it in the background for a few seconds (about 0.7 MB). Needs Full Disk Access.")
+        }
+    }
+}
+
+/// One caption line under a picker row: what the current choice means.
+private struct PickerOptionDetail: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -242,8 +299,8 @@ struct GeneralSettingsPage: View {
 ///
 /// Ideal widths, so no measurement pass: `Spacer(minLength: 0)` contributes 0 to
 /// the candidate's ideal size, leaving it as label + 12 + popup.
-private struct AdaptivePickerRow<Content: View>: View {
-    let title: Text
+private struct AdaptivePickerRow<Title: View, Content: View>: View {
+    let title: Title
     @ViewBuilder var picker: Content
 
     var body: some View {

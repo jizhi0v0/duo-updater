@@ -161,9 +161,10 @@ public struct XcodeReleasesSource: UpdateSource {
     /// 27.0 RC 1 requires macOS 26.6 while 27.0 beta 6 requires 26.4 — so a Mac
     /// on 26.4 is offered the newest beta rather than an RC it cannot run. This is
     /// the shape `SparkleAppcastSource.usableItems` has always had (filter the
-    /// candidate list, then take its head), with the same predicate;
-    /// `UpdateChecker.evaluate`'s floor check is the backstop for sources that do
-    /// not choose among candidates, not a substitute for choosing well here.
+    /// candidate list, then take its head), with the same predicate. This filter
+    /// is the whole detection-time gate for Xcode: `UpdateChecker.evaluate` asks
+    /// nothing about the host, so a build it lets through is offered, and only
+    /// install-time gate 6 refuses it — after the download.
     static func offer(
         forBuild installedBuild: String, in releases: [Release], osVersion: String
     ) -> (installed: Release, offer: Release)? {

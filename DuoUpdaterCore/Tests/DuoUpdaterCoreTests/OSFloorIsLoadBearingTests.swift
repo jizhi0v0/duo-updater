@@ -219,8 +219,10 @@ import Foundation
         #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
-    /// The floor rides along on the remote — a fact about the release that the
-    /// row's "requires macOS N" line (#634 part 3) and install-time gate 6 read.
+    /// The floor rides along on the remote — a fact about the release. Nothing
+    /// reads it yet: the row's "requires macOS N" line (#634 part 3) would be its
+    /// first consumer, and install-time gate 6 reads the downloaded bundle's own
+    /// `LSMinimumSystemVersion`, not this.
     @Test func theXcodeRemoteCarriesTheOfferedReleasesFloor() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0"))

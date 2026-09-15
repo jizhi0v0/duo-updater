@@ -215,13 +215,22 @@ public struct RemoteVersion: Sendable, Hashable {
     public let edSignature: String?
     /// Minimum macOS version the release requires, if declared.
     ///
-    /// Read by `UpdateChecker.evaluate`, which refuses to offer a release this
-    /// Mac is below (#640). It was write-only before that — `SparkleAppcastSource`
-    /// and `AlcoveUpdateSource` wrote it, nobody read it (`XcodeReleasesSource`
-    /// is the third writer, added with the reader) — so a floor was only ever
-    /// honoured for Sparkle apps,
-    /// and only because `usableItems` drops such items before a `RemoteVersion`
-    /// is built at all.
+    /// No production code reads this; only `OSFloorIsLoadBearingTests` does, to
+    /// pin that each writer carries the floor through. A row that renders
+    /// "requires macOS N" would be its first consumer (#634 part 3).
+    ///
+    /// The floor is enforced where a source CHOOSES its candidate, before a
+    /// `RemoteVersion` exists: all three writers — `SparkleAppcastSource.usableItems`,
+    /// `XcodeReleasesSource.offer`, `AlcoveUpdateSource.remote(from:token:osVersion:)`
+    /// — filter on it first (#640). `HostOS`'s doc comment lists every floor site.
+    ///
+    /// ⚠️ Setting this is not a gate. `UpdateChecker.evaluate` deliberately
+    /// asks nothing about the host (see its doc comment), so a source that sets
+    /// this without filtering on it gets no detection-time refusal at all. The
+    /// only backstop is install-time gate 6 (`SignatureVerifier.verifyRunnableSystemVersion`,
+    /// and `PackageInstaller.verifyPayloadSystemVersion` for pkgs), which reads
+    /// the downloaded artifact's own declared floor — not this property — and so
+    /// refuses only after the download.
     public let minimumSystemVersion: String?
     /// Human-readable name of the source that produced this ("Sparkle" etc.).
     public let sourceName: String

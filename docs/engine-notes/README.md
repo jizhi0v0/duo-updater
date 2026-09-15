@@ -57,7 +57,8 @@ what to do when the number has already drifted once.
 6. **Add the new file to the Index below** — `check_engine_notes.py` fails
    the build if a tracked `.md` in this directory isn't listed there.
 7. `make test`, then a self-review pass (`/code-review`) on the diff before
-   opening the PR.
+   opening the PR. After fixing its findings, review the fix diff again, and
+   repeat until a round turns up nothing new (CLAUDE.md, 「修 issue」).
 
 ## Index
 

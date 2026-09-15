@@ -212,13 +212,24 @@ Editing a `.json5` family:
   commas, `/* */`, `//` after code on the same line, single quotes or unquoted
   keys, and no key twice in one object. The decoder would accept most of those and
   keeps the first of two duplicate keys without a word, so
-  `scripts/check_recipe_json5.py` (in `make test`) refuses them.
+  `scripts/check_recipe_json5.py` (in `make test`) refuses them. It also refuses
+  `\r` and other control characters (Swift ends a `//` comment at `\r`, which can
+  hide a key from every line-based reader) and non-ASCII whitespace in indentation.
+- **The directory holds family files only**: regular `<slug>.json5` files, nothing
+  else — no subdirectory, symlink, other extension or dotfile (a Finder `.DS_Store`
+  counts). The loader traps on anything else and the checker refuses it.
 - **Keys** are the Swift stored property names; an enum with a payload is an object
   tagged `"kind"`; leave out anything at its default. The convention is on
   `RecipeCoding`, the file's top level on `RecipeFamilyFile`.
 - **Escaping.** A Swift raw string `#"\d+\.\d+"#` is written `"\\d+\\.\\d+"`:
   every backslash doubled, every `"` inside the pattern written `\"`. A pattern
-  Swift joined with `+` across lines is one JSON string on one line.
+  Swift joined with `+` across lines is one JSON string on one line. That rule is
+  for single-`#` raw strings whose backslashes are all literal. Inside `#"…"#`,
+  `\#(…)` is interpolation and `\#n`, `\#t`, `\#"` are escapes, and `##"…"##`
+  moves the delimiter so a lone `\#` is literal again: write the value Swift
+  produces, not its spelling (the family's golden shows it). Those forms appear only
+  in factory families today (`com-lemon-lvoverseas`, `com-windscribe-client`,
+  `dev-kdrag0n-MacVirt`).
 - **Comments** go where they would go in Swift: a block of whole-line `//` right
   before the entry it is about, or before the field inside the entry. Step 6
   applies to them unchanged; the snapshot and History-pointer checks read them.

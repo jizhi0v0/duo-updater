@@ -83,7 +83,8 @@ public enum Verify {
 
     public static func run(_ options: VerifyOptions) async -> Int32 {
         // Before anything is counted or requested. The recipes below are the ones
-        // compiled into THIS binary, and the whole report is worthless — while looking
+        // THIS binary was built with (compiled in, or the data beside it that its
+        // embedded recipe digest pins), and the whole report is worthless — while looking
         // entirely normal — if that is not the tree the reader has open.
         if case .stale(let reason) = SourceStamp.verdict() {
             guard options.allowStaleBinary else {

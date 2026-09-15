@@ -116,9 +116,12 @@ document it and move on.
 Search these locations for the bundle ID (case-insensitive):
 
 ```bash
-# All Swift sources + tests
-grep -rn "<bundleID>" DuoUpdaterCore/Sources/ --include="*.swift"
+# All Swift sources + tests, and the recipe families written as data (.json5 —
+# a Swift-only grep finds nothing of those but mentions from other families)
+grep -rn "<bundleID>" DuoUpdaterCore/Sources/ --include="*.swift" --include="*.json5"
 grep -rn "<bundleID>" DuoUpdaterCore/Tests/ --include="*.swift"
+# The family file itself, whichever form it is in (slug = bundle id, dots as dashes)
+ls DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes/ | grep -i "<slug>"
 # Channel coverage doc
 grep -n "<app name>\|<bundleID>" CHANNEL_COVERAGE_TODO.md
 # Homebrew cask

@@ -6,7 +6,7 @@
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 
-### Resources/Recipes/com-1password-1password.json5 — stable VendorProbe（一键 `1Password-latest-aarch64.zip`）
+### Recipes/com-1password-1password.swift — stable VendorProbe（一键 `1Password-latest-aarch64.zip`）
 
 转引自 recipe 注释，未复测。
 
@@ -15,7 +15,7 @@ downloading the aarch64 one (214,254,924 B): it unzips to `1Password.app`
 itself — com.1password.1password, 8.12.33, Team 2BUA8C4S2C, notarized
 Developer ID, spctl accepted, arm64.
 
-### Resources/Recipes/com-1password-1password.json5 — stable VendorProbe + ChangelogRecipe（未写日期的数字）
+### Recipes/com-1password-1password.swift — stable VendorProbe + ChangelogRecipe（未写日期的数字）
 
 转引自 recipe 注释，未复测。原句没写日期；日期取自引入这句话的提交：`a780fb9e`（2026-08-16）、`af657869`（2026-08-16）。
 

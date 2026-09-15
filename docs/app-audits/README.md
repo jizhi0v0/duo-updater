@@ -47,7 +47,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   一个 family 一份——family 里另一个 app 有自己的审计时也一样，历史进 family 那份，
   需要时再链过去。
 - **格式**：每组搬出的注释前一行来源 `### Recipes/<family>.swift — <哪条 recipe / channel>`（数据 family 写
-  `### Resources/Recipes/<family>.json5 — …`），
+  `### Resources/Recipes/<family>.json5 — …`；family 从 `.swift` 转成 `.json5` 时，已有的这类标题**不改**——它们记的是当时从哪个文件搬出来的），
   下一行按 engine-notes 清单第 2 步标注 `转引自 recipe 注释，未复测。`（真复测过的写复测日期和
   结果，与转引分开写）。正文**逐字、保留原语言**（翻译就是改写）：每行去掉行首 `// `，保留原
   换行；原注释里缩进的摘录用 ```` ``` ```` 围起来。历史是注释当时的带日期快照，不跟代码同步：

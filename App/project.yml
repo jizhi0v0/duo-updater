@@ -263,6 +263,12 @@ targets:
         SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        # Merged into the generated plist: `DuoRecipeDigest = $(DUO_RECIPE_DIGEST)`,
+        # which scripts/build-cli.sh sets. The recipe data sits beside `duo`, outside
+        # its signature; the binary's own plist, inside it, says which data it may
+        # load (RecipeFamilyFile, "The recipe digest"). A build without the setting
+        # embeds an empty digest, and that `duo` refuses every recipe file.
+        INFOPLIST_FILE: duo-cli-Info.plist
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_REQUIRED: YES

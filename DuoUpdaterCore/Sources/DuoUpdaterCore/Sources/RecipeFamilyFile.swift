@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// One app family stored as data: `Resources/Recipes/<family>.json5`, read at first
@@ -15,6 +16,30 @@ import Foundation
 /// single quotes, unquoted keys) and, like every Foundation JSON reader, keeps the
 /// FIRST value of a key written twice without a word. Neither is caught here;
 /// `scripts/check_recipe_json5.py`, run by `make test`, refuses both.
+///
+/// ## The directory
+///
+/// It holds family files and nothing else: every entry must be a regular file (not
+/// a symlink) named `<slug>.json5`, exactly. `.copy` ships whatever is there, so a
+/// `Foo.JSON5`, a `foo.json`, a `.DS_Store` or a `sub/foo.json5` would be shipped
+/// and never loaded — and the next golden re-record would delete that family's
+/// golden. `loadAll` refuses the directory instead; `check_recipe_json5.py` refuses
+/// the same in `make test`, which is where a stray `.DS_Store` should be found.
+///
+/// ## The recipe digest
+///
+/// A command-line `duo` finds this data in a resource bundle beside it, outside its
+/// code signature and writable by the user it runs as, while the binary holds an
+/// App Management grant. So `scripts/build-cli.sh` computes `digest(of:)` over the
+/// checkout's `Resources/Recipes` before building and passes it as a build setting
+/// that lands in the binary's embedded Info.plist (`App/duo-cli-Info.plist`), which
+/// the signature covers. When the running executable carries that key, `loadAll`
+/// hashes the bytes it is about to decode — read once, so they cannot change between
+/// the check and the decode — and refuses a mismatch. An executable without the key
+/// (the app, whose resources are sealed by its own signature; `swift test`; a
+/// `swift build` binary) skips the check. Debug builds also honour
+/// `PACKAGE_RESOURCE_BUNDLE_PATH` for where the bundle is, which is why the check is
+/// on content, not location.
 ///
 /// ## Failure
 ///
@@ -86,27 +111,100 @@ struct RecipeFamilyFile: Decodable {
         return try decoder.decode(RecipeFamilyFile.self, from: data).recipeSet(family: family)
     }
 
-    /// Every family file in `directory`, decoded, in file-name order. Throws
-    /// `LoadFailure` for the first problem, never skips a file.
-    static func loadAll(from directory: URL) throws -> [AppRecipeSet] {
-        let names: [String]
+    /// The Info.plist key a `duo` built by `scripts/build-cli.sh` carries the digest in.
+    static let digestInfoKey = "DuoRecipeDigest"
+
+    /// Whether `name` is a family file name: the slug
+    /// `AppRecipeIndexTests.familySlugsAreUniqueAndWellFormed` requires, then
+    /// `.json5`, case included. `recipe_families.py`'s `DATA_FILE` is the same rule.
+    static func isFamilyFileName(_ name: String) -> Bool {
+        name.wholeMatch(of: /[A-Za-z0-9][A-Za-z0-9.-]*\.json5/) != nil
+    }
+
+    /// Every entry of `directory`, read: the family files' names and bytes in name
+    /// order. Throws for an entry that is not a regular `<slug>.json5` file, naming
+    /// all of them, and for a directory with no family in it.
+    static func readFamilyFiles(in directory: URL) throws -> [(name: String, bytes: Data)] {
+        let entries: [URL]
         do {
-            names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            // No options: hidden files are listed too.
+            entries = try FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         } catch {
             throw LoadFailure(text: "recipe directory \(directory.path) cannot be listed: \(error)")
         }
-        let files = names.filter { ($0 as NSString).pathExtension == fileExtension }.sorted()
+        var files: [(name: String, bytes: Data)] = []
+        var refused: [String] = []
+        for url in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let name = url.lastPathComponent
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            if values?.isSymbolicLink == true {
+                refused.append("\(name) (a symbolic link)")
+            } else if values?.isRegularFile != true {
+                refused.append("\(name) (not a regular file)")
+            } else if !isFamilyFileName(name) {
+                refused.append("\(name) (not named <slug>.\(fileExtension))")
+            } else {
+                do {
+                    files.append((name, try Data(contentsOf: url)))
+                } catch {
+                    throw LoadFailure(text: "recipe file \(directoryName)/\(name) cannot be read: \(error)")
+                }
+            }
+        }
+        guard refused.isEmpty else {
+            throw LoadFailure(text: """
+                recipe directory \(directory.path) holds entries that are not family files, \
+                which would be shipped and never loaded: \(refused.joined(separator: ", "))
+                """)
+        }
         // A bundle whose `Recipes` directory holds no family is a packaging failure
         // (a copy that brought the directory but not its files), never a valid state:
         // at least one family is data from step 3 on.
         guard !files.isEmpty else {
             throw LoadFailure(text: "recipe directory \(directory.path) holds no .\(fileExtension) family files")
         }
-        return try files.map { name in
-            let url = directory.appendingPathComponent(name)
+        return files
+    }
+
+    /// SHA-256, lowercase hex, over each file in name order: `"<name>\n<byte count>\n"`
+    /// then its bytes. The name, so a rename moves it; the count, so bytes cannot be
+    /// re-split between neighbours for the same digest (the same framing as
+    /// `SourceStamp`). `scripts/recipe_digest.py` computes the same; both are held to
+    /// one known answer in their tests.
+    static func digest(of files: [(name: String, bytes: Data)]) -> String {
+        var hasher = SHA256()
+        for (name, bytes) in files.sorted(by: { $0.name < $1.name }) {
+            hasher.update(data: Data("\(name)\n\(bytes.count)\n".utf8))
+            hasher.update(data: bytes)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Every family file in `directory`, decoded, in file-name order. Throws
+    /// `LoadFailure` for the first problem, never skips a file. With an
+    /// `expectedDigest`, the bytes read must digest to it before anything is decoded.
+    static func loadAll(from directory: URL, expectedDigest: String? = nil) throws -> [AppRecipeSet] {
+        let files = try readFamilyFiles(in: directory)
+        if let expectedDigest {
+            let found = digest(of: files)
+            guard found == expectedDigest else {
+                throw LoadFailure(text: expectedDigest.isEmpty
+                    ? """
+                      this executable carries an empty \(digestInfoKey), so it was built without \
+                      DUO_RECIPE_DIGEST; build it with scripts/build-cli.sh (make cli)
+                      """
+                    : """
+                      the recipe files in \(directory.path) are not the ones this executable was \
+                      built with (built with \(expectedDigest), found \(found)). Reinstall with \
+                      `make cli`; if nobody here edited them, something else did
+                      """)
+            }
+        }
+        return try files.map { name, bytes in
             let family = String(name.dropLast(fileExtension.count + 1))
             do {
-                return try decode(try Data(contentsOf: url), family: family)
+                return try decode(bytes, family: family)
             } catch {
                 throw LoadFailure(text: problem(decoding: error, file: "\(directoryName)/\(name)"))
             }

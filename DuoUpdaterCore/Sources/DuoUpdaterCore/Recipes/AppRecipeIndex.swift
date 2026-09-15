@@ -10,22 +10,26 @@ import Foundation
 /// directories, and to one family per bundle id.
 ///
 /// A data family that does not decode traps on first access, naming the file and
-/// the coding path. So does a bundle with no `Recipes` directory in it, or one
-/// with no family files in it. Never a quiet skip: a dropped family reads, in the
+/// the coding path. So does a bundle with no `Recipes` directory in it, one with no
+/// family files in it or with anything else in it, and — in a `duo` built by
+/// `make cli` — recipe files that are not the ones the binary was built with. Never a quiet skip: a dropped family reads, in the
 /// app and in `duo verify`, exactly like an app nobody wrote a recipe for.
 public enum AppRecipeIndex {
     public static let all: [AppRecipeSet] = (swiftFamilies + dataFamilies)
         .sorted { $0.family.lowercased() < $1.family.lowercased() }
 
-    /// The families written as data, decoded from the resource bundle.
+    /// The families written as data, decoded from the resource bundle — checked
+    /// against the recipe digest the running executable was built with, when it
+    /// carries one (`RecipeFamilyFile`, "The recipe digest").
     static let dataFamilies: [AppRecipeSet] = dataFamilies(
         in: Bundle.module.url(forResource: RecipeFamilyFile.directoryName, withExtension: nil),
-        bundle: Bundle.module.bundlePath)
+        bundle: Bundle.module.bundlePath,
+        expectedDigest: Bundle.main.object(forInfoDictionaryKey: RecipeFamilyFile.digestInfoKey) as? String)
 
-    /// The trap, apart from `Bundle.module` so a test can point it at a directory.
-    /// (`Bundle.module` itself traps first, "unable to find bundle named …", when
-    /// the bundle is not where the executable looks for it.)
-    static func dataFamilies(in directory: URL?, bundle: String) -> [AppRecipeSet] {
+    /// The trap, apart from `Bundle.module` and `Bundle.main` so a test can point it
+    /// at a directory and a digest. (`Bundle.module` itself traps first, "unable to
+    /// find bundle named …", when the bundle is not where the executable looks.)
+    static func dataFamilies(in directory: URL?, bundle: String, expectedDigest: String?) -> [AppRecipeSet] {
         guard let directory else {
             fatalError("""
                 recipe data: no `\(RecipeFamilyFile.directoryName)` directory in \(bundle). \
@@ -33,7 +37,7 @@ public enum AppRecipeIndex {
                 """)
         }
         do {
-            return try RecipeFamilyFile.loadAll(from: directory)
+            return try RecipeFamilyFile.loadAll(from: directory, expectedDigest: expectedDigest)
         } catch {
             fatalError("recipe data: \(error)")
         }

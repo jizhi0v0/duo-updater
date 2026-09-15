@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into duo-cli's generated Info.plist, which is embedded in the binary
+	     (CREATE_INFOPLIST_SECTION_IN_BINARY) and so covered by its signature.
+	     scripts/build-cli.sh passes DUO_RECIPE_DIGEST; the recipe loader refuses
+	     recipe files that do not digest to it. See RecipeFamilyFile. -->
+	<key>DuoRecipeDigest</key>
+	<string>$(DUO_RECIPE_DIGEST)</string>
+</dict>
+</plist>

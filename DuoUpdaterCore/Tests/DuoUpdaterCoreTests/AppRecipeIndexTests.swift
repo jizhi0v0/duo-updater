@@ -73,7 +73,8 @@ struct AppRecipeIndexTests {
         #expect(repeated.isEmpty, Comment(rawValue: "family slugs listed more than once: \(repeated)"))
     }
 
-    /// Mutations: add a Swift family file without listing it in
+    /// Mutations (the data half): put a `Foo.JSON5`, a `sub/` or a symlink beside the
+    /// families. Mutations: add a Swift family file without listing it in
     /// `AppRecipeIndex.swiftFamilies`, or change a family's `family:` string so it
     /// no longer names its file; convert a family to `.json5` and leave its `.swift`
     /// file (or its `swiftFamilies` line) behind; delete a `.json5` family file.
@@ -91,8 +92,19 @@ struct AppRecipeIndexTests {
         #expect(swiftSlugs.subtracting(swiftFiles).isEmpty,
                 "Swift families whose slug names no file: \(swiftSlugs.subtracting(swiftFiles).sorted())")
 
-        let dataFiles = Set(try fileManager.contentsOfDirectory(atPath: Self.dataDirectory.path)
-            .filter { $0.hasSuffix("." + RecipeFamilyFile.fileExtension) })
+        // Every entry, hidden ones included: a `Foo.JSON5` or `sub/` next to the
+        // families is shipped by `.copy` and never loaded, so it is a failure here,
+        // not a file to filter out.
+        let entries = try fileManager.contentsOfDirectory(atPath: Self.dataDirectory.path)
+        let strays = entries.filter { name in
+            var isDirectory: ObjCBool = false
+            let path = Self.dataDirectory.appendingPathComponent(name).path
+            let link = (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
+            return !RecipeFamilyFile.isFamilyFileName(name) || link
+                || !fileManager.fileExists(atPath: path, isDirectory: &isDirectory) || isDirectory.boolValue
+        }
+        #expect(strays.isEmpty, "entries in \(Self.dataDirectory.path) that are not family files: \(strays.sorted())")
+        let dataFiles = Set(entries)
         let dataSlugs = Set(AppRecipeIndex.dataFamilies.map { $0.family + "." + RecipeFamilyFile.fileExtension })
         // Floor: every other expectation on the data half passes on two empty sets.
         #expect(!dataFiles.isEmpty, "no .json5 family files found under \(Self.dataDirectory.path)")
@@ -169,30 +181,142 @@ struct AppRecipeIndexTests {
         }
     }
 
+    /// A scratch recipe directory, removed when the returned value's `remove` runs.
+    /// Made in THIS process and handed to the exit tests by path, so the child never
+    /// creates a directory it cannot clean up (it dies on purpose).
+    private struct Scratch {
+        let url: URL
+        var path: String { url.path }
+        init(_ files: [String: String] = [:]) throws {
+            url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("duo-recipe-fixture-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            for (name, text) in files {
+                try Data(text.utf8).write(to: url.appendingPathComponent(name))
+            }
+        }
+        func remove() { try? FileManager.default.removeItem(at: url) }
+    }
+
+    private static func stderr(_ result: ExitTest.Result?) -> String {
+        String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    }
+
     /// The trap is real, and its message is the file and the path. Run in a child
     /// process, since the point is that the process dies.
-    /// Mutations: make `AppRecipeIndex.dataFamilies(in:bundle:)` return `[]` on a
-    /// decode error; drop the empty-directory guard in `RecipeFamilyFile.loadAll`.
-    @Test func aFamilyFileThatDoesNotDecodeTraps() async {
-        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("duo-recipe-trap-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try Data(#"{"probes": [{"bundleID": "zz"}]}"#.utf8)
-                .write(to: directory.appendingPathComponent("zz-broken.json5"))
-            _ = AppRecipeIndex.dataFamilies(in: directory, bundle: "fixture")
-        }
-        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-        #expect(stderr.contains("recipe data: Recipes/zz-broken.json5: probes[0].url: required key is missing"), "\(stderr)")
+    /// Mutations: make `AppRecipeIndex.dataFamilies(in:bundle:expectedDigest:)` return
+    /// `[]` on a load error; drop the empty-directory guard in
+    /// `RecipeFamilyFile.readFamilyFiles`; drop the `guard let directory` trap (a
+    /// bundle with no `Recipes` directory would then crash on force-unwrap or load
+    /// nothing).
+    @Test func aDataFamilyProblemTraps() async throws {
+        let broken = try Scratch(["zz-broken.json5": #"{"probes": [{"bundleID": "zz"}]}"#])
+        let empty = try Scratch()
+        defer { broken.remove(); empty.remove() }
 
-        let empty = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("duo-recipe-empty-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            _ = AppRecipeIndex.dataFamilies(in: directory, bundle: "fixture")
+        let decode = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) { [path = broken.path as String] in
+            _ = AppRecipeIndex.dataFamilies(in: URL(fileURLWithPath: path), bundle: "fixture", expectedDigest: nil)
         }
-        let emptyStderr = String(decoding: empty?.standardErrorContent ?? [], as: UTF8.self)
-        #expect(emptyStderr.contains("holds no .json5 family files"), "\(emptyStderr)")
+        #expect(Self.stderr(decode).contains("recipe data: Recipes/zz-broken.json5: probes[0].url: required key is missing"),
+                "\(Self.stderr(decode))")
+
+        let none = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) { [path = empty.path as String] in
+            _ = AppRecipeIndex.dataFamilies(in: URL(fileURLWithPath: path), bundle: "fixture", expectedDigest: nil)
+        }
+        #expect(Self.stderr(none).contains("holds no .json5 family files"), "\(Self.stderr(none))")
+
+        let noDirectory = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            _ = AppRecipeIndex.dataFamilies(in: nil, bundle: "/fixture/X.bundle", expectedDigest: nil)
+        }
+        #expect(Self.stderr(noDirectory).contains("recipe data: no `Recipes` directory in /fixture/X.bundle"),
+                "\(Self.stderr(noDirectory))")
+    }
+
+    /// Anything in the directory but regular `<slug>.json5` files is refused, by name,
+    /// before anything is decoded.
+    /// Mutations: filter by extension instead of refusing; compare the extension
+    /// case-insensitively; let the slug start with `.`; drop the symlink branch (a
+    /// link to a regular file is a regular file when followed — which is why that
+    /// branch is checked first and named in the message).
+    @Test(arguments: ["other extension", "upper-case extension", "dotfile", "subdirectory",
+                      "symlink", "leading dash"])
+    func aStrayEntryIsRefused(_ kind: String) throws {
+        let valid = #"{"changelogPages": {"zz.fixture": "https://example.invalid/"}}"#
+        let scratch = try Scratch(["zz-fixture.json5": valid])
+        defer { scratch.remove() }
+        let fileManager = FileManager.default
+        let expected: String
+        switch kind {
+        case "other extension":
+            try Data(valid.utf8).write(to: scratch.url.appendingPathComponent("zz-other.json"))
+            expected = "zz-other.json (not named <slug>.json5)"
+        case "upper-case extension":
+            try Data(valid.utf8).write(to: scratch.url.appendingPathComponent("zz-other.JSON5"))
+            expected = "zz-other.JSON5 (not named <slug>.json5)"
+        case "dotfile":
+            try Data([0]).write(to: scratch.url.appendingPathComponent(".DS_Store"))
+            expected = ".DS_Store (not named <slug>.json5)"
+        case "subdirectory":
+            let sub = scratch.url.appendingPathComponent("sub")
+            try fileManager.createDirectory(at: sub, withIntermediateDirectories: false)
+            try Data(valid.utf8).write(to: sub.appendingPathComponent("zz-deep.json5"))
+            expected = "sub (not a regular file)"
+        case "symlink":
+            try fileManager.createSymbolicLink(
+                at: scratch.url.appendingPathComponent("zz-link.json5"),
+                withDestinationURL: scratch.url.appendingPathComponent("zz-fixture.json5"))
+            expected = "zz-link.json5 (a symbolic link)"
+        default:
+            try Data(valid.utf8).write(to: scratch.url.appendingPathComponent("-zz.json5"))
+            expected = "-zz.json5 (not named <slug>.json5)"
+        }
+        do {
+            _ = try RecipeFamilyFile.loadAll(from: scratch.url)
+            Issue.record("loaded a directory holding a \(kind)")
+        } catch {
+            #expect("\(error)".contains("holds entries that are not family files"), "\(error)")
+            #expect("\(error)".contains(expected), "\(error)")
+        }
+    }
+
+    /// The same two-file fixture and hex as `scripts/test_recipe_digest.py`, whose
+    /// answer was also computed by piping the framed bytes to `shasum -a 256`.
+    /// `scripts/build-cli.sh` embeds the Python digest; the loader computes this one.
+    /// Mutations: drop the name, the byte count or the sort from
+    /// `RecipeFamilyFile.digest`.
+    @Test func theRecipeDigestHasOneKnownAnswer() throws {
+        let scratch = try Scratch(["b-app.json5": "// c\n{\"probes\": []}\n", "a-app.json5": "{}\n"])
+        defer { scratch.remove() }
+        let files = try RecipeFamilyFile.readFamilyFiles(in: scratch.url)
+        #expect(RecipeFamilyFile.digest(of: files) == "8fdc639d4711a2edc32eb757828c6e2b89c5c98a7c10051cd1242814a11a8692")
+        #expect(RecipeFamilyFile.digest(of: files.reversed()) == RecipeFamilyFile.digest(of: files))
+    }
+
+    /// With a digest to hold them to, recipe files that differ by one byte do not
+    /// load, and the trap names both digests; the right digest loads.
+    /// Mutations: skip the comparison in `loadAll`; compare before reading (the bytes
+    /// decoded would no longer be the bytes hashed); let an empty digest pass.
+    @Test func recipeFilesThatDoNotMatchTheBuiltDigestAreRefused() async throws {
+        let text = #"{"changelogPages": {"zz.fixture": "https://example.invalid/"}}"#
+        let scratch = try Scratch(["zz-fixture.json5": text])
+        defer { scratch.remove() }
+        let built = RecipeFamilyFile.digest(of: try RecipeFamilyFile.readFamilyFiles(in: scratch.url))
+        #expect(try RecipeFamilyFile.loadAll(from: scratch.url, expectedDigest: built).count == 1)
+
+        try Data((text + "\n").utf8).write(to: scratch.url.appendingPathComponent("zz-fixture.json5"))
+        let found = RecipeFamilyFile.digest(of: try RecipeFamilyFile.readFamilyFiles(in: scratch.url))
+        #expect(found != built)
+        #expect(throws: RecipeFamilyFile.LoadFailure.self) {
+            try RecipeFamilyFile.loadAll(from: scratch.url, expectedDigest: "")
+        }
+
+        let trap = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            [path = scratch.path as String, built = built as String] in
+            _ = AppRecipeIndex.dataFamilies(in: URL(fileURLWithPath: path), bundle: "fixture", expectedDigest: built)
+        }
+        let message = Self.stderr(trap)
+        #expect(message.contains("are not the ones this executable was built with"), "\(message)")
+        #expect(message.contains("built with \(built), found \(found)"), "\(message)")
     }
 
     /// Mutation: derive a registry from anything but the whole index — e.g.

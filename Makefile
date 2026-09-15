@@ -22,6 +22,7 @@ test:
 	python3 scripts/test_check_offpool.py
 	python3 scripts/test_check_recipe_snapshots.py
 	python3 scripts/test_check_recipe_json5.py
+	python3 scripts/test_recipe_digest.py
 	python3 scripts/test_check_swift_backdeploy.py
 	python3 scripts/test_claude_lag_probe.py
 	python3 scripts/test_app_test_coverage.py

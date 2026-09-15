@@ -99,7 +99,7 @@ ALLOWED = """\
 """
 
 POINTER = "        // History: docs/app-audits/{family}.md#历史与实测\n"
-TEMP = "        // snapshot-lint:allow — catch-up batch after 2f\n"
+ALLOW = "        // snapshot-lint:allow — kept in code for this fixture\n"
 
 
 def swift(comment):
@@ -116,14 +116,14 @@ class Snapshots(unittest.TestCase):
     def write(self, family, text):
         (self.recipes / f"{family}.swift").write_text(text)
 
-    def review(self, pending=frozenset(), last="aa-0", out_of_order=None, shapes=None):
-        return crs.review(self.root, pending=pending, last_migrated=last,
-                          out_of_order=out_of_order or {}, shapes=shapes)
+    def review(self, shapes=None):
+        return crs.review(self.root, shapes=shapes)
 
     def kinds(self, found):
         return [kind for _, _, kind, _ in found["offences"]]
 
-    # Floor fixture for the PENDING checks: `last` must name a real family.
+    # A clean family beside the fixture, so no tree under test is empty: an empty
+    # tree fails the floor, and `main` would then return 1 for the wrong reason.
     def anchor(self):
         self.write("aa-0", swift("        // nothing dated here.\n"))
 
@@ -193,64 +193,10 @@ class Snapshots(unittest.TestCase):
             "        // is one heading per release.\n"))
         self.assertEqual(self.kinds(self.review()), ["count-on-date"])
 
-    # Mutation: check PENDING families too, or skip families not in PENDING.
-    def test_a_pending_family_is_skipped_and_a_new_family_is_guarded(self):
-        self.anchor()
-        self.write("zz-pending", swift(REAL["count-on-date"]))
-        self.write("zz-new", swift(REAL["count-on-date"]))
-        found = self.review(pending=frozenset({"zz-pending"}))
-        self.assertEqual([rel.stem for rel, _, _, _ in found["offences"]], ["zz-new"])
-        self.assertEqual((found["guarded"], found["pending"]), (2, 1))
-
-    # Mutation: skip a PENDING slug that names no file.
-    def test_pending_naming_no_family_is_a_problem(self):
-        self.anchor()
-        found = self.review(pending=frozenset({"zz-gone"}))
-        self.assertEqual(len(found["pending_problems"]), 1, found)
-        self.assertIn("names no family", found["pending_problems"][0])
-        self.assertIn("if renamed, rename the entry", found["pending_problems"][0])
-
-    # Mutation: delete the "already has a History pointer" check.
-    def test_pending_family_with_a_pointer_is_a_problem(self):
-        self.anchor()
-        self.write("zz-done", POINTER.format(family="zz-done") + swift("        // ok.\n"))
-        found = self.review(pending=frozenset({"zz-done"}))
-        self.assertIn("already has a History pointer", " ".join(found["pending_problems"]))
-
-    # Mutation: delete the LAST_MIGRATED comparison, or let OUT_OF_ORDER entries
-    # go stale silently.
-    def test_pending_inside_the_migrated_range_is_a_problem_unless_recorded(self):
-        self.write("bb-last", swift("        // ok.\n"))
-        self.write("aa-skipped", swift("        // ok.\n"))
-        found = self.review(pending=frozenset({"aa-skipped"}), last="bb-last")
-        self.assertIn("sorts inside the migrated range", " ".join(found["pending_problems"]))
-        found = self.review(pending=frozenset({"aa-skipped"}), last="bb-last",
-                            out_of_order={"aa-skipped": "skipped"})
-        self.assertEqual(found["pending_problems"], [])
-        found = self.review(pending=frozenset(), last="bb-last",
-                            out_of_order={"aa-skipped": "skipped"})
-        self.assertIn("no longer applies", " ".join(found["pending_problems"]))
-
-    # Mutation: drop the "now sorts above LAST_MIGRATED" half of the OUT_OF_ORDER
-    # stale check. The entry is still pending, but no longer out of order.
-    def test_out_of_order_above_the_boundary_is_stale(self):
-        self.write("bb-last", swift("        // ok.\n"))
-        self.write("cc-late", swift("        // ok.\n"))
-        found = self.review(pending=frozenset({"cc-late"}), last="bb-last",
-                            out_of_order={"cc-late": "was skipped"})
-        self.assertEqual(len(found["pending_problems"]), 1, found)
-        self.assertIn("no longer applies", found["pending_problems"][0])
-
-    # Mutation: let LAST_MIGRATED name a missing family.
-    def test_last_migrated_must_name_a_family(self):
-        self.anchor()
-        found = self.review(last="zz-nope")
-        self.assertIn("names no family", " ".join(found["pending_problems"]))
-
     # Mutation: stop honouring MARKER.
     def test_a_marker_with_a_reason_clears_its_paragraph(self):
         self.anchor()
-        self.write("zz-fixture", swift(REAL["measurement-led"] + TEMP))
+        self.write("zz-fixture", swift(REAL["measurement-led"] + ALLOW))
         found = self.review()
         self.assertEqual((found["offences"], found["stale"]), ([], []))
 
@@ -274,7 +220,7 @@ class Snapshots(unittest.TestCase):
     # Mutation: scope a marker to the whole comment block instead of its paragraph.
     def test_a_marker_does_not_reach_the_next_paragraph(self):
         self.anchor()
-        self.write("zz-fixture", swift(REAL["count-on-date"] + TEMP + "        //\n"
+        self.write("zz-fixture", swift(REAL["count-on-date"] + ALLOW + "        //\n"
                                        + REAL["measurement-led"]))
         found = self.review()
         self.assertEqual(self.kinds(found), ["measurement-led"], found)
@@ -291,7 +237,7 @@ class Snapshots(unittest.TestCase):
     # Mutation: delete the stale-marker branch.
     def test_a_marker_whose_paragraph_has_no_snapshot_fails(self):
         self.anchor()
-        self.write("zz-fixture", swift("        // Nothing dated here.\n" + TEMP))
+        self.write("zz-fixture", swift("        // Nothing dated here.\n" + ALLOW))
         self.assertEqual(len(self.review()["stale"]), 1)
 
     # Mutation: delete the history-without-pointer check. "History has …" exempts
@@ -306,22 +252,27 @@ class Snapshots(unittest.TestCase):
     def test_a_missing_recipes_dir_is_a_failure(self):
         empty = pathlib.Path(tempfile.mkdtemp(prefix="duo-snapshots-empty-"))
         self.addCleanup(shutil.rmtree, empty, True)
-        self.assertEqual(crs.main(root=empty, pending=frozenset(), last_migrated="x",
-                                  out_of_order={}, minimum=0), 1)
+        self.assertEqual(crs.main(root=empty, minimum=0), 1)
 
     # Mutation: delete the guarded-family floor.
     def test_guarding_too_few_families_is_a_failure(self):
         self.anchor()
-        self.assertEqual(crs.main(root=self.root, pending=frozenset(), last_migrated="aa-0",
-                                  out_of_order={}, minimum=10), 1)
+        self.assertEqual(crs.main(root=self.root, minimum=10), 1)
+
+    # Mutation: `guarded < minimum` becomes `<=`. A tree with exactly `minimum`
+    # guarded families is a real run and must pass.
+    def test_the_floor_admits_a_tree_at_exactly_the_minimum(self):
+        self.anchor()
+        self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=2), 0)
 
     # Mutation: lower `main`'s default floor. Called without `minimum`, a
     # two-family tree must not pass as a real run.
     def test_the_default_floor_refuses_a_small_tree(self):
         self.anchor()
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(crs.main(root=self.root, pending=frozenset(),
-                                      last_migrated="aa-0", out_of_order={}), 1)
+            self.assertEqual(crs.main(root=self.root), 1)
 
     # Mutation: delete the canary check in `main`. A shape that stops matching
     # then fails nothing on a tree whose snapshots are all exempted.
@@ -330,19 +281,34 @@ class Snapshots(unittest.TestCase):
         broken = dict(crs.SHAPES)
         broken["count-on-date"] = (crs.re.compile(r"(?!x)x"), False)
         self.assertTrue(crs.canary_problems(broken))
-        self.assertEqual(crs.main(root=self.root, pending=frozenset(), last_migrated="aa-0",
-                                  out_of_order={}, minimum=1, shapes=broken), 1)
+        self.assertEqual(crs.main(root=self.root, minimum=1, shapes=broken), 1)
 
     # The check's own exit code, end to end, on a clean fixture.
+    # Mutation: delete the success print in `main`.
     def test_a_clean_tree_passes(self):
         self.anchor()
         self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
+        # Captured so the `make test` log holds one success line, the real run's.
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(crs.main(root=self.root, pending=frozenset(),
-                                      last_migrated="aa-0", out_of_order={}, minimum=1), 0)
-        # Captured so the `make test` log holds one success line, the real run's.
-        self.assertIn("last migrated aa-0", out.getvalue())
+            self.assertEqual(crs.main(root=self.root, minimum=1), 0)
+        self.assertIn("✓ no dated snapshots in recipe comments — 2 families guarded",
+                      out.getvalue())
+
+    # Mutation: `main` returns 0 while `review` reports an offence. Every other
+    # offence test reads `review()`, so without this one the exit code is untested.
+    def test_an_offence_fails_main(self):
+        self.anchor()
+        self.write("zz-fixture", swift(REAL["measurement-led"]))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
+
+    # Mutation: `main` returns 0 while `review` reports a stale marker.
+    def test_a_stale_marker_fails_main(self):
+        self.anchor()
+        self.write("zz-fixture", swift("        // Nothing dated here.\n" + ALLOW))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
 
 
 if __name__ == "__main__":

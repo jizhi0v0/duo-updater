@@ -112,16 +112,14 @@ enum com_bombich_ccc {
         // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as stable
         // to the beta's zip (`ccc-<marketing>-b<N>.<build>.zip`) while a beta is on
         // offer, and to the plain stable zip between cycles — measured, not
-        // "likely": 2026-09-14 it answered with the same `ccc-7.2.8399.zip` as
-        // `?v=ccc7` and `?v=latest`. `versionPattern` accepts BOTH, which is why
-        // `-b<N>` is optional below. It used to require the suffix, so the
-        // between-cycles answer matched nothing and the probe threw `ProbeFailed`
-        // (`VendorProbeSource`): a failed-check row, and a `duo verify` finding on
-        // every machine for a recipe working as written (issue #612).
-        // Marketing matches the probed capture group
-        // exactly, so `versionIsBuild` stays the default `false`, same as
-        // stable.
-        // snapshot-lint:allow — catch-up batch after 2f
+        // "likely": when checked (2026-09-14) it answered with the same stable zip
+        // as `?v=ccc7` and `?v=latest` (History has the filename). `versionPattern`
+        // accepts BOTH, which is why `-b<N>` is optional below. It used to require
+        // the suffix, so the between-cycles answer matched nothing and the probe
+        // threw `ProbeFailed` (`VendorProbeSource`): a failed-check row, and a
+        // `duo verify` finding on every machine for a recipe working as written
+        // (issue #612). Marketing matches the probed capture group exactly, so
+        // `versionIsBuild` stays the default `false`, same as stable.
         //
         // That stable answer is the vendor's ordinary RESTING state between
         // cycles, not an outage, and the graduation is the vendor's own text

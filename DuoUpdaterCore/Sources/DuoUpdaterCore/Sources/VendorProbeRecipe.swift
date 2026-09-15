@@ -17,7 +17,7 @@ import Foundation
 /// before adding it to the family's `probes:` in `Recipes/<family>.swift`.
 /// The archive format a vendor ships its installer in. Drives how
 /// `VendorInstaller` unpacks the downloaded file before the signature gate.
-public enum VendorInstallerKind: Sendable, Hashable {
+public enum VendorInstallerKind: Sendable, Hashable, CaseIterable {
     case zip
     case dmg
     case tarGz

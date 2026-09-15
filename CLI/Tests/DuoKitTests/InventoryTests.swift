@@ -112,25 +112,60 @@ private let installed = [
 /// pass against either implementation.
 @Suite struct InventoryScanTimeoutTests {
 
-    /// Mutation: put the body back in a `withTaskGroup` racing a sleep. This test
-    /// then sits on the blocked scan until the suite's own timeout kills it.
+    /// Asserted as an ORDERING: the call must come back while the scan is still
+    /// blocked. It used to bound the call's wall clock (`elapsed < 20`), which in
+    /// practice could only go red on a slow machine: the regression it was meant to catch waited
+    /// for a release that only came after the call returned, so it hung before the
+    /// bound was ever read. (`givingUpDoesNotWaitForTheAbandonedOperation` in
+    /// `AppRestarterTests` is the same test for `firstToFinish`, and its bound failed
+    /// on CI at 15.477s with the property intact.)
+    ///
+    /// The scan cannot finish until it is released, and the only release before
+    /// the call returns is the hang guard, so `scanFinishedFirst` is decided by
+    /// the order of those two events, not by how fast the machine is. The guard
+    /// exists so a regression fails in 30s instead of hanging the suite; for it
+    /// to turn a correct implementation red, this task's resumption would have to
+    /// still be waiting 30s after the timeout fired.
+    ///
+    /// Mutation: put the body of `BoundedScan.result` back in a `withTaskGroup` that
+    /// races the scan against a sleep — red after the 30s guard, "the timeout did not
+    /// abandon the scan".
     @Test func aScanThatNeverReturnsIsAbandonedAtTheTimeout() async {
-        // Released in the `defer` so the thread cannot outlive the test.
         let release = DispatchSemaphore(value: 0)
-        defer { release.signal() }
+        let scanFinishedFirst = Flag()
+        // A `Task`, not a Dispatch timer, on purpose. A Dispatch timer fires on
+        // schedule while the cooperative pool is stalled, so a 30s stall would
+        // release the scan before this task got to read the flag, and the test would
+        // go red with the property intact. A `Task` guard waits on the same pool,
+        // behind this task's resumption, which was enqueued ~30s earlier. The cost:
+        // under the regression the scan parks a pool thread, so on a machine with
+        // almost no pool threads the guard might not run and the mutation would hang
+        // rather than fail (not measured; it went red in 32s on 14 cores).
+        let hangGuard = Task {
+            try? await Task.sleep(for: .seconds(30))
+            release.signal()
+        }
 
-        let started = Date()
         let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
             release.wait()
+            scanFinishedFirst.set()
             return []
         }
-        let elapsed = Date().timeIntervalSince(started)
+        let waitedForTheScan = scanFinishedFirst.isSet
+        // Released here so the thread cannot outlive the test.
+        release.signal()
+        hangGuard.cancel()
 
         #expect(scanned == nil)
-        // Generous: the assertion is "it came back", not a wall-clock bound —
-        // a 3-core runner is not a stopwatch. The unfixed code never returns at
-        // all, so any finite time distinguishes it.
-        #expect(elapsed < 20, "returned after \(elapsed)s — the timeout did not abandon the scan")
+        #expect(!waitedForTheScan, "the timeout did not abandon the scan")
+    }
+
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() { lock.withLock { value = true } }
+        var isSet: Bool { lock.withLock { value } }
     }
 
     /// Every command needs "gave up" apart from "found nothing": the first must not

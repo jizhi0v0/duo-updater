@@ -62,6 +62,8 @@ Notion and Figma changelogs were just moved away from.
 
 **一键拿到的是不是 pkg**：`curl`（UA `DuoUpdater/0.1` 或 Safari UA，都经本机代理；`DuoUpdater/0.1` 另用 `--noproxy` 跑过一次，结果相同，Safari UA 没有这样跑过；Surge 对 `.todesk.com` 的规则是 DIRECT）GET 两个 pkg URL 都拿到 200 `text/html` 2,174–2,175 B 的 Tencent EdgeOne「Security Verification」验证码页，`pkgutil --check-signature` 对它报 `Could not open package`。换成生产客户端 URLSession、同样的 `User-Agent: DuoUpdater/0.1` + `Accept-Encoding: identity`，只读头和前 64 字节：`ToDesk_4.10.1.0.pkg` 200、`Content-Type: text/plain`、`Content-Length` 376,661,630，开头 `xar!`；`ToDesk_5.1.0.0.pkg` 同样 `xar!`、410,812,880。和 `PackageInstaller.swift` 那段「curl is not a stand-in」的记录一致，一键没有问题。
 
-**已被推上灰度线的拷贝**（per-copy：这是被检查的那台机器上的那份）：`/Applications/ToDesk.app` 是 `5.0.0.0`；那台机器的请求账本 `kind='install'` 记着 2026-08-31 16:12:38 UTC Vendor 源从 `4.10.1.0` 装到 `5.0.0.0`（403,500,628 B），也就是旧 recipe 推的灰度包。GA 读法下它比 feed 新，收不到 5.1.0.0，`duo verify` 在那台机器上报 remote behind installed。按拷贝判轨的规则拆到 #628。
+**已被推上灰度线的拷贝**（per-copy）：2026-09-14 检查的那台机器上装的那份拷贝是 `5.0.0.0`，是 2026-08-31 16:12:38 UTC 经 Vendor 源从 `4.10.1.0` 装上的（下载 403,500,628 B），也就是旧 recipe 推的灰度包。GA 读法下这份拷贝比 feed 新，收不到 5.1.0.0，`duo verify` 在那台机器上报 remote behind installed。按拷贝判轨的规则拆到 #628。
+
+改写 2026-09-15：上面这一段有一处本机状态措辞（安装路径与那台机器的记录来源），按本目录的机器状态规则改成了针对那份拷贝的说法；版本、日期、字节数与结论不变。
 
 **baseline**：`verify/baseline.json` 的 `vendor:com.youqu.todesk.mac:stable` 从 `5.1.0.0` 改成 `4.10.1.0`。不改的话下一轮巡检报「version went BACKWARDS」，而 `Baseline.reconcile` 拒绝记下更低的值，警告会每轮重复（同 #622 对 Raycast 的处理）。

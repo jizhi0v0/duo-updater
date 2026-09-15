@@ -236,6 +236,13 @@ The comment states the page's shape and why the patterns are anchored. Entry
 counts, the newest version you saw and the date you checked go to the family
 audit's `## 历史与实测` (SKILL.md step 6).
 
+Then regenerate the family's golden and commit it with the recipe (SKILL.md
+step 7). The recording run fails on purpose; rerun without the variable:
+
+```sh
+DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+```
+
 Add a test to `ChangelogExtractorTests.swift` with an **inline fixture** (a trimmed
 copy of the real markup, including at least one HTML entity to prove decoding) and
 assert entry count, version, date, item count, and a decoded item. Pattern:

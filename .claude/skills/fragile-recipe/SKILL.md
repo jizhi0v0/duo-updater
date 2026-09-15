@@ -85,7 +85,21 @@ examples — don't author from memory:
    in the same paragraph; the reason is required. Don't copy an older neighbour
    that still carries dated logs.
 
-7. **Add a regression test.** Two parts, both required:
+7. **Regenerate the recipe goldens.** Every change to a family file (and every
+   new or renamed family) changes what `RecipeGoldenTests` expects, one golden per
+   family under `DuoUpdaterCore/Tests/RecipeGoldens/`. From the repository root:
+
+   ```sh
+   DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+   ```
+
+   A recording run always fails on purpose. Read `git diff DuoUpdaterCore/Tests/RecipeGoldens`:
+   it should show exactly the fields you meant to change, in your family only. Then
+   rerun the same command without the variable to see it pass, and commit the
+   golden with the recipe. What the golden pins and why is in the doc comment on
+   `RecipeGoldenTests`.
+
+8. **Add a regression test.** Two parts, both required:
    - A fixture test: a trimmed slice of the *real* response, asserting the parse.
      Tests run offline, so paste a representative fixture rather than hitting the
      network. Extend the existing test file for that recipe type.
@@ -97,7 +111,7 @@ examples — don't author from memory:
      `AppAuditCoverageTests` and `ChannelGuardTests` do the same. Never add a
      hand-written list of bundle ids beside one — that is what these replace.
 
-8. **Run `make test`**, and confirm green.
+9. **Run `make test`**, and confirm green.
 
    `swift test` alone is not the gate: `make test` also runs `check_app_audits.py`,
    `check_recipe_snapshots.py`, `check_prose_claims.py`,
@@ -105,7 +119,7 @@ examples — don't author from memory:
    routinely trips those. A run that skips them lets a
    regression through silently.
 
-9. **Hit the real endpoint** — a fixture proves the regex, not the vendor:
+10. **Hit the real endpoint** — a fixture proves the regex, not the vendor:
 
    ```sh
    duo verify --only <bundle-id-fragment>          # fast, one recipe

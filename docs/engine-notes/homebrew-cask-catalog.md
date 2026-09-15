@@ -108,7 +108,15 @@ version is injected (`HomebrewCaskSource(hostOSVersion:)`, defaulted to
 `HostOS.numericVersion()` exactly like `SignatureVerifier`'s `osVersion`), so the
 rule is exercised as a pure function against fixtures built from real response
 bodies — see `HomebrewCaskMacOSConstraintTests`, whose header carries the
-mutation table (12 mutations, all applied and all red).
+mutation table (every row applied and measured; the one that stays green on
+the test you would expect, and why, is marked there).
+
+`>=` is a floor and asks `SignatureVerifier.canRun`, the predicate install-time
+gate 6 asks, so the two cannot disagree (`HostOS` lists the sites). `==`
+and `<=` are not floors and keep their own truncate-then-compare, which splits
+the host on `.` only while `VersionComparator` also splits on `- _ + space ( )`.
+So `== 13-1` refuses 13.1.0 while `== 13.1` admits it. No live value has that
+shape (every one was a bare major when measured, §1), and it is not fixed.
 
 Also not verified: that brew's own `depends_on macos` semantics match this
 reading for a cask declaring **two** operators at once. None exists today, so

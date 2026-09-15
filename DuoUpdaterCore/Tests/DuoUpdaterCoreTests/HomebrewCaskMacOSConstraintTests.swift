@@ -23,9 +23,15 @@ import Foundation
 /// is the real shape available for that key, and it only bites below macOS 13.
 ///
 /// Mutation table. Every row below was applied to a working tree and this suite
-/// run (2026-09-15): all fourteen **compile** — not one is caught by the type
-/// checker — and all fourteen go red. The "red" column lists the tests that
+/// run (2026-09-15): every one **compiles** — not one is caught by the type
+/// checker — and every one goes red. The "red" column lists the tests that
 /// actually failed, not the ones predicted beforehand.
+///
+/// Rows 16–20 came with routing `>=` through `SignatureVerifier.canRun`, and were
+/// run with `--filter` over this suite plus `OSFloorIsLoadBearingTests`,
+/// `InstallOSFloorGateTests` and `SparkleMaximumSystemVersionTests`, so their red
+/// column can name tests outside this file. Rows 4 and 8 were re-run then too;
+/// the rest touch code that change did not, and were not.
 ///
 /// Two things this table learned the hard way, both worth keeping:
 /// mutation 3 (drop the `?? entries.first` fallback) was **green** on the first
@@ -40,11 +46,11 @@ import Foundation
 /// | 1 | `CaskEntry.preferred`: `entries.first` (plain catalog order, the old behaviour) | red: `macOS27PrefersTheOnyXCaskThatAdmits27`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne`, `withBothCasksInstalledTheHostDecides` |
 /// | 2 | `CaskEntry.preferred`: `entries.last { admits } ?? entries.first` | red: `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent` |
 /// | 3 | `CaskEntry.preferred`: drop the `?? entries.first` fallback | red: `aHostNoCaskAdmitsFallsBackToTheFirst` |
-/// | 4 | `HomebrewCaskCatalog.index`: build `CaskEntry` with `macOS: nil` | red: 6 tests |
+/// | 4 | `HomebrewCaskCatalog.index`: build `CaskEntry` with `macOS: nil` | red: 7 tests (re-run: the original 6, plus `atLeastAnswersWhatCanRunAnswers` via its non-empty-fixture guard) |
 /// | 5 | `admits`: `.exactly` returns `true` | red: `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer`, `aHostNoCaskAdmitsFallsBackToTheFirst`, `withBothCasksInstalledTheHostDecides` |
-/// | 6 | `admits`: `.atLeast` uses `!= .orderedDescending` | red: `onyxBetaAdmitsMacOS27AndNothingOlder`, `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne`, `aHostNoCaskAdmitsFallsBackToTheFirst` |
+/// | 6 | *Retired.* `admits`: `.atLeast` uses `!= .orderedDescending` — the comparison it reversed no longer exists; row 20 is the same mutation on the `canRun` call | (was red: `onyxBetaAdmitsMacOS27AndNothingOlder`, `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne`, `aHostNoCaskAdmitsFallsBackToTheFirst`) |
 /// | 7 | `admits`: `.atMost` uses `!= .orderedAscending` (the sign reversed) | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes` |
-/// | 8 | `truncated`: return `version` unchanged (no truncation) | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer` |
+/// | 8 | `truncated`: return `version` unchanged (no truncation) — now reaches `==`/`<=` only | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer` (re-run, unchanged) |
 /// | 9 | `admits`: empty-declaration guard fails closed | red: `aDeclarationWithNoParseableVersionAdmitsEveryone` |
 /// | 10 | `parse`: an unreadable `macos` object returns an empty requirement instead of `nil` | red: `anEmptyMacOSObjectIsNoConstraint` |
 /// | 11 | `CaskEntry.admits`: `macOS?.admits(host) ?? false` | red: `anEmptyMacOSObjectIsNoConstraint`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne` |
@@ -52,6 +58,11 @@ import Foundation
 /// | 13 | `HomebrewCaskSource`: take `installed.first`, dropping the host tie-break | red: `withBothCasksInstalledTheHostDecides`, `theHostTieBreakRunsOverInstalledCasksOnly` (re-measured after row 15) |
 /// | 14 | `HomebrewCaskSource`: drop the provenance filter, take the runnable cask | red: `macOS27StillResolvesTheStableCaskForSomeoneWhoInstalledIt`, `neitherCaskInstalledStillDeclines` |
 /// | 15 | `HomebrewCaskSource`: host preference over every candidate, then `installed.first` (added after review, measured on the pre-fix code) | red: `theHostTieBreakRunsOverInstalledCasksOnly` |
+/// | 16 | `admits`: `.atLeast` back to the old truncate-then-`VersionComparator.compare` | red: `atLeastAnswersWhatCanRunAnswers`, `aFloorWrittenWithADashAdmitsALaterPointRelease` |
+/// | 17 | `admits`: `.atLeast` off by one — `canRun(…) && compare(host, floor) != .orderedSame`, refusing the floor itself | red: `atLeastAnswersWhatCanRunAnswers`, `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxBetaAdmitsMacOS27AndNothingOlder`, `theHostTieBreakRunsOverInstalledCasksOnly`, `withBothCasksInstalledTheHostDecides` |
+/// | 18 | `admits`: `.atLeast` drops `contains`, asking `canRun` about `declared[0]` only | red: `atLeastAnswersWhatCanRunAnswers` (its multi-entry half — no fixture has a second `>=` entry) |
+/// | 19 | `SignatureVerifier.canRun` itself: `!= .orderedAscending` → `== .orderedDescending` | **`atLeastAnswersWhatCanRunAnswers` stays green**, by construction (both sides move). Red elsewhere: `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxBetaAdmitsMacOS27AndNothingOlder`, `theHostTieBreakRunsOverInstalledCasksOnly`, `withBothCasksInstalledTheHostDecides`, and in the other suites `aFloorAtOrBelowTheHostIsRunnable`, `aPkgPayloadFloorAboveThisMacIsRefused`, `noAppAlreadyInstalledOnThisMacWouldBeRefused`, `aProbeRecipesFloorStillGates`, `aMacBelowTheRCsFloorIsOfferedTheNewestRUNNABLEBuild`, `theXcodeRemoteCarriesTheOfferedReleasesFloor` |
+/// | 20 | `admits`: `.atLeast` negated — `!declared.contains { canRun(…) }` | red: `atLeastAnswersWhatCanRunAnswers`, `aFloorWrittenWithADashAdmitsALaterPointRelease`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne`, `aHostNoCaskAdmitsFallsBackToTheFirst`, `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent`, `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxBetaAdmitsMacOS27AndNothingOlder`, `theHostTieBreakRunsOverInstalledCasksOnly`, `withBothCasksInstalledTheHostDecides` |
 struct HomebrewCaskMacOSConstraintTests {
 
     private static func fixture(_ name: String) throws -> Data {
@@ -292,5 +303,102 @@ struct HomebrewCaskMacOSConstraintTests {
     @Test func aDeclarationWithNoParseableVersionAdmitsEveryone() {
         #expect(CaskMacOSRequirement(comparison: .atLeast, versions: ["big_sur"]).admits("26.0.0"))
         #expect(CaskMacOSRequirement(comparison: .exactly, versions: []).admits("26.0.0"))
+    }
+
+    // MARK: - `>=` is a floor, so it answers what gate 6 answers
+
+    /// Every `>=` value the two fixtures declare, read back through the indexer
+    /// rather than typed out, so a refreshed fixture with a different floor is
+    /// covered without anyone editing a list here.
+    private static func fixtureFloors() throws -> [String] {
+        try (onyxCasks() + cccCasks())
+            .compactMap(\.macOS)
+            .filter { $0.comparison == .atLeast }
+            .flatMap(\.versions)
+    }
+
+    /// Not in any catalog today (every live `>=` value is a bare major), so these
+    /// are hand-built: the separators `VersionComparator` splits on besides `.`,
+    /// which is exactly where the old truncate-then-compare disagreed with
+    /// `canRun`, plus a real vendor floor spelled with text (Alcove's).
+    private static let edgeFloors = [
+        "13-1", "13_1", "13+1", "13 1", "13.0-1", "26.0_1", "13.1", "10.15", "15 Sequoia",
+    ]
+
+    /// Numeric hosts only — `x`, `x.y`, `x.y.z` — spanning one major either side of
+    /// every floor. Numeric because production's host is always
+    /// `HostOS.numericVersion()`; a host with trailing text is the one input where
+    /// the pre-`canRun` code answered differently, and it cannot occur.
+    private static func hosts(around floors: [String]) -> [String] {
+        let majors = floors.compactMap { Int($0.prefix { $0.isNumber }) }
+        guard let low = majors.min(), let high = majors.max() else { return [] }
+        return (low - 1...high + 1).flatMap { major in
+            ["\(major)"] + (0...3).flatMap { minor in
+                ["\(major).\(minor)"] + (0...2).map { "\(major).\(minor).\($0)" }
+            }
+        }
+    }
+
+    /// The invariant `HostOS` states: a cask's `>=` and install-time gate 6 cannot
+    /// disagree about the same pair of versions. Asserted as equality with
+    /// `SignatureVerifier.canRun` itself, not as a table of expected booleans, so
+    /// it goes red on divergence rather than on whatever the table's author
+    /// believed the answer was.
+    ///
+    /// ⚠️ Blind by construction to a bug inside `canRun`: both sides would move
+    /// together (measured, mutation 19). That half is `InstallOSFloorGateTests`'
+    /// and `onyxBetaAdmitsMacOS27AndNothingOlder`'s job.
+    @Test func atLeastAnswersWhatCanRunAnswers() throws {
+        let fixtureFloors = try Self.fixtureFloors()
+        // Without this the loop below is vacuous when the indexer stops reading
+        // `depends_on.macos` — the fixtures would contribute nothing.
+        try #require(!fixtureFloors.isEmpty)
+        let floors = fixtureFloors + Self.edgeFloors
+        let hosts = Self.hosts(around: floors)
+
+        var mismatches: [String] = []
+        for floor in floors {
+            let requirement = CaskMacOSRequirement(comparison: .atLeast, versions: [floor])
+            var outcomes = Set<Bool>()
+            for host in hosts {
+                let gate6 = SignatureVerifier.canRun(minimumSystemVersion: floor, on: host)
+                outcomes.insert(gate6)
+                if requirement.admits(host) != gate6 {
+                    mismatches.append(">= \(floor) on \(host): admits \(!gate6), canRun \(gate6)")
+                }
+            }
+            // The grid must straddle each floor, or agreement proves nothing.
+            #expect(outcomes == [true, false], "hosts do not straddle \(floor)")
+        }
+        #expect(mismatches.isEmpty, "\(mismatches.count) disagree, e.g. \(mismatches.prefix(5))")
+
+        // A multi-entry `>=` list (none exists today) admits a host any one of its
+        // entries admits, in either order.
+        var listMismatches: [String] = []
+        for a in floors {
+            for b in floors where a != b {
+                let requirement = CaskMacOSRequirement(comparison: .atLeast, versions: [a, b])
+                for host in hosts {
+                    let expected = SignatureVerifier.canRun(minimumSystemVersion: a, on: host)
+                        || SignatureVerifier.canRun(minimumSystemVersion: b, on: host)
+                    if requirement.admits(host) != expected {
+                        listMismatches.append(">= [\(a), \(b)] on \(host)")
+                    }
+                }
+            }
+        }
+        #expect(listMismatches.isEmpty,
+                "\(listMismatches.count) disagree, e.g. \(listMismatches.prefix(5))")
+    }
+
+    /// The one answer routing `>=` through `canRun` changed on a host production
+    /// can produce. The old code truncated the host by `.`-separated components
+    /// (one, for `"13-1"`) while `VersionComparator` also splits on `-`, so 13.2.0
+    /// became `"13"`, compared below `[13, 1]`, and was refused. Gate 6 admits it,
+    /// and gate 6 is what the install would ask.
+    @Test func aFloorWrittenWithADashAdmitsALaterPointRelease() {
+        let floor = CaskMacOSRequirement(comparison: .atLeast, versions: ["13-1"])
+        #expect(floor.admits("13.2.0"))
+        #expect(!floor.admits("13.0.0"))
     }
 }

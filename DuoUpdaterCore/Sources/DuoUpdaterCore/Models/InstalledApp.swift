@@ -198,6 +198,12 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `LinkedFrameworks`.
     public let linkedFrameworks: LinkedFrameworks
 
+    /// The SDK the executable was linked against, read from the same binary as
+    /// `linkedFrameworks` — or, for a wrapped iOS app, from the one inside the
+    /// wrapper. Nil when no executable could be read or it records none.
+    /// Descriptive only; see `BuildSDK` for what the number does and does not mean.
+    public let buildSDK: BuildSDK?
+
     /// The release channel this install is on (Stable, Beta, Canary, …),
     /// detected at scan time. A source is only allowed to update this app from a
     /// recipe that targets the SAME channel — so a stable-channel recipe can
@@ -286,7 +292,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         toolboxInstalledBuild: String? = nil,
         appStoreAdamID: Int? = nil,
         runtime: AppRuntime? = nil,
-        linkedFrameworks: LinkedFrameworks = []
+        linkedFrameworks: LinkedFrameworks = [],
+        buildSDK: BuildSDK? = nil
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -311,5 +318,6 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.appStoreAdamID = appStoreAdamID
         self.runtime = runtime
         self.linkedFrameworks = linkedFrameworks
+        self.buildSDK = buildSDK
     }
 }

@@ -1024,7 +1024,7 @@ private struct AppRow: View {
             // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
             if let runtime {
                 RuntimeTag(runtime: runtime, bundle: result.app.path,
-                           frameworks: result.app.linkedFrameworks)
+                           frameworks: result.app.linkedFrameworks, buildSDK: result.app.buildSDK)
             }
         }
     }

@@ -21,6 +21,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.95
 
+**See which SDK each app was built with.** Click the mark beside an app's name and its details now say, for example, "Built with the macOS 27.0 SDK." — handy for telling which apps have been rebuilt for the latest macOS.
+
 **Little Snitch is no longer reported as current when its maker says that build isn't for your macOS.** Objective Development's feed states the macOS range each build supports; after a macOS upgrade the row could keep pointing at a build capped below the system you were now running. Builds outside the stated range are left out until the vendor raises the cap.
 
 ## 0.3.94

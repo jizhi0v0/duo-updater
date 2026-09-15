@@ -19,19 +19,22 @@ import Foundation
 ///  2. `SignatureVerifier` gate 6 (`verifyRunnableSystemVersion`) — refuses a
 ///     DOWNLOADED bundle whose own `LSMinimumSystemVersion` excludes this Mac.
 ///     The install-time backstop the detection-time gates are matched against.
-///  3. `AppStoreGate.resolve` — turns a listing's `latestMinimumMacOS` into
+///  3. `PackageInstaller.verifyPayloadSystemVersion` — the same for the pkg
+///     route, reading the floor out of the package's payload; best-effort, and
+///     fails open on a payload it cannot read.
+///  4. `AppStoreGate.resolve` — turns a listing's `latestMinimumMacOS` into
 ///     `.needsNewerMacOS`, the one state that RENDERS this condition (#546).
-///  4. `VendorHostRequirement.isSatisfied` — a probe recipe's declared floor.
-///  5. `XcodeReleasesSource.offer` — bounds the candidate builds by the index's
+///  5. `VendorHostRequirement.isSatisfied` — a probe recipe's declared floor.
+///  6. `XcodeReleasesSource.offer` — bounds the candidate builds by the index's
 ///     `requires`, so a Mac too old for the newest build is offered the newest
 ///     one it can run (#640).
-///  6. `AlcoveUpdateSource.remote(from:token:osVersion:)` — the licensed API's
+///  7. `AlcoveUpdateSource.remote(from:token:osVersion:)` — the licensed API's
 ///     `minimum_system_version` (#640).
 ///
 /// ⚠️ `UpdateChecker.evaluate` is deliberately NOT on this list and must not
 /// join it: a host-dependent branch there makes every one of its comparison
 /// tests measure the machine it runs on, and the refusal it could express
-/// (`.upToDate`) is a plain checkmark — a second answer for the condition (3)
+/// (`.upToDate`) is a plain checkmark — a second answer for the condition (4)
 /// already renders. See its doc comment.
 public enum HostOS {
 

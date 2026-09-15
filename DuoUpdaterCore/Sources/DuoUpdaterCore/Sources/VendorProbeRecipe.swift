@@ -17,7 +17,7 @@ import Foundation
 /// before adding it to the family's `probes:` in `Recipes/<family>.swift`.
 /// The archive format a vendor ships its installer in. Drives how
 /// `VendorInstaller` unpacks the downloaded file before the signature gate.
-public enum VendorInstallerKind: Sendable, Hashable {
+public enum VendorInstallerKind: Sendable, Hashable, CaseIterable {
     case zip
     case dmg
     case tarGz
@@ -595,6 +595,43 @@ public struct VendorProbeRecipe: Sendable {
     /// probed text is a URL or a single plist value rather than a document.
     public let publishedAtPattern: String?
 
+    /// Optional regexes (capture group 1) for the OS bounds the vendor states
+    /// FOR THIS RELEASE in the response body — the lowest and highest macOS the
+    /// build is for, as plain numeric versions ("14.0", "26.99"). Read from the
+    /// same scope as `versionPattern` (so, under `entryStartPattern`, from the
+    /// winning entry) and compared with the exact predicates Sparkle applies to
+    /// `sparkle:minimumSystemVersion` / `sparkle:maximumSystemVersion` — see
+    /// `SparkleAppcastSource.usableItems`. A release outside the window is
+    /// `ProbeFailure.notApplicable`: no version, no red row, nothing to retry.
+    ///
+    /// These are the response-side twin of `hostRequirement`. That one is a
+    /// value pinned in the recipe, for endpoints that state nothing (Raycast's
+    /// two endpoints answer any client alike). These are for endpoints that DO
+    /// state it, where pinning would be wrong the moment the vendor moved the
+    /// bound: obdev's `littlesnitch6.plist` capped its `final` entry at `26.99`
+    /// on 2026-08-30 and at `27.99` on 2026-09-15, with no change on our side.
+    /// A ceiling is the only way a source we read can say "this build has not
+    /// been adapted to the macOS you are running" — and unlike a floor, a
+    /// build filtered by it never comes back on its own (issue #634).
+    ///
+    /// A declared pattern that matches nothing warns (`osBoundPatternNoMatch`)
+    /// and the bound is treated as absent — the version keeps resolving, the
+    /// same failure-open shape as `displayVersionPattern`. Meaningless for
+    /// `.redirectFilename`/`.zipEntryPlist`, where the probed text is a URL or a
+    /// single plist value rather than a document.
+    ///
+    /// ⚠️ Applied to the entry `highestVersionEntry` already PICKED, not before
+    /// picking — "pick highest, then refuse", where Sparkle's `usableItems` is
+    /// "filter, then pick". Right for a feed with one entry per channel (Little
+    /// Snitch: one `final`, one `nightly`). Wrong for a feed that buckets ONE
+    /// version by OS into several entries (WeChat): the first-listed bucket
+    /// wins the strict-newer tie-break, and if that is the capped one the whole
+    /// probe is refused although an applicable sibling exists. Don't adopt
+    /// these on such a feed without moving the window into the candidate
+    /// filter first.
+    public let minimumSystemVersionPattern: String?
+    public let maximumSystemVersionPattern: String?
+
     /// Optional regex marking where each entry begins in a body that lists
     /// several releases — e.g. `\{"date":"` for a JSON feed whose items each
     /// start with a `date` key. When set, the source slices the body into
@@ -725,6 +762,8 @@ public struct VendorProbeRecipe: Sendable {
         buildNamespace: InstalledApp.BuildNamespace = .bundle,
         displayVersionPattern: String? = nil,
         publishedAtPattern: String? = nil,
+        minimumSystemVersionPattern: String? = nil,
+        maximumSystemVersionPattern: String? = nil,
         entryStartPattern: String? = nil,
         install: VendorInstallSpec? = nil,
         requestBody: RequestBody? = nil,
@@ -758,6 +797,8 @@ public struct VendorProbeRecipe: Sendable {
         self.buildNamespace = buildNamespace
         self.displayVersionPattern = displayVersionPattern
         self.publishedAtPattern = publishedAtPattern
+        self.minimumSystemVersionPattern = minimumSystemVersionPattern
+        self.maximumSystemVersionPattern = maximumSystemVersionPattern
         self.entryStartPattern = entryStartPattern
         self.install = install
         self.requestBody = requestBody
@@ -1028,6 +1069,8 @@ public struct VendorProbeRecipe: Sendable {
             versionIsBuild: versionIsBuild, buildNamespace: buildNamespace,
             displayVersionPattern: displayVersionPattern,
             publishedAtPattern: publishedAtPattern,
+            minimumSystemVersionPattern: minimumSystemVersionPattern,
+            maximumSystemVersionPattern: maximumSystemVersionPattern,
             entryStartPattern: entryStartPattern ?? self.entryStartPattern,
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
@@ -1040,6 +1083,41 @@ public struct VendorProbeRecipe: Sendable {
     /// recipe's behaviour identical.
     public func runs(onOS osVersion: String, arch: HostArch) -> Bool {
         hostRequirement?.isSatisfied(byOS: osVersion, arch: arch) ?? true
+    }
+
+    /// Why a release whose body declares `minimum`/`maximum` is not for a Mac
+    /// running `osVersion`, or nil when it is. The predicates are Sparkle's,
+    /// verbatim from `SparkleAppcastSource.usableItems`: below the floor is
+    /// `compare(host, min) == .orderedAscending`, above the ceiling is
+    /// `compare(max, host) == .orderedAscending` — so a "26.99" ceiling admits
+    /// 26.6.0 and refuses 27.0.0, and a nil or empty bound never refuses.
+    ///
+    /// A bound with no digit in it (`any`, `latest`, `-`) is treated as absent,
+    /// the guard `SignatureVerifier.canRun(minimumSystemVersion:on:)` already
+    /// applies to a bundle's floor. Without it a text CEILING fails closed:
+    /// `VersionComparator` ranks a text token below a number, so `"any"` reads
+    /// as below every host and every Mac is refused — and the sweep reports it
+    /// as `skipped`, green. (A text floor happens to fail open by the same
+    /// ordering; guarded anyway so the two sides cannot drift.)
+    ///
+    /// Pure, so the gate is testable off whatever machine the tests run on; the
+    /// source passes its own `hostOSVersion`.
+    public static func osWindowRefusal(
+        minimum: String?, maximum: String?, osVersion: String
+    ) -> String? {
+        func numeric(_ bound: String?) -> String? {
+            guard let bound, bound.rangeOfCharacter(from: .decimalDigits) != nil else { return nil }
+            return bound
+        }
+        if let minOS = numeric(minimum),
+           VersionComparator.compare(osVersion, minOS) == .orderedAscending {
+            return "the vendor states this release needs macOS \(minOS) or newer; this Mac runs \(osVersion)"
+        }
+        if let maxOS = numeric(maximum),
+           VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
+            return "the vendor caps this release at macOS \(maxOS); this Mac runs \(osVersion)"
+        }
+        return nil
     }
 
     /// Whether this recipe applies to an already-installed copy reporting

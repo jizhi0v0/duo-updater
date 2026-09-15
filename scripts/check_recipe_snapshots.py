@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refuse a dated measurement snapshot in the comments of a migrated recipe family.
+"""Refuse a dated measurement snapshot in a recipe family's comments.
 
 Run by `make test`.
 
@@ -7,36 +7,23 @@ Run by `make test`.
 
 ## What this is for
 
-Step 2 of the recipe refactor moves dated verification logs, incident timelines
+Step 2 of the recipe refactor moved dated verification logs, incident timelines
 and measured numbers out of `Recipes/<family>.swift` comments and into that
 family's `docs/app-audits/<family>.md` under `## 历史与实测`, leaving the code
 with the current contract and a `// History:` pointer (convention:
-`docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). A batch empties a
-family once. Nothing stopped the next recipe PR from writing the same kind of
-sentence straight back: on the day batch 2d merged, three of six recipe PRs had
-done exactly that (#610 "2026-09-14 it answered with the same
-`ccc-7.2.8399.zip`", #622 "Verified against the live page 2026-09-14: 10
-entries", #623 "on 2026-09-14 it said mac `1.0.910.1`" and "51 entries on
-2026-09-14"). The skills did not mention the convention at all.
+`docs/app-audits/README.md` §「从 recipe 注释迁出的历史」). Moving them once
+does not stop the next recipe PR from writing the same kind of sentence
+straight back: on the day batch 2d merged, three of six recipe PRs had done
+exactly that (#610 "2026-09-14 it answered with the same `ccc-7.2.8399.zip`",
+#622 "Verified against the live page 2026-09-14: 10 entries", #623 "on
+2026-09-14 it said mac `1.0.910.1`" and "51 entries on 2026-09-14"). The skills
+did not mention the convention at all.
 
 ## Which families
 
-Every family under `Recipes/` is guarded EXCEPT those in `PENDING`, the families
-no batch has migrated yet. The list only shrinks: each batch deletes its
-families from it in the same PR, and it goes away after the last batch. A brand
-new family is guarded from its first commit because it is not on the list.
-
-Two ways the list can lie are checked. A `PENDING` family that already carries a
-`// History:` pointer has been migrated and was not deleted. A `PENDING` family
-whose slug sorts at or below `LAST_MIGRATED` sits inside the range the batches
-have already covered, so a batch either skipped it or forgot to delete it (2d
-skipped WeType; `OUT_OF_ORDER` recorded that until 2e migrated it — an entry
-there records such a skip, and fails once it is stale). Each
-batch PR must bump `LAST_MIGRATED` to its last family; nothing checks that it
-did, or that nobody adds a family to `PENDING` by hand. The boundary is a constant rather than derived from where the
-pointers are because new families are now expected to carry a pointer too, and
-one landing late in the alphabet would drag a derived boundary past every
-pending family.
+Every family under `Recipes/` is guarded: every `*.swift` file there except the
+two infrastructure files `AppRecipeIndexTests.infrastructure` also names. A
+brand new family is guarded from its first commit.
 
 ## Shapes
 
@@ -70,8 +57,6 @@ hit in ITS paragraph (not the whole comment block, so a new snapshot a paragraph
 further down still fails). The reason is mandatory. A marker whose paragraph no
 longer has a hit fails the build: a dead exemption is a standing pass for
 whatever is written there next (`check_prose_claims.py`, `mayLookAlike`, #271).
-Temporary markers carry exactly the reason `catch-up batch after 2f`, so one
-grep finds the whole catch-up worklist.
 
 ## What it does NOT do
 
@@ -98,10 +83,7 @@ Verified misses, each a sentence this script passes today:
   * dates that are not ISO (`Sep 14, 2026`), and trailing `// …` or `/* … */`
     comments, which are never read;
   * undated snapshots ("(38 entries)", "the newest 13 have none"): without a
-    date there is no shape to tell a snapshot from a contract;
-  * a forgotten `LAST_MIGRATED` bump is silent for the batch's families that got
-    no pointer. Each batch PR must bump it; the success line prints it, so it is
-    in every `make test` log.
+    date there is no shape to tell a snapshot from a contract.
 
 Rewording to dodge a shape also dodges the check; the point is to make the shape
 unwelcome, and to name where it belongs, not to be unfoolable.
@@ -114,19 +96,6 @@ import sys
 RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
 # Not families: the same two files `AppRecipeIndexTests.infrastructure` names.
 INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
-
-# Families no batch has migrated yet. Delete a batch's families here in that
-# batch's PR; delete the whole list after the last batch.
-PENDING = frozenset({
-})
-
-# The last family of the last merged batch, in `AppRecipeIndex`'s order (slug,
-# case-insensitive). Bump it in the batch PR that deletes its families above.
-LAST_MIGRATED = "xyz-chatboxapp-app"
-
-# PENDING families that sort inside the migrated range on purpose, with why.
-OUT_OF_ORDER = {
-}
 
 DATE = r"20\d\d-\d\d-\d\d"
 OBSERVED = (r"(?:measured|re-?measured|verified|re-?verified|observed|checked|"
@@ -332,57 +301,21 @@ def scan(text, shapes=None):
     return offences, stale
 
 
-def pending_problems(families, pointed, pending, last_migrated, out_of_order):
-    problems = []
-    folded = {f.lower(): f for f in families}
-    if last_migrated.lower() not in folded:
-        problems.append(f"LAST_MIGRATED `{last_migrated}` names no family")
-    elif last_migrated in pending:
-        problems.append(f"LAST_MIGRATED `{last_migrated}` is itself in PENDING")
-    for slug in sorted(pending, key=str.lower):
-        if slug not in families:
-            problems.append(f"PENDING `{slug}` names no family in {RECIPES} — "
-                            "if renamed, rename the entry; if deleted, take it out")
-        elif slug in pointed:
-            problems.append(f"PENDING `{slug}` already has a History pointer, so a "
-                            "batch migrated it — delete it from PENDING")
-        elif slug.lower() <= last_migrated.lower() and slug not in out_of_order:
-            problems.append(f"PENDING `{slug}` sorts inside the migrated range "
-                            f"(≤ `{last_migrated}`) — a batch skipped it or forgot "
-                            "to delete it")
-    for slug, why in sorted(out_of_order.items()):
-        if slug not in pending or slug.lower() > last_migrated.lower():
-            problems.append(f"OUT_OF_ORDER `{slug}` ({why}) no longer applies — "
-                            "delete the entry")
-    return problems
-
-
-def review(root, pending=PENDING, last_migrated=LAST_MIGRATED,
-           out_of_order=OUT_OF_ORDER, shapes=None):
+def review(root, shapes=None):
     """Everything the check knows, as data, so the tests can drive it."""
     base = root / RECIPES
-    found = {"missing": not base.is_dir(), "guarded": 0, "pending": 0,
-             "offences": [], "stale": [], "pending_problems": []}
+    found = {"missing": not base.is_dir(), "guarded": 0, "offences": [], "stale": []}
     if found["missing"]:
         return found
     paths = sorted((p for p in base.glob("*.swift") if p.name not in INFRASTRUCTURE),
                    key=lambda p: p.stem.lower())
-    families = {p.stem for p in paths}
-    pointed = set()
     for path in paths:
         text = path.read_text(errors="replace")
-        if HISTORY_POINTER.search(text):
-            pointed.add(path.stem)
-        if path.stem in pending:
-            found["pending"] += 1
-            continue
         found["guarded"] += 1
         rel = path.relative_to(root)
         offences, stale = scan(text, shapes)
         found["offences"].extend((rel, n, kind, matched) for n, kind, matched in offences)
         found["stale"].extend((rel, n) for n in stale)
-    found["pending_problems"] = pending_problems(
-        families, pointed, pending, last_migrated, out_of_order)
     return found
 
 
@@ -403,8 +336,7 @@ def canary_problems(shapes=None):
     return problems
 
 
-def main(root=None, pending=PENDING, last_migrated=LAST_MIGRATED,
-         out_of_order=OUT_OF_ORDER, minimum=100, shapes=None):
+def main(root=None, minimum=100, shapes=None):
     root = root or pathlib.Path(__file__).resolve().parent.parent
 
     canaries = canary_problems(shapes)
@@ -415,27 +347,23 @@ def main(root=None, pending=PENDING, last_migrated=LAST_MIGRATED,
               "(or the exclusions) rather than the canary.", file=sys.stderr)
         return 1
 
-    found = review(root, pending, last_migrated, out_of_order, shapes)
+    found = review(root, shapes)
 
     if found["missing"]:
         print(f"✗ {RECIPES} is not under {root} — fix the path rather than "
               "scanning nothing.", file=sys.stderr)
         return 1
     if found["guarded"] < minimum:
-        print(f"✗ only {found['guarded']} guarded recipe families "
-              f"({found['pending']} pending) — too few to be a real run.",
-              file=sys.stderr)
+        print(f"✗ only {found['guarded']} guarded recipe families — too few to "
+              "be a real run.", file=sys.stderr)
         return 1
 
-    offences, stale, listing = found["offences"], found["stale"], found["pending_problems"]
-    if not offences and not stale and not listing:
-        print(f"✓ no dated snapshots in migrated recipe comments — "
-              f"{found['guarded']} families guarded, {found['pending']} pending migration, "
-              f"last migrated {last_migrated}")
+    offences, stale = found["offences"], found["stale"]
+    if not offences and not stale:
+        print(f"✓ no dated snapshots in recipe comments — "
+              f"{found['guarded']} families guarded")
         return 0
 
-    for problem in listing:
-        print(f"✗ {problem}", file=sys.stderr)
     for rel, line, kind, matched in offences:
         family = rel.stem
         if kind == "no-reason":
@@ -446,15 +374,14 @@ def main(root=None, pending=PENDING, last_migrated=LAST_MIGRATED,
                   f"`// History: docs/app-audits/{family}.md#历史与实测` and the "
                   "section, or drop the reference", file=sys.stderr)
         else:
-            print(f"✗ {rel}:{line}: dated measurement in a migrated family's "
+            print(f"✗ {rel}:{line}: dated measurement in a recipe "
                   f"comment [{kind}]\n    …{matched}…\n"
                   f"    → docs/app-audits/{family}.md#历史与实测", file=sys.stderr)
     for rel, line in stale:
         print(f"✗ {rel}:{line}: `{MARKER}` here no longer exempts anything — "
               "delete it, or it silently exempts whatever is written next",
               file=sys.stderr)
-    print(f"\n{len(offences)} offence(s), {len(stale)} stale exemption(s), "
-          f"{len(listing)} PENDING problem(s).\n"
+    print(f"\n{len(offences)} offence(s), {len(stale)} stale exemption(s).\n"
           "Recipe comments hold the current contract; measurements go to History:\n"
           "  1. move the paragraph to docs/app-audits/<family>.md under "
           "`## 历史与实测` (format: docs/app-audits/README.md\n"

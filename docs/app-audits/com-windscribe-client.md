@@ -54,6 +54,12 @@
 - 厂商 API 认定在 **beta / guinea pig 轨**的 51 个版本，GitHub 上**没有一个**是
   `prerelease: false`（即不会漏进 `/releases/latest`）
 
+更正 2026-09-15：第一条的「全部」不成立，而且和下一段矛盾——那 19 个里的 2.15.9 在 GitHub 上
+没有 release。准确的说法是：19 个里 18 个在 GitHub 上是 `prerelease: false`，`2.15.9` 没有 release。
+复测（按厂商条目的 `version`.`build` 对 GitHub tag，数字与命令见「历史与实测」里
+「`.gitHubReleases` 只留正式版，收尾批次」那一组）结果同上；第二条（51 个里没有一个是
+`prerelease: false`）复测成立，其中 `2.21.1`、`2.20.6` 两个没有 GitHub release。
+
 **那为什么版本源仍然是 VendorProbe。** 同一次实测里那 19 个 release 轨版本，有 1 个
 （**2.15.9**，2025-06-02）**GitHub 上根本没有对应的 release**。厂商 API 有它。
 `/releases/latest` 在那段时间会一直答 2.15.8，直到 7 周后 2.16.11 发布为止——
@@ -801,3 +807,28 @@ Cross-referenced against the vendor's own `beta` numbers, those 31 are
 12 guinea pig, 7 beta, and 12 that the vendor's feed does not list at
 all (2.24.11 is one: built as stable, published as a GitHub prerelease,
 on no track).
+
+### Recipes/com-windscribe-client.swift — stable ChangelogRecipe（`.gitHubReleases` 只留正式版，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #607（`17323d31`）试点迁移之后留在代码里的版本；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（厂商 release 轨的版本在 GitHub 上是正式版，beta / guinea pig 轨的不是，所以用户没选的轨进不了面板），日期写成 "(checked 2026-09-07 across every release since 2024; …)"。19 与 51 两个计数搬到这里；"all 19" 与 "NONE of the 51" 两个量词在代码里改成了不带量词的复数说法：复测是 18 个加 1 个没有 release，"all 19" 不成立，见下面的复测。
+
+`.gitHubReleases` keeps stable releases only, which is exactly the split
+this vendor publishes: measured 2026-09-07 across every release since
+2024, all 19 of the versions the vendor's own API names on its release
+track are `prerelease: false` on GitHub, and NONE of the 51 it names on
+the beta / guinea-pig tracks are — so nothing from a track the user did
+not opt into can reach the panel.
+
+复测 2026-09-15（UTC 2026-09-14 17:07，只读 GET；厂商 `api.windscribe.com/ChangeLogs?platform=osx` 带厂商页面自己的 `Authorization: Bearer 1234`，250,371 B、149 个条目；GitHub `repos/Windscribe/Desktop-App/releases?per_page=100&page=N` 翻到空页为止，共 122 条）：取 `release_date` 在 2024 年及以后的条目，用每个条目的 `version` 与 `build` 拼成完整版本号（`2.14` + `12` → `2.14.12`），对 GitHub 去掉前导 `v` 的 tag。`beta` 为 0 的 19 个：18 个是 `prerelease: false`，`2.15.9` 没有 GitHub release；`beta` 为 1 或 2 的 51 个：49 个是 `prerelease: true`，`2.21.1`、`2.20.6` 没有 GitHub release。计数与原文（19 / 51）相同，但原文 "all 19 … are `prerelease: false`" 不成立：是 18 个，另一个在 GitHub 上根本没有 release（同一文件下一段已经写了 2.15.9）。代码里的说法不带量词，没有沿用它。
+
+### Recipes/com-windscribe-client.swift — beta / guinea pig ChangelogRecipe（这份列表多列了什么，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #607（`17323d31`）试点迁移之后留在代码里的版本；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（GitHub 对所有 prerelease 一视同仁，分不出 beta 与 guinea pig，所以 beta 读者也会看到 guinea pig 条目，两种读者都会看到厂商没公布的构建），日期写成 "(checked 2026-09-07 on the newest 40 releases; …)"，9 / 31 两个计数搬到这里。
+
+⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
+releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
+marks all 31 the same way — it has no idea which track a build is on.
+So a beta reader sees guinea pig entries too, and both readers see
+builds the vendor never announced.
+
+复测 2026-09-15（UTC 2026-09-14 16:16，只读 GET）：最新 40 条 release 里 10 条 `prerelease: false`、30 条 `prerelease: true`。

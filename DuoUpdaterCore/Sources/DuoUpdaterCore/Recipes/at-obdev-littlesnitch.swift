@@ -58,6 +58,15 @@ enum at_obdev_littlesnitch {
             versionIsBuild: true,
             displayVersionPattern:
                 #"<key>ReleaseLifecycle</key>\s*<string>final</string>[\s\S]*?<key>BundleShortVersionString</key>\s*<string>([^<]+)</string>"#,
+            // OS WINDOW: each entry states `MinimumSystemVersion` and
+            // `MaximumSystemVersion`. The ceiling is how obdev says "not adapted
+            // to this macOS yet", and it moves without notice (History has the
+            // two readings two weeks apart), so it is read from the entry, never
+            // pinned here. Issue #634.
+            minimumSystemVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>final</string>[\s\S]*?<key>MinimumSystemVersion</key>\s*<string>([^<]+)</string>"#,
+            maximumSystemVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>final</string>[\s\S]*?<key>MaximumSystemVersion</key>\s*<string>([^<]+)</string>"#,
             entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#),
 
         // Little Snitch, NIGHTLY channel — same bundle id, no separate cask
@@ -109,6 +118,11 @@ enum at_obdev_littlesnitch {
             versionIsBuild: true,
             displayVersionPattern:
                 #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>BundleShortVersionString</key>\s*<string>([^<]+)</string>"#,
+            // Same OS window as the stable recipe above, read from THIS entry.
+            minimumSystemVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>MinimumSystemVersion</key>\s*<string>([^<]+)</string>"#,
+            maximumSystemVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>MaximumSystemVersion</key>\s*<string>([^<]+)</string>"#,
             entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#,
             channel: .nightly),
         ])

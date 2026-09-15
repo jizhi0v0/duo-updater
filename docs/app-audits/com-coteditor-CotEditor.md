@@ -337,3 +337,19 @@ prereleases in those 100 releases belong to the 7.1.0 cycle that opened
 none.
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：最新 40 条里 draft 0 个、每条恰好一个资产 `CotEditor_<tag>.dmg`；tag 形状多了一种：`7.1.0-rc`（prerelease，资产 `CotEditor_7.1.0-rc.dmg`），另有 stable `7.1.0`。
+
+### Recipes/com-coteditor-CotEditor.swift — beta GitHub rule（只看得见一个相位的 pattern 不会报错，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，出自 #611（`416f2433`，家族迁移批次 #608 之后合并）。末句 "History has the dated replay." 按当前文档不成立，代码里改写了，见下面的更正；其余原样。
+
+⚠️ A pattern blind to one phase does not error, which is how the
+`-beta`-only version of it survived a whole rc window: `settle` walks the
+page newest-first and takes the first tag the pattern accepts, so it
+skipped the rc and landed on the previous stable. The copy was offered
+nothing and its row named that older release — the READOUT failure
+described further down, arriving through a phase the pattern could not
+see rather than through a patch release. Nothing reported it, and nothing
+could: the sweep asks whether the pattern still matches, not whether what
+it matched is the right release. History has the dated replay.
+
+更正 2026-09-15：那次回放不在本文件的 `## 历史与实测` 里，在正文「rc 相位（2026-09-14）」一节——「beta 规则的两条 pattern」那一条写着 09-10 到 09-12 跳过 `7.1.0-rc`、落到 `7.0.9`。两处都是 #611 同一个提交写的（`git blame` 该节为 `416f2433`），写下时就指错了地方。代码里改成 "The dated replay is in the audit's 「rc 相位」 section."

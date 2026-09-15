@@ -57,8 +57,10 @@ match. **Redundancy is a feature**: list several patterns to survive a page's
 old/new markup variants without branching code — the first that produces any item
 wins per entry.
 
-The recipe is forgivingly `Codable`: a remote/JSON-authored recipe needs only
-`bundleID`, `source`, `entryPattern`, `itemPatterns`; every tuning field defaults.
+The recipe is `Codable`: a JSON-authored recipe needs only `bundleID` and
+`source`; every other field takes the initializer's default when omitted. An
+unknown key, or `null` for a non-optional field, fails to decode — the
+convention for every recipe type is on `RecipeCoding`.
 
 ### `tagPattern` — for a MONOREPO's GitHub releases
 
@@ -66,11 +68,11 @@ Only `.gitHubReleases` reads it. Set it when the repo publishes several products
 from one Releases list, which breaks that format's two silent assumptions: every
 release is this app's, and the tag IS the version (minus a leading `v`).
 
-`cline/cline` is the live case — 33 `desktop-*` releases share the list with the
-VS Code extension's `v*`, `cli-v*` and `sdk/sdk/v*`. Without a pattern the stable
-rail rendered **20 foreign entries** beside its 13 real ones, each a real release
-with real notes, so nothing looked malformed; and every entry was titled
-`desktop-v0.0.26` rather than `0.0.26`.
+`cline/cline` is the live case — dozens of `desktop-*` releases share the list with
+the VS Code extension's `v*`, `cli-v*` and `sdk/sdk/v*`. Without a pattern the stable
+rail rendered more foreign entries than real ones from the first 40 (**20 against
+13** when measured on 2026-09-12), each a real release with real notes, so nothing
+looked malformed; and every entry was titled `desktop-v0.0.26` rather than `0.0.26`.
 
 Capture group 1 is the version; a group-less pattern is a pure filter and the tag
 is read the usual way. **Anchor both ends** — matching is unanchored, and

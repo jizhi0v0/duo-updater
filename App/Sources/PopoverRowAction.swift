@@ -251,7 +251,7 @@ struct PopoverRowAction: View {
 
 
     private var autoUpdateButton: some View {
-        Button("Update") { actions.install() }
+        Button { actions.install() } label: { Text("Update").rowButtonLabel() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -276,7 +276,7 @@ struct PopoverRowAction: View {
     /// On disk it's current, but the running instance is older — offer a
     /// relaunch so the update actually takes effect.
     private var restartButton: some View {
-        Button("Relaunch") { actions.restart() }
+        Button { actions.restart() } label: { Text("Relaunch").rowButtonLabel() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -289,7 +289,7 @@ struct PopoverRowAction: View {
     /// not reached its deferred restart phase. Keep an explicit action available so
     /// a slow unrelated installer never makes this completed download look lost.
     private var pendingBatchRestartButton: some View {
-        Button("Relaunch now") { actions.restart() }
+        Button { actions.restart() } label: { Text("Relaunch now").rowButtonLabel() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -307,7 +307,7 @@ struct PopoverRowAction: View {
     /// `target` is nil when the staged build could not be read (a Sparkle install
     /// running as root) — same button, same action, the tooltip just cannot name it.
     private func relaunchToUpdateButton(_ target: String?) -> some View {
-        Button("Relaunch") { actions.relaunchStaged() }
+        Button { actions.relaunchStaged() } label: { Text("Relaunch").rowButtonLabel() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -323,7 +323,7 @@ struct PopoverRowAction: View {
     /// the AX installer's awaited `confirmQuit`); the app quits, the update lands,
     /// and we reopen it. Labelled "Relaunch" like every other quit-to-apply action.
     private func quitToFinishButton(_ appName: String) -> some View {
-        Button("Relaunch") { actions.confirmQuit() }
+        Button { actions.confirmQuit() } label: { Text("Relaunch").rowButtonLabel() }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -375,14 +375,14 @@ struct PopoverRowAction: View {
             // nothing (and re-uses the installer window if it's still open), so don't
             // make the user pull hundreds of megabytes down a second time because
             // they dismissed it.
-            Button("Install") { actions.openStagedPackage() }
+            Button { actions.openStagedPackage() } label: { Text("Install").rowButtonLabel() }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
                 .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
         } else {
-            Button("Update") { actions.install() }
+            Button { actions.install() } label: { Text("Update").rowButtonLabel() }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .controlSize(.small)
@@ -440,7 +440,7 @@ struct PopoverRowAction: View {
     /// channel; only reveals in Finder if there's no URL to open — in which case
     /// the button title says so too (see `DetectionOnlyAffordance`, #197).
     private var openButton: some View {
-        Button(openButtonTitle) { openAction() }
+        Button { openAction() } label: { Text(openButtonTitle).rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help(openHelp)
@@ -463,7 +463,7 @@ struct PopoverRowAction: View {
     /// Shown for a running self-updating app under the "defer while running"
     /// policy: open the app's own update path rather than installing over it.
     private var openSelfUpdaterButton: some View {
-        Button("Open") { actions.openSelfUpdater() }
+        Button { actions.openSelfUpdater() } label: { Text("Open").rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
@@ -489,7 +489,7 @@ struct PopoverRowAction: View {
     /// scheme, so there's no per-tool deep link — we just open the Toolbox window,
     /// where the user updates it through its own channel.
     private var toolboxButton: some View {
-        Button("Toolbox") { actions.openToolbox() }
+        Button { actions.openToolbox() } label: { Text("Toolbox").rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
@@ -500,7 +500,7 @@ struct PopoverRowAction: View {
     /// this app's page (`Frontier.appPageURL`), where the user installs the update
     /// through its own channel.
     private var testFlightButton: some View {
-        Button("TestFlight") { actions.openTestFlight() }
+        Button { actions.openTestFlight() } label: { Text("TestFlight").rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help("Managed by TestFlight — open TestFlight to update \(result.app.name)")
@@ -591,7 +591,7 @@ struct PopoverRowAction: View {
                 // qualifies for one (they sit in a root-owned `/Applications`). Without
                 // the check, the button and its "can’t be updated from here" help text
                 // would say that on a route where they can.
-                Button("App Store") { openInAppStore(info) }
+                Button { openInAppStore(info) } label: { Text("App Store").rowButtonLabel() }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
                     .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
@@ -601,7 +601,7 @@ struct PopoverRowAction: View {
                 // the row IS an installed app with a pending update, which the store
                 // itself calls **Update**; "Get" reads as "not installed yet", and no row
                 // that reaches here ever is. The help text carries the real reason.
-                Button("Update") { openInAppStore(info) }
+                Button { openInAppStore(info) } label: { Text("Update").rowButtonLabel() }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
                     .help(appStoreRedirectHelp)
@@ -798,4 +798,25 @@ struct PopoverRowAction: View {
         }
     }
 
+    /// The floor on a trailing text button's LABEL, so the bezels down the list
+    /// share a left edge as well as a right one.
+    ///
+    /// The slot is trailing-aligned (see `AppRow`), so buttons of different widths
+    /// ended on one edge and started on many: in English "Update" is 58.5pt and
+    /// "TestFlight" 71.8, in Chinese 更新 is 42.1 against the same untranslated
+    /// 71.8 — a ragged column the eye reads as off-centre. "App Store" is the widest
+    /// of the brand names that never translate, its label about 52.2pt at the small
+    /// control size; 53 rounds that UP so it lands on the floor too, and all of them
+    /// and every shorter label draw one 73pt bezel. Rounding down to 52 would leave
+    /// App Store half a point wider than the rest. A floor, not a width: a longer
+    /// translation still takes what it needs.
+    static let buttonLabelMinWidth: CGFloat = 53
+}
+
+private extension View {
+    /// See `PopoverRowAction.buttonLabelMinWidth`. On the label, not the button:
+    /// a frame outside a bordered button widens the slot but not the bezel.
+    func rowButtonLabel() -> some View {
+        frame(minWidth: PopoverRowAction.buttonLabelMinWidth)
+    }
 }

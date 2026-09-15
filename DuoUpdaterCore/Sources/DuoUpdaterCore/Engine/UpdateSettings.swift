@@ -37,8 +37,8 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
     /// download (no extra permission)") could not be shown whole at the window's
     /// own minimum width in ANY language we ship — the popup truncated its own
     /// current selection, so the setting could not be read without opening the
-    /// menu. Everything the parenthetical carried is in the card's footer, which
-    /// has room for it.
+    /// menu. Everything the parenthetical carried is in the description line under
+    /// the picker, which has room for it.
     ///
     /// `.incremental` keeps its longer label. It is listed only for whoever turned it
     /// on by hand (see `visibleCases`), and naming the permission it needs is worth
@@ -92,10 +92,9 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    /// Terse for the same reason as `AppStoreUpdateStrategy.label`, and worded to
-    /// match the footer exactly: it already names these two by their short names
-    /// ("Always replace" — the default … switch to "Defer while running"), so the
-    /// popup and the prose explaining it now say the same thing.
+    /// Terse for the same reason as `AppStoreUpdateStrategy.label`. What each one
+    /// does is the description line Settings shows under the picker for the
+    /// selected option.
     public var label: String {
         switch self {
         case .deferWhenRunning: return String(localized: "Defer while running")

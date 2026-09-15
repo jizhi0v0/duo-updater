@@ -4264,6 +4264,88 @@
         }
       }
     },
+    "Alcove publishes release notes and installable builds only to its licensed update channel. The key is stored in the Keychain, never synced off this Mac, and only ever sent to api.tryalcove.com — the same place Alcove sends it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcove veröffentlicht Versionshinweise und installierbare Builds nur in seinem lizenzierten Update-Kanal. Der Schlüssel wird im Schlüsselbund gespeichert, nie über diesen Mac hinaus synchronisiert und ausschließlich an api.tryalcove.com gesendet – denselben Ort, an den Alcove ihn auch sendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcove solo publica notas de versión y compilaciones instalables en su canal de actualización con licencia. La clave se guarda en el Llavero, nunca se sincroniza fuera de este Mac y solo se envía a api.tryalcove.com, el mismo lugar al que la envía Alcove."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcove ne publie ses notes de version et ses versions installables que sur son canal de mise à jour sous licence. La clé est stockée dans le Trousseau, jamais synchronisée hors de ce Mac, et n'est envoyée qu'à api.tryalcove.com — le même endroit où Alcove l'envoie lui-même."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcoveはライセンス済みの更新チャンネルにのみリリースノートとインストール可能なビルドを公開します。キーはキーチェーンに保存され、このMac以外に同期されることはなく、api.tryalcove.com（Alcove自身が送信するのと同じ場所）にのみ送信されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcove публикует заметки о выпуске и устанавливаемые сборки только в своём лицензированном канале обновлений. Ключ хранится в Keychain, никогда не синхронизируется за пределы этого Mac и отправляется только на api.tryalcove.com — туда же, куда его отправляет сам Alcove."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alcove 仅在其授权的更新渠道中发布发行说明和可安装的版本。密钥保存在钥匙串中，绝不会同步到这台 Mac 之外，也只会发送到 api.tryalcove.com — 与 Alcove 本身发送的地址相同。"
+          }
+        }
+      }
+    },
+    "Also asks TestFlight on its own — at most once an hour, or when a beta has moved on — starting it in the background for a few seconds (about 0.7 MB). Needs Full Disk Access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fragt TestFlight außerdem von sich aus – höchstens einmal pro Stunde oder wenn eine Beta weitergezogen ist – und startet es dafür ein paar Sekunden im Hintergrund (rund 0,7 MB). Benötigt Festplattenvollzugriff."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Además pregunta a TestFlight por su cuenta —como mucho una vez por hora, o cuando una beta ha avanzado—, iniciándolo en segundo plano unos segundos (unos 0,7 MB). Necesita acceso total al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interroge aussi TestFlight de lui-même — au plus une fois par heure, ou quand une bêta a avancé — en le lançant quelques secondes en arrière-plan (environ 0,7 Mo). Nécessite l’accès complet au disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "さらに DuoUpdater から TestFlight に問い合わせます（1 時間に 1 回まで、またはベータ版が進んだとき）。そのたびに TestFlight をバックグラウンドで数秒起動します（約 0.7 MB）。フルディスクアクセスが必要です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Также сам спрашивает TestFlight — не чаще раза в час или когда бета-версия ушла вперёд, — запуская его в фоне на несколько секунд (около 0,7 МБ). Нужен полный доступ к диску."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还会自己去问 TestFlight——每小时最多一次，或在某个测试版已更新时——每次在后台启动它几秒钟（约 0.7 MB）。需要完全磁盘访问权限。"
+          }
+        }
+      }
+    },
     "AM": {
       "extractionState": "manual",
       "localizations": {
@@ -4936,47 +5018,6 @@
         }
       }
     },
-    "After updating a running app, relaunch it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Relaunch” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nach dem Update einer laufenden App wird sie für dich neu gestartet, damit die neue Version wirksam wird – ohne zweiten Klick. Die App wird ganz normal zum Beenden aufgefordert, sodass Hinweise auf ungesicherte Arbeit weiterhin erscheinen; alles, was sich nicht beenden lässt, behält einfach seine Schaltfläche „Neu starten“.\n\nBackups bewahren eine vorherige Version jeder App unter Application Support auf, sodass ein Update rückgängig gemacht werden kann. Es wird ein Backup pro App aufbewahrt – die vorherige Version wird ersetzt, nicht angesammelt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tras actualizar una app en ejecución, se reabre por ti para que la versión nueva surta efecto, sin un segundo clic. Se le pide a la app que se cierre con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo, y cualquier app que no se cierre simplemente conserva su botón «Reabrir».\n\nLas copias de seguridad conservan una versión anterior de cada app en Application Support, para poder deshacer una actualización. Se conserva una copia por app; la versión anterior se reemplaza, no se acumula."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Après la mise à jour d'une application en cours d'exécution, elle est relancée pour vous afin que la nouvelle version prenne effet — sans second clic. Il est demandé à l'application de quitter normalement, donc les invites de travail non enregistré apparaissent toujours, et tout ce qui ne quitte pas conserve simplement son bouton « Relancer ».\n\nLes sauvegardes conservent une version précédente de chaque application sous Application Support, afin qu'une mise à jour puisse être annulée. La rétention est d'une sauvegarde par application — la version précédente est remplacée, pas accumulée."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中のアプリを更新した後、新しいバージョンを反映させるために自動的に再起動します — 追加のクリックは不要です。アプリには通常どおり終了が要求されるため、未保存の作業に関するプロンプトは引き続き表示され、終了しないものはその「再起動」ボタンを保持したままになります。\n\nバックアップは各アプリの直前のバージョンをApplication Support配下に1つ保持するため、更新を元に戻せます。保持数はアプリごとに1つで、直前のバージョンが置き換えられ、蓄積はされません。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "После обновления запущенного приложения оно перезапускается автоматически, чтобы новая версия вступила в силу — без второго клика. Приложению отправляется обычный запрос на закрытие, поэтому подсказки о несохранённой работе по-прежнему появляются, а всё, что не закрывается, просто сохраняет свою кнопку «Перезапустить».\n\nРезервные копии хранят одну предыдущую версию каждого приложения в Application Support, поэтому обновление можно отменить. Хранится одна копия на приложение — предыдущая версия заменяется, а не накапливается."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新正在运行的应用后，会自动为你重新启动它，让新版本生效 — 无需再次点击。系统会正常请求该应用退出，因此未保存工作的提示仍会出现，任何拒绝退出的应用只会保留其“重新启动”按钮。\n\n备份会在“应用程序支持”中保留每个应用的一个先前版本，以便撤销更新。保留策略是每个应用一份备份 — 会替换先前版本，而不是不断累积。"
-          }
-        }
-      }
-    },
     "Alcove": {
       "extractionState": "manual",
       "localizations": {
@@ -5096,47 +5137,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alcove 许可证密钥"
-          }
-        }
-      }
-    },
-    "Alcove publishes release notes and installable builds only to its licensed update channel, so your license key (Alcove → Settings → License) is what unlocks changelogs and one-click updates here. It’s stored in the Keychain, never synced off this Mac, and only ever sent to api.tryalcove.com — the same place Alcove sends it. Without it, DuoUpdater still detects new Alcove versions, but can’t show what changed or install them for you — you’ll be sent to Alcove’s download page (or just let Alcove update itself).": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcove veröffentlicht Versionshinweise und installierbare Builds nur in seinem lizenzierten Update-Kanal, daher ist es dein Lizenzschlüssel (Alcove → Settings → License), der hier Änderungsprotokolle und Ein-Klick-Updates freischaltet. Er wird im Schlüsselbund gespeichert, nie über diesen Mac hinaus synchronisiert und ausschließlich an api.tryalcove.com gesendet – denselben Ort, an den Alcove ihn auch sendet. Ohne ihn erkennt DuoUpdater weiterhin neue Alcove-Versionen, kann aber nicht zeigen, was sich geändert hat, oder sie für dich installieren – du wirst zur Download-Seite von Alcove geschickt (oder lässt Alcove sich einfach selbst aktualisieren)."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcove solo publica notas de versión y compilaciones instalables en su canal de actualización con licencia, así que tu clave de licencia (Alcove → Settings → License) es lo que desbloquea aquí los registros de cambios y las actualizaciones con un clic. Se guarda en el Llavero, nunca se sincroniza fuera de este Mac, y solo se envía a api.tryalcove.com, el mismo lugar al que la envía Alcove. Sin ella, DuoUpdater sigue detectando versiones nuevas de Alcove, pero no puede mostrar qué cambió ni instalarlas por ti; se te enviará a la página de descarga de Alcove (o puedes dejar que Alcove se actualice solo)."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcove ne publie ses notes de version et ses versions installables que sur son canal de mise à jour sous licence, c'est donc votre clé de licence (Alcove → Settings → License) qui débloque ici les journaux de modifications et les mises à jour en un clic. Elle est stockée dans le Trousseau, jamais synchronisée hors de ce Mac, et n'est envoyée qu'à api.tryalcove.com — le même endroit où Alcove l'envoie lui-même. Sans elle, DuoUpdater détecte toujours les nouvelles versions d'Alcove, mais ne peut pas afficher ce qui a changé ni les installer pour vous — vous serez redirigé vers la page de téléchargement d'Alcove (ou vous pouvez simplement laisser Alcove se mettre à jour lui-même)."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcoveはライセンス済みの更新チャンネルにのみリリースノートとインストール可能なビルドを公開するため、ここで更新履歴とワンクリック更新を有効にするのはあなたのライセンスキー（Alcove → Settings → License）です。これはキーチェーンに保存され、このMac以外に同期されることはなく、api.tryalcove.com（Alcove自身が送信するのと同じ場所）にのみ送信されます。それがなくてもDuoUpdaterはAlcoveの新しいバージョンを検出できますが、変更内容の表示やインストールの代行はできません — Alcoveのダウンロードページに案内されるか、Alcove自身に更新させることになります。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcove публикует заметки о выпуске и устанавливаемые сборки только в своём лицензированном канале обновлений, поэтому именно ваш лицензионный ключ (Alcove → Settings → License) открывает здесь список изменений и одно-кликовые обновления. Он хранится в Keychain, никогда не синхронизируется за пределы этого Mac и отправляется только на api.tryalcove.com — туда же, куда его отправляет сам Alcove. Без него DuoUpdater по-прежнему обнаруживает новые версии Alcove, но не может показать, что изменилось, или установить их за вас — вас направят на страницу загрузки Alcove (или можно просто дать Alcove обновиться самому)."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alcove 仅在其授权的更新渠道中发布发行说明和可安装的版本，因此正是你的许可证密钥（Alcove → Settings → License）解锁了这里的更新日志和一键更新功能。它保存在钥匙串中，绝不会同步到这台 Mac 之外，也只会发送到 api.tryalcove.com — 与 Alcove 本身发送的地址相同。没有它，DuoUpdater 仍能检测到 Alcove 的新版本，但无法显示更改内容或替你安装 — 你会被引导至 Alcove 的下载页面（或者干脆让 Alcove 自行更新）。"
           }
         }
       }
@@ -5633,47 +5633,6 @@
         }
       }
     },
-    "App Management lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch below after granting.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "„App-Verwaltung“ erlaubt es DuoUpdater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads). macOS kann dies nicht automatisch gewähren – die Schaltfläche öffnet die Systemeinstellungen mit einem Bereich, in den du DuoUpdater ziehst.\n\nDas Erteilen über diesen Bereich löst nicht das übliche „Beenden & erneut öffnen“ des Systems aus, daher wirkt eine neue Berechtigung möglicherweise erst nach einem Neustart von DuoUpdater. Nutze danach unten „Neu starten“."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Gestión de apps» permite que DuoUpdater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas). macOS no puede concederlo mediante programación; el botón abre Ajustes del Sistema con un panel al que debes arrastrar DuoUpdater.\n\nConceder el permiso desde ese panel no activa el habitual «Salir y volver a abrir» del sistema, así que un permiso nuevo puede no surtir efecto hasta que reinicies DuoUpdater. Usa «Reabrir» abajo después de concederlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "« Gestion des applications » permet à DuoUpdater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs). macOS ne peut pas l'accorder par programmation — le bouton ouvre les Réglages Système avec un panneau où glisser DuoUpdater.\n\nAccorder via ce panneau ne déclenche pas le « Quitter et rouvrir » habituel du système, donc une nouvelle autorisation peut ne prendre effet qu'au redémarrage de DuoUpdater. Utilisez « Relancer » ci-dessous après l'avoir accordée."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「Appの管理」により、DuoUpdaterはApp Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）を置き換えられるようになります。macOSはこれをプログラムで許可することができません — このボタンをクリックすると、DuoUpdaterをドラッグするパネルとともにシステム設定が開きます。\n\nそのパネルから許可しても、システム通常の「終了して再度開く」はトリガーされないため、新しい許可はDuoUpdaterを再起動するまで反映されない場合があります。許可後は下の「再起動」を使用してください。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Управление приложениями позволяет DuoUpdater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки). macOS не может выдать это разрешение программно — кнопка открывает Системные настройки с панелью, куда нужно перетащить DuoUpdater.\n\nПредоставление через эту панель не вызывает обычное системное «Закрыть и открыть заново», поэтому новое разрешение может не вступить в силу до перезапуска DuoUpdater. Используйте «Перезапустить» ниже после предоставления доступа."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“应用管理”权限允许 DuoUpdater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）。macOS 无法以编程方式授予该权限 — 此按钮会打开系统设置，其中有一个面板，你需要把 DuoUpdater 拖进去。\n\n通过该面板授权不会触发系统通常的“退出并重新打开”，因此新授权可能要等 DuoUpdater 重启后才会生效。授权后请使用下方的“重新启动”。"
-          }
-        }
-      }
-    },
     "App Store": {
       "extractionState": "manual",
       "localizations": {
@@ -6039,6 +5998,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "你已告知 DuoUpdater 不做处理的应用和版本。"
+          }
+        }
+      }
+    },
+    "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps werden ganz normal zum Beenden aufgefordert, sodass Hinweise auf ungesicherte Arbeit weiterhin erscheinen. Eine App, die sich nicht beenden lässt, behält ihre Schaltfläche „Neu starten“."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se pide a las apps que se cierren con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo. Una app que no se cierre conserva su botón «Reabrir»."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il est demandé aux applications de quitter normalement, donc les invites de travail non enregistré apparaissent toujours. Une application qui refuse de quitter conserve son bouton « Relancer »."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリには通常どおり終了を要求するため、未保存の作業に関する確認は引き続き表示されます。終了しないアプリには「再起動」ボタンが残ります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложениям отправляется обычный запрос на закрытие, поэтому подсказки о несохранённой работе по-прежнему появляются. Приложение, которое не закрывается, сохраняет кнопку «Перезапустить»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会正常请求应用退出，因此未保存工作的提示仍会出现。拒绝退出的应用会保留其“重新启动”按钮。"
           }
         }
       }
@@ -8994,6 +8994,47 @@
         }
       }
     },
+    "Downloads the whole app again through mas. The predictable route for release builds, and it needs no Accessibility access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lädt die ganze App über mas erneut herunter. Der vorhersehbare Weg für Release-Builds, und er braucht keinen Bedienungshilfen-Zugriff."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a descargar la app completa mediante mas. Es la vía predecible para compilaciones de publicación y no necesita acceso de accesibilidad."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retélécharge l'application entière via mas. La voie prévisible pour les versions publiées, et elle ne nécessite pas l'accès à l'Accessibilité."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mas経由でアプリ全体を再ダウンロードします。リリースビルドにとって予測しやすい方式で、アクセシビリティ権限は不要です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заново загружает приложение целиком через mas. Предсказуемый путь для релизных сборок, не требующий «Универсального доступа»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 mas 重新下载整个应用。这是发布版更可预测的方式，且不需要辅助功能权限。"
+          }
+        }
+      }
+    },
     "DuoUpdater": {
       "extractionState": "manual",
       "localizations": {
@@ -9035,43 +9076,43 @@
         }
       }
     },
-    "DuoUpdater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of DuoUpdater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit DuoUpdater anyway.": {
+    "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, no DuoUpdater window is open, and you’re working in another app. Until one comes it waits — and installs when you quit DuoUpdater anyway.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater prüft eigenständig stündlich auf eigene Updates. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich.\n\nEingeschaltet wird sie heruntergeladen und dann in einem ruhigen Moment angewendet – ohne Aufforderung, ohne Klicken. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von DuoUpdater ist geöffnet, und du arbeitest in einer anderen App; dort startet es sich selbst neu. Bis ein solcher Moment kommt, wartet es einfach und installiert ohnehin, wenn du DuoUpdater beendest."
+            "value": "DuoUpdater prüft stündlich auf eigene Updates. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von DuoUpdater ist geöffnet, und du arbeitest in einer anderen App. Bis dahin wartet es – und installiert ohnehin, wenn du DuoUpdater beendest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de DuoUpdater abierta y que estás trabajando en otra app; entonces se reabre por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras DuoUpdater."
+            "value": "DuoUpdater comprueba sus propias actualizaciones cada hora. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de DuoUpdater abierta y que estás trabajando en otra app. Hasta que llegue, espera, e instala de todos modos cuando cierras DuoUpdater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de DuoUpdater n'est ouverte, et que vous travaillez dans une autre application ; il se relance alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez DuoUpdater."
+            "value": "DuoUpdater vérifie ses propres mises à jour toutes les heures. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de DuoUpdater n'est ouverte, et que vous travaillez dans une autre application. En attendant, il patiente — et s'installe de toute façon quand vous quittez DuoUpdater."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdaterは1時間ごとに自身の更新を自動的に確認します。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。\n\nオンの場合、静かなタイミングでダウンロードされ適用されます — プロンプトもクリックも不要です。静かなタイミングとは、何も確認やインストールが行われておらず、DuoUpdaterのウインドウが開かれておらず、あなたが他のアプリで作業していることを意味し、その際に自身を再起動します。そのタイミングが来るまでは単に待機し、いずれにせよDuoUpdaterを終了したときにインストールされます。"
+            "value": "DuoUpdaterは1時間ごとに自身の更新を確認します。静かなタイミングとは、確認やインストールが行われておらず、DuoUpdaterのウインドウが開いておらず、あなたが他のアプリで作業している状態です。そのタイミングが来るまでは待機し、いずれにせよDuoUpdaterを終了したときにインストールされます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater самостоятельно проверяет собственные обновления каждый час. Если выключено, новая версия показывает подсказку и ждёт вас.\n\nЕсли включено, обновление загружается и применяется в тихий момент — без подсказок и кликов. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно DuoUpdater не открыто, а вы работаете в другом приложении; он перезапускается сам. Пока такой момент не наступит, он просто ждёт и устанавливает обновление, когда вы всё равно закрываете DuoUpdater."
+            "value": "DuoUpdater проверяет собственные обновления каждый час. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно DuoUpdater не открыто, а вы работаете в другом приложении. Пока он не наступит, обновление ждёт — и устанавливается, когда вы всё равно закрываете DuoUpdater."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 DuoUpdater 窗口，并且你正在其他应用中工作；届时它会自行重新启动。在这样的时刻到来之前它只会等待，并在你退出 DuoUpdater 时顺便安装。"
+            "value": "DuoUpdater 每小时检查一次自身的更新。安静的时刻是指没有正在进行的检查或安装、没有打开任何 DuoUpdater 窗口，并且你正在其他应用中工作。在那之前它会等待——并在你退出 DuoUpdater 时顺便安装。"
           }
         }
       }
@@ -10312,43 +10353,43 @@
         }
       }
     },
-    "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Always replace” — the default — downloads the vendor’s own installer and applies it whether or not the app is running, quitting and relaunching it afterwards. Switch to “Defer while running” if you would rather nothing touched an app while it is open: it then installs only when the app is closed, and offers an Open button instead while it is running, leaving the update to the app itself.": {
+    "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …).": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Für Apps mit eigenem Update-Tool (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). „Immer ersetzen“ (Standard) lädt das eigene Installationsprogramm des Anbieters herunter und wendet es an, egal ob die App läuft oder nicht, und beendet und startet sie danach neu. Wechsle zu „Zurückstellen, solange geöffnet“, wenn du möchtest, dass eine geöffnete App unangetastet bleibt: Dann wird nur installiert, wenn die App geschlossen ist, und solange sie läuft, wird stattdessen eine Öffnen-Schaltfläche angeboten, sodass das Update der App selbst überlassen bleibt."
+            "value": "Für Apps mit eigenem Update-Tool (Office, Teams, OneDrive, Edge, Chrome, VS Code, …)."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps con su propio actualizador (Office, Teams, OneDrive, Edge, Chrome, VS Code…). «Reemplazar siempre» (predeterminado) descarga el propio instalador del proveedor y lo aplica esté la app en ejecución o no, cerrándola y reabriéndola después. Cambia a «Aplazar mientras se ejecuta» si prefieres que nada toque una app mientras está abierta: entonces solo se instala cuando la app está cerrada, y mientras se ejecuta se ofrece un botón Abrir en su lugar, dejando la actualización a la propia app."
+            "value": "Para apps con su propio actualizador (Office, Teams, OneDrive, Edge, Chrome, VS Code…)."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pour les applications dotées de leur propre outil de mise à jour (Office, Teams, OneDrive, Edge, Chrome, VS Code…). « Toujours remplacer » (par défaut) télécharge l'installateur propre à l'éditeur et l'applique que l'application soit en cours d'exécution ou non, puis la quitte et la relance ensuite. Passez à « Différer pendant l'exécution » si vous préférez que rien ne touche une application pendant qu'elle est ouverte : elle n'est alors installée que lorsque l'application est fermée, et un bouton Ouvrir est proposé à la place tant qu'elle est en cours d'exécution, laissant la mise à jour à l'application elle-même."
+            "value": "Pour les applications dotées de leur propre outil de mise à jour (Office, Teams, OneDrive, Edge, Chrome, VS Code…)."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "独自の更新プログラムを備えたアプリ（Office、Teams、OneDrive、Edge、Chrome、VS Codeなど）向けです。「常に置き換える」（デフォルト）は、アプリが実行中かどうかにかかわらずベンダー自身のインストーラーをダウンロードして適用し、その後アプリを終了して再度開きます。アプリが開いている間は何も手を加えたくない場合は「実行中は延期」に切り替えてください。その場合、アプリが閉じられたときにのみインストールされ、実行中は代わりに「開く」ボタンが表示され、更新はアプリ自身に委ねられます。"
+            "value": "独自の更新プログラムを備えたアプリ（Office、Teams、OneDrive、Edge、Chrome、VS Codeなど）向けです。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для приложений с собственным обновителем (Office, Teams, OneDrive, Edge, Chrome, VS Code…). «Всегда заменять» (по умолчанию) — загружает собственный установщик поставщика и применяет его независимо от того, запущено ли приложение, после чего закрывает его и открывает заново. Переключитесь на «Отложить, пока запущено», если предпочитаете, чтобы ничего не трогало открытое приложение: тогда установка происходит только после закрытия приложения, а пока оно запущено, предлагается кнопка «Открыть», оставляя обновление самому приложению."
+            "value": "Для приложений с собственным обновителем (Office, Teams, OneDrive, Edge, Chrome, VS Code…)."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "适用于自带更新程序的应用（Office、Teams、OneDrive、Edge、Chrome、VS Code 等）。“始终替换”（默认）会下载厂商自己的安装程序，无论应用是否在运行都会应用它，之后再退出并重新打开该应用。如果你希望应用打开时不被触碰，请切换为“运行时延后”：这样只会在应用关闭后才安装，运行期间则改为提供“打开”按钮，把更新交给应用自己处理。"
+            "value": "适用于自带更新程序的应用（Office、Teams、OneDrive、Edge、Chrome、VS Code 等）。"
           }
         }
       }
@@ -12239,6 +12280,88 @@
         }
       }
     },
+    "Installs at a quiet moment and relaunches DuoUpdater — no prompt. Off, a new version shows a prompt and waits for you.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert in einem ruhigen Moment und startet DuoUpdater neu – ohne Aufforderung. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se instala en un momento tranquilo y reabre DuoUpdater, sin avisos. Si está desactivado, una versión nueva muestra un aviso y espera tu acción."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S'installe à un moment calme et relance DuoUpdater — sans invite. Désactivé, une nouvelle version affiche une invite et attend votre action."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静かなタイミングでインストールし、DuoUpdaterを再起動します — プロンプトは出ません。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устанавливается в тихий момент и перезапускает DuoUpdater — без подсказок. Если выключено, новая версия показывает подсказку и ждёт вас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在安静的时刻安装并重新启动 DuoUpdater — 无提示。关闭时，新版本会弹出提示并等待你操作。"
+          }
+        }
+      }
+    },
+    "Just granted a permission? It may not take effect until DuoUpdater relaunches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade eine Berechtigung erteilt? Sie wirkt möglicherweise erst nach einem Neustart von DuoUpdater."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Acabas de conceder un permiso? Puede que no surta efecto hasta que DuoUpdater se reabra."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous venez d'accorder une autorisation ? Elle peut ne prendre effet qu'au redémarrage de DuoUpdater."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "権限を許可したばかりですか？DuoUpdaterを再起動するまで反映されない場合があります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только что предоставили разрешение? Оно может не вступить в силу до перезапуска DuoUpdater."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚授予了权限？它可能要等 DuoUpdater 重新启动后才会生效。"
+          }
+        }
+      }
+    },
     "Keep a backup so updates can be rolled back": {
       "extractionState": "manual",
       "localizations": {
@@ -12604,6 +12727,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "让 DuoUpdater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
+          }
+        }
+      }
+    },
+    "Lets DuoUpdater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaubt DuoUpdater, Apps zu ersetzen, die außerhalb des App Stores aktualisiert werden (Sparkle, Homebrew, Direktdownloads)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite que DuoUpdater reemplace apps actualizadas fuera de la App Store (Sparkle, Homebrew, descargas directas)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permet à DuoUpdater de remplacer les applications mises à jour en dehors de l'App Store (Sparkle, Homebrew, téléchargements directs)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store以外で更新されるアプリ（Sparkle、Homebrew、直接ダウンロード）をDuoUpdaterが置き換えられるようにします"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Позволяет DuoUpdater заменять приложения, обновляемые вне App Store (Sparkle, Homebrew, прямые загрузки)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 DuoUpdater 替换在 App Store 之外更新的应用（Sparkle、Homebrew、直接下载）"
           }
         }
       }
@@ -13059,6 +13223,47 @@
         }
       }
     },
+    "More information": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Informationen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más información"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus d'informations"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳細情報"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробнее"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多信息"
+          }
+        }
+      }
+    },
     "MS": {
       "extractionState": "manual",
       "localizations": {
@@ -13096,47 +13301,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "毫秒"
-          }
-        }
-      }
-    },
-    "Mac App Store updates currently use the full-download route via mas. It’s the more predictable option for release builds and doesn’t require Accessibility access.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac-App-Store-Updates verwenden derzeit den vollständigen Download-Weg über mas. Das ist die vorhersehbarere Option für Release-Builds und erfordert keinen Bedienungshilfen-Zugriff."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las actualizaciones de la Mac App Store usan actualmente la vía de descarga completa mediante mas. Es la opción más predecible para compilaciones de publicación y no requiere acceso de accesibilidad."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les mises à jour du Mac App Store utilisent actuellement la voie du téléchargement complet via mas. C'est l'option la plus prévisible pour les versions publiées et elle ne nécessite pas l'accès à l'Accessibilité."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac App Storeのアップデートは現在、mas経由の完全ダウンロード方式を使用しています。これはリリースビルドにとってより予測可能な選択肢であり、アクセシビリティ権限を必要としません。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновления Mac App Store сейчас используют путь полной загрузки через mas. Это более предсказуемый вариант для релизных сборок, не требующий «Универсального доступа»."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac App Store 更新目前通过 mas 使用完整下载方式。这是发布版更可预测的选项，且不需要辅助功能权限。"
           }
         }
       }
@@ -14787,6 +14951,47 @@
         }
       }
     },
+    "Nothing is read, and beta rows say detection is off instead of guessing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wird nichts gelesen, und die Beta-Zeilen sagen, dass die Erkennung aus ist, statt zu raten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se lee nada, y las filas de betas indican que la detección está desactivada en lugar de adivinar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien n’est lu, et les lignes des bêtas indiquent que la détection est désactivée au lieu de deviner."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何も読み取りません。ベータ版の行は推測せず、検出がオフであることを表示します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ничего не читается, и строки бета-версий сообщают, что обнаружение выключено, вместо догадок."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "什么都不读，测试版所在的行会说明检测已关闭，而不是猜。"
+          }
+        }
+      }
+    },
     "Nothing recorded yet": {
       "extractionState": "manual",
       "localizations": {
@@ -14824,6 +15029,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有记录"
+          }
+        }
+      }
+    },
+    "Nothing touches an app while it is open: it installs only once the app is closed, and offers Open instead, leaving the update to the app itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine geöffnete App bleibt unangetastet: Installiert wird erst, wenn sie geschlossen ist; bis dahin wird „Öffnen“ angeboten und das Update der App selbst überlassen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada toca una app mientras está abierta: solo se instala cuando se cierra, y mientras tanto se ofrece Abrir, dejando la actualización a la propia app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien ne touche une application ouverte : l'installation n'a lieu qu'une fois l'application fermée, et Ouvrir est proposé à la place, laissant la mise à jour à l'application elle-même."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いているアプリには手を加えません。アプリが閉じられてからインストールし、それまでは「開く」を表示して、更新はアプリ自身に委ねます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открытое приложение не трогается: установка происходит только после его закрытия, а до тех пор предлагается «Открыть», оставляя обновление самому приложению."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用打开时不做任何改动：只在应用关闭后才安装，期间改为提供“打开”，把更新交给应用自己处理。"
           }
         }
       }
@@ -15029,6 +15275,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "每天一次"
+          }
+        }
+      }
+    },
+    "One previous version per app, kept in Application Support and replaced by the next update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine vorherige Version pro App, aufbewahrt unter Application Support und beim nächsten Update ersetzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una versión anterior por app, guardada en Application Support y reemplazada en la siguiente actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une version précédente par application, conservée sous Application Support et remplacée à la mise à jour suivante."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリごとに直前のバージョンを1つ、Application Support配下に保持し、次の更新で置き換えます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одна предыдущая версия на приложение, хранится в Application Support и заменяется при следующем обновлении."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个应用保留一个先前版本，存放在“应用程序支持”中，下次更新时替换。"
           }
         }
       }
@@ -15316,6 +15603,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开登录项"
+          }
+        }
+      }
+    },
+    "Open System Settings with a panel to drag DuoUpdater into": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet die Systemeinstellungen mit einem Bereich, in den du DuoUpdater ziehst"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Ajustes del Sistema con un panel al que arrastrar DuoUpdater"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les Réglages Système avec un panneau où glisser DuoUpdater"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdaterをドラッグするパネルとともにシステム設定を開きます"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Системные настройки с панелью, куда нужно перетащить DuoUpdater"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置，并显示一个用来拖入 DuoUpdater 的面板"
           }
         }
       }
@@ -16228,6 +16556,47 @@
         }
       }
     },
+    "Presses App Store’s own Update button, so only what changed is downloaded. Needs Accessibility access, and is still being evaluated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betätigt die eigene Update-Schaltfläche des App Stores, sodass nur Geändertes heruntergeladen wird. Benötigt Bedienungshilfen-Zugriff und wird noch erprobt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulsa el propio botón Actualizar de la App Store, así que solo se descarga lo que ha cambiado. Necesita acceso de accesibilidad y aún está en evaluación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appuie sur le bouton Mettre à jour de l'App Store lui-même, pour ne télécharger que ce qui a changé. Nécessite l'accès à l'Accessibilité et est encore en évaluation."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store自身の「アップデート」ボタンを押すため、変更部分だけがダウンロードされます。アクセシビリティ権限が必要で、まだ評価中です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажимает кнопку «Обновить» в самом App Store, поэтому загружается только изменённое. Требует «Универсального доступа» и пока проходит оценку."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下 App Store 自己的“更新”按钮，因此只下载有变化的部分。需要辅助功能权限，仍在评估中。"
+          }
+        }
+      }
+    },
     "Problems": {
       "extractionState": "manual",
       "localizations": {
@@ -16763,6 +17132,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在读取规则健康状态…"
+          }
+        }
+      }
+    },
+    "Reads what TestFlight already knows, and asks it for a fresh answer when you press Refresh. Needs Full Disk Access.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liest, was TestFlight bereits weiß, und bittet es um eine frische Antwort, wenn du auf „Aktualisieren“ drückst. Benötigt Festplattenvollzugriff."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lee lo que TestFlight ya sabe y le pide una respuesta nueva cuando pulsas Actualizar. Necesita acceso total al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lit ce que TestFlight sait déjà et lui demande une réponse fraîche quand vous appuyez sur Actualiser. Nécessite l’accès complet au disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight がすでに把握している内容を読み取り、「更新」を押したときに最新の情報を求めます。フルディスクアクセスが必要です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читает то, что TestFlight уже знает, и просит у него свежий ответ, когда вы нажимаете «Обновить». Нужен полный доступ к диску."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取 TestFlight 已经知道的内容，并在你按下刷新时请它给一个新答案。需要完全磁盘访问权限。"
           }
         }
       }
@@ -20124,6 +20534,88 @@
         }
       }
     },
+    "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date — so a fresh answer means starting TestFlight. Reading the database needs Full Disk Access; without it, beta rows say so.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight führt die Builds, die es dir anbietet, in einer eigenen Datenbank, und nur TestFlight selbst bringt diese Datenbank je auf den neuesten Stand – eine frische Antwort bedeutet also, TestFlight zu starten. Zum Lesen der Datenbank ist Festplattenvollzugriff nötig; ohne ihn sagen die Beta-Zeilen das."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight guarda las compilaciones que te ofrece en su propia base de datos, y solo TestFlight la pone al día, así que obtener una respuesta nueva implica iniciar TestFlight. Leer la base de datos necesita acceso total al disco; sin él, las filas de betas lo indican."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight conserve les versions qu’il vous propose dans sa propre base de données, et lui seul la met à jour — obtenir une réponse fraîche implique donc de lancer TestFlight. Lire cette base nécessite l’accès complet au disque ; sans lui, les lignes des bêtas l’indiquent."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight は提供するビルドを自身のデータベースに保持しており、そのデータベースを更新できるのは TestFlight 自身だけです。そのため、最新の情報を得るには TestFlight を起動する必要があります。データベースの読み取りにはフルディスクアクセスが必要で、権限がない場合はベータ版の行にその旨が表示されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight хранит предлагаемые вам сборки в собственной базе данных, и обновляет её только сам TestFlight — поэтому свежий ответ означает запуск TestFlight. Для чтения базы нужен полный доступ к диску; без него строки бета-версий сообщают об этом."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 把提供给你的 build 存在它自己的数据库里，而只有 TestFlight 自己会让这份数据库前进——所以要拿到新答案，就得启动 TestFlight。读取这份数据库需要完全磁盘访问权限；没有权限时，测试版所在的行会如实说明。"
+          }
+        }
+      }
+    },
+    "The default. Downloads the vendor’s own installer and applies it even while the app is open, quitting and relaunching it afterwards.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard. Lädt das eigene Installationsprogramm des Anbieters herunter und wendet es auch bei geöffneter App an; danach wird sie beendet und neu gestartet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminado. Descarga el propio instalador del proveedor y lo aplica aunque la app esté abierta, cerrándola y reabriéndola después."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par défaut. Télécharge l'installateur propre à l'éditeur et l'applique même si l'application est ouverte, puis la quitte et la relance."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルト。アプリが開いていてもベンダー自身のインストーラーをダウンロードして適用し、その後アプリを終了して再度開きます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По умолчанию. Загружает собственный установщик поставщика и применяет его, даже если приложение открыто, после чего закрывает и снова открывает его."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认选项。下载厂商自己的安装程序，即使应用正在打开也会应用，之后再退出并重新打开该应用。"
+          }
+        }
+      }
+    },
     "TIME": {
       "extractionState": "manual",
       "localizations": {
@@ -20448,47 +20940,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "TestFlight 尚未提供此测试版的最新版本信息，因此无法判断它是否已是最新"
-          }
-        }
-      }
-    },
-    "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date. Both “on” settings need Full Disk Access to read it; without the permission, beta rows say so.\n\n“When I refresh” reads what is already there, and asks TestFlight for a fresh answer when you press Refresh. “Keep it fresh” also lets DuoUpdater ask on its own — at most once an hour, and whenever it can see a beta has moved on without it — which starts TestFlight in the background for a few seconds each time (about 0.7 MB). Off, nothing is read and beta rows say that instead of guessing.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight führt die Builds, die es dir anbietet, in einer eigenen Datenbank, und nur TestFlight selbst bringt diese Datenbank je auf den neuesten Stand. Beide „Ein“-Einstellungen brauchen Festplattenvollzugriff, um sie zu lesen; ohne die Berechtigung sagen die Beta-Zeilen das.\n\n„Beim Aktualisieren“ liest, was bereits da ist, und bittet TestFlight um eine frische Antwort, wenn du auf „Aktualisieren“ drückst. „Aktuell halten“ lässt DuoUpdater außerdem von sich aus fragen – höchstens einmal pro Stunde, und immer dann, wenn erkennbar ist, dass eine Beta ohne es weitergezogen ist. Dabei wird TestFlight jeweils für ein paar Sekunden im Hintergrund gestartet (rund 0,7 MB). Bei „Aus“ wird nichts gelesen, und die Beta-Zeilen sagen das, statt zu raten."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight guarda las compilaciones que te ofrece en su propia base de datos, y solo TestFlight la pone al día. Ambos ajustes de «activado» necesitan acceso total al disco para leerla; sin el permiso, las filas de betas lo indican.\n\n«Al actualizar» lee lo que ya hay y le pide a TestFlight una respuesta nueva cuando pulsas Actualizar. «Mantener al día» además deja que DuoUpdater pregunte por su cuenta —como mucho una vez por hora, y siempre que detecte que una beta ha avanzado sin él—, lo que inicia TestFlight en segundo plano unos segundos cada vez (unos 0,7 MB). Desactivado, no se lee nada y las filas de betas lo dicen en lugar de adivinar."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight conserve les versions qu’il vous propose dans sa propre base de données, et lui seul la met à jour. Les deux réglages « activés » ont besoin de l’accès complet au disque pour la lire ; sans l’autorisation, les lignes des bêtas l’indiquent.\n\n« À l’actualisation » lit ce qui s’y trouve déjà et demande une réponse fraîche à TestFlight quand vous appuyez sur Actualiser. « Garder à jour » laisse en plus DuoUpdater demander de lui-même — au plus une fois par heure, et dès qu’il constate qu’une bêta a avancé sans lui — ce qui lance TestFlight en arrière-plan quelques secondes à chaque fois (environ 0,7 Mo). Désactivé, rien n’est lu et les lignes des bêtas le disent au lieu de deviner."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight は提供するビルドを自身のデータベースに保持しており、そのデータベースを更新できるのは TestFlight 自身だけです。「オン」の 2 つの設定はどちらも、それを読むためにフルディスクアクセスを必要とします。権限がない場合、ベータ版の行にはその旨が表示されます。\n\n「更新したときだけ」は、すでにあるものを読み取り、「更新」を押したときに TestFlight へ最新の情報を求めます。「常に最新に」では、それに加えて DuoUpdater が自分から問い合わせます（1 時間に 1 回まで、およびベータ版が知らないうちに進んだと分かったとき）。そのたびに TestFlight がバックグラウンドで数秒起動します（約 0.7 MB）。オフの場合は何も読み取らず、ベータ版の行は推測せずにその旨を表示します。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight хранит предлагаемые вам сборки в собственной базе данных, и обновляет её только сам TestFlight. Обоим включённым режимам нужен полный доступ к диску, чтобы её прочитать; без разрешения строки бета-версий сообщают об этом.\n\n«При обновлении» читает то, что уже есть, и просит у TestFlight свежий ответ, когда вы нажимаете «Обновить». «Поддерживать актуальность» вдобавок позволяет DuoUpdater спрашивать самому — не чаще раза в час и всякий раз, когда видно, что бета-версия ушла вперёд без него. Каждый раз TestFlight на несколько секунд запускается в фоне (около 0,7 МБ). При «Выключено» ничего не читается, и строки бета-версий сообщают об этом вместо догадок."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight 把提供给你的 build 存在它自己的数据库里，而只有 TestFlight 自己会让这份数据库前进。两个「开」的选项都需要完全磁盘访问权限才能读它；没有权限时，测试版所在的行会如实说明。\n\n「我刷新时」读取已经在那里的内容，并在你按下刷新时请 TestFlight 给一个新答案。「保持最新」还允许 DuoUpdater 自己去问——每小时最多一次，以及每当它看出某个测试版已经在它不知情的情况下更新过。每次都会在后台启动 TestFlight 几秒钟（约 0.7 MB）。选择关闭时什么都不读，测试版所在的行会照实说明，而不是猜。"
           }
         }
       }
@@ -23324,6 +23775,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "你已跳过此版本 — 右键点击以取消跳过"
+          }
+        }
+      }
+    },
+    "Your license key unlocks Alcove’s release notes and one-click updates here. Without it, DuoUpdater still detects new versions but sends you to Alcove’s download page (or you can let Alcove update itself).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Lizenzschlüssel schaltet hier die Versionshinweise und Ein-Klick-Updates von Alcove frei. Ohne ihn erkennt DuoUpdater weiterhin neue Versionen, schickt dich aber zur Download-Seite von Alcove (oder du lässt Alcove sich selbst aktualisieren)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu clave de licencia desbloquea aquí las notas de versión y las actualizaciones con un clic de Alcove. Sin ella, DuoUpdater sigue detectando versiones nuevas, pero te envía a la página de descarga de Alcove (o puedes dejar que Alcove se actualice solo)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre clé de licence débloque ici les notes de version et les mises à jour en un clic d'Alcove. Sans elle, DuoUpdater détecte toujours les nouvelles versions, mais vous renvoie vers la page de téléchargement d'Alcove (ou vous pouvez laisser Alcove se mettre à jour lui-même)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライセンスキーがあると、ここでAlcoveのリリースノートとワンクリック更新が使えるようになります。キーがなくてもDuoUpdaterは新しいバージョンを検出しますが、Alcoveのダウンロードページに案内します（Alcove自身に更新させることもできます）。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лицензионный ключ открывает здесь заметки о выпуске Alcove и одно-кликовые обновления. Без него DuoUpdater по-прежнему обнаруживает новые версии, но направляет вас на страницу загрузки Alcove (или можно дать Alcove обновиться самому)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的许可证密钥会在这里解锁 Alcove 的发行说明和一键更新。没有它，DuoUpdater 仍能检测到新版本，但会把你引导至 Alcove 的下载页面（你也可以让 Alcove 自行更新）。"
           }
         }
       }

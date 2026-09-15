@@ -215,17 +215,25 @@ struct SettingsPage<Content: View>: View {
 /// A titled group of rows on a slab — the unit a settings pane is built from.
 /// `header` sits above the slab, `footer` below it, both outside it so long
 /// explanatory text reads as text.
+///
+/// A footer explains the card as a whole. Text about ONE row belongs on that row
+/// (`SettingsField`'s `detail`, `SettingsToggle`) — under a four-row card, a footer
+/// about the second row reads as being about the last one.
 struct SettingsCard<Content: View>: View {
     var header: LocalizedStringKey?
     var footer: LocalizedStringKey?
+    /// Background behind the header's ⓘ. See `SettingsInfoButton` for what belongs
+    /// there and what does not.
+    var headerInfo: LocalizedStringKey?
     @ViewBuilder var content: Content
 
     /// Footer as a view, for the rare case that needs a `Label` or a live warning
     /// rather than a static string.
     private var footerView: AnyView?
 
-    init(header: LocalizedStringKey? = nil, footer: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content) {
+    init(header: LocalizedStringKey? = nil, headerInfo: LocalizedStringKey? = nil, footer: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content) {
         self.header = header
+        self.headerInfo = headerInfo
         self.footer = footer
         self.footerView = nil
         self.content = content()
@@ -233,6 +241,7 @@ struct SettingsCard<Content: View>: View {
 
     init(header: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> some View) {
         self.header = header
+        self.headerInfo = nil
         self.footer = nil
         self.footerView = AnyView(footer())
         self.content = content()
@@ -241,10 +250,13 @@ struct SettingsCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let header {
-                Text(header)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
+                HStack(spacing: 4) {
+                    Text(header)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if let headerInfo { SettingsInfoButton(headerInfo) }
+                }
+                .padding(.leading, 4)
             }
 
             VStack(alignment: .leading, spacing: 0) { content }
@@ -416,6 +428,90 @@ struct SettingsField<Trailing: View>: View {
             trailing
         }
         .settingsRow()
+    }
+}
+
+/// A checkbox with a line under its label saying what it does to you — the side
+/// effect or cost that the label alone does not reveal.
+///
+/// `info` adds an ⓘ after the title for background; see `SettingsInfoButton`.
+struct SettingsToggle: View {
+    let title: LocalizedStringKey
+    let detail: LocalizedStringKey
+    var info: LocalizedStringKey?
+    @Binding var isOn: Bool
+
+    init(_ title: LocalizedStringKey, detail: LocalizedStringKey, info: LocalizedStringKey? = nil, isOn: Binding<Bool>) {
+        self.title = title
+        self.detail = detail
+        self.info = info
+        self._isOn = isOn
+    }
+
+    var body: some View {
+        // The checkbox is drawn without its label, and the label rebuilt beside it,
+        // so the ⓘ can sit right after the title. Inside the Toggle's own label it
+        // would be part of the control — a click there is the checkbox's to take —
+        // and outside it the ⓘ could only go after the whole label, at the far end
+        // of the row from the words it explains.
+        // 5, not a round number: measured against the native checkbox-and-label rows
+        // in the same card, 6 set these titles 1pt to the right of theirs.
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    // Tapping the words still flips the box, as a native label does.
+                    // On the texts, not on this HStack: the ⓘ must not.
+                    Text(title)
+                        .onTapGesture { isOn.toggle() }
+                    if let info { SettingsInfoButton(info) }
+                }
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onTapGesture { isOn.toggle() }
+            }
+        }
+        .settingsRow()
+    }
+}
+
+/// ⓘ that opens a popover of background text.
+///
+/// **Only for "how it works", never for "what it costs".** Anything that would change
+/// whether someone turns a setting on — a permission it needs, an app it starts, a
+/// quit it causes — stays visible on the row: nobody opens a popover to find out
+/// about a cost they do not yet know exists. Keep these rare, too; an ⓘ on every
+/// row is noise, not help.
+///
+/// Not the system help button (the circled question mark). HIG allows one of those
+/// per window, and it opens help documentation, which DuoUpdater does not ship.
+struct SettingsInfoButton: View {
+    private let text: LocalizedStringKey
+    @State private var shown = false
+
+    init(_ text: LocalizedStringKey) { self.text = text }
+
+    var body: some View {
+        Button { shown.toggle() } label: {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+        .help("More information")
+        .accessibilityLabel("More information")
+        // Above, not below: what the ⓘ explains is the control underneath it, and a
+        // popover opening downwards covers exactly that (Alcove's key row) or runs
+        // off the bottom of the window (TestFlight, the last card on its page).
+        .popover(isPresented: $shown, arrowEdge: .top) {
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 320, alignment: .leading)
+                .padding(14)
+        }
     }
 }
 

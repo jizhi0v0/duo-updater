@@ -25,7 +25,7 @@ import Foundation
 /// already renders properly. One row, one answer; the row state is #634 part 3.
 ///
 /// One predicate throughout: `SignatureVerifier.canRun(minimumSystemVersion:on:)`,
-/// which is also install-time gate 6. `HostOS`'s doc comment lists all six sites.
+/// which is also install-time gate 6. `HostOS`'s doc comment lists every site.
 ///
 /// Every host here is injected. Not one of these tests may ask the Mac it runs on
 /// what OS that is; a test that did would answer differently in CI (CLAUDE.md).

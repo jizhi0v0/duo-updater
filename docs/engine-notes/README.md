@@ -58,7 +58,8 @@ what to do when the number has already drifted once.
    the build if a tracked `.md` in this directory isn't listed there.
 7. `make test`, then a self-review pass (`/code-review`) on the diff before
    opening the PR. After fixing its findings, review the fix diff again, and
-   repeat until a round turns up nothing new (CLAUDE.md, 「修 issue」).
+   repeat until it converges: a round turns up nothing new, or two rounds in a
+   row find nothing in the code the PR delivers (CLAUDE.md, 「修 issue」).
 
 ## Index
 

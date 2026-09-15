@@ -9,8 +9,8 @@ import Foundation
 /// Design notes that differ deliberately from `VendorProbeRecipe`:
 ///   - **Low stakes.** A bad version probe can invent a false "update available";
 ///     a bad changelog parse can only show ugly/empty notes, and we always fall
-///     back to the embedded web page. So this is `Codable` and forgiving by
-///     design, and the registry can carry loose, redundant patterns.
+///     back to the embedded web page. So the registry can carry loose, redundant
+///     patterns. (Its JSON decoding is strict all the same — see `RecipeCoding`.)
 ///   - **Redundant by design.** `itemPatterns` is an *ordered* list: the first
 ///     pattern that yields ≥1 item for an entry wins. Add several to survive a
 ///     page's variants (old vs new markup) without branching code.
@@ -724,41 +724,125 @@ public struct ChangelogRecipe: Codable, Sendable {
         }
     }
 
-    /// Forgiving decode: a remotely-authored recipe only needs `bundleID`,
-    /// `source`, `entryPattern`, and `itemPatterns`; every tuning field falls back
-    /// to its default when omitted. Lets the catalog stay terse.
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case bundleID, source, sourceTemplate, mode, entryPattern, itemPatterns
+        case stripTags, decodeEntities, escapedMarkup, markdownSource, maxEntries
+        case minItemLength, newestLast, indexLinkPattern, feedPagePattern, channel
+        case includesPromotedStable, imagePattern, headingPattern, minimumAppVersion
+        case belowAppVersion, acknowledgedStaleEntry, structuredFormat, httpMethod
+        case requestBody, skipSections, tagPattern
+    }
+
+    private static var codingDefaults: ChangelogRecipe {
+        ChangelogRecipe(bundleID: "", source: URL(fileURLWithPath: "/"))
+    }
+
+    /// A recipe written as JSON needs only `bundleID` and `source`; every other
+    /// field takes the initializer's default when omitted. An unknown key, or
+    /// `null` for a field that is not optional, is an error — see `RecipeCoding`,
+    /// which states the convention for every recipe type.
+    ///
+    /// `maxEntries` is the one optional whose default is not nil: absent is 40,
+    /// `null` is nil ("keep every entry"). It used to decode `null` as 40 too,
+    /// and the synthesized encoder omitted a nil, so `nil` did not survive a round
+    /// trip.
     public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        bundleID = try c.decode(String.self, forKey: .bundleID)
-        source = try c.decode(URL.self, forKey: .source)
-        // Empty defaults so a structured recipe (no regex fields) decodes cleanly.
-        entryPattern = try c.decodeIfPresent(String.self, forKey: .entryPattern) ?? ""
-        itemPatterns = try c.decodeIfPresent([String].self, forKey: .itemPatterns) ?? []
-        structuredFormat = try c.decodeIfPresent(StructuredFormat.self, forKey: .structuredFormat)
-        mode = try c.decodeIfPresent(Mode.self, forKey: .mode) ?? .html
-        stripTags = try c.decodeIfPresent(Bool.self, forKey: .stripTags) ?? true
-        decodeEntities = try c.decodeIfPresent(Bool.self, forKey: .decodeEntities) ?? true
-        escapedMarkup = try c.decodeIfPresent(Bool.self, forKey: .escapedMarkup) ?? false
-        markdownSource = try c.decodeIfPresent(Bool.self, forKey: .markdownSource) ?? false
-        maxEntries = try c.decodeIfPresent(Int?.self, forKey: .maxEntries) ?? 40
-        minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
-        indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
-        channel = try c.decodeIfPresent(ReleaseChannel.self, forKey: .channel)
-        includesPromotedStable = try c.decodeIfPresent(
-            Bool.self, forKey: .includesPromotedStable) ?? false
-        sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
-        newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
-        imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
-        headingPattern = try c.decodeIfPresent(String.self, forKey: .headingPattern)
-        minimumAppVersion = try c.decodeIfPresent(String.self, forKey: .minimumAppVersion)
-        belowAppVersion = try c.decodeIfPresent(String.self, forKey: .belowAppVersion)
-        httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
-        requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
-        skipSections = try c.decodeIfPresent([String].self, forKey: .skipSections) ?? []
-        tagPattern = try c.decodeIfPresent(String.self, forKey: .tagPattern)
-        acknowledgedStaleEntry = try c.decodeIfPresent(
-            String.self, forKey: .acknowledgedStaleEntry)
-        feedPagePattern = try c.decodeIfPresent(String.self, forKey: .feedPagePattern)
+        let d = Self.codingDefaults
+        // Written as its text; see `RecipeCoding`.
+        let requestBody: Data? = c.contains(.requestBody)
+            ? try c.decodeOptional(String.self, forKey: .requestBody, default: nil)
+                .map { Data($0.utf8) }
+            : d.requestBody
+        self.init(
+            bundleID: try c.decode(String.self, forKey: .bundleID),
+            source: try c.decode(URL.self, forKey: .source),
+            entryPattern: try c.decode(String.self, forKey: .entryPattern, default: d.entryPattern),
+            itemPatterns: try c.decode(
+                [String].self, forKey: .itemPatterns, default: d.itemPatterns),
+            mode: try c.decode(Mode.self, forKey: .mode, default: d.mode),
+            stripTags: try c.decode(Bool.self, forKey: .stripTags, default: d.stripTags),
+            decodeEntities: try c.decode(
+                Bool.self, forKey: .decodeEntities, default: d.decodeEntities),
+            escapedMarkup: try c.decode(Bool.self, forKey: .escapedMarkup, default: d.escapedMarkup),
+            markdownSource: try c.decode(
+                Bool.self, forKey: .markdownSource, default: d.markdownSource),
+            maxEntries: try c.decodeOptional(Int.self, forKey: .maxEntries, default: d.maxEntries),
+            minItemLength: try c.decode(Int.self, forKey: .minItemLength, default: d.minItemLength),
+            indexLinkPattern: try c.decodeOptional(
+                String.self, forKey: .indexLinkPattern, default: d.indexLinkPattern),
+            channel: try c.decodeOptional(ReleaseChannel.self, forKey: .channel, default: d.channel),
+            includesPromotedStable: try c.decode(
+                Bool.self, forKey: .includesPromotedStable, default: d.includesPromotedStable),
+            sourceTemplate: try c.decodeOptional(
+                String.self, forKey: .sourceTemplate, default: d.sourceTemplate),
+            newestLast: try c.decode(Bool.self, forKey: .newestLast, default: d.newestLast),
+            imagePattern: try c.decodeOptional(
+                String.self, forKey: .imagePattern, default: d.imagePattern),
+            headingPattern: try c.decodeOptional(
+                String.self, forKey: .headingPattern, default: d.headingPattern),
+            minimumAppVersion: try c.decodeOptional(
+                String.self, forKey: .minimumAppVersion, default: d.minimumAppVersion),
+            belowAppVersion: try c.decodeOptional(
+                String.self, forKey: .belowAppVersion, default: d.belowAppVersion),
+            structuredFormat: try c.decodeOptional(
+                StructuredFormat.self, forKey: .structuredFormat, default: d.structuredFormat),
+            httpMethod: try c.decode(HTTPMethod.self, forKey: .httpMethod, default: d.httpMethod),
+            requestBody: requestBody,
+            skipSections: try c.decode(
+                [String].self, forKey: .skipSections, default: d.skipSections),
+            tagPattern: try c.decodeOptional(String.self, forKey: .tagPattern, default: d.tagPattern),
+            acknowledgedStaleEntry: try c.decodeOptional(
+                String.self, forKey: .acknowledgedStaleEntry, default: d.acknowledgedStaleEntry),
+            feedPagePattern: try c.decodeOptional(
+                String.self, forKey: .feedPagePattern, default: d.feedPagePattern))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        let d = Self.codingDefaults
+        try c.encode(bundleID, forKey: .bundleID)
+        try c.encode(source, forKey: .source)
+        try c.encodeOptional(sourceTemplate, forKey: .sourceTemplate, defaultIsNil: d.sourceTemplate == nil)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(entryPattern, forKey: .entryPattern)
+        try c.encode(itemPatterns, forKey: .itemPatterns)
+        try c.encode(stripTags, forKey: .stripTags)
+        try c.encode(decodeEntities, forKey: .decodeEntities)
+        try c.encode(escapedMarkup, forKey: .escapedMarkup)
+        try c.encode(markdownSource, forKey: .markdownSource)
+        try c.encodeOptional(maxEntries, forKey: .maxEntries, defaultIsNil: d.maxEntries == nil)
+        try c.encode(minItemLength, forKey: .minItemLength)
+        try c.encode(newestLast, forKey: .newestLast)
+        try c.encodeOptional(
+            indexLinkPattern, forKey: .indexLinkPattern, defaultIsNil: d.indexLinkPattern == nil)
+        try c.encodeOptional(
+            feedPagePattern, forKey: .feedPagePattern, defaultIsNil: d.feedPagePattern == nil)
+        try c.encodeOptional(channel, forKey: .channel, defaultIsNil: d.channel == nil)
+        try c.encode(includesPromotedStable, forKey: .includesPromotedStable)
+        try c.encodeOptional(imagePattern, forKey: .imagePattern, defaultIsNil: d.imagePattern == nil)
+        try c.encodeOptional(
+            headingPattern, forKey: .headingPattern, defaultIsNil: d.headingPattern == nil)
+        try c.encodeOptional(
+            minimumAppVersion, forKey: .minimumAppVersion, defaultIsNil: d.minimumAppVersion == nil)
+        try c.encodeOptional(
+            belowAppVersion, forKey: .belowAppVersion, defaultIsNil: d.belowAppVersion == nil)
+        try c.encodeOptional(
+            acknowledgedStaleEntry, forKey: .acknowledgedStaleEntry,
+            defaultIsNil: d.acknowledgedStaleEntry == nil)
+        try c.encodeOptional(
+            structuredFormat, forKey: .structuredFormat, defaultIsNil: d.structuredFormat == nil)
+        try c.encode(httpMethod, forKey: .httpMethod)
+        if let requestBody {
+            try c.encode(
+                RecipeCoding.text(of: requestBody, at: c.codingPath + [CodingKeys.requestBody]),
+                forKey: .requestBody)
+        } else if d.requestBody != nil {
+            try c.encodeNil(forKey: .requestBody)
+        }
+        try c.encode(skipSections, forKey: .skipSections)
+        try c.encodeOptional(tagPattern, forKey: .tagPattern, defaultIsNil: d.tagPattern == nil)
     }
 }
 

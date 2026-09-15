@@ -9,7 +9,7 @@ import Foundation
 /// machine. `hw.optional.arm64 == 1` is true for every Apple-silicon Mac
 /// regardless of how this process happens to be running, which is exactly the
 /// "what build should this Mac get?" question we're answering.
-public enum HostArch: Sendable, Equatable {
+public enum HostArch: Sendable, Equatable, CaseIterable {
     case arm64
     case x86_64
 

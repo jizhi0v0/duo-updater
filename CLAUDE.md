@@ -196,17 +196,17 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   c01be6f1 给 `{DuoUpdaterAppTests, duo-cli}`,f943f95c 给 `{DuoUpdaterAppTests, duo-cli-tests}`)。
   **只对 c01be6f1 单独跑的第二轮才抓到它**,修复是 f943f95c。而我那次在第一轮之后就停了,是被追问才补跑的。
   - ⚠️ **用 `ReportFindings` 把发现重报成 `fixed` 不是复审**,是状态更新:它说「我改了」,不看改出来的东西。
-  - **收敛看发现落在哪一层,不只看条数。** 满足任一条就可以收工:(1) 某一轮没有新的确证发现;
-    (2) 连续两轮的确证发现**都不落在这个 PR 的交付物上**,只落在 PR 描述、commit message 这类合进去之后
-    不再生效的材料里。交付物按 PR 定、不按文件类型定,合进去之后会被执行或被照着做的都算:#660 是
-    `test_targets()`,#315 是 `ScanRowAssembly` **和**那道防空过闸,只改 CLAUDE.md 的 PR 就是规则文本
-    和它引用的证据本身——给这条规矩开的 #661,前三轮的发现都落在 CLAUDE.md 和 engine-notes 那份副本的规则文本与证据上,一轮都不算。
-    这两轮留下的问题照样要改,修复碰到交付物就还得再审一轮。反过来,只要还有发现落在交付物上就没到底,
-    条数再少也一样:#660 第二轮那条就在 `test_targets()` 里。**(2) 目前没有一个核实过的正例。**
+  - **收敛的判据只有一条:一轮覆盖了整份修复 diff、且没有新的确证发现。** 条数降下来不算:
+    #660 第一轮 2 条,第二轮只审 c01be6f1 一个提交,照样抓到一条落在 `test_targets()` 里的。
     ⚠️ **范围收窄过的一轮,不能算被排除在外那部分的干净轮。** #315 的 PR 描述说第二、三轮的发现全在
     harness 和措辞里、`ScanRowAssembly` 连续两轮干净,但那两轮抓到的有防空过闸的缺陷,而那道闸
-    (`app-tests.sh` / `app_test_coverage.py`)正是 #315 要交付的;第三轮又是**只对 harness 审的**,
-    不能算 `ScanRowAssembly` 的干净轮。按 (2) 它不算收敛。
+    (`app-tests.sh` / `app_test_coverage.py`)本身就是 #315 要交付的;第三轮又是**只对 harness 审的**,
+    不能算 `ScanRowAssembly` 的干净轮。
+    ⚠️ **别再加「发现只落在某一层就可以收工」的第二条判据。** 给这条规矩开的 #661 试过三个版本,
+    三轮复审各推翻一个:「被测代码 vs harness」会把 #315 交付的那道闸划成 harness;「会执行的代码 vs
+    措辞」让任何只改文档的 PR(包括 #661 自己)两轮就收工;「交付物 vs PR 描述和 commit message」
+    的后一半是空集——这个仓库 squash 合并的提交正文取 `COMMIT_MESSAGES`,commit message 会原样进 main,
+    PR 描述里的关闭关键词在合并时生效(#542 合并 2 秒后 #419 被关)。
   - **`/code-review` 不是合并门槛,这条和上一条都只靠自律。** `main` 的 ruleset 要求走 PR、
     0 个 approval、必需检查只有 `test`(strict=false):CI 一绿就可合,审没审、审了几轮都不影响。
     所以**循环没收敛之前别开 `--auto`**,已经开了就 `gh pr merge <n> --disable-auto`。2026-09-07 #401:

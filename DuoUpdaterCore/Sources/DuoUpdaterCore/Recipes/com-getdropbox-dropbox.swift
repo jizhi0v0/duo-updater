@@ -30,8 +30,8 @@ enum com_getdropbox_dropbox {
         //
         // The image is labelled "Dropbox Offline Installer" but holds the real
         // `Dropbox.app` — worth stating, since the 1Password download
-        // (`Recipes/com-1password-1password.swift`) turned out to be a stub
-        // installer, not the app.
+        // (`Resources/Recipes/com-1password-1password.json5`) turned out to be a
+        // stub installer, not the app.
         VendorProbeRecipe(
             bundleID: "com.getdropbox.dropbox",
             url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!,

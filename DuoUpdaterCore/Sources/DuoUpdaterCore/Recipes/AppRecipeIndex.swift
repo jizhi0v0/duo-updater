@@ -58,7 +58,6 @@ public enum AppRecipeIndex {
         bot_cline_app.set,
         cc_ffitch_shottr.set,
         co_palokaj_battery.set,
-        com_1password_1password.set,
         com_aionui_app.set,
         com_alienator88_Pearcleaner.set,
         com_ameba_SwiftBar.set,

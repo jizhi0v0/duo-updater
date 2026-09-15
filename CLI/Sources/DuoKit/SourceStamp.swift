@@ -3,7 +3,8 @@ import CryptoKit
 
 /// Whether the `duo` binary now running was built from the checkout it is standing in.
 ///
-/// `duo verify` sweeps the recipes, and the recipes are **compiled into the binary**.
+/// `duo verify` sweeps the recipes, and the recipes **ship with the binary**: compiled
+/// into it, or, for a family written as data, in the resource bundle installed beside it.
 /// The binary on PATH (`~/.local/bin/duo` → `~/.local/libexec/duo`) is not the working
 /// tree, so a sweep can report a full, normal-looking result — scores, pass/warn/fail,
 /// captured response bodies — for rules that were replaced hours ago. Nothing in the
@@ -221,9 +222,9 @@ public enum SourceStamp {
         """
         stale `duo`: \(reason).
 
-          The recipes are compiled in, so this sweep would report on the rules in the
-          binary, not the ones in your tree — and it would look completely normal doing
-          it. Rebuild first:
+          The recipes ship with the binary, so this sweep would report on the rules it
+          was built with, not the ones in your tree — and it would look completely normal
+          doing it. Rebuild first:
 
               make cli
 

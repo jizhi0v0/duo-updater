@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoKit
 
 /// `SourceStamp` decides whether a `duo verify` sweep is about the reader's recipes or
-/// about whatever was compiled into the binary on PATH. Every case below names the line
+/// about whatever the binary on PATH was built with. Every case below names the line
 /// it pins and was run against that line removed — see the comment on each.
 @Suite struct SourceStampTests {
 

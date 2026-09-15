@@ -198,8 +198,8 @@ verify options:
   --allow-stale-binary
                       Sweep even though this `duo` was not built from the
                       checkout it is standing in. Refused by default: the
-                      recipes are compiled in, so such a sweep reports on the
-                      rules in the binary rather than the ones in your tree and
+                      recipes ship with the binary, so such a sweep reports on the
+                      rules it was built with rather than the ones in your tree and
                       looks entirely normal doing it. `make cli` is the fix.
   --source-digest     Print what the sources in this checkout hash to and exit.
                       What `scripts/build-cli.sh` records beside the binary so

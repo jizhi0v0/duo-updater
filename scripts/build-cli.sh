@@ -28,6 +28,13 @@ APP_DIR="$REPO/App"
 # one collision left, and not worth a lock. `DERIVED_DATA` overrides.
 DD="${DERIVED_DATA:-$(python3 "$REPO/scripts/derived_data_path.py" cli "$REPO")}"
 PRODUCT="$DD/Build/Products/Release/duo-cli"
+# Recipe families written as data (`.json5`) are not in the binary: SwiftPM builds
+# them into this resource bundle, and `Bundle.module` looks for it beside the
+# executable (`Bundle.main.bundleURL`). A binary copied without it traps on first
+# use of the recipe index ("unable to find bundle named …", exit 133).
+RESOURCE_BUNDLE="DuoUpdaterCore_DuoUpdaterCore.bundle"
+PRODUCT_BUNDLE="$DD/Build/Products/Release/$RESOURCE_BUNDLE"
+RECIPE_SOURCE="$REPO/DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
 LIBEXEC="$HOME/.local/libexec"
 BIN="$HOME/.local/bin"
 DEST="$LIBEXEC/duo"
@@ -52,6 +59,7 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -derivedDataPath "$DD" build >/dev/null
 
 [ -f "$PRODUCT" ] || die "build produced no binary at $PRODUCT"
+[ -d "$PRODUCT_BUNDLE" ] || die "build produced no resource bundle at $PRODUCT_BUNDLE"
 
 say "Verifying signature identity"
 "$REPO/scripts/verify-signature.sh" "$PRODUCT" "$TEAM"
@@ -61,6 +69,26 @@ say "Verifying signature identity"
 # nowhere to come from on an older OS. See the script.
 say "Verifying it needs no Swift runtime library macOS 14 lacks"
 python3 "$REPO/scripts/check_swift_backdeploy.py" "$PRODUCT"
+
+say "Installing to $DEST"
+mkdir -p "$LIBEXEC" "$BIN"
+
+# The resource bundle first, right before the binary it belongs to. Staged beside
+# the destination and renamed in, after the previous bundle is removed — never
+# copied over it, which would leave a deleted family's file behind in it. Then the
+# installed recipe files must be exactly the ones in this checkout: the stamp
+# below is a digest of the checkout and never reads the bundle, so a stale or
+# partial bundle beside a fresh binary would otherwise pass `duo verify`'s
+# stale-binary check while sweeping the wrong data.
+BUNDLE_DEST="$LIBEXEC/$RESOURCE_BUNDLE"
+BUNDLE_TMP="$(mktemp -d "$BUNDLE_DEST.XXXXXX")"
+ditto "$PRODUCT_BUNDLE" "$BUNDLE_TMP"
+rm -rf "$BUNDLE_DEST"
+mv "$BUNDLE_TMP" "$BUNDLE_DEST"
+INSTALLED_RECIPES="$(find "$BUNDLE_DEST" -maxdepth 3 -type d -name Recipes 2>/dev/null | head -n 1 || true)"
+[ -n "$INSTALLED_RECIPES" ] || die "the installed $RESOURCE_BUNDLE has no Recipes directory"
+diff -r "$RECIPE_SOURCE" "$INSTALLED_RECIPES" >/dev/null \
+    || die "the recipe files in $INSTALLED_RECIPES differ from $RECIPE_SOURCE"
 
 # Copy beside the destination, then rename over it -- never `cp` onto it. The
 # kernel caches a binary's signature per file and does not flush that cache when
@@ -73,8 +101,6 @@ python3 "$REPO/scripts/check_swift_backdeploy.py" "$PRODUCT"
 # `access` table keys a grant by client path plus csreq and has no inode column
 # (schema read 2026-09-13). That a grant survives the rename is inferred from
 # that, not tested: there was no App Management grant on this path to test with.
-say "Installing to $DEST"
-mkdir -p "$LIBEXEC" "$BIN"
 TMP="$(mktemp "$DEST.XXXXXX")"
 cp -f "$PRODUCT" "$TMP"
 chmod 755 "$TMP"
@@ -85,8 +111,8 @@ codesign --verify --strict "$DEST" 2>/dev/null \
     || die "the deployed copy failed signature verification"
 
 # What this binary was built from, beside the binary, so `duo verify` can refuse to
-# sweep with recipes that are not the ones in the reader's tree. The recipes are
-# compiled in and the report gives no sign of which ones it used, so a stale binary
+# sweep with recipes that are not the ones in the reader's tree. The recipes ship
+# with the binary and the report gives no sign of which ones it used, so a stale binary
 # produces a full, normal-looking answer about rules that were replaced hours ago --
 # twice now, in both directions. See CLI/Sources/DuoKit/SourceStamp.swift.
 #

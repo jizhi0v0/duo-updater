@@ -4,13 +4,14 @@ import Foundation
 ///
 /// Release-note URLs come from recipes, and a recipe's `changelogURL` is the one
 /// field that ends up as an attacker-choosable origin rendered in-process, next
-/// to a window that holds credentials for other services. Today every recipe is
-/// compiled into the signed binary, so this is defence in depth rather than a
-/// live hole — but it is the field most likely to be served remotely first, and
-/// the check costs nothing to have in place before that happens.
+/// to a window that holds credentials for other services. Today every recipe the
+/// app reads ships inside its signed bundle (compiled in, or as data sealed in
+/// its resources), so this is defence in depth rather than a live hole — but it
+/// is the field most likely to be served remotely first, and the check costs
+/// nothing to have in place before that happens.
 ///
 /// The rules are deliberately structural, not an allowlist of hosts: a per-recipe
-/// host binding only becomes meaningful once recipes stop being compiled in, and
+/// host binding only becomes meaningful once recipes come from outside that bundle, and
 /// guessing at vendor domains now would break legitimate documentation sites that
 /// live on a different domain than the download endpoint. Consequently this gate
 /// cannot tell that an otherwise ordinary DNS name resolves to a private address;

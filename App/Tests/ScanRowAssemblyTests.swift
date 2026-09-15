@@ -122,6 +122,30 @@ struct ScanRowAssemblyTests {
         #expect(rows[0].effectiveReleaseChannel == .beta)
     }
 
+    /// A vendor's OS refusal is a claim about a release newer than the copy that
+    /// was checked. A rescan that finds the SAME copy keeps it; one that finds the
+    /// copy moved (the user installed the refused release, or the app updated
+    /// itself) drops it to unchecked instead of telling that copy the vendor
+    /// "won't offer" a build it may now have (#634).
+    ///
+    /// Mutations: delete the `.outsideOSWindow` branch in `merged` → the moved
+    /// copy keeps the refusal → red; drop its version condition → the unmoved
+    /// copy loses the refusal → red.
+    @Test func aVendorRefusalSurvivesARescanOnlyOnTheSameCopy() {
+        let refusal = OSWindowRefusal(bound: .ceiling(maximum: "26.99"), version: "5.1.0", hostOS: "27.0.0")
+        let checked = utm("5.0.5", build: "124")
+        let prior = [UpdateResult(app: checked, remote: nil, status: .outsideOSWindow(refusal))]
+
+        let same = ScanRowAssembly.merged([utm("5.0.5", build: "124")], prior: prior, proofs: noProofs)
+        #expect(same[0].status == .outsideOSWindow(refusal))
+
+        let moved = ScanRowAssembly.merged([utm("5.1.0", build: "130")], prior: prior, proofs: noProofs)
+        #expect(moved[0].status == .unknown)
+
+        let buildOnly = ScanRowAssembly.merged([utm("5.0.5", build: "125")], prior: prior, proofs: noProofs)
+        #expect(buildOnly[0].status == .unknown)
+    }
+
     /// The other half of the same rule: when the copy on disk has been REPLACED,
     /// the old answer is about an app that is gone. Asserting on
     /// `effectiveReleaseChannel` rather than on `provenChannel` is the point —

@@ -1,0 +1,88 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "ai-elementlabs-lmstudio"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "ai.elementlabs.lmstudio"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://versions-prod.lmstudio.ai/update/darwin/arm64/0.0.0")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){1,3})\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL = nil
+probes[0].changelogURL? = URL("https://lmstudio.ai/changelog/lmstudio")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyTemplate(_:fields:)
+probes[0].install?.urlSource.0 = "https://installers.lmstudio.ai/darwin/arm64/{0}-{1}/LM-Studio-{0}-{1}-arm64.dmg"
+probes[0].install?.urlSource.fields = Array(count: 2)
+probes[0].install?.urlSource.fields[0] = "\"version\"\\s*:\\s*\"([^\"]+)\""
+probes[0].install?.urlSource.fields[1] = "\"build\"\\s*:\\s*\"([^\"]+)\""
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "ai.elementlabs.lmstudio"
+changelogs[0].source = URL("https://lmstudio.ai/changelog/lmstudio")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "href=\"/changelog/(?:lmstudio/)?lmstudio-v[^\"]*\">\\s*<span class=\"sr-only\">LM Studio (?<version>[^<]+)</span></a>.*?<div class=\"markdown-body[^\"]*\"[^>]*>(?<body>.*?)</div>\\s*</div>\\s*</div>"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<li[^>]*>(?<item>.*?)</li>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

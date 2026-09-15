@@ -1,0 +1,86 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-bytedance-inputmethod-doubaoime"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.bytedance.inputmethod.doubaoime"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://ime.doubao.com/api/v1/app/download_url?platform=macos")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "DoubaoImeInstaller_v([0-9]+)_release\\.zip"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://shurufa.doubao.com/")
+probes[0].changelogURL = nil
+probes[0].selectHighest = false
+probes[0].versionIsBuild = true
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern? = "\"version_name\"\\s*:\\s*\"[Vv]?([0-9]+(?:\\.[0-9]+)+)\""
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\"url\"\\s*:\\s*\"(https://[^\"]+/DoubaoImeInstaller_v[0-9]+_release\\.zip)\""
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath? = "Contents/Resources/DoubaoIme.zip"
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.bytedance.inputmethod.doubaoime"
+changelogs[0].source = URL("https://ime.doubao.com/api/v1/version/list?channel=release&version_code=1&platform=macos")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .json
+changelogs[0].entryPattern = "\"platform\":\"macOS\",\"version_name\":\"(?<version>[0-9][^\"]*)\",\"version_code\":\\d+,\"change_log\":\"(?<body>(?:\\\\.|[^\"\\\\])*)\""
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "(?:^|\\\\n)-\\s*(?<item>.*?)\\s*(?=\\\\n-\\s|$)"
+changelogs[0].itemPatterns[1] = "\\s*(?<item>.+?)\\s*$"
+changelogs[0].stripTags = false
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

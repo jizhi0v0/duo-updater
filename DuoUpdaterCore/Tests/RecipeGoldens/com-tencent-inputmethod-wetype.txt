@@ -1,0 +1,87 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-tencent-inputmethod-wetype"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.tencent.inputmethod.wetype"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://z.weixin.qq.com/web/mac/download?channel=InstallInfo")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"zip_version\"\\s*:\\s*\"[0-9]+(?:\\.[0-9]+){2}\\.([0-9]+)\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://z.weixin.qq.com/")
+probes[0].changelogURL? = URL("https://z.weixin.qq.com/web/change-log/macos")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = true
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern? = "\"zip_version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){2})\\.[0-9]+\""
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\"zip_download_url\"\\s*:\\s*\"(https://[^\"]+\\.zip)\""
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.tencent.inputmethod.wetype"
+changelogs[0].source = URL("https://z.weixin.qq.com/web/change-log/macos")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "\"version\":\"(?<version>[0-9][^\"]*)\",\"content\":\"[^\"]*\",\"content_html\":\"(?<body>[^\"]*)\",\"platform\":3"
+changelogs[0].itemPatterns = Array(count: 3)
+changelogs[0].itemPatterns[0] = "<li[^>]*>(?<item>.*?)</li>"
+changelogs[0].itemPatterns[1] = "<h2[^>]*>(?<item>.*?)</h2>"
+changelogs[0].itemPatterns[2] = "<p[^>]*>(?<item>.*?)</p>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = true
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

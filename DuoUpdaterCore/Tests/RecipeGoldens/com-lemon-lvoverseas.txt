@@ -1,0 +1,96 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-lemon-lvoverseas"
+
+probes = Array(count: 2)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.lemon.lvoverseas"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement? = struct VendorHostRequirement
+probes[0].hostRequirement?.minimumSystemVersion = nil
+probes[0].hostRequirement?.architectures = Array(count: 1)
+probes[0].hostRequirement?.architectures[0] = .arm64
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://editor-api.capcutapi.com/service/settings/v3/?aid=359289&device_platform=mac&channel=capcutpc_0&version_code=9.99")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"lastest_stable_url\"\\s*:\\s*\"[^\"]*/CapCut_([0-9]+)_([0-9]+)_([0-9]+)_[0-9]+_capcutpc_0_creatortool\\.dmg\""
+probes[0].transientBodyPattern? = "^\\s*\\{\\s*\"data\"\\s*:\\s*\\{\\s*\\}"
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://www.capcut.com/tools/desktop-video-editor")
+probes[0].changelogURL = nil
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\"lastest_stable_url\"\\s*:\\s*\"(https://sf16-web-tos-buz\\.capcutstatic\\.com/[^\"]*_capcutpc_0_creatortool\\.dmg)\""
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "com.lemon.lvoverseas"
+probes[1].channel = .beta
+probes[1].variant = nil
+probes[1].hostRequirement? = struct VendorHostRequirement
+probes[1].hostRequirement?.minimumSystemVersion = nil
+probes[1].hostRequirement?.architectures = Array(count: 1)
+probes[1].hostRequirement?.architectures[0] = .arm64
+probes[1].installedVersionPattern = nil
+probes[1].buildLineage = nil
+probes[1].url = URL("https://editor-api.capcutapi.com/service/settings/v3/?aid=359289&device_platform=mac&channel=capcutpc_0&version_code=9.99")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "\"lastest_url\"\\s*:\\s*\"[^\"]*/CapCut_([0-9]+)_([0-9]+)_([0-9]+(?:-beta[0-9]+)?)_[0-9]+_capcutpc_beta_creatortool\\.dmg\""
+probes[1].transientBodyPattern? = "^\\s*\\{\\s*\"data\"\\s*:\\s*\\{\\s*\\}"
+probes[1].trackClosedPattern? = "\"lastest_beta_number\"\\s*:\\s*\"\""
+probes[1].downloadURL? = URL("https://www.capcut.com/tools/desktop-video-editor")
+probes[1].changelogURL = nil
+probes[1].selectHighest = false
+probes[1].versionIsBuild = true
+probes[1].buildNamespace = .bundle
+probes[1].displayVersionPattern = nil
+probes[1].publishedAtPattern = nil
+probes[1].entryStartPattern = nil
+probes[1].install? = struct VendorInstallSpec
+probes[1].install?.urlSource = .bodyPattern(_:)
+probes[1].install?.urlSource.0 = "\"lastest_url\"\\s*:\\s*\"(https://sf16-web-tos-buz\\.capcutstatic\\.com/[^\"]*_capcutpc_beta_creatortool\\.dmg)\""
+probes[1].install?.kind = .dmg
+probes[1].install?.checksumPattern = nil
+probes[1].install?.requestHeaders = Dictionary(count: 0)
+probes[1].install?.nestedArchivePath = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 1)
+channelProofs[ChannelProofKey(bundleID: "com.lemon.lvoverseas", channel: .beta)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "com.lemon.lvoverseas", channel: .beta)].0 = "_capcutpc_beta_"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

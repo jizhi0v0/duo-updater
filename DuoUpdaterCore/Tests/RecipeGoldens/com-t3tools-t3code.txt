@@ -1,0 +1,56 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-t3tools-t3code"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.t3tools.t3code"
+githubRules[0].owner = "pingdotgg"
+githubRules[0].repo = "t3code"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .alpha
+githubRules[0].installAssetPattern? = "^T3-Code-[0-9.]+-arm64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.t3tools.t3code"
+githubRules[1].owner = "pingdotgg"
+githubRules[1].repo = "t3code"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 5
+githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]+\\.[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .nightly
+githubRules[1].installAssetPattern? = "^T3-Code-[0-9.]+-nightly\\.[0-9.]+-arm64\\.dmg$"
+githubRules[1].installerKind? = .dmg
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 2)
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .alpha)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .alpha)].0 = "\\[0-9\\.\\]\\+-arm64"
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .alpha)].in = Set(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .alpha)].in{0} = "installAssetPattern"
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .nightly)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.t3tools.t3code", channel: .nightly)].0 = "/download/v[0-9.]+-nightly\\."
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

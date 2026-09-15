@@ -1,0 +1,54 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-typewhisper-mac"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.typewhisper.mac"
+changelogs[0].source = URL("https://www.typewhisper.com/en/changelog/")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = ">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>(?:(?!>macOS</span><h3|>Windows</span><h3).)*?<p class=\"mt-1 text-xs text-muted-foreground\">(?<date>[^<]*)</p><div class=\"prose[^\"]*\"[^>]*>(?<body>.*?)</div>"
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "<li[^>]*>(?<item>.*?)</li>"
+changelogs[0].itemPatterns[1] = "<p[^>]*>(?<item>.*?)</p>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

@@ -1,0 +1,248 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "org-mozilla-thunderbird"
+
+probes = Array(count: 4)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "org.mozilla.thunderbird"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://product-details.mozilla.org/1.0/thunderbird_versions.json")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"LATEST_THUNDERBIRD_VERSION\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://www.thunderbird.net/")
+probes[0].changelogURL? = URL("https://www.thunderbird.net/thunderbird/releases/")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .redirect(_:)
+probes[0].install?.urlSource.0 = URL("https://download.mozilla.org/?product=thunderbird-latest&os=osx&lang=en-US")
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "org.mozilla.thunderbirdbeta"
+probes[1].channel = .beta
+probes[1].variant = nil
+probes[1].hostRequirement = nil
+probes[1].installedVersionPattern = nil
+probes[1].buildLineage = nil
+probes[1].url = URL("https://aus.thunderbird.net/update/6/Thunderbird/155.0/20250101000000/Darwin_aarch64-gcc3/en-US/beta/Darwin%2025.0.0/default/default/default/update.xml")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "buildID=\"([0-9]{14})\""
+probes[1].transientBodyPattern = nil
+probes[1].trackClosedPattern = nil
+probes[1].downloadURL? = URL("https://www.thunderbird.net/channel/desktop/")
+probes[1].changelogURL? = URL("https://www.thunderbird.net/thunderbird/releases/")
+probes[1].selectHighest = false
+probes[1].versionIsBuild = true
+probes[1].buildNamespace = .vendor
+probes[1].displayVersionPattern? = "product=thunderbird-([0-9][0-9.]*b[0-9]+)-complete"
+probes[1].publishedAtPattern = nil
+probes[1].entryStartPattern = nil
+probes[1].install? = struct VendorInstallSpec
+probes[1].install?.urlSource = .redirect(_:)
+probes[1].install?.urlSource.0 = URL("https://download.mozilla.org/?product=thunderbird-beta-latest&os=osx&lang=en-US")
+probes[1].install?.kind = .dmg
+probes[1].install?.checksumPattern = nil
+probes[1].install?.requestHeaders = Dictionary(count: 0)
+probes[1].install?.nestedArchivePath = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+probes[2] = struct VendorProbeRecipe
+probes[2].bundleID = "org.mozilla.thunderbird"
+probes[2].channel = .esr
+probes[2].variant = nil
+probes[2].hostRequirement = nil
+probes[2].installedVersionPattern = nil
+probes[2].buildLineage = nil
+probes[2].url = URL("https://product-details.mozilla.org/1.0/thunderbird_versions.json")
+probes[2].identities = Array(count: 0)
+probes[2].track = nil
+probes[2].mode = .responseBody
+probes[2].versionPattern = "\"THUNDERBIRD_ESR\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+esr)\""
+probes[2].transientBodyPattern = nil
+probes[2].trackClosedPattern = nil
+probes[2].downloadURL? = URL("https://www.thunderbird.net/enterprise/")
+probes[2].changelogURL? = URL("https://www.thunderbird.net/thunderbird/releases/")
+probes[2].selectHighest = false
+probes[2].versionIsBuild = false
+probes[2].buildNamespace = .bundle
+probes[2].displayVersionPattern = nil
+probes[2].publishedAtPattern = nil
+probes[2].entryStartPattern = nil
+probes[2].install? = struct VendorInstallSpec
+probes[2].install?.urlSource = .redirect(_:)
+probes[2].install?.urlSource.0 = URL("https://download.mozilla.org/?product=thunderbird-esr-latest&os=osx&lang=en-US")
+probes[2].install?.kind = .dmg
+probes[2].install?.checksumPattern = nil
+probes[2].install?.requestHeaders = Dictionary(count: 0)
+probes[2].install?.nestedArchivePath = nil
+probes[2].requestBody = nil
+probes[2].followRedirects = true
+probes[2].requestHeaders = Dictionary(count: 0)
+probes[3] = struct VendorProbeRecipe
+probes[3].bundleID = "org.mozilla.thunderbird-daily"
+probes[3].channel = .nightly
+probes[3].variant = nil
+probes[3].hostRequirement = nil
+probes[3].installedVersionPattern = nil
+probes[3].buildLineage = nil
+probes[3].url = URL("https://aus.thunderbird.net/update/6/Thunderbird/120.0a1/20250101000000/Darwin_aarch64-gcc3/en-US/nightly/Darwin%2025.0.0/default/default/default/update.xml")
+probes[3].identities = Array(count: 0)
+probes[3].track = nil
+probes[3].mode = .responseBody
+probes[3].versionPattern = "buildID=\"([0-9]{14})\""
+probes[3].transientBodyPattern = nil
+probes[3].trackClosedPattern = nil
+probes[3].downloadURL? = URL("https://www.thunderbird.net/channel/desktop/")
+probes[3].changelogURL = nil
+probes[3].selectHighest = false
+probes[3].versionIsBuild = true
+probes[3].buildNamespace = .vendor
+probes[3].displayVersionPattern? = "displayVersion=\"([^\"]+)\""
+probes[3].publishedAtPattern = nil
+probes[3].entryStartPattern = nil
+probes[3].install? = struct VendorInstallSpec
+probes[3].install?.urlSource = .redirect(_:)
+probes[3].install?.urlSource.0 = URL("https://download.mozilla.org/?product=thunderbird-nightly-latest&os=osx&lang=en-US")
+probes[3].install?.kind = .dmg
+probes[3].install?.checksumPattern = nil
+probes[3].install?.requestHeaders = Dictionary(count: 0)
+probes[3].install?.nestedArchivePath = nil
+probes[3].requestBody = nil
+probes[3].followRedirects = true
+probes[3].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 3)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "org.mozilla.thunderbird"
+changelogs[0].source = URL("https://www.thunderbird.net/en-US/thunderbird/releases/")
+changelogs[0].sourceTemplate? = "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<h[1-6][^>]*>\\s*Version\\s+(?<version>[^<|]+?)\\s*\\|\\s*Released\\s+(?<date>[^<]+?)\\s*</h[1-6]>(?<body>.*)"
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "<div class=\"note-text\">\\s*<p>(?<item>.*?)</p>"
+changelogs[0].itemPatterns[1] = "<div class=\"note-text\">\\s*(?<item>.*?)\\s*</div>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 1
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "org.mozilla.thunderbird"
+changelogs[1].source = URL("https://www.thunderbird.net/en-US/thunderbird/140.0/releasenotes/")
+changelogs[1].sourceTemplate? = "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<h[1-6][^>]*>\\s*Version\\s+(?<version>[^<|]+?)\\s*\\|\\s*Released\\s+(?<date>[^<]+?)\\s*</h[1-6]>(?<body>.*)"
+changelogs[1].itemPatterns = Array(count: 2)
+changelogs[1].itemPatterns[0] = "<div class=\"note-text\">\\s*<p>(?<item>.*?)</p>"
+changelogs[1].itemPatterns[1] = "<div class=\"note-text\">\\s*(?<item>.*?)\\s*</div>"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 1
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .esr
+changelogs[1].includesPromotedStable = false
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern = nil
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
+changelogs[2] = struct ChangelogRecipe
+changelogs[2].bundleID = "org.mozilla.thunderbirdbeta"
+changelogs[2].source = URL("https://www.thunderbird.net/en-US/thunderbird/152.0beta/releasenotes/")
+changelogs[2].sourceTemplate? = "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"
+changelogs[2].mode = .html
+changelogs[2].entryPattern = "<h[1-6][^>]*>\\s*Version\\s+(?<version>[^<|]+?)\\s*\\|\\s*Released\\s+(?<date>[^<]+?)\\s*</h[1-6]>(?<body>.*)"
+changelogs[2].itemPatterns = Array(count: 2)
+changelogs[2].itemPatterns[0] = "<div class=\"note-text\">\\s*<p>(?<item>.*?)</p>"
+changelogs[2].itemPatterns[1] = "<div class=\"note-text\">\\s*(?<item>.*?)\\s*</div>"
+changelogs[2].stripTags = true
+changelogs[2].decodeEntities = true
+changelogs[2].escapedMarkup = false
+changelogs[2].markdownSource = false
+changelogs[2].maxEntries? = 1
+changelogs[2].minItemLength = 1
+changelogs[2].newestLast = false
+changelogs[2].indexLinkPattern = nil
+changelogs[2].feedPagePattern = nil
+changelogs[2].channel? = .beta
+changelogs[2].includesPromotedStable = false
+changelogs[2].imagePattern = nil
+changelogs[2].headingPattern = nil
+changelogs[2].minimumAppVersion = nil
+changelogs[2].belowAppVersion = nil
+changelogs[2].acknowledgedStaleEntry = nil
+changelogs[2].structuredFormat = nil
+changelogs[2].httpMethod = .get
+changelogs[2].requestBody = nil
+changelogs[2].skipSections = Array(count: 0)
+changelogs[2].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 3)
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbird", channel: .esr)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbird", channel: .esr)].0 = "/thunderbird/releases/[0-9.]+esr/"
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbird-daily", channel: .nightly)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbird-daily", channel: .nightly)].0 = "/thunderbird/nightly/"
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbirdbeta", channel: .beta)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "org.mozilla.thunderbirdbeta", channel: .beta)].0 = "/thunderbird/releases/[0-9.]+b[0-9]+/"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

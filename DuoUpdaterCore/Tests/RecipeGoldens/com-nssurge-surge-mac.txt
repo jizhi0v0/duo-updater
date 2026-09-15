@@ -1,0 +1,29 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-nssurge-surge-mac"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.nssurge.surge-mac", channel: .beta)] = .recipeAnchor(_:in:)
+bindingProofs[ChannelProofKey(bundleID: "com.nssurge.surge-mac", channel: .beta)].0 = "appcast-signed-beta\\.xml"
+bindingProofs[ChannelProofKey(bundleID: "com.nssurge.surge-mac", channel: .beta)].in = Set(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.nssurge.surge-mac", channel: .beta)].in{0} = "feedOverride"
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 1)
+changelogPages["com.nssurge.surge-mac"] = URL("https://nssurge.com/support/mac/release-notes")

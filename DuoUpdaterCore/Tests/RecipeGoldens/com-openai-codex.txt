@@ -1,0 +1,111 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-openai-codex"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.openai.codex"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")
+probes[0].identities = Array(count: 1)
+probes[0].identities[0] = struct ProbeIdentity
+probes[0].identities[0].location = .applicationSupport(_:)
+probes[0].identities[0].location.0 = "com.openai.codex/production-appcast-bootstrap.json"
+probes[0].identities[0].encoding = .jsonKey(_:)
+probes[0].identities[0].encoding.0 = "installationId"
+probes[0].identities[0].validationPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+probes[0].identities[0].placeholder = "__IDENTITY__"
+probes[0].identities[0].fallback = nil
+probes[0].identities[0].maxBytes = 4096
+probes[0].track? = struct RolloutTrack
+probes[0].track?.selector = struct ProbeIdentity
+probes[0].track?.selector.location = .home(_:)
+probes[0].track?.selector.location.0 = ".codex/auth.json"
+probes[0].track?.selector.encoding = .jwtClaim(tokenPath:claimPath:)
+probes[0].track?.selector.encoding.tokenPath = Array(count: 2)
+probes[0].track?.selector.encoding.tokenPath[0] = "tokens"
+probes[0].track?.selector.encoding.tokenPath[1] = "access_token"
+probes[0].track?.selector.encoding.claimPath = Array(count: 2)
+probes[0].track?.selector.encoding.claimPath[0] = "https://api.openai.com/auth"
+probes[0].track?.selector.encoding.claimPath[1] = "chatgpt_plan_type"
+probes[0].track?.selector.validationPattern = "[a-z0-9_]{1,32}"
+probes[0].track?.selector.placeholder = "__PLANTYPE__"
+probes[0].track?.selector.fallback? = "unknown"
+probes[0].track?.selector.maxBytes = 32768
+probes[0].track?.contrastValue = "business"
+probes[0].track?.contrastTrackName = "the enterprise track"
+probes[0].mode = .responseBody
+probes[0].versionPattern = "<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://chatgpt.com/download/")
+probes[0].changelogURL? = URL("https://developers.openai.com/codex/changelog?type=codex-app")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "url=\"([^\"]+\\.zip)\""
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.openai.codex"
+changelogs[0].source = URL("https://learn.chatgpt.com/docs/changelog?type=codex-app")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<li id=\"codex-[^\"]*\"[^>]*data-codex-topics=\"[^\"]*codex-app[^\"]*\"[^>]*>.*?<time[^>]*>(?<date>[^<]+)</time>.*?<h3[^>]*>\\s*<span>\\s*(?<title>.*?)\\s*(?:<span[^>]*>\\s*(?<version>[^<]+)\\s*</span>)?\\s*</span>.*?</h3>.*?<article[^>]*>(?<body>.*?)</article>"
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "<li[^>]*>\\s*(?:<p>)?(?<item>.*?)(?:</p>)?\\s*</li>"
+changelogs[0].itemPatterns[1] = "<p>(?<item>.*?)</p>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

@@ -1,0 +1,124 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-microsoft-edgemac"
+
+probes = Array(count: 3)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.microsoft.edgemac"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "(?s)\"Product\"\\s*:\\s*\"Stable\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"ProductVersion\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){3})\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://www.microsoft.com/edge/download")
+probes[0].changelogURL? = URL("https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .redirect(_:)
+probes[0].install?.urlSource.0 = URL("https://go.microsoft.com/fwlink/?linkid=2093504")
+probes[0].install?.kind = .pkg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "com.microsoft.edgemac.Beta"
+probes[1].channel = .beta
+probes[1].variant = nil
+probes[1].hostRequirement = nil
+probes[1].installedVersionPattern = nil
+probes[1].buildLineage = nil
+probes[1].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "(?s)\"Product\"\\s*:\\s*\"Beta\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"ProductVersion\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){3})\""
+probes[1].transientBodyPattern = nil
+probes[1].trackClosedPattern? = "(?s)\"Product\"\\s*:\\s*\"Beta\"(?:(?!\"Platform\"\\s*:\\s*\"MacOS\")(?!\"Product\"\\s*:)[\\s\\S])*?(?:\"Product\"\\s*:|$)"
+probes[1].downloadURL? = URL("https://www.microsoftedgeinsider.com/download")
+probes[1].changelogURL? = URL("https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel")
+probes[1].selectHighest = false
+probes[1].versionIsBuild = false
+probes[1].buildNamespace = .bundle
+probes[1].displayVersionPattern = nil
+probes[1].publishedAtPattern = nil
+probes[1].entryStartPattern = nil
+probes[1].install? = struct VendorInstallSpec
+probes[1].install?.urlSource = .bodyPattern(_:)
+probes[1].install?.urlSource.0 = "(?s)\"Product\"\\s*:\\s*\"Beta\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Location\"\\s*:\\s*\"(https://[^\"]+\\.pkg)\""
+probes[1].install?.kind = .pkg
+probes[1].install?.checksumPattern = nil
+probes[1].install?.requestHeaders = Dictionary(count: 0)
+probes[1].install?.nestedArchivePath = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+probes[2] = struct VendorProbeRecipe
+probes[2].bundleID = "com.microsoft.edgemac.Dev"
+probes[2].channel = .dev
+probes[2].variant = nil
+probes[2].hostRequirement = nil
+probes[2].installedVersionPattern = nil
+probes[2].buildLineage = nil
+probes[2].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
+probes[2].identities = Array(count: 0)
+probes[2].track = nil
+probes[2].mode = .responseBody
+probes[2].versionPattern = "(?s)\"Product\"\\s*:\\s*\"Dev\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"ProductVersion\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){3})\""
+probes[2].transientBodyPattern = nil
+probes[2].trackClosedPattern = nil
+probes[2].downloadURL? = URL("https://www.microsoftedgeinsider.com/download")
+probes[2].changelogURL = nil
+probes[2].selectHighest = false
+probes[2].versionIsBuild = false
+probes[2].buildNamespace = .bundle
+probes[2].displayVersionPattern = nil
+probes[2].publishedAtPattern = nil
+probes[2].entryStartPattern = nil
+probes[2].install? = struct VendorInstallSpec
+probes[2].install?.urlSource = .bodyPattern(_:)
+probes[2].install?.urlSource.0 = "(?s)\"Product\"\\s*:\\s*\"Dev\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Location\"\\s*:\\s*\"(https://[^\"]+\\.pkg)\""
+probes[2].install?.kind = .pkg
+probes[2].install?.checksumPattern = nil
+probes[2].install?.requestHeaders = Dictionary(count: 0)
+probes[2].install?.nestedArchivePath = nil
+probes[2].requestBody = nil
+probes[2].followRedirects = true
+probes[2].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 2)
+channelProofs[ChannelProofKey(bundleID: "com.microsoft.edgemac.Beta", channel: .beta)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "com.microsoft.edgemac.Beta", channel: .beta)].0 = "MicrosoftEdgeBeta-"
+channelProofs[ChannelProofKey(bundleID: "com.microsoft.edgemac.Dev", channel: .dev)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "com.microsoft.edgemac.Dev", channel: .dev)].0 = "MicrosoftEdgeDev-"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

@@ -15,9 +15,13 @@
 #   • Actions pinned by commit SHA, not by tag. A tag can be moved.
 #
 # Standard GitHub-hosted runners are free and unlimited on public repositories, and
-# macos-latest is an arm64 M1 — which matters here because DuoUpdater is arm64-only
+# xcode-27 is an arm64 M1 — which matters here because DuoUpdater is arm64-only
 # by product decision (App/project.yml, ARCHS: arm64), so this builds and tests
 # natively rather than under emulation.
+#
+# There is no `macos-27` label: GitHub's only macOS 27 image is `xcode-27` (macOS 27
+# + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
+# runners are billed even on public repositories.
 name: CI
 
 on:
@@ -36,7 +40,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: xcode-27
     # `make test` reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.

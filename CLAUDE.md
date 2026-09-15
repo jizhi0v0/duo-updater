@@ -582,7 +582,8 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
 
 2026-09-05 起这个仓库有 CI,以前没有。写规矩之前先知道这些:
 
-- **`.github/workflows/ci.yml`** —— hosted runner(`macos-latest`,**arm64 3 核**)、
+- **`.github/workflows/ci.yml`** —— hosted runner(`xcode-27` = macOS 27 + Xcode 27,**arm64 3 核**;没有 `macos-27` 这个 label,
+  `-xlarge` 公开仓库也收费,别换)、
   `pull_request` + `push: main` + `workflow_dispatch`、**不带任何 secret**、action 按 SHA 钉住。
   公开仓库的标准 runner 免费不限量;单 job 上限 6 小时,我们自己设 60 分钟。
 - **`test` 是 main 的必需状态检查**,直推 main 被拒(实测退出码 1)。

@@ -189,12 +189,14 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   那个文件上。**普通 `/code-review` 和对抗复审同样适用。**
   2026-09-03 #314 多轮对抗复审共 13 条缺陷,其中 4 条在 `App/Sources`,**这 4 条里 3 条是修上一条时
   引入的**(#315 的 PR 描述;「App 层的测试 target」一节同源)。
-  2026-09-15 #660 第一轮 `/code-review` 抓到 `check_localizable_keys.py` 的 `test_targets()` 用
+  2026-09-15 #660 第一轮复审抓到 `check_localizable_keys.py` 的 `test_targets()` 用
   `[A-Za-z0-9_]+` 匹配 target 名,带连字符的 `duo-cli` 匹配不上。修复 c01be6f1 放宽了正则,根因没动
   ——没匹配上的 header 让 `current` 停在上一个 target 上,所以 `  duo-cli-tests: # hostless` 这种带
   行尾注释的 header 仍把 `type: bundle.unit-test` 记到前一个 target 头上(实测:插在 `duo-cli` 后面,
   c01be6f1 给 `{DuoUpdaterAppTests, duo-cli}`,f943f95c 给 `{DuoUpdaterAppTests, duo-cli-tests}`)。
   **只对 c01be6f1 单独跑的第二轮才抓到它**,修复是 f943f95c。而我那次在第一轮之后就停了,是被追问才补跑的。
+  (这些提交都没进 main:#660 是 squash 合的,合进去的 3b926232 里没有这个 parser——按 #660 的 PR
+  描述,它连着三轮被抓,在 PR 分支的 9fda2a49 里整个撤掉了。要看原提交就 `git fetch origin pull/660/head`。)
   - ⚠️ **用 `ReportFindings` 把发现重报成 `fixed` 不是复审**,是状态更新:它说「我改了」,不看改出来的东西。
   - **收敛的判据只有一条:一轮覆盖了上一轮之后的全部修复提交、且没有新的确证发现。** 条数降下来不算,
     还剩一条就没收敛;只挑修复里的一部分审,那一轮也不算。修复 diff 之外被它弄矛盾的旧说法,按

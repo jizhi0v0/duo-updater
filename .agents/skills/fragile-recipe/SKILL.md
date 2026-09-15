@@ -230,6 +230,11 @@ Editing a `.json5` family:
   produces, not its spelling (the family's golden shows it). Those forms appear only
   in factory families today (`com-lemon-lvoverseas`, `com-windscribe-client`,
   `dev-kdrag0n-MacVirt`).
+  A `\"\"\"…\"\"\"` multi-line literal is not raw: `\` there is an escape (a
+  trailing `\` at end of line joins the next with no newline, `\n` is a newline),
+  and the JSON string is the joined text with real newlines removed — e.g.
+  `com-google-GeminiMacOS.swift:42`'s request body. Copy the bytes the literal
+  yields, one JSON string, not the source with its `\` line-continuations.
 - **Comments** go where they would go in Swift: a block of whole-line `//` right
   before the entry it is about, or before the field inside the entry. Step 6
   applies to them unchanged; the snapshot and History-pointer checks read them.

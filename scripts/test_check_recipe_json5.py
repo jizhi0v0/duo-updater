@@ -111,6 +111,31 @@ class Dialect(unittest.TestCase):
                 self.assertEqual(crj.dialect_problems(text), [])
                 self.assertEqual(kinds(text), ["duplicate-key"])
 
+    # Mutation: compare keys byte-for-byte instead of on NFC. Swift `String` hashes
+    # on canonical equivalents, so a `[String: …]` table keeps one of these; the
+    # decoder and a byte-wise check both keep both and say nothing.
+    def test_canonically_equal_keys_are_refused(self):
+        cases = {
+            # U+212A KELVIN SIGN in "Keka" vs ASCII "K": NFC folds the sign to "K".
+            "kelvin": ("com.example.\u212Aeka", "com.example.Keka"),
+            # Decomposed cafe\u0301 (e + combining acute) vs precomposed caf\u00e9.
+            "cafe": ("cafe\u0301", "caf\u00e9"),
+        }
+        for name, (first, second) in cases.items():
+            with self.subTest(name):
+                assert first != second, "the two spellings must be distinct byte strings"
+                text = VALID.replace(
+                    '  "changelogPages": {}',
+                    f'  "changelogPages": {{"{first}": "x", "{second}": "y"}}')
+                self.assertEqual(crj.dialect_problems(text), [])
+                problems = crj.problems(text)
+                self.assertEqual([k for _, _, k, _ in problems], ["duplicate-key"])
+                # Both spellings, and "NFC", are named.
+                message = problems[0][3]
+                self.assertIn(first, message)
+                self.assertIn(second, message)
+                self.assertIn("NFC", message)
+
     # Mutation: stop blanking whole-line comments before json.loads (every file
     # with a comment fails), or blank a line that has code before `//`.
     def test_anything_else_outside_json_fails_json_loads(self):

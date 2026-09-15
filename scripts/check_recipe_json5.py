@@ -69,6 +69,7 @@ import json
 import pathlib
 import re
 import sys
+import unicodedata
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import recipe_families as families  # noqa: E402
@@ -204,12 +205,22 @@ def dialect_problems(text):
 
 def pairs(items):
     keys = [k for k, _ in items]
-    seen = set()
+    # Compared after NFC, because Swift `String` equality and hashing are on
+    # canonical equivalents: `"com.example.Keka"` and the same with U+212A KELVIN
+    # SIGN, or precomposed vs decomposed `café`, are distinct byte strings that a
+    # `[String: …]` table silently collapses to one. Python's own dict does not,
+    # so json.loads keeps both and this is the only place it is caught.
+    seen = {}
     for key in keys:
-        if key in seen:
-            raise DuplicateKey(f"key `{key}` appears twice in one object (its keys: {', '.join(keys)}); "
-                               "a JSON decoder silently keeps the first", key)
-        seen.add(key)
+        folded = unicodedata.normalize("NFC", key)
+        if folded in seen:
+            first = seen[folded]
+            spellings = f"`{first}` and `{key}`" if first != key else f"`{key}`"
+            note = "" if first == key else " (canonically equal after NFC)"
+            raise DuplicateKey(
+                f"key {spellings} appear twice in one object{note} (its keys: {', '.join(keys)}); "
+                "a JSON decoder silently keeps the first", folded)
+        seen[folded] = key
     return dict(items)
 
 
@@ -227,11 +238,13 @@ def problems(text):
     try:
         value = json.loads(blanked, object_pairs_hook=pairs, parse_constant=reject_constant)
     except DuplicateKey as error:
-        # The hook cannot see positions; name every line that spells the key.
-        key = error.args[1]
+        # The hook cannot see positions; name every line whose key folds to the same
+        # NFC form (so a decomposed spelling in the file is still found).
+        folded = error.args[1]
         where = [str(n) for n, line in enumerate(text.split("\n"), 1)
-                 if not is_comment(line) and f'"{key}"' in line.split(":", 1)[0]]
-        return [(0, 0, "duplicate-key", f"{error.args[0]} — `\"{key}\":` is on line(s) {', '.join(where)}")]
+                 if not is_comment(line) and '"' in line
+                 and unicodedata.normalize("NFC", line.split(":", 1)[0]).find(f'"{folded}"') >= 0]
+        return [(0, 0, "duplicate-key", f"{error.args[0]} — on line(s) {', '.join(where)}")]
     except json.JSONDecodeError as error:
         return [(error.lineno, error.colno, "not-json", error.msg)]
     except ValueError as error:

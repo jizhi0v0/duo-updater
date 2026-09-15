@@ -143,8 +143,8 @@ def pairs(items):
     seen = set()
     for key in keys:
         if key in seen:
-            raise DuplicateKey(f"key `{key}` appears twice in one object (its keys: {', '.join(keys)}) — "
-                               "a JSON decoder silently keeps the first")
+            raise DuplicateKey(f"key `{key}` appears twice in one object (its keys: {', '.join(keys)}); "
+                               "a JSON decoder silently keeps the first", key)
         seen.add(key)
     return dict(items)
 
@@ -163,7 +163,11 @@ def problems(text):
     try:
         json.loads(blanked, object_pairs_hook=pairs, parse_constant=reject_constant)
     except DuplicateKey as error:
-        return [(0, 0, "duplicate-key", str(error))]
+        # The hook cannot see positions; name every line that spells the key.
+        key = error.args[1]
+        where = [str(n) for n, line in enumerate(text.split("\n"), 1)
+                 if not is_comment(line) and f'"{key}"' in line.split(":", 1)[0]]
+        return [(0, 0, "duplicate-key", f"{error.args[0]} — `\"{key}\":` is on line(s) {', '.join(where)}")]
     except json.JSONDecodeError as error:
         return [(error.lineno, error.colno, "not-json", error.msg)]
     except ValueError as error:

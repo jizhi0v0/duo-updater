@@ -118,15 +118,67 @@ class Dialect(unittest.TestCase):
         self.assertEqual(kinds(VALID.replace('"maxEntries": 1e2', '"maxEntries": +1')), ["not-json"])
 
 
+class Characters(unittest.TestCase):
+    """Characters one reader treats as a line break, or skips as whitespace, while
+    another does not. The first case is the reviewer's reproduction: Foundation ends
+    the `//` comment at `\r` and decodes the evil URL as the first of two keys."""
+
+    HIDDEN = ('{\n "sparkleFeeds": {\n // note\r"com.x": "https://evil.example/a.xml",\n'
+              ' "com.x": "https://good.example/a.xml"\n }\n}\n')
+
+    # Mutation: drop `\r` (`\x0d`) from FORBIDDEN. The file then passes: the comment
+    # line is blanked whole, and with it the hidden duplicate.
+    def test_a_carriage_return_hiding_a_duplicate_is_refused(self):
+        self.assertEqual(kinds(self.HIDDEN), ["control-character"])
+        self.assertEqual(kinds(self.HIDDEN.replace("\r", "\n")), ["duplicate-key"])
+
+    # Mutation: narrow FORBIDDEN to `\r`, or drop its C1 / U+2028 / U+2029 / U+FEFF parts.
+    def test_every_other_line_breaking_or_invisible_character_is_refused(self):
+        for name, ch in {"VT": "\x0b", "FF": "\x0c", "FS": "\x1c", "US": "\x1f", "DEL": "\x7f",
+                         "NEL": "\x85", "LS": "\u2028", "PS": "\u2029", "BOM": "\ufeff",
+                         "NUL": "\x00"}.items():
+            with self.subTest(name):
+                text = VALID.replace("    // A comment before a field.", f"    // A comment{ch} before a field.")
+                self.assertEqual(kinds(text), ["control-character"])
+
+    # Mutation: let `character_problems` skip indentation, or use `lstrip()`
+    # (which strips NBSP) to find it.
+    def test_non_ascii_whitespace_in_indentation_is_refused(self):
+        for name, ch in {"NBSP": "\u00a0", "EM SPACE": "\u2003", "IDEOGRAPHIC SPACE": "\u3000"}.items():
+            with self.subTest(name):
+                text = VALID.replace("    // A comment before a field.", f"  {ch}  // A comment before a field.")
+                self.assertEqual(kinds(text), ["indentation"])
+        # Inside comment prose, the same characters are only text.
+        self.assertEqual(kinds(VALID.replace("A comment before", "A comment\u3000before")), [])
+
+    # Mutation: go back to `line.lstrip().startswith("//")` for `is_comment`.
+    def test_a_comment_line_is_spaces_and_tabs_then_slashes(self):
+        self.assertTrue(crj.is_comment(" \t // x"))
+        self.assertFalse(crj.is_comment("\u00a0// x"))
+
+    # Mutation: drop `string_problems` from `problems`.
+    def test_a_nul_or_lone_surrogate_escape_is_refused(self):
+        for name, escape in {"NUL": "\\u0000", "high": "\\uD800", "low": "\\uDC00"}.items():
+            with self.subTest(name):
+                text = VALID.replace('"kind": "zip"', f'"kind": "zip{escape}"')
+                self.assertEqual(kinds(text), ["bad-escape"])
+        self.assertEqual(kinds(VALID.replace('"kind": "zip"', '"kind": "zip\\uD83D\\uDE00"')), [])
+
+
 class Tree(unittest.TestCase):
     def setUp(self):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="duo-json5-"))
         self.addCleanup(shutil.rmtree, self.root, True)
         self.data = self.root / crj.RECIPE_DATA
         self.data.mkdir(parents=True)
+        (self.root / crj.families.RECIPES).mkdir(parents=True)
+        self.goldens = self.root / crj.families.GOLDENS
+        self.goldens.mkdir(parents=True)
 
-    def write(self, name, text):
+    def write(self, name, text, golden=True):
         (self.data / name).write_text(text)
+        if golden and name.endswith(".json5"):
+            (self.goldens / (name[:-len(".json5")] + ".txt")).write_text("golden\n")
 
     def main(self, **kwargs):
         with contextlib.redirect_stdout(io.StringIO()) as out, \
@@ -141,10 +193,53 @@ class Tree(unittest.TestCase):
 
     # Mutation: delete the floor, or lower `main`'s default below 1.
     def test_no_files_fails_by_default(self):
-        self.write("zz-fixture.json", VALID)  # wrong extension: not a family file
+        self.write("zz-fixture.json", VALID)  # wrong extension: refused, never counted
         code, output = self.main()
         self.assertEqual(code, 1)
         self.assertIn("only 0 recipe .json5 files", output)
+
+    # Mutation: glob `*.json5` in `review` again (non-families silently skipped), or
+    # drop a branch of `recipe_families.data_entries`.
+    def test_anything_but_a_regular_slug_json5_file_is_refused(self):
+        self.write("zz-fixture.json5", VALID)
+        cases = {
+            "other extension": lambda: (self.data / "zz-other.json").write_text(VALID),
+            "upper-case extension": lambda: (self.data / "zz-other.JSON5").write_text(VALID),
+            "dotfile": lambda: (self.data / ".DS_Store").write_bytes(b"\x00"),
+            "subdirectory": lambda: (self.data / "sub").mkdir(),
+            "file in a subdirectory": lambda: ((self.data / "sub").mkdir(), (self.data / "sub" / "zz-deep.json5").write_text(VALID)),
+            "symlink": lambda: (self.data / "zz-link.json5").symlink_to(self.data / "zz-fixture.json5"),
+            "leading dash": lambda: (self.data / "-zz.json5").write_text(VALID),
+        }
+        for name, make in cases.items():
+            with self.subTest(name):
+                make()
+                code, output = self.main()
+                self.assertEqual(code, 1, output)
+                self.assertIn("[not-a-family-file]", output)
+                if name == "symlink":
+                    # The regular-file branch refuses it too (it does not follow
+                    # links); this pins that the reason given is the real one.
+                    self.assertIn("is a symbolic link", output)
+                for entry in list(self.data.iterdir()):
+                    if entry.name != "zz-fixture.json5":
+                        shutil.rmtree(entry) if entry.is_dir() and not entry.is_symlink() else entry.unlink()
+
+    # Mutation: delete the reconcile check in `main`, or count only `.json5` files.
+    def test_the_family_count_must_reconcile_with_the_goldens(self):
+        self.write("zz-fixture.json5", VALID)
+        (self.root / crj.families.RECIPES / "aa-swift.swift").write_text("")
+        code, output = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("1 .swift + 1 .json5 family files: 2, but", output)
+        (self.goldens / "aa-swift.txt").write_text("golden\n")
+        self.assertEqual(self.main()[0], 0)
+        (self.goldens / "zz-extra.txt").write_text("golden\n")
+        self.assertEqual(self.main()[0], 1)
+        shutil.rmtree(self.goldens)
+        code, output = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("cannot be reconciled", output)
 
     # Mutation: `files < minimum` becomes `<=`.
     def test_the_floor_admits_exactly_the_minimum(self):
@@ -166,7 +261,8 @@ class Tree(unittest.TestCase):
         self.write("zz-fixture.json5", VALID)
         code, output = self.main()
         self.assertEqual(code, 0)
-        self.assertIn("✓ recipe .json5 files in dialect, no duplicate keys — 1 files", output)
+        self.assertIn("✓ recipe .json5 files in dialect, no duplicate keys — 1 files; "
+                      "family files reconcile with 1 goldens", output)
 
 
 if __name__ == "__main__":

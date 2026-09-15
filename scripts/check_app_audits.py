@@ -46,9 +46,13 @@ them do not, and turning a documentation backlog into a red build would only
 teach people to skip the check.
 """
 import os
+import pathlib
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import recipe_families  # noqa: E402
 
 AUD = "docs/app-audits"
 INDEX = os.path.join(AUD, "README.md")
@@ -156,6 +160,8 @@ def registry_bundle_ids():
         for name in os.listdir(src):
             if not name.endswith(extension):
                 continue
+            if extension == ".json5" and not recipe_families.DATA_FILE.fullmatch(name):
+                continue  # not a family; check_recipe_json5.py refuses it
             text = open(os.path.join(src, name), encoding="utf-8").read()
             ids.update(re.findall(pattern, text))
     return {i.replace(".", "-").lower() for i in ids}
@@ -203,8 +209,9 @@ RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
 # family to be wrong about, and counting them would overstate the family total.
 RECIPES_INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
 # Families written as data, one `<family>.json5` each (`RecipeFamilyFile`). Their
-# comments are whole `//` lines, read exactly like a Swift family's.
-RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
+# comments are whole `//` lines, read exactly like a Swift family's. What counts as
+# one is `recipe_families.py`'s answer.
+RECIPE_DATA = recipe_families.RECIPE_DATA
 
 # One line by convention (README.md). Anything after the anchor is prose, so a
 # trailing period or backtick does not change what is being pointed at.
@@ -249,7 +256,8 @@ def check_history_pointers(problems):
             if ".build" in dirpath.split(os.sep):
                 continue
             for name in sorted(filenames):
-                is_data = name.endswith(".json5") and dirpath == data_dir
+                is_data = (dirpath == data_dir and recipe_families.DATA_FILE.fullmatch(name) is not None
+                           and not os.path.islink(os.path.join(dirpath, name)))
                 if not name.endswith(".swift") and not is_data:
                     continue
                 path = os.path.join(dirpath, name)
@@ -305,13 +313,20 @@ def main():
     check_filename_matches_bundle_id(problems, registry_bundle_ids())
     scanned, families, data_families = check_history_pointers(problems)
 
-    # Same floor as check_engine_notes.py, plus one for each recipe directory the
-    # family rule keys on: if one moves, that rule would quietly check nothing
-    # there (the total alone would not notice the data families going).
-    if scanned < 100 or families < 100 or data_families < 1:
-        print(f"✗ history pointers: only {scanned} Swift files / {families} "
-              f"recipe family files ({data_families} .json5) scanned — too few to "
-              f"be a real run (did {RECIPES} or {RECIPE_DATA} move?)", file=sys.stderr)
+    # Same floor as check_engine_notes.py for the Swift files. For the families
+    # the family rule keys on, a floor says nothing about WHICH were read, so the
+    # count must equal the goldens, one per family the binary loads
+    # (recipe_families.py): a directory that moved, or a family the walk misses,
+    # would otherwise quietly leave its pointers unchecked.
+    mismatch = recipe_families.reconcile(
+        pathlib.Path(ROOT), families, f"recipe family files scanned ({data_families} .json5)")
+    if scanned < 100:
+        print(f"✗ history pointers: only {scanned} Swift files scanned — too few to be "
+              "a real run", file=sys.stderr)
+        return 1
+    if mismatch:
+        print(f"✗ history pointers: {mismatch} (did {RECIPES} or {RECIPE_DATA} move?)",
+              file=sys.stderr)
         return 1
 
     if problems:

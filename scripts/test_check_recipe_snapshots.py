@@ -114,12 +114,18 @@ class Snapshots(unittest.TestCase):
         self.recipes.mkdir(parents=True)
         self.data = self.root / crs.RECIPE_DATA
         self.data.mkdir(parents=True)
+        self.goldens = self.root / crs.families.GOLDENS
+        self.goldens.mkdir(parents=True)
 
+    # Each family gets its golden, so the reconcile in `main` holds unless a test
+    # breaks it on purpose.
     def write(self, family, text):
         (self.recipes / f"{family}.swift").write_text(text)
+        (self.goldens / f"{family}.txt").write_text("golden\n")
 
     def write_data(self, family, text):
         (self.data / f"{family}.json5").write_text(text)
+        (self.goldens / f"{family}.txt").write_text("golden\n")
 
     def review(self, shapes=None):
         return crs.review(self.root, shapes=shapes)
@@ -266,24 +272,26 @@ class Snapshots(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(crs.main(root=self.root, minimum=1), 1)
 
-    # Mutation: delete the data floor. The total floor alone passes a tree whose
-    # data families have all gone.
-    def test_no_json5_family_fails_the_data_floor(self):
+    # Mutations: delete the reconcile in `main`; list data files with a glob that
+    # misses one (`Recipes/sub/`, an upper-case extension). The floor alone passes a
+    # tree whose data families the listing no longer sees.
+    def test_the_guarded_count_must_reconcile_with_the_goldens(self):
         self.anchor()
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
-            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
-        self.assertIn(".json5 recipe families", err.getvalue())
         self.write_data("zz-data", "{}\n")
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(crs.main(root=self.root, minimum=1), 0)
+        (self.goldens / "zz-unlisted.txt").write_text("golden\n")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
+        self.assertIn("guarded recipe families: 2, but", err.getvalue())
 
     # Mutation: check only the Swift directory for existence.
     def test_a_missing_data_dir_is_a_failure(self):
         self.anchor()
         shutil.rmtree(self.data)
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(crs.main(root=self.root, minimum=0, minimum_data=0), 1)
+            self.assertEqual(crs.main(root=self.root, minimum=0), 1)
 
     # Mutation: `return found` without reporting a missing Recipes directory.
     def test_a_missing_recipes_dir_is_a_failure(self):
@@ -302,7 +310,7 @@ class Snapshots(unittest.TestCase):
         self.anchor()
         self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(crs.main(root=self.root, minimum=2, minimum_data=0), 0)
+            self.assertEqual(crs.main(root=self.root, minimum=2), 0)
 
     # Mutation: lower `main`'s default floor. Called without `minimum`, a
     # two-family tree must not pass as a real run.
@@ -328,7 +336,7 @@ class Snapshots(unittest.TestCase):
         # Captured so the `make test` log holds one success line, the real run's.
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(crs.main(root=self.root, minimum=1, minimum_data=0), 0)
+            self.assertEqual(crs.main(root=self.root, minimum=1), 0)
         self.assertIn("✓ no dated snapshots in recipe comments — 2 families guarded",
                       out.getvalue())
 

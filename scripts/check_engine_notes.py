@@ -34,9 +34,13 @@ clones this repo" — the same narrow, mechanical question
 `check_prose_claims.py` answers about a different shape of drift.
 """
 import os
+import pathlib
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import recipe_families  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NOTES_DIR = "docs/engine-notes"
@@ -47,8 +51,9 @@ SOURCE_ROOTS = [
     "App/Sources", "App/Tests",
     "CLI/Sources", "CLI/Tests",
 ]
-# Recipe families written as data (`RecipeFamilyFile`), under the first root.
-RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
+# Recipe families written as data (`RecipeFamilyFile`), under the first root;
+# what counts as one is `recipe_families.py`'s answer.
+RECIPE_DATA = recipe_families.RECIPE_DATA
 
 # A pointer like `` `docs/engine-notes/app-store-page-cache.md` §4.2 ``, or a
 # run of them (`§1, §2, and §3`). Sections are optional — pointing at a whole
@@ -179,7 +184,9 @@ def check_pointers(problems, tracked):
                 # A recipe family written as data carries its comments as whole
                 # `//` lines too, so a pointer can live there; it does not count
                 # toward the Swift-file floor below.
-                is_data = name.endswith(".json5") and dirpath == os.path.join(ROOT, RECIPE_DATA)
+                is_data = (dirpath == os.path.join(ROOT, RECIPE_DATA)
+                           and recipe_families.DATA_FILE.fullmatch(name) is not None
+                           and not os.path.islink(os.path.join(dirpath, name)))
                 if not name.endswith(".swift") and not is_data:
                     continue
                 path = os.path.join(dirpath, name)
@@ -302,9 +309,18 @@ def main():
     check_doc_links(problems, tracked)
     n_docs = check_index(problems, tracked)
 
-    if scanned < 100 or data < 1:
-        print(f"✗ only {scanned} Swift files and {data} recipe .json5 files scanned "
-              f"across {len(SOURCE_ROOTS)} roots — too few to be a real run.", file=sys.stderr)
+    # The data files read must be every data family: goldens (one per family the
+    # binary loads) minus the Swift family files. A floor of one would say nothing.
+    swift_families = len(recipe_families.swift_family_files(ROOT))
+    mismatch = recipe_families.reconcile(
+        pathlib.Path(ROOT), swift_families + data,
+        f"{swift_families} Swift family files + {data} recipe .json5 files scanned")
+    if scanned < 100:
+        print(f"✗ only {scanned} Swift files scanned across {len(SOURCE_ROOTS)} roots — "
+              "too few to be a real run.", file=sys.stderr)
+        return 1
+    if mismatch:
+        print(f"✗ {mismatch}", file=sys.stderr)
         return 1
 
     if problems:

@@ -25,8 +25,9 @@ Every family is guarded: every `*.swift` file under `Recipes/` except the two
 infrastructure files `AppRecipeIndexTests.infrastructure` also names, and every
 `*.json5` file under `Resources/Recipes/` (a family written as data, whose
 comments are whole `//` lines too). A brand new family is guarded from its first
-commit. Each directory has a floor, so one that moves fails the run instead of
-quietly leaving its families unguarded.
+commit. A missing directory fails the run, and the number of guarded families
+must equal the number of recipe goldens, so a family the listing misses fails it
+too (`recipe_families.py`).
 
 ## Shapes
 
@@ -96,12 +97,14 @@ import pathlib
 import re
 import sys
 
-RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
-# Not families: the same two files `AppRecipeIndexTests.infrastructure` names.
-INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
-# Families written as data (`RecipeFamilyFile`): whole-line `//` comments only,
-# so the paragraph reading below is the same for them.
-RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import recipe_families as families  # noqa: E402
+
+# Which files are families is `recipe_families.py`'s answer. Families written as
+# data (`RecipeFamilyFile`) have whole-line `//` comments only, so the paragraph
+# reading below is the same for them.
+RECIPES = families.RECIPES
+RECIPE_DATA = families.RECIPE_DATA
 
 DATE = r"20\d\d-\d\d-\d\d"
 OBSERVED = (r"(?:measured|re-?measured|verified|re-?verified|observed|checked|"
@@ -309,13 +312,11 @@ def scan(text, shapes=None):
 
 def review(root, shapes=None):
     """Everything the check knows, as data, so the tests can drive it."""
-    base, data = root / RECIPES, root / RECIPE_DATA
     missing = [d for d in (RECIPES, RECIPE_DATA) if not (root / d).is_dir()]
     found = {"missing": missing, "guarded": 0, "data": 0, "offences": [], "stale": []}
     if found["missing"]:
         return found
-    paths = sorted([p for p in base.glob("*.swift") if p.name not in INFRASTRUCTURE]
-                   + list(data.glob("*.json5")),
+    paths = sorted(families.swift_family_files(root) + families.data_family_files(root),
                    key=lambda p: p.stem.lower())
     for path in paths:
         text = path.read_text(errors="replace")
@@ -345,7 +346,7 @@ def canary_problems(shapes=None):
     return problems
 
 
-def main(root=None, minimum=100, shapes=None, minimum_data=1):
+def main(root=None, minimum=100, shapes=None):
     root = root or pathlib.Path(__file__).resolve().parent.parent
 
     canaries = canary_problems(shapes)
@@ -366,11 +367,12 @@ def main(root=None, minimum=100, shapes=None, minimum_data=1):
         print(f"✗ only {found['guarded']} guarded recipe families — too few to "
               "be a real run.", file=sys.stderr)
         return 1
-    # Its own floor: the total above would not notice the data families going
-    # missing while the Swift ones still clear it.
-    if found["data"] < minimum_data:
-        print(f"✗ only {found['data']} .json5 recipe families under {RECIPE_DATA} — "
-              "too few to be a real run.", file=sys.stderr)
+    # The floor above says nothing about WHICH families: a data family missed by
+    # the listing while the Swift ones still clear it would pass. The goldens count
+    # the families the binary loads (recipe_families.py).
+    mismatch = families.reconcile(root, found["guarded"], "guarded recipe families")
+    if mismatch:
+        print(f"✗ {mismatch}", file=sys.stderr)
         return 1
 
     offences, stale = found["offences"], found["stale"]

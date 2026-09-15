@@ -45,6 +45,17 @@ import Foundation
 /// offered another release. `_versionOrder` — the index's own ranking, which
 /// already sorts release above rc above beta within a version — decides "newer",
 /// so no string comparison has to understand Apple's build spelling.
+///
+/// ## The macOS floor
+///
+/// Every entry states the macOS it needs (`requires`), and the floor MOVES inside
+/// one Xcode version: measured 2026-09-15 on the live index, 27.0 RC 1
+/// (`27A266a`) requires macOS 26.6 while all six 27.0 betas require 26.4. This
+/// source was ignoring the field, so a Mac on 26.0–26.5 was shown 27.0 RC as
+/// available — detection-only, so the cost was a row nobody could act on rather
+/// than a failed install, but it was still a version that does not exist for that
+/// Mac (#640). The floor now both bounds the candidates and rides along on the
+/// `RemoteVersion`.
 public struct XcodeReleasesSource: UpdateSource {
 
     static let sourceName = "Xcode Releases"
@@ -71,13 +82,21 @@ public struct XcodeReleasesSource: UpdateSource {
         // `AppScanner` puts `ProductBuildVersion` here for Xcode — see the table above.
         guard let installedBuild = app.buildVersion, !installedBuild.isEmpty else { return nil }
 
-        return Self.remote(forBuild: installedBuild, in: try await fetch())
+        return Self.remote(
+            forBuild: installedBuild, in: try await fetch(), osVersion: HostOS.numericVersion())
     }
 
     /// What `latestVersion` reports for an installed build, given the index. Pure,
     /// so the engine's verdict on it is testable without network.
-    static func remote(forBuild installedBuild: String, in releases: [Release]) -> RemoteVersion? {
-        guard let (installed, offer) = Self.offer(forBuild: installedBuild, in: releases)
+    ///
+    /// `osVersion` has no default on purpose: the index states a macOS floor per
+    /// release (`requires`), so this function's answer depends on the host, and a
+    /// default would let a test silently measure whichever Mac it runs on.
+    static func remote(
+        forBuild installedBuild: String, in releases: [Release], osVersion: String
+    ) -> RemoteVersion? {
+        guard let (installed, offer) = Self.offer(
+            forBuild: installedBuild, in: releases, osVersion: osVersion)
         else { return nil }
 
         return RemoteVersion(
@@ -94,6 +113,18 @@ public struct XcodeReleasesSource: UpdateSource {
             // that is exists nowhere in the bundle — so "27.0 beta 1 → 27.0 beta 5"
             // instead of an opaque build number on the left.
             installedDisplayVersion: installed.displayVersion,
+            // The index's own `requires` — the macOS this build needs. Measured
+            // 2026-09-15 on the live `data.json`: all 451 entries carry one, and
+            // the 27.0 ladder is not flat — RC 1 (`27A266a`) requires "26.6"
+            // while every 27.0 beta requires "26.4", which is why a Mac on
+            // 26.0–26.5 was shown the RC (#640).
+            //
+            // The refusal itself already happened: `offer` above bounded its
+            // candidates by this value, so the build named here is one this Mac
+            // can run. Carried anyway because it is a fact about the release —
+            // the row's "requires macOS N" line (#634 part 3) reads it, and it
+            // is what install-time gate 6 will be checked against.
+            minimumSystemVersion: offer.requires,
             sourceName: Self.sourceName,
             requiresManualInstaller: true,
             changelogURL: offer.notesURL,
@@ -124,8 +155,17 @@ public struct XcodeReleasesSource: UpdateSource {
     /// own comparison concludes "up to date" — this never asserts a verdict itself.
     /// The installed one is returned alongside because it carries the only place its
     /// track is written down ("27.0 beta 1").
+    ///
+    /// Candidates are also bounded by the host: the index states each release's
+    /// macOS floor and they differ WITHIN one version — measured 2026-09-15,
+    /// 27.0 RC 1 requires macOS 26.6 while 27.0 beta 6 requires 26.4 — so a Mac
+    /// on 26.4 is offered the newest beta rather than an RC it cannot run. This is
+    /// the shape `SparkleAppcastSource.usableItems` has always had (filter the
+    /// candidate list, then take its head), with the same predicate;
+    /// `UpdateChecker.evaluate`'s floor check is the backstop for sources that do
+    /// not choose among candidates, not a substitute for choosing well here.
     static func offer(
-        forBuild installedBuild: String, in releases: [Release]
+        forBuild installedBuild: String, in releases: [Release], osVersion: String
     ) -> (installed: Release, offer: Release)? {
         // Several entries can share a build (26.6 RC 2 and 26.6 release are the same
         // binary, `17F113`). Identical bits, so take the most stable reading of it:
@@ -138,7 +178,12 @@ public struct XcodeReleasesSource: UpdateSource {
         // Stability floor: offer anything at or above the installed stability, never
         // below. A beta may be superseded by a newer beta, an RC, or the GA; a
         // release is only ever superseded by another release.
-        let candidates = releases.filter { $0.stability >= installed.stability }
+        // ...and by what this Mac can run. `installed` is deliberately NOT
+        // filtered: it is on disk, so whatever it declares, it runs here.
+        let candidates = releases.filter {
+            $0.stability >= installed.stability
+                && SignatureVerifier.canRun(minimumSystemVersion: $0.requires, on: osVersion)
+        }
         guard let latest = candidates.max(by: { $0.order < $1.order }) else {
             return (installed, installed)
         }
@@ -188,6 +233,11 @@ public struct XcodeReleasesSource: UpdateSource {
         /// already ranks release > rc > beta inside a version.
         let order: Int
         let notesURL: URL?
+        /// The index's `requires`: the macOS this build needs ("26.6"). Optional
+        /// because nothing in the feed's shape guarantees it — every one of the
+        /// 451 entries carried one when measured 2026-09-15, but an entry that
+        /// stops doing so must fail open (no floor = no refusal), not vanish.
+        let requires: String?
         /// What the row shows: "27.0 beta 5 (27A5237l)", "26.6 RC 2 (17F113)", "26.6
     /// (17F113)". The build rides along on BOTH sides of a "from → to" line: it is
     /// the only exact identity Xcode has, and betas of the same number get respun
@@ -220,6 +270,7 @@ public struct XcodeReleasesSource: UpdateSource {
             self.number = number
             self.stability = stability
             self.order = order
+            self.requires = json["requires"] as? String
             let label = suffix.map { "\(number) \($0)" } ?? number
             self.displayVersion = "\(label) (\(build))"
             self.notesURL = ((json["links"] as? [String: Any])?["notes"] as? [String: Any])

@@ -184,13 +184,16 @@ public struct VendorHostRequirement: Sendable, Equatable {
     /// Whether a host meets this requirement. Takes the host as arguments rather
     /// than reading `HostArch.current` / `ProcessInfo` so the gate is testable off
     /// whatever machine the tests happen to run on.
+    /// The floor half is `SignatureVerifier.canRun` — install-time gate 6's own
+    /// comparison, and the one every other OS floor in this codebase calls (see
+    /// `HostOS` for the list and for why they must not be able to disagree). It
+    /// used to be a fourth hand-written `VersionComparator.compare(...) ==
+    /// .orderedAscending`; the only behavioural difference is that `canRun` fails
+    /// OPEN on a declared value with no digit in it, where this spelling let such
+    /// a string reach the tokenizer.
     public func isSatisfied(byOS osVersion: String, arch: HostArch) -> Bool {
         if !architectures.isEmpty, !architectures.contains(arch) { return false }
-        if let minOS = minimumSystemVersion, !minOS.isEmpty,
-           VersionComparator.compare(osVersion, minOS) == .orderedAscending {
-            return false
-        }
-        return true
+        return SignatureVerifier.canRun(minimumSystemVersion: minimumSystemVersion, on: osVersion)
     }
 }
 

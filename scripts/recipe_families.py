@@ -32,7 +32,7 @@ RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
 GOLDENS = "DuoUpdaterCore/Tests/RecipeGoldens"
 INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
 # `AppRecipeIndexTests.familySlugsAreUniqueAndWellFormed`'s slug, plus the
-# extension, exactly (case included). Must match `RecipeFamilyFile.fileName`.
+# extension, exactly (case included). Must match `RecipeFamilyFile.isFamilyFileName`.
 DATA_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]*\.json5")
 
 

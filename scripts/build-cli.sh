@@ -54,7 +54,9 @@ die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 # path no longer exists and removing it is a no-op.
 BUNDLE_TMP=""
 TMP=""
+SELFTEST=""
 cleanup() {
+    if [ -n "$SELFTEST" ]; then rm -rf "$SELFTEST"; fi
     if [ -n "$BUNDLE_TMP" ]; then rm -rf "$BUNDLE_TMP"; fi
     if [ -n "$TMP" ]; then rm -f "$TMP"; fi
     rm -f "$STAMP.new"
@@ -105,6 +107,52 @@ PRODUCT_RECIPES="$PRODUCT_BUNDLE/Contents/Resources/Recipes"
 BUILT_DIGEST="$(recipe_digest "$PRODUCT_RECIPES")" || die "the built bundle's recipe directory cannot be digested"
 [ "$BUILT_DIGEST" = "$RECIPE_DIGEST" ] \
     || die "the recipe files in $PRODUCT_RECIPES differ from the ones the binary was built with"
+
+# The checks above prove the digest is embedded. This proves the binary USES it:
+# the whole CLI security property is one line in AppRecipeIndex.dataFamilies (the
+# Info.plist read), and replacing it with `expectedDigest: nil` compiles, passes
+# every unit test (no test process carries the key) and would pass everything above.
+#
+# A staged copy of the binary and bundle is run twice with
+#     duo verify --only <a name no recipe has>
+# chosen because it reaches the recipe index before anything else happens and never
+# reaches the network or writes a file (CLI/Sources/duo/main.swift only parses flags;
+# Verify.run first asks SourceStamp whether cwd is a checkout, which the staging
+# directory is not, so nothing is read there; its next statement is
+# `VendorProbeRegistry.recipes`, the index's first access; with no recipe matching
+# it exits 2 with "nothing to verify" before `installedVersions()` or any sweep).
+#   1. untouched: must exit with "nothing to verify — no recipe matches", i.e. the
+#      staged binary found its bundle and the data matched its digest;
+#   2. one byte appended to a family file: must exit non-zero with the loader's
+#      "are not the ones this executable was built with".
+# HOME points into staging so nothing can read or touch ~/.local or the user's
+# state, and cwd is the staging directory. PACKAGE_RESOURCE_BUNDLE_PATH is unset
+# (Debug builds would honour it).
+#
+# Run 2 traps on purpose, so every `make cli` leaves one crash report,
+# ~/Library/Logs/DiagnosticReports/duo-cli-<timestamp>.ips. That is the cost of
+# testing the real trap rather than a stand-in for it.
+say "Verifying the binary refuses recipe data it was not built with"
+SELFTEST="$(mktemp -d "${TMPDIR:-/tmp}/duo-cli-selftest.XXXXXX")"
+cp -p "$PRODUCT" "$SELFTEST/duo-cli"
+ditto "$PRODUCT_BUNDLE" "$SELFTEST/$RESOURCE_BUNDLE"
+mkdir "$SELFTEST/home"
+selftest() {
+    ( cd "$SELFTEST" && env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
+        HOME="$SELFTEST/home" CFFIXED_USER_HOME="$SELFTEST/home" \
+        ./duo-cli verify --only zz-duo-recipe-digest-selftest ) > "$SELFTEST/$1.out" 2>&1
+}
+SELFTEST_STATUS=0; selftest untouched || SELFTEST_STATUS=$?
+grep -q "nothing to verify — no recipe matches zz-duo-recipe-digest-selftest" "$SELFTEST/untouched.out" \
+    || die "self-test: the staged binary with untouched recipe data did not reach its recipe index (exit $SELFTEST_STATUS): $(tail -n 3 "$SELFTEST/untouched.out")"
+SELFTEST_FILE="$(ls "$SELFTEST/$RESOURCE_BUNDLE/Contents/Resources/Recipes/"*.json5 | head -n 1)"
+printf ' ' >> "$SELFTEST_FILE"
+SELFTEST_STATUS=0; selftest tampered || SELFTEST_STATUS=$?
+[ "$SELFTEST_STATUS" -ne 0 ] \
+    || die "self-test: the staged binary ran with a tampered recipe file and exited 0 — it is not checking its recipe digest"
+grep -q "are not the ones this executable was built with" "$SELFTEST/tampered.out" \
+    || die "self-test: with a tampered recipe file the binary exited $SELFTEST_STATUS but stderr lacks \"are not the ones this executable was built with\" — is AppRecipeIndex.dataFamilies still passing the Info.plist digest? Last lines: $(tail -n 3 "$SELFTEST/tampered.out")"
+rm -rf "$SELFTEST"; SELFTEST=""
 
 # What this binary was built from, beside the binary, so `duo verify` can refuse to
 # sweep with recipes that are not the ones in the reader's tree. The recipes ship

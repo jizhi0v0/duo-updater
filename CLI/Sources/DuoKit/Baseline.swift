@@ -298,27 +298,42 @@ public struct Baseline: Codable, Sendable {
     /// page matching a different element — the case the check exists for, which
     /// neither the lag check (same major.minor) nor the probe's row can see.
     ///
-    /// The page is re-derived from each version by the recipe's own template.
-    /// A heading can lead with the product name ("Xcode 27 Beta 6"), which the
-    /// template tokens do not expect, so everything before the first digit is
-    /// dropped first. A version with no digit at all names no page, and the check
-    /// keeps applying.
+    /// Pages are re-derived from versions by the recipe's own template
+    /// (`templatedPage`), and that is only sound once this sweep's version is
+    /// known to be a reading of the page it came from — `finding.headingMatchesPage`,
+    /// set by the sweep against the page it actually requested. Without it, a
+    /// template keyed on the whole `{version}` would turn every older heading into
+    /// "another page", including the pattern slipping from 4.1.2 to 4.1.1 on
+    /// 4.1.2's own page, which the lag check cannot see either (same major.minor).
+    /// Unknown keeps the check: a false BACKWARDS is noise, a missed one is silence.
     ///
-    /// Any other recipe reads one page whatever the version — `resolvedSource`
-    /// returns its fixed `source` — so it never reads different pages and always
-    /// keeps the check. Asked by recipe id, not by bundle id as `ordersByLineage`
-    /// asks for a changelog: the probe row of the same app has no changelog
-    /// recipe id, and it is a row that must keep the check.
+    /// Asked by recipe id, not by bundle id as `ordersByLineage` asks for a
+    /// changelog: the probe row of the same app has no changelog recipe id, and it
+    /// is a row that must keep the check.
     static func readDifferentPages(
         _ finding: Finding, previous: String, current: String
     ) -> Bool {
-        guard let recipe = ChangelogRecipeRegistry.recipes.first(where: {
-            $0.recipeID == finding.recipeID
-        }) else { return false }
-        let versions = [previous, current].map { String($0.drop { !$0.isNumber }) }
-        guard !versions.contains(where: \.isEmpty) else { return false }
-        return recipe.resolvedSource(forVersion: versions[0])
-            != recipe.resolvedSource(forVersion: versions[1])
+        guard finding.headingMatchesPage == true,
+              let recipe = ChangelogRecipeRegistry.recipes.first(where: {
+                  $0.recipeID == finding.recipeID
+              }),
+              let previousPage = templatedPage(recipe, forHeading: previous),
+              let currentPage = templatedPage(recipe, forHeading: current)
+        else { return false }
+        return previousPage != currentPage
+    }
+
+    /// The page a version-templated recipe's template resolves for a version as
+    /// an entry heading carries it; nil when the recipe is not templated or the
+    /// version has no digit to name a page by.
+    ///
+    /// A heading can lead with the product name ("Xcode 27 Beta 6"), which the
+    /// template tokens do not expect, so everything before the first digit is
+    /// dropped first.
+    static func templatedPage(_ recipe: ChangelogRecipe, forHeading version: String) -> URL? {
+        let digits = String(version.drop { !$0.isNumber })
+        guard recipe.sourceTemplate != nil, !digits.isEmpty else { return nil }
+        return recipe.resolvedSource(forVersion: digits)
     }
 
     /// Compare this run against what we knew, returning every complaint to

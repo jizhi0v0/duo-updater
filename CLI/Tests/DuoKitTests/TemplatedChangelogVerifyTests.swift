@@ -11,11 +11,15 @@ import DuoUpdaterCore
 
     private static let templated = ChangelogRecipeRegistry.recipes.filter { $0.sourceTemplate != nil }
 
-    private func changelogFinding(_ recipe: ChangelogRecipe, version: String) -> Finding {
+    /// `matchesPage` is what the sweep records as `headingMatchesPage`: true when
+    /// the heading resolves to the page that was requested, nil when not recorded.
+    private func changelogFinding(
+        _ recipe: ChangelogRecipe, version: String, matchesPage: Bool? = nil
+    ) -> Finding {
         Finding(
             recipeID: recipe.recipeID, registry: .changelog, bundleID: recipe.bundleID,
             channel: recipe.channel?.rawValue ?? "-", status: .ok, version: version,
-            endpointHost: "example.invalid", entryCount: 1)
+            endpointHost: "example.invalid", entryCount: 1, headingMatchesPage: matchesPage)
     }
 
     private func source(
@@ -31,10 +35,11 @@ import DuoUpdaterCore
     // MARK: - BACKWARDS
 
     /// A machine on an older minor reads an older page than the one the baseline
-    /// was recorded from. Recorded 5.1, then 4.5 on three sweeps: no complaint, no
-    /// `warn`, no streak. 5.1 and 4.5 differ in every component, so they resolve
-    /// to different pages under every template. Derived from the registry, so
-    /// every templated recipe is held to it as recipes come and go.
+    /// was recorded from. Recorded 5.1, then 4.5 on three sweeps, each heading a
+    /// reading of its own page: no complaint, no `warn`, no streak. 5.1 and 4.5
+    /// differ in every component, so they resolve to different pages under every
+    /// template. Derived from the registry, so every templated recipe is held to
+    /// it as recipes come and go.
     ///
     /// Mutation: delete the `!Self.readDifferentPages(…),` line from `reconcile`.
     @Test func aTemplatedChangelogOnAnOlderPageIsNotGoingBackwards() throws {
@@ -46,10 +51,10 @@ import DuoUpdaterCore
                     "\(recipe.recipeID)")
             var baseline = Baseline()
             _ = Verify.foldingBaselineComplaints(
-                [changelogFinding(recipe, version: "5.1")], into: &baseline)
+                [changelogFinding(recipe, version: "5.1", matchesPage: true)], into: &baseline)
             for _ in 1...3 {
                 let out = Verify.foldingBaselineComplaints(
-                    [changelogFinding(recipe, version: "4.5")], into: &baseline)
+                    [changelogFinding(recipe, version: "4.5", matchesPage: true)], into: &baseline)
                 #expect(!out[0].warnings.contains { $0.contains("BACKWARDS") }, "\(recipe.recipeID)")
                 #expect(out[0].status == .ok, "\(recipe.recipeID)")
             }
@@ -62,10 +67,11 @@ import DuoUpdaterCore
     /// changelog, and the probe row of an app whose changelog IS templated, still
     /// complain.
     ///
-    /// Mutations: make `readDifferentPages` return `true` after its guards (the
-    /// untemplated changelog goes quiet); match on
-    /// `$0.bundleID == finding.bundleID` instead of the recipe id (the probe row
-    /// goes quiet).
+    /// Mutation: replace the body of `readDifferentPages` with `return true` (both
+    /// go quiet). No one-line mutation silences either half, by construction:
+    /// neither finding carries `headingMatchesPage`, neither id names a templated
+    /// recipe, and an untemplated recipe has no templated page — three
+    /// independent guards. This test pins them against a rewrite, not a slip.
     @Test func untemplatedChangelogsAndProbeRowsStillGoBackwards() throws {
         let untemplated = try #require(ChangelogRecipeRegistry.recipes.first {
             $0.sourceTemplate == nil && !VendorProbeRegistry.ordersByLineage(bundleID: $0.bundleID)
@@ -92,17 +98,47 @@ import DuoUpdaterCore
             .contains { $0.contains("BACKWARDS") }, "\(probe.recipeID)")
     }
 
+    /// A template keyed on the whole `{version}` gives every version its own
+    /// page, so re-deriving pages from two headings always answers "different".
+    /// When the pattern slips from 155.0.2 to an older 155.0.1 entry while the
+    /// sweep requested 155.0.2's page, the heading does NOT match the page, and
+    /// that has to keep the check — nothing else sees it: the lag check compares
+    /// major.minor, which is equal. Nil (not recorded) keeps it too. The pair is
+    /// first shown to resolve to different pages and to slip past the lag check,
+    /// so the test measures the flag and not a fixture that was already safe.
+    ///
+    /// Mutation: delete `finding.headingMatchesPage == true,` from
+    /// `readDifferentPages` — the heading-derived comparison this PR shipped first.
+    @Test func aSlippedHeadingOnAWholeVersionPageStillGoesBackwards() throws {
+        let thunderbird = try #require(Self.templated.first {
+            $0.bundleID == "org.mozilla.thunderbird" && $0.channel == .stable
+        })
+        try #require(thunderbird.sourceTemplate?.contains("{version}") == true)
+        try #require(VersionComparator.isNewer("155.0.2", than: "155.0.1"))
+        try #require(Baseline.templatedPage(thunderbird, forHeading: "155.0.2")
+            != Baseline.templatedPage(thunderbird, forHeading: "155.0.1"))
+        try #require(Verify.changelogLagComplaint(entry: "155.0.1", detected: "155.0.2") == nil)
+
+        for matchesPage in [false, nil] as [Bool?] {
+            var baseline = Baseline()
+            _ = baseline.reconcile(changelogFinding(thunderbird, version: "155.0.2", matchesPage: true))
+            #expect(baseline.reconcile(
+                changelogFinding(thunderbird, version: "155.0.1", matchesPage: matchesPage))
+                .contains { $0.contains("BACKWARDS") }, "headingMatchesPage=\(String(describing: matchesPage))")
+        }
+    }
+
     /// A template keyed on less than the whole version shares one page across
     /// versions, and an older heading on that same page is the element slip the
-    /// check exists for. Opera's `{major}` page and Xcode's betas under one
-    /// `{appleDocVersion}` page — the latter headed "Xcode 27 Beta 6", as
+    /// check exists for — even when that heading does resolve to the page.
+    /// Opera's `{major}` page and Xcode's betas under one `{appleDocVersion}`
+    /// page — the latter headed "Xcode 27 Beta 6", as
     /// `XcodeReleaseNotesChangelogTests` pins. Both pairs are first shown to
-    /// resolve to one page, so the test measures the page comparison rather than
-    /// a fixture that happens to differ.
+    /// resolve to one page, so the test measures the page comparison.
     ///
-    /// Mutations: make `readDifferentPages` return `true` after its guards (the
-    /// blanket exemption: both go quiet); drop the `.drop { !$0.isNumber }` (Xcode's
-    /// headings resolve to two junk URLs and go quiet).
+    /// Mutations: `return previousPage != currentPage` → `return true` (both go
+    /// quiet); drop `.drop { !$0.isNumber }` in `templatedPage` (Xcode's headings
+    /// resolve to two junk URLs and go quiet).
     @Test func anOlderHeadingOnTheSamePageStillGoesBackwards() throws {
         let cases: [(bundleID: String, previous: String, current: String)] = [
             ("com.operasoftware.Opera", "135.0.5973.123", "135.0.5973.35"),
@@ -116,27 +152,25 @@ import DuoUpdaterCore
                 == recipe.resolvedSource(forVersion: digits(current)), "\(bundleID)")
 
             var baseline = Baseline()
-            _ = baseline.reconcile(changelogFinding(recipe, version: previous))
-            #expect(baseline.reconcile(changelogFinding(recipe, version: current))
+            _ = baseline.reconcile(changelogFinding(recipe, version: previous, matchesPage: true))
+            #expect(baseline.reconcile(changelogFinding(recipe, version: current, matchesPage: true))
                 .contains { $0.contains("BACKWARDS") }, "\(recipe.recipeID)")
         }
     }
 
-    /// A version with no digit names no page. Resolving it anyway would fall
-    /// back to the recipe's `source`, which differs from nearly every real page
-    /// and would read as "another page" — so the check keeps applying instead.
-    /// Blender's `source` is its 5.2 page, which is why the pair is 5.1 against a
-    /// digitless heading.
+    /// A version with no digit names no page. Resolving it anyway gives a page
+    /// named after the text ("…/release_notes/LTS/"), which differs from every real
+    /// page and would read as "another page" — so the check keeps applying.
     ///
-    /// Mutation: delete the `guard !versions.contains(where: \.isEmpty)` line.
+    /// Mutation: drop `, !digits.isEmpty` from `templatedPage`'s guard.
     @Test func aVersionWithNoDigitKeepsTheCheck() throws {
         let blender = try #require(Self.templated.first { $0.bundleID == "org.blenderfoundation.blender" })
         try #require(VersionComparator.isNewer("5.1", than: "LTS"))
-        try #require(blender.resolvedSource(forVersion: nil) != blender.resolvedSource(forVersion: "5.1"))
+        try #require(blender.resolvedSource(forVersion: "LTS") != blender.resolvedSource(forVersion: "5.1"))
 
         var baseline = Baseline()
-        _ = baseline.reconcile(changelogFinding(blender, version: "5.1"))
-        #expect(baseline.reconcile(changelogFinding(blender, version: "LTS"))
+        _ = baseline.reconcile(changelogFinding(blender, version: "5.1", matchesPage: true))
+        #expect(baseline.reconcile(changelogFinding(blender, version: "LTS", matchesPage: true))
             .contains { $0.contains("BACKWARDS") })
     }
 
@@ -221,5 +255,87 @@ import DuoUpdaterCore
         #expect(baseline.infraStreak(inkscape.recipeID) == 0)
         #expect(!baseline.isInfraReportable(
             inkscape.recipeID, now: start.addingTimeInterval(Baseline.infraWindow * 2)))
+    }
+
+    // MARK: - what the sweep records
+
+    /// Through the real success path of `sweepChangelog`, against a stub that
+    /// serves each page with a heading: the "match" page headed with the version
+    /// in its own URL, the "slip" page headed 1.2.1 whatever it was requested for.
+    /// The flag is set against the page requested, an untemplated recipe leaves it
+    /// nil, and both finding rebuilds keep it.
+    ///
+    /// Mutations: `headingMatchesPage: nil` in `sweepChangelog` (match goes nil);
+    /// compare against `recipe.resolvedSource(forVersion: top)` instead of
+    /// `diagnostic.resolvedURL` (the slip reads as matching — re-deriving from the
+    /// heading, the hole this flag closes); drop `headingMatchesPage:` from
+    /// `adding(warning:)`, or from `observing(_:)` (that rebuild loses it).
+    @Test func theSweepRecordsWhetherTheHeadingIsThePageItRequested() async throws {
+        func recipe(_ name: String, template: String?) -> ChangelogRecipe {
+            ChangelogRecipe(
+                bundleID: "com.example.zz-templated-\(name)",
+                source: URL(string: "https://stub.invalid/fixed/")!,
+                entryPattern: #"<h1>(?<version>[0-9.]+)</h1>(?<body>.*?)(?=</body>)"#,
+                itemPatterns: [#"<p>(?<item>.*?)</p>"#],
+                maxEntries: 1,
+                sourceTemplate: template)
+        }
+        let match = recipe("match", template: "https://stub.invalid/match/{version}/")
+        let slip = recipe("slip", template: "https://stub.invalid/slip/{version}/")
+        let fixed = recipe("fixed", template: nil)
+        var options = VerifyOptions()
+        options.perHostDelay = .zero
+
+        let findings = await Verify.sweepChangelog(
+            [match, slip, fixed], options: options,
+            versions: [match.bundleID: "1.2.2", slip.bundleID: "1.2.2"],
+            versionSources: [], session: HeadedPageStub.session)
+        func finding(_ recipe: ChangelogRecipe) throws -> Finding {
+            try #require(findings.first { $0.recipeID == recipe.recipeID })
+        }
+
+        let matched = try finding(match)
+        #expect(matched.version == "1.2.2", "\(String(describing: matched.failureDetail))")
+        #expect(matched.headingMatchesPage == true)
+        #expect(matched.adding(warning: "w").headingMatchesPage == true)
+        #expect(matched.observing("n").headingMatchesPage == true)
+
+        let slipped = try finding(slip)
+        #expect(slipped.version == "1.2.1", "\(String(describing: slipped.failureDetail))")
+        #expect(slipped.headingMatchesPage == false)
+
+        let untemplated = try finding(fixed)
+        #expect(untemplated.version == "1.2.1", "\(String(describing: untemplated.failureDetail))")
+        #expect(untemplated.headingMatchesPage == nil)
+    }
+}
+
+/// Serves `<h1>VERSION</h1>` pages from the URL alone — no shared state, so
+/// parallel tests cannot collide: `/match/<v>/` is headed `<v>`, anything else
+/// `1.2.1`.
+private final class HeadedPageStub: URLProtocol, @unchecked Sendable {
+    static var session: URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [HeadedPageStub.self]
+        return URLSession(configuration: config)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "stub.invalid"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        let url = request.url!
+        let parts = url.pathComponents
+        let heading = parts.count > 2 && parts[1] == "match" ? parts[2] : "1.2.1"
+        let body = "<html><body><h1>\(heading)</h1><p>Fixed a crash.</p></body></html>"
+        let response = HTTPURLResponse(
+            url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "text/html; charset=utf-8"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
     }
 }

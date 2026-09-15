@@ -951,7 +951,7 @@ public enum Verify {
     /// came back empty.
     static func sweepChangelog(
         _ recipes: [ChangelogRecipe], options: VerifyOptions, versions: [String: String],
-        versionSources: [Finding]
+        versionSources: [Finding], session: URLSession = .updates
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.source.host ?? "-" }, options: options) { recipe in
             let id = recipe.recipeID
@@ -976,7 +976,7 @@ public enum Verify {
             // No update result here, so a `feedPagePattern` recipe resolves its
             // page from its own appcast inside `loadDiagnostic`.
             let diagnostic = await ChangelogService.loadDiagnostic(
-                recipe, version: version, feedPage: nil)
+                recipe, version: version, feedPage: nil, session: session)
             let elapsed = Int(Date().timeIntervalSince(started) * 1000)
 
             guard let changelog = diagnostic.changelog,
@@ -1042,7 +1042,13 @@ public enum Verify {
                 status: warnings.isEmpty ? .ok : .warn,
                 version: newest.version, warnings: warnings,
                 endpointHost: host, pattern: recipe.entryPattern,
-                entryCount: changelog.entries.count, elapsedMs: elapsed,
+                entryCount: changelog.entries.count,
+                // Against the page requested, not one re-derived from a version:
+                // a heading that resolves elsewhere is itself a slip, and must not
+                // make an older version look like another page.
+                headingMatchesPage: recipe.sourceTemplate == nil ? nil
+                    : Baseline.templatedPage(recipe, forHeading: top) == diagnostic.resolvedURL,
+                elapsedMs: elapsed,
                 bodySample: diagnostic.bodySample)
         }
     }
@@ -1469,7 +1475,8 @@ extension Finding {
             // `entryCount`, so a finding that picked up a machine note lost
             // "entries parsed" from `report.json`. Silently: every argument here
             // has a default.
-            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
+            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
     /// Attach a warning discovered after the fact (the baseline's history checks
@@ -1485,6 +1492,7 @@ extension Finding {
             // rebuild that drops one silently deletes it from `report.json` for
             // exactly the findings that carry a complaint — the ones most worth
             // reading.
-            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
+            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

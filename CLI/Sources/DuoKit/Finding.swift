@@ -122,6 +122,16 @@ public struct Finding: Codable, Sendable {
     /// nil means "not recorded", which is not the same claim as zero. Only the
     /// changelog sweep sets it; no other registry has entries to count.
     public let entryCount: Int?
+    /// For a version-templated changelog: whether the newest entry's version
+    /// resolves, through the recipe's template, to the page this sweep actually
+    /// requested. Only then is that version a reading of that page, and only then
+    /// may `Baseline` treat an older version as another page rather than as the
+    /// pattern slipping to an older entry (`Baseline.readDifferentPages`).
+    ///
+    /// A flag rather than the page, because `endpointHost` above is kept to a host
+    /// on purpose. Optional so a `report.json` written before this existed still
+    /// decodes; nil — not recorded, or not templated — keeps the check.
+    public let headingMatchesPage: Bool?
     public let elapsedMs: Int
     /// Redacted and capped. Present only for actionable findings, since this is
     /// the one field that carries arbitrary vendor content.
@@ -146,7 +156,8 @@ public struct Finding: Codable, Sendable {
         failureKind: String? = nil, failureDetail: String? = nil,
         warnings: [String] = [], endpointHost: String, pattern: String? = nil,
         attempts: Int = 1, gatewayRetries: Int? = nil,
-        entryCount: Int? = nil, elapsedMs: Int = 0, bodySample: String? = nil
+        entryCount: Int? = nil, headingMatchesPage: Bool? = nil,
+        elapsedMs: Int = 0, bodySample: String? = nil
     ) {
         self.recipeID = recipeID
         self.registry = registry
@@ -162,6 +173,7 @@ public struct Finding: Codable, Sendable {
         self.attempts = attempts
         self.gatewayRetries = gatewayRetries
         self.entryCount = entryCount
+        self.headingMatchesPage = headingMatchesPage
         self.elapsedMs = elapsedMs
         // Condense before redacting: the changelog path hands over a whole raw
         // HTML page, and a report full of `<link rel="preload">` is a report

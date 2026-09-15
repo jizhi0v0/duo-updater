@@ -56,10 +56,12 @@ struct AppRecipeIndexTests {
 
     /// Mutation: rename a family (file and slug together) to a slug with `_` in it.
     /// Uniqueness is checked case-insensitively too: the default macOS volume
-    /// cannot hold two files that differ only in case.
+    /// cannot hold two files that differ only in case. A slug starts with a letter or
+    /// digit: a leading `.` names a hidden file, which `RecipeGoldenTests` skips when
+    /// listing goldens, so that family's golden would read as missing forever.
     @Test func familySlugsAreUniqueAndWellFormed() {
         let slugs = AppRecipeIndex.all.map(\.family)
-        let malformed = slugs.filter { $0.wholeMatch(of: /[A-Za-z0-9.-]+/) == nil }
+        let malformed = slugs.filter { $0.wholeMatch(of: /[A-Za-z0-9][A-Za-z0-9.-]*/) == nil }
         #expect(malformed.isEmpty, Comment(rawValue: "malformed family slugs: \(malformed)"))
         let repeated = Dictionary(grouping: slugs, by: { $0.lowercased() })
             .filter { $0.value.count > 1 }.keys.sorted()

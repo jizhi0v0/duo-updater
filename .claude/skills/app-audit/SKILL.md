@@ -849,11 +849,21 @@ suggestions. Use this decision table:
 |---------|--------|-----|
 | Needs VendorProbe recipe | → `/fragile-recipe <app>` (VendorProbe path) | Pass the endpoint URL, version pattern, and channel from the audit |
 | Needs ChangelogRecipe | → `/fragile-recipe <app>` (Changelog path) | Pass the changelog URL and markup structure from the audit |
-| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`) |
+| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`), then re-record goldens (below) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
-| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint |
+| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint, then re-record goldens (below) |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |
 | Already fully covered | → Write/update audit doc only | No code change needed |
+
+Any edit to a family file under `Recipes/` (or to `AppRecipeIndex.all`) changes
+what `RecipeGoldenTests` expects. Re-record the goldens from the repository root
+and commit the diff with the recipe; the recording run fails on purpose, so rerun
+without the variable to see it pass (the `/fragile-recipe` path does this in its
+step 7):
+
+```sh
+DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+```
 
 **Example handoff text in the report:**
 

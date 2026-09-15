@@ -176,6 +176,13 @@ fractional rollout or VLC's ascending appcast, not for their dated verification
 logs). Measurements go to the family audit's `## 历史与实测`, not the comment; see
 SKILL.md step 6.
 
+Then regenerate the family's golden and commit it with the recipe (SKILL.md
+step 7). The recording run fails on purpose; rerun without the variable:
+
+```sh
+DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+```
+
 Add a fixture test that feeds a trimmed real body to the extraction helper and
 asserts the version, e.g.:
 

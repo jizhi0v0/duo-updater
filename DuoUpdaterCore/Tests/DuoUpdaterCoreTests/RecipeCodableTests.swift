@@ -119,33 +119,64 @@ struct RecipeCodableTests {
                     declared: URL(string: "https://example.invalid/old.xml")!,
                     live: URL(string: "https://example.invalid/new.xml")!)),
 
+            // Each sample beside the exact JSON it must encode to. These literals are
+            // the format: change one only as a deliberate format change.
             .tagged(
                 VendorProbeRecipe.Mode.self,
                 tags: VendorProbeRecipe.Mode.CodingKind.allCases.map(\.rawValue),
-                samples: [.redirectFilename, .responseBody, .zipEntryPlist(entry: "a/Info.plist", key: "K")]),
+                samples: [
+                    (.redirectFilename, #"{"kind":"redirectFilename"}"#),
+                    (.responseBody, #"{"kind":"responseBody"}"#),
+                    (.zipEntryPlist(entry: "a/Info.plist", key: "K"),
+                     #"{"kind":"zipEntryPlist","entry":"a/Info.plist","key":"K"}"#),
+                ]),
             .tagged(
                 VendorInstallSpec.URLSource.self,
                 tags: VendorInstallSpec.URLSource.CodingKind.allCases.map(\.rawValue),
                 samples: [
-                    .bodyPattern("a(b)"), .bodyPatternLast("c(d)"), .bodyPatternHighestVersioned("(e)(f)"),
-                    .bodyPatternRelative("(g)", base: URL(string: "https://example.invalid/")!),
-                    .bodyTemplate("https://example.invalid/{0}", fields: ["(h)"]),
-                    .versionTemplate("https://example.invalid/{version}"),
-                    .redirect(URL(string: "https://example.invalid/latest")!),
-                    .fixed(URL(string: "https://example.invalid/a.dmg")!),
+                    (.bodyPattern("a(b)"), #"{"kind":"bodyPattern","pattern":"a(b)"}"#),
+                    (.bodyPatternLast("c(d)"), #"{"kind":"bodyPatternLast","pattern":"c(d)"}"#),
+                    (.bodyPatternHighestVersioned("(e)(f)"),
+                     #"{"kind":"bodyPatternHighestVersioned","pattern":"(e)(f)"}"#),
+                    (.bodyPatternRelative("(g)", base: URL(string: "https://example.invalid/")!),
+                     #"{"kind":"bodyPatternRelative","pattern":"(g)","base":"https://example.invalid/"}"#),
+                    (.bodyTemplate("https://example.invalid/{0}", fields: ["(h)"]),
+                     #"{"kind":"bodyTemplate","template":"https://example.invalid/{0}","fields":["(h)"]}"#),
+                    (.versionTemplate("https://example.invalid/{version}"),
+                     #"{"kind":"versionTemplate","template":"https://example.invalid/{version}"}"#),
+                    (.redirect(URL(string: "https://example.invalid/latest")!),
+                     #"{"kind":"redirect","url":"https://example.invalid/latest"}"#),
+                    (.fixed(URL(string: "https://example.invalid/a.dmg")!),
+                     #"{"kind":"fixed","url":"https://example.invalid/a.dmg"}"#),
                 ]),
             .tagged(
                 ProbeIdentity.Encoding.self,
                 tags: ProbeIdentity.Encoding.CodingKind.allCases.map(\.rawValue),
-                samples: [.plain, .base64, .jsonKey("id"), .jwtClaim(tokenPath: ["t"], claimPath: ["c", "d"])]),
+                samples: [
+                    (.plain, #"{"kind":"plain"}"#),
+                    (.base64, #"{"kind":"base64"}"#),
+                    (.jsonKey("id"), #"{"kind":"jsonKey","key":"id"}"#),
+                    (.jwtClaim(tokenPath: ["t"], claimPath: ["c", "d"]),
+                     #"{"kind":"jwtClaim","tokenPath":["t"],"claimPath":["c","d"]}"#),
+                ]),
             .tagged(
                 ProbeIdentity.Location.self,
                 tags: ProbeIdentity.Location.CodingKind.allCases.map(\.rawValue),
-                samples: [.applicationSupport("A/id"), .home(".b/id")]),
+                samples: [
+                    (.applicationSupport("A/id"), #"{"kind":"applicationSupport","path":"A/id"}"#),
+                    (.home(".b/id"), #"{"kind":"home","path":".b/id"}"#),
+                ]),
             .tagged(
                 ChannelArtifactProof.self,
                 tags: ChannelArtifactProof.CodingKind.allCases.map(\.rawValue),
-                samples: [.artifact("/beta/"), .recipeAnchor("beta", in: ["url", "versionPattern"])]),
+                samples: [
+                    (.artifact("/beta/"), #"{"kind":"artifact","pattern":"/beta/"}"#),
+                    (.recipeAnchor("beta", in: ["url", "versionPattern"]),
+                     #"{"kind":"recipeAnchor","pattern":"beta","fields":["url","versionPattern"]}"#),
+                ],
+                // `in` reads as a preposition in Swift (`recipeAnchor(p, in: fields)`)
+                // and as nothing at all as a JSON key.
+                keyForLabel: ["recipeAnchor.in": "fields"]),
 
             .caseName(VendorInstallerKind.self, all: VendorInstallerKind.allCases, name: { "\($0)" }),
             .caseName(HostArch.self, all: HostArch.allCases, name: { "\($0)" }),
@@ -235,6 +266,102 @@ struct RecipeCodableTests {
     @Test func aChannelProofTableRefusesAKeyListedTwice() throws {
         let json = #"[{"bundleID":"zz","channel":"beta","proof":{"kind":"artifact","pattern":"b"}},{"bundleID":"zz","channel":"beta","proof":{"kind":"artifact","pattern":"c"}}]"#
         #expect(throws: DecodingError.self) { try decode(ChannelProofTable.self, json) }
+    }
+
+    /// A table entry decodes its own flat `bundleID`/`channel`/`proof` object rather
+    /// than going through `ChannelProofKey`'s conformance (whose strictness would
+    /// refuse `proof`), so it is held to the same rules here, directly.
+    ///
+    /// Mutation: delete `rejectUnknownKeys` from `ChannelProofTable.Entry.init(from:)`.
+    @Test func aChannelProofTableEntryIsStrict() throws {
+        let proof = #""proof":{"kind":"artifact","pattern":"b"}"#
+        let valid = #"[{"bundleID":"zz","channel":"beta","# + proof + "}]"
+        let table = try decode(ChannelProofTable.self, valid)
+        #expect(table.proofs[ChannelProofKey("zz", .beta)] == .artifact("b"))
+
+        do {
+            _ = try decode(ChannelProofTable.self, #"[{"bundleID":"zz","channel":"beta","zz":1,"# + proof + "}]")
+            Issue.record("an unknown key in a channel-proof table entry decoded")
+        } catch let DecodingError.dataCorrupted(context) {
+            #expect(context.codingPath.last?.stringValue == "zz")
+        }
+        #expect(throws: DecodingError.self) {
+            try decode(ChannelProofTable.self, #"[{"bundleID":null,"channel":"beta","# + proof + "}]")
+        }
+        #expect(throws: DecodingError.self) {
+            try decode(ChannelProofTable.self, #"[{"bundleID":"zz","channel":"beta"}]"#)
+        }
+    }
+
+    /// A `Set` cannot hold a field twice, so a file that lists one twice was written
+    /// by mistake — refused rather than quietly collapsed.
+    ///
+    /// Mutation: delete the duplicate guard in `ChannelArtifactProof.init(from:)`.
+    @Test func aRecipeAnchorListingAFieldTwiceIsRefused() throws {
+        #expect(throws: DecodingError.self) {
+            try decode(ChannelArtifactProof.self, #"{"kind":"recipeAnchor","pattern":"b","fields":["url","url"]}"#)
+        }
+    }
+
+    // MARK: - Deterministic output
+
+    /// What the conformances sort, they sort — checked with collections big enough
+    /// that hash order coming out sorted by chance is not a real possibility
+    /// (24 elements: one ordering in 24!).
+    ///
+    /// Mutations: drop `.sorted()` from `recipeAnchor`'s `fields`; drop the sort in
+    /// `ChannelProofTable.encode(to:)`.
+    @Test func setsAndProofTablesAreWrittenSorted() throws {
+        let names = (0..<24).map { String(format: "field%02d", $0) }
+        let anchor = try jsonObject(JSONEncoder().encode(ChannelArtifactProof.recipeAnchor("p", in: Set(names))))
+        #expect(anchor["fields"] as? [String] == names)
+
+        var proofs: [ChannelProofKey: ChannelArtifactProof] = [:]
+        for index in 0..<12 {
+            for channel in [ReleaseChannel.beta, .nightly] {
+                proofs[ChannelProofKey(String(format: "zz.app%02d", index), channel)] = .artifact("x")
+            }
+        }
+        let rows = try #require(try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(ChannelProofTable(proofs))) as? [[String: Any]])
+        let order = rows.map { "\($0["bundleID"] as? String ?? "") \($0["channel"] as? String ?? "")" }
+        #expect(order == order.sorted())
+        #expect(order.count == 24)
+    }
+
+    /// The whole registry encodes to the same bytes twice with `.sortedKeys` — the
+    /// second time from a value rebuilt by decoding the first, so its sets and
+    /// dictionaries are fresh instances rather than the same ones iterated again.
+    @Test func theRegistryEncodesToStableBytes() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var failures: [String] = []
+        var checked = 0
+        func stable<T: Codable>(_ value: T, _ label: String) throws {
+            let first = try encoder.encode(value)
+            let second = try encoder.encode(try JSONDecoder().decode(T.self, from: first))
+            checked += 1
+            if first != second { failures.append("\(label): bytes differ after a rebuild") }
+        }
+        for set in AppRecipeIndex.all {
+            let at = set.family
+            try stable(set.probes, "\(at).probes")
+            try stable(set.changelogs, "\(at).changelogs")
+            try stable(set.githubRules, "\(at).githubRules")
+            try stable(set.appStoreCases, "\(at).appStoreCases")
+            try stable(ChannelProofTable(set.channelProofs), "\(at).channelProofs")
+            try stable(ChannelProofTable(set.githubChannelProofs), "\(at).githubChannelProofs")
+            try stable(ChannelProofTable(set.bindingProofs), "\(at).bindingProofs")
+            try stable(set.sparkleFeeds, "\(at).sparkleFeeds")
+            try stable(set.supersededFeeds, "\(at).supersededFeeds")
+            try stable(set.changelogPages, "\(at).changelogPages")
+        }
+        #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
+        // The kinds above are listed by hand; a kind added to `AppRecipeSet` and
+        // not here makes this count wrong.
+        let kinds = Mirror(reflecting: try #require(AppRecipeIndex.all.first)).children
+            .compactMap(\.label).filter { $0 != "family" }
+        #expect(checked == AppRecipeIndex.all.count * kinds.count)
     }
 
     // MARK: - The whole registry (smoke test, not the equivalence gate)
@@ -370,9 +497,9 @@ struct CodingCase: Sendable {
     let check: @Sendable () throws -> [String]
 
     /// A struct: `{required keys}` decodes to `init(required only)`; its
-    /// `CodingKeys` are its stored properties; every key the encoder writes refuses
-    /// `null` unless its property is optional (then `null` is nil); an unknown key
-    /// is refused.
+    /// `CodingKeys` are its stored properties; every coding key refuses `null`
+    /// unless its property is optional (then `null` is nil); an unknown key is
+    /// refused.
     static func structure<T: Codable>(
         _ type: T.Type, keys: [String], required: String, expected: T
     ) -> CodingCase {
@@ -398,29 +525,30 @@ struct CodingCase: Sendable {
                 failures.append("\(name): the required keys alone do not decode: \(error)")
             }
 
-            let requiredKeys = Set((try JSONSerialization.jsonObject(with: Data(required.utf8))
-                as? [String: Any] ?? [:]).keys)
             let written = try JSONSerialization.jsonObject(
                 with: JSONEncoder().encode(expected)) as? [String: Any] ?? [:]
             if written.isEmpty && !labels.isEmpty {
                 failures.append("\(name): the encoder wrote no keys")
             }
-            for key in written.keys.sorted() {
+            // Every coding key, not only the ones the encoder happened to write for
+            // the defaults-only value: an optional left nil is never written, and
+            // it is exactly those whose `null` handling would otherwise go
+            // unexercised. Optional-ness comes from the stored property's type.
+            for key in keys.sorted() {
+                guard let optional = RecipeMirror.isOptional(key, of: expected) else { continue }
                 var object = written
                 object[key] = NSNull()
                 let data = try JSONSerialization.data(withJSONObject: object)
-                let optional = RecipeMirror.isOptional(key, of: expected) ?? false
                 do {
                     let decoded = try JSONDecoder().decode(T.self, from: data)
-                    if !optional || requiredKeys.contains(key) {
+                    if !optional {
                         failures.append("\(name): `\(key)`: null decoded instead of being refused")
-                    } else if RecipeMirror.isOptional(key, of: decoded) == true,
-                              let child = Mirror(reflecting: decoded).children.first(where: { $0.label == key }),
+                    } else if let child = Mirror(reflecting: decoded).children.first(where: { $0.label == key }),
                               Mirror(reflecting: child.value).children.count != 0 {
                         failures.append("\(name): `\(key)`: null decoded to a value, not nil")
                     }
                 } catch {
-                    if optional && !requiredKeys.contains(key) {
+                    if optional {
                         failures.append("\(name): `\(key)` is optional but null was refused: \(error)")
                     }
                 }
@@ -436,22 +564,65 @@ struct CodingCase: Sendable {
         }
     }
 
-    /// An enum with associated values: every tag is the Swift case name, the
-    /// samples cover every tag and round-trip, and an unknown key or tag is refused.
-    static func tagged<T: Codable>(_ type: T.Type, tags: [String], samples: [T]) -> CodingCase {
+    /// An enum with associated values: every tag is the Swift case name; each
+    /// sample encodes to exactly its checked-in JSON literal and that literal
+    /// decodes back to it; a labelled payload value's key is its Swift label
+    /// (unless listed in `keyForLabel`, and a listing that matches nothing fails);
+    /// the samples cover every tag; an unknown key or tag is refused.
+    ///
+    /// The literal is what pins an unlabelled payload's key (`pattern`, `url`, …):
+    /// a key renamed in the decoder, the encoder and the allowed list together
+    /// still round-trips, but no longer matches the literal.
+    static func tagged<T: Codable>(
+        _ type: T.Type, tags: [String], samples: [(T, String)],
+        keyForLabel: [String: String] = [:]
+    ) -> CodingCase {
         nonisolated(unsafe) let samples = samples
         return CodingCase(typeName: String(reflecting: T.self)) {
             var failures: [String] = []
             let name = String(describing: T.self)
             var seen = Set<String>()
-            for sample in samples {
+            var usedOverrides = Set<String>()
+            for (sample, literal) in samples {
                 let data = try JSONEncoder().encode(sample)
                 let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 let tag = object["kind"] as? String ?? "<none>"
                 seen.insert(tag)
-                if tag != RecipeMirror.caseName(sample) {
-                    failures.append("\(name).\(RecipeMirror.caseName(sample)) is tagged `\(tag)`")
+                let caseName = RecipeMirror.caseName(sample)
+                if tag != caseName {
+                    failures.append("\(name).\(caseName) is tagged `\(tag)`")
                 }
+
+                let pinned = try JSONSerialization.jsonObject(with: Data(literal.utf8)) as? [String: Any] ?? [:]
+                if !(object as NSDictionary).isEqual(to: pinned) {
+                    failures.append("\(name).\(caseName) encodes to \(String(decoding: data, as: UTF8.self)), "
+                        + "not the checked-in \(literal)")
+                }
+                do {
+                    let fromLiteral = try JSONDecoder().decode(T.self, from: Data(literal.utf8))
+                    if RecipeMirror.dump(fromLiteral) != RecipeMirror.dump(sample) {
+                        failures.append("\(name).\(caseName): the checked-in \(literal) decodes to something else")
+                    }
+                } catch {
+                    failures.append("\(name).\(caseName): the checked-in \(literal) does not decode: \(error)")
+                }
+
+                // Labelled payload values: the JSON key is the label.
+                if let payload = Mirror(reflecting: sample).children.first?.value {
+                    let parts = Mirror(reflecting: payload)
+                    if parts.displayStyle == .tuple {
+                        for label in parts.children.compactMap(\.label) where !label.hasPrefix(".") {
+                            let override = keyForLabel["\(caseName).\(label)"]
+                            if override != nil { usedOverrides.insert("\(caseName).\(label)") }
+                            let key = override ?? label
+                            if pinned[key] == nil {
+                                failures.append("\(name).\(caseName): payload label `\(label)` has no "
+                                    + "`\(key)` key in \(literal)")
+                            }
+                        }
+                    }
+                }
+
                 let back = try JSONDecoder().decode(T.self, from: data)
                 if RecipeMirror.dump(back) != RecipeMirror.dump(sample) {
                     failures.append("\(name).\(tag) does not round-trip")
@@ -465,6 +636,10 @@ struct CodingCase: Sendable {
             }
             if seen != Set(tags) {
                 failures.append("\(name): samples cover \(seen.sorted()), tags are \(tags.sorted())")
+            }
+            let staleOverrides = Set(keyForLabel.keys).subtracting(usedOverrides)
+            if !staleOverrides.isEmpty {
+                failures.append("\(name): keyForLabel entries match no payload label: \(staleOverrides.sorted())")
             }
             if (try? JSONDecoder().decode(T.self, from: Data(#"{"kind":"zzNotACase"}"#.utf8))) != nil {
                 failures.append("\(name): an unknown kind was accepted")

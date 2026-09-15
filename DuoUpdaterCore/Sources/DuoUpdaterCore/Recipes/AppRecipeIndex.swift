@@ -24,11 +24,11 @@ public enum AppRecipeIndex {
     static let dataFamilies: [AppRecipeSet] = dataFamilies(
         in: Bundle.module.url(forResource: RecipeFamilyFile.directoryName, withExtension: nil),
         bundle: Bundle.module.bundlePath,
-        expectedDigest: Bundle.main.object(forInfoDictionaryKey: RecipeFamilyFile.digestInfoKey) as? String)
+        expectedDigest: RecipeFamilyFile.embeddedDigest())
 
-    /// The trap, apart from `Bundle.module` and `Bundle.main` so a test can point it
-    /// at a directory and a digest. (`Bundle.module` itself traps first, "unable to
-    /// find bundle named …", when the bundle is not where the executable looks.)
+    /// The trap, apart from `Bundle.module` and `embeddedDigest` so a test can point
+    /// it at a directory and a digest. (`Bundle.module` itself traps first, "unable
+    /// to find bundle named …", when the bundle is not where the executable looks.)
     static func dataFamilies(in directory: URL?, bundle: String, expectedDigest: String?) -> [AppRecipeSet] {
         guard let directory else {
             fatalError("""

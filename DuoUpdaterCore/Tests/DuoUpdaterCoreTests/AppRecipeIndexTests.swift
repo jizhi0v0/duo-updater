@@ -235,11 +235,14 @@ struct AppRecipeIndexTests {
     /// Anything in the directory but regular `<slug>.json5` files is refused, by name,
     /// before anything is decoded.
     /// Mutations: filter by extension instead of refusing; compare the extension
-    /// case-insensitively; let the slug start with `.`; drop the symlink branch (a
-    /// link to a regular file is a regular file when followed — which is why that
-    /// branch is checked first and named in the message).
-    @Test(arguments: ["other extension", "upper-case extension", "dotfile", "subdirectory",
-                      "symlink", "leading dash"])
+    /// case-insensitively; let the slug start with `.` (the `.zz.json5` case, which a
+    /// dotfile with a bad extension would not catch — `.DS_Store` fails on its
+    /// extension); drop the symlink branch (measured: `URLResourceValues` on a symlink
+    /// reports `isSymbolicLink` true and `isRegularFile` false — it does NOT follow the
+    /// link — so the regular-file branch refuses it too; this pins that the reason
+    /// given is "a symbolic link", not "not a regular file").
+    @Test(arguments: ["other extension", "upper-case extension", "dotfile", "hidden json5",
+                      "subdirectory", "symlink", "leading dash"])
     func aStrayEntryIsRefused(_ kind: String) throws {
         let valid = #"{"changelogPages": {"zz.fixture": "https://example.invalid/"}}"#
         let scratch = try Scratch(["zz-fixture.json5": valid])
@@ -256,6 +259,11 @@ struct AppRecipeIndexTests {
         case "dotfile":
             try Data([0]).write(to: scratch.url.appendingPathComponent(".DS_Store"))
             expected = ".DS_Store (not named <slug>.json5)"
+        case "hidden json5":
+            // A leading dot with the right extension: the slug rule (first char a
+            // letter or digit) is what refuses this, not the extension check.
+            try Data(valid.utf8).write(to: scratch.url.appendingPathComponent(".zz.json5"))
+            expected = ".zz.json5 (not named <slug>.json5)"
         case "subdirectory":
             let sub = scratch.url.appendingPathComponent("sub")
             try fileManager.createDirectory(at: sub, withIntermediateDirectories: false)
@@ -294,8 +302,11 @@ struct AppRecipeIndexTests {
 
     /// With a digest to hold them to, recipe files that differ by one byte do not
     /// load, and the trap names both digests; the right digest loads.
-    /// Mutations: skip the comparison in `loadAll`; compare before reading (the bytes
-    /// decoded would no longer be the bytes hashed); let an empty digest pass.
+    /// Mutations: skip the comparison in `loadAll`; let an empty digest pass. (The
+    /// read-once property — that `loadAll` hashes the same bytes it decodes — is not
+    /// asserted here; catching it would need a writer racing between the hash and the
+    /// decode, which this single-threaded test has no way to stage. The single read
+    /// in `loadAll` is what it rests on.)
     @Test func recipeFilesThatDoNotMatchTheBuiltDigestAreRefused() async throws {
         let text = #"{"changelogPages": {"zz.fixture": "https://example.invalid/"}}"#
         let scratch = try Scratch(["zz-fixture.json5": text])
@@ -317,6 +328,41 @@ struct AppRecipeIndexTests {
         let message = Self.stderr(trap)
         #expect(message.contains("are not the ones this executable was built with"), "\(message)")
         #expect(message.contains("built with \(built), found \(found)"), "\(message)")
+    }
+
+    /// The digest is read from the executable's own `__TEXT,__info_plist` section,
+    /// not through `Bundle.main`, so an `Info.plist` file beside a bare `duo` cannot
+    /// supply or override it (the reproduced bypass). This drives the section parser
+    /// with fixture bytes — a test process has no section of its own to plant a real
+    /// one in, so this proves the parser, not the section lookup; the section lookup
+    /// is proven end to end by `build-cli.sh`'s self-test against the real binary.
+    /// Mutations: read `Bundle.main` again; return the whole dict; ignore the key.
+    @Test func theDigestIsParsedFromAnInfoPlistSection() throws {
+        func plist(_ dictionary: [String: Any]) -> Data {
+            try! PropertyListSerialization.data(fromPropertyList: dictionary, format: .xml, options: 0)
+        }
+        #expect(RecipeFamilyFile.digest(
+            fromInfoPlistSection: plist(["CFBundleIdentifier": "zz", "DuoRecipeDigest": "abc"])) == "abc")
+        // Present but unexpanded (built without DUO_RECIPE_DIGEST): "" so loadAll traps.
+        #expect(RecipeFamilyFile.digest(fromInfoPlistSection: plist(["DuoRecipeDigest": ""])) == "")
+        // No key, wrong type, and non-plist bytes all read as "skip".
+        #expect(RecipeFamilyFile.digest(fromInfoPlistSection: plist(["CFBundleIdentifier": "zz"])) == nil)
+        #expect(RecipeFamilyFile.digest(fromInfoPlistSection: plist(["DuoRecipeDigest": 7])) == nil)
+        #expect(RecipeFamilyFile.digest(fromInfoPlistSection: Data("not a plist".utf8)) == nil)
+    }
+
+    /// What `embeddedDigest` returns in THIS process. The test bundle is loaded by a
+    /// test runner whose main executable carries no `DuoRecipeDigest` (it is not built
+    /// by `build-cli.sh`), so the answer is nil and the check is skipped — which is
+    /// exactly why a test process could never have caught the S7 bypass, and why the
+    /// gate for it lives in `build-cli.sh`. This cannot prove the positive case (a
+    /// section whose key is read): only a binary built with the section can, which
+    /// `build-cli.sh`'s real-mode self-test does.
+    @Test func embeddedDigestIsNilInTheTestProcess() {
+        #expect(RecipeFamilyFile.embeddedDigest() == nil)
+        // The lookup at least resolves the main image (a non-nil header), so a nil
+        // digest means "no key", not "no header".
+        #expect(RecipeFamilyFile.mainExecutableHeader() != nil)
     }
 
     /// Mutation: derive a registry from anything but the whole index — e.g.

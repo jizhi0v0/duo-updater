@@ -51,15 +51,21 @@ say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 # Staging paths made below are removed on any exit; after a successful rename the
-# path no longer exists and removing it is a no-op.
+# path no longer exists and removing it is a no-op. Each is set only once it is
+# this run's own path — never a fixed name another worktree's concurrent `make cli`
+# shares. `$STAMP.new` used to be cleaned here unconditionally, and `$STAMP` is
+# global (`~/.local/libexec/duo.built-from`): a failing run in one worktree would
+# delete the temp stamp a concurrent run was about to `mv` into place, and that run
+# then died on a bare `mv` after it had already installed.
 BUNDLE_TMP=""
 TMP=""
 SELFTEST=""
+STAMP_NEW=""
 cleanup() {
     if [ -n "$SELFTEST" ]; then rm -rf "$SELFTEST"; fi
     if [ -n "$BUNDLE_TMP" ]; then rm -rf "$BUNDLE_TMP"; fi
     if [ -n "$TMP" ]; then rm -f "$TMP"; fi
-    rm -f "$STAMP.new"
+    if [ -n "$STAMP_NEW" ]; then rm -f "$STAMP_NEW"; fi
 }
 trap cleanup EXIT
 
@@ -123,8 +129,16 @@ BUILT_DIGEST="$(recipe_digest "$PRODUCT_RECIPES")" || die "the built bundle's re
 # it exits 2 with "nothing to verify" before `installedVersions()` or any sweep).
 #   1. untouched: must exit with "nothing to verify — no recipe matches", i.e. the
 #      staged binary found its bundle and the data matched its digest;
-#   2. one byte appended to a family file: must exit non-zero with the loader's
-#      "are not the ones this executable was built with".
+#   2. one byte appended to a family file, AND every Bundle.main-override an attacker
+#      could drop beside the binary planted at once — a sidecar Info.plist, a
+#      Contents/Info.plist and a Resources/Info.plist (each CFBundleExecutable=duo-cli,
+#      no digest key), an en.lproj/InfoPlist.strings setting DuoRecipeDigest to the
+#      tampered digest, and CFPROCESSPATH pointed at a decoy — must STILL exit
+#      non-zero with the loader's "are not the ones this executable was built with".
+#      The digest is read from the executable's own __TEXT,__info_plist section
+#      (RecipeFamilyFile.embeddedDigest), which none of those files can reach; if any
+#      of them fed the digest instead (the reproduced Bundle.main bypass), the
+#      tampered digest would match and the run would pass, failing this gate.
 # HOME points into staging so nothing can read or touch ~/.local or the user's
 # state, and cwd is the staging directory. PACKAGE_RESOURCE_BUNDLE_PATH is unset
 # (Debug builds would honour it).
@@ -139,6 +153,7 @@ ditto "$PRODUCT_BUNDLE" "$SELFTEST/$RESOURCE_BUNDLE"
 mkdir "$SELFTEST/home"
 selftest() {
     ( cd "$SELFTEST" && env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
+        ${SELFTEST_PROCESS_PATH:+CFPROCESSPATH="$SELFTEST_PROCESS_PATH"} \
         HOME="$SELFTEST/home" CFFIXED_USER_HOME="$SELFTEST/home" \
         ./duo-cli verify --only zz-duo-recipe-digest-selftest ) > "$SELFTEST/$1.out" 2>&1
 }
@@ -147,11 +162,36 @@ grep -q "nothing to verify — no recipe matches zz-duo-recipe-digest-selftest" 
     || die "self-test: the staged binary with untouched recipe data did not reach its recipe index (exit $SELFTEST_STATUS): $(tail -n 3 "$SELFTEST/untouched.out")"
 SELFTEST_FILE="$(ls "$SELFTEST/$RESOURCE_BUNDLE/Contents/Resources/Recipes/"*.json5 | head -n 1)"
 printf ' ' >> "$SELFTEST_FILE"
+SELFTEST_TAMPERED_DIGEST="$(recipe_digest "$SELFTEST/$RESOURCE_BUNDLE/Contents/Resources/Recipes")" \
+    || die "self-test: cannot digest the tampered staged recipes"
+# Every Bundle.main override at once, all naming the tampered digest or no digest.
+# If the loader read any of these instead of its own section, the tampered digest
+# would match and run 2 would pass — which this gate forbids.
+sidecar_plist() {  # $1 destination
+    mkdir -p "$(dirname "$1")"
+    cat > "$1" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>duo-cli</string>
+<key>CFBundleIdentifier</key><string>zz.selftest.attacker</string>
+<key>DuoRecipeDigest</key><string>$SELFTEST_TAMPERED_DIGEST</string>
+</dict></plist>
+EOF
+}
+sidecar_plist "$SELFTEST/Info.plist"
+sidecar_plist "$SELFTEST/Contents/Info.plist"
+sidecar_plist "$SELFTEST/Resources/Info.plist"
+mkdir -p "$SELFTEST/en.lproj"
+printf '"DuoRecipeDigest" = "%s";\n' "$SELFTEST_TAMPERED_DIGEST" > "$SELFTEST/en.lproj/InfoPlist.strings"
+printf 'decoy' > "$SELFTEST/decoy-process"
+SELFTEST_PROCESS_PATH="$SELFTEST/decoy-process"
 SELFTEST_STATUS=0; selftest tampered || SELFTEST_STATUS=$?
+unset SELFTEST_PROCESS_PATH
 [ "$SELFTEST_STATUS" -ne 0 ] \
-    || die "self-test: the staged binary ran with a tampered recipe file and exited 0 — it is not checking its recipe digest"
+    || die "self-test: the staged binary ran with a tampered recipe file (and every Bundle.main override planted) and exited 0 — it is not checking its recipe digest, or it read a sidecar Info.plist"
 grep -q "are not the ones this executable was built with" "$SELFTEST/tampered.out" \
-    || die "self-test: with a tampered recipe file the binary exited $SELFTEST_STATUS but stderr lacks \"are not the ones this executable was built with\" — is AppRecipeIndex.dataFamilies still passing the Info.plist digest? Last lines: $(tail -n 3 "$SELFTEST/tampered.out")"
+    || die "self-test: with a tampered recipe file the binary exited $SELFTEST_STATUS but stderr lacks \"are not the ones this executable was built with\" — is AppRecipeIndex.dataFamilies still reading the embedded __info_plist digest (not Bundle.main)? Last lines: $(tail -n 3 "$SELFTEST/tampered.out")"
 rm -rf "$SELFTEST"; SELFTEST=""
 
 # What this binary was built from, beside the binary, so `duo verify` can refuse to
@@ -210,14 +250,18 @@ codesign --verify --strict "$DEST" 2>/dev/null \
 [ "$(recipe_digest "$BUNDLE_DEST/Contents/Resources/Recipes")" = "$RECIPE_DIGEST" ] \
     || die "the installed recipe files differ from the ones the binary was built with"
 
-# Written via a temporary file so a failure leaves the previous stamp rather than an
-# empty one -- an empty stamp reads as "no record", which is a refusal the next
-# person would have to debug instead of just rebuilding.
-( cd "$REPO" && "$DEST" verify --source-digest ) > "$STAMP.new" \
+# Written via a per-run temporary file (mktemp, not a fixed "$STAMP.new") so a
+# failure leaves the previous stamp rather than an empty one -- an empty stamp reads
+# as "no record", which is a refusal the next person would have to debug instead of
+# just rebuilding -- and so a concurrent run in another worktree cannot delete this
+# run's in-flight stamp on its own cleanup.
+STAMP_NEW="$(mktemp "$STAMP.XXXXXX")"
+( cd "$REPO" && "$DEST" verify --source-digest ) > "$STAMP_NEW" \
     || die "could not digest the sources under $REPO"
-[ "$(cat "$STAMP.new")" = "$SOURCE_STAMP" ] \
+[ "$(cat "$STAMP_NEW")" = "$SOURCE_STAMP" ] \
     || die "the sources under $REPO changed while installing, so this duo's stamp would describe a tree it was not built from — run make cli again"
-mv -f "$STAMP.new" "$STAMP"
+mv -f "$STAMP_NEW" "$STAMP"
+STAMP_NEW=""
 
 say "Installed"
 printf '   %s\n   %s -> %s\n\n' "$DEST" "$LINK" "$DEST"

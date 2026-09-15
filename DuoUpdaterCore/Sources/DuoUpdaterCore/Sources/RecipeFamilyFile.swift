@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import MachO
 
 /// One app family stored as data: `Resources/Recipes/<family>.json5`, read at first
 /// access to `AppRecipeIndex.all` from the target's resource bundle.
@@ -113,6 +114,45 @@ struct RecipeFamilyFile: Decodable {
 
     /// The Info.plist key a `duo` built by `scripts/build-cli.sh` carries the digest in.
     static let digestInfoKey = "DuoRecipeDigest"
+
+    /// The recipe digest the running executable was built with, or nil to skip the
+    /// check — read from the main executable's own `__TEXT,__info_plist` section, so
+    /// an `Info.plist` file an attacker drops beside the binary cannot supply it (see
+    /// "The recipe digest"). nil when there is no such section, or one without the
+    /// key. An empty string (the key present but unexpanded) is returned as `""`, and
+    /// `loadAll` traps on it — a `duo` built without `DUO_RECIPE_DIGEST`.
+    static func embeddedDigest() -> String? {
+        guard let mh = mainExecutableHeader() else { return nil }
+        var size: UInt = 0
+        // getsectiondata takes the SLID header, which is what dlsym hands back.
+        guard let bytes = getsectiondata(mh, "__TEXT", "__info_plist", &size), size > 0
+        else { return nil }
+        return digest(fromInfoPlistSection: Data(bytes: bytes, count: Int(size)))
+    }
+
+    /// The header of the process's main executable image, or nil.
+    ///
+    /// `dlsym(RTLD_MAIN_ONLY, …)` "searches only the main executable" (dlsym(3)), and
+    /// `_mh_execute_header` / `MH_EXECUTE_SYM` is the mach-header symbol that, per
+    /// `<mach-o/ldsyms.h>`, "does not appear in any file type other than a MH_EXECUTE
+    /// file type" — so this resolves the one image that is the executable, not any
+    /// linked dylib, and not by trusting `_dyld_get_image_header(0)` (which dyld does
+    /// not document as the main executable).
+    static func mainExecutableHeader() -> UnsafePointer<mach_header_64>? {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -5) /* RTLD_MAIN_ONLY */,
+                                 MH_EXECUTE_SYM) else { return nil }
+        return UnsafeRawPointer(symbol).assumingMemoryBound(to: mach_header_64.self)
+    }
+
+    /// The digest key out of a `__TEXT,__info_plist` section's bytes, or nil when the
+    /// bytes are not a plist dictionary or hold no such key. The injectable seam:
+    /// a test drives this with fixture bytes, since a test process has no section of
+    /// its own to plant one in.
+    static func digest(fromInfoPlistSection data: Data) -> String? {
+        guard let object = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let dictionary = object as? [String: Any] else { return nil }
+        return dictionary[digestInfoKey] as? String
+    }
 
     /// Whether `name` is a family file name: the slug
     /// `AppRecipeIndexTests.familySlugsAreUniqueAndWellFormed` requires, then

@@ -39,8 +39,8 @@ import Foundation
 ///   a value built by that initializer, not restated here, so the two cannot
 ///   disagree.
 /// - An **unknown key** is an error, at any depth. A misspelt optional key would
-///   otherwise be silently ignored — the one mistake the compiler catches today
-///   that a decoder would not.
+///   otherwise be silently ignored, where the same misspelling in Swift source is
+///   a compile error.
 /// - An explicit **`null`** is an error for a property that is not optional. For an
 ///   optional property it means `nil`. That includes the one optional whose
 ///   default is not nil, `ChangelogRecipe.maxEntries` (default 40): `null` there is

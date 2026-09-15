@@ -230,7 +230,8 @@ public struct RemoteVersion: Sendable, Hashable {
     /// only backstop is install-time gate 6 (`SignatureVerifier.verifyRunnableSystemVersion`,
     /// and `PackageInstaller.verifyPayloadSystemVersion` for pkgs), which reads
     /// the downloaded artifact's own declared floor — not this property — and so
-    /// refuses only after the download.
+    /// refuses only after the download. It exists only on routes we download
+    /// and install ourselves; a `requiresManualInstaller` source has no backstop.
     public let minimumSystemVersion: String?
     /// Human-readable name of the source that produced this ("Sparkle" etc.).
     public let sourceName: String

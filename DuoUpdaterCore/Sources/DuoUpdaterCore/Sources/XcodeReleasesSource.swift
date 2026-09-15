@@ -121,9 +121,10 @@ public struct XcodeReleasesSource: UpdateSource {
             //
             // The refusal itself already happened: `offer` above bounded its
             // candidates by this value, so the build named here is one this Mac
-            // can run. Carried anyway because it is a fact about the release —
-            // the row's "requires macOS N" line (#634 part 3) reads it, and it
-            // is what install-time gate 6 will be checked against.
+            // can run. Carried anyway because it is a fact about the release.
+            // Nothing reads it yet — the row's "requires macOS N" line (#634
+            // part 3) would be the first — and gate 6 never sees this release:
+            // there is no download to check.
             minimumSystemVersion: offer.requires,
             sourceName: Self.sourceName,
             requiresManualInstaller: true,
@@ -162,9 +163,10 @@ public struct XcodeReleasesSource: UpdateSource {
     /// on 26.4 is offered the newest beta rather than an RC it cannot run. This is
     /// the shape `SparkleAppcastSource.usableItems` has always had (filter the
     /// candidate list, then take its head), with the same predicate. This filter
-    /// is the whole detection-time gate for Xcode: `UpdateChecker.evaluate` asks
-    /// nothing about the host, so a build it lets through is offered, and only
-    /// install-time gate 6 refuses it — after the download.
+    /// is the ONLY floor gate Xcode has, at any stage: `UpdateChecker.evaluate`
+    /// asks nothing about the host, and install-time gate 6 never runs because
+    /// the remote carries no download (`requiresManualInstaller`). A build this
+    /// filter lets through is offered, and the user downloads it by hand.
     static func offer(
         forBuild installedBuild: String, in releases: [Release], osVersion: String
     ) -> (installed: Release, offer: Release)? {

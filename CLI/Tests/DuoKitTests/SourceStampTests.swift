@@ -124,6 +124,22 @@ import Foundation
         }
     }
 
+    /// Recipe data files do not count toward the floor. Mutation: count every digested
+    /// file instead of `.swift` only — a tree whose code is gone but whose recipe files
+    /// are all there then digests happily.
+    @Test func recipeDataFilesDoNotSatisfyTheFloor() throws {
+        let root = try makeTree(files: 3)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent(SourceStamp.sourceRoots[0])
+        for i in 0..<(SourceStamp.minimumFiles + 5) {
+            try "{\"n\": \(i)}\n".write(
+                to: directory.appendingPathComponent("R\(i).json5"), atomically: true, encoding: .utf8)
+        }
+        #expect(throws: SourceStamp.StampError.self) {
+            try SourceStamp.digest(ofCheckoutAt: root)
+        }
+    }
+
     /// Mutation: return `directory` on the first iteration instead of walking up. `duo
     /// verify` is normally run from the repository root, so a test that only checked the
     /// root would pass — this one starts three levels down, which is where the skill's

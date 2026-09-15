@@ -2192,11 +2192,34 @@ final class AppListModel {
         }
         let mayRead = mayReadTestFlightStore
         let unread = TestFlightInventory(macRows: [], accessible: false)
-        let inventory = mayRead
+        var inventory = mayRead
             ? await Self.firstResult(
                 of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
                 within: .seconds(2)) ?? unread
             : unread
+        // Caught TestFlight between its two catalogue requests: wait for the second
+        // to land rather than answer the beta rows from a store that has not been
+        // told which builds exist (`TestFlightInventory.isRebuilding`). Nothing else
+        // would bring this back — the watcher does not hear the write that finishes
+        // the rebuild (`TestFlightInventory.awaitingRebuild`).
+        if inventory.accessible, inventory.isRebuilding {
+            Log.app.notice("TestFlight store is mid-rebuild — waiting for it before answering the beta rows")
+            inventory = await TestFlightInventory.awaitingRebuild(inventory) {
+                // Stop reading the moment reading is no longer wanted — detection
+                // switched off, or the grant withdrawn — rather than for the rest of
+                // the wait. Nil ends the wait with the rows left alone.
+                guard self.mayReadTestFlightStore else { return nil }
+                return await Self.firstResult(
+                    of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
+                    within: .seconds(2))
+            }
+            // Still half built: leave the rows, and leave the watcher's bookkeeping
+            // unrecorded so the next write it does hear is reacted to.
+            if inventory.accessible, inventory.isRebuilding {
+                Log.app.notice("TestFlight store still mid-rebuild after the wait — rows left as they are")
+                return
+            }
+        }
         // The single writer of the watcher's bookkeeping. Every path that reads the
         // store lands here — our own sync's follow-up, a permission flip, the setting
         // changing, the watcher itself — so "have we already read this store state" has
@@ -2668,13 +2691,32 @@ final class AppListModel {
         // already has, instead of re-deriving them from an empty one; a round that
         // cannot read it at all re-derives them, and they say they cannot tell
         // (`RefreshIntent.keepsTestFlightVerdicts`).
+        //
+        // A round that read the store mid-rebuild keeps them too: that store has not
+        // been told which builds exist, so an available beta would read as up to date
+        // (`TestFlightInventory.isRebuilding`). Unlike the tick's case, something does
+        // try to refresh these — the shared re-check below, which waits the rebuild
+        // out. A store that stays half built past its wait leaves them as they are.
         let plan = ScanRowAssembly.roundPlan(
             checkable,
             // Never with detection off, for the same reason as a known-missing grant:
             // a kept verdict is one nothing will ever refresh.
             keepsTestFlightRows: detection.readsStore
-                && intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess),
+                && (intent.keepsTestFlightVerdicts(fullDiskAccess: fullDiskAccess)
+                    || (testflight.accessible && testflight.isRebuilding)),
+            // Placeholders too: a cold launch's rows have no verdict yet, and one
+            // answered from this store would be kept by every round after it.
+            keepsPlaceholders: detection.readsStore && testflight.accessible && testflight.isRebuilding,
             onScreen: roundBaseline)
+        if testflight.accessible, testflight.isRebuilding {
+            Log.app.notice("refresh: TestFlight store is mid-rebuild — beta rows kept, answered after this round")
+            // After the round publishes, for the reason `startAutomaticTestFlightSync`
+            // gives: a repair landing first is undone by the publish.
+            Task { @MainActor [weak self] in
+                if let round = self?.refreshTask { await round.value }
+                await self?.recheckTestFlightRows()
+            }
+        }
         var checkedRows = await checker.check(plan.check) + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
         // this round began. If the sync changed it, answer them again from the new
@@ -2717,11 +2759,24 @@ final class AppListModel {
         if let testFlightSync {
             let outcome = await testFlightSync.value
             Log.app.notice("TestFlight sync: \(String(describing: outcome), privacy: .public)")
-            if outcome.storeChanged,
-               let synced = await Self.firstResult(
-                   of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
-                   within: .seconds(2)),
-               synced.accessible {
+            let synced = outcome.storeChanged
+                ? await Self.firstResult(
+                    of: Task.detached(priority: .userInitiated) { await TestFlightInventory.loadOffPool() },
+                    within: .seconds(2))
+                : nil
+            if let synced, synced.accessible, synced.isRebuilding {
+                // The sync ran out its deadline with TestFlight still waiting on its
+                // second request. Answering from this store is the defect the wait in
+                // `TestFlightRefresh.run` exists to prevent, so the round keeps what it
+                // had and the shared path waits for the rebuild once the round has
+                // published (the same ordering `startAutomaticTestFlightSync` uses).
+                Log.app.notice("TestFlight sync: the store is still mid-rebuild — beta rows answered after this round")
+                Task { @MainActor [weak self] in
+                    if let round = self?.refreshTask { await round.value }
+                    await self?.recheckTestFlightRows()
+                }
+            }
+            if let synced, synced.accessible, !synced.isRebuilding {
                 let targets = AppScanner.applyingTestFlightInventory(synced, to: checkable)
                     .filter(\.isTestFlightApp)
                 let syncedAnnouncements = await Self.firstResult(
@@ -6682,6 +6737,10 @@ final class AppListModel {
         // #518 records ~6.9s in which the store answers for nobody. A debounce short
         // enough to fire inside that window would read exactly the state this watcher
         // exists to avoid publishing. `settleStoreStamp` below is the second guard.
+        // ⚠️ Neither is enough on its own for the rebuild's last write: measured
+        // 2026-09-15, a cold launch filled the store in at +20s, and this debounce plus
+        // the settle had read it at +10s. `recheckTestFlightRowsOnce` waits that out
+        // (`TestFlightInventory.isRebuilding`).
         let watcher = AppDirectoryWatcher(paths: [dir], debounce: 8) { [weak self] in
             Task { @MainActor in await self?.testFlightStoreChanged() }
         }
@@ -7225,7 +7284,7 @@ final class AppListModel {
         // status next as if it were an answer, and on screen a kept row looks
         // exactly like a checked one.
         if !kept.isEmpty {
-            Log.app.notice("recheck: TestFlight's store did not open — kept \(kept.count, privacy: .public) TestFlight row(s) as they were: \(kept.map(\.app.name).joined(separator: ", "), privacy: .public)")
+            Log.app.notice("recheck: TestFlight's store did not open or was mid-rebuild — kept \(kept.count, privacy: .public) TestFlight row(s) as they were: \(kept.map(\.app.name).joined(separator: ", "), privacy: .public)")
         }
         return rows
     }

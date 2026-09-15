@@ -355,6 +355,23 @@ extension ScanRowAssemblyTests {
         #expect(plan.check.map(\.id) == [beta.id])
         #expect(plan.carried.isEmpty)
     }
+
+    /// ...except against a store read mid-rebuild, where the placeholder is kept:
+    /// checked, the beta would be published as "up to date" and then kept as a
+    /// verdict by every later round. Mutation: ignore `keepsPlaceholders` — the
+    /// placeholder is checked and this fails.
+    @Test func aPlaceholderIsKeptWhenTheStoreIsMidRebuild() {
+        let beta = planApp("Beta", testFlight: true)
+        let plain = planApp("Plain", testFlight: false)
+        let onScreen = [
+            ScanRowAssembly.unchecked(beta, proofs: noProofs),
+            ScanRowAssembly.unchecked(plain, proofs: noProofs),
+        ]
+        let plan = ScanRowAssembly.roundPlan(
+            [beta, plain], keepsTestFlightRows: true, keepsPlaceholders: true, onScreen: onScreen)
+        #expect(plan.check.map(\.id) == [plain.id])
+        #expect(plan.carried.map(\.id) == [beta.id])
+    }
 }
 
 // MARK: - recheck: what a per-row recheck answers a TestFlight row from
@@ -447,6 +464,25 @@ extension ScanRowAssemblyTests {
             #expect(rows.map(\.status) == [.updateAvailable(latest: "1.2")])
             #expect(kept.map(\.id) == [offered.id])
         }
+    }
+
+    /// The store opened, but TestFlight was partway through rebuilding it: only the
+    /// installed build is back (measured 2026-09-15). The beta is kept, as for a
+    /// read that failed, not answered from half a store. The fixture is that shape —
+    /// the installed 344 as the only row — so a checked row answers "344" and a kept
+    /// one "1.2". Mutation: drop `|| store.isRebuilding` — the beta is checked and
+    /// both lines below fail.
+    @Test func aRecheckOfAStoreMidRebuildKeepsTheBeta() async {
+        let probe = Probe()
+        let midRebuild = TestFlightInventory(
+            macRows: [(bundleID: "com.example.beta", shortVersion: "1.2", build: "344")],
+            rebuilding: true)
+        let (rows, kept) = await ScanRowAssembly.recheck(
+            [offered], scanned: [tfBeta(build: "344")], mayRead: probe.grant(true),
+            read: { midRebuild }, proofs: noProofs, check: { probe.check($0, $1) })
+        #expect(probe.checked.isEmpty)
+        #expect(rows.map(\.status) == [.updateAvailable(latest: "1.2")])
+        #expect(kept.map(\.id) == [offered.id])
     }
 
     /// TestFlight installed the offered build since the last check, and the read

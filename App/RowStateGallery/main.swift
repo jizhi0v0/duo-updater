@@ -340,6 +340,9 @@ private let tooltipDifferentiatedPairs: Set<Set<String>> = [
     // `.needsNewerMacOS`'s popover badges are the same icon with no on-screen
     // text.
     ["popover/22-update-app-store-mac-incompatible", "popover/43-update-app-store-needs-newer-macos"],
+    // A fourth: the vendor's ceiling and floor share one badge (#634); "Supported
+    // up to…" and "Requires macOS…" are what tell them apart before the click.
+    ["popover/46-not-for-this-macos-ceiling", "popover/47-not-for-this-macos-floor"],
 ]
 
 @MainActor

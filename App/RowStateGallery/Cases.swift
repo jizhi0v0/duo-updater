@@ -101,6 +101,11 @@ enum RowStateGalleryCases {
                 }
                 return AnyView(popover.needsNewerMacOSHintPopover(info, minimum: minimum).fixedSize())
             }
+        case "48-not-for-this-macos-ceiling-explanation", "49-not-for-this-macos-floor-explanation":
+            // The refusal comes off the STATE, as the real badge reads it.
+            guard case .notForThisMacOS(let refusal) = state else { return AnyView(EmptyView()) }
+            return AnyView(
+                PopoverRowAction(state: state, result: result).osWindowHintPopover(refusal).fixedSize())
         default:
             return AnyView(
                 PopoverRowAction(
@@ -251,7 +256,23 @@ enum RowStateGalleryCases {
         // on the quit that ran as root and staged under /var/root. Same button by
         // design; only the tooltip cannot name a version.
         ("45-relaunch-to-apply-staged-version-unknown", .relaunchToApplyStaged(to: nil), app),
+        // #634: a source read the newest release and the vendor said it is not for
+        // this macOS. Used to be `.unknown`'s dash (26). One case per bound, since
+        // the two word the badge and the panel differently, and the two panels
+        // after them — same badge/panel pairing as 43/44.
+        ("46-not-for-this-macos-ceiling", .notForThisMacOS(osCeilingRefusal), app),
+        ("47-not-for-this-macos-floor", .notForThisMacOS(osFloorRefusal), app),
+        ("48-not-for-this-macos-ceiling-explanation", .notForThisMacOS(osCeilingRefusal), app),
+        ("49-not-for-this-macos-floor-explanation", .notForThisMacOS(osFloorRefusal), app),
     ]
+
+    /// Hosts written out, never read: the gallery must draw the same picture on any
+    /// Mac. The ceiling's host keeps a ".0" patch so the tile shows the display
+    /// trimming it (`OSWindowWording.macOSDisplay`).
+    static let osCeilingRefusal = OSWindowRefusal(
+        bound: .ceiling(maximum: "26.99"), version: "1.3.0", hostOS: "27.0.0")
+    static let osFloorRefusal = OSWindowRefusal(
+        bound: .floor(minimum: "98.0"), version: "1.3.0", hostOS: "27.1.2")
 
     /// Which reason each TestFlight-unbounded case is drawn with, on BOTH surfaces
     /// — they draw the same mark from the same input, and an override that reached
@@ -284,6 +305,8 @@ enum RowStateGalleryCases {
         "39-region-hint-explanation",
         "40-mac-compat-hint-explanation",
         "44-needs-newer-macos-hint-explanation",
+        "48-not-for-this-macos-ceiling-explanation",
+        "49-not-for-this-macos-floor-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -301,6 +324,8 @@ enum RowStateGalleryCases {
         "workbench/39-region-hint-explanation",
         "workbench/40-mac-compat-hint-explanation",
         "workbench/44-needs-newer-macos-hint-explanation",
+        "workbench/48-not-for-this-macos-ceiling-explanation",
+        "workbench/49-not-for-this-macos-floor-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed
@@ -371,6 +396,27 @@ enum RowStateGalleryCases {
         // distinct `Label` per gate (different words), so this pair does not
         // hold there.
         ["popover/22-update-app-store-mac-incompatible", "popover/43-update-app-store-needs-newer-macos"],
+        // #634: a vendor refusing this macOS draws the same amber triangle again —
+        // deliberately, it is the same KIND of news as the App Store's macOS gates
+        // (the latest release is not for this Mac), and a new glyph would ask the
+        // user to learn a second sign for it. So it collides with every triangle
+        // badge above, on the popover only; the workbench names each in words.
+        ["popover/18-update-major-upgrade", "popover/46-not-for-this-macos-ceiling"],
+        ["popover/18-update-major-upgrade", "popover/47-not-for-this-macos-floor"],
+        ["popover/22-update-app-store-mac-incompatible", "popover/46-not-for-this-macos-ceiling"],
+        ["popover/22-update-app-store-mac-incompatible", "popover/47-not-for-this-macos-floor"],
+        ["popover/43-update-app-store-needs-newer-macos", "popover/46-not-for-this-macos-ceiling"],
+        ["popover/43-update-app-store-needs-newer-macos", "popover/47-not-for-this-macos-floor"],
+        // The two bounds share the badge; the tooltip says which ("Supported up
+        // to…" vs "Requires macOS…"), and that claim IS checked — see
+        // `tooltipDifferentiatedPairs`.
+        ["popover/46-not-for-this-macos-ceiling", "popover/47-not-for-this-macos-floor"],
+        // Workbench, and on purpose: a vendor's floor reached through a probe or a
+        // feed is the same condition as the App Store's floor, so it takes the same
+        // words ("Needs a newer macOS") rather than a synonym (`OSWindowWording`).
+        // The tooltips differ only by the fixtures' version numbers, so this pair
+        // is NOT claimed as tooltip-differentiated.
+        ["workbench/43-update-app-store-needs-newer-macos", "workbench/47-not-for-this-macos-floor"],
         // Deliberate on both surfaces: a store-managed app that is CURRENT keeps
         // the same marker as one the store manages generally, so a managed row
         // never reads like something we could update ourselves. `RowAction.state`
@@ -415,6 +461,8 @@ enum RowStateGalleryCases {
         "popover/21-update-app-store-region-locked",
         "popover/22-update-app-store-mac-incompatible",
         "popover/43-update-app-store-needs-newer-macos",
+        "popover/46-not-for-this-macos-ceiling",
+        "popover/47-not-for-this-macos-floor",
 
         // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
         // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the

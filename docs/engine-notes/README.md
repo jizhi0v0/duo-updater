@@ -58,8 +58,8 @@ what to do when the number has already drifted once.
    the build if a tracked `.md` in this directory isn't listed there.
 7. `make test`, then a self-review pass (`/code-review`) on the diff before
    opening the PR. After fixing its findings, review the fix diff again, and
-   keep going until the loop converges. The stop criteria live only in
-   CLAUDE.md, 「修 issue」; they are not restated here so the two cannot drift.
+   keep going until the loop converges. The stop criterion lives only in
+   CLAUDE.md, 「修 issue」; it is not restated here so the two cannot drift.
 
 ## Index
 

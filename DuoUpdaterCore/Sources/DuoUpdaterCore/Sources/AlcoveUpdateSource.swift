@@ -55,7 +55,10 @@ public struct AlcoveUpdateSource: UpdateSource {
 
     /// Reported under the same label as the vendor probe it supersedes, so the UI
     /// and traffic stats stay consistent across the credentialed / public paths.
-    public let name = "Vendor"
+    /// Static so the pure `remote(from:token:osVersion:)` below — which has no
+    /// instance to ask — reports under the identical label.
+    static let sourceName = "Vendor"
+    public let name = AlcoveUpdateSource.sourceName
 
     /// The two stable per-machine secrets the licensed API needs. Stored in our
     /// Keychain; never logged.
@@ -88,6 +91,45 @@ public struct AlcoveUpdateSource: UpdateSource {
         guard let token = try? await issueToken() else { return nil }
         guard let latest = try? await fetchLatest(token: token, app: app) else { return nil }
 
+        return Self.remote(from: latest, token: token, osVersion: HostOS.numericVersion())
+    }
+
+    /// The remote one `/updates/latest` body describes — or `nil` when the vendor's
+    /// stated floor excludes this Mac.
+    ///
+    /// The refusal lives HERE, where the candidate is chosen, for the same reason
+    /// `SparkleAppcastSource.usableItems` drops a too-high feed item and
+    /// `XcodeReleasesSource.offer` bounds its candidates: a release this Mac cannot
+    /// run is not a release this Mac has been offered, so it never becomes a
+    /// `RemoteVersion` at all and no downstream stage has to hold an opinion about
+    /// it. `UpdateChecker.evaluate` deliberately asks nothing about the host — see
+    /// its doc comment.
+    ///
+    /// Before #640 `minimum_system_version` was decoded and then read by nobody:
+    /// today's value ("15 Sequoia") is met by every supported host, so this gate
+    /// refuses nothing on any Mac that can run DuoUpdater — it is armed for the
+    /// day the vendor raises it, which is the day it would otherwise have offered
+    /// an update that fails at install-time gate 6.
+    ///
+    /// `osVersion` has NO default: a test that could omit it would measure
+    /// whatever Mac it runs on (CLAUDE.md).
+    static func remote(from latest: UpdatesLatest, token: String, osVersion: String)
+        -> RemoteVersion? {
+        // One predicate for every OS floor in the codebase — gate 6's, so a
+        // detection gate and an install gate cannot disagree. See `HostOS`.
+        // It fails OPEN on a value with no digit in it, which is what makes it
+        // safe against a vendor string like "15 Sequoia" changing shape.
+        guard SignatureVerifier.canRun(
+            minimumSystemVersion: latest.minimumSystemVersion, on: osVersion)
+        else {
+            Log.check.info("""
+                Alcove \(latest.tagName, privacy: .public) declares macOS \
+                \(latest.minimumSystemVersion ?? "?", privacy: .public) and this Mac runs \
+                \(osVersion, privacy: .public) — not offered
+                """)
+            return nil
+        }
+
         let dmg = latest.assets.first { $0.name == "Alcove.dmg" }?.url
         // #300: route through the same day/minute split every other source
         // uses — `latest.publishedAt` is Alcove's own JSON `published_at`,
@@ -101,7 +143,7 @@ public struct AlcoveUpdateSource: UpdateSource {
             version: nil,
             downloadURL: dmg,
             minimumSystemVersion: latest.minimumSystemVersion,
-            sourceName: name,
+            sourceName: Self.sourceName,
             // dmg → in-place swap (not a pkg handed to the system installer).
             requiresManualInstaller: false,
             vendorInstallerKind: dmg == nil ? nil : .dmg,

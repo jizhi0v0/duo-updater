@@ -1,0 +1,277 @@
+[
+  {
+    "token": "onyx",
+    "full_token": "onyx",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "OnyX"
+    ],
+    "desc": "Verify system files structure, run miscellaneous maintenance and more",
+    "homepage": "https://www.titanium-software.fr/en/onyx.html",
+    "url": "https://www.titanium-software.fr/download/26/OnyX.dmg",
+    "url_specs": {},
+    "version": "5.0.4",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "app": [
+          "OnyX.app"
+        ],
+        "target": "/Applications/OnyX.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Caches/com.apple.helpd/Generated/com.titanium.OnyX.help*",
+              "~/Library/Caches/com.apple.helpd/SDMHelpData/Other/English/HelpSDMIndexFile/com.titanium.OnyX.help*",
+              "~/Library/Logs/OnyX.log",
+              "~/Library/Preferences/com.titanium.OnyX.plist",
+              "~/Library/Preferences/com.titanium.OnyX.update.plist",
+              "~/Library/Preferences/OnyX.plist",
+              "~/Library/Saved Application State/com.titanium.OnyX.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        "==": [
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "26"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "9c0825f65b0cb1723a0eec8cf882cdf2ed10cd16",
+    "languages": [],
+    "ruby_source_path": "Casks/o/onyx.rb",
+    "ruby_source_checksum": {
+      "sha256": "84e123246f28077eed066ef02c782f2c7eb939b95cb759b94a9d503999239c1a"
+    },
+    "variations": {
+      "sequoia": {
+        "url": "https://www.titanium-software.fr/download/15/OnyX.dmg",
+        "version": "4.8.5",
+        "skip_livecheck": true
+      },
+      "arm64_sequoia": {
+        "url": "https://www.titanium-software.fr/download/15/OnyX.dmg",
+        "version": "4.8.5",
+        "skip_livecheck": true
+      },
+      "sonoma": {
+        "url": "https://www.titanium-software.fr/download/14/OnyX.dmg",
+        "version": "4.6.2",
+        "skip_livecheck": true
+      },
+      "arm64_sonoma": {
+        "url": "https://www.titanium-software.fr/download/14/OnyX.dmg",
+        "version": "4.6.2",
+        "skip_livecheck": true
+      },
+      "ventura": {
+        "url": "https://www.titanium-software.fr/download/13/OnyX.dmg",
+        "version": "4.4.7",
+        "skip_livecheck": true
+      },
+      "arm64_ventura": {
+        "url": "https://www.titanium-software.fr/download/13/OnyX.dmg",
+        "version": "4.4.7",
+        "skip_livecheck": true
+      },
+      "monterey": {
+        "url": "https://www.titanium-software.fr/download/12/OnyX.dmg",
+        "version": "4.2.7",
+        "skip_livecheck": true
+      },
+      "arm64_monterey": {
+        "url": "https://www.titanium-software.fr/download/12/OnyX.dmg",
+        "version": "4.2.7",
+        "skip_livecheck": true
+      },
+      "big_sur": {
+        "url": "https://www.titanium-software.fr/download/11/OnyX.dmg",
+        "version": "4.0.2",
+        "skip_livecheck": true
+      },
+      "arm64_big_sur": {
+        "url": "https://www.titanium-software.fr/download/11/OnyX.dmg",
+        "version": "4.0.2",
+        "skip_livecheck": true
+      },
+      "x86_64_linux": {
+        "url": null,
+        "url_specs": null,
+        "version": null
+      },
+      "arm64_linux": {
+        "url": null,
+        "url_specs": null,
+        "version": null
+      }
+    },
+    "supported_platforms": [
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ],
+    "analytics": {
+      "install": {
+        "30d": {
+          "onyx": 653
+        },
+        "90d": {
+          "onyx": 2709
+        },
+        "365d": {
+          "onyx": 14641
+        }
+      }
+    },
+    "generated_date": "2026-09-14"
+  },
+  {
+    "token": "onyx@beta",
+    "full_token": "onyx@beta",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "OnyX Beta"
+    ],
+    "desc": "Verify system files structure, run miscellaneous maintenance and more",
+    "homepage": "https://www.titanium-software.fr/en/onyx.html",
+    "url": "https://www.titanium-software.fr/download/beta/OnyX.dmg",
+    "url_specs": {},
+    "version": "5.1.0,260910",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "app": [
+          "OnyX.app"
+        ],
+        "target": "/Applications/OnyX.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Caches/com.apple.helpd/SDMHelpData/Other/English/HelpSDMIndexFile/com.titanium.OnyX.help*",
+              "~/Library/Logs/OnyX.log",
+              "~/Library/Preferences/com.titanium.OnyX.plist",
+              "~/Library/Preferences/com.titanium.OnyX.update.plist",
+              "~/Library/Preferences/OnyX.plist",
+              "~/Library/Saved Application State/com.titanium.OnyX.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "27"
+        ]
+      }
+    },
+    "conflicts_with": {
+      "cask": [
+        "onyx"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "9c0825f65b0cb1723a0eec8cf882cdf2ed10cd16",
+    "languages": [],
+    "ruby_source_path": "Casks/o/onyx@beta.rb",
+    "ruby_source_checksum": {
+      "sha256": "8ed91e882f55839e23bcb648087b552e2a3d253476bdf946a907be69737fed84"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate"
+    ],
+    "analytics": {
+      "install": {
+        "30d": {
+          "onyx@beta": 29
+        },
+        "90d": {
+          "onyx@beta": 59
+        },
+        "365d": {
+          "onyx@beta": 178
+        }
+      }
+    },
+    "generated_date": "2026-09-14"
+  }
+]

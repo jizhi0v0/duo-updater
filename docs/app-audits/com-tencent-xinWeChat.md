@@ -141,8 +141,11 @@ never nested, so it slices between releases and not inside one.
 Tencent also buckets ONE version by OS across three of those items
 (`min12.0` with no max, `min12.0/max14.3`, and `min14.3/max15.0` which
 carries NO enclosure at all and tells the user to visit the website).
-Nothing here reads those bounds — `VendorProbeSource` consults neither,
-unlike `SparkleAppcastSource`. What keeps this correct is the tie-break in
+Nothing here reads those bounds — `VendorProbeSource` honours a bound only
+where the recipe declares `minimum`/`maximumSystemVersionPattern` (#634), and
+this recipe deliberately does not: the window is applied to the entry already
+picked, and picking the first-listed capped bucket would refuse the whole
+probe. What keeps this correct is the tie-break in
 `highestVersionEntry`: `best` is replaced only on a STRICTLY newer
 version, so among the three items that all read "4.1.13" the FIRST wins —
 the no-max bucket carrying the universal dmg. If Tencent ever reorders

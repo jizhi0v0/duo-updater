@@ -504,7 +504,24 @@ public struct UpdateChecker: Sendable {
     /// Public so a UI layer can cheaply RE-evaluate a freshly-rescanned app
     /// against an already-fetched remote (no network) — e.g. to notice an app
     /// updated itself in the background.
-    public static func evaluate(installed: InstalledApp, remote: RemoteVersion) -> UpdateStatus {
+    ///
+    /// ⚠️ Deliberately asks NOTHING about this Mac — no OS floor, no architecture.
+    /// A vendor's macOS floor is applied where the candidate is CHOSEN (see
+    /// `SparkleAppcastSource.usableItems`, `XcodeReleasesSource.offer`,
+    /// `AlcoveUpdateSource.remote(from:token:osVersion:)`), never here, for two
+    /// reasons. It keeps this function a pure comparison of two versions, which is
+    /// what every one of its ~60 tests assumes — a host-dependent branch in here
+    /// makes each of those tests measure the machine it runs on unless it
+    /// remembers to pin an OS, and nothing enforces remembering. And the answer a
+    /// refusal deserves ("your Mac is too old for the new version") is a ROW
+    /// STATE, which `UpdateStatus` cannot carry: settling it to `.upToDate` here
+    /// would draw a plain checkmark, which is a third answer for a condition
+    /// `AppStoreGate.needsNewerMacOS` already renders properly for the store
+    /// route. One row, one answer (CLAUDE.md) — see #634 part 3, which is where
+    /// that state belongs.
+    public static func evaluate(
+        installed: InstalledApp, remote: RemoteVersion
+    ) -> UpdateStatus {
         // Build ids with no order of their own (commit hashes) are ordered by the
         // vendor's published lineage and by nothing else: every branch below ends
         // in `VersionComparator`, which on two hashes is a coin flip (see

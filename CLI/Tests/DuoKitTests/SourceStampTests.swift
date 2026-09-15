@@ -64,6 +64,40 @@ import Foundation
         #expect(try SourceStamp.digest(ofCheckoutAt: root) != before)
     }
 
+    /// Recipe data is moving from Swift literals into `.json5` resource files: packaged
+    /// beside the binary rather than compiled into it, but still the rules it reads.
+    /// Mutation: go back to hashing `.swift`
+    /// only — editing and renaming the recipe file then leave the digest unchanged,
+    /// and a `duo` built before the edit reads as current. The `.md` beside it is the
+    /// control: a digest over every file would pass the first two expectations.
+    @Test func recipeDataFilesAreDigestedAndOtherFilesAreNot() throws {
+        let root = try makeTree()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent(SourceStamp.sourceRoots[0] + "/Recipes")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let recipe = directory.appendingPathComponent("com-example-App.json5")
+        let notes = directory.appendingPathComponent("README.md")
+        try "// a comment\n{\"probes\": [{\"versionPattern\": \"v1\"}]}\n"
+            .write(to: recipe, atomically: true, encoding: .utf8)
+        try "notes\n".write(to: notes, atomically: true, encoding: .utf8)
+        let before = try SourceStamp.digest(ofCheckoutAt: root)
+
+        // Same length, different bytes.
+        try "// a comment\n{\"probes\": [{\"versionPattern\": \"v2\"}]}\n"
+            .write(to: recipe, atomically: true, encoding: .utf8)
+        let edited = try SourceStamp.digest(ofCheckoutAt: root)
+        #expect(edited != before, "editing a .json5 recipe file did not move the digest")
+
+        try "NOTES\n".write(to: notes, atomically: true, encoding: .utf8)
+        #expect(try SourceStamp.digest(ofCheckoutAt: root) == edited,
+                "editing a .md file moved the digest, so it is not reading by extension")
+
+        try FileManager.default.moveItem(
+            at: recipe, to: directory.appendingPathComponent("com-example-Renamed.json5"))
+        #expect(try SourceStamp.digest(ofCheckoutAt: root) != edited,
+                "renaming a .json5 recipe file did not move the digest")
+    }
+
     /// Two trees with identical content must agree even though they were created in a
     /// different order and live at different paths. Mutation: remove `.sorted` — this
     /// goes red as soon as `enumerator` hands the two trees back differently, which is
@@ -86,6 +120,22 @@ import Foundation
     @Test func aTreeThatLostItsSourcesIsAnError() throws {
         let root = try makeTree(files: 3)
         defer { try? FileManager.default.removeItem(at: root) }
+        #expect(throws: SourceStamp.StampError.self) {
+            try SourceStamp.digest(ofCheckoutAt: root)
+        }
+    }
+
+    /// Recipe data files do not count toward the floor. Mutation: count every digested
+    /// file instead of `.swift` only — a tree whose code is gone but whose recipe files
+    /// are all there then digests happily.
+    @Test func recipeDataFilesDoNotSatisfyTheFloor() throws {
+        let root = try makeTree(files: 3)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent(SourceStamp.sourceRoots[0])
+        for i in 0..<(SourceStamp.minimumFiles + 5) {
+            try "{\"n\": \(i)}\n".write(
+                to: directory.appendingPathComponent("R\(i).json5"), atomically: true, encoding: .utf8)
+        }
         #expect(throws: SourceStamp.StampError.self) {
             try SourceStamp.digest(ofCheckoutAt: root)
         }

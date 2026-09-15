@@ -282,6 +282,60 @@ public struct Baseline: Codable, Sendable {
         }
     }
 
+    /// Whether a version-templated changelog's two versions were read off two
+    /// different pages, so that an older one is not a regression.
+    ///
+    /// Such a recipe fetches the page `sourceTemplate` resolves for the version
+    /// this sweep had — a probe's answer, or else the installed copy's — so the
+    /// page follows whichever copy the sweeping machine has. A machine staying on
+    /// an older minor (an LTS train) reads an older page than the one the baseline
+    /// was recorded from; the check would hold the old value and complain on
+    /// every sweep until the streak made it reportable.
+    ///
+    /// Only a DIFFERENT page is exempt. A template keyed on less than the whole
+    /// version shares one page across many versions (Opera's `{major}`, Xcode's
+    /// betas under one `{appleDocVersion}`), and there an older heading is the
+    /// page matching a different element — the case the check exists for, which
+    /// neither the lag check (same major.minor) nor the probe's row can see.
+    ///
+    /// Pages are re-derived from versions by the recipe's own template
+    /// (`templatedPage`), and that is only sound once this sweep's version is
+    /// known to be a reading of the page it came from — `finding.headingMatchesPage`,
+    /// set by the sweep against the page it actually requested. Without it, a
+    /// template keyed on the whole `{version}` would turn every older heading into
+    /// "another page", including the pattern slipping from 4.1.2 to 4.1.1 on
+    /// 4.1.2's own page, which the lag check cannot see either (same major.minor).
+    /// Unknown keeps the check: a false BACKWARDS is noise, a missed one is silence.
+    ///
+    /// Asked by recipe id, not by bundle id as `ordersByLineage` asks for a
+    /// changelog: the probe row of the same app has no changelog recipe id, and it
+    /// is a row that must keep the check.
+    static func readDifferentPages(
+        _ finding: Finding, previous: String, current: String
+    ) -> Bool {
+        guard finding.headingMatchesPage == true,
+              let recipe = ChangelogRecipeRegistry.recipes.first(where: {
+                  $0.recipeID == finding.recipeID
+              }),
+              let previousPage = templatedPage(recipe, forHeading: previous),
+              let currentPage = templatedPage(recipe, forHeading: current)
+        else { return false }
+        return previousPage != currentPage
+    }
+
+    /// The page a version-templated recipe's template resolves for a version as
+    /// an entry heading carries it; nil when the recipe is not templated or the
+    /// version has no digit to name a page by.
+    ///
+    /// A heading can lead with the product name ("Xcode 27 Beta 6"), which the
+    /// template tokens do not expect, so everything before the first digit is
+    /// dropped first.
+    static func templatedPage(_ recipe: ChangelogRecipe, forHeading version: String) -> URL? {
+        let digits = String(version.drop { !$0.isNumber })
+        guard recipe.sourceTemplate != nil, !digits.isEmpty else { return nil }
+        return recipe.resolvedSource(forVersion: digits)
+    }
+
     /// Compare this run against what we knew, returning every complaint to
     /// attach — then fold the run into the baseline.
     ///
@@ -304,9 +358,12 @@ public struct Baseline: Codable, Sendable {
         if let version = finding.version, finding.status != .infra {
             // A recipe whose builds are hashes has no order a version string can
             // show (see `BuildLineage`); asking `VersionComparator` here would
-            // report every other release as a regression.
+            // report every other release as a regression. A version-templated
+            // changelog may have read another page than last time
+            // (see `readDifferentPages`).
             if let previous = entry.lastGoodVersion, previous != version,
                !Self.ordersByLineage(finding),
+               !Self.readDifferentPages(finding, previous: previous, current: version),
                VersionComparator.isNewer(previous, than: version) {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "

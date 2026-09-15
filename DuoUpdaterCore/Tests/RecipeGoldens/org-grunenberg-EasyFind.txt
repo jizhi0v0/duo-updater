@@ -1,0 +1,58 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "org-grunenberg-EasyFind"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "org.grunenberg.EasyFind"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://www.devontechnologies.com/apps/freeware")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "/download/freeware/easyfind/([0-9]+(?:\\.[0-9]+)+)/EasyFind\\.app\\.zip"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://www.devontechnologies.com/apps/freeware")
+probes[0].changelogURL = nil
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "(https://download\\.devontechnologies\\.com/download/freeware/easyfind/[0-9.]+/EasyFind\\.app\\.zip)"
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

@@ -48,6 +48,18 @@ There is no GitHub rule: the
 `henrikruscon/alcove-releases` mirror one used to read LAGS the real release
 (2026-06-14: stuck at 1.7.2 while the vendor served 1.7.3).
 
+### `minimum_system_version`：厂商声明的 macOS 下限（2026-09-15 实测）
+
+`curl -s https://download.tryalcove.com/latest`（只读 GET，2026-09-15）整份响应体：
+
+```json
+{"version":"1.7.9","build":203,"published_at":"2026-06-30T20:57:57.000Z","assets":[{"name":"Alcove.zip","size_bytes":15269999},{"name":"Alcove.dmg","size_bytes":16086914}],"minimum_system_version":"15 Sequoia"}
+```
+
+注意写法是 `15 Sequoia`，不是一个裸版本号——数字后面跟一个文本 token。`VersionComparator` 里文本 token 排在数字之下，所以它等价于「15.0 起」：14.7.2 的机器在下限之下，15.0.0 不在。
+
+`AlcoveUpdateSource` 从**授权**端点解同一个键，写进 `RemoteVersion.minimumSystemVersion`，而在 #640 之前没有任何消费者——这是一道没上膛的闸。现在 `AlcoveUpdateSource.remote(from:token:osVersion:)` 在**挑候选的那一步**读它：低于下限就不返回 `RemoteVersion`，跟 Sparkle 的 `usableItems` 丢掉超窗条目、Xcode 的 `offer` 按 `requires` 圈候选是同一个形状。判定放在源里而不是 `UpdateChecker.evaluate`，理由见 `HostOS` 的文档注释。⚠️ 今天的值 `15 Sequoia` 任何受支持的宿主都满足，所以这道闸**当前一次都不会触发**——它是为厂商抬高下限的那天上的膛。⚠️ 授权端点 `api.tryalcove.com/updates/latest` 本次**没有复测**（这个 checkout 没有 license key），只测了公开端点。
+
 ### Recipes/com-henrikruscon-Alcove.swift — ChangelogRecipe（`api.tryalcove.com/changelog`）
 
 转引自 recipe 注释，未复测。唯一的改写：一处本机状态措辞（那台机器上那份拷贝的版本），按本目录的机器状态规则改成了针对那台被量的机器的说法。

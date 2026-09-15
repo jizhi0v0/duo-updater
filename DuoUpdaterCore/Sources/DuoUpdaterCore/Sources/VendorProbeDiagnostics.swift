@@ -25,6 +25,15 @@ import Foundation
 public enum ProbeFailure: Error, Sendable, Equatable {
     /// Toolbox-managed, channel gate refused, or no recipe for this bundle id.
     case notApplicable(String)
+    /// The version resolved, and the response says this release is not for the
+    /// macOS this Mac runs (`minimum`/`maximumSystemVersionPattern`, #634).
+    /// Classified `.notApplicable` — nothing to retry until the vendor moves the
+    /// bound — but kept apart from it because the two accuse different things:
+    /// `.notApplicable` means the recipe does not cover this Mac (no identity,
+    /// wrong track), this means the recipe works and the vendor said no. So
+    /// `latestVersion(for:)` does NOT record it as a recipe-health miss, and a
+    /// sweep's `skipped` line names the cap rather than a bare "not applicable".
+    case outsideVendorOSWindow(String)
     /// `URLError` and friends — DNS, TLS, timeout, connection lost.
     case transport(urlErrorCode: Int, String)
     /// The response wasn't HTTP at all (file:// or a mangled proxy response).
@@ -108,7 +117,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
 
     public var classification: Classification {
         switch self {
-        case .notApplicable:
+        case .notApplicable, .outsideVendorOSWindow:
             return .notApplicable
         case .buildLineageUnavailable(let inner):
             return inner.classification
@@ -129,6 +138,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     public var kind: String {
         switch self {
         case .notApplicable: return "notApplicable"
+        case .outsideVendorOSWindow: return "outsideVendorOSWindow"
         case .transport: return "transport"
         case .nonHTTPResponse: return "nonHTTPResponse"
         case .httpStatus(let code): return "httpStatus\(code)"
@@ -149,6 +159,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     public var detail: String {
         switch self {
         case .notApplicable(let why): return why
+        case .outsideVendorOSWindow(let why): return why
         case .transport(let code, let message): return "URLError \(code): \(message)"
         case .nonHTTPResponse: return "response was not HTTPURLResponse"
         case .httpStatus(let code): return "HTTP \(code)"
@@ -283,6 +294,17 @@ public enum ProbeWarning: Sendable, Equatable {
     /// spelling needs support without reproducing a response that may already
     /// have moved.
     case publishedAtUnreadable(String)
+    /// `minimumSystemVersionPattern` or `maximumSystemVersionPattern` is set but
+    /// matched nothing, so the release was admitted with that bound treated as
+    /// absent. The version keeps resolving; what is lost is the one guard that
+    /// keeps a build the vendor capped below this macOS from being offered.
+    ///
+    /// The same shape as `displayPatternNoMatch`: a pattern the recipe author
+    /// wrote down, found nothing, and nothing failed. Failing open is the right
+    /// call — a vendor reformatting the key must not read as "this build is not
+    /// for your Mac" — but it must not stay silent either, because the sweep is
+    /// the only thing that will ever notice the ceiling stopped being read.
+    case osBoundPatternNoMatch
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.
     ///
@@ -334,6 +356,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .displayPatternNoMatch: return "displayPatternNoMatch"
         case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"
         case .publishedAtUnreadable: return "publishedAtUnreadable"
+        case .osBoundPatternNoMatch: return "osBoundPatternNoMatch"
         }
     }
 }

@@ -55,11 +55,13 @@ import Foundation
         #expect(items.first?.minimumSystemVersion == "14.0")
     }
 
-    /// The case that motivated this: obdev's Little Snitch feed declares its
-    /// stable train tops out at "26.99" while a nightly train carries "27.99"
-    /// (values read live from `sw-update.obdev.at/update-feeds/littlesnitch6.plist`,
-    /// 2026-08-30 — a bespoke plist rather than an appcast, but the same claim in
-    /// the same shape). A macOS 27 Mac must not be offered the capped build.
+    /// The shape that motivated this was first seen on obdev's Little Snitch feed
+    /// (`final` capped at "26.99" while `nightly` carried "27.99", read live
+    /// 2026-08-30) — but that feed is a bespoke plist read by `VendorProbeSource`,
+    /// which never reaches this code. Its own guard is
+    /// `VendorProbeOSBoundTests`; this suite tests the Sparkle path on a synthetic
+    /// item, because no reachable real appcast declared a ceiling when it was
+    /// written. A macOS 27 Mac must not be offered a build capped at 26.99.
     @Test func aBuildCappedBelowTheHostIsNotOffered() {
         #expect(Self.usable(min: "14.0", max: "26.99", on: "27.0.0").isEmpty)
         #expect(Self.usable(min: nil, max: "15.0", on: "26.6.0").isEmpty)

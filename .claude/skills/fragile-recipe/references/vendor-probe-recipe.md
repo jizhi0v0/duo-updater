@@ -27,7 +27,7 @@ stable endpoint you want.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `VendorProbeRecipe.init` currently takes **25** parameters. Read it before you
+> `VendorProbeRecipe.init` currently takes **27** parameters. Read it before you
 > conclude a situation is unsupported — a recipe that "can't express this" is far
 > more often a field nobody has read than a real limit.
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
@@ -54,6 +54,7 @@ The rest, by the problem they solve — go to the source for the exact semantics
 | Endpoint's version is `CFBundleVersion`, not the marketing string | `versionIsBuild`, `buildNamespace` |
 | Compared value is an ugly build id; there is a human one to show | `displayVersionPattern` |
 | Entry states its own release date | `publishedAtPattern` |
+| Entry states the macOS window this release is for (moves release to release, so never pin it) | `minimumSystemVersionPattern`, `maximumSystemVersionPattern` |
 | Multi-entry feed: version/URL/date must come from ONE entry | `entryStartPattern` |
 | Endpoint serves a non-stable track | `channel` |
 | One channel has more than one endpoint worth asking | `variant` |
@@ -174,6 +175,13 @@ rollout/format gotcha (study the neighbors for their quirks, like Chrome's
 fractional rollout or VLC's ascending appcast, not for their dated verification
 logs). Measurements go to the family audit's `## 历史与实测`, not the comment; see
 SKILL.md step 6.
+
+Then regenerate the family's golden and commit it with the recipe (SKILL.md
+step 7). The recording run fails on purpose; rerun without the variable:
+
+```sh
+DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+```
 
 Add a fixture test that feeds a trimmed real body to the extraction helper and
 asserts the version, e.g.:

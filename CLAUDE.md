@@ -20,6 +20,7 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 - **编译通过不算验证。** 说"修好了 / 可以提交了"之前贴出实际命令和结果。
 - 修 recipe 要先复现红:拿到坏掉的原始响应体(`--samples`),确认新规则在**那份真实响应**上过,再跑全量。
 - 新增/改 recipe **必须补一条回归测试**;凡是该由「每条 recipe 都得满足」来表达的性质,用例要**从 registry 推导**,不要手写一份会漂移的清单。范式是 `ChangelogURLPolicyTests` 的「Derived from the registries」一节(遍历 `VendorProbeRegistry.recipes` / `ChangelogRecipeRegistry.recipes`),`AppAuditCoverageTests`、`ChannelGuardTests` 同理。⚠️ **`RecipeHealthTests` / `RecipeVerificationTests` 不是这个范式**——2026-09-07 实测:前者 `grep -c Registry` 为 0,测的是 `RecipeHealth` 这个 actor、id 是合成的;后者是 2026-08-08 两个真实故障的回放套件。这条以前指着它们,照着看的人找不到可抄的东西。
+- 新增/改 recipe(`Recipes/` 下任何家族文件、`AppRecipeIndex.all`、家族共用的 helper)**必须重录 golden** 并连同 diff 一起提交:`DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests`(录制那一轮故意失败,去掉变量再跑一遍看绿)。为什么、以及两个各自绿的 PR 合进去之后怎么红,见 `RecipeGoldenTests` 的文档注释。
 - 全量 `duo verify` 约 150 个请求 / 3 分钟,别为了省时间只验一个就宣布全绿。
 - **`duo verify` 现在自己会拒绝跑陈旧二进制,不用再靠记性。** recipe 是编译进二进制的,
   而 `duo` 跑的是 `~/.local/libexec/duo` 不是你的工作树,所以一次陈旧的 sweep 会给出

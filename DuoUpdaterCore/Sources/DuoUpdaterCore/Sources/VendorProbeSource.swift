@@ -27,6 +27,11 @@ public struct VendorProbeSource: UpdateSource {
     /// by the installed app's detected channel.
     private let recipes: [String: [VendorProbeRecipe]]
     private let session: URLSession
+    /// The macOS this source answers for, in `HostOS.numericVersion()` spelling.
+    /// Injected so both OS gates — the recipe-pinned `hostRequirement` and the
+    /// response-declared `minimum`/`maximumSystemVersionPattern` — can be tested
+    /// for a Mac the tests are not running on.
+    private let hostOSVersion: String
 
     /// Cancels every redirect so the 3xx response is returned as-is. No stored
     /// state, so `@unchecked Sendable` is safe and required for the static below.
@@ -79,11 +84,13 @@ public struct VendorProbeSource: UpdateSource {
 
     public init(
         recipes: [VendorProbeRecipe] = VendorProbeRegistry.recipes,
-        session: URLSession = .updates
+        session: URLSession = .updates,
+        hostOSVersion: String = HostOS.numericVersion()
     ) {
         // Group by bundle id; each group holds that id's per-channel recipes.
         self.recipes = Dictionary(grouping: recipes, by: { $0.bundleID })
         self.session = session
+        self.hostOSVersion = hostOSVersion
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -139,6 +146,16 @@ public struct VendorProbeSource: UpdateSource {
             // verdict for all of them — a broken channel recipe reads healthy on
             // the strength of its sibling's success. Same reasoning, same fix as
             // `GitHubReleasesSource`.
+            // A release the vendor states is not for this macOS is neither a
+            // broken recipe nor a missing identity: the version resolved, the
+            // vendor said no. Not a health miss — recorded as one, Diagnostics
+            // would show a working recipe as broken for the whole cap-lag window
+            // (weeks, every macOS major). See `ProbeFailure.outsideVendorOSWindow`.
+            if case .outsideVendorOSWindow = outcome.failure {
+                Log.source.info(
+                    "vendor probe not for this Mac \(bundleID, privacy: .public): \(detail, privacy: .public)")
+                return nil
+            }
             await RecipeHealth.shared.recordMiss(
                 id: outcome.recipeID, source: name, detail: detail)
 
@@ -264,7 +281,7 @@ public struct VendorProbeSource: UpdateSource {
         // apply. Recipes with no `hostRequirement` — all but a handful — pass
         // unchanged.
         let matching = installedMatched.filter {
-            $0.runs(onOS: SparkleAppcastSource.numericSystemVersion(), arch: HostArch.current)
+            $0.runs(onOS: hostOSVersion, arch: HostArch.current)
         }
         guard !matching.isEmpty else {
             Log.source.info(
@@ -520,10 +537,19 @@ public struct VendorProbeSource: UpdateSource {
         func elapsed() -> Int {
             Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
         }
-        func fail(_ failure: ProbeFailure, status: Int? = nil, sample: String? = nil) -> ProbeOutcome {
+        // `warnings` is for a failure reached AFTER the version resolved (the OS
+        // window refusal): the warnings collected on the way there — a bound
+        // pattern that stopped matching, entry slicing that fell back — are the
+        // only trace of WHY the refusal read the value it did, and the sweep is
+        // the only thing that will ever look. Dropping them made a vendor's
+        // reformatting indistinguishable from the vendor's decision.
+        func fail(
+            _ failure: ProbeFailure, status: Int? = nil, sample: String? = nil,
+            warnings: [ProbeWarning] = []
+        ) -> ProbeOutcome {
             ProbeOutcome(
                 recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
-                remote: nil, failure: failure, httpStatus: status,
+                remote: nil, failure: failure, warnings: warnings, httpStatus: status,
                 bodySample: sample, elapsedMs: elapsed())
         }
 
@@ -682,6 +708,37 @@ public struct VendorProbeSource: UpdateSource {
         } else if let publishedAtValue,
                   publishedFields.publishedAt == nil, publishedFields.vendorDay == nil {
             warnings.append(.publishedAtUnreadable(publishedAtValue))
+        }
+        // The OS window the vendor states for THIS release, from the same scope
+        // (so it belongs to the entry `versionPattern` matched, never a sibling
+        // entry's). Checked after the version resolved, so a dead version
+        // endpoint still reports as itself, and before the lineage fetch, so a
+        // release this Mac cannot use costs no second request.
+        //
+        // Outside the window is `.notApplicable`, the same answer the Sparkle
+        // path gives by dropping the item: nil, no red row, no Retry — there is
+        // nothing to retry until the vendor moves the bound. The reason names
+        // both the bound and the host, so a "—" row has a log line behind it.
+        // A declared pattern that matched nothing warns and admits the release:
+        // the version already resolved, and a pattern the vendor's reformatting
+        // broke must not read as "this build is not for you" (issue #634).
+        let minOS = recipe.minimumSystemVersionPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
+        }
+        let maxOS = recipe.maximumSystemVersionPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
+        }
+        if (recipe.minimumSystemVersionPattern != nil && minOS == nil)
+            || (recipe.maximumSystemVersionPattern != nil && maxOS == nil) {
+            warnings.append(.osBoundPatternNoMatch)
+        }
+        if let refusal = VendorProbeRecipe.osWindowRefusal(
+            minimum: minOS, maximum: maxOS, osVersion: hostOSVersion) {
+            Log.source.notice(
+                "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(version, privacy: .public) not for this Mac — \(refusal, privacy: .public)")
+            return fail(
+                .outsideVendorOSWindow(refusal), status: body.status, sample: sample,
+                warnings: warnings)
         }
         // A recipe whose build ids carry no order of their own reads that order
         // from a second document. Fetched only after the version read succeeded, so

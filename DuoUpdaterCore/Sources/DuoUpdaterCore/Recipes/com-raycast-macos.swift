@@ -148,9 +148,8 @@ enum com_raycast_macos {
         // Raycast v1 archive — /changelog/macos-v1, the page titled "Raycast - macOS
         // V1 Changelog". Byte-for-byte the same component as the v2 page above, so
         // the patterns are the same three strings; only `source` and the version
-        // window differ. Verified against the live page 2026-09-14: 10 entries,
-        // 1.104.0 back to 1.95.0, all parsing.
-        // snapshot-lint:allow — catch-up batch after 2f
+        // window differ. They parse every entry on that page (checked 2026-09-14;
+        // History has the count and the version range).
         //
         // The archive has moved twice: to /changelog/macos when v2 took over
         // /changelog, then here once /changelog/macos became a second copy of the

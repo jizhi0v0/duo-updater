@@ -522,10 +522,15 @@ almost never from the response body. Two real cases, both found only after the
 recipe had already shipped:
 
 - **Little Snitch** (`sw-update.obdev.at/update-feeds/littlesnitch6.plist`): every
-  entry carries `MinimumSystemVersion` **and** `MaximumSystemVersion` — the stable
-  entry reads 14.0/**26.99** while the nightly reads 14.0/**27.99**, i.e. obdev
-  routes a macOS 27 Mac away from stable. Those two keys sat verbatim in the
-  audit's own captured fixture and the audit doc never mentioned them.
+  entry carries `MinimumSystemVersion` **and** `MaximumSystemVersion` — on
+  2026-08-30 the stable entry read 14.0/**26.99** while the nightly read
+  14.0/**27.99**, i.e. obdev routed a macOS 27 Mac away from stable (by
+  2026-09-15 both read 27.99: the cap moves on its own). Those two keys sat
+  verbatim in the audit's own captured fixture and the audit doc never
+  mentioned them, and for two weeks nothing read them either (#634). When a
+  body states a window, the recipe reads it with
+  `minimumSystemVersionPattern` / `maximumSystemVersionPattern` — never pins
+  it in `hostRequirement`, which is for endpoints that state nothing.
 - **WeChat** (`dldir1.qq.com/weixin/mac/mac-release.xml`): 7 items, 3 of them
   capped (`min12.0/max14.3`, `min14.3/max15.0`, `max10.10.6`). The SAME version is
   bucketed by OS into different artifacts, and one bucket carries no enclosure at
@@ -654,6 +659,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `versionIsBuild` | the endpoint's version matches `CFBundleVersion`, not the marketing string |
 | `displayVersionPattern` | the compared value is an ugly build id and there is a human one to show |
 | `publishedAtPattern` | the entry states its own release date (Release Log gets an exact time) |
+| `minimumSystemVersionPattern` / `maximumSystemVersionPattern` | the entry states the macOS window this release is for — read per release, Sparkle's predicates; outside it the row is `—`, not red |
 | `selectHighest` | the feed lists many releases and document order is not newest-first |
 | `entryStartPattern` | multi-entry feed: slice it so version/URL/date all come from ONE entry |
 | `channel` | this endpoint serves a non-stable track (source refuses cross-channel) |
@@ -843,11 +849,21 @@ suggestions. Use this decision table:
 |---------|--------|-----|
 | Needs VendorProbe recipe | → `/fragile-recipe <app>` (VendorProbe path) | Pass the endpoint URL, version pattern, and channel from the audit |
 | Needs ChangelogRecipe | → `/fragile-recipe <app>` (Changelog path) | Pass the changelog URL and markup structure from the audit |
-| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`) |
+| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`), then re-record goldens (below) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
-| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint |
+| Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint, then re-record goldens (below) |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |
 | Already fully covered | → Write/update audit doc only | No code change needed |
+
+Any edit to a family file under `Recipes/` (or to `AppRecipeIndex.all`) changes
+what `RecipeGoldenTests` expects. Re-record the goldens from the repository root
+and commit the diff with the recipe; the recording run fails on purpose, so rerun
+without the variable to see it pass (the `/fragile-recipe` path does this in its
+step 7):
+
+```sh
+DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+```
 
 **Example handoff text in the report:**
 

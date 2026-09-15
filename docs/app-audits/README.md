@@ -61,8 +61,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - **检查**：`check_app_audits.py` 要求每个回链指向 git 跟踪的文件、文件里有那一行标题、
   `Recipes/` 里的回链文件名等于所在 family，并且每个带 `## 历史与实测` 的文档至少被一个回链
   指着。它不判断搬的对不对——那是 PR 里的逐块分类表和注释行数记账（迁移前/后注释行数、
-  审计新增行数）要回答的。`check_recipe_snapshots.py` 扫描不在它 `PENDING` 名单里的每个
-  family（包括新 family）的当前注释，拦带日期的实测（形状清单和豁免见脚本）。
+  审计新增行数）要回答的。`check_recipe_snapshots.py` 扫描 `Recipes/` 下每个 family（包括新
+  family）的当前注释，拦带日期的实测（形状清单和豁免见脚本）。
 - **补充七条**（#615 三轮复审的教训，上面各条没有覆盖到的）：
   1. **机器状态怎么划**：拿身份、Team 或 bundle 和"被更新的那个 app"比较的措辞原样保留
      （"matching the install"、"the installed copy's team"、"same Team as the installed app"）。
@@ -98,7 +98,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Chrome**](com-google-Chrome.md) · `com.google.Chrome` — P(stable/beta/dev/canary) · 4 channels, independent bundle IDs · 审计 2026-06-04 ✓
 - [x] [**Firefox**](org-mozilla-firefox.md) · `org.mozilla.firefox` — P(stable/beta/esr/nightly/dev-edition) · 5 channels · RemotingName 检测（修复 beta/esr 误判）· 5 个真实 bundle 验证 ✓ · 2026-06-04
-- [x] [**Thunderbird**](org-mozilla-thunderbird.md) · `org.mozilla.thunderbird` — P(stable/beta/esr/nightly) · 4 channels · RemotingName 检测（修复 beta bundle id + esr 跨 channel 误推）· 4 个真实 bundle 验证 ✓ · 2026-06-04
+- [x] [**Thunderbird**](org-mozilla-thunderbird.md) · `org.mozilla.thunderbird` — P(stable/beta/esr/nightly) C(stable/beta/esr) · 4 channels · RemotingName 检测（修复 beta bundle id + esr 跨 channel 误推）· 4 个真实 bundle 验证 ✓ · 2026-06-04
 - [x] [**Edge**](com-microsoft-edgemac.md) · `com.microsoft.edgemac` — P(stable/beta/dev) · 3 channels, independent bundle IDs · **全 channel 一键 ✓**（beta/dev 一键接入 2026-07-03，pkg 取 enterprise API `Artifacts[].Location`，Team UBF8T346G9）· **三 channel 真实 bundle 验证 ✓**（pkg 展开取 app）· 版本方案核对通过 · 2026-06-04
 - [x] [**Discord**](com-hnc-Discord.md) · `com.hnc.Discord` — P(stable/ptb/canary) · 3 channels, independent bundle IDs · **三 channel 官方 dmg 验证 ✓** · 2026-06-04
 - [x] [**微信开发者工具**](com-tencent-wechatdevtools.md) · `com.tencent.wechatdevtools`（登记 id，磁盘上 2.02 是 `com.github.Electron`）— P(stable/rc/nightly) C · 3 channels · 真身份读 app 自带 `package.json`（`versionType`）· 一键 pkg ✓ · **三个渠道真实 pkg + 已装 2.01 全部 channel-verify ✓** · 2026-08-18
@@ -114,7 +114,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Surge**](com-nssurge-surge-mac.md) · `com.nssurge.surge-mac` — B(stable/beta) · 2 channels, shared ID + feed-swap ChannelBinding · **beta（IncludeBetaBuilds=true）+ stable 两 channel 真机验证 ✓**（stable 经逐字节备份/还原验证，无需退出进程）· 2026-06-04
 - [x] [**TablePlus**](com-tinyapp-tableplus.md) · `com.tinyapp.TablePlus` — B(stable/beta) C · 2 channels, shared ID + header-keyed ChannelBinding · **beta（IsReceiveBetaBuild=1）+ stable 两 channel 真机验证 ✓ + header 翻 710↔711 实证**（stable 经嵌套 pref 取值验证，改动已还原）· 2026-06-04
 - [x] [**DuoPaste**](io-duopaste-daemon.md) · `io.duopaste.daemon` — B(stable/beta) · 2 channels, shared ID + channel-tag ChannelBinding · **beta + stable 两 channel 真机验证 ✓**（beta 用 `…-beta` 构建；stable 经 `sparkleIncludePrereleases` 取值验证，改动已还原）· 2026-06-04
-- [x] [**CleanShot X**](pl-maketheweb-cleanshotx.md) · `pl.maketheweb.cleanshotx` — C B(license feed) · license-keyed Sparkle feed · **stable 本机验证 ✓**（legit feed head=4.8.8=installed）· 2026-06-04
+- [x] [**CleanShot X**](pl-maketheweb-cleanshotx.md) · `pl.maketheweb.cleanshotx` — C B(license feed) · license-keyed Sparkle feed · **stable 本机验证 ✓**（2026-06-04：legit feed 最新条目与观测版本一致）· 2026-06-04
 - [x] [**CapCut**](com-lemon-lvoverseas.md) · `com.lemon.lvoverseas` — P(stable/beta) B · 2 channels, shared ID + ChannelBinding（`joinBeta` 在容器外的 INI）· **全 channel 一键 ✓**（Team 22MMUN2RN5，两轨真实 dmg 挂载核对）· **两轨版本字段是反的**（beta 的 short=`9.3.4531` / version=`9.4.0-beta4`，故 beta `versionIsBuild:true`）· 同 id 有 MAS 副本（19.2.0），靠 `_MASReceipt` 分流 · 2026-08-27
 - [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 的 arm64-only 一键是刻意的 arm64-pin（DuoUpdater 自身 arm64-only），不是 bug；`changelogURL` 404 已由 `34dea5eb` 同日修好（改指 `docs.termius.com/changelog`，2026-09-14 复测 200）· issue #91、#102 · 2026-08-27
 - [x] [**UTM**](com-utmapp-UTM.md) · `com.utmapp.UTM` — G(stable+beta，一键) C + MAS/TestFlight 通用托管 · 包内无 channel 标记；用观测版本的 exact GitHub release `prerelease` 位判轨（判"这份拷贝是什么"），候选则按 `max(装机大版本线, 最新正式版)` 取 —— **UTM 的预览是每条线的前半段、会转正，不是平行轨** · 双渠道 changelog 隔离，beta 侧含转正条目 · 真实 v5.0.5 DMG 签名/公证验证 ✓ · 2026-09-03
@@ -316,7 +316,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
-- [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳
+- [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳 · 另记 `requires`（索引里每个版本的 macOS 下限，同一版本内不等：27.0 RC 要 26.6、27.0 beta 要 26.4）2026-09-15 实测
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
 - [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
@@ -328,7 +328,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Android Studio**](com-google-android-studio.md) · `com.google.android.studio` — 仅迁出历史：预览渠道旧实现的错误、按发布日期排序的实例
 - [ ] [**Antigravity / Antigravity IDE**](com-google-antigravity.md) · `com.google.antigravity` / `com.google.antigravity-ide` — 仅迁出历史：端点的发现、IDE 端点的哨兵测量、changelog 页的 gzip 误读
 - [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
-- [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态
+- [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态 · 另记 `minimum_system_version`（公开端点 2026-09-15 实测为 `15 Sequoia`）
 - [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
 - [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
 - [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名

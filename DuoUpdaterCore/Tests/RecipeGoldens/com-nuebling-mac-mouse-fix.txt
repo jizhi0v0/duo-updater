@@ -1,0 +1,58 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-nuebling-mac-mouse-fix"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.nuebling.mac-mouse-fix"
+changelogs[0].source = URL("https://raw.githubusercontent.com/noah-nuebling/mac-mouse-fix/update-feed/appcast.xml")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<title>(?<version>[^<]+)</title>.*?<body>\\s*(?:<p><strong>\\x{2139}.*?<hr\\s*/?>)?(?<body>.*)</body>"
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "<li>(?<item>.*?)(?=<li>|</li>|<ul>|<ol>)"
+changelogs[0].itemPatterns[1] = "<p>(?<item>.*?)</p>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 1
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern? = "^https://raw\\.githack\\.com/noah-nuebling/mac-mouse-fix/update-feed/docs/update-notes-html/[^/?#]+/[A-Za-z]{2,3}(?:-[A-Za-z0-9]+)*\\.html$"
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<h[2-4][^>]*>(?<heading>.*?)</h[2-4]>"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.nuebling.mac-mouse-fix", channel: .beta)] = .recipeAnchor(_:in:)
+bindingProofs[ChannelProofKey(bundleID: "com.nuebling.mac-mouse-fix", channel: .beta)].0 = "appcast-pre\\.xml"
+bindingProofs[ChannelProofKey(bundleID: "com.nuebling.mac-mouse-fix", channel: .beta)].in = Set(count: 1)
+bindingProofs[ChannelProofKey(bundleID: "com.nuebling.mac-mouse-fix", channel: .beta)].in{0} = "feedOverride"
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

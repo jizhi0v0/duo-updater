@@ -1,0 +1,66 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-carriez-rustdesk"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.carriez.rustdesk"
+changelogs[0].source = URL("https://github.com/rustdesk/rustdesk/releases")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<section[^>]*aria-labelledby=\"hd-[^\"]*\"[^>]*>\\s*<h2 class=\"sr-only\"[^>]*>(?<version>[\\d.]+)</h2>.*?<relative-time[^>]*datetime=\"(?<date>[^T]+)T[^\"]*\"[^>]*>.*?<div[^>]*class=\"markdown-body[^\"]*\"[^>]*>(?<body>.*?)</div>\\s*</div>"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<li>(?<item>.*?)</li>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 1)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.carriez.rustdesk"
+githubRules[0].owner = "rustdesk"
+githubRules[0].repo = "rustdesk"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "v?([0-9]+(?:\\.[0-9]+)+)"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^rustdesk-[0-9.]+-aarch64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

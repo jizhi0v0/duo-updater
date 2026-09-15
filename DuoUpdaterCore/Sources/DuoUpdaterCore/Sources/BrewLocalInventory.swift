@@ -46,7 +46,7 @@ public struct BrewLocalInventory: Sendable {
     }
 
     /// No casks installed at all — so no app can possibly clear the provenance
-    /// gate, and the 5 MB catalog behind it never needs fetching. Lets
+    /// gate, and the ~2 MB catalog behind it never needs fetching. Lets
     /// `HomebrewCaskSource` decline before the network on a machine that doesn't
     /// use brew casks.
     public var isEmpty: Bool { installedTokens.isEmpty }

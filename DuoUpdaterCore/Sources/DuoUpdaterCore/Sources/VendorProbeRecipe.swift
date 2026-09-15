@@ -600,9 +600,11 @@ public struct VendorProbeRecipe: Sendable {
     /// build is for, as plain numeric versions ("14.0", "26.99"). Read from the
     /// same scope as `versionPattern` (so, under `entryStartPattern`, from the
     /// winning entry) and compared with the exact predicates Sparkle applies to
-    /// `sparkle:minimumSystemVersion` / `sparkle:maximumSystemVersion` — see
-    /// `SparkleAppcastSource.usableItems`. A release outside the window is
-    /// `ProbeFailure.notApplicable`: no version, no red row, nothing to retry.
+    /// `sparkle:minimumSystemVersion` / `sparkle:maximumSystemVersion` —
+    /// `OSWindowRefusal.evaluate`, which both sources call. A release outside the
+    /// window is `ProbeFailure.outsideVendorOSWindow`: no version offered, no red
+    /// row, nothing to retry — and, unless another source answers, a row that says
+    /// the vendor refused this macOS rather than a "no source" dash.
     ///
     /// These are the response-side twin of `hostRequirement`. That one is a
     /// value pinned in the recipe, for endpoints that state nothing (Raycast's
@@ -1083,41 +1085,6 @@ public struct VendorProbeRecipe: Sendable {
     /// recipe's behaviour identical.
     public func runs(onOS osVersion: String, arch: HostArch) -> Bool {
         hostRequirement?.isSatisfied(byOS: osVersion, arch: arch) ?? true
-    }
-
-    /// Why a release whose body declares `minimum`/`maximum` is not for a Mac
-    /// running `osVersion`, or nil when it is. The predicates are Sparkle's,
-    /// verbatim from `SparkleAppcastSource.usableItems`: below the floor is
-    /// `compare(host, min) == .orderedAscending`, above the ceiling is
-    /// `compare(max, host) == .orderedAscending` — so a "26.99" ceiling admits
-    /// 26.6.0 and refuses 27.0.0, and a nil or empty bound never refuses.
-    ///
-    /// A bound with no digit in it (`any`, `latest`, `-`) is treated as absent,
-    /// the guard `SignatureVerifier.canRun(minimumSystemVersion:on:)` already
-    /// applies to a bundle's floor. Without it a text CEILING fails closed:
-    /// `VersionComparator` ranks a text token below a number, so `"any"` reads
-    /// as below every host and every Mac is refused — and the sweep reports it
-    /// as `skipped`, green. (A text floor happens to fail open by the same
-    /// ordering; guarded anyway so the two sides cannot drift.)
-    ///
-    /// Pure, so the gate is testable off whatever machine the tests run on; the
-    /// source passes its own `hostOSVersion`.
-    public static func osWindowRefusal(
-        minimum: String?, maximum: String?, osVersion: String
-    ) -> String? {
-        func numeric(_ bound: String?) -> String? {
-            guard let bound, bound.rangeOfCharacter(from: .decimalDigits) != nil else { return nil }
-            return bound
-        }
-        if let minOS = numeric(minimum),
-           VersionComparator.compare(osVersion, minOS) == .orderedAscending {
-            return "the vendor states this release needs macOS \(minOS) or newer; this Mac runs \(osVersion)"
-        }
-        if let maxOS = numeric(maximum),
-           VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
-            return "the vendor caps this release at macOS \(maxOS); this Mac runs \(osVersion)"
-        }
-        return nil
     }
 
     /// Whether this recipe applies to an already-installed copy reporting

@@ -16,7 +16,8 @@ import Foundation
 /// rather than the dead "—" that means *no source covers this app at all*.
 /// Only `.notApplicable` — no recipe, wrong channel, wrong host, no device
 /// identity on this Mac — still degrades to nil, because there is nothing there
-/// to retry.
+/// to retry. A release the vendor states is not for this macOS is not retryable
+/// either, but it is not "no source" — it throws ``OSWindowRefused`` (#634).
 public struct VendorProbeSource: UpdateSource {
     static let sourceName = "Vendor"
     public let name = VendorProbeSource.sourceName
@@ -151,10 +152,15 @@ public struct VendorProbeSource: UpdateSource {
             // vendor said no. Not a health miss — recorded as one, Diagnostics
             // would show a working recipe as broken for the whole cap-lag window
             // (weeks, every macOS major). See `ProbeFailure.outsideVendorOSWindow`.
-            if case .outsideVendorOSWindow = outcome.failure {
+            //
+            // Thrown, not nil: nil is "this source does not cover the app", which
+            // is what put a "no source" dash on a row whose recipe had just read
+            // the vendor's answer (#634). `UpdateChecker` catches `OSWindowRefused`
+            // apart from failures, so it never becomes a Retry.
+            if case .outsideVendorOSWindow(let refusal, let release) = outcome.failure {
                 Log.source.info(
                     "vendor probe not for this Mac \(bundleID, privacy: .public): \(detail, privacy: .public)")
-                return nil
+                throw OSWindowRefused(refusal, release: release)
             }
             await RecipeHealth.shared.recordMiss(
                 id: outcome.recipeID, source: name, detail: detail)
@@ -711,14 +717,14 @@ public struct VendorProbeSource: UpdateSource {
         }
         // The OS window the vendor states for THIS release, from the same scope
         // (so it belongs to the entry `versionPattern` matched, never a sibling
-        // entry's). Checked after the version resolved, so a dead version
-        // endpoint still reports as itself, and before the lineage fetch, so a
-        // release this Mac cannot use costs no second request.
+        // entry's). Read after the version resolved, so a dead version endpoint
+        // still reports as itself.
         //
-        // Outside the window is `.notApplicable`, the same answer the Sparkle
-        // path gives by dropping the item: nil, no red row, no Retry — there is
-        // nothing to retry until the vendor moves the bound. The reason names
-        // both the bound and the host, so a "—" row has a log line behind it.
+        // Outside the window is classified `.notApplicable`: no red row, no Retry
+        // — there is nothing to retry until the vendor moves the bound. It is
+        // not a nil, though: `latestVersion(for:)` throws the refusal so the row
+        // can say the vendor refused this macOS (`OSWindowRefused`), the same
+        // answer the Sparkle path gives when its feed has nothing else to offer.
         // A declared pattern that matched nothing warns and admits the release:
         // the version already resolved, and a pattern the vendor's reformatting
         // broke must not read as "this build is not for you" (issue #634).
@@ -732,14 +738,8 @@ public struct VendorProbeSource: UpdateSource {
             || (recipe.maximumSystemVersionPattern != nil && maxOS == nil) {
             warnings.append(.osBoundPatternNoMatch)
         }
-        if let refusal = VendorProbeRecipe.osWindowRefusal(
-            minimum: minOS, maximum: maxOS, osVersion: hostOSVersion) {
-            Log.source.notice(
-                "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(version, privacy: .public) not for this Mac — \(refusal, privacy: .public)")
-            return fail(
-                .outsideVendorOSWindow(refusal), status: body.status, sample: sample,
-                warnings: warnings)
-        }
+        let refusal = OSWindowRefusal.evaluate(
+            minimum: minOS, maximum: maxOS, osVersion: hostOSVersion, version: display ?? version)
         // A recipe whose build ids carry no order of their own reads that order
         // from a second document. Fetched only after the version read succeeded, so
         // a dead version endpoint still reports as itself. Failing here fails the
@@ -781,6 +781,26 @@ public struct VendorProbeSource: UpdateSource {
                     sample: ProbeOutcome.sample(text))
             }
             lineage = fetched
+        }
+
+        // Refused only now, after the lineage: the refusal carries the release as
+        // this source would have reported it, and `UpdateChecker` asks whether that
+        // release is newer than the installed copy before the row says anything.
+        // For a lineage-ordered recipe that question has no answer without the
+        // lineage (`VersionComparator` on two hashes is a coin flip). The cost is a
+        // second request for a refused release of such a recipe; no recipe declares
+        // both today.
+        if let refusal {
+            Log.source.notice(
+                "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(version, privacy: .public) not for this Mac — \(refusal.logDescription, privacy: .public)")
+            let release = Self.makeRemoteVersion(
+                recipe: recipe, version: version, install: nil, plan: nil,
+                resolvedDownload: body.resolvedDownload, display: display,
+                publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
+                lineage: lineage)
+            return fail(
+                .outsideVendorOSWindow(refusal, release: release), status: body.status,
+                sample: sample, warnings: warnings)
         }
 
         var remote: RemoteVersion

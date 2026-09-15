@@ -86,6 +86,11 @@ public enum RowActionState: Sendable, Equatable {
     /// one `sourceHint(for:)` function; the priority between the two lived in a
     /// view either way.
     case noSourceCovers(hint: SourceHint)
+    /// A source read the newest release and the vendor says it is not for this
+    /// macOS — below its floor or above its ceiling. Not `.noSourceCovers` (a
+    /// source did cover the app) and not `.checkFailed` (nothing to retry). Carries
+    /// the refusal so both surfaces word it from the same facts (#634).
+    case notForThisMacOS(OSWindowRefusal)
     /// Something else owns this app's updates.
     case managedElsewhere(Manager)
     /// Checked, current, nothing pending. Carries which channel to keep naming —
@@ -121,7 +126,7 @@ public enum RowActionState: Sendable, Equatable {
     /// none of them may render as blank.
     public var needsExplanation: Bool {
         switch self {
-        case .checkFailed, .noSourceCovers, .ignored, .versionSkipped:
+        case .checkFailed, .noSourceCovers, .notForThisMacOS, .ignored, .versionSkipped:
             return true
         case .updateAvailable(let route):
             return !route.isInstallable
@@ -539,6 +544,7 @@ public enum RowAction {
             if facts.isMASApp { return .noSourceCovers(hint: .appStore) }
             if facts.hasSparkleFeed { return .noSourceCovers(hint: .sparkle) }
             return .noSourceCovers(hint: .none)
+        case .outsideOSWindow(let refusal): return .notForThisMacOS(refusal)
         case .appStoreManaged: return .managedElsewhere(.appStore)
         case .toolboxManaged: return .managedElsewhere(.toolbox)
         case .testFlightManaged: return .managedElsewhere(.testFlight)

@@ -282,6 +282,45 @@ public struct Baseline: Codable, Sendable {
         }
     }
 
+    /// Whether a version-templated changelog's two versions were read off two
+    /// different pages, so that an older one is not a regression.
+    ///
+    /// Such a recipe fetches the page `sourceTemplate` resolves for the version
+    /// this sweep had — a probe's answer, or else the installed copy's — so the
+    /// page follows whichever copy the sweeping machine has. A machine staying on
+    /// an older minor (an LTS train) reads an older page than the one the baseline
+    /// was recorded from; the check would hold the old value and complain on
+    /// every sweep until the streak made it reportable.
+    ///
+    /// Only a DIFFERENT page is exempt. A template keyed on less than the whole
+    /// version shares one page across many versions (Opera's `{major}`, Xcode's
+    /// betas under one `{appleDocVersion}`), and there an older heading is the
+    /// page matching a different element — the case the check exists for, which
+    /// neither the lag check (same major.minor) nor the probe's row can see.
+    ///
+    /// The page is re-derived from each version by the recipe's own template.
+    /// A heading can lead with the product name ("Xcode 27 Beta 6"), which the
+    /// template tokens do not expect, so everything before the first digit is
+    /// dropped first. A version with no digit at all names no page, and the check
+    /// keeps applying.
+    ///
+    /// Any other recipe reads one page whatever the version — `resolvedSource`
+    /// returns its fixed `source` — so it never reads different pages and always
+    /// keeps the check. Asked by recipe id, not by bundle id as `ordersByLineage`
+    /// asks for a changelog: the probe row of the same app has no changelog
+    /// recipe id, and it is a row that must keep the check.
+    static func readDifferentPages(
+        _ finding: Finding, previous: String, current: String
+    ) -> Bool {
+        guard let recipe = ChangelogRecipeRegistry.recipes.first(where: {
+            $0.recipeID == finding.recipeID
+        }) else { return false }
+        let versions = [previous, current].map { String($0.drop { !$0.isNumber }) }
+        guard !versions.contains(where: \.isEmpty) else { return false }
+        return recipe.resolvedSource(forVersion: versions[0])
+            != recipe.resolvedSource(forVersion: versions[1])
+    }
+
     /// Compare this run against what we knew, returning every complaint to
     /// attach — then fold the run into the baseline.
     ///
@@ -304,9 +343,12 @@ public struct Baseline: Codable, Sendable {
         if let version = finding.version, finding.status != .infra {
             // A recipe whose builds are hashes has no order a version string can
             // show (see `BuildLineage`); asking `VersionComparator` here would
-            // report every other release as a regression.
+            // report every other release as a regression. A version-templated
+            // changelog may have read another page than last time
+            // (see `readDifferentPages`).
             if let previous = entry.lastGoodVersion, previous != version,
                !Self.ordersByLineage(finding),
+               !Self.readDifferentPages(finding, previous: previous, current: version),
                VersionComparator.isNewer(previous, than: version) {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "

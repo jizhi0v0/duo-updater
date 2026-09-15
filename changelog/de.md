@@ -2,6 +2,30 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.95
+
+**Aside wird jetzt unterstützt.** DuoUpdater meldet, wenn ein neuer Build des Aside-Browsers erschienen ist, und zeigt dessen Versionshinweise.
+
+**Updates, die dein macOS nicht ausführen kann, werden nicht mehr angeboten – und die Zeile sagt jetzt, warum.** Wenn ein Entwickler angibt, welche macOS-Versionen ein Release unterstützt, hält sich DuoUpdater daran: Nach einem macOS-Upgrade bietet Little Snitch keinen Build mehr an, dessen Obergrenze unter deinem System liegt; Xcode bietet keinen Build mehr an, der ein neueres macOS als deines braucht; und ein Installationspaket, dessen App ein neueres macOS braucht, wird abgelehnt, statt eine App zu installieren, die sich nicht öffnen lässt. Zeilen, die früher nur einen leeren Strich zeigten, sagen jetzt „Noch nicht für dieses macOS“ oder „Neueres macOS nötig“, die Details sind einen Klick entfernt.
+
+**Sieh, mit welchem SDK jede App gebaut wurde.** Klick auf die Markierung neben dem Namen einer App, und die Details sagen jetzt zum Beispiel „Mit dem macOS 27.0 SDK gebaut.“ – praktisch, um zu erkennen, welche Apps schon für das neueste macOS neu gebaut wurden.
+
+**Homebrew-Apps, die als zwei Pakete erscheinen – eines für ältere Systeme, eines für das neueste –, werden jetzt aus dem richtigen gelesen.** OnyX ist für macOS 27 so aufgeteilt, und DuoUpdater sah nur das Paket für ältere Systeme: Entweder zeigte es OnyX gar nicht an, oder es hielt OnyX für aktuell gemessen an einer Version, die Homebrew unter 27 nicht installiert. Jetzt folgt DuoUpdater dem der beiden, das du installiert hast.
+
+**TestFlight-Betas verlieren ihr Update nicht mehr, wenn TestFlight startet.** Eine Beta mit einem wartenden neuen Build konnte auf „aktuell“ zurückfallen und so bleiben, bis du TestFlight erneut geöffnet hast.
+
+**Ein-Klick-Updates für Dropbox und ToDesk laden die richtige Datei.** Auf Apple Silicon lud Dropbox bisher den reinen Intel-Build, den die Sicherheitsprüfung dann ablehnte; bei ToDesk wurde der Early-Access-Build angeboten, den ToDesk nur an einen Teil der Nutzer verteilt, statt der allgemeinen Version.
+
+**„Neu starten“ schließt das Update von Spotify sofort ab.** Hatte Spotify sein eigenes Update bereits geladen, drehte sich „Neu starten“ minutenlang, bevor das Update durchging.
+
+**Beta-Builds gehen jetzt in ihre Releases über.** Eine Xcode-Beta bekommt ihren Release Candidate angeboten, statt als aktuell zu gelten; CotEditor-Betas sehen dessen Release Candidates; und eine Carbon-Copy-Cloner-Beta, deren Testzyklus beendet ist, bekommt das Release angeboten, zu dem sie geworden ist, statt einer fehlgeschlagenen Prüfung.
+
+**Versionshinweise passen zu deiner Version.** Blender 5.2 zeigte bisher die Hinweise zu 5.1, und Raycast 1.x die zu 2.x. „Seite öffnen“ bei Gemini öffnet jetzt Googles aktuelle Desktop-Seite statt einer Fehlerseite.
+
+**Die Einstellungen erklären jede Option direkt daneben.** Lange Texte unter ganzen Abschnitten sind durch eine kurze Zeile unter jedem Bedienelement ersetzt, und Auswahlmenüs beschreiben nur die gewählte Option.
+
+**Die App schreibt ihren Namen jetzt DuoUpdater**, passend zur Website.
+
 ## 0.3.94
 
 **Homebrew-Pakete aus Taps, denen du nicht vertraust, tauchen wieder auf.** Seit Homebrew 6 überspringt brew beim Auflisten der Installationen stillschweigend Pakete aus nicht vertrauten Taps, sodass sie ohne Erklärung aus DuoUpdater verschwanden. Jetzt erscheinen sie als „Nicht geprüft · Tap nicht vertraut“, mit dem `brew trust`-Befehl zum Kopieren – und sobald du ihn (oder ein Upgrade) im Terminal ausgeführt hast, zieht das Fenster nach, wenn du zurückwechselst.

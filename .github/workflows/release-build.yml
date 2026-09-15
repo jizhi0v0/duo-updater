@@ -29,7 +29,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # macOS 27 + Xcode 27. See ci.yml for why the label is not `macos-27`.
+    runs-on: xcode-27
     # The Apple secrets live in this environment, NOT at repository level, and the
     # environment admits only `main` and `v*`. That distinction is the whole
     # protection: `workflow_dispatch` runs the workflow file as it exists on the

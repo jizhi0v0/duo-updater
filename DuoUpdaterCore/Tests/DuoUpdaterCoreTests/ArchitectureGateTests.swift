@@ -442,7 +442,7 @@ struct ArchitectureDowngradeWiringTests {
         // filed off a log nobody would have read otherwise.
         //
         // The honest cost: the fixture now comes from someone else's disk image,
-        // and `macos-latest` will eventually move to a newer one. If that image
+        // and the runner image (`xcode-27` in ci.yml) keeps moving. If that image
         // ships no universal team-signed bundle at any depth, this turns red for a
         // reason unrelated to the code under test. That is the trade — a red that
         // names its own cause, over a green that means nothing. The message says

@@ -212,3 +212,15 @@ through 2.0.3.0 share one note.)
 复测 2026-09-14（约 07:58 UTC，只读 GET）：`releases.raycast.com/releases/latest?build=universal` 回 `1.104.29`（2026-09-10）。`www.raycast.com/changelog/macos` 的 `<title>` 已是 "Raycast - macOS Changelog"，内容与 `/changelog` 相同——10 个 `<span id>`，依次是 `2.3`、`2.2`、`2.1`、`2.0`、`0.71` … `0.66`，没有一个 1.x 条目。也就是说复测时这张页已经不是 v1 存档。约 09:09 UTC 另读 `www.raycast.com/changelog/macos-v1`：200，130,061 B，`<title>` 是 "Raycast - macOS V1 Changelog"，10 个 `<span id>` 从 `1.104.0` 到 `1.95.0`——v1 存档搬到了这个地址。
 
 更正 2026-09-14：#622（squash 提交 `d58d0e00`）把 v1 ChangelogRecipe 的 `source` 和 v1 probe 的 `changelogURL` 改指 `/changelog/macos-v1`，并改写了代码里描述这几个地址的注释；本文件上面「Changelog」一节是 #622 写的现状。
+
+### Recipes/com-raycast-macos.swift — ChangelogRecipe v1 存档（`/changelog/macos-v1`，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #622（`d58d0e00`）改写之后的版本（改写之前的原文见上一组）；#625（`c57c9fc6`）在段末加了临时的 `snapshot-lint:allow` 标记，不是正文，没有抄进来，代码里已删掉。代码里留下的是结论（与 v2 页同一个组件，同样的三条 pattern 能解析这一页的全部条目），日期写成 "(checked 2026-09-14; …)"，条数和版本范围搬到这里。
+
+Raycast v1 archive — /changelog/macos-v1, the page titled "Raycast - macOS
+V1 Changelog". Byte-for-byte the same component as the v2 page above, so
+the patterns are the same three strings; only `source` and the version
+window differ. Verified against the live page 2026-09-14: 10 entries,
+1.104.0 back to 1.95.0, all parsing.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET `www.raycast.com/changelog/macos-v1`）：200、129,641 B、`<title>` "Raycast - macOS V1 Changelog"；10 个 `<span id>`，从 `1.104.0`（December 16, 2025）到 `1.95.0`（April 9, 2025），`entryPattern` 匹配 10 条。

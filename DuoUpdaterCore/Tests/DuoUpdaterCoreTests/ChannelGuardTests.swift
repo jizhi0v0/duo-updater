@@ -358,68 +358,7 @@ import Foundation
     // Real response body, verbatim (sw-update.obdev.at/update-feeds/littlesnitch6.plist,
     // 2026-08-29). Nightly entry listed FIRST here — the recipes must not rely on
     // document order, which `entryStartPattern` is what guarantees.
-    let body = #"""
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    <plist version="1.0">
-    <array>
-        <dict>
-            <key>ReleaseLifecycle</key>
-            <string>nightly</string>
-            <key>BundleVersion</key>
-            <string>7301</string>
-            <key>BundleShortVersionString</key>
-            <string>6.5</string>
-            <key>MinimumSystemVersion</key>
-            <string>14.0</string>
-            <key>MaximumSystemVersion</key>
-            <string>27.99</string>
-            <key>ReleaseNotesURL</key>
-            <string>https://sw-update.obdev.at/update-feeds/releasenotes-legacy-swu.php?product=3&amp;version=7301&amp;installed=</string>
-            <key>DownloadPageURL</key>
-            <dict>
-                <key>en</key>
-                <string>https://obdev.at/littlesnitch/download-nightly.html</string>
-                <key>de</key>
-                <string>https://obdev.at/de/littlesnitch/download-nightly.html</string>
-            </dict>
-            <key>DownloadURL</key>
-            <string>https://sw-update.obdev.at/ftp/pub/Products/LittleSnitch/nightly/LittleSnitch-6.5-nightly-(7301).dmg</string>
-            <key>InstallationObject</key>
-            <string>Little Snitch.app</string>
-            <key>InstallationMechanism</key>
-            <string>ReplaceBundle</string>
-        </dict>
-        <dict>
-            <key>ReleaseLifecycle</key>
-            <string>final</string>
-            <key>BundleVersion</key>
-            <string>7212</string>
-            <key>BundleShortVersionString</key>
-            <string>6.4.1</string>
-            <key>MinimumSystemVersion</key>
-            <string>14.0</string>
-            <key>MaximumSystemVersion</key>
-            <string>26.99</string>
-            <key>ReleaseNotesURL</key>
-            <string>https://sw-update.obdev.at/update-feeds/releasenotes-legacy-swu.php?product=3&amp;version=7212&amp;installed=</string>
-            <key>DownloadPageURL</key>
-            <dict>
-                <key>en</key>
-                <string>https://obdev.at/littlesnitch/download.html</string>
-                <key>de</key>
-                <string>https://obdev.at/de/littlesnitch/download.html</string>
-            </dict>
-            <key>DownloadURL</key>
-            <string>https://sw-update.obdev.at/ftp/pub/Products/LittleSnitch/LittleSnitch-6.4.1.dmg</string>
-            <key>InstallationObject</key>
-            <string>Little Snitch.app</string>
-            <key>InstallationMechanism</key>
-            <string>ReplaceBundle</string>
-        </dict>
-    </array>
-    </plist>
-    """#
+    let body = LittleSnitchFeedFixture.body20260829
 
     let server = try RecipeVerificationTests.StubServer(body: body, contentType: "application/xml")
     defer { server.stop() }
@@ -427,18 +366,24 @@ import Foundation
     let stableStub = stableRecipe.with(url: server.url)
     let nightlyStub = nightlyRecipe.with(url: server.url)
 
+    // The fixture's `final` entry is capped at macOS 26.99, and the recipes now
+    // honour that (`VendorProbeOSBoundTests`). Pin the host below the cap so this
+    // test keeps measuring channel separation on a macOS 27 machine too, instead
+    // of the ceiling — which is that other suite's job.
+    let host = "26.6.0"
+
     // Direct probe (bypasses the channel gate): each recipe reads ITS OWN entry,
     // never the other's, regardless of the feed's document order above.
-    let stableOutcome = await VendorProbeSource().probeDiagnostic(stableStub)
+    let stableOutcome = await VendorProbeSource(hostOSVersion: host).probeDiagnostic(stableStub)
     #expect(stableOutcome.remote?.version == "7212")
     #expect(stableOutcome.remote?.shortVersion == "6.4.1")
-    let nightlyOutcome = await VendorProbeSource().probeDiagnostic(nightlyStub)
+    let nightlyOutcome = await VendorProbeSource(hostOSVersion: host).probeDiagnostic(nightlyStub)
     #expect(nightlyOutcome.remote?.version == "7301")
     #expect(nightlyOutcome.remote?.shortVersion == "6.5")
 
     // Through the channel gate (`latestVersion(for:)`), each install only ever
     // resolves through the matching recipe.
-    let source = VendorProbeSource(recipes: [stableStub, nightlyStub])
+    let source = VendorProbeSource(recipes: [stableStub, nightlyStub], hostOSVersion: host)
 
     let stableApp = InstalledApp(
         name: "Little Snitch", bundleID: "at.obdev.littlesnitch",

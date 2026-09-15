@@ -298,7 +298,8 @@ public struct AppScanner: Sendable {
                 // scan. The fallback covers a DB-matched bundle with no receipt.
                 appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path),
                 runtime: app.runtime,
-                linkedFrameworks: app.linkedFrameworks
+                linkedFrameworks: app.linkedFrameworks,
+                buildSDK: app.buildSDK
             )
         }
     }
@@ -728,10 +729,15 @@ public struct AppScanner: Sendable {
             feedChannelNames = bound.sparkleChannelNames
         }
 
-        // One pass over the executable answers both "what is this built with" and
-        // "which of Apple's frameworks does it link".
+        // One pass over the executable answers "what is this built with", "which of
+        // Apple's frameworks does it link" and "against which SDK". The detector
+        // decides which binary is the app; the SDK is taken from that one, out of
+        // the load commands the detector already had parsed.
+        let loadCommands = LoadCommandMemo()
         let runtimeReading = AppRuntimeDetector.read(
-            bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist)
+            bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
+            linkedLibraries: loadCommands.linkedLibraries)
+        let buildSDK = runtimeReading.binary.flatMap(loadCommands.buildSDK)
 
         return InstalledApp(
             name: displayName,
@@ -764,8 +770,33 @@ public struct AppScanner: Sendable {
             // here for the same reason the Squirrel/Sparkle probes are: the scan is
             // already stat-ing this bundle and holding its Info.plist.
             runtime: runtimeReading.runtime,
-            linkedFrameworks: runtimeReading.frameworks
+            linkedFrameworks: runtimeReading.frameworks,
+            buildSDK: buildSDK
         )
+    }
+
+    /// Each executable's load commands, parsed at most once within one bundle's
+    /// read. The detector is handed only the library half through its injectable
+    /// reader; the SDK half is asked for afterwards about whichever binary it
+    /// settled on, which is always one it already read — except a wrapped iOS
+    /// app's, which the detector names without reading.
+    private final class LoadCommandMemo {
+        private var parsed: [String: MachOImports.LoadCommands?] = [:]
+
+        private func commands(at url: URL) -> MachOImports.LoadCommands? {
+            if let hit = parsed[url.path] { return hit }
+            let read = MachOImports.loadCommands(at: url)
+            parsed[url.path] = .some(read)
+            return read
+        }
+
+        func linkedLibraries(at url: URL) -> Set<String>? {
+            commands(at: url).map { Set($0.dylibs.keys) }
+        }
+
+        func buildSDK(at url: URL) -> BuildSDK? {
+            commands(at: url)?.buildSDK
+        }
     }
 
     /// JetBrains EAP bundles report a noisy `CFBundleShortVersionString` —

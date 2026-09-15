@@ -4,14 +4,38 @@ import Foundation
 /// compares against.
 ///
 /// This exists as a shared definition rather than a local helper because the OS
-/// floor is now checked in two places that must not be allowed to disagree:
-/// `SparkleAppcastSource.usableItems` drops feed items whose declared
-/// `sparkle:minimumSystemVersion`/`maximumSystemVersion` exclude this Mac, and
-/// `SignatureVerifier` gate 6 refuses a downloaded bundle whose own
-/// `LSMinimumSystemVersion` does. A gate that hid an update and a gate that
-/// refused to install one, disagreeing by so much as a patch component, would
-/// produce the worst outcome available: an update that is offered forever and
-/// fails at the last step every time.
+/// floor is checked in several places that must not be allowed to disagree. A
+/// gate that hid an update and a gate that refused to install one, disagreeing
+/// by so much as a patch component, would produce the worst outcome available:
+/// an update that is offered forever and fails at the last step every time.
+///
+/// **Every one of these calls `SignatureVerifier.canRun(minimumSystemVersion:on:)`.**
+/// That is the invariant; the list is here so a new site is added knowingly, and
+/// it was wrong for as long as it named only the first two (#640 review):
+///
+///  1. `SparkleAppcastSource.usableItems` — drops feed items whose declared
+///     `sparkle:minimumSystemVersion` excludes this Mac (the `maximumSystemVersion`
+///     half is Sparkle's own predicate, stated beside it).
+///  2. `SignatureVerifier` gate 6 (`verifyRunnableSystemVersion`) — refuses a
+///     DOWNLOADED bundle whose own `LSMinimumSystemVersion` excludes this Mac.
+///     The install-time backstop the detection-time gates are matched against.
+///  3. `PackageInstaller.verifyPayloadSystemVersion` — the same for the pkg
+///     route, reading the floor out of the package's payload; best-effort, and
+///     fails open on a payload it cannot read.
+///  4. `AppStoreGate.resolve` — turns a listing's `latestMinimumMacOS` into
+///     `.needsNewerMacOS`, the one state that RENDERS this condition (#546).
+///  5. `VendorHostRequirement.isSatisfied` — a probe recipe's declared floor.
+///  6. `XcodeReleasesSource.offer` — bounds the candidate builds by the index's
+///     `requires`, so a Mac too old for the newest build is offered the newest
+///     one it can run (#640).
+///  7. `AlcoveUpdateSource.remote(from:token:osVersion:)` — the licensed API's
+///     `minimum_system_version` (#640).
+///
+/// ⚠️ `UpdateChecker.evaluate` is deliberately NOT on this list and must not
+/// join it: a host-dependent branch there makes every one of its comparison
+/// tests measure the machine it runs on, and the refusal it could express
+/// (`.upToDate`) is a plain checkmark — a second answer for the condition (4)
+/// already renders. See its doc comment.
 public enum HostOS {
 
     /// e.g. "27.0.0". Always three numeric components, because that is what

@@ -176,8 +176,8 @@ private let notionStalePageFixture = #"""
     }
 
     @Test func decodingATerseRecipeOmittingHTTPFieldsYieldsGET() throws {
-        // The forgiving decode path (`ChangelogRecipe.init(from:)`): a
-        // remotely-authored recipe that predates `httpMethod`/`requestBody`
+        // `ChangelogRecipe.init(from:)` fills omitted keys with the initializer's
+        // defaults (`RecipeCoding`): a JSON recipe that predates `httpMethod`/`requestBody`
         // entirely must still decode as a plain GET, not fail or default to
         // something else.
         let json = """

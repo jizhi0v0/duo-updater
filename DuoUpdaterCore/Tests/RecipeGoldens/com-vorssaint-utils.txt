@@ -1,0 +1,52 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-vorssaint-utils"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.vorssaint.utils"
+githubRules[0].owner = "vorssaint"
+githubRules[0].repo = "vorssaint-utils"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Vorssaint-[0-9.]+\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.vorssaint.utils"
+githubRules[1].owner = "vorssaint"
+githubRules[1].repo = "vorssaint-utils"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 5
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^Vorssaint-[0-9.]+-beta\\.[0-9]+\\.dmg$"
+githubRules[1].installerKind? = .dmg
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.vorssaint.utils", channel: .beta)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.vorssaint.utils", channel: .beta)].0 = "/download/v[0-9.]+-beta\\."
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

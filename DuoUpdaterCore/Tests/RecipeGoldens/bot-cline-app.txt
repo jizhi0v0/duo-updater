@@ -1,0 +1,150 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "bot-cline-app"
+
+probes = Array(count: 2)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "bot.cline.app"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].url = URL("https://github.com/cline/cline/releases/download/desktop-latest/latest.json")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){1,3})\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://cline.bot/desktop")
+probes[0].changelogURL? = URL("https://github.com/cline/cline/releases")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern? = "\"pub_date\"\\s*:\\s*\"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[^\"]*)\""
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\"(https://github\\.com/cline/cline/releases/download/desktop-v[0-9][^\"]*/Cline_[0-9][^\"]*_universal\\.app\\.tar\\.gz)\""
+probes[0].install?.kind = .tarGz
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "bot.cline.app.beta"
+probes[1].channel = .beta
+probes[1].variant = nil
+probes[1].hostRequirement = nil
+probes[1].installedVersionPattern = nil
+probes[1].buildLineage = nil
+probes[1].url = URL("https://github.com/cline/cline/releases/download/desktop-beta/latest.json")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){1,3}-beta\\.[0-9]+)\""
+probes[1].transientBodyPattern = nil
+probes[1].trackClosedPattern = nil
+probes[1].downloadURL? = URL("https://github.com/cline/cline/releases")
+probes[1].changelogURL? = URL("https://github.com/cline/cline/releases")
+probes[1].selectHighest = false
+probes[1].versionIsBuild = false
+probes[1].buildNamespace = .bundle
+probes[1].displayVersionPattern = nil
+probes[1].publishedAtPattern? = "\"pub_date\"\\s*:\\s*\"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[^\"]*)\""
+probes[1].minimumSystemVersionPattern = nil
+probes[1].maximumSystemVersionPattern = nil
+probes[1].entryStartPattern = nil
+probes[1].install? = struct VendorInstallSpec
+probes[1].install?.urlSource = .bodyPattern(_:)
+probes[1].install?.urlSource.0 = "\"(https://github\\.com/cline/cline/releases/download/desktop-v[0-9][^\"]*/Cline-Beta_[0-9][^\"]*-beta\\.[0-9]+_universal\\.app\\.tar\\.gz)\""
+probes[1].install?.kind = .tarGz
+probes[1].install?.checksumPattern = nil
+probes[1].install?.requestHeaders = Dictionary(count: 0)
+probes[1].install?.nestedArchivePath = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "bot.cline.app"
+changelogs[0].source = URL("https://api.github.com/repos/cline/cline/releases?per_page=40")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .json
+changelogs[0].entryPattern = ""
+changelogs[0].itemPatterns = Array(count: 0)
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat? = .gitHubReleases
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern? = "^desktop-v([0-9]+(?:\\.[0-9]+){1,3})$"
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "bot.cline.app.beta"
+changelogs[1].source = URL("https://api.github.com/repos/cline/cline/releases?per_page=40")
+changelogs[1].sourceTemplate = nil
+changelogs[1].mode = .json
+changelogs[1].entryPattern = ""
+changelogs[1].itemPatterns = Array(count: 0)
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 20
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .beta
+changelogs[1].includesPromotedStable = false
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern = nil
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat? = .gitHubReleases
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern? = "^desktop-v([0-9]+(?:\\.[0-9]+){1,3}-beta\\.[0-9]+)$"
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 1)
+channelProofs[ChannelProofKey(bundleID: "bot.cline.app.beta", channel: .beta)] = .artifact(_:)
+channelProofs[ChannelProofKey(bundleID: "bot.cline.app.beta", channel: .beta)].0 = "/Cline-Beta_[0-9][^/]*-beta\\.[0-9]+_universal\\.app\\.tar\\.gz$"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

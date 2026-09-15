@@ -31,7 +31,7 @@ enum pro_betterdisplay_BetterDisplay {
         //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
         //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
         //                 (v5.0.0/v5.0.1), which are excluded from what we OFFER
-        //                 because they are Apple-silicon-only, but are real history
+        //                 (`BetterDisplayChannel` says why), but are real history
         //                 and belong in the rail.
         //   * `.unstable` ("Receive internal pre-release updates") → deliberately
         //                 the same feed as `.beta`. The internal track has no

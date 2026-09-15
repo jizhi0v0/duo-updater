@@ -1,0 +1,108 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "app-yaak-desktop"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "app.yaak.desktop"
+changelogs[0].source = URL("https://api.github.com/repos/mountain-loop/yaak/releases?per_page=40")
+changelogs[0].sourceTemplate = nil
+changelogs[0].mode = .json
+changelogs[0].entryPattern = ""
+changelogs[0].itemPatterns = Array(count: 0)
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat? = .gitHubReleases
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "app.yaak.desktop"
+changelogs[1].source = URL("https://api.github.com/repos/mountain-loop/yaak/releases?per_page=40")
+changelogs[1].sourceTemplate = nil
+changelogs[1].mode = .json
+changelogs[1].entryPattern = ""
+changelogs[1].itemPatterns = Array(count: 0)
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 20
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .beta
+changelogs[1].includesPromotedStable = false
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern = nil
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat? = .gitHubReleases
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "app.yaak.desktop"
+githubRules[0].owner = "mountain-loop"
+githubRules[0].repo = "yaak"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Yaak_[0-9.]+_aarch64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "app.yaak.desktop"
+githubRules[1].owner = "mountain-loop"
+githubRules[1].repo = "yaak"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^Yaak_[0-9.]+-beta\\.[0-9]+_aarch64\\.dmg$"
+githubRules[1].installerKind? = .dmg
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "app.yaak.desktop", channel: .beta)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "app.yaak.desktop", channel: .beta)].0 = "/download/v[0-9.]+-beta\\.[0-9]+/"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

@@ -1366,7 +1366,8 @@ private struct DetailHeader: View {
                         // so they scale without losing their stroke ratio.
                         if model.prefs.showRuntimeTags, let runtime = result.app.runtime {
                             RuntimeTag(runtime: runtime, bundle: result.app.path,
-                                       frameworks: result.app.linkedFrameworks, size: 18)
+                                       frameworks: result.app.linkedFrameworks,
+                                       buildSDK: result.app.buildSDK, size: 18)
                         }
                     }
                     versionLine

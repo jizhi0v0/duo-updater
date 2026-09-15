@@ -13,23 +13,34 @@ import Foundation
 /// recognise.
 @Suite struct XcodeReleasesTests {
 
+    /// The host every test that is not ABOUT the macOS floor pins itself to. High
+    /// enough to satisfy every `requires` in both fixtures below (the highest is
+    /// the RC's "26.6"), so those tests keep measuring the offer rules rather than
+    /// whichever Mac they run on — see `OSFloorIsLoadBearingTests` for the ones
+    /// that vary it deliberately.
+    static let modernHost = "26.6.0"
+
     /// A trimmed slice of `xcodereleases.com/data.json`, keeping the shapes that
     /// matter: an arch-split duplicate, an RC sharing its build with the release,
     /// a different product to filter out, and the beta ladder.
+    ///
+    /// Every `requires` here is the value the live index served on 2026-09-15,
+    /// not an invented one: the 27.0 betas require macOS 26.4, the 26.x entries
+    /// 26.2.
     static let feed = Data("""
     [
-      {"name":"Xcode","_versionOrder":27000000005,
+      {"name":"Xcode","_versionOrder":27000000005,"requires":"26.4",
        "version":{"number":"27.0","build":"27A5237l","release":{"beta":5}},
        "links":{"notes":{"url":"https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes"}}},
-      {"name":"Xcode","_versionOrder":27000000001,
+      {"name":"Xcode","_versionOrder":27000000001,"requires":"26.4",
        "version":{"number":"27.0","build":"27A5194q","release":{"beta":1}}},
-      {"name":"Xcode","_versionOrder":26006000999,
+      {"name":"Xcode","_versionOrder":26006000999,"requires":"26.2",
        "version":{"number":"26.6","build":"17F113","release":{"release":true}}},
-      {"name":"Xcode (Apple Silicon)","_versionOrder":26006000902,
+      {"name":"Xcode (Apple Silicon)","_versionOrder":26006000902,"requires":"26.2",
        "version":{"number":"26.6","build":"17F113","release":{"rc":2}}},
-      {"name":"Xcode (Universal)","_versionOrder":26006000901,
+      {"name":"Xcode (Universal)","_versionOrder":26006000901,"requires":"26.2",
        "version":{"number":"26.6","build":"17F109","release":{"rc":1}}},
-      {"name":"Xcode","_versionOrder":26005000999,
+      {"name":"Xcode","_versionOrder":26005000999,"requires":"26.2",
        "version":{"number":"26.5","build":"17F42","release":{"release":true}}},
       {"name":"Xcode Tools","_versionOrder":99000000000,
        "version":{"number":"99.0","build":"99Z999","release":{"release":true}}}
@@ -63,7 +74,8 @@ import Foundation
     /// The machine this was built on: beta 1 installed while beta 5 is out.
     @Test func aBetaIsOfferedTheNewerBeta() throws {
         let (installed, offer) = try #require(
-            XcodeReleasesSource.offer(forBuild: "27A5194q", in: Self.releases()))
+            XcodeReleasesSource.offer(
+                forBuild: "27A5194q", in: Self.releases(), osVersion: Self.modernHost))
         #expect(offer.build == "27A5237l")
         // Both sides are named the same way, from the same formatter, so the row
         // reads "27.0 beta 1 → 27.0 beta 5" rather than putting an opaque build
@@ -77,7 +89,8 @@ import Foundation
     /// source never asserts a verdict of its own.
     @Test func theNewestBetaIsOfferedItself() throws {
         let (installed, offer) = try #require(
-            XcodeReleasesSource.offer(forBuild: "27A5237l", in: Self.releases()))
+            XcodeReleasesSource.offer(
+                forBuild: "27A5237l", in: Self.releases(), osVersion: Self.modernHost))
         #expect(offer.build == "27A5237l")
         #expect(installed.build == offer.build)
     }
@@ -87,7 +100,8 @@ import Foundation
     /// by every ordering — stability is what has to stop it.
     @Test func aReleaseIsNeverOfferedAPrerelease() throws {
         let (_, offer) = try #require(
-            XcodeReleasesSource.offer(forBuild: "17F42", in: Self.releases()))
+            XcodeReleasesSource.offer(
+                forBuild: "17F42", in: Self.releases(), osVersion: Self.modernHost))
         #expect(offer.build == "17F113")
         #expect(offer.stability == .release)
     }
@@ -97,22 +111,27 @@ import Foundation
     /// itself; reading it as the release is both true and stable.
     @Test func aBuildSharedByAnRCAndItsReleaseReadsAsTheRelease() throws {
         let (installed, _) = try #require(
-            XcodeReleasesSource.offer(forBuild: "17F113", in: Self.releases()))
+            XcodeReleasesSource.offer(
+                forBuild: "17F113", in: Self.releases(), osVersion: Self.modernHost))
         #expect(installed.build == "17F113")
         #expect(installed.stability == .release)
     }
 
     /// The top of the real index on 2026-09-14: Xcode 27 RC 1 above the beta ladder.
     /// Kept apart from `feed`, whose newest beta is meant to have nothing above it.
+    ///
+    /// The `requires` values are the live ones re-read 2026-09-15, and they are
+    /// NOT flat across this one version: RC 1 needs macOS 26.6, every 27.0 beta
+    /// needs 26.4. That gap is the whole of #640's Xcode half.
     static let rcFeed = Data("""
     [
-      {"name":"Xcode","_versionOrder":27000000901,
+      {"name":"Xcode","_versionOrder":27000000901,"requires":"26.6",
        "version":{"number":"27.0","build":"27A266a","release":{"rc":1}}},
-      {"name":"Xcode","_versionOrder":27000000006,
+      {"name":"Xcode","_versionOrder":27000000006,"requires":"26.4",
        "version":{"number":"27.0","build":"27A5252f","release":{"beta":6}}},
-      {"name":"Xcode","_versionOrder":27000000005,
+      {"name":"Xcode","_versionOrder":27000000005,"requires":"26.4",
        "version":{"number":"27.0","build":"27A5237l","release":{"beta":5}}},
-      {"name":"Xcode","_versionOrder":26006000999,
+      {"name":"Xcode","_versionOrder":26006000999,"requires":"26.2",
        "version":{"number":"26.6","build":"17F113","release":{"release":true}}}
     ]
     """.utf8)
@@ -139,7 +158,8 @@ import Foundation
         #expect(VersionComparator.isNewer("27A5237l", than: "27A266a"),
                 "precondition: this ordering is why the build string cannot decide it")
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A5237l", in: XcodeReleasesSource.parse(Self.rcFeed)))
+            forBuild: "27A5237l", in: XcodeReleasesSource.parse(Self.rcFeed),
+            osVersion: Self.modernHost))
         #expect(remote.version == "27A266a")
 
         let app = Self.installedXcode(build: "27A5237l")
@@ -152,7 +172,8 @@ import Foundation
     /// And once the RC is installed: offered itself, current, and not a downgrade.
     @Test func theInstalledRCIsUpToDate() throws {
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.rcFeed)))
+            forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.rcFeed),
+            osVersion: Self.modernHost))
         let app = Self.installedXcode(build: "27A266a")
         let status = UpdateChecker.evaluate(installed: app, remote: remote)
         #expect(status == .upToDate)
@@ -163,7 +184,8 @@ import Foundation
     /// An unrecognised seed. Guessing a track here is how a beta user gets offered a
     /// downgrade, so the source declines to answer and the row reads "unknown".
     @Test func anUnknownBuildIsNotGuessedAt() {
-        #expect(XcodeReleasesSource.offer(forBuild: "27A9999z", in: Self.releases()) == nil)
+        #expect(XcodeReleasesSource.offer(
+                forBuild: "27A9999z", in: Self.releases(), osVersion: Self.modernHost) == nil)
     }
 
     /// The version trap, on a bundle laid out like a real Xcode: `CFBundleVersion`

@@ -1,0 +1,52 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-vscodium"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.vscodium"
+githubRules[0].owner = "VSCodium"
+githubRules[0].repo = "vscodium"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "v?([0-9]+(?:\\.[0-9]+)+)"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^VSCodium-darwin-arm64-[0-9.]+\\.zip$"
+githubRules[0].installerKind? = .zip
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.vscodium.VSCodiumInsiders"
+githubRules[1].owner = "VSCodium"
+githubRules[1].repo = "vscodium-insiders"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^([0-9]+(?:\\.[0-9]+)+-insider)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .preview
+githubRules[1].installAssetPattern? = "^VSCodium-darwin-arm64-[0-9.]+-insider\\.zip$"
+githubRules[1].installerKind? = .zip
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.vscodium.VSCodiumInsiders", channel: .preview)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.vscodium.VSCodiumInsiders", channel: .preview)].0 = "/download/[^/]*-insider"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

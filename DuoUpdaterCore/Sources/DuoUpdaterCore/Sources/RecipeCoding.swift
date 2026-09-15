@@ -5,9 +5,13 @@ import Foundation
 /// `RecipeCodableConformances.swift` (and `ChangelogRecipe.swift`, whose conformance
 /// predates this file).
 ///
-/// Nothing in the shipping app or `duo` decodes a recipe from JSON yet. This exists
-/// so recipe data can later live in files without the format being invented while
-/// the data is moved.
+/// Nothing in the shipping app or `duo` decodes a recipe from JSON: recipes are
+/// Swift, and moving the bundled recipes into JSON5 files was piloted and dropped.
+/// Remote recipe updates, if they are ever built, would need a patch format (a
+/// recipe id plus a restricted set of fields, merged over the built-in record),
+/// not this: decoding a whole record here gives every absent field its default.
+/// The value shapes below are what such a format would reuse. The evaluation, its
+/// measurements and when to reopen it: `docs/engine-notes/recipe-coding.md` §5.
 ///
 /// ## Shapes
 ///

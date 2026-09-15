@@ -37,22 +37,11 @@ public enum SourceStamp {
     /// does not link it, so an app-only edit does not make this binary wrong.
     static let sourceRoots = ["DuoUpdaterCore/Sources", "CLI/Sources"]
 
-    /// The file extensions the digest reads. `swift` is the code; `json5` is recipe
-    /// data, which step 3 of the recipe refactor moves out of Swift literals into
-    /// resource files under `DuoUpdaterCore/Sources/DuoUpdaterCore/`. Those are not
-    /// compiled into the executable — SwiftPM puts resources in a bundle beside it —
-    /// but they are the rules the binary reads, whatever the packaging, so an edited
-    /// recipe file has to move the digest exactly like an edited `.swift` one, or the
-    /// stale-binary check goes blind to the very edits it exists for.
-    static let digestedExtensions: Set<String> = ["swift", "json5"]
-
     /// A floor, in the spirit of `check_prose_claims.py`'s: a digest computed over a
     /// handful of files would be a check that passes because it looked at almost
     /// nothing, and it would agree with itself on both sides while doing it. Set well
     /// under the real count (188 on 2026-09-07) so ordinary growth never trips it —
     /// this is here to catch a moved or renamed source root, not to count files.
-    /// It counts `.swift` files only: recipe data files are expected to multiply, and
-    /// a floor they could satisfy would stop noticing that the code went missing.
     static let minimumFiles = 100
 
     /// Name chosen to be read, not parsed: it sits next to the binary in
@@ -80,7 +69,7 @@ public enum SourceStamp {
         }
     }
 
-    /// A digest of every `.swift` and `.json5` file under `sourceRoots`, by content.
+    /// A digest of every Swift file under `sourceRoots`, by content.
     ///
     /// Content, not modification time. Timestamps move whenever git rewrites a file —
     /// `git checkout` of a branch with the same sources gives every one of them a new
@@ -93,19 +82,17 @@ public enum SourceStamp {
     /// re-split at a different boundary for the same digest.
     public static func digest(ofCheckoutAt root: URL) throws -> String {
         var files: [(String, URL)] = []
-        var swiftFiles = 0
         for relative in sourceRoots {
             let base = root.appendingPathComponent(relative)
             guard let walk = FileManager.default.enumerator(
                 at: base, includingPropertiesForKeys: nil) else { continue }
-            for case let url as URL in walk where digestedExtensions.contains(url.pathExtension) {
+            for case let url as URL in walk where url.pathExtension == "swift" {
                 let path = url.standardizedFileURL.path
                 let rootPath = root.standardizedFileURL.path
                 files.append((String(path.dropFirst(rootPath.count)), url))
-                if url.pathExtension == "swift" { swiftFiles += 1 }
             }
         }
-        guard swiftFiles >= minimumFiles else { throw StampError.tooFewFiles(swiftFiles) }
+        guard files.count >= minimumFiles else { throw StampError.tooFewFiles(files.count) }
 
         var hasher = SHA256()
         // Sorted, because `enumerator` makes no ordering promise and a digest that

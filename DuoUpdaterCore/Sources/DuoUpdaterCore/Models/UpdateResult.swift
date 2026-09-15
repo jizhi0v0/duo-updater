@@ -222,7 +222,7 @@ public struct RemoteVersion: Sendable, Hashable {
     /// The floor is enforced where a source CHOOSES its candidate, before a
     /// `RemoteVersion` exists: all three writers — `SparkleAppcastSource.usableItems`,
     /// `XcodeReleasesSource.offer`, `AlcoveUpdateSource.remote(from:token:osVersion:)`
-    /// — filter on it first (#640). `HostOS`'s doc comment lists every floor site.
+    /// — filter on it first (#640). `HostOS`'s doc comment lists the floor sites.
     ///
     /// ⚠️ Setting this is not a gate. `UpdateChecker.evaluate` deliberately
     /// asks nothing about the host (see its doc comment), so a source that sets

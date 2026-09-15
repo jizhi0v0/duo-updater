@@ -147,6 +147,22 @@ public enum AppRuntimeDetector {
     public struct Reading: Sendable, Equatable {
         public let runtime: AppRuntime?
         public let frameworks: LinkedFrameworks
+        /// The executable the reading describes: the file whose load commands
+        /// `frameworks` came from (or were asked of — it may not have parsed), or
+        /// for a wrapped iOS app the one inside the wrapper. Nil when there is no
+        /// executable to name.
+        ///
+        /// Carried so anything else read off "the app's binary" — its SDK — is read
+        /// off the same one, without a second copy of which-binary-is-the-app.
+        /// Docker's launcher and its interface are two binaries, Audacity's stub
+        /// and its payload are two more; `read` has already chosen.
+        public let binary: URL?
+
+        init(runtime: AppRuntime?, frameworks: LinkedFrameworks, binary: URL?) {
+            self.runtime = runtime
+            self.frameworks = frameworks
+            self.binary = binary
+        }
     }
 
     /// The runtime alone, for callers that do not need the framework set.
@@ -183,9 +199,20 @@ public enum AppRuntimeDetector {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
         // look in the wrong place, and its own executable sits inside the wrapper
         // rather than where the others keep theirs. Its wrapper is the evidence.
-        if isiOSAppOnMac { return Reading(runtime: .iOSApp, frameworks: []) }
-
+        //
+        // The executable is still named — not read: nothing here decides on its
+        // load commands — so its SDK can be. The inner bundle is a flat iOS layout,
+        // binary at its root, and `infoPlist` is that inner bundle's.
         let fm = FileManager.default
+        if isiOSAppOnMac {
+            var binary: URL?
+            if let name = infoPlist["CFBundleExecutable"] as? String, !name.isEmpty {
+                let url = bundleURL.appendingPathComponent("WrappedBundle").appendingPathComponent(name)
+                if fm.fileExists(atPath: url.path) { binary = url }
+            }
+            return Reading(runtime: .iOSApp, frameworks: [], binary: binary)
+        }
+
         let contents = bundleURL.appendingPathComponent("Contents")
         let frameworksDirectory = contents.appendingPathComponent("Frameworks")
         let frameworkNames = (try? fm.contentsOfDirectory(atPath: frameworksDirectory.path)) ?? []
@@ -198,7 +225,7 @@ public enum AppRuntimeDetector {
         let libraries = executable.flatMap(linkedLibraries)
         let frameworks = libraries.map(Self.frameworks(in:)) ?? []
         func reading(_ runtime: AppRuntime?) -> Reading {
-            Reading(runtime: runtime, frameworks: frameworks)
+            Reading(runtime: runtime, frameworks: frameworks, binary: executable)
         }
 
         // Electron. The framework name is the obvious marker and the wrong one to
@@ -369,7 +396,7 @@ public enum AppRuntimeDetector {
         // below. `frameworks(in:)` is three substring scans over a load-command
         // list that runs to hundreds of entries, which is cheap once per bundle and
         // is not free twice.
-        if let verdict = linkVerdict(libraries, frameworks: frameworks) { return verdict }
+        if let verdict = linkVerdict(libraries, frameworks: frameworks, binary: executable) { return verdict }
 
         // The declared executable answered nothing — and for one shape that is
         // because it is not the app. Audacity's `CFBundleExecutable` is `Wrapper`,
@@ -418,7 +445,8 @@ public enum AppRuntimeDetector {
         if let payload = payloadNamedAfterTheBundle(
             bundleAt: bundleURL, declaredExecutable: executable, fm: fm),
            let payloadLibraries = linkedLibraries(payload),
-           let verdict = linkVerdict(payloadLibraries, frameworks: Self.frameworks(in: payloadLibraries)) {
+           let verdict = linkVerdict(payloadLibraries, frameworks: Self.frameworks(in: payloadLibraries),
+                                     binary: payload) {
             return verdict
         }
 
@@ -428,10 +456,12 @@ public enum AppRuntimeDetector {
     /// The verdict a load-command list settles on its own, or nil where it settles
     /// nothing. Split out so the launcher-stub retry reaches the same two rules the
     /// declared executable does, from one copy.
-    private static func linkVerdict(_ libraries: Set<String>, frameworks: LinkedFrameworks) -> Reading? {
+    private static func linkVerdict(
+        _ libraries: Set<String>, frameworks: LinkedFrameworks, binary: URL?
+    ) -> Reading? {
         // Mac Catalyst apps link the iOS frameworks shipped under /System/iOSSupport.
         if libraries.contains(where: { $0.contains("/System/iOSSupport/") }) {
-            return Reading(runtime: .catalyst, frameworks: frameworks)
+            return Reading(runtime: .catalyst, frameworks: frameworks, binary: binary)
         }
         // Native covers anything drawing through Apple's own frameworks, including
         // an app that renders its whole interface itself on top of them — Zed's
@@ -439,7 +469,7 @@ public enum AppRuntimeDetector {
         // distinction this enum makes is against *cross-platform runtimes*, not
         // against custom renderers, and `frameworks` carries the detail.
         if frameworks.contains(.appKit) || frameworks.contains(.swiftUI) {
-            return Reading(runtime: .native, frameworks: frameworks)
+            return Reading(runtime: .native, frameworks: frameworks, binary: binary)
         }
         return nil
     }

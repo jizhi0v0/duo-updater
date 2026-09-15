@@ -1,7 +1,7 @@
 import Foundation
 
 /// The shared libraries a Mach-O executable links against, read from its load
-/// commands.
+/// commands — and, from the same pass, the SDK it was linked against (`BuildSDK`).
 ///
 /// This exists because a bundle's *layout* can only answer half of "what is this
 /// app built with". `Contents/Frameworks/Electron Framework.framework` is a fact
@@ -43,6 +43,14 @@ public enum MachOImports {
         static func namesADylib(_ cmd: UInt32) -> Bool {
             cmd == loadDylib || cmd == loadWeakDylib || cmd == reexportDylib || cmd == loadUpwardDylib
         }
+
+        /// `build_version_command`: platform, minos, sdk, ntools.
+        static let buildVersion: UInt32 = 0x0000_0032
+        /// `version_min_command`: version, sdk. The older form, which a binary
+        /// linked before `LC_BUILD_VERSION` existed carries instead — WeLink 7.53.9's
+        /// main executable, checked 2026-09-15, is one.
+        static let versionMinMacOSX: UInt32 = 0x0000_0024
+        static let versionMinIPhoneOS: UInt32 = 0x0000_0025
     }
 
     /// `CPU_TYPE_ARM64` — the slice we prefer inside a universal binary. DuoUpdater
@@ -72,19 +80,39 @@ public enum MachOImports {
     /// that ship it as frameworks carry a readable `Info.plist`, apps that ship it
     /// as `libQt6Core.6.dylib` do not, and both record `5.15.2` here.
     public static func loadedDylibs(at url: URL) -> [String: String]? {
+        loadCommands(at: url)?.dylibs
+    }
+
+    /// The SDK the image at `url` was linked against. Nil when the file cannot be
+    /// read as a Mach-O image, and also when it can but records no SDK — see
+    /// `BuildSDK` for the one shape that does that.
+    public static func buildSDK(at url: URL) -> BuildSDK? {
+        loadCommands(at: url)?.buildSDK
+    }
+
+    /// Everything this reader takes out of one image's load commands, from one
+    /// pass over them. The scan asks for both halves of every app, and the two
+    /// accessors above each pay for the open and the two bounded reads.
+    public struct LoadCommands: Sendable, Equatable {
+        /// Install name → packed `current_version`, as `loadedDylibs(at:)`.
+        public let dylibs: [String: String]
+        public let buildSDK: BuildSDK?
+    }
+
+    public static func loadCommands(at url: URL) -> LoadCommands? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         guard let magic = read32(handle, at: 0, bigEndian: false) else { return nil }
 
         switch magic {
         case Magic.macho64, Magic.macho32:
-            return imports(handle, sliceOffset: 0, is64Bit: magic == Magic.macho64)
+            return commands(handle, sliceOffset: 0, is64Bit: magic == Magic.macho64)
         case Magic.fat, Magic.fat64:
             guard let offset = preferredSliceOffset(handle, is64BitTable: magic == Magic.fat64),
                   let sliceMagic = read32(handle, at: offset, bigEndian: false),
                   sliceMagic == Magic.macho64 || sliceMagic == Magic.macho32
             else { return nil }
-            return imports(handle, sliceOffset: offset, is64Bit: sliceMagic == Magic.macho64)
+            return commands(handle, sliceOffset: offset, is64Bit: sliceMagic == Magic.macho64)
         default:
             // Big-endian images (PowerPC-era) and anything that is not a Mach-O.
             return nil
@@ -123,7 +151,7 @@ public enum MachOImports {
 
     // MARK: - Load commands
 
-    private static func imports(_ handle: FileHandle, sliceOffset: UInt64, is64Bit: Bool) -> [String: String]? {
+    private static func commands(_ handle: FileHandle, sliceOffset: UInt64, is64Bit: Bool) -> LoadCommands? {
         // mach_header: magic, cputype, cpusubtype, filetype, ncmds, sizeofcmds,
         // flags — plus a `reserved` word in the 64-bit variant, which is why the
         // commands start 4 bytes later there.
@@ -138,6 +166,7 @@ public enum MachOImports {
         else { return nil }
 
         var names: [String: String] = [:]
+        var sdks: [BuildSDK] = []
         var cursor = 0
         for _ in 0..<commandCount {
             guard cursor + 8 <= region.count,
@@ -160,10 +189,19 @@ public enum MachOImports {
                     let packed = region.u32(at: cursor + 16) ?? 0
                     names[name] = "\(packed >> 16).\((packed >> 8) & 0xff).\(packed & 0xff)"
                 }
+            } else if cmd == LoadCommand.buildVersion, size >= 24,
+                      let platform = region.u32(at: cursor + 8),
+                      let sdk = region.u32(at: cursor + 16) {
+                if let found = BuildSDK(platformCode: platform, packed: sdk) { sdks.append(found) }
+            } else if cmd == LoadCommand.versionMinMacOSX || cmd == LoadCommand.versionMinIPhoneOS,
+                      size >= 16, let sdk = region.u32(at: cursor + 12) {
+                let platform = cmd == LoadCommand.versionMinMacOSX
+                    ? BuildSDK.Platform.macOS : BuildSDK.Platform.iOS
+                if let found = BuildSDK(platform: platform, packed: sdk) { sdks.append(found) }
             }
             cursor += Int(size)
         }
-        return names
+        return LoadCommands(dylibs: names, buildSDK: BuildSDK.preferred(among: sdks))
     }
 
     // MARK: - Bounded reads

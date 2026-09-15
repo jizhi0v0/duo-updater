@@ -39,10 +39,11 @@ public enum SourceStamp {
 
     /// The file extensions the digest reads. `swift` is the code; `json5` is recipe
     /// data, which step 3 of the recipe refactor moves out of Swift literals into
-    /// resource files under `DuoUpdaterCore/Sources/DuoUpdaterCore/` — compiled into
-    /// the binary just the same, so an edited recipe file has to move the digest
-    /// exactly like an edited `.swift` one, or the stale-binary check goes blind to
-    /// the very edits it exists for.
+    /// resource files under `DuoUpdaterCore/Sources/DuoUpdaterCore/`. Those are not
+    /// compiled into the executable — SwiftPM puts resources in a bundle beside it —
+    /// but they are the rules the binary reads, whatever the packaging, so an edited
+    /// recipe file has to move the digest exactly like an edited `.swift` one, or the
+    /// stale-binary check goes blind to the very edits it exists for.
     static let digestedExtensions: Set<String> = ["swift", "json5"]
 
     /// A floor, in the spirit of `check_prose_claims.py`'s: a digest computed over a

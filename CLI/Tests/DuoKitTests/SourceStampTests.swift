@@ -64,8 +64,9 @@ import Foundation
         #expect(try SourceStamp.digest(ofCheckoutAt: root) != before)
     }
 
-    /// Recipe data is moving from Swift literals into `.json5` resource files that are
-    /// compiled into the binary all the same. Mutation: go back to hashing `.swift`
+    /// Recipe data is moving from Swift literals into `.json5` resource files: packaged
+    /// beside the binary rather than compiled into it, but still the rules it reads.
+    /// Mutation: go back to hashing `.swift`
     /// only — editing and renaming the recipe file then leave the digest unchanged,
     /// and a `duo` built before the edit reads as current. The `.md` beside it is the
     /// control: a digest over every file would pass the first two expectations.

@@ -42,20 +42,10 @@ fi
 mkdir -p "$DD"
 LOG="$DD/app-tests-$$.log"
 set +e
-# check_localizable_keys.py builds into this same derived data right after, so it
-# can reuse the DuoUpdaterCore, Subprocess and SystemPackage modules compiled here.
-# That only works if both builds compile those modules with the same flags, which
-# is what the last two settings are for. Code coverage adds
-# -profile-generate/-profile-coverage-mapping, and nothing reads the coverage
-# data. SWIFT_EMIT_LOC_STRINGS matches the flag the key check needs. Remove either
-# one and the key check compiles all three modules again. Measured 2026-09-15:
-# 116 s -> 73 s of CPU for that build, and a second round rebuilt nothing on
-# either side.
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
            -derivedDataPath "$DD" \
            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-           -enableCodeCoverage NO SWIFT_EMIT_LOC_STRINGS=YES \
            test > "$LOG" 2>&1
 STATUS=$?
 set -e

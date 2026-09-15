@@ -30,6 +30,10 @@ import Foundation
 ///     one it can run (#640).
 ///  7. `AlcoveUpdateSource.remote(from:token:osVersion:)` — the licensed API's
 ///     `minimum_system_version` (#640).
+///  8. `CaskMacOSRequirement.admits` — a cask's `depends_on.macos`. Only its `>=`
+///     branch is a floor and only that branch calls `canRun`; `==` (membership
+///     in a list of majors with gaps) and `<=` (a ceiling) are not floors, and a
+///     minimum cannot express them. Its fail-open guards run before any branch.
 ///
 /// ⚠️ `UpdateChecker.evaluate` is deliberately NOT on this list and must not
 /// join it: a host-dependent branch there makes every one of its comparison

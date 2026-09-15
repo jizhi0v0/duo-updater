@@ -31,8 +31,9 @@ public struct CaskMacOSRequirement: Sendable, Equatable {
     /// runs on.
     ///
     /// The declared side is a *major* (`"26"`), while the host side is a full
-    /// triple (`"26.1.2"`), so every comparison truncates the host to as many
-    /// components as the declaration carries before comparing. Comparing the
+    /// triple (`"26.1.2"`). `>=` is a floor, and goes through the shared floor
+    /// predicate (see the branch). `==` and `<=` truncate the host to as many
+    /// components as the declaration carries before comparing: comparing the
     /// untruncated host would make `== 26` false on every macOS 26 point release,
     /// which is the opposite of what brew means by it.
     ///
@@ -46,14 +47,30 @@ public struct CaskMacOSRequirement: Sendable, Equatable {
 
         switch comparison {
         case .exactly:
+            // Not a floor, so not `canRun`: it is membership of the host's major in
+            // a list with gaps, which a minimum cannot express. Same for `<=`.
             return declared.contains { Self.truncated(hostOSVersion, toComponentsOf: $0) == $0 }
         case .atLeast:
+            // A floor, so it asks the same predicate install-time gate 6 asks
+            // (`HostOS` lists the sites and says why they must not disagree).
+            // Padding the declaration with zeros is what truncating the host used
+            // to approximate. Compared over a grid of hosts and declarations when
+            // this switched, they differed in two shapes, both now decided the
+            // way gate 6 decides them:
+            //  - a declaration with a non-`.` separator (`"13-1"`): truncation
+            //    split on `.` only, the comparator also on `- _ + space ( )`, so
+            //    13.2.0 was refused. It is admitted now.
+            //  - a host with trailing text (`"27.0.0-beta"` vs `"27"`): refused
+            //    now, admitted before. Unreachable — the host is always
+            //    `HostOS.numericVersion()` — so deliberately not guarded.
+            // The fail-open guards above stay: `canRun` alone fails closed on a
+            // host with no number, which would hide the cask.
+            //
             // A `>=` list is one element in every measured case; "at least the
             // lowest of them" is the reading that keeps a hypothetical multi-entry
             // list from excluding a host each single element would admit.
             return declared.contains {
-                VersionComparator.compare(Self.truncated(hostOSVersion, toComponentsOf: $0), $0)
-                    != .orderedAscending
+                SignatureVerifier.canRun(minimumSystemVersion: $0, on: hostOSVersion)
             }
         case .atMost:
             return declared.contains {

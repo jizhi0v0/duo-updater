@@ -23,8 +23,12 @@ import Foundation
 ///   `"kind"`, whose value is the Swift case name, plus that case's payload under
 ///   names given on each conformance. Every case of such an enum uses the object
 ///   form, payloadless ones included (`{"kind": "responseBody"}`), so one enum
-///   never has two shapes. Example: `{"kind": "bodyPatternRelative",
-///   "pattern": "…", "base": "https://…"}`.
+///   never has two shapes. A payload value's key is its Swift label where it has
+///   one (`zipEntryPlist(entry:key:)` → `entry`, `key`), except
+///   `recipeAnchor(_:in:)`, whose `in` set is written as `fields`; an unlabelled
+///   value's key is named on its conformance (`pattern`, `template`, `url`,
+///   `path`). `RecipeCodableTests` pins both, with one JSON literal per case.
+///   Example: `{"kind": "bodyPatternRelative", "pattern": "…", "base": "https://…"}`.
 /// - **A `[ChannelProofKey: ChannelArtifactProof]` table** is an array of
 ///   `{"bundleID": …, "channel": …, "proof": {…}}`, sorted by bundle id then
 ///   channel (`ChannelProofTable`). JSON object keys must be strings, and the
@@ -51,6 +55,26 @@ import Foundation
 ///
 /// Every non-optional property is written. An optional is written when it is
 /// non-nil, and as `null` when it is nil but its default is not.
+///
+/// Output is deterministic only with `JSONEncoder.OutputFormatting.sortedKeys`.
+/// The conformances sort what they control (a `recipeAnchor`'s field set, a
+/// channel-proof table), but a `[String: String]` property such as
+/// `requestHeaders` is written in the dictionary's iteration order, which Swift's
+/// per-process hash seeding changes from one run to the next.
+///
+/// ## Trade-offs, stated so nobody rediscovers them
+///
+/// - **Swift names are the format.** A tag is a case name and a key is a property
+///   name, so renaming a case or a stored property is a breaking change to every
+///   JSON file that uses it. It fails loudly, at decode time (an unknown key or
+///   kind) — not at review time, where the rename looks like a refactor.
+/// - **Strict means old readers refuse new files.** A build that predates a key
+///   rejects a file that uses it. For recipe data bundled with the build that
+///   is the point; for anything fetched remotely later it is an open design
+///   question, not something this convention answers.
+/// - **`VendorInstallSpec` has `kind` twice.** Its own `"kind"` is the archive
+///   format (`"zip"`, `"dmg"`, …); the `"kind"` inside its `urlSource` object is
+///   that enum's tag. Same word, two levels, unrelated meanings.
 enum RecipeCoding {
 
     /// A coding key for any string, for reading keys a type does not declare.

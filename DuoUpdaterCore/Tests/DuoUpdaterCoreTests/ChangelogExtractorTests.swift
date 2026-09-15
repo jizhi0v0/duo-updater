@@ -1186,8 +1186,9 @@ let zedGitHubReleasesFixture = #"""
 }
 
 @Test func recipeDecodesFromTerseJSON() throws {
-    // A remotely-authored recipe needs only the four required fields; tuning
-    // fields fall back to defaults (the forgiving decode path).
+    // Only `bundleID` and `source` are required; every omitted field takes the
+    // initializer's default (`RecipeCoding`). The two patterns are set here only
+    // because this recipe uses them.
     let json = """
     {
       "bundleID": "com.foo.bar",

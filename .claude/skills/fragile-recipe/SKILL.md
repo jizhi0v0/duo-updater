@@ -147,8 +147,8 @@ from that — internalize it rather than memorizing rules:
 
 - **A wrong changelog is cosmetic.** Worst case the user sees messy or empty notes,
   and the UI silently falls back to embedding the vendor's own page. So a
-  ChangelogRecipe can be loose, redundant (try several `itemPatterns`), and is
-  even `Codable` for future remote shipping. Bias toward shipping coverage.
+  ChangelogRecipe can be loose and redundant (try several `itemPatterns`). Bias
+  toward shipping coverage.
 
 - **A wrong version probe lies to the user.** It can claim an update exists when it
   doesn't, or point an installer at the wrong build. So a VendorProbeRecipe must be

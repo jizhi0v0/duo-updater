@@ -133,7 +133,9 @@ BUILT_DIGEST="$(recipe_digest "$PRODUCT_RECIPES")" || die "the built bundle's re
 #      could drop beside the binary planted at once — a sidecar Info.plist, a
 #      Contents/Info.plist and a Resources/Info.plist (each CFBundleExecutable=duo-cli,
 #      no digest key), an en.lproj/InfoPlist.strings setting DuoRecipeDigest to the
-#      tampered digest, and CFPROCESSPATH pointed at a decoy — must STILL exit
+#      tampered digest, and CFProcessPath (case matters; CF reads that exact name)
+#      pointed at decoy/duo-cli, beside its own sidecar Info.plist and a tampered
+#      bundle copy, so it is honoured and steers both lookups there — must STILL exit
 #      non-zero with the loader's "are not the ones this executable was built with".
 #      The digest is read from the executable's own __TEXT,__info_plist section
 #      (RecipeFamilyFile.embeddedDigest), which none of those files can reach; if any
@@ -153,7 +155,7 @@ ditto "$PRODUCT_BUNDLE" "$SELFTEST/$RESOURCE_BUNDLE"
 mkdir "$SELFTEST/home"
 selftest() {
     ( cd "$SELFTEST" && env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
-        ${SELFTEST_PROCESS_PATH:+CFPROCESSPATH="$SELFTEST_PROCESS_PATH"} \
+        ${SELFTEST_PROCESS_PATH:+CFProcessPath="$SELFTEST_PROCESS_PATH"} \
         HOME="$SELFTEST/home" CFFIXED_USER_HOME="$SELFTEST/home" \
         ./duo-cli verify --only zz-duo-recipe-digest-selftest ) > "$SELFTEST/$1.out" 2>&1
 }
@@ -184,8 +186,10 @@ sidecar_plist "$SELFTEST/Contents/Info.plist"
 sidecar_plist "$SELFTEST/Resources/Info.plist"
 mkdir -p "$SELFTEST/en.lproj"
 printf '"DuoRecipeDigest" = "%s";\n' "$SELFTEST_TAMPERED_DIGEST" > "$SELFTEST/en.lproj/InfoPlist.strings"
-printf 'decoy' > "$SELFTEST/decoy-process"
-SELFTEST_PROCESS_PATH="$SELFTEST/decoy-process"
+sidecar_plist "$SELFTEST/decoy/Info.plist"
+ditto "$SELFTEST/$RESOURCE_BUNDLE" "$SELFTEST/decoy/$RESOURCE_BUNDLE"
+printf 'decoy' > "$SELFTEST/decoy/duo-cli"
+SELFTEST_PROCESS_PATH="$SELFTEST/decoy/duo-cli"
 SELFTEST_STATUS=0; selftest tampered || SELFTEST_STATUS=$?
 unset SELFTEST_PROCESS_PATH
 [ "$SELFTEST_STATUS" -ne 0 ] \

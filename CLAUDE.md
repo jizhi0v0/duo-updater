@@ -198,15 +198,34 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   (这些提交都没进 main:#660 是 squash 合的,合进去的 3b926232 里没有这个 parser——按 #660 的 PR
   描述,它连着三轮被抓,在 PR 分支的 9fda2a49 里整个撤掉了。要看原提交就 `git fetch origin pull/660/head`。)
   - ⚠️ **用 `ReportFindings` 把发现重报成 `fixed` 不是复审**,是状态更新:它说「我改了」,不看改出来的东西。
-  - **收敛的判据只有一条:一轮覆盖了上一轮之后的全部修复提交、且没有新的确证发现。** 条数降下来不算,
-    还剩一条就没收敛;只挑修复里的一部分审,那一轮也不算。修复 diff 之外被它弄矛盾的旧说法,按
-    「改一处说法之前,先数它有几份」那节去找——#661 第二轮就是在那份修复没碰过的「CI」一节里抓到一处矛盾。
-    ⚠️ **别再加「发现只落在某一层就可以收工」的第二条判据。** 给这条规矩开的 #661 试过三个版本,
-    三轮复审各推翻一个:「被测代码 vs harness」会把 #315 交付的那道防空过闸(`app-tests.sh` /
-    `app_test_coverage.py`)划成 harness——#315 的 PR 描述正是这么划的;「会执行的代码 vs 措辞」让任何
-    只改文档的 PR(包括 #661 自己)两轮就收工;「交付物 vs PR 描述和 commit message」的后一半不能当作
-    合进去就不生效——这个仓库 squash 合并的提交正文默认取 `COMMIT_MESSAGES`,commit message 默认进 main,
-    PR 上的关闭关键词在合并时生效(#542 合并 2 秒后 #419 被它关掉,哪怕写的是 does not close)。
+  - **发现分三档,名字沿用官方 Code Review 的 Important / Nit / Pre-existing,定义按这个仓库收紧。**
+    官方文档只给托管的 GitHub 服务定了严重度;本地 `/code-review` 不读 `REVIEW.md`、只读 CLAUDE.md
+    (https://code.claude.com/docs/en/code-review.md 「What the review reads and edits」),所以定义写在这里:
+    - **Important**:失败场景会让合进 main 之后**会被执行或被照着做**的东西(代码、测试、脚本、闸、
+      CLAUDE.md / skill / 注释)做错事或说假话。包括静默失效、要以后才触发的潜伏 bug(#660 第二轮那条就是:
+      要等有人加一个带行尾注释的 target 才触发,触发时把前一个 target 算成测试 target 跳过——按 c01be6f1
+      自己的提交说明,前一个若是 app,loc-check 就漏掉整个 app 的 key)、文字里的错误断言。官方托管服务默认把新引入的 CLAUDE.md 违规算 Nit,这里不行
+      ——这个仓库的文字是承重的。
+    - **Nit**:不改变任何会被执行或被照着做的东西:措辞、格式,PR 描述和 commit message 里的笔误或过时说法
+      (commit message 默认会进 main,所以合并时用自己写的 squash 正文替换默认的那份)。
+      ⚠️ 合并时会生效的文字不算 Nit:关闭关键词、跳过 CI 的标记,按 Important 算。
+    - **Pre-existing**:这个 PR 之前就在的问题。记下来或另开任务,不挡这个 PR,也不触发下一轮。
+    **判档看失败场景,不看 reviewer 标的级别,也不看文件在哪;拿不准就按 Important。**
+  - **收敛:第一轮之后,只有 Important 触发下一轮复审。** 一轮覆盖了上一轮之后的全部修复提交、且没有新的
+    确证 Important,就收敛;只挑修复里的一部分审,那一轮不算。条数降下来不算,还剩一条 Important 就没收敛。
+    Nit 照修,修完不再审,除非那份修复碰到了会生效的东西(那就是一份新修复)。修复 diff 之外被它弄矛盾的
+    旧说法,按「改一处说法之前,先数它有几份」那节去找——#661 第二轮就是在那份修复没碰过的「CI」一节里
+    抓到一处矛盾。官方给托管服务的建议是同一个形状:"after the first review, suppress new nits and post
+    Important findings only",为的是不让 "a one-line fix" 因为风格问题跑到 "round seven"。
+    #661 自己第八轮开跑后才被叫停。按这个口径:第 6 轮的两条确证发现在 PR 描述和 commit message 里,是 Nit,
+    但它顺带点出 CLAUDE.md 里 #660 的引用有问题(Important),修完就得有第 7 轮;第 7 轮只剩 Nit,
+    第 8 轮不用跑。
+    ⚠️ **别按「落在哪一层」判收敛。** #661 试过三个版本,三轮复审各推翻一个:「被测代码 vs harness」
+    会把 #315 交付的那道防空过闸(`app-tests.sh` / `app_test_coverage.py`)划成 harness——#315 的 PR
+    描述正是这么划的;「会执行的代码 vs 措辞」让任何只改文档的 PR(包括 #661 自己)两轮就收工;
+    「交付物 vs PR 描述和 commit message」的后一半不能当作合进去就不生效——这个仓库 squash 合并的提交正文
+    默认取 `COMMIT_MESSAGES`,commit message 默认进 main,PR 上的关闭关键词在合并时生效
+    (#542 合并 2 秒后 #419 被它关掉,哪怕写的是 does not close)。
   - **`/code-review` 不是合并门槛,这条和上一条都只靠自律。** `main` 的 ruleset 要求走 PR、
     0 个 approval、必需检查只有 `test`(strict=false):CI 一绿就可合,审没审、审了几轮都不影响。
     所以**循环没收敛之前别开 `--auto`**,已经开了就 `gh pr merge <n> --disable-auto`。2026-09-07 #401:

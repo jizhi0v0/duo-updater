@@ -35,6 +35,7 @@ import Foundation
         case .appStoreManaged: unknown += 1
         case .toolboxManaged: unknown += 1
         case .testFlightManaged: unknown += 1
+        case .outsideOSWindow(let refusal): unknown += 1; log("🚫 \(r.app.name): \(refusal.logDescription)")
         case .error(let e): errors += 1; log("⚠️  \(r.app.name): \(e)")
         }
     }

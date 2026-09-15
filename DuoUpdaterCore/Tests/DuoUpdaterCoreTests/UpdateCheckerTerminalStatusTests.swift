@@ -45,6 +45,8 @@ import Foundation
             case throwing
             case missing
             case answering(String)
+            /// The vendor refused its newest release for this macOS (#634).
+            case refusing(OSWindowRefusal)
         }
 
         let name: String
@@ -80,6 +82,12 @@ import Foundation
             switch behaviour {
             case .throwing:
                 throw Self.error
+            case .refusing(let refusal):
+                // The refused release as a source would report it: the refusal's
+                // own version as the marketing string, no build.
+                throw OSWindowRefused(refusal, release: RemoteVersion(
+                    shortVersion: refusal.version, version: nil, downloadURL: nil,
+                    sourceName: name))
             case .missing:
                 return nil
             case .answering(let version):
@@ -276,12 +284,112 @@ import Foundation
         }
     }
 
+    // MARK: - .outsideOSWindow — the vendor refused this macOS (#634)
+
+    private static let ceiling = OSWindowRefusal(
+        bound: .ceiling(maximum: "26.99"), version: "6.5", hostOS: "27.0.0")
+    private static let floor = OSWindowRefusal(
+        bound: .floor(minimum: "28.0"), version: "7.0", hostOS: "27.0.0")
+
+    /// A source that READ its answer and was told "not for this macOS" is neither
+    /// the dash (a source covered the app) nor a failed check (nothing to retry).
+    ///
+    /// Mutation: delete the `catch let refused as OSWindowRefused` clause, so the
+    /// refusal falls into the generic `catch` → `.error` → red.
+    @Test func aRefusedReleaseIsNotForThisMacOSRatherThanAFailure() async {
+        let source = ScriptedSource(.refusing(Self.ceiling))
+        let result = await UpdateChecker(sources: [source]).check(Self.app())
+        #expect(source.consulted)
+        #expect(result.status == .outsideOSWindow(Self.ceiling))
+        #expect(result.remote == nil)
+    }
+
+    /// A refusal is only news about a release that would have been an update. A
+    /// copy already on the refused build — the Mac moved to a macOS the vendor has
+    /// not caught up with — or past it (a lagging or abandoned feed) must not be
+    /// told the vendor "won't offer" it: that row stays what it was before, the
+    /// dash of a source with nothing to say.
+    ///
+    /// Mutation: drop the `evaluate` guard in the `OSWindowRefused` catch → both
+    /// copies come back `.outsideOSWindow` → red.
+    @Test func aRefusedReleaseTheCopyAlreadyHasOrPassedIsNotNews() async {
+        for installed in ["6.5", "6.6"] {
+            let app = InstalledApp(
+                name: "Subject", bundleID: "com.example.subject",
+                shortVersion: installed, buildVersion: nil,
+                path: URL(fileURLWithPath: "/Applications/Subject.app"),
+                isMASApp: false, sparkleFeedURL: nil)
+            let result = await UpdateChecker(sources: [ScriptedSource(.refusing(Self.ceiling))]).check(app)
+            #expect(result.status == .unknown, "installed \(installed)")
+        }
+    }
+
+    /// A refusal is a miss for THAT source only: a later source with a release this
+    /// Mac can run is the better answer, and it must still be asked.
+    ///
+    /// Mutation: `return` the `.outsideOSWindow` row from inside the catch instead
+    /// of `continue` → the second source is never consulted → red.
+    @Test func aLaterSourceThatAnswersBeatsTheRefusal() async {
+        let refusing = ScriptedSource(.refusing(Self.ceiling), name: "Vendor")
+        let answering = ScriptedSource(.answering("6.4.9"), name: "Elsewhere")
+        let result = await UpdateChecker(sources: [refusing, answering]).check(Self.app())
+        #expect(refusing.consulted)
+        #expect(answering.consulted)
+        #expect(result.status == .updateAvailable(latest: "6.4.9"))
+    }
+
+    /// The refusal outranks another source's failure, in either order: it is a
+    /// fact the row can state, and `.error` would swap it for a Retry that changes
+    /// nothing about the vendor's bound.
+    ///
+    /// Mutation: move the refusal's `return` below the `if let lastError` block →
+    /// both orders come back `.error` → red.
+    @Test func aRefusalOutranksAnotherSourcesFailure() async {
+        for order in [["refusing", "throwing"], ["throwing", "refusing"]] {
+            let sources = order.map { kind in
+                kind == "refusing"
+                    ? ScriptedSource(.refusing(Self.ceiling), name: kind)
+                    : ScriptedSource(.throwing, name: kind)
+            }
+            let result = await UpdateChecker(sources: sources).check(Self.app())
+            #expect(result.status == .outsideOSWindow(Self.ceiling), "order \(order)")
+        }
+    }
+
+    /// Sources are in priority order; the row names the refusal of the first one,
+    /// the source it would otherwise have trusted.
+    ///
+    /// Mutation: assign `refusal = refused.refusal` unconditionally → the second
+    /// source's floor is named → red.
+    @Test func theFirstSourcesRefusalIsTheOneNamed() async {
+        let result = await UpdateChecker(sources: [
+            ScriptedSource(.refusing(Self.ceiling), name: "first"),
+            ScriptedSource(.refusing(Self.floor), name: "second"),
+        ]).check(Self.app())
+        #expect(result.status == .outsideOSWindow(Self.ceiling))
+    }
+
+    /// Below Toolbox, like a failure is: the borrowed vendor read being refused
+    /// changes nothing about "open Toolbox".
+    ///
+    /// Mutation: drop `!app.isToolboxManaged` from the refusal's condition → red.
+    @Test func aToolboxOwnedAppKeepsItsChannelWhenTheVendorRefuses() async {
+        let app = Self.androidStudioPreview(.canary)
+        // Newer than the fixture's 2025.2: a refusal of an OLDER release is a miss
+        // before precedence is ever asked, and this would pass without measuring it.
+        let refusal = OSWindowRefusal(bound: .ceiling(maximum: "26.99"), version: "2026.1", hostOS: "27.0.0")
+        let source = ScriptedSource(.refusing(refusal))
+        let result = await UpdateChecker(sources: [source]).check(app)
+        #expect(source.consulted)
+        #expect(result.status == .toolboxManaged)
+    }
+
     // MARK: - the gap this file is meant to close
 
     /// The list above is only a guard while it is COMPLETE. `UpdateStatus` carries
     /// two more cases (`upToDate`, `updateAvailable`), which `check` reaches from
     /// a source that answered and never from the "no source answered" tail — so
-    /// the tail's four are all of them, and each has a row above.
+    /// the tail's five are all of them, and each has a row above.
     ///
     /// Written as an exhaustive `switch` on purpose: adding a case to
     /// `UpdateStatus` stops compiling here, which is the only mechanism that makes
@@ -290,6 +398,7 @@ import Foundation
         for status: UpdateStatus in [
             .upToDate, .updateAvailable(latest: "1"), .unknown,
             .appStoreManaged, .toolboxManaged, .testFlightManaged, .error("x"),
+            .outsideOSWindow(Self.ceiling),
         ] {
             switch status {
             case .upToDate, .updateAvailable:
@@ -304,6 +413,8 @@ import Foundation
                 break  // anAppStoreAppReportsAFailedStoreLookup
             case .error:
                 break  // the outcome under test throughout
+            case .outsideOSWindow:
+                break  // aRefusedReleaseIsNotForThisMacOSRatherThanAFailure and the rows after it
             }
         }
     }

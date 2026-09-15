@@ -251,6 +251,22 @@ struct RowActionStateTests {
         #expect(state.needsExplanation)
     }
 
+    /// A vendor refusing this macOS is its own answer (#634): not the dash, which
+    /// means no source covered the app, and not a failure, which offers a Retry
+    /// that changes nothing. The refusal is carried so both surfaces word it from
+    /// the same facts.
+    ///
+    /// Mutation: map `.outsideOSWindow` to `.noSourceCovers(hint: .none)` in the
+    /// ladder → red.
+    @Test("a vendor's OS refusal is neither the dash nor a failure")
+    func osRefusalIsItsOwnState() {
+        let refusal = OSWindowRefusal(bound: .ceiling(maximum: "26.99"), version: "6.5", hostOS: "27.0.0")
+        let state = RowAction.state(for: RowActionFacts(status: .outsideOSWindow(refusal)))
+        #expect(state == .notForThisMacOS(refusal))
+        #expect(state.needsExplanation)
+        #expect(state.offersUpdate == false)
+    }
+
     @Test("managed apps name their manager", arguments: [
         (UpdateStatus.appStoreManaged, RowActionState.Manager.appStore),
         (.toolboxManaged, .toolbox),
@@ -266,6 +282,7 @@ struct RowActionStateTests {
     @Test("only an up-to-date row is silent", arguments: [
         UpdateStatus.error("boom"), .unknown, .appStoreManaged, .toolboxManaged,
         .testFlightManaged, .updateAvailable(latest: "2.0"), .upToDate,
+        .outsideOSWindow(OSWindowRefusal(bound: .floor(minimum: "28.0"), version: "2", hostOS: "27.0.0")),
     ])
     func onlyUpToDateIsSilent(_ status: UpdateStatus) {
         let state = RowAction.state(for: RowActionFacts(status: status))

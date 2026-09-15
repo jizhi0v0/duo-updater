@@ -137,4 +137,151 @@ import Foundation
         #expect(Self.usable(min: "14.0", max: "26.99", on: "26.6.0").count == 1)
         #expect(Self.usable(min: "14.0", max: "26.99", on: "27.0.0").isEmpty)
     }
+
+    // MARK: - Saying why the feed offers nothing (#634 part 3)
+
+    private static func refusal(min: String?, max: String?, on os: String) -> OSWindowRefusal? {
+        let items = SparkleAppcastParser.parse(Data(feed(min: min, max: max).utf8))
+        return SparkleAppcastSource.osWindowRefusal(for: app, from: items, osVersion: os)?.refusal
+    }
+
+    /// A feed emptied by the vendor's window names the refusal instead of going
+    /// quiet — the release this copy is missing, which bound refused it, and the
+    /// host it was refused on. Before, this was a nil and the row a "no source"
+    /// dash that a ceiling never cleared.
+    ///
+    /// Mutation: ignore `honouringOSWindow` in `usableItems` (always honour) →
+    /// the window-free list is empty too, and both answers are nil → red.
+    @Test func aFeedEmptiedByTheWindowNamesTheRefusal() throws {
+        let ceiling = try #require(Self.refusal(min: "14.0", max: "26.99", on: "27.0.0"))
+        #expect(ceiling.bound == .ceiling(maximum: "26.99"))
+        #expect(ceiling.version == "2.0")
+        #expect(ceiling.hostOS == "27.0.0")
+
+        let floor = try #require(Self.refusal(min: "28.0", max: nil, on: "27.0.0"))
+        #expect(floor.bound == .floor(minimum: "28.0"))
+    }
+
+    /// Only the WINDOW is set aside. A feed that offers nothing because of its
+    /// channel is a feed with nothing for this copy — naming a capped release on a
+    /// channel the user never joined would blame the wrong thing.
+    ///
+    /// Mutation: evaluate the head of `items` instead of the window-free usable
+    /// list → the beta item is named → red.
+    @Test func aFeedEmptiedByTheChannelIsNotARefusal() {
+        let feed = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+          <channel>
+            <item>
+              <sparkle:shortVersionString>2.0b1</sparkle:shortVersionString>
+              <sparkle:version>201</sparkle:version>
+              <sparkle:channel>beta</sparkle:channel>
+              <sparkle:maximumSystemVersion>26.99</sparkle:maximumSystemVersion>
+              <enclosure url="https://example.com/Subject-2.0b1.dmg" sparkle:version="201" length="100"/>
+            </item>
+          </channel>
+        </rss>
+        """
+        let items = SparkleAppcastParser.parse(Data(feed.utf8))
+        #expect(items.count == 1, "premise: the item parsed")
+        #expect(SparkleAppcastSource.osWindowRefusal(for: Self.app, from: items, osVersion: "27.0.0") == nil)
+    }
+
+    /// A ceiling spelled without a digit is a ceiling the vendor did not state.
+    /// The inline check this replaced had no such guard, and `VersionComparator`
+    /// ranks a text token below every number — so `any` hid the build from every
+    /// Mac. Now it goes through `OSWindowRefusal.evaluate`, which guards it.
+    ///
+    /// Mutation: drop the ceiling's digit guard in `OSWindowRefusal.evaluate` → red.
+    @Test func aTextCeilingDoesNotHideTheBuild() {
+        #expect(Self.usable(min: nil, max: "any", on: "27.0.0").count == 1)
+    }
+
+    /// The whole source, so the refusal is known to reach `UpdateChecker` and not
+    /// just to be computable. `latestVersion` reads the host's macOS itself, so the
+    /// cap is set where no host can be: "10.0" is below this app's deployment
+    /// target (macOS 14), so every Mac that can run the test is above it.
+    ///
+    /// Mutation: `return nil` in place of `throw OSWindowRefused(refusal)` in
+    /// `latestVersion(for:)` → red.
+    @Test func latestVersionThrowsTheRefusalRatherThanNil() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [CappedFeedProtocol.self]
+        let source = SparkleAppcastSource(session: URLSession(configuration: config))
+        #expect(!FileManager.default.fileExists(atPath: Self.app.path.path))
+
+        do {
+            let remote = try await source.latestVersion(for: Self.app)
+            Issue.record("expected OSWindowRefused, got \(String(describing: remote))")
+        } catch let refused as OSWindowRefused {
+            #expect(refused.refusal.bound == .ceiling(maximum: "10.0"))
+            #expect(refused.refusal.version == "2.0")
+        } catch {
+            Issue.record("expected OSWindowRefused, got \(error)")
+        }
+    }
+
+    /// The window only speaks when it left NOTHING to offer. A capped newest item
+    /// beside an older one this Mac can run is Sparkle's own routing — the older
+    /// item is the answer, and no refusal is thrown. `latestVersion` reads the host
+    /// itself, so the cap is "10.0", below every Mac that can run the test.
+    ///
+    /// Mutation: compute the refusal before `guard let best` and throw whenever
+    /// the feed's head is refused → red.
+    @Test func aCappedHeadWithAnOlderUsableItemIsAnsweredNotRefused() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [CappedHeadFeedProtocol.self]
+        let source = SparkleAppcastSource(session: URLSession(configuration: config))
+        let remote = try await source.latestVersion(for: Self.app)
+        #expect(remote?.shortVersion == "1.5")
+    }
+
+    static let cappedHeadFeed = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+      <channel>
+        <item>
+          <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
+          <sparkle:version>200</sparkle:version>
+          <sparkle:maximumSystemVersion>10.0</sparkle:maximumSystemVersion>
+          <enclosure url="https://example.com/Subject-2.0.dmg" sparkle:version="200" length="100"/>
+        </item>
+        <item>
+          <sparkle:shortVersionString>1.5</sparkle:shortVersionString>
+          <sparkle:version>150</sparkle:version>
+          <enclosure url="https://example.com/Subject-1.5.dmg" sparkle:version="150" length="100"/>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    private final class CappedHeadFeedProtocol: URLProtocol, @unchecked Sendable {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(SparkleMaximumSystemVersionTests.cappedHeadFeed.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        override func stopLoading() {}
+    }
+
+    private final class CappedFeedProtocol: URLProtocol, @unchecked Sendable {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(
+                self, didLoad: Data(SparkleMaximumSystemVersionTests.feed(min: nil, max: "10.0").utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        override func stopLoading() {}
+    }
 }

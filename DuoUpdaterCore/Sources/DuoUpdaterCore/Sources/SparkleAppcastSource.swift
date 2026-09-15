@@ -240,7 +240,7 @@ public struct SparkleAppcastSource: UpdateSource {
             // be written out here, and the one gate 6 makes against a downloaded
             // bundle's `LSMinimumSystemVersion`. One copy, because the whole
             // point of `HostOS` is that these must not be able to disagree; its
-            // doc comment lists every site, all six of which now call this
+            // doc comment lists the sites, and each one it lists calls this
             // function (#640). (`canRun` also fails open on a value with no digit
             // in it; the inline version reached the same verdict by the same
             // `compare` call, since a text token ranks below a numeric one.)

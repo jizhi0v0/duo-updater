@@ -25,7 +25,7 @@ import Foundation
 /// already renders properly. One row, one answer; the row state is #634 part 3.
 ///
 /// One predicate throughout: `SignatureVerifier.canRun(minimumSystemVersion:on:)`,
-/// which is also install-time gate 6. `HostOS`'s doc comment lists all six sites.
+/// which is also install-time gate 6. `HostOS`'s doc comment lists the sites.
 ///
 /// Every host here is injected. Not one of these tests may ask the Mac it runs on
 /// what OS that is; a test that did would answer differently in CI (CLAUDE.md).
@@ -219,8 +219,10 @@ import Foundation
         #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
-    /// The floor rides along on the remote — a fact about the release that the
-    /// row's "requires macOS N" line (#634 part 3) and install-time gate 6 read.
+    /// The floor rides along on the remote — a fact about the release. Nothing
+    /// reads it yet: the row's "requires macOS N" line (#634 part 3) would be its
+    /// first consumer, and install-time gate 6 reads the downloaded bundle's own
+    /// `LSMinimumSystemVersion`, not this.
     @Test func theXcodeRemoteCarriesTheOfferedReleasesFloor() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0"))

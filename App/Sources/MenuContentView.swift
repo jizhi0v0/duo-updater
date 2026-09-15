@@ -1100,12 +1100,15 @@ private struct AppRow: View {
     ///
     /// A *floor*, not the control's width, and that distinction is what keeps
     /// this honest in other languages. Measured on the real popover, the buttons
-    /// run past 64pt as soon as the labels are translated — Update is 58.5pt in
-    /// English, 73.0 in Russian, 88.0 in German; Relaunch is 68.5 / 102.5 / 81.5.
+    /// run past 64pt, and in English too since they gained a floor of their own
+    /// (`PopoverRowAction.buttonLabelMinWidth`): Update is 73.0pt in English,
+    /// Relaunch 73.0. Measured before that floor, and above it either way: Update
+    /// 73.0 in Russian, 88.0 in German; Relaunch 102.5 / 81.5.
     /// Because the HStack hands a control its ideal width and the `Spacer` eats
     /// the slack, a wider button simply takes what it needs and the name column
-    /// gets the rest (227.5pt in English, 214.5 in German, 193.5 in Russian). So
-    /// the reservation being English-shaped costs nothing.
+    /// gets the rest (213pt in English beside a 73pt button; 214.5 in German and
+    /// 193.5 in Russian, measured before the floor). So the reservation being
+    /// English-shaped costs nothing.
     ///
     /// What would cost something is a *decision* made against a stale number, and
     /// there is exactly one localized thing on this path: the stage label. That is

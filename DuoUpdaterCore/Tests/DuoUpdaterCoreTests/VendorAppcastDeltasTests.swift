@@ -117,4 +117,34 @@ struct VendorAppcastDeltasTests {
         """
         #expect(VendorAppcastDeltas.patches(inBody: twice, forVersion: "2.0").isEmpty)
     }
+
+    /// The cheap bail-out in front of the parser must not be narrower than the
+    /// parser itself.
+    ///
+    /// `sparkle:` is the vendor's chosen prefix, not part of the format. This feed
+    /// binds Sparkle's namespace to `s:` and is parsed correctly — but a gate
+    /// spelled `body.contains("sparkle:deltas")` short-circuits it to `[]` before
+    /// the parser ever runs, which is precisely the drift between the two
+    /// Sparkle-reading paths that this file's own header says it exists to
+    /// prevent. Benign in effect (a full download instead of a patch), invisible
+    /// in operation, and it would have outlived the reason for it.
+    @Test func anAltPrefixDeltasBlockIsNotShortCircuitedByTheGate() {
+        let altPrefix = """
+        <rss xmlns:s="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+        <channel>
+        <item>
+            <s:shortVersionString>2.0</s:shortVersionString>
+            <enclosure url="https://x/full.zip" length="100" s:edSignature="archive"/>
+            <s:deltas>
+                <enclosure url="https://x/a.delta" s:deltaFrom="1" length="5" s:edSignature="patch"/>
+            </s:deltas>
+        </item>
+        </channel></rss>
+        """
+        let patches = VendorAppcastDeltas.patches(inBody: altPrefix, forVersion: "2.0")
+        #expect(patches.count == 1)
+        #expect(patches.first?.fromBuild == "1")
+        #expect(patches.first?.url.absoluteString == "https://x/a.delta")
+        #expect(patches.first?.edSignature == "patch")
+    }
 }

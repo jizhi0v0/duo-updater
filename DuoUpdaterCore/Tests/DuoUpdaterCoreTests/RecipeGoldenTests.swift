@@ -2,10 +2,12 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// The equivalence gate for moving recipe data out of Swift literals (step 3 of the
-/// recipe refactor): whatever builds `AppRecipeIndex.all` — the literals under
-/// `Recipes/` today, JSON5 resource files later — must build exactly what the
-/// committed goldens under `DuoUpdaterCore/Tests/RecipeGoldens/` say.
+/// A committed snapshot of all recipe data: `AppRecipeIndex.all`, built from the
+/// family files under `Recipes/`, must build exactly what the goldens under
+/// `DuoUpdaterCore/Tests/RecipeGoldens/` say, so every change to recipe data shows
+/// up as a reviewable diff. (It was written as the equivalence gate for moving
+/// recipe data into JSON5 resource files; that move was piloted and dropped, and
+/// recipes stay Swift.)
 ///
 /// ## What it pins
 ///

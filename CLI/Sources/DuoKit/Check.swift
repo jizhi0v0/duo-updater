@@ -58,8 +58,9 @@ public enum Check {
         switch outcome {
         case .refreshed(let after):
             // The moment the store last changed, NOT how long the command waited:
-            // the wait runs on past it by `settleInterval` to be sure the sync has
-            // finished. Measured 6.0s here against 14.0s wall clock, so saying
+            // the wait runs on past it by at least `settleInterval` to be sure the
+            // sync has finished, and longer while TestFlight's store is still
+            // mid-rebuild. Measured 6.0s here against 14.0s wall clock, so saying
             // "took" would be wrong by more than half.
             let seconds = Double(after.components.seconds) + Double(after.components.attoseconds) / 1e18
             return String(format: "duo: TestFlight refreshed its data (new data landed after %.1fs)", seconds)
@@ -70,7 +71,7 @@ public enum Check {
             let seconds = Double(lastChange.components.seconds)
                 + Double(lastChange.components.attoseconds) / 1e18
             return String(
-                format: "duo: TestFlight was still writing when we stopped waiting "
+                format: "duo: TestFlight had not finished syncing when we stopped waiting "
                       + "(last seen moving after %.1fs); the versions below may predate the sync",
                 seconds)
         case .noChange:
@@ -92,6 +93,10 @@ public enum Check {
             return "duo: could not launch TestFlight"
         }
     }
+
+    /// Said when the store was read mid-rebuild (`TestFlightInventory.isRebuilding`).
+    static let rebuildingNote = "duo: TestFlight is partway through reloading its data; "
+        + "TestFlight versions below may be missing builds — run again in a few seconds"
 
     /// Why `--refresh-testflight` did not start TestFlight, or nil when it may.
     ///
@@ -174,6 +179,13 @@ public enum Check {
             let reads = Inventory.readsTestFlight(
                 settings.testFlightDetection, fullDiskAccess: Inventory.fullDiskAccess)
             let testflight = Inventory.testFlightStore(reads: reads)
+            // Read partway through TestFlight rebuilding its store, the betas below
+            // are answered from a store that has not been told which builds exist,
+            // and an available one reads as current. `duo` does not wait it out — a
+            // command should not hang on TestFlight — but it says so.
+            if testflight.accessible, testflight.isRebuilding {
+                FileHandle.standardError.write(Data((rebuildingNote + "\n").utf8))
+            }
             let announcements = Inventory.testFlightAnnouncements(reads: reads)
             results = await Inventory.checker(
                 settings, testflight: testflight, announcements: announcements

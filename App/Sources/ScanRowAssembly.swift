@@ -145,15 +145,24 @@ enum ScanRowAssembly {
     /// (`unchecked`, `.unknown`) on screen before the check. Carrying that left a
     /// beta blank — "no source covers it" — until a round that reads TestFlight;
     /// observed 2026-09-10 on the first menu open after an install.
+    ///
+    /// `keepsPlaceholders` reverses that for a store read mid-rebuild
+    /// (`TestFlightInventory.isRebuilding`), where blank is the better of the two
+    /// answers. That store has not been told which builds exist, so checking the
+    /// beta publishes "up to date" beside an available build — and once published it
+    /// is a verdict, which every later round then keeps, including every round
+    /// against a store that stays half built. Blank is replaced by the first read
+    /// of a finished store.
     static func roundPlan(
-        _ checkable: [InstalledApp], keepsTestFlightRows: Bool, onScreen: [UpdateResult]
+        _ checkable: [InstalledApp], keepsTestFlightRows: Bool, keepsPlaceholders: Bool = false,
+        onScreen: [UpdateResult]
     ) -> (check: [InstalledApp], carried: [UpdateResult]) {
         guard keepsTestFlightRows else { return (checkable, []) }
         let rows = Dictionary(onScreen.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var check: [InstalledApp] = []
         var carried: [UpdateResult] = []
         for app in checkable {
-            if app.isTestFlightApp, let row = rows[app.id], row.status != .unknown {
+            if app.isTestFlightApp, let row = rows[app.id], keepsPlaceholders || row.status != .unknown {
                 carried.append(row)
             } else {
                 check.append(app)
@@ -192,6 +201,13 @@ enum ScanRowAssembly {
     /// verdict; those rows are checked and say they cannot tell, as in a round
     /// without it.
     ///
+    /// A store that opened mid-rebuild keeps them the same way: it has not yet been
+    /// told which builds exist, so a beta with an update would read as current
+    /// (`TestFlightInventory.isRebuilding`), placeholders included, for the reason
+    /// `roundPlan` gives. This does not wait the rebuild out — a click should not
+    /// hang on it — so the row stays as it was until something reads a finished
+    /// store: the file watcher's re-check when TestFlight launched, or a later round.
+    ///
     /// On the main actor so `read` and `check` run where their caller formed them:
     /// the app's are main-actor closures, and handing them to a nonisolated async
     /// function does not compile under Swift 6. The slow work still happens off the
@@ -216,7 +232,8 @@ enum ScanRowAssembly {
         // must not stand for a beta, so it is checked and says it cannot tell.
         let wereTestFlight = Set(rows.filter(\.app.isTestFlightApp).map(\.id))
         let plan = roundPlan(
-            apps, keepsTestFlightRows: reads && !store.accessible,
+            apps, keepsTestFlightRows: reads && (!store.accessible || store.isRebuilding),
+            keepsPlaceholders: reads && store.accessible && store.isRebuilding,
             onScreen: merged(apps, prior: rows, proofs: proofs).filter { wereTestFlight.contains($0.id) })
         return (await check(plan.check, store) + plan.carried, plan.carried)
     }

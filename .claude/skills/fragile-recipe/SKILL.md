@@ -97,7 +97,9 @@ examples — don't author from memory:
    it should show exactly the fields you meant to change, in your family only. Then
    rerun the same command without the variable to see it pass, and commit the
    golden with the recipe. What the golden pins and why is in the doc comment on
-   `RecipeGoldenTests`.
+   `RecipeGoldenTests`. If a golden-changing PR (a new recipe field, a shared
+   helper) merged after your CI ran, rerun CI before merging: both can be green
+   alone and red together.
 
 8. **Add a regression test.** Two parts, both required:
    - A fixture test: a trimmed slice of the *real* response, asserting the parse.

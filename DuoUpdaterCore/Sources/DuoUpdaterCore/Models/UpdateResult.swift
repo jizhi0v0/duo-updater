@@ -214,6 +214,14 @@ public struct RemoteVersion: Sendable, Hashable {
     /// EdDSA signature of the enclosure, used to verify the download later.
     public let edSignature: String?
     /// Minimum macOS version the release requires, if declared.
+    ///
+    /// Read by `UpdateChecker.evaluate`, which refuses to offer a release this
+    /// Mac is below (#640). It was write-only before that — `SparkleAppcastSource`
+    /// and `AlcoveUpdateSource` wrote it, nobody read it (`XcodeReleasesSource`
+    /// is the third writer, added with the reader) — so a floor was only ever
+    /// honoured for Sparkle apps,
+    /// and only because `usableItems` drops such items before a `RemoteVersion`
+    /// is built at all.
     public let minimumSystemVersion: String?
     /// Human-readable name of the source that produced this ("Sparkle" etc.).
     public let sourceName: String

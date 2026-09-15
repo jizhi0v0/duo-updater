@@ -280,3 +280,41 @@ The list endpoint avoids that but
 costs 52,732 gzipped bytes at `per_page=40` and, per
 `GitHubConditionalCache`, carries NO `Last-Modified` and an `ETag` that
 rotates with `assets[].download_count`.
+
+### Recipes/bot-cline-app.swift — stable + beta VendorProbe（为什么不用 `GitHubReleaseRule`，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #608（`da538173`）搬完之后留在代码里的版本；#625（`c57c9fc6`）在段末加了临时的 `snapshot-lint:allow` 标记，不是正文，没有抄进来，代码里已删掉。代码里留下的是结论（一个 repo 发四条产品线、非 desktop 的三条不发 prerelease，所以 `/releases/latest` 答的是最后发版的那个产品），日期写成 "(checked 2026-09-12 over its newest 100 releases; …)"，四个计数搬到这里。
+
+WHY NOT `GitHubReleaseRule`, which this otherwise looks like a case for.
+`cline/cline` is a MONOREPO publishing four trains from one Releases
+list — measured 2026-09-12 over its newest 100 releases: 33 `desktop-*`,
+24 `v*` (the VS Code extension), 22 `sdk/sdk/v*`, 21 `cli-v*` — and the
+non-desktop three are all non-prerelease. `/releases/latest` therefore
+answers with whichever product shipped last. The list endpoint avoids that
+but costs far more bytes at `per_page=40` than the manifests below and, per
+`GitHubConditionalCache`, carries NO `Last-Modified` and an `ETag` that
+rotates with `assets[].download_count`. These two manifests are a few KB
+and DO serve `Last-Modified`.
+What is given up is the release-history backfill only GitHub and
+Sparkle sources produce; `publishedAtPattern` below still dates the
+release each round.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET `api.github.com/repos/cline/cline/releases?per_page=100`）：`desktop-*` 34、`v*` 23、`sdk/sdk/v*` 22、`cli-v*` 21；非 desktop 的三条线全部是 `prerelease: false`（23 / 22 / 21）。
+
+### Recipes/bot-cline-app.swift — stable + beta ChangelogRecipe（`tagPattern`，收尾批次）
+
+转引自 recipe 注释，未复测。整段原文，是 #608（`da538173`）搬完之后留在代码里的版本；#625（`c57c9fc6`）在段末加的临时 `snapshot-lint:allow` 标记行没有抄进来，代码里已删掉。代码里留下的是结论（没有 pattern 时 stable 轨会混进别的产品的 release，而且在 `per_page=40` 那一页上比它自己的还多；capture group 管版本号），日期写成 "(checked 2026-09-12; …)"，13 与 20 两个计数搬到这里，三个 tag 标成示例，末尾一句重新折行。
+
+`tagPattern` IS THE WHOLE POINT HERE, and both halves of it earn their
+keep. `cline/cline` publishes four products from one Releases list, so
+measured on the real `per_page=40` page (2026-09-12): the stable rail
+keeps 13 entries and WITHOUT the pattern would additionally have rendered
+**20 foreign ones** — `v4.1.17` (the VS Code extension), `cli-v3.0.61`,
+`sdk/sdk/v0.0.82` and so on. More noise than signal, and none of it
+malformed enough to look wrong. The capture group is the second half:
+`stripLeadingV` only removes a leading `v`, so every entry would have been
+titled `desktop-v…` (e.g. `desktop-v0.0.26`) and none would have matched
+the version the row
+shows.
+
+复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET `…/releases?per_page=40`）：stable pattern 收 14 条、beta pattern 收 6 条、非 `desktop-` 开头的 19 条（最新几条是 `v4.1.17`、`sdk/sdk/v0.0.82`、`cli-v3.0.61`、`v4.1.16`）。

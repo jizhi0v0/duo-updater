@@ -33,18 +33,18 @@ enum bot_cline_app {
         //
         // WHY NOT `GitHubReleaseRule`, which this otherwise looks like a case for.
         // `cline/cline` is a MONOREPO publishing four trains from one Releases
-        // list — measured 2026-09-12 over its newest 100 releases: 33 `desktop-*`,
-        // 24 `v*` (the VS Code extension), 22 `sdk/sdk/v*`, 21 `cli-v*` — and the
-        // non-desktop three are all non-prerelease. `/releases/latest` therefore
-        // answers with whichever product shipped last. The list endpoint avoids that
-        // but costs far more bytes at `per_page=40` than the manifests below and, per
+        // list — `desktop-*`, `v*` (the VS Code extension), `sdk/sdk/v*` and
+        // `cli-v*` — and the non-desktop three publish no prereleases (checked
+        // 2026-09-12 over its newest 100 releases; History has the counts).
+        // `/releases/latest` therefore answers with whichever product shipped
+        // last. The list endpoint avoids that but costs far more bytes at
+        // `per_page=40` than the manifests below and, per
         // `GitHubConditionalCache`, carries NO `Last-Modified` and an `ETag` that
         // rotates with `assets[].download_count`. These two manifests are a few KB
         // and DO serve `Last-Modified`.
         // What is given up is the release-history backfill only GitHub and
         // Sparkle sources produce; `publishedAtPattern` below still dates the
         // release each round.
-        // snapshot-lint:allow — catch-up batch after 2f
         //
         // TWO CHANNELS, TWO BUNDLE IDS — pattern A, so nothing has to be inferred
         // from a preference or a version suffix. Stable is `bot.cline.app`, beta is
@@ -127,16 +127,14 @@ enum bot_cline_app {
         //
         // `tagPattern` IS THE WHOLE POINT HERE, and both halves of it earn their
         // keep. `cline/cline` publishes four products from one Releases list, so
-        // measured on the real `per_page=40` page (2026-09-12): the stable rail
-        // keeps 13 entries and WITHOUT the pattern would additionally have rendered
-        // **20 foreign ones** — `v4.1.17` (the VS Code extension), `cli-v3.0.61`,
-        // `sdk/sdk/v0.0.82` and so on. More noise than signal, and none of it
-        // malformed enough to look wrong. The capture group is the second half:
-        // `stripLeadingV` only removes a leading `v`, so every entry would have been
-        // titled `desktop-v…` (e.g. `desktop-v0.0.26`) and none would have matched
-        // the version the row
-        // shows.
-        // snapshot-lint:allow — catch-up batch after 2f
+        // WITHOUT the pattern the stable rail would also render the other
+        // products' releases — e.g. `v4.1.17` (the VS Code extension),
+        // `cli-v3.0.61`, `sdk/sdk/v0.0.82` — and on a `per_page=40` page they
+        // outnumber its own (checked 2026-09-12; History has the counts). More
+        // noise than signal, and none of it malformed enough to look wrong. The
+        // capture group is the second half: `stripLeadingV` only removes a leading
+        // `v`, so every entry would have been titled `desktop-v…` (e.g.
+        // `desktop-v0.0.26`) and none would have matched the version the row shows.
         //
         // The rolling feed tags the updater points at (`desktop-latest`,
         // `desktop-beta`) are releases in this list too; the `$`-anchored pattern

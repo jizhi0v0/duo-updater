@@ -187,11 +187,12 @@ private let betterDisplayFeedFixture = #"""
                      preEnabled: true, internalEnabled: false) == "5.0.3")
     }
 
-    /// `arm64_pre` is a real tag in this feed and its builds are arm64-only, but
-    /// the feed declares no `<sparkle:hardwareRequirements>` and the enclosure
-    /// carries no arch token — so `archVerdict` would rate it `.neutral` and
-    /// offer it to an Intel Mac that cannot run it. It is excluded from every
-    /// track; 5.0.2+ superseded it, so nothing is lost but changelog rows.
+    /// `arm64_pre` is a real tag in this feed and its builds are arm64-only. The
+    /// feed declares no `<sparkle:hardwareRequirements>` and the enclosure carries
+    /// no arch token, so nothing in the feed says what the tag is for; being
+    /// arm64-only is no hazard, since DuoUpdater itself ships arm64-only. It is
+    /// excluded from every track; 5.0.2+ superseded it, so nothing is lost but
+    /// changelog rows.
     @Test func arm64PreIsNeverInAnyAllowedSet() {
         for (pre, int) in [(false, false), (true, false), (true, true)] {
             let allowed = SparkleAppcastSource.allowedChannels(

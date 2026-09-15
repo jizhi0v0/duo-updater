@@ -235,11 +235,18 @@ public struct SparkleAppcastSource: UpdateSource {
             guard item.version != nil || item.shortVersionString != nil else { return false }
             // Default channel ∪ the user's channel — never a higher one.
             guard allowed.contains(normalizeChannel(item.channel)) else { return false }
-            // Honor minimum system version when declared.
-            if let minOS = item.minimumSystemVersion, !minOS.isEmpty,
-               VersionComparator.compare(osVersion, minOS) == .orderedAscending {
-                return false
-            }
+            // Honor minimum system version when declared. The predicate is
+            // `SignatureVerifier.canRun` — literally the expression that used to
+            // be written out here, and the one gate 6 makes against a downloaded
+            // bundle's `LSMinimumSystemVersion`. One copy, because the whole
+            // point of `HostOS` is that these must not be able to disagree; its
+            // doc comment lists every site, all six of which now call this
+            // function (#640). (`canRun` also fails open on a value with no digit
+            // in it; the inline version reached the same verdict by the same
+            // `compare` call, since a text token ranks below a numeric one.)
+            guard SignatureVerifier.canRun(
+                minimumSystemVersion: item.minimumSystemVersion, on: osVersion)
+            else { return false }
             // And the maximum — the vendor saying "this build is not for an OS
             // this new", which is the only way any source we read can express
             // "we haven't adapted to macOS 27 yet". The PREDICATE is Sparkle's
@@ -259,14 +266,17 @@ public struct SparkleAppcastSource: UpdateSource {
             //
             // That asymmetry is worse for max than for min, and deliberately
             // accepted for now rather than hidden: a min-filtered item reappears
-            // when the user upgrades macOS, a max-filtered one NEVER does. The
-            // motivating case (obdev caps stable at 26.99; user moves to macOS 27)
-            // therefore settles on `.unknown` indefinitely, for an app this feed
-            // is the only source for. Surfacing it properly
-            // needs a "blocked by the vendor's own OS ceiling" state that
-            // `RemoteVersion` has no room for today; filtering is still the right
-            // default meanwhile, because the alternative is installing a build the
-            // vendor has said is not for this Mac. Tracked, not forgotten.
+            // when the user upgrades macOS, a max-filtered one NEVER does. An app
+            // whose only source is a feed that caps its current item below the
+            // host therefore settles on `.unknown` indefinitely. (The shape was
+            // first seen on obdev's Little Snitch feed — `final` capped at 26.99
+            // on 2026-08-30 while the host moved to 27 — but that feed is read
+            // by `VendorProbeSource`, not here; it now honours the same bounds
+            // through `minimum`/`maximumSystemVersionPattern`.) Surfacing it
+            // properly needs a "blocked by the vendor's own OS ceiling" state
+            // that `RemoteVersion` has no room for today; filtering is still the
+            // right default meanwhile, because the alternative is installing a
+            // build the vendor has said is not for this Mac. Tracked as #634.
             //
             // Note this also removes capped items from `structuredChangelog` and
             // `releaseHistory` below, since both read this same list — consistent
@@ -277,7 +287,10 @@ public struct SparkleAppcastSource: UpdateSource {
             // Rare, not dead: none of the 14 reachable feeds among this machine's
             // installed Sparkle apps declared one (2026-08-30), but WeChat's feed
             // caps 3 of its 7 items — that one is read by `VendorProbeSource`,
-            // which consults NEITHER bound, so this filter never sees it.
+            // which consults a bound only where the recipe declares a pattern
+            // for it (WeChat's does not; its capped items are old OS buckets
+            // that lose the highest-version pick anyway), so this filter never
+            // sees it.
             if let maxOS = item.maximumSystemVersion, !maxOS.isEmpty,
                VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
                 return false

@@ -222,12 +222,11 @@ enum com_windscribe_client {
         // already decodes.
         //
         // `.gitHubReleases` keeps stable releases only, which is exactly the split
-        // this vendor publishes: measured 2026-09-07 across every release since
-        // 2024, all 19 of the versions the vendor's own API names on its release
-        // track are `prerelease: false` on GitHub, and NONE of the 51 it names on
-        // the beta / guinea-pig tracks are — so nothing from a track the user did
-        // not opt into can reach the panel.
-        // snapshot-lint:allow — catch-up batch after 2f
+        // this vendor publishes: the versions the vendor's own API names on its
+        // release track are `prerelease: false` on GitHub, and the ones it names on
+        // the beta / guinea-pig tracks are not (checked 2026-09-07 across every
+        // release since 2024; History has the counts) — so nothing from a track the
+        // user did not opt into can reach the panel.
         //
         // Tag shape is `vX.Y.Z` against the probe's bare `X.Y.Z`; `GitHubMarkdownParser`
         // is the same one the GitHub *version* source uses and already handles the
@@ -273,12 +272,11 @@ enum com_windscribe_client {
         // containing the offered version only while release leads, about a quarter
         // of each cycle.
         //
-        // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT, measured on the newest 40
-        // releases (2026-09-07): 9 are stable and 31 are prereleases, and GitHub
-        // marks all 31 the same way — it has no idea which track a build is on.
-        // So a beta reader sees guinea pig entries too, and both readers see
-        // builds the vendor never announced.
-        // snapshot-lint:allow — catch-up batch after 2f
+        // ⚠️ WHAT THIS LISTS THAT IT SHOULD NOT: GitHub marks every prerelease the
+        // same way, beta and guinea pig alike — it has no idea which track a build
+        // is on (checked 2026-09-07 on the newest 40 releases; History has the
+        // counts). So a beta reader sees guinea pig entries too, and both readers
+        // see builds the vendor never announced.
         //
         // ⚠️ AND IT DOES NOT REMOVE THAT FAILURE ENTIRELY, only most of it. The
         // version comes from the vendor's feed and the notes come from GitHub,

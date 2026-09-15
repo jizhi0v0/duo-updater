@@ -56,10 +56,9 @@ what to do when the number has already drifted once.
    thing it points at exists and is reachable by someone who isn't you.
 6. **Add the new file to the Index below** — `check_engine_notes.py` fails
    the build if a tracked `.md` in this directory isn't listed there.
-7. `make test`, then a self-review pass (`/code-review`) on the diff before
-   opening the PR. After fixing its findings, review the fix diff again, and
-   keep going until the loop converges. The stop criterion lives only in
-   CLAUDE.md, 「修 issue」; it is not restated here so the two cannot drift.
+7. `make test`, then a self-review pass (`/code-review high`) on the diff before
+   opening the PR. After fixing its findings, follow the fix-and-recheck flow
+   in CLAUDE.md, 「修 issue」; it is not restated here so the two cannot drift.
 
 ## Index
 

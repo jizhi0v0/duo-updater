@@ -112,6 +112,13 @@ public enum PreInstallGate {
             return .managedElsewhere
         case .error(let message):
             return .cannotConfirm(message)
+        case .outsideOSWindow(let refusal):
+            // The vendor moved its bound (or the Mac moved macOS) between the offer
+            // and the click. Must not proceed; `.cannotConfirm` with the refusal as
+            // the source's message is the existing "did not install, here is why"
+            // ending both hosts already word. Not `.alreadyCurrent`: the disk does
+            // not carry the release, the vendor just will not give it to this Mac.
+            return .cannotConfirm(refusal.logDescription)
         case .unknown:
             return .cannotConfirm(nil)
         }

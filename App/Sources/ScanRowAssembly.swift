@@ -76,6 +76,17 @@ enum ScanRowAssembly {
             // version. With no remote (App Store / Toolbox / unknown) keep what we
             // had, just refreshed to the new bundle info.
             guard let remote = was.remote else {
+                // Except a vendor's OS refusal on a copy that has since moved. The
+                // refusal was only shown because the refused release was newer than
+                // the copy then on disk (`UpdateChecker`); with no remote to re-ask
+                // that against, a moved copy — the user installed the release, or
+                // the app updated itself — would keep being told the vendor "won't
+                // offer" a build it may now have. Back to unchecked until the next
+                // check answers again.
+                if case .outsideOSWindow = was.status,
+                   was.app.shortVersion != app.shortVersion || was.app.buildVersion != app.buildVersion {
+                    return carrying(nil, .unknown)
+                }
                 return carrying(nil, was.status)
             }
             // A Toolbox row can't be re-run through `evaluate` (its verdict is a

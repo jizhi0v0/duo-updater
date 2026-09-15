@@ -579,7 +579,7 @@ public enum UpdatePolicy {
             switch row.status {
             case .upToDate:
                 settled.insert(id)
-            case .updateAvailable, .unknown, .error,
+            case .updateAvailable, .unknown, .error, .outsideOSWindow,
                  .appStoreManaged, .toolboxManaged, .testFlightManaged:
                 break
             }

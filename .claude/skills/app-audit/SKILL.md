@@ -659,7 +659,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `versionIsBuild` | the endpoint's version matches `CFBundleVersion`, not the marketing string |
 | `displayVersionPattern` | the compared value is an ugly build id and there is a human one to show |
 | `publishedAtPattern` | the entry states its own release date (Release Log gets an exact time) |
-| `minimumSystemVersionPattern` / `maximumSystemVersionPattern` | the entry states the macOS window this release is for — read per release, Sparkle's predicates; outside it the row is `—`, not red |
+| `minimumSystemVersionPattern` / `maximumSystemVersionPattern` | the entry states the macOS window this release is for — read per release, Sparkle's predicates; outside it the row says the vendor refused this macOS (an amber mark, not red, no Retry) unless another source answers |
 | `selectHighest` | the feed lists many releases and document order is not newest-first |
 | `entryStartPattern` | multi-entry feed: slice it so version/URL/date all come from ONE entry |
 | `channel` | this endpoint serves a non-stable track (source refuses cross-channel) |

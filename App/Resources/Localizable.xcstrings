@@ -124,6 +124,88 @@
         }
       }
     },
+    "%@ %@ is supported only up to macOS %@, and this Mac runs macOS %@. DuoUpdater won’t offer it until the developer supports this version of macOS.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ wird nur bis macOS %@ unterstützt, auf diesem Mac läuft macOS %@. DuoUpdater bietet es erst an, wenn der Entwickler diese macOS-Version unterstützt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ solo es compatible hasta macOS %@, y este Mac tiene macOS %@. DuoUpdater no la ofrecerá hasta que el desarrollador admita esta versión de macOS."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ n’est prise en charge que jusqu’à macOS %@, et ce Mac exécute macOS %@. DuoUpdater ne la proposera pas tant que le développeur ne prendra pas en charge cette version de macOS."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ は macOS %@ までしかサポートされておらず、この Mac は macOS %@ です。開発元がこのバージョンの macOS に対応するまで、DuoUpdater はこのバージョンを提供しません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ поддерживается только до macOS %@, а на этом Mac установлена macOS %@. DuoUpdater не предложит эту версию, пока разработчик не добавит поддержку этой версии macOS."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 最高只支持到 macOS %@，而此 Mac 运行的是 macOS %@。在开发者支持此版本的 macOS 之前，DuoUpdater 不会提供这个版本。"
+          }
+        }
+      }
+    },
+    "%@ %@ needs macOS %@ or later, and this Mac runs macOS %@. It can’t be installed until this Mac runs a newer macOS.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ erfordert macOS %@ oder neuer, auf diesem Mac läuft macOS %@. Installieren lässt es sich erst, wenn auf diesem Mac ein neueres macOS läuft."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ requiere macOS %@ o posterior, y este Mac tiene macOS %@. No se podrá instalar hasta que este Mac tenga un macOS más reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ nécessite macOS %@ ou ultérieur, et ce Mac exécute macOS %@. Elle ne pourra pas être installée tant que ce Mac n’exécutera pas un macOS plus récent."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ には macOS %@ 以降が必要ですが、この Mac は macOS %@ です。この Mac でより新しい macOS を使うまではインストールできません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ требует macOS %@ или новее, а на этом Mac установлена macOS %@. Установить её можно будет только после перехода этого Mac на более новую macOS."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 需要 macOS %@ 或更高版本，而此 Mac 运行的是 macOS %@。此 Mac 运行更新的 macOS 之前无法安装。"
+          }
+        }
+      }
+    },
     "%@ %@ → %@ is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.": {
       "extractionState": "manual",
       "localizations": {
@@ -14664,6 +14746,47 @@
         }
       }
     },
+    "Not for this macOS yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nicht für dieses macOS"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no para este macOS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore pour ce macOS"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このmacOSにはまだ未対応"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока не для этой macOS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚不支持此 macOS"
+          }
+        }
+      }
+    },
     "Not Now": {
       "extractionState": "manual",
       "localizations": {
@@ -20448,6 +20571,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止忽略 %@"
+          }
+        }
+      }
+    },
+    "Supported up to macOS %@ — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterstützt bis macOS %@ — klicken für Details"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compatible hasta macOS %@; haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pris en charge jusqu’à macOS %@ — cliquez pour en savoir plus"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS %@ までサポート — 詳細はクリック"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддерживается до macOS %@ — нажмите для подробностей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最高支持到 macOS %@ — 点击查看详情"
           }
         }
       }

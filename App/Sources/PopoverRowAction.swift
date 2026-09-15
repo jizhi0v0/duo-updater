@@ -45,6 +45,7 @@ struct PopoverRowAction: View {
     @State private var showRegionHint = false
     @State private var showMacCompatHint = false
     @State private var showNeedsNewerMacOSHint = false
+    @State private var showOSWindowHint = false
     @State private var showTestFlightTip = false
 
     @ViewBuilder
@@ -108,6 +109,19 @@ struct PopoverRowAction: View {
 
         case .noSourceCovers(let hint):
             Text(sourceHint(for: hint)).font(.caption2).foregroundStyle(.tertiary)
+
+        case .notForThisMacOS(let refusal):
+            // Same badge as the App Store's macOS gates: a vendor refusing this
+            // macOS is the row's news, not a dash. The panel says which bound.
+            Button { showOSWindowHint = true } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help(OSWindowWording.help(refusal))
+            .popover(isPresented: $showOSWindowHint, arrowEdge: .bottom) {
+                osWindowHintPopover(refusal)
+            }
 
         case .managedElsewhere(.appStore):
             appStoreManagedLabel
@@ -688,6 +702,22 @@ struct PopoverRowAction: View {
                 .foregroundStyle(.secondary)
             Button("Open App Store anyway") { openInAppStore(info) }
                 .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func osWindowHintPopover(_ refusal: OSWindowRefusal) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(OSWindowWording.title(refusal), systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text(OSWindowWording.explanation(refusal, appName: result.app.name))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(12)
         .frame(width: 290)

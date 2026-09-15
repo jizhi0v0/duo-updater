@@ -452,6 +452,7 @@ public enum Check {
         case .appStoreManaged:             return "app-store"
         case .toolboxManaged:              return "toolbox"
         case .testFlightManaged:           return "testflight"
+        case .outsideOSWindow(let refusal): return "not-for-this-macos: \(refusal.logDescription)"
         case .error(let message):          return "error: \(message)"
         }
     }

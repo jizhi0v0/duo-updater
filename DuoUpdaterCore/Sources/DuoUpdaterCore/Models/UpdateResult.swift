@@ -649,6 +649,11 @@ public enum UpdateStatus: Sendable, Equatable {
     /// action is "open TestFlight". Used when no newer build is known (or the
     /// cache is empty); a known newer build surfaces as `.updateAvailable`.
     case testFlightManaged
+    /// A source read the newest release and the vendor states it is not for the
+    /// macOS this Mac runs. Neither `.unknown` (a source DID cover the app) nor
+    /// `.error` (nothing failed, and a Retry changes nothing) — see
+    /// `OSWindowRefusal`. `remote` is nil: there is no release we would offer.
+    case outsideOSWindow(OSWindowRefusal)
     /// A source was tried but failed (network, parse, etc.).
     case error(String)
 
@@ -676,7 +681,7 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// What a source proved about this copy's channel on some earlier, successful
     /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.
     ///
-    /// `remote` is nil for `.error` and `.unknown`, so an app whose channel can
+    /// `remote` is nil for `.error`, `.unknown` and `.outsideOSWindow`, so an app whose channel can
     /// only be proven remotely (UTM) would otherwise lose its identity on any
     /// failed check: the Beta badge would vanish and the changelog cache key
     /// would flip to `:stable`. This field is what a failed row falls back to.

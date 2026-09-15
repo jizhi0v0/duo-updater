@@ -346,6 +346,10 @@ public struct UpdateChecker: Sendable {
         }
 
         var lastError: String?
+        // The first source whose newest release the vendor refused for this macOS.
+        // First, because sources are in priority order and the row should name the
+        // refusal of the source it would otherwise have trusted.
+        var refusal: OSWindowRefusal?
 
         // One line for the row, not one per silenced source. `VendorProbeSource`
         // learned this: a per-source line for sources that were never going to
@@ -377,6 +381,26 @@ public struct UpdateChecker: Sendable {
                 let status = Self.evaluate(installed: app, remote: remote)
                 Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
                 return UpdateResult(app: app, remote: remote, status: status)
+            } catch let refused as OSWindowRefused {
+                // Not a failure — the source read the vendor's answer. Still a miss
+                // for THIS source, so the next one is asked, exactly as a nil would
+                // be: whatever it answers is what this loop has always done with a
+                // later source's answer.
+                //
+                // The refusal is only news when the refused release would have been
+                // an update. A copy already on that build (the Mac moved to a macOS
+                // the vendor has not caught up with) or past it (a lagging feed, or
+                // an abandoned one capped at an old macOS) is told nothing by it,
+                // and saying "won't offer it" about a release it has or has outgrown
+                // is false. Same `evaluate` an answer goes through, so the version
+                // rules — build namespaces, lineage, marketing direction — exist once.
+                guard case .updateAvailable = Self.evaluate(installed: app, remote: refused.release) else {
+                    Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) refused a release that is not newer than this copy — a miss")
+                    continue
+                }
+                Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) refused for this macOS: \(refused.refusal.logDescription, privacy: .public)")
+                if refusal == nil { refusal = refused.refusal }
+                continue
             } catch {
                 lastError = error.localizedDescription
                 Log.check.error("\(label, privacy: .public): \(source.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
@@ -439,6 +463,26 @@ public struct UpdateChecker: Sendable {
         // does, and it is derived from the registry rather than from a machine.
         //
         // TestFlight returns before the loop and never gets here at all.
+
+        // A vendor's refusal outranks a failed read, for the same kind of reason
+        // Toolbox does: it is a fact the row can state, and `.error` would take it
+        // off the row in favour of a Retry. The refusal came from a source that
+        // READ its answer; the failure is some other source that could not. A
+        // retry that later succeeds still wins — any source that answers returns
+        // from the loop above before either of these is looked at.
+        //
+        // Below Toolbox, though: Toolbox installs those apps, and a borrowed
+        // vendor read that the vendor refused changes nothing about "open Toolbox".
+        //
+        // Accepted cost: a later source that failed transiently might have
+        // answered with a build, and the row now shows the refusal instead of a
+        // Retry. That build would not have been checked against the vendor's
+        // window either — no other source reads it — so the Retry could as easily
+        // have offered the very release the vendor refused.
+        if let refusal, !app.isToolboxManaged {
+            Log.check.info("\(label, privacy: .public): no source offered a release for this macOS → outsideOSWindow")
+            return UpdateResult(app: app, remote: nil, status: .outsideOSWindow(refusal))
+        }
         if let lastError, !app.isToolboxManaged {
             Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
             return UpdateResult(app: app, remote: nil, status: .error(lastError))
@@ -514,11 +558,12 @@ public struct UpdateChecker: Sendable {
     /// makes each of those tests measure the machine it runs on unless it
     /// remembers to pin an OS, and nothing enforces remembering. And the answer a
     /// refusal deserves ("your Mac is too old for the new version") is a ROW
-    /// STATE, which `UpdateStatus` cannot carry: settling it to `.upToDate` here
-    /// would draw a plain checkmark, which is a third answer for a condition
-    /// `AppStoreGate.needsNewerMacOS` already renders properly for the store
-    /// route. One row, one answer (CLAUDE.md) — see #634 part 3, which is where
-    /// that state belongs.
+    /// STATE: settling it to `.upToDate` here would draw a plain checkmark, a
+    /// second answer for a condition `AppStoreGate.needsNewerMacOS` renders for the
+    /// store route and `.outsideOSWindow` renders for a feed or probe that states
+    /// its window (#634). `check(_:)` does use this function on a refused release
+    /// — but only to ask whether it would have been an update, which is still a
+    /// pure comparison of two versions.
     public static func evaluate(
         installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {

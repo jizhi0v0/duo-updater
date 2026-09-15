@@ -27,14 +27,20 @@ public struct SparkleAppcastSource: UpdateSource {
         }
 
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
-        let usable = Self.usableItems(for: app, from: items, osVersion: Self.numericSystemVersion())
+        let osVersion = Self.numericSystemVersion()
+        let usable = Self.usableItems(for: app, from: items, osVersion: osVersion)
         guard let best = Self.offerableItem(for: app, from: usable) else {
-            // Three silences the caller sees as one nil: an empty feed, a feed
-            // whose every item this OS is too new for, and a feed whose every item
-            // the channel/arch/minimum-OS filters removed. Name the one we can.
-            if items.contains(where: { ($0.maximumSystemVersion?.isEmpty == false) }) {
-                Log.source.info(
-                    "sparkle: every item filtered for \(app.bundleID ?? "?", privacy: .public) — feed declares a maximum system version")
+            if let (refusal, missed) = Self.osWindowRefusal(for: app, from: items, osVersion: osVersion) {
+                Log.source.notice(
+                    "sparkle: \(app.bundleID ?? "?", privacy: .public) — nothing to offer, \(refusal.logDescription, privacy: .public)")
+                // The release as this source would have reported it, so the checker
+                // can ask whether it was an update at all (`OSWindowRefused`).
+                throw OSWindowRefused(refusal, release: RemoteVersion(
+                    shortVersion: missed.shortVersionString,
+                    version: missed.version,
+                    marketingMatchesBundle: true,
+                    downloadURL: missed.enclosureURL,
+                    sourceName: name))
             }
             return nil
         }
@@ -209,14 +215,57 @@ public struct SparkleAppcastSource: UpdateSource {
                 hostArch: hostArch, allowingIntelTranslation: canRunIntel))
     }
 
-    /// The runnable, in-channel items for an app, highest version first. The head
-    /// is the update we'd offer; the tail gives the changelog its version history.
-    static func usableItems(
+    /// Why a feed that offers nothing offers nothing, when the reason is the
+    /// vendor's OS window — or nil when it is anything else.
+    ///
+    /// Only the window is set aside: channel, delta, architecture and version-less
+    /// items stay filtered. So a non-nil answer means "without the window there
+    /// WAS a release for this copy, and the vendor says it is not for this macOS";
+    /// a feed emptied by the channel or architecture filters stays a plain nil,
+    /// which is still the honest "nothing here for this app".
+    ///
+    /// The release named is the one the copy would have been offered
+    /// (`offerableItem`), returned with the refusal so the caller can report it
+    /// as a release. Whether it would have been an UPDATE is not decided here:
+    /// `offerableItem` answers the head even when it walks the copy backwards,
+    /// and a copy already on (or past) the refused build must not be told it is
+    /// missing it — `UpdateChecker` asks `evaluate(installed:remote:)` that.
+    ///
+    /// Called only once `usableItems` came back empty, so every item this sees
+    /// was refused by the window; the evaluation is repeated rather than assumed,
+    /// and a nil from it (which that precondition makes unreachable) stays nil.
+    static func osWindowRefusal(
         for app: InstalledApp,
         from items: [SparkleAppcastItem],
         osVersion: String,
         hostArch: HostArch = .current,
         allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
+    ) -> (refusal: OSWindowRefusal, item: SparkleAppcastItem)? {
+        let unwindowed = usableItems(
+            for: app, from: items, osVersion: osVersion,
+            hostArch: hostArch, allowingIntelTranslation: canRunIntel, honouringOSWindow: false)
+        guard let missed = offerableItem(for: app, from: unwindowed),
+              let refusal = OSWindowRefusal.evaluate(
+                  minimum: missed.minimumSystemVersion, maximum: missed.maximumSystemVersion,
+                  osVersion: osVersion, version: missed.shortVersionString ?? missed.version ?? "")
+        else { return nil }
+        return (refusal, missed)
+    }
+
+    /// The runnable, in-channel items for an app, highest version first. The head
+    /// is the update we'd offer; the tail gives the changelog its version history.
+    ///
+    /// `honouringOSWindow: false` skips the vendor's OS floor and ceiling and
+    /// nothing else. It exists for one question only — "was it the OS window that
+    /// left nothing to offer?" (`latestVersion(for:)`) — and is never what an offer
+    /// is picked from.
+    static func usableItems(
+        for app: InstalledApp,
+        from items: [SparkleAppcastItem],
+        osVersion: String,
+        hostArch: HostArch = .current,
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds,
+        honouringOSWindow: Bool = true
     ) -> [SparkleAppcastItem] {
         guard !items.isEmpty else { return [] }
         // Sparkle's real rule: the default (untagged) channel is allowed to
@@ -235,50 +284,29 @@ public struct SparkleAppcastSource: UpdateSource {
             guard item.version != nil || item.shortVersionString != nil else { return false }
             // Default channel ∪ the user's channel — never a higher one.
             guard allowed.contains(normalizeChannel(item.channel)) else { return false }
-            // Honor minimum system version when declared. The predicate is
-            // `SignatureVerifier.canRun` — literally the expression that used to
-            // be written out here, and the one gate 6 makes against a downloaded
-            // bundle's `LSMinimumSystemVersion`. One copy, because the whole
-            // point of `HostOS` is that these must not be able to disagree; its
-            // doc comment lists the sites, and each one it lists calls this
-            // function (#640). (`canRun` also fails open on a value with no digit
-            // in it; the inline version reached the same verdict by the same
-            // `compare` call, since a text token ranks below a numeric one.)
-            guard SignatureVerifier.canRun(
-                minimumSystemVersion: item.minimumSystemVersion, on: osVersion)
-            else { return false }
-            // And the maximum — the vendor saying "this build is not for an OS
-            // this new", which is the only way any source we read can express
-            // "we haven't adapted to macOS 27 yet". The PREDICATE is Sparkle's
-            // exactly (`SPUAppcastItemStateResolver -isMaximumOperatingSystemVersionOK:`
-            // is `!= NSOrderedAscending` on max-vs-host).
+            // The vendor's OS window: the floor it states for the item, and the
+            // ceiling — "this build is not for an OS this new", the only way any
+            // source we read can say "we haven't adapted to macOS 27 yet". Both
+            // predicates live in `OSWindowRefusal.evaluate`: the floor is
+            // `SignatureVerifier.canRun`, the one every OS floor calls (see
+            // `HostOS`, #640), the ceiling is Sparkle's own
+            // (`SPUAppcastItemStateResolver -isMaximumOperatingSystemVersionOK:`
+            // is `!= NSOrderedAscending` on max-vs-host). `VendorProbeSource` calls
+            // the same function for a recipe's response-read bounds, so the two
+            // paths cannot drift.
             //
-            // ⚠️ The REPORTING is not, and the difference is user-visible. Sparkle
-            // keeps the item and names the condition — `SPUBasicUpdateDriver.m`
-            // "Your macOS version is too new", `SPUNoUpdateFoundInfo.m` an
-            // explanation carrying the version and the cap, and a dedicated error
-            // code in `SUErrors.h`. Dropping it here instead means `latestVersion`
-            // returns nil for it — not an error, and not rendered as "up to date"
-            // either: `UpdateChecker` reads that nil as a miss, so an app with
-            // another source still gets an answer from it, and an app with none
-            // settles on `.unknown`, a `RowActionState` case of its own, never
-            // `.upToDate`.
+            // Dropping the item is Sparkle's own choice of what to OFFER. Its
+            // REPORTING differs, and that part is ours too now: Sparkle keeps the
+            // condition and names it (`SPUBasicUpdateDriver.m` "Your macOS version
+            // is too new", `SPUNoUpdateFoundInfo.m` an explanation carrying the
+            // version and the cap). When the window is what left nothing to offer,
+            // `latestVersion(for:)` throws `OSWindowRefused` instead of returning
+            // nil — nil meant `.unknown`, the "no source covers this app" dash, and
+            // for a ceiling that dash never went away on its own: a min-filtered
+            // item reappears when the user upgrades macOS, a max-filtered one waits
+            // on the vendor (#634).
             //
-            // That asymmetry is worse for max than for min, and deliberately
-            // accepted for now rather than hidden: a min-filtered item reappears
-            // when the user upgrades macOS, a max-filtered one NEVER does. An app
-            // whose only source is a feed that caps its current item below the
-            // host therefore settles on `.unknown` indefinitely. (The shape was
-            // first seen on obdev's Little Snitch feed — `final` capped at 26.99
-            // on 2026-08-30 while the host moved to 27 — but that feed is read
-            // by `VendorProbeSource`, not here; it now honours the same bounds
-            // through `minimum`/`maximumSystemVersionPattern`.) Surfacing it
-            // properly needs a "blocked by the vendor's own OS ceiling" state
-            // that `RemoteVersion` has no room for today; filtering is still the
-            // right default meanwhile, because the alternative is installing a
-            // build the vendor has said is not for this Mac. Tracked as #634.
-            //
-            // Note this also removes capped items from `structuredChangelog` and
+            // Note this also removes refused items from `structuredChangelog` and
             // `releaseHistory` below, since both read this same list — consistent
             // with what the architecture filter already does ("never offer it,
             // changelog history included"), and called out because it is a
@@ -291,8 +319,9 @@ public struct SparkleAppcastSource: UpdateSource {
             // for it (WeChat's does not; its capped items are old OS buckets
             // that lose the highest-version pick anyway), so this filter never
             // sees it.
-            if let maxOS = item.maximumSystemVersion, !maxOS.isEmpty,
-               VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
+            if honouringOSWindow, OSWindowRefusal.evaluate(
+                minimum: item.minimumSystemVersion, maximum: item.maximumSystemVersion,
+                osVersion: osVersion, version: item.shortVersionString ?? item.version ?? "") != nil {
                 return false
             }
             // A per-architecture twin (TablePro publishes an arm64 and an x86_64

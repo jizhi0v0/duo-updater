@@ -20,6 +20,49 @@ func sourceHint(for hint: SourceHint) -> String {
     }
 }
 
+/// The words for a `.notForThisMacOS` row, shared by both surfaces so the popover
+/// badge, its panel and the workbench label cannot describe one row two ways.
+///
+/// The floor reuses the App Store gate's wording (`AppStoreGate.needsNewerMacOS`):
+/// it is the same condition — the vendor's newest release needs a newer macOS —
+/// reached through a different source.
+enum OSWindowWording {
+    static func title(_ refusal: OSWindowRefusal) -> String {
+        switch refusal.bound {
+        case .floor: return String(localized: "Needs a newer macOS")
+        case .ceiling: return String(localized: "Not for this macOS yet")
+        }
+    }
+
+    static func help(_ refusal: OSWindowRefusal) -> String {
+        switch refusal.bound {
+        case .floor(let minimum):
+            return String(localized: "Requires macOS \(minimum) or later — click for details")
+        case .ceiling(let maximum):
+            return String(localized: "Supported up to macOS \(maximum) — click for details")
+        }
+    }
+
+    static func explanation(_ refusal: OSWindowRefusal, appName: String) -> String {
+        let host = macOSDisplay(refusal.hostOS)
+        switch refusal.bound {
+        case .floor(let minimum):
+            return String(localized: "\(appName) \(refusal.version) needs macOS \(minimum) or later, and this Mac runs macOS \(host). It can’t be installed until this Mac runs a newer macOS.")
+        case .ceiling(let maximum):
+            return String(localized: "\(appName) \(refusal.version) is supported only up to macOS \(maximum), and this Mac runs macOS \(host). DuoUpdater won’t offer it until the developer supports this version of macOS.")
+        }
+    }
+
+    /// "27.0.0" → "27.0": `HostOS.numericVersion()` always carries a patch
+    /// component for the comparator, and "macOS 27.0.0" is not how anyone writes
+    /// it. A non-zero patch stays ("15.1.1").
+    static func macOSDisplay(_ version: String) -> String {
+        let parts = version.split(separator: ".")
+        guard parts.count == 3, parts[2] == "0" else { return version }
+        return parts.prefix(2).joined(separator: ".")
+    }
+}
+
 func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
@@ -217,6 +260,14 @@ struct WorkbenchRowAction: View {
         case .noSourceCovers(let hint):
             Text(sourceHint(for: hint)).font(.callout).foregroundStyle(.tertiary)
                 .lineLimit(1)
+
+        case .notForThisMacOS(let refusal):
+            // The popover's badge opens the explanation; this window names the
+            // condition, like the App Store gates above.
+            Label(OSWindowWording.title(refusal), systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help(OSWindowWording.help(refusal))
 
         case .managedElsewhere(.appStore):
             appStoreManagedTile

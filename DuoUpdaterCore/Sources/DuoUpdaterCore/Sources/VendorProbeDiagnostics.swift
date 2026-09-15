@@ -17,6 +17,8 @@ import Foundation
 /// `.notApplicable` and *throws* for everything else, and `UpdateChecker` turns
 /// that throw into an `.error` row — a red "Failed" badge with a Retry button —
 /// where the nil stays the silent "—" that means no source covers this app.
+/// (`.outsideVendorOSWindow` is the one `.notApplicable` case that is not a nil:
+/// it throws `OSWindowRefused`, which is neither a failure nor "no source".)
 /// So adding a case here decides what a user sees: `.notApplicable` for a
 /// condition this Mac can do nothing about (no device identity, no recipe for
 /// this track), the other two for a check that genuinely failed and is worth
@@ -33,7 +35,10 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// wrong track), this means the recipe works and the vendor said no. So
     /// `latestVersion(for:)` does NOT record it as a recipe-health miss, and a
     /// sweep's `skipped` line names the cap rather than a bare "not applicable".
-    case outsideVendorOSWindow(String)
+    /// Carries the refusal itself, not a sentence, and the release it refused:
+    /// `latestVersion(for:)` hands both on (`OSWindowRefused`), and the row words
+    /// the refusal only when that release is newer than the installed copy.
+    case outsideVendorOSWindow(OSWindowRefusal, release: RemoteVersion)
     /// `URLError` and friends — DNS, TLS, timeout, connection lost.
     case transport(urlErrorCode: Int, String)
     /// The response wasn't HTTP at all (file:// or a mangled proxy response).
@@ -159,7 +164,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     public var detail: String {
         switch self {
         case .notApplicable(let why): return why
-        case .outsideVendorOSWindow(let why): return why
+        case .outsideVendorOSWindow(let refusal, _): return refusal.logDescription
         case .transport(let code, let message): return "URLError \(code): \(message)"
         case .nonHTTPResponse: return "response was not HTTPURLResponse"
         case .httpStatus(let code): return "HTTP \(code)"

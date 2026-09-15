@@ -80,6 +80,19 @@ struct PreInstallGateTests {
             for: .unknown, offered: Self.nothing, confirmed: Self.nothing) == .cannotConfirm(nil))
     }
 
+    /// The vendor moved its bound (or this Mac moved macOS) between the offer and
+    /// the click: the install must not go ahead, and the ending carries the
+    /// refusal as its reason rather than claiming the disk is already current.
+    ///
+    /// Mutation: return `.alreadyCurrent` for `.outsideOSWindow` → red.
+    @Test("a vendor's OS refusal at the click stops the install and says why")
+    func osRefusalCannotConfirm() {
+        let refusal = OSWindowRefusal(bound: .ceiling(maximum: "26.99"), version: "2", hostOS: "27.0.0")
+        #expect(PreInstallGate.decision(
+            for: .outsideOSWindow(refusal), offered: Self.nothing, confirmed: Self.nothing)
+            == .cannotConfirm(refusal.logDescription))
+    }
+
     /// Managed apps are a third ending: nothing to install, but nothing wrong and
     /// nothing to retry.
     @Test("managed apps are neither current nor a failure", arguments: [
@@ -95,6 +108,7 @@ struct PreInstallGateTests {
     @Test("only a confirmed update installs", arguments: [
         UpdateStatus.upToDate, .unknown, .appStoreManaged, .toolboxManaged,
         .testFlightManaged, .error("boom"),
+        .outsideOSWindow(OSWindowRefusal(bound: .ceiling(maximum: "26.99"), version: "2", hostOS: "27.0.0")),
     ])
     func nothingElseInstalls(_ status: UpdateStatus) {
         #expect(PreInstallGate.decision(

@@ -15,7 +15,9 @@ public struct SparkleFeedReading: Sendable {
     /// into a nil — this feed offering nothing, not a request that failed.
     /// `UpdateChecker` treats that nil as a miss and moves on to the next
     /// source; only an app with no other source left standing settles on
-    /// `.unknown`, a `RowActionState` case of its own — not `.upToDate`.
+    /// `.unknown`, a `RowActionState` case of its own — not `.upToDate`. (When
+    /// the vendor's OS window alone emptied it, `latestVersion` throws
+    /// `OSWindowRefused` instead, and such an app settles on `.outsideOSWindow`.)
     public let usableCount: Int
     /// `sparkle:shortVersionString` of the newest usable item, i.e. the
     /// marketing string this feed would put in front of a user.
@@ -66,7 +68,8 @@ public extension SparkleAppcastSource {
     /// next source", so an app another source also covers is unaffected; an
     /// app this address is the only source for settles on `.unknown` — no
     /// update offered, but a `RowActionState` case of its own, not
-    /// `.upToDate`. This sweep exists to catch that second, quiet half — the
+    /// `.upToDate` (or on `.outsideOSWindow`, when the vendor's OS window is
+    /// what filtered every item). This sweep exists to catch that second, quiet half — the
     /// throwing half already shows up as a check failure on its own.
     ///
     /// **Whose answer this is.** `usableItems` needs an installed copy to

@@ -113,13 +113,16 @@ def test_targets() -> set[str]:
     names: set[str] = set()
     current = None
     for line in SPEC.read_text(encoding="utf-8").splitlines():
-        # Names can contain `-` and `.` (project.yml has `duo-cli`). A header this
-        # failed to match would leave `current` on the previous target and credit
-        # it with the next `type:` line.
-        target = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
+        # Names can contain `-` and `.` (project.yml has `duo-cli`), and a header
+        # may carry a trailing comment. Any other line at this indent (or a new
+        # top-level section) clears `current` instead of leaving it on the previous
+        # target, which would credit that target with the next `type:` line.
+        target = re.match(r"^  ([A-Za-z0-9_.-]+):\s*(#.*)?$", line)
         if target:
             current = target.group(1)
-        elif current and re.match(r"^    type:\s*bundle\.(unit|ui)-test\s*$", line):
+        elif re.match(r"^ {0,2}\S", line) and not line.lstrip().startswith("#"):
+            current = None
+        elif current and re.match(r"^    type:\s*bundle\.(unit|ui)-test\s*(#.*)?$", line):
             names.add(current)
     if not names:
         sys.exit(

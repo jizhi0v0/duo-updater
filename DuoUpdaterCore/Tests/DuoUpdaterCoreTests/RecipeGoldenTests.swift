@@ -41,7 +41,25 @@ import Foundation
 /// the same command without the variable to see it pass. CI never sets it.
 ///
 /// The floors in `theDumpIsNotVacuous` do not read the goldens, so a dump that
-/// silently degraded is caught even in the run that records it.
+/// stopped reading part of the registry is caught even in the run that records
+/// it: a record or a nested struct no longer written, a stored property with no
+/// line, or two different values written identically. They check shape and
+/// distinctness, not leaf values: a dump that writes every `Bool` as `true` passes
+/// them. That is `leavesAreDistinctAndEscaped`'s job, so a PR that changes
+/// `RecipeGoldenDump` and re-records needs that test to stay honest.
+///
+/// ## Two green PRs can make main red
+///
+/// Goldens are per family, so a golden-changing PR and a recipe PR rarely touch
+/// the same file. Say PR A adds a stored property to `ChangelogRecipe` (or changes
+/// a helper several families share) and re-records the goldens it affects, while
+/// PR B adds a family whose golden was recorded before A. Neither conflicts
+/// textually and both are green, but main is red once both merge. PR CI tests the
+/// merge ref as of when it ran, so the window is between B's CI run and B's merge,
+/// and required checks deliberately do not demand an up-to-date branch (CLAUDE.md,
+/// CI). So a recipe PR whose CI ran before a golden-changing PR merged should
+/// rerun CI before merging. If main does go red this way, the fix is one record run
+/// on main, committed in a follow-up PR.
 ///
 /// ## Lifetime
 ///
@@ -79,7 +97,7 @@ struct RecipeGoldenTests {
         guard live.failures.isEmpty else { return }
 
         let fileManager = FileManager.default
-        if ProcessInfo.processInfo.environment[RecipeGoldenCommand.environmentKey]?.isEmpty == false {
+        if ProcessInfo.processInfo.environment[RecipeGoldenCommand.environmentKey] == "1" {
             try record(live.families)
             return
         }
@@ -168,16 +186,23 @@ struct RecipeGoldenTests {
         let live = Self.live
         #expect(live.failures.isEmpty, Comment(rawValue: live.failures.joined(separator: "\n")))
         let families = live.families
-        #expect(families.count == AppRecipeIndex.all.count)
         #expect(families.count >= 150, "only \(families.count) families dumped")
-        #expect(families.map(\.family) == AppRecipeIndex.all.map(\.family))
+        // Everything below pairs each family with its dump; a misaligned pairing
+        // would only add noise to the failure above.
+        guard families.map(\.family) == AppRecipeIndex.all.map(\.family) else {
+            Issue.record("dumped \(families.count) families for \(AppRecipeIndex.all.count) in the index, or in a different order")
+            return
+        }
 
         var problems: [String] = []
         // Per kind, across the registry: every record's lines with its own path
         // taken off, and each record's value encoded as sorted-key JSON. The JSON
-        // is only a count of how many entries are genuinely different — the
-        // registry does hold equal values under different keys — so the dump must
-        // tell apart exactly as many as that, no fewer.
+        // is only a count of how many entries are genuinely different, and the dump
+        // must tell apart exactly as many as that. Today that equals the number of
+        // entries in every kind (no two entries of a kind are equal); it is counted
+        // rather than assumed so that a future legitimate duplicate — two apps whose
+        // proof is the same `.artifact("beta")` under different keys — does not fail
+        // a recipe PR, while a dump that writes different values identically still does.
         var recordDumps: [String: [String]] = [:]
         var recordJSON: [String: Set<Data>] = [:]
         var structInstances: [String: Int] = [:]
@@ -300,36 +325,71 @@ struct RecipeGoldenTests {
     struct Leaves {
         let absent: String?
         let empty: String?
-        let flag: Bool
-        let count: Int
-        let ratio: Double
+        let on: Bool
+        let off: Bool
+        let zero: Int
+        let negative: Int
+        let large: Int
+        let integral: Double
+        let fractional: Double
+        let negativeRatio: Double
         let link: URL
         let bytes: Data
         let text: String
     }
 
-    /// Mutations: render `.none` and `.some` the same; read `Bool` through `as? Int`;
+    /// Every leaf type with at least two values, each against its exact line. The
+    /// floors check shape and distinctness, not values, so this is the only thing
+    /// that goes red when a dumper change writes a leaf wrong and the goldens are
+    /// re-recorded from it.
+    ///
+    /// Mutations: render `.none` and `.some` the same; write every `Bool` as `true`;
+    /// format `Double` with `%.1f`; write `abs` of an `Int`; stop escaping `\r`;
     /// escape with `String(describing:)`.
     @Test func leavesAreDistinctAndEscaped() throws {
         let value = Leaves(
-            absent: nil, empty: "", flag: true, count: 1, ratio: 1,
-            link: URL(string: "https://example.invalid/a?b=c")!, bytes: Data([0, 255]),
-            text: "q\"\\\n\t é e\u{301}")
+            absent: nil, empty: "", on: true, off: false,
+            zero: 0, negative: -7, large: Int.max,
+            integral: 3, fractional: 0.25, negativeRatio: -1.5,
+            link: URL(string: "https://example.invalid/a%20b/c?d=e%26f#frag")!, bytes: Data([0, 255]),
+            text: "q\"\\\n\r\t é e\u{301}")
         var lines: [String] = []
         RecipeGoldenDump.render(try RecipeGoldenDump.node(value, at: "v"), at: "v", into: &lines)
         #expect(lines == [
             "v = struct DuoUpdaterCoreTests.RecipeGoldenTests.Leaves",
             "v.absent = nil",
             "v.empty? = \"\"",
-            "v.flag = true",
-            "v.count = 1",
-            "v.ratio = Double(1.0)",
-            "v.link = URL(\"https://example.invalid/a?b=c\")",
+            "v.on = true",
+            "v.off = false",
+            "v.zero = 0",
+            "v.negative = -7",
+            "v.large = 9223372036854775807",
+            "v.integral = Double(3.0)",
+            "v.fractional = Double(0.25)",
+            "v.negativeRatio = Double(-1.5)",
+            "v.link = URL(\"https://example.invalid/a%20b/c?d=e%26f#frag\")",
             "v.bytes = Data(base64: \"AP8=\")",
-            #"v.text = "q\"\\\n\t \u{E9} e\u{301}""#,
+            #"v.text = "q\"\\\n\r\t \u{E9} e\u{301}""#,
         ])
         // NFC and NFD of one character are `==` in Swift; their dumps must not be.
         #expect(RecipeGoldenDump.quote("\u{E9}") != RecipeGoldenDump.quote("e\u{301}"))
+    }
+
+    /// `absoluteString` resolves a relative URL against its base, so two URLs that
+    /// are `!=` would dump the same. None in the registry has a base; one that does
+    /// is refused. Mutation: drop the `baseURL` check in `RecipeGoldenDump.node`.
+    @Test func aURLWithABaseIsRefused() throws {
+        struct HoldsURL { let value: URL }
+        let relative = try #require(URL(string: "a", relativeTo: URL(string: "https://example.invalid/")))
+        #expect(relative.absoluteString == "https://example.invalid/a")
+        do {
+            _ = try RecipeGoldenDump.node(HoldsURL(value: relative), at: "x")
+            Issue.record("a URL with a baseURL was dumped")
+        } catch {
+            #expect("\(error)".hasPrefix("x.value: "), "\(error)")
+            #expect("\(error)".contains("baseURL"), "\(error)")
+        }
+        _ = try RecipeGoldenDump.node(HoldsURL(value: try #require(URL(string: "https://example.invalid/a"))), at: "x")
     }
 
     enum Payloads { case bare, one(String), labelled(key: String), mixed(String, base: Int) }

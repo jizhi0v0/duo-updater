@@ -21,7 +21,8 @@ import Foundation
 ///   order; `{i}` the i-th element of a `Set` after sorting; `[key]` a dictionary
 ///   entry, keyed by the key's one-line form and sorted by it; a trailing `?` is
 ///   one `Optional` layer that holds a value (so `x = nil` and `x? = ""` differ, and
-///   `x?? = nil` is `.some(nil)`); `.0` / `.label` under an enum is its payload.
+///   for a `String??`, `x = nil` is `.none` while `x? = nil` is `.some(.none)`);
+///   `.0` / `.label` under an enum is its payload.
 /// - **Values.** A `String` is quoted with `\\`, `\"`, `\n`, `\r`, `\t` escaped and
 ///   every other scalar outside printable ASCII written `\u{HEX}`, so the text is
 ///   pure ASCII and two strings that Swift's `==` calls canonically equivalent
@@ -34,8 +35,9 @@ import Foundation
 ///   a value with no children that is not one of the leaf types above (another
 ///   integer width, `Float`, a class, a function), a `CustomReflectable` type other
 ///   than the standard library's own collections and `Optional` (its mirror is
-///   whatever it chooses to show), and a payloadless enum with a custom
-///   description (its case name cannot be read off `String(describing:)`).
+///   whatever it chooses to show), a payloadless enum with a custom description
+///   (its case name cannot be read off `String(describing:)`), and a `URL` with a
+///   `baseURL` (its `absoluteString` is also that of a different, `!=` URL).
 ///
 /// `String(describing:)` is never used on a value that can nest a string: its
 /// escaping of nested strings is inconsistent, and that has silently disabled a
@@ -51,8 +53,6 @@ enum RecipeGoldenDump {
     /// One family's dump.
     struct Family: Sendable {
         let family: String
-        /// `AppRecipeSet`'s stored property labels, `family` included, in order.
-        let labels: [String]
         let text: String
     }
 
@@ -66,17 +66,14 @@ enum RecipeGoldenDump {
     static func family(_ set: AppRecipeSet) throws -> Family {
         let mirror = try trustedMirror(of: set, at: "")
         var lines = preamble
-        var labels: [String] = []
         for child in mirror.children {
             guard let label = child.label else {
                 throw Unrepresentable(path: "", reason: "AppRecipeSet has an unlabelled stored property")
             }
-            labels.append(label)
             lines.append("")
             render(try node(child.value, at: label), at: label, into: &lines)
         }
-        return Family(family: set.family, labels: labels,
-                      text: lines.joined(separator: "\n") + "\n")
+        return Family(family: set.family, text: lines.joined(separator: "\n") + "\n")
     }
 
     // MARK: - The tree
@@ -98,6 +95,9 @@ enum RecipeGoldenDump {
     }
 
     static func node(_ value: Any, at path: String) throws -> Node {
+        if Swift.type(of: value) == URL.self, let url = value as? URL, let base = url.baseURL {
+            throw Unrepresentable(path: path, reason: "URL \"\(url.relativeString)\" has baseURL \(base.absoluteString): its absoluteString equals that of a different URL")
+        }
         if let leaf = leaf(value) { return .leaf(leaf) }
         let type = typeName(of: value)
         let mirror = try trustedMirror(of: value, at: path)

@@ -57,8 +57,10 @@ match. **Redundancy is a feature**: list several patterns to survive a page's
 old/new markup variants without branching code — the first that produces any item
 wins per entry.
 
-The recipe is forgivingly `Codable`: a remote/JSON-authored recipe needs only
-`bundleID`, `source`, `entryPattern`, `itemPatterns`; every tuning field defaults.
+The recipe is `Codable`: a JSON-authored recipe needs only `bundleID` and
+`source`; every other field takes the initializer's default when omitted. An
+unknown key, or `null` for a non-optional field, fails to decode — the
+convention for every recipe type is on `RecipeCoding`.
 
 ### `tagPattern` — for a MONOREPO's GitHub releases
 

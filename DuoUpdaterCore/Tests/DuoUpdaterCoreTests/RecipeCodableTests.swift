@@ -175,10 +175,11 @@ struct RecipeCodableTests {
 
     /// Default parity, key sets, `null` handling and unknown keys, per type.
     ///
-    /// Mutations: pass a literal instead of `d.followRedirects` in
-    /// `VendorProbeRecipe.init(from:)` (parity); drop a case from any `CodingKeys`
-    /// (key set); decode a non-optional with `decodeIfPresent … ?? default` (null);
-    /// remove a `rejectUnknownKeys` call (unknown key).
+    /// Mutations: pass `false` instead of `d.followRedirects` in
+    /// `VendorProbeRecipe.init(from:)` (parity); add a stored property to a struct
+    /// without a coding key (key set); make `decode(_:forKey:default:)` return the
+    /// default for `null` (null); make `rejectUnknownKeys` return early (unknown
+    /// key); swap two raw values in `URLSource.CodingKind` (tag).
     @Test(arguments: RecipeCodableTests.codingCases.keys.sorted())
     func codingCaseHolds(_ typeName: String) throws {
         let failures = try #require(Self.codingCases[typeName]).check()
@@ -251,9 +252,16 @@ struct RecipeCodableTests {
         for set in AppRecipeIndex.all {
             for child in Mirror(reflecting: set).children {
                 guard let label = child.label, label != "family" else { continue }
-                let (count, problem) = try roundTrip(child.value)
-                compared[label, default: 0] += count
-                if let problem { failures.append("\(set.family).\(label): \(problem)") }
+                do {
+                    let (count, problem) = try roundTrip(child.value)
+                    compared[label, default: 0] += count
+                    if let problem { failures.append("\(set.family).\(label): \(problem)") }
+                } catch {
+                    // Collected rather than thrown, so one bad case reports every
+                    // family it breaks instead of stopping at the first.
+                    compared[label, default: 0] += 0
+                    failures.append("\(set.family).\(label): \(error)")
+                }
             }
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))

@@ -197,7 +197,8 @@ public enum Verify {
             // Fall back to the installed copy's version for templated recipes
             // when no version source ran this sweep (`--changelog` on its own).
             let versions = changelogVersions(known: knownVersions, installed: installed)
-            findings += await sweepChangelog(changelog, options: options, versions: versions)
+            findings += await sweepChangelog(
+                changelog, options: options, versions: versions, versionSources: findings)
         }
         if options.registries.contains(.appStore) {
             findings += await sweepAppStore(appStore, options: options)
@@ -296,6 +297,44 @@ public enum Verify {
     ) -> String? {
         guard let channel = recipe.channel else { return versions[recipe.bundleID] }
         return versions["\(recipe.bundleID):\(channel.rawValue)"]
+    }
+
+    /// Why a version-templated recipe has no version to resolve its page with.
+    ///
+    /// Two different reasons. Either nothing gave a version (no probe or rule for
+    /// this app ran, and no copy is installed), or one ran and came back empty
+    /// — the probe was unreachable, broken, or skipped. The second must not read
+    /// like the first: on a machine without the app, a family's changelog page
+    /// then goes unchecked exactly while its probe is down, and "app not
+    /// installed" says nothing about that.
+    ///
+    /// The finding stays `.skipped` either way. The changelog page was never
+    /// requested, so `.infra` would claim a host was unreachable that nobody
+    /// asked; it would also age this row's `consecutiveInfra` into
+    /// `isInfraReportable` alongside the probe's own, filing a second issue for
+    /// one vendor outage. `.skipped` records nothing in `Baseline` and is never
+    /// reported by `Reconcile`, and the probe's row already carries the outage.
+    ///
+    /// A source matches the way `changelogVersion` looks versions up: a
+    /// channel-scoped recipe only by its own channel, a channel-less one by any.
+    static func templatedSkipDetail(
+        for recipe: ChangelogRecipe, versionSources: [Finding]
+    ) -> String {
+        let ran = versionSources.filter { source in
+            (source.registry == .vendor || source.registry == .github)
+                && source.bundleID == recipe.bundleID
+                && (recipe.channel.map { source.channel == $0.rawValue } ?? true)
+        }
+        guard !ran.isEmpty else {
+            return "version-templated: no version available "
+                + "(app not installed, and no version source ran this sweep)"
+        }
+        let outcomes = ran.map { source in
+            "\(source.recipeID): \(source.status.rawValue)"
+                + (source.failureKind.map { " (\($0))" } ?? "")
+        }
+        return "version-templated: version source did not produce a version this sweep: "
+            + outcomes.joined(separator: "; ")
     }
 
     /// Both ids, not one: `--only` is documented as matching a bundle id OR a
@@ -906,8 +945,13 @@ public enum Verify {
     /// A changelog recipe fails the same way a probe does — the vendor restyles
     /// the page and the entry pattern stops matching — but until now it recorded
     /// nothing at all: the UI just silently fell back to embedding the raw page.
-    private static func sweepChangelog(
-        _ recipes: [ChangelogRecipe], options: VerifyOptions, versions: [String: String]
+    ///
+    /// `versionSources` is what this sweep's vendor and GitHub sweeps produced, so
+    /// a templated recipe left without a version can say which of them ran and
+    /// came back empty.
+    static func sweepChangelog(
+        _ recipes: [ChangelogRecipe], options: VerifyOptions, versions: [String: String],
+        versionSources: [Finding], session: URLSession = .updates
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.source.host ?? "-" }, options: options) { recipe in
             let id = recipe.recipeID
@@ -919,20 +963,20 @@ public enum Verify {
             // With no version at all, `resolvedSource` silently falls back to the
             // untemplated `source` — which for these vendors is a generic landing
             // page that has never parsed. Reporting that as breakage would be a
-            // pure artifact of how the sweep was invoked, so say so instead.
+            // pure artifact of how the sweep was invoked, so say so instead —
+            // and say which of the two reasons it is (`templatedSkipDetail`).
             if recipe.sourceTemplate != nil, version == nil {
                 return Finding(
                     recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
                     channel: recipe.channel?.rawValue ?? "-", status: .skipped,
-                    failureDetail: "version-templated: no version available "
-                        + "(app not installed, and no version source ran this sweep)",
+                    failureDetail: templatedSkipDetail(for: recipe, versionSources: versionSources),
                     endpointHost: host)
             }
             let started = Date()
             // No update result here, so a `feedPagePattern` recipe resolves its
             // page from its own appcast inside `loadDiagnostic`.
             let diagnostic = await ChangelogService.loadDiagnostic(
-                recipe, version: version, feedPage: nil)
+                recipe, version: version, feedPage: nil, session: session)
             let elapsed = Int(Date().timeIntervalSince(started) * 1000)
 
             guard let changelog = diagnostic.changelog,
@@ -998,7 +1042,13 @@ public enum Verify {
                 status: warnings.isEmpty ? .ok : .warn,
                 version: newest.version, warnings: warnings,
                 endpointHost: host, pattern: recipe.entryPattern,
-                entryCount: changelog.entries.count, elapsedMs: elapsed,
+                entryCount: changelog.entries.count,
+                // Against the page requested, not one re-derived from a version:
+                // a heading that resolves elsewhere is itself a slip, and must not
+                // make an older version look like another page.
+                headingMatchesPage: recipe.sourceTemplate == nil ? nil
+                    : Baseline.templatedPage(recipe, forHeading: top) == diagnostic.resolvedURL,
+                elapsedMs: elapsed,
                 bodySample: diagnostic.bodySample)
         }
     }
@@ -1425,7 +1475,8 @@ extension Finding {
             // `entryCount`, so a finding that picked up a machine note lost
             // "entries parsed" from `report.json`. Silently: every argument here
             // has a default.
-            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
+            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
     /// Attach a warning discovered after the fact (the baseline's history checks
@@ -1441,6 +1492,7 @@ extension Finding {
             // rebuild that drops one silently deletes it from `report.json` for
             // exactly the findings that carry a complaint — the ones most worth
             // reading.
-            entryCount: entryCount, elapsedMs: elapsedMs, bodySample: bodySample)
+            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

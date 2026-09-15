@@ -140,7 +140,7 @@ match the installed bundle.
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`littlesnitch6.plist` 的 `final` 条目现在是 `BundleShortVersionString` `6.5` / `BundleVersion` `7303`，`nightly` 条目是 `6.5` / `7301`，两条都是 `InstallationMechanism` `ReplaceBundle`。
 
-**OS 窗口（2026-09-15，#634）**：每个条目自带 `MinimumSystemVersion` / `MaximumSystemVersion`。实测 2026-09-15：`final` 6.5/7303 是 `14.0`…`27.99`，`nightly` 6.5/7301 同样 `14.0`…`27.99`；2026-08-30 那份快照里 `final` 6.4.1/7212 封顶 `26.99`、`nightly` 已是 `27.99`——即 macOS 27 发布到厂商抬高上限之间有一个窗口，而 VendorProbe 那时两个界都不看，27 的 Mac 会被告知封顶在 26.99 的 stable 是最新。两条 recipe 现在都用 `minimumSystemVersionPattern` / `maximumSystemVersionPattern` 从**自己的条目**里读窗口（不钉在 recipe 里：上限两周内自己从 26.99 挪到了 27.99），窗口外按 `.notApplicable` 处理（行显示 `—`，不红、不重试），判据与 Sparkle 的 `usableItems` 逐字相同。2026-08-29 的响应体保留在 `Tests/LittleSnitchFeedFixture.swift`，因为线上 feed 已经不再呈现那个缺口。
+**OS 窗口（2026-09-15，#634）**：每个条目自带 `MinimumSystemVersion` / `MaximumSystemVersion`。实测 2026-09-15：`final` 6.5/7303 是 `14.0`…`27.99`，`nightly` 6.5/7301 同样 `14.0`…`27.99`；2026-08-30 那份快照里 `final` 6.4.1/7212 封顶 `26.99`、`nightly` 已是 `27.99`——即 macOS 27 发布到厂商抬高上限之间有一个窗口，而 VendorProbe 那时两个界都不看，27 的 Mac 会被告知封顶在 26.99 的 stable 是最新。两条 recipe 现在都用 `minimumSystemVersionPattern` / `maximumSystemVersionPattern` 从**自己的条目**里读窗口（不钉在 recipe 里：上限两周内自己从 26.99 挪到了 27.99），窗口外按 `.notApplicable` 分类（不红、不重试），判据与 Sparkle 的 `usableItems` 同为 `OSWindowRefusal.evaluate`。2026-09-15 起（#634 part 3）被拒版本若比已装副本新，行显示「Not for this macOS yet」及上限；已装副本就是或新于被拒版本时，照旧当作没有来源回答。2026-08-29 的响应体保留在 `Tests/LittleSnitchFeedFixture.swift`，因为线上 feed 已经不再呈现那个缺口。
 
 ### Recipes/at-obdev-littlesnitch.swift — nightly VendorProbe（同一 feed 的 `nightly` 条目）
 

@@ -13,9 +13,10 @@ import Foundation
 /// That is the invariant; the list is here so a new site is added knowingly, and
 /// it was wrong for as long as it named only the first two (#640 review):
 ///
-///  1. `SparkleAppcastSource.usableItems` — drops feed items whose declared
-///     `sparkle:minimumSystemVersion` excludes this Mac (the `maximumSystemVersion`
-///     half is Sparkle's own predicate, stated beside it).
+///  1. `OSWindowRefusal.evaluate` — a vendor's per-release window, for both
+///     `SparkleAppcastSource.usableItems` (`sparkle:minimumSystemVersion`) and a
+///     probe recipe's `minimumSystemVersionPattern`. The ceiling half is
+///     Sparkle's own predicate, stated beside it.
 ///  2. `SignatureVerifier` gate 6 (`verifyRunnableSystemVersion`) — refuses a
 ///     DOWNLOADED bundle whose own `LSMinimumSystemVersion` excludes this Mac.
 ///     The install-time backstop the detection-time gates are matched against.
@@ -23,7 +24,10 @@ import Foundation
 ///     route, reading the floor out of the package's payload; best-effort, and
 ///     fails open on a payload it cannot read.
 ///  4. `AppStoreGate.resolve` — turns a listing's `latestMinimumMacOS` into
-///     `.needsNewerMacOS`, the one state that RENDERS this condition (#546).
+///     `.needsNewerMacOS`, the state that renders this condition for a store
+///     listing (#546). (1) is the only other site whose refusal reaches a row
+///     state (`.notForThisMacOS`, #634); a floor at (5), (7) or (8) still leaves
+///     that source with nothing to say.
 ///  5. `VendorHostRequirement.isSatisfied` — a probe recipe's declared floor.
 ///  6. `XcodeReleasesSource.offer` — bounds the candidate builds by the index's
 ///     `requires`, so a Mac too old for the newest build is offered the newest

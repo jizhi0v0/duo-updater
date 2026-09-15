@@ -183,7 +183,10 @@ extension Verify {
             // reads that as a miss rather than an error — the same shape as the
             // frozen feed that made a superseding entry necessary in the first
             // place. An app with another source still gets a correct answer from
-            // it; an app with none lands on `.unknown`, not `.upToDate`.
+            // it; an app with none lands on `.unknown`, not `.upToDate` — or on
+            // `.outsideOSWindow` when the OS bounds alone filtered every item,
+            // which is a vendor's answer and still this sweep's business: a
+            // feed that refuses every current macOS is broken for its users.
             let capped = live.itemsDeclaringMaximumSystemVersion
             return (.broken, nil, [
                 "everyItemFilteredOut — the feed parsed \(live.itemCount) items and none of "

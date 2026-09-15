@@ -23,7 +23,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **See which SDK each app was built with.** Click the mark beside an app's name and its details now say, for example, "Built with the macOS 27.0 SDK." — handy for telling which apps have been rebuilt for the latest macOS.
 
-**Little Snitch is no longer reported as current when its maker says that build isn't for your macOS.** Objective Development's feed states the macOS range each build supports; after a macOS upgrade the row could keep pointing at a build capped below the system you were now running. Builds outside the stated range are left out until the vendor raises the cap.
+**Little Snitch is no longer reported as current when its maker says that build isn't for your macOS.** Objective Development's feed states the macOS range each build supports; after a macOS upgrade the row could keep pointing at a build capped below the system you were now running. Builds outside the stated range are left out until the vendor raises the cap — and the row now says so, with the version and the macOS it's limited to, instead of a blank dash. The same applies when an app's update feed says its newest release needs a newer macOS than yours.
 
 **Homebrew apps that ship as two packages — one for older systems, one for the newest — are now read from the right one.** OnyX splits that way for macOS 27, and DuoUpdater looked only at the package meant for older systems: it either showed nothing for OnyX at all, or called it up to date against a version Homebrew refuses to install on 27. Whichever of the two you installed is now the one DuoUpdater follows.
 

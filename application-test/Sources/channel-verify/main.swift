@@ -141,6 +141,7 @@ if argv[1] == "--check" {
     case .appStoreManaged: statusText = "App Store managed"
     case .toolboxManaged: statusText = "Toolbox managed"
     case .testFlightManaged: statusText = "TestFlight managed"
+    case .outsideOSWindow(let refusal): statusText = "not for this macOS: \(refusal.logDescription)"
     case .error(let e): statusText = "error: \(e)"
     }
     print("""
@@ -481,6 +482,7 @@ case .unknown: chainStatus = "unknown (no source answered)"
 case .appStoreManaged: chainStatus = "App Store managed"
 case .toolboxManaged: chainStatus = "Toolbox managed"
 case .testFlightManaged: chainStatus = "TestFlight managed"
+case .outsideOSWindow(let refusal): chainStatus = "not for this macOS: \(refusal.logDescription)"
 case .error(let e): chainStatus = "error: \(e)"
 }
 

@@ -146,15 +146,18 @@ def registry_bundle_ids():
     reverse-DNS shape is a good heuristic, registry membership is a fact.
     """
     ids = set()
-    # The registry entries live in `Recipes/`, one file per app family. `Sources/`
-    # is still read so a `bundleID:` written next to a registry is not missed.
-    for src in ("DuoUpdaterCore/Sources/DuoUpdaterCore/Sources",
-                "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"):
+    # The registry entries live in `Recipes/` and `Resources/Recipes/`, one file
+    # per app family. `Sources/` is still read so a `bundleID:` written next to a
+    # registry is not missed.
+    for src, extension, pattern in (
+            ("DuoUpdaterCore/Sources/DuoUpdaterCore/Sources", ".swift", r'bundleID:\s*"([^"]+)"'),
+            ("DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes", ".swift", r'bundleID:\s*"([^"]+)"'),
+            (RECIPE_DATA, ".json5", r'"bundleID":\s*"([^"]+)"')):
         for name in os.listdir(src):
-            if not name.endswith(".swift"):
+            if not name.endswith(extension):
                 continue
             text = open(os.path.join(src, name), encoding="utf-8").read()
-            ids.update(re.findall(r'bundleID:\s*"([^"]+)"', text))
+            ids.update(re.findall(pattern, text))
     return {i.replace(".", "-").lower() for i in ids}
 
 
@@ -199,6 +202,9 @@ RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
 # `AppRecipeIndexTests.infrastructure` names. A pointer in one of them has no
 # family to be wrong about, and counting them would overstate the family total.
 RECIPES_INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
+# Families written as data, one `<family>.json5` each (`RecipeFamilyFile`). Their
+# comments are whole `//` lines, read exactly like a Swift family's.
+RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
 
 # One line by convention (README.md). Anything after the anchor is prose, so a
 # trailing period or backtick does not change what is being pointed at.
@@ -222,17 +228,19 @@ def has_history_heading(rel):
 
 
 def check_history_pointers(problems):
-    """Every `docs/app-audits/<file>.md#历史与实测` in a Swift comment resolves,
-    sits in the family it names, and every history section is pointed at.
+    """Every `docs/app-audits/<file>.md#历史与实测` in a Swift comment, or in a
+    `.json5` recipe family's comment, resolves, sits in the family it names, and
+    every history section is pointed at.
 
-    Returns (Swift files scanned, family files scanned) for the vacuity gate:
-    a moved or renamed source root would otherwise turn all of this into a
-    silent pass.
+    Returns (Swift files scanned, family files scanned, of which .json5) for the
+    vacuity gate: a moved or renamed source root would otherwise turn all of this
+    into a silent pass.
     """
     tracked = tracked_audits()
     recipes_dir = os.path.join(ROOT, RECIPES)
+    data_dir = os.path.join(ROOT, RECIPE_DATA)
     pointed = set()
-    scanned = families = 0
+    scanned = families = data_families = 0
     for root in SWIFT_ROOTS:
         base = os.path.join(ROOT, root)
         if not os.path.isdir(base):
@@ -241,14 +249,16 @@ def check_history_pointers(problems):
             if ".build" in dirpath.split(os.sep):
                 continue
             for name in sorted(filenames):
-                if not name.endswith(".swift"):
+                is_data = name.endswith(".json5") and dirpath == data_dir
+                if not name.endswith(".swift") and not is_data:
                     continue
                 path = os.path.join(dirpath, name)
                 rel = os.path.relpath(path, ROOT)
-                scanned += 1
-                in_recipes = (os.path.dirname(path) == recipes_dir
-                              and name not in RECIPES_INFRASTRUCTURE)
+                scanned += not is_data
+                in_recipes = is_data or (os.path.dirname(path) == recipes_dir
+                                         and name not in RECIPES_INFRASTRUCTURE)
                 families += in_recipes
+                data_families += is_data
                 with open(path, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()
                 for n, line in enumerate(lines, 1):
@@ -272,7 +282,7 @@ def check_history_pointers(problems):
                             problems.append(
                                 f"{where}: history pointer names `{full}`, which has "
                                 f"no line reading exactly `{HISTORY_HEADING}`")
-                        family = name[:-len(".swift")]
+                        family = os.path.splitext(name)[0]
                         if in_recipes and target != f"{family}.md":
                             problems.append(
                                 f"{where}: history pointer names `{target}` inside the "
@@ -281,9 +291,9 @@ def check_history_pointers(problems):
     for full in sorted(tracked):
         if full not in pointed and has_history_heading(full):
             problems.append(
-                f"{full}: has `{HISTORY_HEADING}` but no Swift comment points at it "
+                f"{full}: has `{HISTORY_HEADING}` but no Swift or recipe .json5 comment points at it "
                 f"(expected `// History: {full}#{HISTORY_HEADING[3:]}`)")
-    return scanned, families
+    return scanned, families, data_families
 
 
 def main():
@@ -293,14 +303,15 @@ def main():
     check_no_machine_state(problems)
     check_no_local_evidence_pointers(problems)
     check_filename_matches_bundle_id(problems, registry_bundle_ids())
-    scanned, families = check_history_pointers(problems)
+    scanned, families, data_families = check_history_pointers(problems)
 
-    # Same floor as check_engine_notes.py, plus one for the Recipes dir the
-    # family rule keys on: if it moves, that rule would quietly check nothing.
-    if scanned < 100 or families < 100:
+    # Same floor as check_engine_notes.py, plus one for each recipe directory the
+    # family rule keys on: if one moves, that rule would quietly check nothing
+    # there (the total alone would not notice the data families going).
+    if scanned < 100 or families < 100 or data_families < 1:
         print(f"✗ history pointers: only {scanned} Swift files / {families} "
-              f"recipe family files scanned — too few to be a real run "
-              f"(did {RECIPES} move?)", file=sys.stderr)
+              f"recipe family files ({data_families} .json5) scanned — too few to "
+              f"be a real run (did {RECIPES} or {RECIPE_DATA} move?)", file=sys.stderr)
         return 1
 
     if problems:
@@ -313,7 +324,8 @@ def main():
     print(
         f"✓ app audits consistent — {n} docs, all indexed, "
         "no machine inventory, no pointers into untracked evidence, "
-        f"history pointers resolve ({scanned} Swift files, {families} families)"
+        f"history pointers resolve ({scanned} Swift files, {families} families, "
+        f"{data_families} of them .json5)"
     )
     return 0
 

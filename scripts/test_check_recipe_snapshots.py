@@ -112,9 +112,14 @@ class Snapshots(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
         self.recipes = self.root / crs.RECIPES
         self.recipes.mkdir(parents=True)
+        self.data = self.root / crs.RECIPE_DATA
+        self.data.mkdir(parents=True)
 
     def write(self, family, text):
         (self.recipes / f"{family}.swift").write_text(text)
+
+    def write_data(self, family, text):
+        (self.data / f"{family}.json5").write_text(text)
 
     def review(self, shapes=None):
         return crs.review(self.root, shapes=shapes)
@@ -248,6 +253,38 @@ class Snapshots(unittest.TestCase):
                                        "(verified 2026-09-14; History has the check).\n"))
         self.assertEqual(self.kinds(self.review()), ["history-without-pointer"])
 
+    # Mutation: glob only `*.swift` in `review`. The comments of a family written
+    # as data are whole `//` lines, so the same paragraphs, the same shapes.
+    def test_a_snapshot_in_a_json5_family_is_caught(self):
+        self.anchor()
+        self.write_data("zz-data", "{\n  \"probes\": [\n" + REAL["measurement-led"].replace("        //", "    //")
+                        + "    {\"bundleID\": \"zz.data\"}\n  ]\n}\n")
+        found = self.review()
+        self.assertEqual(self.kinds(found), ["measurement-led"])
+        self.assertEqual(found["offences"][0][0].name, "zz-data.json5")
+        self.assertEqual((found["guarded"], found["data"]), (2, 1))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
+
+    # Mutation: delete the data floor. The total floor alone passes a tree whose
+    # data families have all gone.
+    def test_no_json5_family_fails_the_data_floor(self):
+        self.anchor()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 1)
+        self.assertIn(".json5 recipe families", err.getvalue())
+        self.write_data("zz-data", "{}\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=1), 0)
+
+    # Mutation: check only the Swift directory for existence.
+    def test_a_missing_data_dir_is_a_failure(self):
+        self.anchor()
+        shutil.rmtree(self.data)
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(crs.main(root=self.root, minimum=0, minimum_data=0), 1)
+
     # Mutation: `return found` without reporting a missing Recipes directory.
     def test_a_missing_recipes_dir_is_a_failure(self):
         empty = pathlib.Path(tempfile.mkdtemp(prefix="duo-snapshots-empty-"))
@@ -265,7 +302,7 @@ class Snapshots(unittest.TestCase):
         self.anchor()
         self.write("zz-fixture", POINTER.format(family="zz-fixture") + swift(ALLOWED))
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(crs.main(root=self.root, minimum=2), 0)
+            self.assertEqual(crs.main(root=self.root, minimum=2, minimum_data=0), 0)
 
     # Mutation: lower `main`'s default floor. Called without `minimum`, a
     # two-family tree must not pass as a real run.
@@ -291,7 +328,7 @@ class Snapshots(unittest.TestCase):
         # Captured so the `make test` log holds one success line, the real run's.
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(crs.main(root=self.root, minimum=1), 0)
+            self.assertEqual(crs.main(root=self.root, minimum=1, minimum_data=0), 0)
         self.assertIn("✓ no dated snapshots in recipe comments — 2 families guarded",
                       out.getvalue())
 

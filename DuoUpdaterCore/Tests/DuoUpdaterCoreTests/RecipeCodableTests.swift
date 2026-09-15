@@ -3,8 +3,9 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// The JSON coding of every type an `AppRecipeSet` stores — the convention on
-/// `RecipeCoding`. Nothing in production decodes recipes from JSON yet; these pin
-/// the format and its strictness before anything does.
+/// `RecipeCoding`. Production decodes the family files under `Resources/Recipes/`
+/// with it; these pin the format and its strictness type by type, including for
+/// types no data family uses yet.
 ///
 /// Values are compared by reflection (`RecipeMirror.dump`), not by encoding them
 /// again: an encoder and a decoder that share a mistake agree with each other, and

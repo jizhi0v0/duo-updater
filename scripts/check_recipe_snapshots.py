@@ -21,9 +21,12 @@ did not mention the convention at all.
 
 ## Which families
 
-Every family under `Recipes/` is guarded: every `*.swift` file there except the
-two infrastructure files `AppRecipeIndexTests.infrastructure` also names. A
-brand new family is guarded from its first commit.
+Every family is guarded: every `*.swift` file under `Recipes/` except the two
+infrastructure files `AppRecipeIndexTests.infrastructure` also names, and every
+`*.json5` file under `Resources/Recipes/` (a family written as data, whose
+comments are whole `//` lines too). A brand new family is guarded from its first
+commit. Each directory has a floor, so one that moves fails the run instead of
+quietly leaving its families unguarded.
 
 ## Shapes
 
@@ -96,6 +99,9 @@ import sys
 RECIPES = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
 # Not families: the same two files `AppRecipeIndexTests.infrastructure` names.
 INFRASTRUCTURE = {"AppRecipeSet.swift", "AppRecipeIndex.swift"}
+# Families written as data (`RecipeFamilyFile`): whole-line `//` comments only,
+# so the paragraph reading below is the same for them.
+RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
 
 DATE = r"20\d\d-\d\d-\d\d"
 OBSERVED = (r"(?:measured|re-?measured|verified|re-?verified|observed|checked|"
@@ -303,15 +309,18 @@ def scan(text, shapes=None):
 
 def review(root, shapes=None):
     """Everything the check knows, as data, so the tests can drive it."""
-    base = root / RECIPES
-    found = {"missing": not base.is_dir(), "guarded": 0, "offences": [], "stale": []}
+    base, data = root / RECIPES, root / RECIPE_DATA
+    missing = [d for d in (RECIPES, RECIPE_DATA) if not (root / d).is_dir()]
+    found = {"missing": missing, "guarded": 0, "data": 0, "offences": [], "stale": []}
     if found["missing"]:
         return found
-    paths = sorted((p for p in base.glob("*.swift") if p.name not in INFRASTRUCTURE),
+    paths = sorted([p for p in base.glob("*.swift") if p.name not in INFRASTRUCTURE]
+                   + list(data.glob("*.json5")),
                    key=lambda p: p.stem.lower())
     for path in paths:
         text = path.read_text(errors="replace")
         found["guarded"] += 1
+        found["data"] += path.suffix == ".json5"
         rel = path.relative_to(root)
         offences, stale = scan(text, shapes)
         found["offences"].extend((rel, n, kind, matched) for n, kind, matched in offences)
@@ -336,7 +345,7 @@ def canary_problems(shapes=None):
     return problems
 
 
-def main(root=None, minimum=100, shapes=None):
+def main(root=None, minimum=100, shapes=None, minimum_data=1):
     root = root or pathlib.Path(__file__).resolve().parent.parent
 
     canaries = canary_problems(shapes)
@@ -350,18 +359,24 @@ def main(root=None, minimum=100, shapes=None):
     found = review(root, shapes)
 
     if found["missing"]:
-        print(f"✗ {RECIPES} is not under {root} — fix the path rather than "
-              "scanning nothing.", file=sys.stderr)
+        print(f"✗ {', '.join(found['missing'])} not under {root} — fix the path rather "
+              "than scanning nothing.", file=sys.stderr)
         return 1
     if found["guarded"] < minimum:
         print(f"✗ only {found['guarded']} guarded recipe families — too few to "
               "be a real run.", file=sys.stderr)
         return 1
+    # Its own floor: the total above would not notice the data families going
+    # missing while the Swift ones still clear it.
+    if found["data"] < minimum_data:
+        print(f"✗ only {found['data']} .json5 recipe families under {RECIPE_DATA} — "
+              "too few to be a real run.", file=sys.stderr)
+        return 1
 
     offences, stale = found["offences"], found["stale"]
     if not offences and not stale:
         print(f"✓ no dated snapshots in recipe comments — "
-              f"{found['guarded']} families guarded")
+              f"{found['guarded']} families guarded ({found['data']} as .json5)")
         return 0
 
     for rel, line, kind, matched in offences:

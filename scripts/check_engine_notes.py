@@ -47,6 +47,8 @@ SOURCE_ROOTS = [
     "App/Sources", "App/Tests",
     "CLI/Sources", "CLI/Tests",
 ]
+# Recipe families written as data (`RecipeFamilyFile`), under the first root.
+RECIPE_DATA = "DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes"
 
 # A pointer like `` `docs/engine-notes/app-store-page-cache.md` §4.2 ``, or a
 # run of them (`§1, §2, and §3`). Sections are optional — pointing at a whole
@@ -165,7 +167,7 @@ def heading_sections(path):
 
 def check_pointers(problems, tracked):
     section_cache = {}
-    scanned = 0
+    scanned = data = 0
     for root in SOURCE_ROOTS:
         base = os.path.join(ROOT, root)
         if not os.path.isdir(base):
@@ -174,17 +176,22 @@ def check_pointers(problems, tracked):
             if ".build" in dirpath.split(os.sep):
                 continue
             for name in filenames:
-                if not name.endswith(".swift"):
+                # A recipe family written as data carries its comments as whole
+                # `//` lines too, so a pointer can live there; it does not count
+                # toward the Swift-file floor below.
+                is_data = name.endswith(".json5") and dirpath == os.path.join(ROOT, RECIPE_DATA)
+                if not name.endswith(".swift") and not is_data:
                     continue
                 path = os.path.join(dirpath, name)
                 rel = os.path.relpath(path, ROOT)
-                scanned += 1
+                scanned += not is_data
+                data += is_data
                 for joined, spans in comment_blocks(path):
                     for m in POINTER.finditer(joined):
                         full_rel, _, run = m.groups()
                         where = f"{rel}:{line_for(spans, m.start())}"
                         resolve(problems, where, full_rel, run, tracked, section_cache)
-    return scanned
+    return scanned, data
 
 
 def resolve(problems, where, full_rel, run, tracked, section_cache):
@@ -290,14 +297,14 @@ def main():
 
     tracked = tracked_files()
     problems = []
-    scanned = check_pointers(problems, tracked)
+    scanned, data = check_pointers(problems, tracked)
     check_doc_pointers(problems, tracked)
     check_doc_links(problems, tracked)
     n_docs = check_index(problems, tracked)
 
-    if scanned < 100:
-        print(f"✗ only {scanned} Swift files scanned across {len(SOURCE_ROOTS)} "
-              "roots — too few to be a real run.", file=sys.stderr)
+    if scanned < 100 or data < 1:
+        print(f"✗ only {scanned} Swift files and {data} recipe .json5 files scanned "
+              f"across {len(SOURCE_ROOTS)} roots — too few to be a real run.", file=sys.stderr)
         return 1
 
     if problems:
@@ -306,8 +313,8 @@ def main():
             print(f"    {p}")
         return 1
 
-    print(f"✓ engine-notes pointers resolve — {scanned} Swift files scanned, "
-          f"{n_docs} doc(s) indexed")
+    print(f"✓ engine-notes pointers resolve — {scanned} Swift files and {data} "
+          f"recipe .json5 files scanned, {n_docs} doc(s) indexed")
     return 0
 
 

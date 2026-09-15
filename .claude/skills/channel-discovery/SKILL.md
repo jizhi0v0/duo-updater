@@ -63,6 +63,14 @@ recall.
 # `channel:` lines of VendorProbe recipes and GitHub rules, one file per family under Recipes/
 # (skips the changelogs:/proof/catalog sections; helpers after the set are included)
 awk 'FNR==1{off=0} FILENAME ~ /AppRecipe(Set|Index)\.swift$/{nextfile} /^        (changelogs|appStoreCases|channelProofs|githubChannelProofs|bindingProofs|sparkleFeeds|supersededFeeds|changelogPages): \[$/{off=1} /^        (probes|githubRules): \[$/{off=0} /^    [^ ]/{off=0} !off && /channel:/{print FILENAME":"FNR": "$0}' DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift
+# The same for families written as data (whole-line // comments, the rest is JSON) —
+# the awk above never sees these, and says nothing about it
+python3 -c 'import glob, json
+for p in sorted(glob.glob("DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes/*.json5")):
+    d = json.loads("".join(l for l in open(p) if not l.lstrip().startswith("//")))
+    for k in ("probes", "githubRules"):
+        for e in d.get(k, []):
+            if "channel" in e: print(p + ": " + k + " " + e["bundleID"] + " channel: " + e["channel"])'
 ls DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/*Channel*.swift   # ChannelBinding resolvers
 # Already-investigated verdicts (A/B/C/D, incl. the ✗ dead-ends — DON'T redo these)
 sed -n '/^## /p' CHANNEL_COVERAGE_TODO.md 2>/dev/null || echo "(ledger missing — rebuild §1 from code below; it's the only authoritative source)"
@@ -183,6 +191,6 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
 - `CHANNEL_COVERAGE_TODO.md` — the breadth ledger this skill refreshes (A/B/C/D)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + `detect()` signal hierarchy
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Fork/Surge/TablePlus/DuoPaste/OrbStack/CleanShot)
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` — one file per app family; its `channel:` lines are the covered channels to subtract
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` and `…/Resources/Recipes/` — one file per app family (`.swift`, or `.json5` for a family written as data); its `channel` entries are the covered channels to subtract
 - `.claude/skills/app-audit/SKILL.md` — the depth skill this one feeds (Pattern A/B/C/D defined there in full)
 - `application-test/` — `channel-verify`, the on-machine proof `/app-audit` runs

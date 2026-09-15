@@ -127,11 +127,14 @@ def review(root, roots=ROOTS):
         base = root / r
         if not base.is_dir():
             continue
-        for path in sorted(base.rglob("*.swift")):
+        # `.json5` too: a recipe family written as data (`RecipeFamilyFile`) keeps
+        # its comments as whole `//` lines, and they are the same prose. Not
+        # counted toward the Swift-file floor.
+        for path in sorted([*base.rglob("*.swift"), *base.rglob("*.json5")]):
             if ".build" in path.parts:
                 continue
             rel = path.relative_to(root)
-            scanned += 1
+            scanned += path.suffix == ".swift"
             for start, block in comment_blocks(path):
                 joined = " ".join(block)
                 match = PATTERN.search(joined)

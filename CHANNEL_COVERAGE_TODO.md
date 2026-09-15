@@ -6,7 +6,8 @@
 > **代码这个权威源头**重新生成。
 > - **§1 已覆盖** = 当时直接从 `VendorProbeRecipe.swift` / `GitHubReleasesSource.swift` /
 >   `*Channel.swift` 提取，是当时的真实状态（非记忆）。这些表现在在
->   `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift`，重新提取用 §2c 第 1 步的命令。
+>   `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift` 和
+>   `DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes/*.json5`，重新提取用 §2c 第 1 步的命令。
 > - **§2 TODO / §3 死轨** = 结转自删除前的同日调查（2026-06-04 web 搜索 + 实测）；
 >   死轨是**已否决项，不要重新调查**（`channel-discovery` 安全规则 4）。
 >
@@ -275,7 +276,8 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 **方法**（复现用，别凭记忆重列一遍）：
 
 1. 已覆盖集从**代码**再生成，不信本账本 —— 配对 `Recipes/*.swift` 里 `probes:` /
-   `githubRules:` 段内每个初始化器的 `bundleID:`→`channel:`，加 `*Channel.swift` 的
+   `githubRules:` 段内每个初始化器的 `bundleID:`→`channel:`（写成数据的 family 读
+   `Resources/Recipes/*.json5` 的同名两段；只读 `.swift` 会静默漏掉它们），加 `*Channel.swift` 的
    `bundleID`。2026-08-27 当时的结果：VendorProbe 116 个 id / 32 个带非 stable channel；
    GitHub 67 / 4；ChannelBinding 12 个 app。（那时读的是 `VendorProbeRecipe.swift` /
    `GitHubReleasesSource.swift` 里的字面量表；2026-09-14 recipe 按家族拆进
@@ -284,8 +286,14 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 
    ```sh
    python3 - <<'EOF'
-   import glob, re
+   import glob, json, re
    seen = {"probes": {}, "githubRules": {}}
+   # Families written as data: whole-line // comments, the rest is JSON.
+   for path in sorted(glob.glob("DuoUpdaterCore/Sources/DuoUpdaterCore/Resources/Recipes/*.json5")):
+       data = json.loads("".join(l for l in open(path) if not l.lstrip().startswith("//")))
+       for kind in seen:
+           for entry in data.get(kind, []):
+               seen[kind].setdefault(entry["bundleID"], set()).add(entry.get("channel", "stable"))
    for path in sorted(glob.glob("DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/*.swift")):
        text = "".join(l for l in open(path) if not l.lstrip().startswith("//"))
        for kind in seen:

@@ -4,7 +4,7 @@ import Foundation
 
 /// The equivalence gate for moving recipe data out of Swift literals (step 3 of the
 /// recipe refactor): whatever builds `AppRecipeIndex.all` — the literals under
-/// `Recipes/` today, JSON5 resource files later — must build exactly what the
+/// `Recipes/` and the JSON5 resource files under `Resources/Recipes/` — must build exactly what the
 /// committed goldens under `DuoUpdaterCore/Tests/RecipeGoldens/` say.
 ///
 /// ## What it pins

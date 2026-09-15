@@ -73,6 +73,17 @@ class ProseClaims(unittest.TestCase):
                    "machine.\n    func f() {}\n")
         self.assertEqual(len(self.review()["offences"]), 1)
 
+    # Mutation: rglob `*.swift` only. A recipe family written as `.json5` keeps
+    # the same comments, as whole `//` lines; they are not counted as Swift files.
+    def test_a_claim_in_a_json5_recipe_comment_is_caught(self):
+        self.write("{\n  \"probes\": [\n" + INSTANCE_3.replace("    ///", "    //")
+                   .replace("    @Test func witness() {}\n", "") + "    {}\n  ]\n}\n",
+                   name="zz-fixture.json5")
+        found = self.review()
+        self.assertEqual(len(found["offences"]), 1, found)
+        self.assertEqual(found["offences"][0][0].name, "zz-fixture.json5")
+        self.assertEqual(found["scanned"], 0)
+
     # Mutation: widen PATTERN back to a bare "this machine", or re-add the
     # `installed here` alternative. Both of these are real comments from this
     # repo and both would start failing — the direction that turns the check into

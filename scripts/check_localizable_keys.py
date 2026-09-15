@@ -46,6 +46,17 @@ CATALOG = REPO / "App" / "Resources" / "Localizable.xcstrings"
 PROJECT = REPO / "App" / "DuoUpdater.xcodeproj"
 TABLE = "Localizable"
 
+# Debug, not Release. The keys come out of the compiler's front end, so
+# optimization changes nothing here: both builds emitted the same 544
+# .stringsdata files and the same 584 keys (measured 2026-09-15). What Release
+# does change is speed. Whole-module optimization gives each module a single
+# compile task, so extra cores cannot help, and CI starts with an empty cache
+# every run. Cold build on a 14-core Mac: Release 97 s, Debug 22 s. The only
+# settings project.yml sets for Release alone are about signing, which is off for
+# this build anyway. If `#if DEBUG` ever wraps user-facing strings, this choice
+# needs another look.
+CONFIGURATION = "Debug"
+
 # Keys the catalog is expected to carry without a source site. Keep this list
 # empty unless there is a real reason: every entry here is a key that no test
 # can prove still works.
@@ -77,7 +88,7 @@ def build(derived_data: pathlib.Path) -> None:
             "xcodebuild",
             "-project", str(PROJECT),
             "-scheme", "DuoUpdater",
-            "-configuration", "Release",
+            "-configuration", CONFIGURATION,
             "-derivedDataPath", str(derived_data),
             "SWIFT_EMIT_LOC_STRINGS=YES",
             "CODE_SIGNING_ALLOWED=NO",
@@ -95,7 +106,13 @@ def build(derived_data: pathlib.Path) -> None:
 def keys_from_source(derived_data: pathlib.Path) -> dict[str, str]:
     """Every key the compiler emitted, mapped to the `file:line` it came from."""
     found: dict[str, str] = {}
-    for path in derived_data.rglob("*.stringsdata"):
+    # Only this configuration's intermediates. Each configuration writes its own
+    # copy (Build/Intermediates.noindex/<project>.build/<Configuration>/…), and
+    # every local cache made before the switch to Debug still holds a Release
+    # copy. Once the source moves on, those stale keys would hide a dead
+    # catalog entry or make a deleted key look missing.
+    pattern = f"Build/Intermediates.noindex/*.build/{CONFIGURATION}/**/*.stringsdata"
+    for path in derived_data.glob(pattern):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):

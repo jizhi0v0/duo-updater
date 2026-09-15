@@ -17,7 +17,8 @@ extension VendorProbeRecipe: Codable {
         case buildLineage, url, identities, track, mode, versionPattern
         case transientBodyPattern, trackClosedPattern, downloadURL, changelogURL
         case selectHighest, versionIsBuild, buildNamespace, displayVersionPattern
-        case publishedAtPattern, entryStartPattern, install, requestBody
+        case publishedAtPattern, minimumSystemVersionPattern, maximumSystemVersionPattern
+        case entryStartPattern, install, requestBody
         case followRedirects, requestHeaders
     }
 
@@ -51,6 +52,12 @@ extension VendorProbeRecipe: Codable {
                 String.self, forKey: .displayVersionPattern, default: d.displayVersionPattern),
             publishedAtPattern: try c.decodeOptional(
                 String.self, forKey: .publishedAtPattern, default: d.publishedAtPattern),
+            minimumSystemVersionPattern: try c.decodeOptional(
+                String.self, forKey: .minimumSystemVersionPattern,
+                default: d.minimumSystemVersionPattern),
+            maximumSystemVersionPattern: try c.decodeOptional(
+                String.self, forKey: .maximumSystemVersionPattern,
+                default: d.maximumSystemVersionPattern),
             entryStartPattern: try c.decodeOptional(
                 String.self, forKey: .entryStartPattern, default: d.entryStartPattern),
             install: try c.decodeOptional(VendorInstallSpec.self, forKey: .install, default: d.install),
@@ -105,6 +112,12 @@ extension VendorProbeRecipe: Codable {
             defaultIsNil: d.displayVersionPattern == nil)
         try c.encodeOptional(
             publishedAtPattern, forKey: .publishedAtPattern, defaultIsNil: d.publishedAtPattern == nil)
+        try c.encodeOptional(
+            minimumSystemVersionPattern, forKey: .minimumSystemVersionPattern,
+            defaultIsNil: d.minimumSystemVersionPattern == nil)
+        try c.encodeOptional(
+            maximumSystemVersionPattern, forKey: .maximumSystemVersionPattern,
+            defaultIsNil: d.maximumSystemVersionPattern == nil)
         try c.encodeOptional(
             entryStartPattern, forKey: .entryStartPattern, defaultIsNil: d.entryStartPattern == nil)
         try c.encodeOptional(install, forKey: .install, defaultIsNil: d.install == nil)

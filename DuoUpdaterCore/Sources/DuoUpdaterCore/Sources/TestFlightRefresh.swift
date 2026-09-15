@@ -326,9 +326,15 @@ public struct TestFlightRefresh: Sendable {
     }
 
     /// Whether the store is mid-rebuild (`TestFlightInventory.isRebuilding`). False
-    /// when it cannot be read, so an unreadable store never holds a refresh open.
+    /// when it cannot be opened, so an unreadable store never holds a refresh open;
+    /// true for a read that opened but whose rows would not query, which says nothing
+    /// about the rebuild — the poll asks again, and the deadline still bounds it (the
+    /// same reads `TestFlightInventory.awaitingRebuild` skips).
     public static let storeIsRebuilding: @Sendable () async -> Bool = {
-        await offCooperativePool { TestFlightInventory().isRebuilding }
+        await offCooperativePool {
+            let store = TestFlightInventory()
+            return store.isRebuilding || (store.accessible && !store.rowsReadable)
+        }
     }
 
     /// Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read off the

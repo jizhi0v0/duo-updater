@@ -362,6 +362,11 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 - **derived data 路径走 `scripts/derived_data_path.py`**(见上),`APP_TESTS_DD` 可覆盖。
   写死路径会复刻多 worktree 撞锁的坑,而这里的症状是**测试随机失败**,
   比"构建变慢"更容易被误读成真回归。
+- **`check_localizable_keys.py` 和它共用这份 derived data**,好复用 Core/Subprocess/SystemPackage
+  (2026-09-15 实测,那次构建 CPU 116s → 73s)。前提是两边编译参数一致,所以 `app-tests.sh` 带着
+  `-enableCodeCoverage NO SWIFT_EMIT_LOC_STRINGS=YES`,**删掉任何一个都能编译、全绿,只是悄悄变回
+  重编三个模块**。loc-check 读 key 时跳过测试 target(从 `project.yml` 的 `bundle.unit-test` 推导)。
+  同理,`make test` 里 CLI 和 application-test 用 `--scratch-path DuoUpdaterCore/.build` 复用 Core。
 - **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
   `ScanRowAssemblyTests` 现在是 9 条用例 / 10 个变异,10 个全部**编译通过**(不是靠编译
   错误变红)且只打中该打中的用例。没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle`

@@ -23,10 +23,11 @@ emitted, with the file and line each came from — the same data Xcode's own
 "Export Localizations" is built on, minus the XLIFF round-trip that rewrites
 `%lld` back to `%@`.
 
-The build runs into its own derived-data directory so it never invalidates the
-one `make install` uses (the extra build setting would otherwise force a full
-rebuild on every switch). The first run is a full build; later runs are
-incremental.
+The build never uses the derived data `make install` uses: the extra build
+setting would force a full rebuild on every switch. It shares the one
+scripts/app-tests.sh builds into just before, so the package modules compiled
+there are reused (the flags that makes it work are explained in app-tests.sh).
+The first run is a full build; later runs are incremental.
 
 Usage:  python3 scripts/check_localizable_keys.py [--derived-data DIR]
 Exit:   0 when both sets agree, 1 otherwise.
@@ -36,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -44,6 +46,7 @@ import sys
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CATALOG = REPO / "App" / "Resources" / "Localizable.xcstrings"
 PROJECT = REPO / "App" / "DuoUpdater.xcodeproj"
+SPEC = REPO / "App" / "project.yml"
 TABLE = "Localizable"
 
 # Debug, not Release. The keys come out of the compiler's front end, so
@@ -103,6 +106,26 @@ def build(derived_data: pathlib.Path) -> None:
         sys.exit(f"✗ the extraction build failed:\n{tail}\n{result.stderr[-2000:]}")
 
 
+def test_targets() -> set[str]:
+    """Names of the test-bundle targets in App/project.yml, read from the spec
+    rather than listed by hand, so a renamed or added test target cannot slip past
+    the filter in keys_from_source."""
+    names: set[str] = set()
+    current = None
+    for line in SPEC.read_text(encoding="utf-8").splitlines():
+        target = re.match(r"^  ([A-Za-z0-9_]+):\s*$", line)
+        if target:
+            current = target.group(1)
+        elif current and re.match(r"^    type:\s*bundle\.(unit|ui)-test\s*$", line):
+            names.add(current)
+    if not names:
+        sys.exit(
+            f"✗ found no test-bundle target in {SPEC} — the parser no longer "
+            "matches the spec, so test targets' keys would be mixed into the check."
+        )
+    return names
+
+
 def keys_from_source(derived_data: pathlib.Path) -> dict[str, str]:
     """Every key the compiler emitted, mapped to the `file:line` it came from."""
     found: dict[str, str] = {}
@@ -112,7 +135,15 @@ def keys_from_source(derived_data: pathlib.Path) -> dict[str, str]:
     # copy. Once the source moves on, those stale keys would hide a dead
     # catalog entry or make a deleted key look missing.
     pattern = f"Build/Intermediates.noindex/*.build/{CONFIGURATION}/**/*.stringsdata"
+    # Test targets are skipped too. This derived data is shared with
+    # scripts/app-tests.sh, so their .stringsdata sit next to the app's. A key
+    # that only a test target emits would otherwise count as "the source asks for
+    # it" and hide a catalog entry the app no longer uses. Measured 2026-09-15:
+    # the test target emits 2 keys today, both also emitted by the app.
+    skipped = {f"{name}.build" for name in test_targets()}
     for path in derived_data.glob(pattern):
+        if skipped.intersection(path.parts):
+            continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -152,11 +183,18 @@ def main() -> int:
     # the likeliest of all of them to be built twice at once — CLAUDE.md records
     # the resulting `database is locked` as something to recognise rather than
     # something to prevent. See scripts/derived_data_path.py.
+    #
+    # The same path scripts/app-tests.sh uses, including its APP_TESTS_DD
+    # override, so this build reuses what that one compiled. The purpose name
+    # stays "app-tests" because that directory already exists in every checkout.
+    # The old per-checkout "loc-check" directories are no longer created or
+    # reclaimed.
     derived_data = pathlib.Path(
         args.derived_data
+        or os.environ.get("APP_TESTS_DD")
         or subprocess.run(
             [sys.executable, str(REPO / "scripts" / "derived_data_path.py"),
-             "loc-check", str(REPO)],
+             "app-tests", str(REPO)],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     )

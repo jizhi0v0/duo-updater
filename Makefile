@@ -15,6 +15,12 @@ cli:
 build:
 	cd DuoUpdaterCore && swift build
 
+# CLI and application-test both depend on DuoUpdaterCore by path. Each would
+# compile all of Core again into its own .build, so they share Core's .build
+# instead. Measured cold on a 14-core Mac 2026-09-15, CPU time: CLI 92 s -> 34 s,
+# application-test 68 s -> 8.5 s. Running Core's own `swift test` afterwards
+# rebuilt nothing (1.3 s), so switching the root package does not throw the cache
+# away. That holds while all three packages resolve the same dependency pins.
 test:
 	python3 scripts/test_appcast_edit.py
 	python3 scripts/test_publish_release.py
@@ -25,8 +31,8 @@ test:
 	python3 scripts/test_claude_lag_probe.py
 	python3 scripts/test_app_test_coverage.py
 	cd DuoUpdaterCore && swift test
-	swift test --package-path CLI
-	swift build --package-path application-test
+	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
+	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
 	@scripts/app-tests.sh
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py

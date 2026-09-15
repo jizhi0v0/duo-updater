@@ -24,14 +24,17 @@ import Foundation
 ///
 /// Mutation table. Every row below was applied to a working tree and this suite
 /// run (2026-09-15): every one **compiles** — not one is caught by the type
-/// checker — and every one goes red. The "red" column lists the tests that
-/// actually failed, not the ones predicted beforehand.
+/// checker — and every one goes red (row 6 is retired, not applied). The "red"
+/// column lists the tests that actually failed, not the ones predicted
+/// beforehand.
 ///
 /// Rows 16–20 came with routing `>=` through `SignatureVerifier.canRun`, and were
 /// run with `--filter` over this suite plus `OSFloorIsLoadBearingTests`,
 /// `InstallOSFloorGateTests` and `SparkleMaximumSystemVersionTests`, so their red
-/// column can name tests outside this file. Rows 4 and 8 were re-run then too;
-/// the rest touch code that change did not, and were not.
+/// column can name tests outside this file. Rows 4, 5, 7, 8 and 9 — the ones
+/// mutating `CaskMacOSRequirement.admits`, `truncated`, or the `macOS:` the
+/// indexer passes — were re-run on that code with the same filter and say so.
+/// Rows 1–3 and 10–15 (including `parse` and `CaskEntry.admits`) were not.
 ///
 /// Two things this table learned the hard way, both worth keeping:
 /// mutation 3 (drop the `?? entries.first` fallback) was **green** on the first
@@ -47,11 +50,11 @@ import Foundation
 /// | 2 | `CaskEntry.preferred`: `entries.last { admits } ?? entries.first` | red: `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent` |
 /// | 3 | `CaskEntry.preferred`: drop the `?? entries.first` fallback | red: `aHostNoCaskAdmitsFallsBackToTheFirst` |
 /// | 4 | `HomebrewCaskCatalog.index`: build `CaskEntry` with `macOS: nil` | red: 7 tests (re-run: the original 6, plus `atLeastAnswersWhatCanRunAnswers` via its non-empty-fixture guard) |
-/// | 5 | `admits`: `.exactly` returns `true` | red: `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer`, `aHostNoCaskAdmitsFallsBackToTheFirst`, `withBothCasksInstalledTheHostDecides` |
+/// | 5 | `admits`: `.exactly` returns `true` | red: `macOS27PrefersTheOnyXCaskThatAdmits27`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer`, `aHostNoCaskAdmitsFallsBackToTheFirst`, `withBothCasksInstalledTheHostDecides`, `theHostTieBreakRunsOverInstalledCasksOnly` (re-run; that last test postdates the first measurement) |
 /// | 6 | *Retired.* `admits`: `.atLeast` uses `!= .orderedDescending` — the comparison it reversed no longer exists; row 20 is the same mutation on the `canRun` call | (was red: `onyxBetaAdmitsMacOS27AndNothingOlder`, `anUnconstrainedCaskDoesNotDisplaceAnAdmittedIncumbent`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne`, `aHostNoCaskAdmitsFallsBackToTheFirst`) |
-/// | 7 | `admits`: `.atMost` uses `!= .orderedAscending` (the sign reversed) | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes` |
+/// | 7 | `admits`: `.atMost` uses `!= .orderedAscending` (the sign reversed) | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes` (re-run, unchanged) |
 /// | 8 | `truncated`: return `version` unchanged (no truncation) — now reaches `==`/`<=` only | red: `atMostAdmitsOlderHostsAndRefusesNewerOnes`, `onyxAdmitsMacOS26PointReleasesAndNothingNewer` (re-run, unchanged) |
-/// | 9 | `admits`: empty-declaration guard fails closed | red: `aDeclarationWithNoParseableVersionAdmitsEveryone` |
+/// | 9 | `admits`: empty-declaration guard fails closed | red: `aDeclarationWithNoParseableVersionAdmitsEveryone` (re-run, unchanged) |
 /// | 10 | `parse`: an unreadable `macos` object returns an empty requirement instead of `nil` | red: `anEmptyMacOSObjectIsNoConstraint` |
 /// | 11 | `CaskEntry.admits`: `macOS?.admits(host) ?? false` | red: `anEmptyMacOSObjectIsNoConstraint`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne` |
 /// | 12 | `HomebrewCaskSource`: gate on the runnable cask only (the old single-entry provenance check) | red: `macOS27StillResolvesTheStableCaskForSomeoneWhoInstalledIt` |
@@ -327,8 +330,9 @@ struct HomebrewCaskMacOSConstraintTests {
 
     /// Numeric hosts only — `x`, `x.y`, `x.y.z` — spanning one major either side of
     /// every floor. Numeric because production's host is always
-    /// `HostOS.numericVersion()`; a host with trailing text is the one input where
-    /// the pre-`canRun` code answered differently, and it cannot occur.
+    /// `HostOS.numericVersion()`. The pre-`canRun` code answered differently in two
+    /// shapes: a separator floor on a numeric host (`edgeFloors`, pinned below),
+    /// and a host with trailing text — which cannot occur, so it is not generated.
     private static func hosts(around floors: [String]) -> [String] {
         let majors = floors.compactMap { Int($0.prefix { $0.isNumber }) }
         guard let low = majors.min(), let high = majors.max() else { return [] }

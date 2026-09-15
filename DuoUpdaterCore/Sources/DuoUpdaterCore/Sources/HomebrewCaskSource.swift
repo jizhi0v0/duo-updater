@@ -61,10 +61,8 @@ public struct HomebrewCaskSource: UpdateSource {
         // several installed (not a shape brew allows for one `.app`, but the index
         // cannot know that) the host breaks the tie, via the one shared copy of
         // that rule.
-        let preferred = CaskEntry.preferred(among: candidates, hostOSVersion: hostOSVersion)
         let installed = candidates.filter { inventory.isInstalled(caskToken: $0.token) }
-        guard let entry = installed.first(where: { $0.token == preferred?.token })
-                ?? installed.first
+        guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
 
         // Self-updating gate: an `auto_updates` cask delegates updates to the app's

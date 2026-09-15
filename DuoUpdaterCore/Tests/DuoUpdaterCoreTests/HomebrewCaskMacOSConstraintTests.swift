@@ -49,8 +49,9 @@ import Foundation
 /// | 10 | `parse`: an unreadable `macos` object returns an empty requirement instead of `nil` | red: `anEmptyMacOSObjectIsNoConstraint` |
 /// | 11 | `CaskEntry.admits`: `macOS?.admits(host) ?? false` | red: `anEmptyMacOSObjectIsNoConstraint`, `aHostBelowTheFirstCasksFloorPicksTheLaterOne` |
 /// | 12 | `HomebrewCaskSource`: gate on the runnable cask only (the old single-entry provenance check) | red: `macOS27StillResolvesTheStableCaskForSomeoneWhoInstalledIt` |
-/// | 13 | `HomebrewCaskSource`: take `installed.first`, dropping the host tie-break | red: `withBothCasksInstalledTheHostDecides` |
+/// | 13 | `HomebrewCaskSource`: take `installed.first`, dropping the host tie-break | red: `withBothCasksInstalledTheHostDecides`, `theHostTieBreakRunsOverInstalledCasksOnly` (re-measured after row 15) |
 /// | 14 | `HomebrewCaskSource`: drop the provenance filter, take the runnable cask | red: `macOS27StillResolvesTheStableCaskForSomeoneWhoInstalledIt`, `neitherCaskInstalledStillDeclines` |
+/// | 15 | `HomebrewCaskSource`: host preference over every candidate, then `installed.first` (added after review, measured on the pre-fix code) | red: `theHostTieBreakRunsOverInstalledCasksOnly` |
 struct HomebrewCaskMacOSConstraintTests {
 
     private static func fixture(_ name: String) throws -> Data {
@@ -240,6 +241,36 @@ struct HomebrewCaskMacOSConstraintTests {
         let on26 = try await Self.source(host: "26.4.0", installed: ["onyx", "onyx@beta"])
             .latestVersion(for: Self.onyxApp())
         #expect(on26?.sourceIdentifier == "onyx")
+    }
+
+    /// The host breaks the tie among the casks that are INSTALLED, not among every
+    /// candidate. The OnyX pair cannot tell those apart — with both installed, the
+    /// two sets are the same — so this needs a third cask that the host prefers but
+    /// the Caskroom does not hold, listed first. Hand-built for that reason; the
+    /// catalog has no such triple.
+    ///
+    /// Mutation (row 15): compute the preference over `candidates` and fall back to
+    /// `installed.first` — the shape this shipped with in review. It answers
+    /// `zzfixture-b`, the installed cask this Mac cannot run.
+    @Test func theHostTieBreakRunsOverInstalledCasksOnly() async throws {
+        func cask(_ token: String, _ requirement: CaskMacOSRequirement) -> CaskEntry {
+            CaskEntry(token: token, version: "1.0", url: nil, autoUpdates: false,
+                      isPkg: false, macOS: requirement)
+        }
+        let at27 = CaskMacOSRequirement(comparison: .atLeast, versions: ["27"])
+        let only26 = CaskMacOSRequirement(comparison: .exactly, versions: ["26"])
+        let casks = [
+            cask("zzfixture-a", at27),    // host prefers it; not installed
+            cask("zzfixture-b", only26),  // installed; this Mac can't run it
+            cask("zzfixture-c", at27),    // installed; this Mac can run it
+        ]
+        let index = CaskIndex(allByAppFilename: ["onyx.app": casks], allByBundleID: [:])
+        let remote = try await HomebrewCaskSource(
+            catalog: HomebrewCaskCatalog(testIndex: index),
+            inventory: BrewLocalInventory(installedTokens: ["zzfixture-b", "zzfixture-c"]),
+            hostOSVersion: "27.0.0"
+        ).latestVersion(for: Self.onyxApp())
+        #expect(remote?.sourceIdentifier == "zzfixture-c")
     }
 
     /// The provenance gate still holds: neither cask installed → not our app.

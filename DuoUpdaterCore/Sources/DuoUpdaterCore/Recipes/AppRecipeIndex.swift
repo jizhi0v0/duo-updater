@@ -1,11 +1,48 @@
 import Foundation
 
-/// The one hand-maintained list: every app family under `Recipes/`, one
-/// line each, sorted by family slug (case-insensitive) so a new family has
-/// exactly one place to go. `AppRecipeIndexTests` holds it to that order, to
-/// the file names, and to one family per bundle id.
+/// Every app family, from two places: the Swift families under `Recipes/`, listed
+/// by hand in `swiftFamilies`, and the data families under `Resources/Recipes/`,
+/// one `<family>.json5` file each, found by listing that directory in the
+/// target's resource bundle (`RecipeFamilyFile`).
+///
+/// `all` merges the two and sorts by family slug (case-insensitive).
+/// `AppRecipeIndexTests` holds it to that order, to the file names in both
+/// directories, and to one family per bundle id.
+///
+/// A data family that does not decode traps on first access, naming the file and
+/// the coding path. So does a bundle with no `Recipes` directory in it, or one
+/// with no family files in it. Never a quiet skip: a dropped family reads, in the
+/// app and in `duo verify`, exactly like an app nobody wrote a recipe for.
 public enum AppRecipeIndex {
-    public static let all: [AppRecipeSet] = [
+    public static let all: [AppRecipeSet] = (swiftFamilies + dataFamilies)
+        .sorted { $0.family.lowercased() < $1.family.lowercased() }
+
+    /// The families written as data, decoded from the resource bundle.
+    static let dataFamilies: [AppRecipeSet] = dataFamilies(
+        in: Bundle.module.url(forResource: RecipeFamilyFile.directoryName, withExtension: nil),
+        bundle: Bundle.module.bundlePath)
+
+    /// The trap, apart from `Bundle.module` so a test can point it at a directory.
+    /// (`Bundle.module` itself traps first, "unable to find bundle named …", when
+    /// the bundle is not where the executable looks for it.)
+    static func dataFamilies(in directory: URL?, bundle: String) -> [AppRecipeSet] {
+        guard let directory else {
+            fatalError("""
+                recipe data: no `\(RecipeFamilyFile.directoryName)` directory in \(bundle). \
+                The resource bundle is incomplete; rebuild it rather than running without those families.
+                """)
+        }
+        do {
+            return try RecipeFamilyFile.loadAll(from: directory)
+        } catch {
+            fatalError("recipe data: \(error)")
+        }
+    }
+
+    /// The hand-maintained list of families still written in Swift: one line
+    /// each, sorted by family slug (case-insensitive) so a new family has exactly
+    /// one place to go.
+    static let swiftFamilies: [AppRecipeSet] = [
         ai_deepseek_dsh_desktop.set,
         ai_elementlabs_lmstudio.set,
         ai_opencode_desktop.set,

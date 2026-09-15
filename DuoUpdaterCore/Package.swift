@@ -28,7 +28,15 @@ let package = Package(
             dependencies: [
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "SystemPackage", package: "swift-system"),
-            ]
+            ],
+            // Recipe families written as data, one `<family>.json5` per family, read
+            // at runtime through `Bundle.module` (`AppRecipeIndex.dataFamilies`).
+            // `.copy`, not `.process`: the directory is shipped as it is, so the
+            // loader lists it by name. Every executable that reaches the index needs
+            // the resulting `DuoUpdaterCore_DuoUpdaterCore.bundle` at runtime — beside
+            // a command-line binary, in `Contents/Resources` of an app; see
+            // `scripts/build-cli.sh` for the one install route that copies files by hand.
+            resources: [.copy("Resources/Recipes")]
         ),
         .testTarget(
             name: "DuoUpdaterCoreTests",

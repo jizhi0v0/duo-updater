@@ -5,9 +5,10 @@ import Foundation
 /// `RecipeCodableConformances.swift` (and `ChangelogRecipe.swift`, whose conformance
 /// predates this file).
 ///
-/// Nothing in the shipping app or `duo` decodes a recipe from JSON yet. This exists
-/// so recipe data can later live in files without the format being invented while
-/// the data is moved.
+/// The shipping app and `duo` decode it from the family files under
+/// `Resources/Recipes/` (`RecipeFamilyFile`, which also describes the file's own
+/// top level and its JSON5 dialect). It was fixed before any data moved, so the
+/// format was not invented while the data was moved.
 ///
 /// ## Shapes
 ///

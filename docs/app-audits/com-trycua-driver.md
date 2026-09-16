@@ -190,6 +190,15 @@ nightly keeps following nightly",安装脚本的错误信息也写着
   - `spctl -a -t exec`: 退 0，`source=Notarized Developer ID`
   - 对应到闸：`SignatureVerifier` gate 2（deep/strict）、gate 3（Team ID 与被替换拷贝相同）
     都过 —— 而 gate 3 天然成立，因为装机上的那份就是同一个厂商产物。
+- ✅ **它是 `vendorDownloadPassesSignatureGate` 的 `tarGz` 证人。** 那个闸之前只有 zip 和 dmg
+  两行，所以 `ArchiveExtractor.fromTar` 和 `firstApp` 向下递归的那一层从来没有对**真实下载的厂商字节**
+  跑过。选它当头一个候选正是因为嵌套：实测 2026-09-16，Cline（`Cline.app/`）和
+  Conductor（`Conductor.app/`）都把 bundle 放在归档根上，只有这个包需要递归。
+  变异验过：把 `firstApp` 的递归关掉，这条测试当场红在 `noAppFound`。
+  闸按装机拷贝的轨道选 rule：`~/.cua-driver/release-channel` 缺失时走 stable 那条
+  （两条轨资产形状相同，所以哪条都覆盖同一段递归）。
+  ⚙️ **只在本机生效**：runner 镜像只有 Safari / Chrome / Edge / Firefox，CI 上这一行打
+  “no tarGz candidate installed here”。每跑一轮 +66 MB。
 
 ## 已知问题
 - ⚠️ **nightly 只能做到 base 版本粒度，同一 base 下的后续 nightly 看不见。**

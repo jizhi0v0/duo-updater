@@ -177,6 +177,57 @@ struct NotifiedUpdateVersionsTests {
         #expect(capped.wasAnnounced(side("3.39.0"), under: [key]))
     }
 
+    /// The single-version projection an older build reads has to name the version
+    /// announced LAST, or that build re-announces whatever came after it.
+    ///
+    /// Mutation: `lastAnnounced` mapping `\.first`. The old build then believes
+    /// "1.0" was the last thing announced and posts a banner for "1.2".
+    @Test func theLegacyProjectionNamesTheNewestVersion() {
+        var ledger = NotifiedUpdateVersions()
+        for v in ["1.0", "1.1", "1.2"] { ledger.record(side(v), under: key) }
+        #expect(ledger.lastAnnounced == [key: "1.2"])
+    }
+
+    /// The ping-pong this two-key scheme exists for: a build predating the list
+    /// runs in between, announces something, and writes only the single-version
+    /// key. That announcement must not be repeated when the list build comes back.
+    ///
+    /// Mutation: dropping the `mergeLastAnnounced` call — or its whole body. "9.9"
+    /// is then absent from the ledger and announced a second time.
+    @Test func aVersionAnnouncedByAnOlderBuildIsNotAnnouncedAgain() {
+        var ledger = NotifiedUpdateVersions()
+        ledger.record(side("1.0"), under: key)
+        // What the older build left behind: it overwrote the single-version key.
+        var reloaded = NotifiedUpdateVersions(persisted: ledger.persistable)
+        reloaded.mergeLastAnnounced([key: "9.9"])
+        #expect(reloaded.wasAnnounced(side("9.9"), under: [key]))
+        // …without losing what the list already held.
+        #expect(reloaded.wasAnnounced(side("1.0"), under: [key]))
+    }
+
+    /// And the ordinary case — this build wrote both keys — must be a no-op, not a
+    /// second copy that eats a slot and reorders the list.
+    ///
+    /// Mutation: dropping the `list.contains(version)` guard in
+    /// `mergeLastAnnounced`.
+    @Test func mergingThisBuildsOwnProjectionChangesNothing() {
+        var ledger = NotifiedUpdateVersions()
+        for v in ["1.0", "1.1", "1.2"] { ledger.record(side(v), under: key) }
+        var reloaded = NotifiedUpdateVersions(persisted: ledger.persistable)
+        reloaded.mergeLastAnnounced(ledger.lastAnnounced)
+        #expect(reloaded == ledger)
+    }
+
+    /// A non-string value under the legacy key (a hand-edited preference, or a
+    /// future shape) is skipped rather than crashing or poisoning the list.
+    @Test func mergingIgnoresValuesThatAreNotStrings() {
+        var ledger = NotifiedUpdateVersions()
+        ledger.record(side("1.0"), under: key)
+        ledger.mergeLastAnnounced([key: 42, legacy: ["not", "a", "version"]])
+        #expect(ledger.entries[key] == ["1.0"])
+        #expect(ledger.entries[legacy] == nil)
+    }
+
     /// Apps that left the scan are dropped; apps still in it keep every version
     /// they were announced for.
     ///

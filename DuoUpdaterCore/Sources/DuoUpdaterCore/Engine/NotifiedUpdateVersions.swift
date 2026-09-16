@@ -90,8 +90,42 @@ public struct NotifiedUpdateVersions: Equatable, Sendable {
         self.entries = value
     }
 
-    /// The plist-safe form to persist.
+    /// The plist-safe form to persist under the list key.
     public var persistable: [String: [String]] { entries }
+
+    /// The single-version projection an older build reads: app key → the version
+    /// most recently announced for it.
+    ///
+    /// Written alongside `persistable`, to the key this ledger used before it grew
+    /// a list, and that redundancy is the point. A build predating the list reads
+    /// its key as `[String: String]`, and that cast fails for the WHOLE dictionary
+    /// the moment any value is an array — not per entry — so a single downgrade,
+    /// or a dev build launched beside the released one on the same preference
+    /// domain, would start from an empty ledger and announce every pending update
+    /// at once. Keeping the old key accurate means an older build sees exactly
+    /// what it saw before, and this one loses nothing: `mergeLastAnnounced` folds
+    /// whatever that build recorded back in.
+    public var lastAnnounced: [String: String] {
+        entries.compactMapValues(\.last)
+    }
+
+    /// Fold in the single-version key, for the versions the list does not already
+    /// hold.
+    ///
+    /// Two things write that key: this build (as `lastAnnounced`, where the value
+    /// is by construction already the newest element and the merge is a no-op) and
+    /// an older build that ran in between, whose announcement the list has never
+    /// seen. Only the second case adds anything, and without it that build's
+    /// banner would be posted a second time here.
+    public mutating func mergeLastAnnounced(_ legacy: [String: Any]) {
+        for (key, stored) in legacy {
+            guard let version = stored as? String else { continue }
+            var list = entries[key] ?? []
+            guard !list.contains(version) else { continue }
+            list.append(version)
+            entries[key] = Array(list.suffix(Self.capacity))
+        }
+    }
 
     /// What to store for an offered update: "1.7.3 (194)", "1.7.3" or "194",
     /// whichever the pair supports. Empty when the offer names no version at all —

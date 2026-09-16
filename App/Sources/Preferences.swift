@@ -91,6 +91,9 @@ final class Preferences {
         static let fullDiskAccessAskedApps = "FullDiskAccessGuidanceApps"
         static let lastSeenSelfVersion = "LastSeenSelfVersion"   // our own version whose notes the user has seen
         static let notifiedVersions = "NotifiedVersions"
+        /// The list form. Deliberately a second key rather than a new shape under
+        /// the one above: see `NotifiedUpdateVersions.lastAnnounced`.
+        static let notifiedVersionList = "NotifiedVersionsList"
         static let notifiedStagedVersions = "NotifiedStagedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
@@ -332,12 +335,18 @@ final class Preferences {
     /// still announce its next build). A bounded list rather than one version
     /// because vendor endpoints answer inconsistently — see the type's own
     /// documentation for the measurements and for why the tempting fix (ignore
-    /// versions that go backwards) is the wrong one. Persisted so the banner fires regardless
-    /// of *which* refresh path first surfaces the update — manual menu-open or
+    /// versions that go backwards) is the wrong one. Persisted so the banner fires
+    /// regardless of *which* refresh path first surfaces the update — manual menu-open or
     /// scheduled background — instead of the in-memory list silently becoming the
     /// baseline; and so the same version isn't re-announced across relaunches.
     private(set) var notifiedVersions: NotifiedUpdateVersions {
-        didSet { defaults.set(notifiedVersions.persistable, forKey: Key.notifiedVersions) }
+        didSet {
+            defaults.set(notifiedVersions.persistable, forKey: Key.notifiedVersionList)
+            // And the single-version projection under the key this used to own, so a
+            // build that predates the list keeps reading its own shape instead of
+            // failing the cast and re-announcing everything.
+            defaults.set(notifiedVersions.lastAnnounced, forKey: Key.notifiedVersions)
+        }
     }
 
     /// Per-app staged build we've already posted a "downloaded it on its own —
@@ -522,8 +531,14 @@ final class Preferences {
             timesAsked: defaults.integer(forKey: Key.fullDiskAccessAsks),
             appsWhenLastAsked: Set(defaults.stringArray(forKey: Key.fullDiskAccessAskedApps) ?? []))
         self.lastSeenSelfVersion = defaults.string(forKey: Key.lastSeenSelfVersion)
-        self.notifiedVersions =
-            NotifiedUpdateVersions(persisted: defaults.dictionary(forKey: Key.notifiedVersions) ?? [:])
+        // The list key is the ledger; the old single-version key is folded in for
+        // whatever another build announced while this one was not the one running.
+        // On the first launch after the upgrade the list key is absent and the fold
+        // is the whole migration.
+        var ledger = NotifiedUpdateVersions(
+            persisted: defaults.dictionary(forKey: Key.notifiedVersionList) ?? [:])
+        ledger.mergeLastAnnounced(defaults.dictionary(forKey: Key.notifiedVersions) ?? [:])
+        self.notifiedVersions = ledger
         self.notifiedStagedVersions =
             defaults.dictionary(forKey: Key.notifiedStagedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)

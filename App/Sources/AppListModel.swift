@@ -5974,7 +5974,7 @@ final class AppListModel {
             // Gating on `userAskedToQuit` alone looked equivalent and was not:
             // that reason is only ever set by the App Store AX sheet, and the
             // strategy preference coerces every non-region-locked update onto
-            // `mas`, which raises no sheet. So the arm was `storeMayCloseIt` in
+            // `mas`, which raises no sheet of ours. So the arm was `storeMayCloseIt` in
             // the shipping configuration, this dropped it, and a running app that
             // `storedownloadd` terminated a few seconds after the install
             // returned stayed closed with nothing recorded — the exact failure

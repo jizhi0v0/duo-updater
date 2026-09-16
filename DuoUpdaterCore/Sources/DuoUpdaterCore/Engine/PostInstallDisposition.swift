@@ -36,8 +36,8 @@ public enum PostInstallDisposition: Sendable, Equatable {
     ///   after our installer saw the bundle change (both apps). Answering from
     ///   the pre-install flag held both rows on "Relaunch now" until the batch
     ///   ended, over an app already running the new build.
-    /// - storedownloadd terminating the app — it did not (DingTalk and, through
-    ///   `mas`, LocalSend, 2026-08-22, commits 2eecca24 and 912d79ae;
+    /// - storedownloadd terminating the app — it did not (DingTalk, reported in
+    ///   2eecca24; LocalSend through `mas`, 2026-08-22, 912d79ae;
     ///   `AppStoreQuitPolicy`). LocalSend stayed closed even though the store's
     ///   dialog said it would reopen, so a sheet being shown is not the signal
     ///   either. The reopen there is ours, armed before the install.

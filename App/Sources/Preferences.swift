@@ -326,15 +326,18 @@ final class Preferences {
         }
     }
 
-    /// Per-app version we've already posted a "new update available" notification
-    /// for (key → the offered version, as `NotifiedUpdateVersions.announceKey`
-    /// spells it: build-aware, so a vendor that freezes its marketing string can
-    /// still announce its next build). Persisted so the banner fires regardless
+    /// Per-app versions we've already posted a "new update available" notification
+    /// for (key → the offered versions, as `NotifiedUpdateVersions.announceKey`
+    /// spells them: build-aware, so a vendor that freezes its marketing string can
+    /// still announce its next build). A bounded list rather than one version
+    /// because vendor endpoints answer inconsistently — see the type's own
+    /// documentation for the measurements and for why the tempting fix (ignore
+    /// versions that go backwards) is the wrong one. Persisted so the banner fires regardless
     /// of *which* refresh path first surfaces the update — manual menu-open or
     /// scheduled background — instead of the in-memory list silently becoming the
     /// baseline; and so the same version isn't re-announced across relaunches.
-    private(set) var notifiedVersions: [String: String] {
-        didSet { defaults.set(notifiedVersions, forKey: Key.notifiedVersions) }
+    private(set) var notifiedVersions: NotifiedUpdateVersions {
+        didSet { defaults.set(notifiedVersions.persistable, forKey: Key.notifiedVersions) }
     }
 
     /// Per-app staged build we've already posted a "downloaded it on its own —
@@ -365,7 +368,7 @@ final class Preferences {
 
     /// Overwrite the notified-version baseline (the model recomputes the whole map
     /// each check, keyed by `key(for:)`).
-    func setNotifiedVersions(_ versions: [String: String]) {
+    func setNotifiedVersions(_ versions: NotifiedUpdateVersions) {
         notifiedVersions = versions
     }
 
@@ -519,7 +522,8 @@ final class Preferences {
             timesAsked: defaults.integer(forKey: Key.fullDiskAccessAsks),
             appsWhenLastAsked: Set(defaults.stringArray(forKey: Key.fullDiskAccessAskedApps) ?? []))
         self.lastSeenSelfVersion = defaults.string(forKey: Key.lastSeenSelfVersion)
-        self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
+        self.notifiedVersions =
+            NotifiedUpdateVersions(persisted: defaults.dictionary(forKey: Key.notifiedVersions) ?? [:])
         self.notifiedStagedVersions =
             defaults.dictionary(forKey: Key.notifiedStagedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)

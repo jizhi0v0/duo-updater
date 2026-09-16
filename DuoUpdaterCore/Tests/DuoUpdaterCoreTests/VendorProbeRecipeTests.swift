@@ -629,3 +629,77 @@ releaseDate: '2026-08-23T07:44:52.995Z'
         String(chatboxMacYmlFixture[group])
             == "wUKJID49530D5hi9bMH9sLx8H/rj39wsZC9+lIo1H5790bKS/rptqfmSTKmybBCiBYJfBruQl1b0V2+uCun1KQ==")
 }
+
+// MARK: - Memoh
+
+/// `desktopresource.memoh.ai/latest-mac.yml` as served 2026-09-16, verbatim.
+/// arm64 is listed first here, so a bare first-match `sha512:` would also land
+/// on the right digest — which is why the reordered case below exists.
+private let memohMacYmlFixture = """
+    version: "2026.9.16-1"
+    files:
+      - url: "Memoh-2026.9.16-1-mac-arm64.zip"
+        sha512: "2nQGysc9RuYK2F6ZxeO1Cym5MXTqLau7xQN3QfGsudnRI/elyZpP5JjlNVMjbyKfcT4O60yowzUDuvGusgzkTQ=="
+        size: 133932953
+      - url: "Memoh-2026.9.16-1-mac-x64.zip"
+        sha512: "0PWBao+XF6wd/PE0NABjXiXDAgy/LJdaNaVhBe+JUMLbXWC8RHnuGVLDAgdIjzwKbs4JZfyR/MuloQpdDBxTuw=="
+        size: 138852100
+    path: "Memoh-2026.9.16-1-mac-x64.zip"
+    sha512: "0PWBao+XF6wd/PE0NABjXiXDAgy/LJdaNaVhBe+JUMLbXWC8RHnuGVLDAgdIjzwKbs4JZfyR/MuloQpdDBxTuw=="
+    releaseDate: "2026-09-16T09:15:57.934Z"
+    """
+
+/// The installed bundle's CFBundleShortVersionString is `2026.9.16-1`, suffix
+/// included, so the probe must keep the per-day counter — stripping it would
+/// read one build behind the installed copy forever.
+@Test func memohKeepsThePerDayBuildCounterItsBundleAlsoCarries() {
+    #expect(batchVersion("ai.memoh.desktop", in: memohMacYmlFixture) == "2026.9.16-1")
+    #expect(VersionComparator.isNewer("2026.9.16-2", than: "2026.9.16-1"))
+    #expect(VersionComparator.isNewer("2026.9.17-1", than: "2026.9.16-3"))
+}
+
+/// A non-numeric suffix is not a build counter: the probe misses (unknown)
+/// rather than reading a prerelease as the stable track.
+@Test func memohPatternRejectsANonNumericSuffix() {
+    #expect(batchVersion("ai.memoh.desktop", in: """
+        version: "2026.9.16-beta.1"
+        """) == nil)
+}
+
+@Test func memohInstallPinsTheArm64ZipAndItsOwnChecksum() throws {
+    let recipe = try #require(batchRecipe("ai.memoh.desktop"))
+    let install = try #require(recipe.install)
+    #expect(install.kind == .zip)
+    #expect(
+        resolveRelativeInstallURL(recipe, body: memohMacYmlFixture)?.absoluteString
+            == "https://desktopresource.memoh.ai/Memoh-2026.9.16-1-mac-arm64.zip")
+    let checksum = try #require(install.checksumPattern)
+    #expect(
+        VendorProbeRecipe.extractVersion(from: memohMacYmlFixture, pattern: checksum)
+            == "2nQGysc9RuYK2F6ZxeO1Cym5MXTqLau7xQN3QfGsudnRI/elyZpP5JjlNVMjbyKfcT4O60yowzUDuvGusgzkTQ==")
+}
+
+/// Same feed with the two entries swapped. Nothing but the checksum pattern's
+/// anchor on the arm64 `url:` line keeps the x64 digest (listed first now, and
+/// the one `path:` names) off the arm64 download.
+@Test func memohChecksumStaysOnTheArm64EntryWhenTheFeedIsReordered() throws {
+    let reordered = """
+        version: "2026.9.16-1"
+        files:
+          - url: "Memoh-2026.9.16-1-mac-x64.zip"
+            sha512: "0PWBao+XF6wd/PE0NABjXiXDAgy/LJdaNaVhBe+JUMLbXWC8RHnuGVLDAgdIjzwKbs4JZfyR/MuloQpdDBxTuw=="
+            size: 138852100
+          - url: "Memoh-2026.9.16-1-mac-arm64.zip"
+            sha512: "2nQGysc9RuYK2F6ZxeO1Cym5MXTqLau7xQN3QfGsudnRI/elyZpP5JjlNVMjbyKfcT4O60yowzUDuvGusgzkTQ=="
+            size: 133932953
+        path: "Memoh-2026.9.16-1-mac-x64.zip"
+        """
+    let recipe = try #require(batchRecipe("ai.memoh.desktop"))
+    let checksum = try #require(recipe.install?.checksumPattern)
+    #expect(
+        VendorProbeRecipe.extractVersion(from: reordered, pattern: checksum)
+            == "2nQGysc9RuYK2F6ZxeO1Cym5MXTqLau7xQN3QfGsudnRI/elyZpP5JjlNVMjbyKfcT4O60yowzUDuvGusgzkTQ==")
+    #expect(
+        resolveRelativeInstallURL(recipe, body: reordered)?.lastPathComponent
+            == "Memoh-2026.9.16-1-mac-arm64.zip")
+}

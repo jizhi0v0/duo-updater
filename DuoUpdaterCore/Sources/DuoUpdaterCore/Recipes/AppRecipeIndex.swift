@@ -9,6 +9,7 @@ public enum AppRecipeIndex {
         ad_neko_petex.set,
         ai_deepseek_dsh_desktop.set,
         ai_elementlabs_lmstudio.set,
+        ai_memoh_desktop.set,
         ai_opencode_desktop.set,
         ai_perplexity_comet.set,
         app_chatwise.set,

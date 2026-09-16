@@ -47,7 +47,14 @@ public enum SourceStack {
         }
         // Last resort: bespoke per-vendor version endpoints. Only fires when
         // the earlier sources all miss and a recipe exists.
-        sources.append(VendorProbeSource())
+        //
+        // `resolvesInstallRedirects: false` — this stack is what a user's periodic
+        // check runs through, and a `.redirect` install spec must not cost it a
+        // request to the vendor's download endpoint every round for an answer only
+        // an install needs. `duo verify` builds its own source and leaves the
+        // default on, because auditing where that redirect lands is its job. The
+        // full reasoning and the measurement are on the property (issue #671).
+        sources.append(VendorProbeSource(resolvesInstallRedirects: false))
         // AFTER the bespoke recipes, not before. Eight of the nine Electron apps
         // on the development machine already have a recipe whose install spec
         // picks a particular asset, and moving this ahead of them would swap the

@@ -382,7 +382,7 @@ Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has no dedicated test for
 the host-gate release point itself (it's exercised indirectly by
 `AppListModel`'s own concurrency, which the app-layer test target does not
 construct — see `CLAUDE.md`'s "App 层的测试 target" section for why). The
-per-host/App-Store gate split itself is `hostInstallGate(for:)` and
+per-host/App-Store gate split itself is `hostInstallGate(for:appID:)` and
 `Self.appStoreInstallGate` in `AppListModel.swift`, upstream of §1.
 
 Same absence for §2: nothing constructs `AppListModel` to exercise

@@ -2,7 +2,7 @@ name: DuoUpdater
 options:
   bundleIdPrefix: com.duoupdater
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"
   createIntermediateGroups: true
 
 # Apple Silicon only, stated explicitly rather than inherited from whatever the

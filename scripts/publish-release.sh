@@ -853,7 +853,7 @@ GITHUB_NOTES_FILE="$DIST_DIR/release-notes-$TAG-github.md"
 
 ---
 
-**Requires macOS 14 or later on an Apple Silicon Mac.** Intel Macs are not supported.
+**Requires macOS 15 or later on an Apple Silicon Mac.** Intel Macs are not supported.
 EOF
 } > "$GITHUB_NOTES_FILE"
 

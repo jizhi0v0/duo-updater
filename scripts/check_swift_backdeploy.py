@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Refuse to ship a Mach-O that needs a Swift runtime library macOS 14 lacks.
+"""Refuse to ship a Mach-O that needs a Swift runtime library macOS 15 lacks.
 
     scripts/check_swift_backdeploy.py <app-bundle-or-binary> ...
 
-The deployment target is macOS 14. A Swift 6.2+ toolchain back-deploys `Span`
+The deployment target is macOS 15. A Swift 6.2+ toolchain back-deploys `Span`
 (which swift-subprocess uses) by linking `@rpath/libswiftCompatibilitySpan.dylib`.
 The OS carries that library in `/usr/lib/swift` from macOS 26 on (this machine,
 macOS 27, loads it from there); an older OS does not, so a binary that links it
@@ -13,7 +13,7 @@ fine — every test here runs on the machine that built it, so nothing else woul
 notice. Reported in the wild for exactly this shape: a helper tool using
 Subprocess, built with Xcode 26.3, that failed to load the library on older
 macOS (developer.apple.com/forums/thread/817488). Not reproduced here: there is
-no macOS 14 machine to launch on.
+no macOS 15 machine to launch on.
 
 A load command fails the check when it names
 
@@ -41,7 +41,7 @@ executable rather than the main one, whose `@executable_path` is that
 executable's. Nothing shipped here resolves a Swift library that way today.
 
 Not covered, said so rather than implied: a `/usr/lib/swift/` library that
-exists on the build machine's OS but not on macOS 14 (dyld would fail the same
+exists on the build machine's OS but not on macOS 15 (dyld would fail the same
 way). Nothing produces one today; a table of what each OS ships is the fix if
 something does.
 """
@@ -187,11 +187,11 @@ def main(argv):
             return 1
         for binary, dep, why in found:
             print(f"✗ {binary} links {dep} — {why}.\n"
-                  f"  It would fail to launch on macOS 14.", file=sys.stderr)
+                  f"  It would fail to launch on macOS 15.", file=sys.stderr)
             failed = True
         if not found:
             print(f"   {checked} Mach-O file(s) under {target}: no Swift runtime "
-                  f"library missing from macOS 14")
+                  f"library missing from macOS 15")
     return 1 if failed else 0
 
 

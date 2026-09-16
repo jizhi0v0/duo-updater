@@ -21,7 +21,7 @@ import PackageDescription
 // `ChildProcess` in the core package.
 let package = Package(
     name: "duo",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     // Declared explicitly because the XcodeGen target that builds the *shipping*
     // (Developer ID signed) `duo` links `DuoKit` as a package product, and a
     // library target with no product declaration is not one — SwiftPM

@@ -12,7 +12,7 @@ import PackageDescription
 // none of them ships in the app.
 let package = Package(
     name: "application-test",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     dependencies: [
         .package(path: "../DuoUpdaterCore")
     ],

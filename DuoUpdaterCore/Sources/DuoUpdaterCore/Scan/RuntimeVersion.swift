@@ -212,9 +212,7 @@ public enum RuntimeVersion {
     /// value, so the cost is a duplicated read rather than a wrong answer, and
     /// de-duplicating in flight is not worth a second lock.
     ///
-    /// `Synchronization.Mutex` would be the modern way to hold this and needs
-    /// macOS 15; the package targets 14. A lock around a dictionary is what the
-    /// rest of this package does.
+    /// A lock around a dictionary is what the rest of this package does.
     ///
     /// This is the in-process half only. `.tauri`'s verdicts — found or proved
     /// absent, never `.unreadable` — are mirrored to `TauriProofStore` on disk,

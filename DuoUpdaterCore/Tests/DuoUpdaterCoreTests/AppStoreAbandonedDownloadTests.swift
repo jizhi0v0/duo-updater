@@ -18,7 +18,8 @@ struct AppStoreAbandonedDownloadTests {
     /// Feed a sequence of readings through the watchdog the way the loop does, and
     /// answer at which step (1-based) it declared the download abandoned.
     private func firstAbandonedStep(
-        _ readings: [Reading], sawProgress: [Bool]? = nil, awaitingUser: [Bool]? = nil
+        _ readings: [Reading], sawProgress: [Bool]? = nil, awaitingUser: [Bool]? = nil,
+        viaUpdatesList: Bool = false
     ) -> Int? {
         var offering = 0
         for (i, reading) in readings.enumerated() {
@@ -26,6 +27,7 @@ struct AppStoreAbandonedDownloadTests {
                 reading: reading,
                 sawProgress: sawProgress?[i] ?? true,
                 awaitingUser: awaitingUser?[i] ?? false,
+                viaUpdatesList: viaUpdatesList,
                 offeringPolls: offering)
             offering = step.offeringPolls
             if step.abandoned { return i + 1 }
@@ -173,6 +175,20 @@ struct AppStoreAbandonedDownloadTests {
         #expect(firstAbandonedStep([Reading](repeating: .offering, count: AX.abandonedGracePolls - 1)) == nil)
     }
 
+    /// The Updates-list route is not judged this way. Its "button" is a row in a list
+    /// App Store rebuilds on its own schedule, and with the app not running nothing
+    /// sets `continued`, so the row is read for the whole swap. Neither of the two
+    /// replayed runs used that route, and whether the row re-renders a plain "Update"
+    /// mid-swap is not established — so the rule stays off there rather than resting
+    /// on the assumption that it does not.
+    ///
+    /// Mutation: drop the `viaUpdatesList` guard.
+    @Test func theUpdatesListRouteIsNotJudgedThisWay() {
+        let gaveUp = [Reading](repeating: .offering, count: 900)
+        #expect(firstAbandonedStep(gaveUp) != nil, "the product-page route still decides")
+        #expect(firstAbandonedStep(gaveUp, viaUpdatesList: true) == nil)
+    }
+
     // MARK: - What the spent budget says about itself
 
     /// The line logged when the poll budget runs out reports the time it measured. Its
@@ -180,10 +196,10 @@ struct AppStoreAbandonedDownloadTests {
     ///
     /// Mutation: go back to a fixed string, or drop `elapsed` from the note.
     @Test func aSpentBudgetReportsTheTimeItActuallyTook() {
-        let note = AX.budgetExhaustedNote(polls: 900, elapsed: 973)
+        let note = AX.budgetExhaustedNote(polls: 900, elapsed: .seconds(973))
         #expect(note.contains("973"))
         #expect(!note.contains("6-min"))
-        #expect(AX.budgetExhaustedNote(polls: 900, elapsed: 61) != note,
+        #expect(AX.budgetExhaustedNote(polls: 900, elapsed: .seconds(61)) != note,
                 "two runs of different length must not read the same")
     }
 }

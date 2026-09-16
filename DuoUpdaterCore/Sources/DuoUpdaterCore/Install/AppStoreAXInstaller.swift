@@ -785,7 +785,12 @@ public actor AppStoreAXInstaller {
         // claimed "6-min poll cap reached" for a wait of 16 min 13 s (Xcode, pressed
         // 00:00:48.743, gave up 00:17:01.771) — a diagnostic that reports a number it
         // did not measure sends the next reader looking in the wrong place.
-        let startedAt = Date()
+        //
+        // `ContinuousClock`, not `Date`: a wall clock can be stepped (an NTP
+        // correction mid-install prints a negative duration) and stops counting
+        // across sleep. A line added because the old number was not measured has
+        // to be measured on something that cannot be moved underneath it.
+        let startedAt = ContinuousClock.now
         var polls = 0
         while polls < 900 {
             if !askedToQuit { polls += 1 }
@@ -1115,10 +1120,11 @@ public actor AppStoreAXInstaller {
                 reading: Self.offerReading(buttonTitle: offerTitle),
                 sawProgress: sawProgress,
                 awaitingUser: sheetPresent || askedToQuit,
+                viaUpdatesList: viaUpdatesList,
                 offeringPolls: offeringPolls)
             offeringPolls = abandon.offeringPolls
             if abandon.abandoned {
-                Log.install.error("appstore-ax: \(appName, privacy: .public) gave up — the App Store has offered the update again for \(Self.abandonedGracePolls) polls with nothing installed (title=\(offerTitle ?? "-", privacy: .public), \(Int(Date().timeIntervalSince(startedAt).rounded()))s after the press)")
+                Log.install.error("appstore-ax: \(appName, privacy: .public) gave up — the App Store has offered the update again for \(Self.abandonedGracePolls) polls with nothing installed (title=\(offerTitle ?? "-", privacy: .public), \((ContinuousClock.now - startedAt).components.seconds)s after the press)")
                 throw AXError.storeGaveUp(appName)
             }
 
@@ -1153,7 +1159,7 @@ public actor AppStoreAXInstaller {
         // What a spent budget means depends on what is still true — see
         // `exhaustedBudgetError`.
         let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
-        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — \(Self.budgetExhaustedNote(polls: polls, elapsed: Date().timeIntervalSince(startedAt)), privacy: .public) (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
+        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — \(Self.budgetExhaustedNote(polls: polls, elapsed: ContinuousClock.now - startedAt), privacy: .public) (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
         throw Self.exhaustedBudgetError(appName: appName, continued: continued, appRunning: stillOpen)
     }
 
@@ -1440,9 +1446,23 @@ public actor AppStoreAXInstaller {
     /// - Before any progress the count stays at zero: a plain "Update" then is simply
     ///   the button we are about to press, or one whose press did not take, which is
     ///   the idle fail-fast branch's business and not this one's.
+    ///
+    /// ⚠️ **Only the product-page route is judged this way.** Both runs above are
+    /// `viaUpdatesList=false`, and the Updates-list route differs in exactly the way
+    /// that matters here: the "button" is a row in a list App Store rebuilds on its
+    /// own schedule, and with the app not running there is no quit sheet, so nothing
+    /// sets `continued` and the row keeps being read for the whole swap — the window
+    /// `swapHasStalled` deliberately allows 750 unreadable polls for. A row that
+    /// re-renders a plain "Update" while that swap is in flight would accumulate
+    /// `.offering` polls, and `.absent` holding rather than clearing means the
+    /// `button=nil` polls between them do not undo it. Whether that list does re-render
+    /// an Update button mid-swap is **not established either way** — so this stays off
+    /// there rather than resting on the assumption that it does not.
     static func abandonWatchdog(
-        reading: OfferReading, sawProgress: Bool, awaitingUser: Bool, offeringPolls: Int
+        reading: OfferReading, sawProgress: Bool, awaitingUser: Bool,
+        viaUpdatesList: Bool, offeringPolls: Int
     ) -> (offeringPolls: Int, abandoned: Bool) {
+        guard !viaUpdatesList else { return (0, false) }
         guard sawProgress else { return (0, false) }
         guard !awaitingUser else { return (offeringPolls, false) }
         switch reading {
@@ -1461,8 +1481,8 @@ public actor AppStoreAXInstaller {
     /// not what any run takes, because each poll also walks the AX tree two or three
     /// times and the clock stops entirely while the user is being asked to quit. The
     /// Xcode run of 2026-09-16 spent 973 s under that label.
-    static func budgetExhaustedNote(polls: Int, elapsed: TimeInterval) -> String {
-        "\(polls)-poll budget spent, \(Int(elapsed.rounded()))s elapsed"
+    static func budgetExhaustedNote(polls: Int, elapsed: Duration) -> String {
+        "\(polls)-poll budget spent, \(elapsed.components.seconds)s elapsed"
     }
 
     /// Which failure a spent poll budget is, read off what is true when it runs out.

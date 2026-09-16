@@ -587,9 +587,10 @@ public enum Verify {
     /// ⚠️ `remote.downloadURL` is NOT always an installer. When the install plan
     /// fails to resolve, `VendorProbeSource.makeRemoteVersion` is called with
     /// `install: nil, plan: nil` and fills `downloadURL` with
-    /// `recipe.downloadURL` — the vendor's HUMAN download page. Handing that to
-    /// the pkgarch sweep makes it range-read an HTML page and file
-    /// `notAFlatPackage` as `ok`: a green verdict on a recipe whose install spec
+    /// `recipe.downloadURL` — the vendor's HUMAN download page — or, for a recipe
+    /// with no page, the probe endpoint itself (Discord PTB's update manifest).
+    /// Handing either to the pkgarch sweep makes it range-read a page or a feed
+    /// and file `notAFlatPackage` as `ok`: a green verdict on a recipe whose install spec
     /// just died, which is precisely the drift this is supposed to notice.
     ///
     /// The probe already says so in its own vocabulary, so read that rather than

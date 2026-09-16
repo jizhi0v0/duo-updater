@@ -82,6 +82,7 @@ public actor VendorInstaller {
     public func download(
         _ result: UpdateResult,
         preferDelta: Bool = true,
+        population: [InstalledApp]?,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> DownloadedUpdate {
         // Accept any source whose RemoteVersion carries a resolved installer
@@ -104,12 +105,24 @@ public actor VendorInstaller {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
         }
 
+        // Bytes this app's OWN updater has already fetched for exactly this release.
+        //
+        // Asked BEFORE the delta patch is resolved, not just before it is used: the
+        // patch lookup rebuilds install state and then LOGS the route it picked, so
+        // resolving it first printed "delta route: … patch N B instead of M B" for a
+        // route the stash was about to make moot — a saving that never happened,
+        // contradicted three lines later by "bytes=0". A patch is a small download
+        // and this is no download at all, so the cheaper answer has to be asked
+        // first for the log to be true. See `SelfUpdaterStash` for the gates, and
+        // `applyVerified` for what the substitution switches off.
+        let stash = await SelfUpdaterStash.resolve(for: result, population: population)
+
         // A patch published for exactly the build on disk. Vendors reached through
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
         // built for. `preferDelta` is false on the coordinator's retry.
-        let patch = preferDelta && DeltaApplier.isAvailable
+        let patch = stash == nil && preferDelta && DeltaApplier.isAvailable
             ? DeltaApplier.patch(for: result.app, in: remote)
             : nil
         if let patch {
@@ -119,7 +132,7 @@ public actor VendorInstaller {
             let saving = remote.downloadSize.map { " instead of \($0) B" } ?? ""
             let patchSize = patch.size.map(String.init) ?? "unknown"
             Log.install.info("delta route: \(result.app.name, privacy: .public) build \(patch.fromBuild, privacy: .public) → \(remote.version ?? remote.shortVersion ?? "?", privacy: .public), patch \(patchSize, privacy: .public) B\(saving, privacy: .public)")
-        } else if preferDelta, !remote.deltas.isEmpty {
+        } else if stash == nil, preferDelta, !remote.deltas.isEmpty {
             Log.install.info("delta unavailable: \(result.app.name, privacy: .public) build \(result.app.buildVersion ?? "?", privacy: .public) not among \(remote.deltas.count, privacy: .public) published patches — taking the full archive")
         }
 
@@ -130,6 +143,13 @@ public actor VendorInstaller {
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         do {
+            if let stash {
+                // No `.downloading` stage: nothing is fetched, and reporting one
+                // made `electron-verify` print "downloading 100%" directly above
+                // its own "bytes=0". The next stage the caller sees is `.extracting`.
+                return try await adopt(stash, into: workDir)
+            }
+
             let downloader = Downloader(destinationDir: workDir) { fraction in
                 onStage(.downloading(fraction: fraction))
             }
@@ -219,7 +239,15 @@ public actor VendorInstaller {
                 onStage: onStage)
         } else {
             // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
-            if let expected = remote.expectedSHA512 {
+            //
+            // Skipped for a local stash, which is a DIFFERENT container from the
+            // artifact this digest describes. Run here it could not pass, and it
+            // would fail as `checksumMismatch` ("may be corrupt or tampered") for a
+            // file that is neither. Its replacement already ran:
+            // `SelfUpdaterStash.resolve` checks these exact bytes against the digest
+            // the app's own updater recorded for them. See
+            // `docs/engine-notes/self-updater-stash.md` §6.
+            if let expected = remote.expectedSHA512, download.localStash == nil {
                 onStage(.verifyingSignature)
                 try verifyChecksum(download.archiveURL, expectedBase64: expected)
             }
@@ -239,7 +267,14 @@ public actor VendorInstaller {
             // here — a stub's id is a sibling of the app's by construction
             // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
             // including the id pin, then runs against the payload itself.
-            if let nested = remote.nestedArchivePath {
+            //
+            // Also skipped for a local stash, and for the same reason as the
+            // checksum above: this path describes where a payload sits inside one
+            // particular stub installer the vendor publishes. A zip of the app is
+            // not that stub, so the lookup would fail as `nestedPayloadMissing` —
+            // naming a file the archive was never supposed to hold. ⚠️ No test
+            // pins this one; `LocalStashInstallWiringTests` says why.
+            if let nested = remote.nestedArchivePath, download.localStash == nil {
                 let outer = newApp
                 let installed = result.app.path
                 try await offCooperativePool {
@@ -305,6 +340,41 @@ public actor VendorInstaller {
         guard actual == expectedBase64.trimmingCharacters(in: .whitespacesAndNewlines) else {
             throw InstallError.checksumMismatch
         }
+    }
+
+    /// Take over an installer the app's own updater already downloaded: copy it
+    /// into our scratch directory and describe it as a `DownloadedUpdate` the apply
+    /// phase can consume unchanged.
+    ///
+    /// Extracted from `download` so it can be tested without a cache directory on
+    /// this machine to point at — the resolution in front of it
+    /// (`SelfUpdaterStash.resolve`) has its own suite, and this is the part that
+    /// decides what the rest of the install sees.
+    ///
+    /// **Copied, never used in place and never deleted.** The file belongs to the
+    /// other updater, which is free to clear `pending/` or overwrite it while we
+    /// work, and `workDir` is removed wholesale by our caller — pointing
+    /// `archiveURL` at the original would make that cleanup delete another
+    /// updater's download.
+    ///
+    /// `kind` comes from the stash, not from the route: they can differ (see
+    /// `docs/engine-notes/self-updater-stash.md` §6).
+    func adopt(
+        _ stash: LocalStagedInstaller, into workDir: URL
+    ) async throws -> DownloadedUpdate {
+        let local = workDir.appendingPathComponent(stash.archiveURL.lastPathComponent)
+        let from = stash.archiveURL
+        try await offCooperativePool {
+            try FileManager.default.copyItem(at: from, to: local)
+        }
+        return DownloadedUpdate(
+            archiveURL: try normalizedArchive(local, kind: stash.kind, workDir: workDir),
+            // Zero: the field is what went over the network, and nothing did.
+            // Reporting the file size here would put the whole archive in the
+            // traffic ledger for a transfer that never happened, which is the one
+            // number that ledger exists to be trusted on.
+            bytesDownloaded: 0,
+            workDir: workDir, finalHost: nil, localStash: stash)
     }
 
     /// Move/rename the download so its extension reflects `kind`. The Tauri/CDN

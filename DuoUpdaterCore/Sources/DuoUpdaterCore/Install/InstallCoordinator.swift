@@ -271,9 +271,15 @@ public actor InstallCoordinator {
     ///   package passes the gate and before it reaches macOS's Installer, so the
     ///   caller can retire the window this package supersedes while Installer is
     ///   idle. See `PackageInstaller.handOver`.
+    /// - Parameter installedPopulation: every bundle this machine's scan knows
+    ///   about, for `SelfUpdaterStash`'s attribution gate — whether anyone ELSE
+    ///   claims the updater cache directory this app's download would come from.
+    ///   **No default**, so both call sites have to answer it rather than one of
+    ///   them silently inheriting "unknown"; nil is refused, not assumed safe.
     public func perform(
         _ result: UpdateResult,
         route: Route,
+        installedPopulation: [InstalledApp]?,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void = {},
         beforeInstallerOpen: @Sendable () async -> Void = {}
@@ -291,7 +297,8 @@ public actor InstallCoordinator {
             // Zed" is one query across both the socket rows and the ledger row.
             let outcome = try await RequestAttribution.withApp(result.app.id) {
                 try await performRoute(
-                    result, route: route, progress: progress,
+                    result, route: route, installedPopulation: installedPopulation,
+                    progress: progress,
                     releaseAfterDownload: releaseAfterDownload,
                     beforeInstallerOpen: beforeInstallerOpen)
             }
@@ -311,6 +318,7 @@ public actor InstallCoordinator {
     private func performRoute(
         _ result: UpdateResult,
         route: Route,
+        installedPopulation: [InstalledApp]?,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
         beforeInstallerOpen: @Sendable () async -> Void
@@ -366,7 +374,9 @@ public actor InstallCoordinator {
                 return try await fetchThenSwap(
                     result, progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
-                        try await self.vendor.download($0, preferDelta: true, onStage: $1)
+                        try await self.vendor.download(
+                            $0, preferDelta: true,
+                            population: installedPopulation, onStage: $1)
                     },
                     apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) })
             } catch let failure as DeltaRouteFailure {
@@ -376,7 +386,9 @@ public actor InstallCoordinator {
                 return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
                     result, progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
-                        try await self.vendor.download($0, preferDelta: false, onStage: $1)
+                        try await self.vendor.download(
+                            $0, preferDelta: false,
+                            population: installedPopulation, onStage: $1)
                     },
                     apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) }) }
             }

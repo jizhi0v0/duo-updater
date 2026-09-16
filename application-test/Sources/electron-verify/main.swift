@@ -299,7 +299,13 @@ for app in electron {
 
     let coordinator = InstallCoordinator()
     do {
-        let outcome = try await coordinator.perform(result, route: route) { stage in
+        // `scanned` is this tool's own `AppScanner().scan()`, which is exactly
+        // what `SelfUpdaterStash`'s attribution gate wants: every installed
+        // bundle, so a second copy claiming the same updater cache directory is
+        // visible from here.
+        let outcome = try await coordinator.perform(
+            result, route: route, installedPopulation: scanned
+        ) { stage in
             if case .downloading(let fraction) = stage, fraction > 0 {
                 // One line, overwritten — a 120 MB electron zip is the common size
                 // and a per-chunk log buries everything above it.

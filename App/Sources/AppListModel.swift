@@ -3868,6 +3868,11 @@ final class AppListModel {
                 // below settles the same way (and now says why).
                 let outcome = try await Self.installCoordinator.perform(
                     result, route: route,
+                    // Every scanned app, not just this one — `SelfUpdaterStash`
+                    // asks whether any OTHER installed copy claims the same
+                    // updater cache directory. Same expression the staging sweep
+                    // uses for the same reason (`computeSelfUpdateStaging`).
+                    installedPopulation: results.map(\.app),
                     progress: { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })

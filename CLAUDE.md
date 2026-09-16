@@ -73,20 +73,27 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 - ⚠️ **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
   `make install` 才炸在 "requires a development team"。`scripts/row-state-gallery.sh` 像
   `install.sh` 一样先 `export DUO_TEAM_ID` 再生成,照抄这个做法。
-- **改了行的画法就跑 `make gallery`**,它把 40 个状态 × 两个界面渲染到
-  `verify/row-states/{popover,workbench}/*.png`,共 80 张。**这些图是提交进仓库的**,
+- **改了行的画法就跑 `make gallery`**,它把 49 个状态 × 两个界面渲染到
+  `verify/row-states/{popover,workbench}/*.png`,共 98 张(2026-09-16 点过盘上的图;
+  以前这里写的是 40 / 80,状态加过之后没跟着改——**这个数会漂,别拿它当断言,要用就现数**)。**这些图是提交进仓库的**,
   所以改动会以图片 diff 的形式出现在 PR 里;两边对同一状态画得不一致,也会并排显示出来。
   脚本先 `rm -rf verify/row-states` 再渲染(渲染器只写不删,改名过一次就留下 8 张孤儿图),
   并用 `-AppleInterfaceStyle Light` 钉住外观 —— `ImageRenderer` 跟着宿主外观走,
-  在深色模式下重跑会把 80 张全改写成与本次改动无关的 diff。
+  在深色模式下重跑会把这 98 张全改写成与本次改动无关的 diff。
   ⚠️ 脚本里那两行 `export AppleLanguages` / `AppleLocale` **对字符串是空操作**,别当成
   它在"选语言"。原因见下面「只渲染英文」那条:这个 target 里根本没有译文可选。
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
-- `make gallery` 有五道闸,都会让构建失败:
+- `make gallery` 的闸都会让构建失败。下面五条是最容易踩的,**但不止五条**:`main.swift`
+  里现在有 **10 处**会把 `failed` 置真(还包括占位图未登记、tooltip 提取器一无所获、
+  tooltip 检查范围漂移),**外加一道根本不走 `failed` 的** —— fixture 缺不到位时
+  在 `render()` 开头直接 `exit(1)`。
+  **要知道当前有哪些,去读 `App/RowStateGallery/main.swift` 的失败分支,
+  `failed = true` 和 `exit(1)` 两种写法都要数**;别照抄这里的编号,更别只 grep 一种
+  —— 只数 `failed = true` 会漏掉 fixture 那道,而它恰好是最早跑、最容易忘的一道。
 
-  1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加三张解释面板
-     (`38`/`39`/`40`,工作台没有对应视图),而且
+  1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加**六张**解释面板
+     (`38`/`39`/`40`/`44`/`48`/`49`,工作台没有对应视图;2026-09-16 点的,以前这里写的是三张),而且
      白名单的 key 是「界面/状态」不是「状态」—— popover 对同一状态画的是对勾,按名字
      豁免会把检测器在 popover 那半边一起卸掉。⚠️ 判空要**逐像素扫**:第一版用采样网格,
      把 `no-source-covers` 误报成空白——它只有一个几像素高的淡 em dash,网格跨过去了。
@@ -107,8 +114,9 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   4. **豁免已经不需要了**。`mayLookAlike` 是手维护的,一条不再匹配任何东西的豁免就是给
      未来的漂移发的免检证。把视图改严的那个人,正是该顺手撤掉豁免的人,所以这条也让
      构建失败(加 TestFlight 按钮时当场抓到一条)。
-     ⚠️ **`mayBeBlank` 没有这道检测**(#271):一条不再匹配的判空豁免留着照样全绿,那张图
-     就永久免检。改了某个状态的画法、让它从空白变成有内容时,得**自己**回去撤掉那条。
+     ⚠️ **2026-09-16 复核:`mayBeBlank` 现在也有这道检测了,#271 那个缺口已经补上。**
+     `main.swift` 的 `deadBlankExemptions` 和 `mayLookAlike` 那条同形、同样让构建失败。
+     以前这里写的是「`mayBeBlank` 没有这道检测……得自己回去撤掉那条」,已不成立。
   5. **`DownloadReadout` 的枚举顺序被改了**。`AppRow` 走 `allCases` 取第一个合身的,所以
      那个声明顺序就是算法本身,重排会静默改掉每一行下载中的读数,没有编译错误、也没有
      别的测试看得见。图片 diff 是现象不是断言,所以单独一道闸钉它。
@@ -273,7 +281,8 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
   它**管不了断言真不真**,只管它住在哪、长什么形状;换个说法就绕过去了,这是设计如此。
   它会拼接连续注释行再匹配(那句话是**换行断开**的,逐行 grep 一条都抓不到),
   豁免用 `claim-lint:allow-machine-state — <理由>`,理由必填,
-  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`,躲开 `mayBeBlank` 的 #271)。
+  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`;`mayBeBlank` 当年缺的
+  那道检测 #271 现在也补上了)。
 
 **本机这条先记住,省得再翻**:DuoUpdater 是 **arm64-only**,这是产品决策不是构建细节,
 理由写在 `App/project.yml`(`ARCHS: arm64`)——registry 大面积 pin arm64 端点/资源,
@@ -741,26 +750,36 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - 本仓库常有多个 worktree 同时开着(`.claude/worktrees/*`),而且 `main` 可能在你干活时已经前进。
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
-- ⚠️ **recipe 巡检任务跑在这个 checkout 里,一天四次,会换你的分支。**
-  `com.bobby.duo-recipe-verify`(launchd,`WorkingDirectory` 就是这个工作副本,
-  04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`)。
-  它**开头 `git checkout main`**,然后跑完整轮扫(几分钟),**最后才**
-  `git checkout -b verify/baseline-<时间戳>` —— 而那一步是从**当时的 HEAD** 切的,
-  不是从 main 切的,尽管脚本自己的注释写着"$BRANCH is left exactly where origin has it"。
-  于是有一个几分钟的窗口,两个方向都会出事,2026-09-06 一次跑里两个都出了:
-  1. 它开头切走 main,**不切回来** —— 我随后的 `git commit` 落在了它的分支上。
-  2. 我在窗口里切回自己的特性分支,它的 PR 就从**我的分支**切了出去 ——
-     #386 的 diff 里因此躺着我三个没复审的文件,而它开了 `--auto` squash,
-     CI 一绿就会进 main。**这是「每个 PR 合并前跑复审」那条规矩的一个绕行口**(它本来就不是闸,只靠自律,见「修 issue」一节)。
-  规矩:**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先
-  `git branch --show-current`**,别假设还在自己那条分支上。
-  撞上了先 `gh pr merge <n> --disable-auto` 止损 —— 这一步不需要 force-push、
-  也不动别人的分支;分支已经和 main 分叉的(比如你的 PR 已经单独 squash 合了),
-  关掉让它重跑,别去 rebase 另一个进程的分支。
-  ⚠️ 顺带把没量的那半边说清楚:**发版那条自动流程不在这里面**。
-  `publish-release.sh` 刻意把 appcast 放进一个临时 clone 改,理由写在它自己的注释里
-  ——"Committing the appcast into the working tree would mean the release touches
-  whatever branch happens to be checked out"。**同一个坑,那边防住了,这边没有。**
+- ⚠️ **recipe 巡检任务跑在 mini 上,不在这个 checkout 里。** 2026-09-16 ssh 上去核过:
+  `com.bobby.duo-recipe-verify` 是 **mini** 的 LaunchAgent(`~/Library/LaunchAgents/`,
+  04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`;
+  `runs` 当时点是 119,**这个计数器每 6 小时涨一次**,别拿它当基准判断 agent 有没有被重载),
+  它的 `WorkingDirectory` 是 **mini 自己的** `/Users/bobby/Developer/duo-updater` ——
+  跟开发机的 `/Users/bobby/Developer/github/duo-updater` **既不是同一个路径、也不是同一台机器**。
+  **它碰不到你的工作副本。** 本文件以前写的是「跑在这个 checkout 里、一天四次、会换你的分支」,
+  那是错的,别再照着它去解释开发机上分支为什么变了。
+  ⚠️ **别在 mini 那个 checkout 里留东西**:走到「持久化 baseline 且 `pulled` 成功」那条
+  路径时,收尾是 `git checkout "$BRANCH"` + `git reset --hard "origin/$BRANCH"`,
+  未提交的改动会没。
+  ⚠️ **但它不是每轮都跑**:`pulled=0` 时改走本地 commit + `failed=1`,**不 reset**;
+  baseline 没变则根本到不了那段。所以反过来推不成立 ——
+  **「我留的东西还在」不能推出「夜扫没跑」**,它可能跑了、只是走了不 reset 的那条路。
+  2026-09-06 那次事故(baseline PR 从特性分支切出去、带了三个没复审的文件、还开着 `--auto`)
+  **脚本自己已经修掉了**:开分支是 `git checkout -b "$pr_branch" "origin/$BRANCH"`
+  ——显式从 origin/main,不是从当时的 HEAD;收尾 `git checkout "$BRANCH"` 回 main。
+  完整叙述写在 `duo-recipe-verify.sh` 那段注释里(它自己称之为"this job does not own it"),
+  **要看就去读那段**,别在这里重抄一份会漂的副本。
+- **但「先看自己在哪条分支」这条规矩留着**,理由换成真正成立的那个:**这个 checkout 被多个会话和
+  worktree 共用**,别人可能在你干活中途切走分支,或在工作树里留下未提交的改动。
+  所以**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先 `git branch --show-current`
+  + `git status`**,别假设还在自己那条分支上,也别把别人的在途改动一起提交。
+  2026-09-16 实测撞过一次:会话开始时在 `main`,中途变成了另一个会话的
+  `fix/notified-version-ledger-set`(其 PR #676 已 squash 合并),而工作树里的 `CLAUDE.md`
+  混着两个会话的编辑 —— 直接 `git commit CLAUDE.md` 就会把别人没写完的东西一起提交进去。
+- ⚠️ 顺带:**发版那条自动流程也是防住的**。`publish-release.sh` 刻意把 appcast 放进一个临时 clone
+  改,理由写在它自己的注释里——"Committing the appcast into the working tree would mean the
+  release touches whatever branch happens to be checked out"。以前这里写「那边防住了,这边没有」,
+  现在两边都防住了。
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
 - 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。

@@ -69,14 +69,20 @@ import CryptoKit
         uniquingKeysWith: { a, _ in a })
 
     let source = VendorProbeSource()
-    func probe(_ key: ChannelProofKey) async -> RemoteVersion? {
+    // `probeDiagnostic`, not `latestVersion`: the latter returns a bare remote and
+    // drops the probe's warnings, so a detection-only fallback (its install URL
+    // 429'd, 404'd, or stopped matching) arrived here indistinguishable from an
+    // installable result that happened to have no kind — and was reported as
+    // three unrelated failures, one of them a channel crossing. Discord PTB and
+    // Canary, rate-limited during `make release` on 2026-09-15.
+    func probe(_ key: ChannelProofKey) async -> ProbeOutcome? {
         let app = InstalledApp(
             name: key.bundleID, bundleID: key.bundleID,
             shortVersion: "0.0.0", buildVersion: "0",
             path: URL(fileURLWithPath: "/Applications/\(key.bundleID).app"),
             isMASApp: false, sparkleFeedURL: nil,
             releaseChannel: key.channel)
-        return (try? await source.latestVersion(for: app)) ?? nil
+        return await source.probeDiagnostic(for: app)
     }
 
     // Bounded fan-out: firing all ~45 feed fetches at once is both rude to the
@@ -84,17 +90,20 @@ import CryptoKit
     // suite is downloading, which showed up as a spurious "resolved no URL". A
     // miss is retried ONCE and the retry is logged — the breakage this guards
     // against is deterministic and fails both attempts; a network blip does not.
-    var results: [ChannelProofKey: RemoteVersion?] = [:]
+    var results: [ChannelProofKey: ProbeOutcome?] = [:]
     for chunk in stride(from: 0, to: targets.count, by: 12).map({
         Array(targets[$0..<min($0 + 12, targets.count)])
     }) {
-        await withTaskGroup(of: (ChannelProofKey, RemoteVersion?).self) { group in
+        await withTaskGroup(of: (ChannelProofKey, ProbeOutcome?).self) { group in
             for key in chunk { group.addTask { (key, await probe(key)) } }
-            for await (key, remote) in group { results[key] = remote }
+            for await (key, outcome) in group { results[key] = outcome }
         }
     }
     var retried: [ChannelProofKey] = []
-    for key in targets where (results[key] ?? nil)?.downloadURL == nil {
+    // Keyed on the installer kind, not `downloadURL`: a detection-only fallback
+    // still carries a URL (a page, or the probe endpoint), so a first-pass install
+    // miss used to skip the retry that exists for exactly that blip.
+    for key in targets where (results[key] ?? nil)?.remote?.vendorInstallerKind == nil {
         retried.append(key)
         results[key] = await probe(key)
     }
@@ -172,7 +181,8 @@ import CryptoKit
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 
     for key in targets {
-        let remote = results[key] ?? nil
+        let outcome = results[key] ?? nil
+        let remote = outcome?.remote
         // Only when it actually resolved nothing. `trackClosedPattern` is a
         // permanent property of the recipe — it says how this vendor SIGNALS
         // dormancy, not that the track is closed today — so keying the exemption
@@ -196,16 +206,35 @@ import CryptoKit
         // sweep never prints a bare "v?" for a recipe that did resolve.
         let shown = remote?.shortVersion ?? remote?.version ?? "?"
         log("• \(key): v\(shown)  [\(kind)] \(sum)")
-        log("    \(remote?.downloadURL?.absoluteString ?? "NO URL")")
-        #expect(remote?.downloadURL != nil, "\(key) resolved no installer URL")
-        #expect(remote?.vendorInstallerKind != nil, "\(key) resolved no installer kind")
+        // Labelled, because a row with no installer still has a `downloadURL` —
+        // the page, or the probe endpoint. Printing it bare under `[nil]` would
+        // repeat, in this sweep's own output, the conflation it exists to catch.
+        let artifact = remote?.vendorInstallerKind != nil
+        log("    " + (remote?.downloadURL.map {
+            artifact ? $0.absoluteString : "no installer — detection-only fallback: \($0.absoluteString)"
+        } ?? "NO URL"))
+        // No installer resolved: ONE finding, in the probe's own words. The
+        // detection-only fallback's `downloadURL` is not an installer, so the
+        // kind/routing/channel checks below would only restate this as three
+        // unrelated failures — one of them accusing the recipe of crossing
+        // channels over what was, on 2026-09-15, a 429 from the vendor.
+        // (No separate `downloadURL != nil` assertion: `makeRemoteVersion` takes
+        // both the kind and the URL off the same install plan, so the kind check
+        // below already covers it and a URL assertion here could never fail.)
+        guard let remote, remote.vendorInstallerKind != nil else {
+            let why = outcome?.failure.map { "\($0.kind): \($0.detail)" }
+                ?? outcome?.warnings.map(\.display).joined(separator: "; ")
+                ?? "no recipe applied"
+            Issue.record("\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)")
+            continue
+        }
         // pkg → manual installer (system installer); archives → in-place swap.
-        #expect(remote?.requiresManualInstaller == (remote?.vendorInstallerKind == .pkg),
+        #expect(remote.requiresManualInstaller == (remote.vendorInstallerKind == .pkg),
                 "\(key) install routing disagrees with its kind")
         // …and that the build came off this channel's train. Same rule the nightly
         // `duo verify` sweep applies, read from the core registry so the two can't
         // drift (see `RecipeSanity.crossChannelArtifact`).
-        if let recipe = byKey[key], let remote {
+        if let recipe = byKey[key] {
             let complaint = RecipeSanity.crossChannelArtifact(recipe: recipe, remote: remote)
             #expect(complaint == nil, "\(key): \(complaint ?? "")")
         }
@@ -443,7 +472,7 @@ import CryptoKit
     let remote = RemoteVersion(
         shortVersion: "1.06.2508260", version: "1.06.2508260",
         downloadURL: URL(string: "https://dldir1.qq.com/WechatWebDev/release/abc123/wechat_devtools_1.06.2508260_darwin_arm64.pkg")!,
-        sourceName: "Vendor")
+        sourceName: "Vendor", requiresManualInstaller: true, vendorInstallerKind: .pkg)
 
     #expect(
         RecipeSanity.crossChannelArtifact(

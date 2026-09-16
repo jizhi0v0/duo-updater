@@ -1408,7 +1408,7 @@ private func verdict(
                     recipe: recipe,
                     remote: VendorProbeSource.makeRemoteVersion(
                         recipe: recipe, version: "AI-0", install: recipe.install,
-                        plan: nil, resolvedDownload: URL(string: item.dmg)!))
+                        plan: (URL(string: item.dmg)!, nil), resolvedDownload: nil))
                 let why = "\(recipe.channel.rawValue)'s marker accepts a \(item.label) artifact "
                     + "(\(item.dmg)) the recipe itself refuses — it no longer discriminates"
                 #expect(complaint != nil, "\(why)")
@@ -1427,7 +1427,7 @@ private func verdict(
                 recipe: recipe,
                 remote: VendorProbeSource.makeRemoteVersion(
                     recipe: recipe, version: build, install: recipe.install,
-                    plan: nil, resolvedDownload: url))
+                    plan: (url, nil), resolvedDownload: nil))
             let why = "\(recipe.channel.rawValue) resolves \(item.label) builds by design, but "
                 + "its channel proof rejects the artifact: \(complaint ?? "")"
             #expect(complaint == nil, "\(why)")

@@ -330,12 +330,22 @@ extension RecipeSanity {
     /// Advisory, like `remoteBehindInstalled` — it reads a hand-maintained marker
     /// table, and a vendor renaming a path should surface as a warning to look at,
     /// not as a hard failure that blocks a sweep. Returns nil when there is
-    /// nothing to judge: no install spec, or no resolved URL (that case is already
-    /// `ProbeWarning.installURLUnresolved`).
+    /// nothing to judge: no install spec, or an install spec that did not resolve
+    /// this time (that case is already `ProbeWarning.installURLUnresolved` or
+    /// `.installURLTransient`).
+    ///
+    /// "Did not resolve" is read off `vendorInstallerKind`, NOT off `downloadURL`.
+    /// A detection-only result still carries a `downloadURL` — the recipe's page,
+    /// or the probe endpoint when it has none (`makeRemoteVersion`) — and judging
+    /// that as the artifact turned Discord PTB's rate-limited download redirect
+    /// (HTTP 429, 2026-09-15) into "resolved the update manifest, the install may
+    /// be crossing channels". `makeRemoteVersion` sets the kind exactly when it
+    /// has an install plan.
     public static func crossChannelArtifact(
         recipe: VendorProbeRecipe, remote: RemoteVersion
     ) -> String? {
-        guard recipe.install != nil, let url = remote.downloadURL?.absoluteString else {
+        guard recipe.install != nil, remote.vendorInstallerKind != nil,
+              let url = remote.downloadURL?.absoluteString else {
             return nil
         }
         let key = ChannelProofKey(recipe.bundleID, recipe.channel)
@@ -383,11 +393,14 @@ extension RecipeSanity {
     /// Advisory, like the recipe overload. Returns nil when there is nothing to
     /// judge: a detection-only rule resolves no artifact, and its `downloadURL`
     /// is the repository's releases PAGE rather than a build, so there is no
-    /// wrong thing for it to have handed anyone.
+    /// wrong thing for it to have handed anyone. The same holds for a rule that
+    /// names an install asset this release does not carry — `GitHubReleasesSource`
+    /// falls back to that page and leaves `vendorInstallerKind` nil — which is why
+    /// the guard reads the kind, as the recipe overload does.
     public static func crossChannelArtifact(
         rule: GitHubReleaseRule, remote: RemoteVersion
     ) -> String? {
-        guard rule.installAssetPattern != nil,
+        guard rule.installAssetPattern != nil, remote.vendorInstallerKind != nil,
               let url = remote.downloadURL?.absoluteString else { return nil }
         let key = ChannelProofKey(rule.bundleID, rule.channel)
 

@@ -88,6 +88,8 @@ One-click verified 2026-08-09: `https://discord.com/api/download/ptb`
 
 复测 2026-09-14（03:14 UTC，只读 GET manifest；download 端点只发 HEAD、不跟随重定向）：三个 manifest 的 distro URL 分别在 `stable.dl2.discordapp.net`（0.0.411）、`ptb.dl2.discordapp.net`（0.0.260）、`canary.dl2.discordapp.net`（0.0.1321）上——stable 又回到了 `stable.dl2`；三条 download 重定向的 `Location` 版本与各自 `host_version` 相同（`…/apps/osx/0.0.411/Discord.dmg`、`…/0.0.260/DiscordPTB.dmg`、`…/0.0.1321/DiscordCanary.dmg`）。
 
+2026-09-15 22:4x CST，`make release` 期间（转引自那次运行的输出，未复现）：三条 download 重定向都回 `HTTP/2 429`、`retry-after: 3000`、`x-ratelimit-scope: shared`（cloudflare）。PTB/Canary 的 recipe 没有问题——install 解析按设计抛了 transient、行退回 detection-only；但 `vendorResolvesInstallPlans` 把 detection-only 回落的 `downloadURL`（PTB/Canary 没有 `downloadURL` 页面，于是是 manifest URL）当成安装包去做 channel proof，报成「may be crossing channels」——**这一条是那次运行里实际看到的**。`duo verify` 会犯同一个错、而且后果更重（`installURLTransient` 不算 actionable，这条 complaint 算，于是能攒出 streak 去开 issue）：**这半句是读 `Verify.swift:507` + `classify` 推出来的，没有跑过 verify 复现**。修在 `RecipeSanity.crossChannelArtifact`：只评判真解析出来的安装包（`vendorInstallerKind != nil`），回归用例 `InstallURLTransientTests.aRateLimitedRedirectIsTransientAndAccusesNoChannel`。2026-09-15 15:57 UTC 经本机代理单发一次 HEAD，PTB 已恢复 302 → `…/apps/osx/0.0.260/DiscordPTB.dmg`。
+
 ### Recipes/com-hnc-Discord.swift — `MacAppStoreProbeCase`（`com.hammerandchisel.discord`，wrapped iOS）
 
 转引自 recipe 注释，未复测。

@@ -40,4 +40,113 @@ struct InstallURLTransientTests {
             .kind == ProbeWarning.installURLTransient(status: 502).kind,
             "the kind is the wire format and must not vary with the status")
     }
+
+    // MARK: - what a detection-only fallback is, and is not
+
+    /// Discord PTB and Canary during `make release`, 2026-09-15: the download
+    /// redirect answered `HTTP/2 429` (`retry-after: 3000`) and the live install
+    /// sweep reported, for both channels, that the install "may be crossing
+    /// channels" because it "resolved" the update MANIFEST URL.
+    ///
+    /// Nothing resolved the manifest as an installer. `resolveInstall` threw
+    /// `TransientInstallURL` as designed, the probe fell back to detection-only,
+    /// and `makeRemoteVersion` filled the detection-only `downloadURL` with
+    /// `recipe.downloadURL ?? <probe endpoint>` — PTB and Canary carry no page, so
+    /// that is the manifest. `crossChannelArtifact` then judged that URL as if it
+    /// were the artifact, which turned a vendor's rate limit into an accusation
+    /// that `duo verify` does not exempt the way it exempts the transient warning.
+    ///
+    /// Driven through the registered PTB proof (`^https://ptb\.`), against a stub
+    /// that answers the feed and 429s the redirect HEAD — the stub URL can never
+    /// satisfy that proof, so a complaint here is the false accusation itself.
+    @Test func aRateLimitedRedirectIsTransientAndAccusesNoChannel() async throws {
+        let ptb = try #require(
+            VendorProbeRegistry.recipes.first {
+                $0.bundleID == "com.hnc.DiscordPTB" && $0.channel == .ptb
+            })
+        let server = try InstallURLReachabilityTests.MethodAwareServer(
+            headStatus: 429, rangedGetStatus: 429)
+        defer { server.stop() }
+        let recipe = VendorProbeRecipe(
+            bundleID: ptb.bundleID,
+            url: server.feedURL,
+            mode: .responseBody,
+            versionPattern: #""version":"([0-9.]+)""#,
+            install: VendorInstallSpec(urlSource: .redirect(server.installURL), kind: .dmg),
+            channel: ptb.channel)
+
+        let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+        let remote = try #require(outcome.remote, "the version still reads: \(String(describing: outcome.failure))")
+        #expect(outcome.warnings == [.installURLTransient(status: 429)],
+                "the rate limit must be named as the vendor's, saw \(outcome.warnings)")
+        #expect(remote.vendorInstallerKind == nil, "nothing was resolved to install")
+        let complaint = RecipeSanity.crossChannelArtifact(recipe: recipe, remote: remote)
+        #expect(complaint == nil,
+                "a detection-only fallback is not an artifact to judge: \(complaint ?? "")")
+    }
+
+    /// The same property for every recipe and rule that CAN fall back, derived
+    /// from the registries rather than listed: whatever a detection-only
+    /// `downloadURL` holds — a vendor page, a probe endpoint, a releases page —
+    /// the channel check must not read it as the install artifact. A 404 or a
+    /// pattern that stopped matching lands on the same fallback as a 429, so this
+    /// is not about rate limits.
+    @Test func noDetectionOnlyFallbackIsJudgedAsAChannelArtifact() {
+        // Counted, because a registry-derived loop that matches nothing asserts
+        // nothing. What is counted is the row where THIS GUARD decides the
+        // answer, not the row the filter admits — the first version counted the
+        // filter (135 recipes / 84 rules) against floors calibrated on the 30/6
+        // that actually complain, so a drift that dropped every non-stable row
+        // would have left ~97/74 iterations, both floors green, and zero
+        // coverage: the same vacuity the counter was added to prevent.
+        //
+        // The population is measured rather than declared: judge the SAME url as
+        // a resolved artifact, and if that complains, this row is one the guard
+        // is holding quiet. No hand-kept list of channels to drift, and it stays
+        // honest if a proof is added or retired.
+        var proving = 0
+        for recipe in VendorProbeRegistry.recipes where recipe.install != nil {
+            let fallback = VendorProbeSource.makeRemoteVersion(
+                recipe: recipe, version: "1.0.0", install: nil, plan: nil,
+                resolvedDownload: recipe.url)
+            let complaint = RecipeSanity.crossChannelArtifact(recipe: recipe, remote: fallback)
+            #expect(complaint == nil, "\(recipe.recipeID): \(complaint ?? "")")
+            // `fallback.downloadURL`, not `recipe.url`: the fallback carries
+            // `recipe.downloadURL ?? recipe.url`, so judging the endpoint would
+            // ask about a different string than the one under test for the two
+            // recipes that have a page (28 rows instead of 30).
+            let asArtifact = VendorProbeSource.makeRemoteVersion(
+                recipe: recipe, version: "1.0.0", install: recipe.install,
+                plan: (fallback.downloadURL ?? recipe.url, nil), resolvedDownload: nil)
+            if RecipeSanity.crossChannelArtifact(recipe: recipe, remote: asArtifact) != nil {
+                proving += 1
+            }
+        }
+        #expect(proving >= 20,
+                "only \(proving) recipes have a fallback the channel check would otherwise complain about — this loop has stopped covering the vendor guard")
+
+        // `GitHubReleasesSource` falls back to the repository's releases page
+        // when a rule names an install asset the release does not carry.
+        var provingRules = 0
+        for rule in GitHubReleaseRegistry.rules where rule.installAssetPattern != nil {
+            let page = URL(string: "https://github.com/\(rule.slug)/releases")
+            let fallback = RemoteVersion(
+                shortVersion: "1.0.0", version: nil, downloadURL: page,
+                sourceName: "GitHub", requiresManualInstaller: true, vendorInstallerKind: nil)
+            let complaint = RecipeSanity.crossChannelArtifact(rule: rule, remote: fallback)
+            #expect(complaint == nil, "\(rule.recipeID): \(complaint ?? "")")
+            let asArtifact = RemoteVersion(
+                shortVersion: "1.0.0", version: nil, downloadURL: page,
+                sourceName: "GitHub", vendorInstallerKind: .zip)
+            if RecipeSanity.crossChannelArtifact(rule: rule, remote: asArtifact) != nil {
+                provingRules += 1
+            }
+        }
+        #expect(provingRules >= 5,
+                "only \(provingRules) rules have a fallback the channel check would otherwise complain about — this loop has stopped covering the GitHub guard")
+        // Printed so the floors can be re-calibrated from a run rather than from
+        // a grep: measured 30 recipes / 6 rules on 2026-09-16.
+        FileHandle.standardError.write(
+            Data("proving rows: \(proving) recipes, \(provingRules) rules\n".utf8))
+    }
 }

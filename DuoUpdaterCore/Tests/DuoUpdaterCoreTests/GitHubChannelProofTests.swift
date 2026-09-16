@@ -313,9 +313,13 @@ struct GitHubChannelProofTests {
         }
     }
 
+    /// An INSTALLABLE result: `crossChannelArtifact` judges only a resolved
+    /// artifact and reads that off `vendorInstallerKind`, so a fixture without a
+    /// kind would turn every `== nil` expectation here into a vacuous pass.
     private func remote(_ url: String) -> RemoteVersion {
         RemoteVersion(
             shortVersion: "1.0.0", version: "1.0.0",
-            downloadURL: URL(string: url)!, sourceName: "GitHub")
+            downloadURL: URL(string: url)!, sourceName: "GitHub",
+            vendorInstallerKind: .zip)
     }
 }

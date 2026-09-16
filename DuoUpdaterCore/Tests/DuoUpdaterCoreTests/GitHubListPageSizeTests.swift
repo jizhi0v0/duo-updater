@@ -67,6 +67,12 @@ struct GitHubListPageSizeTests {
         // by a wide margin, and the rule pays for it in bytes; the audit carries
         // the wire cost.
         "com.trycua.driver/stable": 19,
+        // Cua Driver nightly: the mirror image — the nightly job cuts a release
+        // most mornings, so a matching tag is usually row 0. All 23 nightly tags
+        // ever published sit inside the newest 100 rows; worst gap 8, so 9. (Both
+        // windows give the same answer here for a duller reason than stable's:
+        // the nightly train is younger than the 100-row window.)
+        "com.trycua.driver/nightly": 9,
         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
         // ones (a cyclical train whose copies must be able to take the release

@@ -43,7 +43,7 @@ Linux/Windows 那套 `~/.cua-driver/packages/releases/<版本>-<target>/` 版本
 |            | Sparkle | Homebrew | MAS | GitHub  | VendorProbe |
 |------------|---------|----------|-----|---------|-------------|
 | **stable** | —       | ✗        | ✗   | ✓ 一键  | —           |
-| **nightly**| —       | ✗        | ✗   | ○       | —           |
+| **nightly**| —       | ✗        | ✗   | ✓ 一键  | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**。
 
@@ -51,8 +51,8 @@ Linux/Windows 那套 `~/.cua-driver/packages/releases/<版本>-<target>/` 版本
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable  | `com.trycua.driver` | 与 nightly **共享** | 无（见下） | tag 锚 `^cua-driver-rs-vX.Y.Z$` | ✓ 一键 |
-| nightly | `com.trycua.driver` | 与 stable **共享** | 无（见下） | — | ○ 未实现 |
+| stable  | `com.trycua.driver` | 与 nightly **共享** | `~/.cua-driver/release-channel` 缺失或非 `nightly` | tag 锚 `^cua-driver-rs-vX.Y.Z$` | ✓ 一键 |
+| nightly | `com.trycua.driver` | 与 stable **共享** | `~/.cua-driver/release-channel` == `nightly` | tag 锚 `^nightly-cua-driver-rs-vX.Y.Z-nightly.…$` + `githubChannelProofs` | ✓ 一键 |
 
 ⚠️ **两轨在磁盘上分不出来。** 实测下了 nightly 的
 `cua-driver-rs-0.28.3-nightly.20260916.35055871159-darwin-universal.tar.gz`,
@@ -62,20 +62,28 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
 `~/.cua-driver/release-channel` 这个文本文件,而它**只在显式传过 `--channel` 时才写**
 （本机默认安装后该文件不存在,`cua-driver channel status` 仍答 `stable`）。
 
-所以今天只接 stable 一轨。**它不会装错架构、不会降级,但也不是无副作用的**,按时间分三段:
+所以轨道判别**只能靠 `~/.cua-driver/release-channel`**,由 `CuaDriverChannel` 这个
+`ChannelBinding` resolver 读。它是本 registry 里第一个读**普通文本文件**(而不是
+CFPreferences / plist)的 binding,形态上最接近 `SuperconductorChannel`。
 
-1. nightly 用户在 `0.28.3`、stable 最新是 `0.28.2` —— `isNewer` 为假 → 行显示"已最新",
-   不提示、不推包;
-2. stable 追到 `0.28.3` —— `isSame` 为真 → 仍然不动;
-3. stable 走到 `0.28.4` —— **会提示,而且一键会把 stable 的包装到一个 nightly 装机上**。
-   这不是"装错东西"(同一厂商、同一 bundle id、同一 Team ID、版本确实更新),但它
-   **等于替用户把轨道从 nightly 切到了 stable**,而用户没要求过。
-   ⚠️ 未验证的部分:`~/.cua-driver/release-channel` 仍然写着 `nightly`,所以厂商自己的
-   下一次 `cua-driver update --apply` 大概率又把他拉回 nightly —— 这是读脚本推出来的,
-   没有实测过这个来回。
+⚠️ **那个文件记的是「意图」,不是「装的是什么」,而且厂商自己就这么分。**
+`cua-driver channel status` 分别打印 `Selected channel`(来自文件)和 `Current channel`
+(来自二进制自己),两者会真的分叉 —— 实测:在一台 `release-channel == nightly` 的机器上
+用 `CUA_DRIVER_RS_VERSION=0.28.2` 钉装 stable,文件**原样不动**,于是变成
+`Selected: nightly / Current: stable`。这不是 bug,是写进文档的设计:
+"The pin is one-shot: it does not change the saved update channel... a machine following
+nightly keeps following nightly",安装脚本的错误信息也写着
+`exact pins do not change saved channel state`。
 
-要真正支持 nightly(以及消掉第 3 段),需要先给 `ResolvedChannelStore` 一个读
-`release-channel` 文件的 binding —— 那是另一件事,不在本次范围。
+**跟随意图是对的,也正是厂商的行为**:在那个分叉态下它自己的 `check-update` 给出的是
+最新 nightly,也就是把这份拷贝带回用户选的那条轨。我们的 `.nightly` 解析让 duo 做同一件事,
+实测一致(见「历史与实测」的端到端那段)。
+
+「装的到底是哪条轨」那一半我们**拿不到,且没有价钱可以买**:它只活在可执行文件里
+(`cua-driver --version` 知道),而让扫描器去执行第三方二进制来读版本不是这个项目愿意做的交易。
+
+安全方向:只有记录为 `nightly` 才会离开 stable。文件缺失(默认安装就不写)、读不到、为空、
+或者是个连厂商自己都会拒绝的值,一律落到 `.stable`。没要过 nightly 的人不会被推 nightly。
 
 ## 更新检测
 - 源: `trycua/cua` GitHub Releases，**列表端点**（`usePrereleases: true`）
@@ -147,6 +155,7 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
     并且按名字断言 `install.sh` / 校验和前缀 / `Pre-release` / `Checksums` / `compare/`
     都不出现——数条目数是看不出泄漏的。
 - 版本轨（`releaseHistory`）由同一页 release 顺带填上，不额外发请求。
+- nightly 轨的 changelog 同理走内联解析，由 nightly rule 自己那一页带回。
 
 ## 一键安装
 - 状态: **已接入**（`.tarGz`）
@@ -160,6 +169,15 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
 - pattern 里不含 `|` 也不含 `\-`，所以不进 `GitHubAssetSelectionTests.ambiguousRegistryPatterns`；
   实测 88 条 stable release 每条都恰好有**一个**资产命中该 pattern，选择没有二义、
   也永远不会触发 `settle()` 里的 walk-back。
+- **nightly 轨同样已接一键**，资产形状相同（`…-nightly.<日期>.<run>-darwin-universal.tar.gz`），
+  `-binary` 兄弟同样被结尾锚排掉；全历史 23 条 nightly release 每条恰好一个资产命中。
+  它带 `installAssetPattern` 且不在 stable 轨，所以**必须**在 `githubChannelProofs` 里
+  登记一条 proof（`channelProofsCoverEveryChannelRecipe` 的 GitHub 版会拦）。登记的是
+  `.artifact(#"/download/nightly-cua-driver-rs-v[0-9.]+-nightly\."#)` —— tag 在 URL 路径里，
+  所以能给出比 `.recipeAnchor` 更强的证明。
+- **两条轨的 pattern 互不吃对方**（实测四个方向，`CuaDriverGitHubRuleTests` 钉住）：
+  stable 的 tag/资产 pattern 拒 nightly 的，nightly 的拒 stable 的。这是这类「一个 bundle id
+  两条 rule、且互相是最顺手的抄写来源」最容易出的事故。
 - 包验（2026-09-16，真下 `cua-driver-rs-0.28.2-darwin-universal.tar.gz`）：
   - `codesign -dvvv`: `Identifier=com.trycua.driver`、
     `Authority=Developer ID Application: Cua AI, Inc. (YCK386LBJ7)`、
@@ -170,8 +188,15 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
     都过 —— 而 gate 3 天然成立，因为装机上的那份就是同一个厂商产物。
 
 ## 已知问题
-- **轨道在磁盘上不可分辨**（见「Channel 详情」）。今天不构成误装，但也意味着
-  nightly 用户拿不到 nightly 的更新提示。
+- ⚠️ **nightly 只能做到 base 版本粒度，同一 base 下的后续 nightly 看不见。**
+  根因是 nightly 包的 `CFBundleShortVersionString` / `CFBundleVersion` 就是裸 base
+  （实测三份 0.28.2 系的构建全是 `0.28.2`），所以 nightly rule 的 `versionPattern`
+  只能从 tag 里捕 base —— 捕全串 `0.28.3-nightly.20260916.…` 去跟盘上的 `0.28.3` 比，
+  semver 上 prerelease < release，`isNewer` 恒假，**一次都不会提示**。
+  代价量化（全历史）：23 条 nightly 发布落在 **12** 个不同 base 上，所以约 **52%** 的 nightly
+  发布会产生提示，其余 48% 静默。
+  **重启条件**：厂商哪天把 nightly 标识写进 `Info.plist`（任何一个字段都行）。
+  唯一的替代方案是执行 `cua-driver --version` 去读真实版本，不做。
 - **列表顺序偶发逆序**（见「更新检测」）。历史上两次，各约两天，表现为暂时给出偏低的版本。
 - **文档与包对 macOS 下限说法不一致**：文档 14.0，`Info.plist` 13.0。两边都没实测。
 - **这条规则在流量上是本 registry 里最贵的 GitHub 规则**（101.8 KB/轮）。
@@ -196,6 +221,13 @@ duo verify --only com.trycua.driver
 CUA_DRIVER_RS_VERSION=0.28.1 /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"
 duo check com.trycua.driver && duo install com.trycua.driver --yes
 cua-driver --version && cua-driver doctor
+
+# 端到端（nightly 轨）：切轨后 duo 必须给出 nightly 的包
+curl -fsSL https://cua.ai/driver/install.sh | bash -s -- --channel nightly
+cat ~/.cua-driver/release-channel          # 必须是 nightly；默认安装则该文件不存在
+duo check com.trycua.driver
+cua-driver --version                       # 装完必须自报 …-nightly.<日期>.<run>
+cua-driver channel status                  # Selected / Current 应当一致
 ```
 
 ## 历史与实测
@@ -246,3 +278,36 @@ cua-driver --version && cua-driver doctor
 - changelog：0.28.2 正文过 `GitHubMarkdownParser` 得到 `items` 4 条 fix、
   `content` 为 `heading("Fixes")` + 4 条 `note`，install 片段、校验和块、
   "Why GitHub says 'Pre-release'" 一节都没进去。
+
+### 2026-09-16 —— 补接 nightly 轨
+
+- **三份真包实测轨道在磁盘上不可分辨**：`cua-driver-rs-v0.28.2`（stable）、
+  `…-v0.28.2-nightly.20260914.34806428689`、`…-v0.28.2-nightly.20260915.34929088253`，
+  三个 `CuaDriver.app` 的 `CFBundleShortVersionString` 和 `CFBundleVersion` **全是 `0.28.2`**。
+  而同一份 nightly 的二进制自报 `cua-driver 0.28.2-nightly.20260915.34929088253` ——
+  **版本只活在可执行文件里**。
+- 轨道信号实测：`install.sh --channel nightly` 之后 `~/.cua-driver/release-channel`
+  出现，内容 `nightly`（8 字节，含换行）；默认安装后该文件**不存在**，
+  `cua-driver channel status` 仍答 `stable`。脚本里那行写在 `if [[ "$CHANNEL_EXPLICIT" == "1" ]]` 里。
+- **意图/事实分叉实测**：在 `release-channel == nightly` 的机器上
+  `CUA_DRIVER_RS_VERSION=0.28.2` 钉装 stable → 文件仍是 `nightly`、二进制是 `0.28.2`，
+  厂商自报 `Selected channel: nightly / Current channel: stable`，而它的 `check-update`
+  给出最新 nightly。**是设计不是 bug**（装文档："The pin is one-shot: it does not change
+  the saved update channel"）。
+- nightly 资产签名与 stable 同级：`Developer ID Application: Cua AI, Inc. (YCK386LBJ7)`、
+  `Notarization Ticket=stapled`、`flags=0x10000(runtime)`，`codesign --verify --deep --strict`
+  与 `spctl -a -t exec` 各退 0。
+- nightly rule 的页深度（同 100 行窗口）：23 条命中，**第一条命中在索引 0**，最大间距 8 → 下限 9，
+  取 12。`probesNewestFirst` 保持默认 true —— 和 stable 那条正好相反，因为 nightly 几乎天天是第 0 行。
+  全历史 23 条 nightly release 每条恰好一个 `…-darwin-universal.tar.gz` 命中，零条缺失、零条多命中。
+- **端到端（红→绿，而且是从上面那个分叉态出发）**：
+  1. 起点 `release-channel = nightly`、二进制 `0.28.2`（stable）、inode 250225860；
+  2. `duo check com.trycua.driver` → `Cua Driver 0.28.2 → 0.28.3 [GitHub, in-place]`，
+     与厂商 `check-update` 给的 `0.28.3-nightly.20260916.35055871159` 是同一条 release；
+  3. `duo install --yes` 跑完 → **`cua-driver --version` 自报
+     `0.28.3-nightly.20260916.35055871159`**，即装进去的确实是 nightly 那份；
+  4. `Info.plist` 是 `0.28.3`（只有 base，符合上面那条约束），inode 250332939；
+  5. 签名 `TeamIdentifier=YCK386LBJ7` 不变，`--deep --strict` 与 `spctl` 各退 0；
+  6. 厂商 `channel status` 变成 `Selected: nightly / Current: nightly` ——
+     **分叉被 DuoUpdater 治好了，方向与厂商自己的 `update --apply` 一致**；
+     `check-update` 答 "You're on the latest release."

@@ -97,5 +97,61 @@ enum com_trycua_driver {
                 #"^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-darwin-universal\.tar\.gz$"#,
             installerKind: .tarGz,
             probesNewestFirst: false),
+
+        // The nightly train, reachable only through `CuaDriverChannel` — read
+        // that type first, because the reason this rule needs a binding at all is
+        // the same reason it can only ever be approximate.
+        //
+        // **A nightly bundle does not say it is a nightly.** Its
+        // `CFBundleShortVersionString` and `CFBundleVersion` are the bare base
+        // version, identical to a stable release of that base AND to every other
+        // nightly of that base (History has the three artifacts this was measured
+        // on). So this pattern captures the BASE out of the nightly tag and
+        // nothing else: capturing the full `x.y.z-nightly.<date>.<run>` would put
+        // a prerelease-shaped string up against a plain `x.y.z` on disk, which
+        // compares as OLDER and would offer nothing, ever.
+        //
+        // What that costs, stated rather than discovered later: consecutive
+        // nightlies sharing a base are indistinguishable to us, so only a base
+        // bump produces an offer — History has the share of nightly releases that
+        // is. The alternative is executing the installed binary to read its real
+        // version (`cua-driver --version` does know), and a scanner that runs
+        // third-party executables to learn a version is not a trade this project
+        // makes.
+        //
+        // Cheap where the stable rule is expensive, and for the mirror-image
+        // reason: the nightly job cuts a release most mornings, so a matching tag
+        // is usually row 0 — hence the small page and `probesNewestFirst` left at
+        // its default. Floor measured the same way as stable's; see
+        // `GitHubListPageSizeTests.measuredMinimumDepth`.
+        //
+        // One-click: same artifact shape, same `-binary` exclusion, and the
+        // nightly build is signed and notarized exactly like stable (Developer ID
+        // `Cua AI, Inc.`, ticket stapled, `--deep --strict` and `spctl` both
+        // clean on the real bytes — History). The channel token is in the tag AND
+        // in the asset filename, which is what lets `githubChannelProofs` below
+        // carry an `.artifact` proof rather than a weaker recipe anchor.
+        GitHubReleaseRule(
+            bundleID: "com.trycua.driver",
+            owner: "trycua", repo: "cua",
+            usePrereleases: true,
+            listPageSize: 12,
+            versionPattern:
+                #"^nightly-cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)-nightly\.[0-9]{8}\.[1-9][0-9]*$"#,
+            installAssetPattern:
+                #"^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[1-9][0-9]*-darwin-universal\.tar\.gz$"#,
+            installerKind: .tarGz,
+            channel: .nightly),
+        ],
+        githubChannelProofs: [
+        // Both halves of the resolved URL name the train, and either alone would
+        // do: GitHub builds an asset URL as `…/releases/download/<tag>/<name>`, so
+        // the tag is in the path (`/download/nightly-cua-driver-rs-v…/`) and the
+        // filename carries `-nightly.<date>.<run>-` as well. Anchored on the path
+        // because that is the half the `versionPattern` actually matched — this
+        // proof then asserts the same thing the pattern does, but about what was
+        // resolved rather than about what someone meant to write.
+        ChannelProofKey("com.trycua.driver", .nightly):
+            .artifact(#"/download/nightly-cua-driver-rs-v[0-9.]+-nightly\."#),
         ])
 }

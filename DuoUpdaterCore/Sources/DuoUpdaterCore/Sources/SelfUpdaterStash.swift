@@ -93,14 +93,30 @@ public enum SelfUpdaterStash {
     ///
     /// Compared by path, so the same bundle appearing twice in `population` (a
     /// caller that concatenated two scans) does not read as a contest.
-    public static func attributionIsUnique(
-        cacheDirectoryName: String, in population: [InstalledApp]
+    ///
+    /// ⚠️ **The sole claimant must be `app` itself, not merely a count of one.**
+    /// Counting alone passes when `app` is ABSENT from `population` — an app at a
+    /// path the scan did not cover, or one moved between the scan and the
+    /// per-install re-check — while some other bundle claims the same directory.
+    /// The gate would then hand that other app's `pending/` to this one, leaving
+    /// only the archive's bundle identifier to object; and two copies of one app,
+    /// the case this gate exists for, share that too.
+    public static func isSoleClaimant(
+        _ app: InstalledApp, of cacheDirectoryName: String, in population: [InstalledApp]
     ) -> Bool {
         var claimants = Set<String>()
-        for app in population where electronCacheDirectoryName(for: app) == cacheDirectoryName {
-            claimants.insert(app.path.resolvingSymlinksInPath().standardizedFileURL.path)
+        for candidate in population
+        where electronCacheDirectoryName(for: candidate) == cacheDirectoryName {
+            claimants.insert(canonicalPath(candidate.path))
         }
-        return claimants.count == 1
+        return claimants == [canonicalPath(app.path)]
+    }
+
+    /// The one spelling of a bundle path this type compares on — resolved and
+    /// standardized, so a home directory reached through a symlink does not read
+    /// as a different bundle. Mirrors `SelfUpdaterStaging.normalizedPath`.
+    private static func canonicalPath(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
     /// What `pending/update-info.json` records. Deliberately only the fields
@@ -202,9 +218,23 @@ extension SelfUpdaterStash {
         cachesDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) async -> LocalStagedInstaller? {
-        func reject(_ why: Rejection) -> LocalStagedInstaller? {
+        // Two levels, because the two halves answer different questions.
+        //
+        // Everything up to "is there a parked download at all" is the ordinary
+        // answer for almost every app on the machine, and logging it would be one
+        // line per app per install for no reader. Everything after it is a refusal
+        // to use a download that IS sitting on disk, which is the only thing that
+        // can answer "why did it fetch the whole thing again?" — and `.debug` is
+        // not retained for this subsystem (neither is `.info`), so a reason left at
+        // that level is gone by the time anyone asks.
+        func skip(_ why: Rejection) -> LocalStagedInstaller? {
             Log.install.debug(
-                "local stash unused for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public)")
+                "local stash not applicable for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public)")
+            return nil
+        }
+        func reject(_ why: Rejection) -> LocalStagedInstaller? {
+            Log.install.notice(
+                "local stash refused for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public) — downloading instead")
             return nil
         }
 
@@ -212,12 +242,12 @@ extension SelfUpdaterStash {
         else { return nil }
         // Gate 1 — we must be able to see the whole population to know whether
         // anyone else claims this cache directory.
-        guard let population else { return reject(.populationUnknown) }
+        guard let population else { return skip(.populationUnknown) }
         // Gate 2 — the app has to name its own cache directory; we never guess one.
         guard let key = electronCacheDirectoryName(for: result.app)
-        else { return reject(.noCacheDirectoryName) }
+        else { return skip(.noCacheDirectoryName) }
         // Gate 3 — and has to be the only claimant of it.
-        guard attributionIsUnique(cacheDirectoryName: key, in: population)
+        guard isSoleClaimant(result.app, of: key, in: population)
         else { return reject(.attributionAmbiguous) }
 
         guard let caches = cachesDirectory
@@ -227,7 +257,7 @@ extension SelfUpdaterStash {
 
         // Gate 4 — a completed-download record, and the file it names still there.
         guard let record = pendingRecord(inCacheDirectory: cacheDir, fileManager: fileManager)
-        else { return reject(.noPendingRecord) }
+        else { return skip(.noPendingRecord) }
         let archive = cacheDir
             .appendingPathComponent("pending", isDirectory: true)
             .appendingPathComponent(record.fileName, isDirectory: false)
@@ -242,10 +272,34 @@ extension SelfUpdaterStash {
         let bytes = (try? fileManager.attributesOfItem(atPath: archive.path)[.size]
                      as? NSNumber)?.int64Value ?? 0
 
-        // Gate 6 — the bytes on disk are the ones the app's updater recorded. Off
+        // Gates 6 and 7 — what IS this, and is it what we were about to install?
+        // The archive is the only place that can answer: `update-info.json` carries
+        // no version, and the file name need not either (OpenCode's is
+        // `opencode-desktop-mac-arm64.zip`).
+        //
+        // Asked BEFORE the digest, which is the expensive one. The ordering is
+        // chosen against the common case, not the interesting one: a parked
+        // installer is usually months-old debris (see this type's summary), and
+        // hashing a whole archive to learn what a 4 KB read already says spends
+        // ~0.31 s against ~2 ms every time such an app is installed
+        // (`docs/engine-notes/self-updater-stash.md` §5).
+        //
+        // The cost of this order, stated because it is not free: `unzip` now reads
+        // an archive whose integrity has not been established. That is acceptable
+        // here and only here — the file was written by an app already installed and
+        // running as this user, so it is not a new trust boundary, and nothing from
+        // it is used until the digest below agrees.
+        guard let info = await stagedBundleInfo(inZip: archive) else {
+            return reject(.unreadableBundle)
+        }
+        guard info.bundleID == installedID else { return reject(.bundleIDMismatch) }
+        guard VersionComparator.isSame(info.version, as: remote.versionSide) else {
+            return reject(.versionMismatch)
+        }
+
+        // Gate 8 — the bytes on disk are the ones the app's updater recorded. Off
         // the cooperative pool: this is a whole-file hash, and a hash of a download
-        // parks a thread for its duration if run inline (see `OffPool`). Affordable
-        // here, and why, in `docs/engine-notes/self-updater-stash.md` §5.
+        // parks a thread for its duration if run inline (see `OffPool`).
         let path = archive.path
         let digestMatches = await offCooperativePool { () -> Bool in
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
@@ -254,18 +308,6 @@ extension SelfUpdaterStash {
                 == record.sha512.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard digestMatches else { return reject(.checksumMismatch) }
-
-        // Gates 7 and 8 — what IS this, and is it what we were about to install?
-        // The archive is the only place that can answer: `update-info.json` carries
-        // no version, and the file name need not either (OpenCode's is
-        // `opencode-desktop-mac-arm64.zip`).
-        guard let info = await stagedBundleInfo(inZip: archive) else {
-            return reject(.unreadableBundle)
-        }
-        guard info.bundleID == installedID else { return reject(.bundleIDMismatch) }
-        guard VersionComparator.isSame(info.version, as: remote.versionSide) else {
-            return reject(.versionMismatch)
-        }
 
         Log.install.notice(
             "local stash hit: \(result.app.name, privacy: .public) \(info.version.text(withBuild: true), privacy: .public) already downloaded by its own updater — \(bytes, privacy: .public) B not fetched")

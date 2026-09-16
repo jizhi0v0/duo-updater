@@ -81,8 +81,17 @@ What is left is the version comparison, and leaning on it means betting
 correctness on a vendor's version-string habits — these two happen to be
 distinguishable only because the nightly carries a `-nightly.<date>.<n>` suffix.
 The loser of that bet is an install of the wrong channel's bytes over the other
-copy. Hence `attributionIsUnique`, which refuses a cache directory that more
-than one scanned bundle claims, and refuses a population it was not given.
+copy. Hence `isSoleClaimant`, which requires the one bundle claiming the cache
+directory to BE the app being installed, and refuses a population it was not
+given.
+
+⚠️ **Requiring the claimant to be this app is not the same as counting one.**
+The first version counted, and that passes when the app under install is ABSENT
+from the population — one at a path the scan did not cover, or moved between the
+scan and the per-install re-check — while some other bundle claims the same
+directory. The gate would then hand that other app's `pending/` over, leaving
+only the archive's bundle identifier to object; and two copies of one app, the
+case this gate exists for, share that too.
 
 **The shape is not new.** `SelfUpdaterStaging.sparkleStagedBundle` documents the
 same collision for Sparkle's cache, whose key is the bundle identifier alone,
@@ -143,10 +152,18 @@ roughly 4 KB is read out of an archive of any size. For contrast, on the same
 file and the same machine: SHA-512 over the whole file 0.31 s, full extraction
 of its 409 MB of contents 0.56 s. All reads were page-cache warm.
 
-This is why gate 6 (`digestMatches`) hashes the file but the version read does
-not: 0.31 s at install time is nothing next to the download it replaces, and it
-is the only thing that proves the bytes on disk are the ones the app's updater
-recorded.
+**The version read runs first and the hash last**, and the order was chosen
+against the common case rather than the interesting one. A parked installer is
+usually stale (§2), so hashing before reading the version would spend ~0.31 s to
+learn what ~2 ms already says, on every install of such an app. The cost of that
+order, stated because it is not free: `unzip` reads an archive whose integrity
+has not yet been established. Acceptable here and only here — the file was
+written by an app already installed and running as this user, so it is not a new
+trust boundary — and nothing read from it is used until the digest agrees.
+
+The hash is still mandatory before the bytes are adopted: it is the only thing
+that proves what is on disk is what the app's own updater recorded, and 0.31 s is
+nothing next to the download it replaces.
 
 The entry is anchored to the archive root. Electron bundles carry nested helper
 `.app`s with their own `Info.plist`s — `…/Contents/Frameworks/OpenCode Helper (GPU).app/…`
@@ -178,7 +195,19 @@ The file is copied into our scratch directory, never used in place and never
 deleted: it belongs to the other updater, which is free to clear `pending/` or
 overwrite it mid-install, and our caller removes the scratch directory wholesale.
 
-## §7 End-to-end verification (2026-09-16)
+## §7 Why a refusal is logged louder than a skip
+
+`resolve` has two log levels, and the split is deliberate. Everything up to "is
+there a parked download at all" is the ordinary answer for nearly every app on
+the machine; logging it would be a line per app per install with no reader, so it
+is `.debug`. Everything after that point is a refusal to use a download that IS
+sitting on disk, and it is the only thing that can answer the report this feature
+generates — "it fetched the whole thing again even though the app already had
+it". `.debug` is not retained for this subsystem and neither is `.info`, so a
+reason left at that level is gone by the time anyone asks; those go out at
+`.notice`, alongside the hit.
+
+## §8 End-to-end verification (2026-09-16)
 
 Against the live OpenCode state described in §2, with `make cli` freshly built:
 

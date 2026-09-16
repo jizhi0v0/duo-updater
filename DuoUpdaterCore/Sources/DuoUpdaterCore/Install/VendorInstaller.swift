@@ -105,12 +105,24 @@ public actor VendorInstaller {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
         }
 
+        // Bytes this app's OWN updater has already fetched for exactly this release.
+        //
+        // Asked BEFORE the delta patch is resolved, not just before it is used: the
+        // patch lookup rebuilds install state and then LOGS the route it picked, so
+        // resolving it first printed "delta route: … patch N B instead of M B" for a
+        // route the stash was about to make moot — a saving that never happened,
+        // contradicted three lines later by "bytes=0". A patch is a small download
+        // and this is no download at all, so the cheaper answer has to be asked
+        // first for the log to be true. See `SelfUpdaterStash` for the gates, and
+        // `applyVerified` for what the substitution switches off.
+        let stash = await SelfUpdaterStash.resolve(for: result, population: population)
+
         // A patch published for exactly the build on disk. Vendors reached through
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
         // built for. `preferDelta` is false on the coordinator's retry.
-        let patch = preferDelta && DeltaApplier.isAvailable
+        let patch = stash == nil && preferDelta && DeltaApplier.isAvailable
             ? DeltaApplier.patch(for: result.app, in: remote)
             : nil
         if let patch {
@@ -120,7 +132,7 @@ public actor VendorInstaller {
             let saving = remote.downloadSize.map { " instead of \($0) B" } ?? ""
             let patchSize = patch.size.map(String.init) ?? "unknown"
             Log.install.info("delta route: \(result.app.name, privacy: .public) build \(patch.fromBuild, privacy: .public) → \(remote.version ?? remote.shortVersion ?? "?", privacy: .public), patch \(patchSize, privacy: .public) B\(saving, privacy: .public)")
-        } else if preferDelta, !remote.deltas.isEmpty {
+        } else if stash == nil, preferDelta, !remote.deltas.isEmpty {
             Log.install.info("delta unavailable: \(result.app.name, privacy: .public) build \(result.app.buildVersion ?? "?", privacy: .public) not among \(remote.deltas.count, privacy: .public) published patches — taking the full archive")
         }
 
@@ -131,12 +143,10 @@ public actor VendorInstaller {
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         do {
-            // Bytes this app's OWN updater has already fetched for exactly this
-            // release. Asked before the delta route, not after: a patch is a small
-            // download and this is no download at all. See `SelfUpdaterStash` for
-            // the gates, and `applyVerified` for what the substitution switches off.
-            if let stash = await SelfUpdaterStash.resolve(for: result, population: population) {
-                onStage(.downloading(fraction: 1))
+            if let stash {
+                // No `.downloading` stage: nothing is fetched, and reporting one
+                // made `electron-verify` print "downloading 100%" directly above
+                // its own "bytes=0". The next stage the caller sees is `.extracting`.
                 return try await adopt(stash, into: workDir)
             }
 

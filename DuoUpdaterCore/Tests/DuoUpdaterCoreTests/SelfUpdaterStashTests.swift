@@ -185,8 +185,8 @@ struct SelfUpdaterStashTests {
         let caches = try await Self.layOutCache(cacheDirName: "zzshared-updater")
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        #expect(!SelfUpdaterStash.attributionIsUnique(
-            cacheDirectoryName: "zzshared-updater", in: [alpha, nightly]))
+        #expect(!SelfUpdaterStash.isSoleClaimant(
+            alpha, of: "zzshared-updater", in: [alpha, nightly]))
         let stash = await SelfUpdaterStash.resolve(
             for: Self.result(alpha), population: [alpha, nightly], cachesDirectory: caches)
         #expect(stash == nil)
@@ -202,8 +202,7 @@ struct SelfUpdaterStashTests {
     /// contest. Mutation: count array elements instead of distinct paths.
     @Test func theSameCopyListedTwiceIsNotAContest() async throws {
         let app = Self.fixtureApp(name: "ZZStash-Dup", cacheDirName: "zzdup-updater")
-        #expect(SelfUpdaterStash.attributionIsUnique(
-            cacheDirectoryName: "zzdup-updater", in: [app, app]))
+        #expect(SelfUpdaterStash.isSoleClaimant(app, of: "zzdup-updater", in: [app, app]))
     }
 
     /// Mutation: `let population = population ?? [result.app]` — the plausible
@@ -284,19 +283,56 @@ struct SelfUpdaterStashTests {
         #expect(stash == nil)
     }
 
-    /// Mutation: drop the separator checks in `electronCacheDirectoryName` /
-    /// `pendingRecord`. Both values are joined onto a path under `~/Library/Caches`.
+    /// Mutations: drop the separator check in `electronCacheDirectoryName`, and
+    /// drop the one in `pendingRecord`. Both values are joined onto a path under
+    /// `~/Library/Caches`.
+    ///
+    /// ⚠️ The `pendingRecord` half asserts on `pendingRecord` itself, NOT on
+    /// `resolve`. Going through `resolve` made this case vacuous: the escaping
+    /// name points at a file that does not exist, so `resolve` refuses at the
+    /// `fileExists` gate whether or not the separator check is there, and the
+    /// mutation stayed green. Verified by running it.
     @Test func aSeparatorInEitherNameIsRefused() async throws {
         let escaping = Self.fixtureApp(name: "ZZStash-Esc", cacheDirName: "../../escaped")
         #expect(SelfUpdaterStash.electronCacheDirectoryName(for: escaping) == nil)
 
-        let app = Self.fixtureApp(name: "ZZStash-EscFile", cacheDirName: "zzesc-updater")
+        let fm = FileManager.default
+        // A non-empty digest matters: `layOutCache` writes "" when it skips the
+        // archive, and `pendingRecord` refuses an empty `sha512` BEFORE it looks at
+        // the name — which is what made the first attempt at this case vacuous for
+        // a second time. The value is never compared here; it only has to exist.
         let caches = try await Self.layOutCache(
             cacheDirName: "zzesc-updater", archiveName: "../../../escaped.zip",
-            writeArchive: false)
+            recordedSHA512: "ZZfixtureDigestNotComparedHere==", writeArchive: false)
+        defer { try? fm.removeItem(at: caches) }
+        let cacheDir = caches.appendingPathComponent("zzesc-updater", isDirectory: true)
+
+        // The record parses — same file, same shape — and is refused on the name
+        // alone. Asserting the control too, so a `pendingRecord` that refused
+        // everything could not pass this case.
+        #expect(SelfUpdaterStash.pendingRecord(inCacheDirectory: cacheDir, fileManager: fm) == nil)
+        let ok = try await Self.layOutCache(cacheDirName: "zzok-updater")
+        defer { try? fm.removeItem(at: ok) }
+        #expect(SelfUpdaterStash.pendingRecord(
+            inCacheDirectory: ok.appendingPathComponent("zzok-updater", isDirectory: true),
+            fileManager: fm) != nil)
+    }
+
+    /// The claimant has to BE this app, not just be alone.
+    /// Mutation: `claimants.count == 1` in place of the set comparison.
+    @Test func aCacheDirectoryClaimedOnlyBySomeoneElseIsRefused() async throws {
+        let mine = Self.fixtureApp(name: "ZZStash-Absent", cacheDirName: "zzabsent-updater")
+        let theirs = Self.fixtureApp(
+            name: "ZZStash-Squatter", id: Self.bundleID, cacheDirName: "zzabsent-updater")
+        // `mine` is NOT in the population — an app the scan missed, or one moved
+        // after it ran. `theirs` is the only claimant, and shares the bundle id, so
+        // nothing downstream of this gate can tell the two apart.
+        #expect(!SelfUpdaterStash.isSoleClaimant(mine, of: "zzabsent-updater", in: [theirs]))
+
+        let caches = try await Self.layOutCache(cacheDirName: "zzabsent-updater")
         defer { try? FileManager.default.removeItem(at: caches) }
         let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
+            for: Self.result(mine), population: [theirs], cachesDirectory: caches)
         #expect(stash == nil)
     }
 

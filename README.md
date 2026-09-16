@@ -374,7 +374,7 @@ throughout (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`).
 generated from `App/project.yml` and not checked in. `DuoUpdaterCore/` and `CLI/`
 are plain Swift packages: `swift build` and `swift test` need nothing extra
 beyond network access the first time, to fetch swift-subprocess (whose manifest
-needs Swift 6.2 or later — the macOS 26 SDK requirement above already implies it).
+needs Swift 6.2 or later — the Swift 6.4 requirement above already implies it).
 
 ### Building under your own Developer ID
 

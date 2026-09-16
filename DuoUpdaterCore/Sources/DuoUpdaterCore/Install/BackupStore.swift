@@ -423,18 +423,11 @@ public enum BackupStore {
             .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
         // Both removals of `scratch` can be deleting a whole bundle copy (a
         // crashed earlier rollback's, or this one's when it stops short of the
-        // swap), so they go to Dispatch — and the second is not a `defer`, which
-        // cannot await.
+        // swap), so they go to Dispatch.
         await removeItemOffCooperativePool(at: scratch)
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
-        let outcome: Result<String?, any Error>
-        do {
-            outcome = .success(try await restore(backup, key: key, stagingIn: scratch, over: target))
-        } catch {
-            outcome = .failure(error)
-        }
-        await removeItemOffCooperativePool(at: scratch)
-        return try outcome.get()
+        defer { await removeItemOffCooperativePool(at: scratch) }
+        return try await restore(backup, key: key, stagingIn: scratch, over: target)
     }
 
     /// `restore(forKey:over:)` from the point its scratch directory exists.

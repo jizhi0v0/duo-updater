@@ -219,11 +219,9 @@ public enum InputMethodDataBackup {
             return []
         }
         // Whatever the snapshot did not swap into place is still in `staging` — up
-        // to a copy of the whole data directory — so it is removed on Dispatch, and
-        // after the call rather than in a `defer`, which cannot await.
-        let stored = await snapshot(sources, key: key, stagingIn: staging, into: dir)
-        await removeItemOffCooperativePool(at: staging)
-        return stored
+        // to a copy of the whole data directory — so it is removed on Dispatch.
+        defer { await removeItemOffCooperativePool(at: staging) }
+        return await snapshot(sources, key: key, stagingIn: staging, into: dir)
     }
 
     /// `save` from the point its staging directory exists: copy, write the
@@ -310,10 +308,11 @@ public enum InputMethodDataBackup {
             guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
             else { continue }
             // A copy that did not get exchanged is still in `scratch`, so it is
-            // removed on Dispatch, after the call rather than in a `defer`.
-            let done = await restoreEntry(entry, from: source, to: target, stagingIn: scratch)
-            await removeItemOffCooperativePool(at: scratch)
-            if done { restored.append(Location(original: target, storedName: entry.storedName)) }
+            // removed on Dispatch.
+            defer { await removeItemOffCooperativePool(at: scratch) }
+            if await restoreEntry(entry, from: source, to: target, stagingIn: scratch) {
+                restored.append(Location(original: target, storedName: entry.storedName))
+            }
         }
         return restored
     }

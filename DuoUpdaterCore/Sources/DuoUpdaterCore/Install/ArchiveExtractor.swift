@@ -81,16 +81,11 @@ enum ArchiveExtractor {
         guard attach.code == 0 else {
             throw ExtractError.toolFailed("hdiutil attach", attach.code, attach.err)
         }
-        // Detached on every path out, as the `defer` that used to sit here did —
-        // spelled out because a `defer` cannot await.
-        let copied: Result<URL, Error>
-        do {
-            copied = .success(try await copyApp(outOf: mountPoint, into: workDir))
-        } catch {
-            copied = .failure(error)
-        }
-        await detach(mountPoint)
-        return try copied.get()
+        // Detached on every path out. The `defer` sees a cancelled task as
+        // cancelled (SE-0493), which is why `detach` takes its retry pause in a
+        // detached task rather than trusting `Task.sleep` here.
+        defer { await detach(mountPoint) }
+        return try await copyApp(outOf: mountPoint, into: workDir)
     }
 
     private static func copyApp(outOf mountPoint: URL, into workDir: URL) async throws -> URL {

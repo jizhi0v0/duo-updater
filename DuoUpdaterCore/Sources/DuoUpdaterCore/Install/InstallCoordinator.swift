@@ -470,7 +470,7 @@ public actor InstallCoordinator {
     ///
     /// It holds the archive and whatever was unpacked or reconstructed from it —
     /// a whole app bundle — so it is removed on Dispatch, after the apply phase
-    /// returns or throws, rather than in a `defer`, which cannot await.
+    /// returns or throws (and after `swap` has handed its apply permit back).
     /// Internal for `FetchThenSwapCleanupTests`.
     func fetchThenSwap(
         _ result: UpdateResult,
@@ -486,15 +486,9 @@ public actor InstallCoordinator {
             try Task.checkCancellation()
             return try await download(result, progress)
         }
+        defer { await removeItemOffCooperativePool(at: downloaded.workDir) }
         await releaseAfterDownload()
-        let applied: Result<Outcome, any Error>
-        do {
-            applied = .success(try await swap(result, downloaded, label: label, progress: progress, apply: apply))
-        } catch {
-            applied = .failure(error)
-        }
-        await removeItemOffCooperativePool(at: downloaded.workDir)
-        return try applied.get()
+        return try await swap(result, downloaded, label: label, progress: progress, apply: apply)
     }
 
     /// `fetchThenSwap` from the download onwards: wait for the apply permit, apply.

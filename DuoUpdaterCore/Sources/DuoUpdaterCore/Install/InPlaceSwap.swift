@@ -101,24 +101,17 @@ public enum InPlaceSwap {
                 "another installer holds the install lock, sweep deferred: \(error, privacy: .public)")
             return false
         }
+        defer { await lock.release() }
         // Off the cooperative pool: the sweep validates every orphan it finds with
         // `SecStaticCodeCheckValidity`, which is the exact call #351 measured
         // parking all three cooperative threads on a 3-core runner, and this is
         // reached from a `Task.detached` that runs on that same pool. See
         // `offCooperativePool`.
         await offCooperativePool(qos: .utility) { sweepInterruptedSwaps(in: directory) }
-        // Unconditional rather than deferred, and it stays correct because the
-        // sweep neither throws nor returns early: the hop above suspends, but it
-        // is not cancellable and always resumes (see `offCooperativePool`), so
-        // there is still no path from the claim to here that skips the release.
-        // (`defer` cannot hold an `await` anyway.) Anything added to that
-        // function that can bail out early has to release the claim on its way.
-        await lock.release()
         return true
     }
 
-    /// The sweep itself, once the lock is held. Deliberately non-throwing and
-    /// non-`async` — see the release note in the caller.
+    /// The sweep itself, once the lock is held.
     private static func sweepInterruptedSwaps(in directory: URL) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(

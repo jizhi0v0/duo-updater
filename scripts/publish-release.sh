@@ -1076,6 +1076,14 @@ $(printf '\033[1;33m! duoupdater.app is NOT synced yet.\033[0m') Its last sync c
 EOF
             ;;
     esac
+
+    # The site also says which macOS it needs, in hand-written copy, and the sync
+    # above does not touch that. Raising the deployment target changes the answer
+    # the moment this release is out. Compared against the app just shipped, not
+    # App/project.yml. Warn-only, like the sync note; see the script.
+    release_min="$(unzip -p "$ASSET_ZIP" "$zip_info" \
+        | plutil -extract LSMinimumSystemVersion raw - 2>/dev/null || true)"
+    python3 "$REPO_ROOT/scripts/site_floor.py" "$site_repo" "$release_min" || true
 else
     # Saying nothing is what this check did on 0.3.84, and "no output" reads exactly
     # like "nothing to do". If the site checkout cannot be found, say so.

@@ -25,6 +25,7 @@ build:
 test:
 	python3 scripts/test_appcast_edit.py
 	python3 scripts/test_publish_release.py
+	python3 scripts/test_site_floor.py
 	python3 scripts/test_check_prose_claims.py
 	python3 scripts/test_check_offpool.py
 	python3 scripts/test_check_recipe_snapshots.py

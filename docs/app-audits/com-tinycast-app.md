@@ -56,8 +56,10 @@ beta 的 `-beta.N` 里 `N` 是 Actions 的 run number，跨 base 版本持续递
     `com.tinycast.app`，只有 dmg
   - `v0.1.0-alpha.4` … `v0.5.7-alpha.22`：早期 alpha 轨，已停
 - 2026-09-17 全部 94 个 release：tag 形状与 `prerelease` 标志**零不一致**
-  （`-beta.N` 全为 true、纯 `vX.Y.Z` 全为 false）；57 个没有 zip（早期只发 dmg），
-  但都有 dmg，所以不会触发"无 macOS 资产"回退。
+  （`-beta.N` 全为 true、纯 `vX.Y.Z` 全为 false）。两条 rule 都没有 `installAssetPattern`，
+  所以资产有没有都不参与解析（缺资产的列表回退只对设了 install pattern 的 rule 生效）。
+  ⚠️ 将来加一键时要知道：57 个早期 release 只发 dmg、没有 zip，一条 zip 的 install pattern
+  会把它们当成「缺 macOS 资产」。
 - beta 的 `listPageSize`: 56 个 beta tag，最大间隔 5（`v0.9.6-beta.53` → `v0.9.2-beta.49`），
   下限 6，取 10。
 

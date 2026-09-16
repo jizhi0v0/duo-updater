@@ -23,11 +23,14 @@ enum com_tinycast_app {
         // both sides, so an install pattern here could only produce an Update
         // button that fails. `TinycastGitHubRuleTests` pins that.
         //
-        // The pattern is anchored at both ends. `/releases/latest` never returns
-        // a prerelease, but the missing-asset list fallback walks raw tags, and
-        // this repo also publishes `v0.9.7-sequoia` (macOS 15 build, same bundle
-        // id) and old `-alpha.N` tags — all flagged prerelease today, and none
-        // of them a stable version.
+        // The pattern is anchored at both ends. `/releases/latest` excludes
+        // releases by GitHub's `prerelease` FLAG, not by tag, and this repo also
+        // publishes `v0.9.7-sequoia` (macOS 15 build, same bundle id) and old
+        // `-alpha.N` tags. They are all flagged prerelease today; the anchors are
+        // what keeps one published without the flag from reading as a plain
+        // `0.9.7` under the unanchored registry default. (This rule sets no
+        // `installAssetPattern`, so the missing-asset list fallback never runs
+        // for it.)
         GitHubReleaseRule(
             bundleID: "com.tinycast.app",
             owner: "abue-ammar", repo: "tinycast",

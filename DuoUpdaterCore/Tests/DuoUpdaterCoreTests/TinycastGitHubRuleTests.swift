@@ -51,9 +51,10 @@ import Testing
     }
 
     /// Real tag shapes from the repo (2026-09-17). The stable pattern has to
-    /// refuse every non-stable shape the list fallback can walk into: betas,
-    /// the macOS 15 `-sequoia` builds (same bundle id) and the old `-alpha.N`
-    /// tags.
+    /// refuse every non-stable shape the repo publishes — betas, the macOS 15
+    /// `-sequoia` builds (same bundle id) and the old `-alpha.N` tags — so that
+    /// one arriving from `/releases/latest` without its prerelease flag is not
+    /// read as a stable version.
     @Test func stableRuleTakesOnlyPlainTags() throws {
         #expect(try extract("v0.10.23", Self.stableID) == "0.10.23")
         for tag in ["v0.11.1-beta.96", "v0.9.7-sequoia", "v0.5.7-alpha.22"] {

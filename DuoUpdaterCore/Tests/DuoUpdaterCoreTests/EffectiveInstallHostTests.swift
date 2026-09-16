@@ -135,12 +135,33 @@ struct EffectiveInstallHostTests {
         #expect(table.host(forApp: "zz.fixture.appEpsilon", feedHost: "vendor-epsilon.fixture.example") == "vendor-epsilon.fixture.example")
     }
 
-    /// `learn` with a nil served-by host records nothing — a download whose
-    /// final host was never determined must not overwrite a good entry, or
-    /// erase the app's ability to fall back to its feed host.
+    /// `learn` with a nil served-by host must not touch an existing entry — a
+    /// download whose final host was never determined must not overwrite, or
+    /// DELETE, a good entry already on record.
+    ///
+    /// Starting from an empty table cannot catch the delete case: "recorded
+    /// nothing" and "deleted a key that was never there" both leave the table
+    /// empty, so this primes a real entry first and checks it survives.
+    ///
+    /// Mutation: dropping the `let finalHost` unwrap from `learn`'s guard,
+    /// i.e. `guard let feedHost, feedHost != finalHost else { return }`.
+    /// `finalHost` then stays `String?`, and `byApp[appID] = finalHost` — a
+    /// dictionary subscript assignment — DELETES the key when `finalHost` is
+    /// nil, instead of leaving it untouched. That mutant compiles and passed
+    /// every test in this file, including the version of this one that
+    /// started from an empty table (confirmed 2026-09-16; see the worktree
+    /// notes for the raw output). `InstallCoordinator` returns `finalHost: nil`
+    /// on more than one path (e.g. the homebrew branch), so this is not a
+    /// hypothetical caller.
     @Test func learnWithANilServedByHostRecordsNothing() {
         var table = EffectiveInstallHost()
-        table.learn(appID: "zz.fixture.appZeta", feedHost: "vendor-zeta.fixture.example", servedBy: nil)
-        #expect(table.host(forApp: "zz.fixture.appZeta", feedHost: "vendor-zeta.fixture.example") == "vendor-zeta.fixture.example")
+        let appID = "zz.fixture.appZeta"
+        let feedHost = "vendor-zeta.fixture.example"
+
+        table.learn(appID: appID, feedHost: feedHost, servedBy: "cdn-zeta.fixture.example")
+        #expect(table.host(forApp: appID, feedHost: feedHost) == "cdn-zeta.fixture.example")
+
+        table.learn(appID: appID, feedHost: feedHost, servedBy: nil)
+        #expect(table.host(forApp: appID, feedHost: feedHost) == "cdn-zeta.fixture.example")
     }
 }

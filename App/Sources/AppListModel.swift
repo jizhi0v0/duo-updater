@@ -6223,9 +6223,17 @@ final class AppListModel {
     /// and are the ones that trip its rate limiter / WAF.
     private static let maxPerHostInstalls = 2
 
-    /// The app-process-wide storage this per-host gate keys off — `static`
-    /// like its predecessor `effectiveHostByApp` was, so a host learned for an
-    /// app stays learned across `AppListModel` instances, not just within one.
+    /// The storage this per-host gate keys off. `static` because its
+    /// predecessor `effectiveHostByApp` was — this move is behaviour-
+    /// preserving, not a new design choice. That leaves an asymmetry with
+    /// `hostInstallGates` twelve lines down, which is an *instance* property:
+    /// learned hosts are process-wide, the gates keyed by them are not. A
+    /// second `AppListModel` would share learned hosts but build its own
+    /// semaphores from them, doubling `maxPerHostInstalls`'s effective cap per
+    /// host — invisible today only because exactly one `AppListModel` is ever
+    /// constructed (`DuoUpdaterApp.swift`'s `@State private var model =
+    /// AppListModel()`).
+    ///
     /// The decision logic itself — which host to key on, and the rationale for
     /// keying by app rather than by feed host — lives in `EffectiveInstallHost`
     /// (Core), where it now runs under `EffectiveInstallHostTests` instead of

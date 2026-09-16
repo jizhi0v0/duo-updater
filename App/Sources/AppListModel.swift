@@ -4213,23 +4213,29 @@ final class AppListModel {
             // the Restart action. Otherwise the in-place swap is already fully in
             // effect and there's nothing left to do.
             let version = updated.app.shortVersion
+            // `kill(pid, 0)` asks the kernel, not a cached running-apps list. Probed
+            // once, so the decision and the log line below read the same answer.
+            let survivingPIDs = preInstallPIDs.filter { kill($0, 0) == 0 || errno == EPERM }
+            let preInstallProcessStillRunning = PostInstallDisposition.preInstallProcessStillRunning(
+                wasRunningBeforeInstall: wasRunningBeforeInstall,
+                preInstallPIDs: preInstallPIDs,
+                isAlive: { survivingPIDs.contains($0) })
             let disposition = PostInstallDisposition.resolve(
                 defersBookkeeping: deferBookkeeping,
-                preInstallProcessStillRunning: PostInstallDisposition.preInstallProcessStillRunning(
-                    wasRunningBeforeInstall: wasRunningBeforeInstall,
-                    preInstallPIDs: preInstallPIDs,
-                    // `kill(pid, 0)` asks the kernel, not a cached running-apps list.
-                    isAlive: { kill($0, 0) == 0 || errno == EPERM }),
+                preInstallProcessStillRunning: preInstallProcessStillRunning,
                 needsRestartAfterRescan: needsRestart.contains(updated.id)
             )
+            // `.notice`, not `.info`: `.info` is not persisted, and this is the line
+            // that says why a row did or did not offer a relaunch after the fact.
+            Log.install.notice("install disposition: \(updated.app.name, privacy: .public) via \(String(describing: route), privacy: .public) — batch=\(deferBookkeeping, privacy: .public) wasRunning=\(wasRunningBeforeInstall, privacy: .public) prePIDs=\(String(describing: preInstallPIDs), privacy: .public) surviving=\(String(describing: survivingPIDs), privacy: .public) stillRunning=\(preInstallProcessStillRunning, privacy: .public) needsRestart=\(self.needsRestart.contains(updated.id), privacy: .public) → \(String(describing: disposition), privacy: .public)")
             switch disposition {
             case .awaitingBatchRestart:
                 let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"
                 pendingBatchRestart[updated.id] = from
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, waiting for batch restart")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, waiting for batch restart")
 
             case .awaitingRestart:
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
                 // Finish the job the user started: a one-click Update shouldn't leave
                 // a second "Relaunch" click dangling. Auto-relaunch unless the user
@@ -4241,7 +4247,7 @@ final class AppListModel {
                     await restart(updated)
                 }
             case .complete:
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
@@ -5967,7 +5973,12 @@ final class AppListModel {
     private func reopenIfQuitForUpdate(_ result: UpdateResult, installSucceeded: Bool) {
         let id = result.id
         guard let reason = reopenAfterQuit.removeValue(forKey: id) else { return }
-        if !AppRestarter.runningInstances(of: result.app).isEmpty {
+        // Every exit below logs at `.notice`: whether we or the store brought an app
+        // back, and whether a hand-off was armed over a process the store had already
+        // relaunched, is otherwise unrecoverable after the fact (`.info` is not
+        // persisted, and the open itself used to leave no trace at all).
+        let runningPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
+        if !runningPIDs.isEmpty {
             // Still up. Whether to hand this to the terminate observer turns on
             // whether a quit is actually coming — not on who asked for one.
             //
@@ -5984,7 +5995,10 @@ final class AppListModel {
             // so the quit is expected. A failed or cancelled one closed nothing,
             // and arming there is how a cancelled update relaunched an app the
             // user had closed themselves ten minutes later.
-            guard reason == .userAskedToQuit || installSucceeded else { return }
+            guard reason == .userAskedToQuit || installSucceeded else {
+                Log.install.notice("reopen-after-quit: \(result.app.name, privacy: .public) not reopening — running=\(String(describing: runningPIDs), privacy: .public), reason=\(String(describing: reason), privacy: .public), install did not succeed")
+                return
+            }
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.
@@ -5992,14 +6006,22 @@ final class AppListModel {
                 quitHandoffs[id] = QuitHandoff(
                     result: result, landing: .appStoreSwap(past: result.app.versionSide),
                     activates: false, armedAt: Date())
-                Log.install.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down)")
+                Log.install.notice("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down) running=\(String(describing: runningPIDs), privacy: .public) reason=\(String(describing: reason), privacy: .public)")
                 return
             }
         }
+        let name = result.app.name
+        Log.install.notice("reopen-after-quit: opening \(name, privacy: .public) — running=\(String(describing: runningPIDs), privacy: .public) reason=\(String(describing: reason), privacy: .public) installSucceeded=\(installSucceeded, privacy: .public)")
         let config = NSWorkspace.OpenConfiguration()
         config.activates = false
         NSWorkspace.shared.openApplication(
-            at: result.app.path, configuration: config, completionHandler: { _, _ in })
+            at: result.app.path, configuration: config, completionHandler: { app, error in
+                if let error {
+                    Log.install.notice("reopen-after-quit: open of \(name, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
+                } else {
+                    Log.install.notice("reopen-after-quit: open of \(name, privacy: .public) returned pid \(app?.processIdentifier ?? -1, privacy: .public)")
+                }
+            })
     }
 
     /// A small launch rect at the center of the window the user is currently

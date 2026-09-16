@@ -83,7 +83,7 @@ distinguishable only because the nightly carries a `-nightly.<date>.<n>` suffix.
 The loser of that bet is an install of the wrong channel's bytes over the other
 copy. Hence `isSoleClaimant`, which requires the one bundle claiming the cache
 directory to BE the app being installed, and refuses a population it was not
-given.
+given. It runs after the archive is known to exist — see §7 for why.
 
 ⚠️ **Requiring the claimant to be this app is not the same as counting one.**
 The first version counted, and that passes when the app under install is ABSENT
@@ -195,17 +195,33 @@ The file is copied into our scratch directory, never used in place and never
 deleted: it belongs to the other updater, which is free to clear `pending/` or
 overwrite it mid-install, and our caller removes the scratch directory wholesale.
 
-## §7 Why a refusal is logged louder than a skip
+## §7 Why a refusal is logged louder than a skip, and why the gate order follows
 
-`resolve` has two log levels, and the split is deliberate. Everything up to "is
-there a parked download at all" is the ordinary answer for nearly every app on
-the machine; logging it would be a line per app per install with no reader, so it
-is `.debug`. Everything after that point is a refusal to use a download that IS
-sitting on disk, and it is the only thing that can answer the report this feature
-generates — "it fetched the whole thing again even though the app already had
-it". `.debug` is not retained for this subsystem and neither is `.info`, so a
-reason left at that level is gone by the time anyone asks; those go out at
-`.notice`, alongside the hit.
+`resolve` has two log levels. Everything up to "is there a parked archive at all"
+is the ordinary answer for nearly every app on the machine; logging it would be a
+line per app per install with no reader, so it is `.debug`. Everything after that
+point is a refusal to use a download that IS sitting on disk, and it is the only
+thing that can answer the report this feature generates — "it fetched the whole
+thing again even though the app already had it". Neither `.debug` nor `.info` is
+retained for this subsystem, so a reason left at either level is gone by the time
+anyone asks; those go out at `.notice`, alongside the hit.
+
+**The gate order is arranged so that split is exactly true rather than nearly
+true.** The attribution gate (§3) was originally third, ahead of the check for a
+parked record — so two copies of an app sharing a cache directory announced
+`attributionAmbiguous` at `.notice` on every install even when `pending/` was
+empty, and a reader chasing "why did it download again?" would go hunting for a
+file that was never there. It now runs after the archive is known to exist.
+`Rejection.refusedAnArchiveOnDisk` is the single definition of which side each
+answer falls on, and Swift's exhaustive switch makes adding a case a compile
+error rather than a silent default.
+
+`resolve` is a logging wrapper over `evaluate`, which returns WHICH gate
+answered. That split is not tidiness: these gates are each other's fallback, so
+deleting one usually leaves the next refusing the same input for a different
+reason, and a test that only sees nil keeps passing while no longer measuring
+anything. Three cases in this suite were vacuous for exactly that reason — two
+found by a review, one by the re-review of the fix for the first two.
 
 ## §8 End-to-end verification (2026-09-16)
 

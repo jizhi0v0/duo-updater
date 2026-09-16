@@ -22,7 +22,7 @@ struct SelfUpdaterStashTests {
     private static let offered = "9.9.9"
 
     /// An invented bundle, guarded against ever naming a real one. A path that
-    /// exists would put `resolvingSymlinksInPath` (in `attributionIsUnique`) on
+    /// exists would put `resolvingSymlinksInPath` (in `isSoleClaimant`) on
     /// the host's filesystem, which is exactly the drift this guard exists for.
     private static func fixtureApp(
         name: String, id: String = bundleID, cacheDirName: String?
@@ -140,6 +140,30 @@ struct SelfUpdaterStashTests {
         return caches
     }
 
+    /// Asserts which gate refused, not merely that something did.
+    ///
+    /// ⚠️ `#expect(stash == nil)` is immune to the failure these cases exist to
+    /// catch: the gates are each other's fallback, so deleting one usually leaves
+    /// the next one refusing the same input for a different reason, and the case
+    /// stays green while no longer measuring its gate. Two cases in this suite
+    /// were vacuous for exactly that reason before this helper existed.
+    private static func expectRefusal(
+        _ expected: SelfUpdaterStash.Rejection,
+        for app: InstalledApp, population: [InstalledApp]?, caches: URL,
+        offering version: String = offered,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async {
+        let outcome = await SelfUpdaterStash.evaluate(
+            for: result(app, offering: version), population: population, cachesDirectory: caches)
+        switch outcome {
+        case .success:
+            Issue.record("expected \(expected.rawValue), got a stash", sourceLocation: sourceLocation)
+        case .failure(let why):
+            #expect(why == expected, "expected \(expected.rawValue), got \(why.rawValue)",
+                    sourceLocation: sourceLocation)
+        }
+    }
+
     // MARK: - The happy path
 
     /// The OpenCode case: the app's own updater has already downloaded exactly the
@@ -170,15 +194,14 @@ struct SelfUpdaterStashTests {
             cacheDirName: "zzstale-updater", short: "1.2.3")
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .versionMismatch, for: app, population: [app], caches: caches)
     }
 
     /// T3 Code's shape: two installed copies naming one cache directory, with the
     /// SAME bundle identifier — so neither the directory nor the archive's id can
     /// say whose download this is.
-    /// Mutation: delete the `attributionIsUnique` guard in `resolve`.
+    /// Mutation: delete the `isSoleClaimant` guard in `evaluate`.
     @Test func aCacheDirectoryTwoCopiesClaimIsRefused() async throws {
         let alpha = Self.fixtureApp(name: "ZZStash-Alpha", cacheDirName: "zzshared-updater")
         let nightly = Self.fixtureApp(name: "ZZStash-Nightly", cacheDirName: "zzshared-updater")
@@ -187,9 +210,8 @@ struct SelfUpdaterStashTests {
 
         #expect(!SelfUpdaterStash.isSoleClaimant(
             alpha, of: "zzshared-updater", in: [alpha, nightly]))
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(alpha), population: [alpha, nightly], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .attributionAmbiguous, for: alpha, population: [alpha, nightly], caches: caches)
         // And the same layout with only one claimant IS used — without this the
         // case above would pass for any reason at all, including a typo in the
         // fixture's cache directory name.
@@ -211,7 +233,7 @@ struct SelfUpdaterStashTests {
     /// contest is invisible from inside one app.
     ///
     /// ⚠️ NOT pinned to `?? []`, which was this case's first claim and is vacuous:
-    /// an empty population makes `attributionIsUnique` count zero claimants and
+    /// an empty population makes `isSoleClaimant` find zero claimants and
     /// refuse anyway, so that mutation is green and the case would have been
     /// measuring the next gate rather than this one. Verified by running it.
     @Test func anUnsuppliedPopulationIsRefused() async throws {
@@ -219,9 +241,8 @@ struct SelfUpdaterStashTests {
         let caches = try await Self.layOutCache(cacheDirName: "zznopop-updater")
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: nil, cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .populationUnknown, for: app, population: nil, caches: caches)
     }
 
     /// The bytes on disk are not the ones the app's updater recorded.
@@ -234,9 +255,8 @@ struct SelfUpdaterStashTests {
                 .base64EncodedString())
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .checksumMismatch, for: app, population: [app], caches: caches)
     }
 
     /// A cache directory holding some other app's build.
@@ -247,9 +267,8 @@ struct SelfUpdaterStashTests {
             cacheDirName: "zzother-updater", zipBundleID: "com.example.zzfixture.somethingelse")
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .bundleIDMismatch, for: app, population: [app], caches: caches)
     }
 
     /// The nested-helper trap. The helper's Info.plist says 0.0.1 while the app's
@@ -278,9 +297,8 @@ struct SelfUpdaterStashTests {
         defer { try? FileManager.default.removeItem(at: caches) }
 
         #expect(SelfUpdaterStash.electronCacheDirectoryName(for: app) == nil)
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .noCacheDirectoryName, for: app, population: [app], caches: caches)
     }
 
     /// Mutations: drop the separator check in `electronCacheDirectoryName`, and
@@ -331,9 +349,8 @@ struct SelfUpdaterStashTests {
 
         let caches = try await Self.layOutCache(cacheDirName: "zzabsent-updater")
         defer { try? FileManager.default.removeItem(at: caches) }
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(mine), population: [theirs], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .attributionAmbiguous, for: mine, population: [theirs], caches: caches)
     }
 
     /// Mutation: admit `.dmg` / `.pkg` from `archiveKind` in `resolve`. A package
@@ -348,9 +365,8 @@ struct SelfUpdaterStashTests {
         let caches = try await Self.layOutCache(
             cacheDirName: "zzdmg-updater", archiveName: "zzfixture.dmg")
         defer { try? FileManager.default.removeItem(at: caches) }
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .unsupportedKind, for: app, population: [app], caches: caches)
     }
 
     /// `update-info.json` naming a file that is no longer there — electron-updater
@@ -358,13 +374,17 @@ struct SelfUpdaterStashTests {
     /// Mutation: drop the `fileExists` guard.
     @Test func aRecordNamingAMissingArchiveIsRefused() async throws {
         let app = Self.fixtureApp(name: "ZZStash-Gone", cacheDirName: "zzgone-updater")
+        // Non-empty digest for the same reason the separator case needs one:
+        // `layOutCache` writes "" when it skips the archive, and `pendingRecord`
+        // refuses an empty `sha512` two gates earlier — which is what made this
+        // case vacuous until `evaluate` let it assert WHICH gate answered.
         let caches = try await Self.layOutCache(
-            cacheDirName: "zzgone-updater", writeArchive: false)
+            cacheDirName: "zzgone-updater",
+            recordedSHA512: "ZZfixtureDigestNotComparedHere==", writeArchive: false)
         defer { try? FileManager.default.removeItem(at: caches) }
 
-        let stash = await SelfUpdaterStash.resolve(
-            for: Self.result(app), population: [app], cachesDirectory: caches)
-        #expect(stash == nil)
+        await Self.expectRefusal(
+            .archiveMissing, for: app, population: [app], caches: caches)
     }
 
     /// `app-update.yml` carries the key we now read, and an absent key stays absent

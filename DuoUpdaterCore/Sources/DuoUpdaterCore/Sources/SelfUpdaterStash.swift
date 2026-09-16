@@ -165,20 +165,41 @@ public enum SelfUpdaterStash {
 
 extension SelfUpdaterStash {
 
-    /// Why a parked installer was not used. Logged rather than surfaced: every
-    /// one of these means "download it the usual way", which is what the user
-    /// already expects, so none of them is a failure to report.
-    enum Rejection: String, Sendable {
+    /// Why a parked installer was not used. None of these is a failure to report
+    /// to the user — every one means "download it the usual way", which is what
+    /// they already expect — but they are not all equally interesting to a reader.
+    enum Rejection: String, Sendable, CaseIterable, Error {
         case populationUnknown
         case noCacheDirectoryName
-        case attributionAmbiguous
         case noPendingRecord
         case archiveMissing
+        case attributionAmbiguous
         case unsupportedKind
-        case checksumMismatch
         case unreadableBundle
         case bundleIDMismatch
         case versionMismatch
+        case checksumMismatch
+
+        /// Whether this answer means "there IS a parked download and we refused
+        /// it", as opposed to "this app has nothing parked".
+        ///
+        /// Decides the log level in ``SelfUpdaterStash/resolve(for:population:cachesDirectory:fileManager:)``,
+        /// and the gate order is arranged so the distinction is exactly true
+        /// rather than nearly true: every case below is reached only after an
+        /// archive has been found on disk. The cheap "nothing to see" answers are
+        /// the ordinary result for almost every app on the machine and would be a
+        /// line per app per install for no reader; the refusals are the only thing
+        /// that can answer "why did it fetch the whole thing again?", and neither
+        /// `.debug` nor `.info` is retained for this subsystem.
+        var refusedAnArchiveOnDisk: Bool {
+            switch self {
+            case .populationUnknown, .noCacheDirectoryName, .noPendingRecord, .archiveMissing:
+                return false
+            case .attributionAmbiguous, .unsupportedKind, .unreadableBundle,
+                 .bundleIDMismatch, .versionMismatch, .checksumMismatch:
+                return true
+            }
+        }
     }
 
     /// The installer this app's own updater has already downloaded, when every
@@ -195,9 +216,9 @@ extension SelfUpdaterStash {
     ///
     /// - `RemoteVersion.expectedSHA512` digests the dmg. Run here it cannot pass,
     ///   and it would fail as `checksumMismatch` — "may be corrupt or tampered" —
-    ///   for a file that is neither. Its replacement is gate 6 below, which is the
-    ///   stronger statement anyway: it checks the bytes on disk against the digest
-    ///   the app's own updater recorded for them.
+    ///   for a file that is neither. Its replacement is the digest gate below (gate
+    ///   8), which is the stronger statement anyway: it checks the bytes on disk
+    ///   against the digest the app's own updater recorded for them.
     /// - `RemoteVersion.nestedArchivePath` describes where a payload sits inside a
     ///   particular stub installer. A zip of the app is not that stub.
     ///
@@ -218,55 +239,88 @@ extension SelfUpdaterStash {
         cachesDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) async -> LocalStagedInstaller? {
-        // Two levels, because the two halves answer different questions.
-        //
-        // Everything up to "is there a parked download at all" is the ordinary
-        // answer for almost every app on the machine, and logging it would be one
-        // line per app per install for no reader. Everything after it is a refusal
-        // to use a download that IS sitting on disk, which is the only thing that
-        // can answer "why did it fetch the whole thing again?" — and `.debug` is
-        // not retained for this subsystem (neither is `.info`), so a reason left at
-        // that level is gone by the time anyone asks.
-        func skip(_ why: Rejection) -> LocalStagedInstaller? {
+        switch await evaluate(
+            for: result, population: population,
+            cachesDirectory: cachesDirectory, fileManager: fileManager) {
+        case .success(let stash):
+            Log.install.notice(
+                "local stash hit: \(result.app.name, privacy: .public) \(stash.version.text(withBuild: true), privacy: .public) already downloaded by its own updater — \(stash.bytes, privacy: .public) B not fetched")
+            return stash
+        case .failure(let why) where why.refusedAnArchiveOnDisk:
+            Log.install.notice(
+                "local stash refused for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public) — downloading instead")
+            return nil
+        case .failure(let why):
             Log.install.debug(
                 "local stash not applicable for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public)")
             return nil
         }
-        func reject(_ why: Rejection) -> LocalStagedInstaller? {
-            Log.install.notice(
-                "local stash refused for \(result.app.name, privacy: .public): \(why.rawValue, privacy: .public) — downloading instead")
-            return nil
-        }
+    }
 
+    /// ``resolve(for:population:cachesDirectory:fileManager:)`` without the
+    /// logging, and saying WHICH gate answered.
+    ///
+    /// Separated because a reason that only reaches the log cannot be asserted:
+    /// several gates here are each other's fallback — remove the one that checks
+    /// the archive exists and the next gate fails on the same input for a
+    /// different reason — so a test that only sees nil is measuring "something
+    /// refused it", which stays true when the gate under test is deleted. That is
+    /// not hypothetical: `aRecordNamingAMissingArchiveIsRefused` passed with its
+    /// gate removed until this existed.
+    static func evaluate(
+        for result: UpdateResult,
+        population: [InstalledApp]?,
+        cachesDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) async -> Result<LocalStagedInstaller, Rejection> {
+        func skip(_ why: Rejection) -> Result<LocalStagedInstaller, Rejection> { .failure(why) }
+        let reject = skip
+
+        // Not a `Rejection`: these are "this row cannot be installed by this
+        // route at all", which the caller established before asking.
         guard let remote = result.remote, let installedID = result.app.bundleID
-        else { return nil }
+        else { return .failure(.noPendingRecord) }
         // Gate 1 — we must be able to see the whole population to know whether
         // anyone else claims this cache directory.
         guard let population else { return skip(.populationUnknown) }
         // Gate 2 — the app has to name its own cache directory; we never guess one.
         guard let key = electronCacheDirectoryName(for: result.app)
         else { return skip(.noCacheDirectoryName) }
-        // Gate 3 — and has to be the only claimant of it.
-        guard isSoleClaimant(result.app, of: key, in: population)
-        else { return reject(.attributionAmbiguous) }
-
         guard let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-        else { return nil }
+        else { return .failure(.noPendingRecord) }
         let cacheDir = caches.appendingPathComponent(key, isDirectory: true)
 
-        // Gate 4 — a completed-download record, and the file it names still there.
+        // Gate 3 — a completed-download record, and the file it names still there.
         guard let record = pendingRecord(inCacheDirectory: cacheDir, fileManager: fileManager)
         else { return skip(.noPendingRecord) }
         let archive = cacheDir
             .appendingPathComponent("pending", isDirectory: true)
             .appendingPathComponent(record.fileName, isDirectory: false)
-        guard fileManager.fileExists(atPath: archive.path) else { return reject(.archiveMissing) }
+        guard fileManager.fileExists(atPath: archive.path) else { return skip(.archiveMissing) }
+
+        // Gate 4 — the directory the archive came out of has to belong to this app
+        // alone.
+        //
+        // Asked AFTER the archive is known to exist, not before, so that the
+        // `skip` / `reject` split above is exactly true: this is the first gate
+        // that refuses a download which really is sitting on disk. Run earlier it
+        // announced `attributionAmbiguous` at `.notice` for two copies of an app
+        // whose `pending/` was empty, and a reader chasing "why did it download
+        // again?" would go looking for a file that was never there.
+        guard isSoleClaimant(result.app, of: key, in: population)
+        else { return reject(.attributionAmbiguous) }
 
         // Gate 5 — a container this route can actually unpack and swap. In practice
         // always `.zip` for this family; the others are refused rather than assumed
         // because reading a version back out of them is not cheap the way it is for
-        // a zip (a dmg has to be mounted), so they cannot clear gate 8 anyway.
+        // a zip (a dmg has to be mounted), so they cannot clear gate 7 — the version
+        // comparison — without paying for a mount.
+        //
+        // ⚠️ NOT gate 8: a whole-file digest does not care what the container is, so
+        // a dmg clears that one perfectly well. This comment said "gate 8" while the
+        // digest was numbered 6 and the sentence was true; the gates were then
+        // reordered and it silently became the argument FOR supporting dmg.
         guard archiveKind(for: record.fileName) == .zip else { return reject(.unsupportedKind) }
 
         let bytes = (try? fileManager.attributesOfItem(atPath: archive.path)[.size]
@@ -309,11 +363,9 @@ extension SelfUpdaterStash {
         }
         guard digestMatches else { return reject(.checksumMismatch) }
 
-        Log.install.notice(
-            "local stash hit: \(result.app.name, privacy: .public) \(info.version.text(withBuild: true), privacy: .public) already downloaded by its own updater — \(bytes, privacy: .public) B not fetched")
-        return LocalStagedInstaller(
+        return .success(LocalStagedInstaller(
             archiveURL: archive, kind: .zip, version: info.version,
-            bundleID: info.bundleID, bytes: bytes)
+            bundleID: info.bundleID, bytes: bytes))
     }
 
     /// Identity and version of the top-level `.app` inside a zip, read without

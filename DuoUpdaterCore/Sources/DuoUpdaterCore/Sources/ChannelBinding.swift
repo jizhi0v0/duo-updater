@@ -263,9 +263,13 @@ public enum ChannelBinding {
         // (`~/.cua-driver/release-channel`), but the daemon writes its telemetry
         // state and its own `version_check.json` into that same directory, and
         // FSEvents streams are recursive — a root there would fire whenever the
-        // app runs, for a value only the vendor's INSTALLER ever writes (a
-        // running driver never changes it). Re-read on every scan and on the
-        // app's own launch and quit instead. See `CuaDriverChannel`.
+        // app runs, while the file itself changes about as often as a user
+        // decides to switch tracks. The cost of not watching is real and is NOT
+        // "you must reinstall to change it": `cua-driver channel set <track>`
+        // rewrites the file on its own, in a second, with nothing installed
+        // (measured — it flipped `nightly`→`stable`→`nightly` here). So a flip is
+        // picked up on the next scan, or on the app's own launch or quit, rather
+        // than immediately. See `CuaDriverChannel`.
         //
         // super.engineering deliberately adds nothing either, for the opposite
         // reason: its choice IS outside every root above

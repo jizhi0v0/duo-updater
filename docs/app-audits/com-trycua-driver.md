@@ -59,8 +59,12 @@ Linux/Windows 那套 `~/.cua-driver/packages/releases/<版本>-<target>/` 版本
 里面的 `CuaDriver.app` 是 `CFBundleIdentifier=com.trycua.driver`、
 `CFBundleShortVersionString=0.28.3`、`CFBundleVersion=0.28.3` —— **版本串里没有
 nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯一的轨道信号是
-`~/.cua-driver/release-channel` 这个文本文件,而它**只在显式传过 `--channel` 时才写**
-（本机默认安装后该文件不存在,`cua-driver channel status` 仍答 `stable`）。
+`~/.cua-driver/release-channel` 这个文本文件。**安装器只在显式传过 `--channel` 时才写它**
+（本机默认安装后该文件不存在,`cua-driver channel status` 仍答 `stable`）——
+但⚠️ **它不是只有安装器会写**:`cua-driver channel set <轨>` 自己就会改写它,
+不下载、不安装、一秒完成（实测连着跑 `nightly`→`stable`→`nightly` 三次都生效）。
+这决定了"不给它挂 FSEvents 监听"的代价是**切轨要等到下一轮扫描才被看见**,
+而不是"反正只有重装才会变"。
 
 所以轨道判别**只能靠 `~/.cua-driver/release-channel`**,由 `CuaDriverChannel` 这个
 `ChannelBinding` resolver 读。它是本 registry 里第一个读**普通文本文件**(而不是
@@ -197,6 +201,12 @@ nightly keeps following nightly",安装脚本的错误信息也写着
   发布会产生提示，其余 48% 静默。
   **重启条件**：厂商哪天把 nightly 标识写进 `Info.plist`（任何一个字段都行）。
   唯一的替代方案是执行 `cua-driver --version` 去读真实版本，不做。
+- **切轨不会被立刻看见。** `cua-driver channel set <轨>` 一秒就改写那个文件（实测），
+  而我们刻意没给 `~/.cua-driver` 挂 FSEvents（daemon 往同目录持续写遥测），
+  所以切轨要等下一轮扫描 / app 启动 / app 退出才生效。
+- **我们不跟厂商做降级。** `channel set stable` 之后如果盘上是更高版本的 nightly，
+  厂商的 `check-update` 会提示"装最新 stable"（实质是降级），而 duo 走 `isNewer`，
+  `0.28.2 < 0.28.3` → 显示"已最新"，不提示。方向是安全的，但和厂商的答案会不一致。
 - **列表顺序偶发逆序**（见「更新检测」）。历史上两次，各约两天，表现为暂时给出偏低的版本。
 - **文档与包对 macOS 下限说法不一致**：文档 14.0，`Info.plist` 13.0。两边都没实测。
 - **这条规则在流量上是本 registry 里最贵的 GitHub 规则**（101.8 KB/轮）。

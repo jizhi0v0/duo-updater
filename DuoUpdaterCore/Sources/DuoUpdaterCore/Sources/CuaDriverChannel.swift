@@ -1,7 +1,8 @@
 import Foundation
 
 /// Cua Driver (`com.trycua.driver`) — one bundle id, two release trains, and a
-/// choice the user makes by passing `--channel` to the vendor's installer.
+/// choice the user makes either by passing `--channel` to the vendor's installer
+/// or, later and without installing anything, with `cua-driver channel set`.
 ///
 /// **The bundle cannot answer this question, and that is the whole reason this
 /// type exists.** A nightly build reports a plain marketing version with no
@@ -42,9 +43,16 @@ import Foundation
 /// Not watched for changes (`ChannelBinding.preferenceWatchCandidates`): FSEvents
 /// streams are recursive and the daemon writes its telemetry state and its own
 /// `version_check.json` into `~/.cua-driver`, so a watch root there would fire
-/// whenever the app runs, for a value only the vendor's installer ever writes.
-/// Same trade `SuperconductorChannel` documents. The file is re-read on every
-/// scan and on the app's own launch and quit.
+/// whenever the app runs. Same trade `SuperconductorChannel` documents.
+///
+/// ⚠️ That trade has a cost, and an earlier version of this comment understated
+/// it by saying only the installer ever writes the file. It does not:
+/// `cua-driver channel set <track>` rewrites it on its own, with nothing
+/// installed and no download — measured, flipping `nightly`→`stable`→`nightly`
+/// in consecutive commands. So a user can switch tracks in a second and we will
+/// not see it until the next scan (or the app's own launch or quit). That is the
+/// Surge-timeline shape the watcher exists for, accepted here because the
+/// directory is one the daemon writes to continuously.
 enum CuaDriverChannel {
     static let bundleID = "com.trycua.driver"
 

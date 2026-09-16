@@ -141,6 +141,7 @@ public enum AppRecipeIndex {
         com_theron_UnnaturalScrollWheels.set,
         com_tigervnc_tigervnc.set,
         com_tinyapp_tableplus.set,
+        com_tinycast_app.set,
         com_tinyspeck_slackmacgap.set,
         com_todesktop_230313mzl4w4u92.set,
         com_trycua_driver.set,

@@ -6256,16 +6256,24 @@ final class AppListModel {
     private var hostInstallGates: [String: AsyncSemaphore] = [:]
 
     private func hostInstallGate(for host: String, appID: String) -> AsyncSemaphore {
-        // Key on the host that actually SERVED the bytes once we've learned it
-        // from a previous download through this feed host (see
-        // `recordEffectiveHost`). The first download per feed host still keys on
-        // the feed URL's host: the redirect target can't be known before the
-        // first response, and a HEAD request per install just to learn it is
-        // not worth a round trip. So two apps whose feeds bounce to the SAME
-        // CDN are throttled together from their second download onward, and an
-        // app whose own feed host serves it different CDNs at different times is
-        // throttled on the last-seen one — still better than throttling on a
-        // host that never sends it a byte.
+        // Key on the host that actually SERVED this app's bytes once we've
+        // learned it from one of ITS OWN completed downloads (see
+        // `recordEffectiveHost`). Each app's first download still keys on the
+        // feed URL's host: the redirect target can't be known before the first
+        // response, and a HEAD request per install just to learn it is not worth
+        // a round trip. So two apps whose feeds bounce to the SAME CDN are
+        // throttled together once each has downloaded once — they converge
+        // because they each learn that same CDN, not because one inherits the
+        // other's. An app whose own feed host serves IT different CDNs at
+        // different times is throttled on its last-seen one — still better than
+        // throttling on a host that never sends it a byte.
+        //
+        // The inheritance across apps is deliberately gone (#671 review): once
+        // the vendor probe began handing over a `.redirect` spec's entry url,
+        // six Microsoft specs shared `go.microsoft.com` while landing on at
+        // least two different CDNs, so inheriting by feed host meant Word's cap
+        // could be Edge's CDN. The cost is that each app pays one download at
+        // its feed host before it converges.
         let effective = Self.effectiveHostByApp[appID] ?? host
         if let gate = hostInstallGates[effective] { return gate }
         let gate = AsyncSemaphore(value: Self.maxPerHostInstalls)

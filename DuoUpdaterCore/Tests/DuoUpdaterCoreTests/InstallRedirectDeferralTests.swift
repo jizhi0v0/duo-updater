@@ -134,17 +134,28 @@ import Network
         }
 
         /// Accumulate until the request line is complete (CRLF), then hand back
-        /// its method and path. Bounded so a client that never sends one cannot
-        /// park the connection forever.
+        /// its method and path.
+        ///
+        /// Every exit that is not "found the CRLF" has to be terminal, because
+        /// re-arming is the only other option and `receive` can complete WITHOUT
+        /// consuming anything: on a connection error it calls back immediately
+        /// with `data == nil` and `isComplete == false`, so the buffer does not
+        /// grow and neither the CRLF nor the size bound can ever be reached.
+        /// Dropping that error (`{ data, _, done, _ in`) therefore spins forever
+        /// rather than ending the read — and every connection here shares one
+        /// serial queue, so it would burn a core for the rest of the run and look
+        /// like the hang `scripts/run-with-hang-report.sh` exists to catch.
         private static func readRequestLine(
             _ conn: NWConnection, _ body: @escaping (String, String) -> Void
         ) {
             func step(_ sofar: Data) {
-                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, done, _ in
+                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, done, error in
                     let buffer = sofar + (data ?? Data())
                     let text = String(decoding: buffer, as: UTF8.self)
                     guard let end = text.range(of: "\r\n") else {
-                        if done || buffer.count > 64 * 1024 { return body("GET", "/") }
+                        if error != nil || done || buffer.count > 64 * 1024 {
+                            return body("GET", "/")
+                        }
                         return step(buffer)
                     }
                     let fields = text[text.startIndex..<end.lowerBound].split(separator: " ")

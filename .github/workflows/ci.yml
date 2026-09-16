@@ -103,8 +103,15 @@ jobs:
       # extracted below: the per-case results, which answer "did that case run"
       # without going through the console log the gate parses, and xctest's own
       # session logs.
+      #
+      # Bounded because it runs before the upload: after a wedge the bundle may be
+      # half-written, and if reading it stalled into the job's 60-minute limit
+      # the upload would depend on how `failure()` evaluates after a job timeout,
+      # which GitHub's expression docs don't define (third-party reports say the
+      # job ends cancelled, which would skip it). Not measured here.
       - name: Extract app-tests result bundle
         if: failure()
+        timeout-minutes: 5
         run: |
           shopt -s nullglob
           for bundle in /tmp/duo-app-tests-*/Logs/Test/*.xcresult; do

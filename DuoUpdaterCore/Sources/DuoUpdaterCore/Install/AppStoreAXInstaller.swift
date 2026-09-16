@@ -176,6 +176,12 @@ public actor AppStoreAXInstaller {
         /// against the disk (see `AppListModel.performInstall`), so this text is
         /// only a fallback for a caller that does not.
         case alreadyCurrent
+        /// App Store abandoned the download: it went back to offering the update
+        /// while nothing had been installed. Payload is the app's name. Distinct
+        /// from `timedOut` because it is a verdict the store reached and we read,
+        /// not a budget we ran out of — and the user's next step is different, since
+        /// the store shows the reason on its own page and we do not have it.
+        case storeGaveUp(String)
         /// We gave up waiting because the app never quit — payload is its name.
         /// Distinct from `timedOut` because the two ask the user for opposite things:
         /// a timeout says "something went wrong, try again", while this one says the
@@ -205,6 +211,13 @@ public actor AppStoreAXInstaller {
                 return "This app needs confirmation in the App Store (e.g. a subscription or purchase). Open the App Store and update it there."
             case .timedOut:
                 return "Timed out waiting for the App Store."
+            case .storeGaveUp(let appName):
+                // Deliberately does not name a cause. Both failures seen so far —
+                // a 500 from Apple's own update endpoint, and a download that ran
+                // the disk out of space — leave exactly this trace and are told
+                // apart only by App Store's own error, which it shows on its page
+                // and never exposes to us.
+                return "The App Store stopped updating \(appName) and went back to offering the update, with nothing installed. Update it in the App Store — it shows what went wrong there."
             case .alreadyCurrent:
                 return "This app is already up to date."
             case .appStillOpen(let appName):
@@ -734,6 +747,7 @@ public actor AppStoreAXInstaller {
         var repressed = false     // we re-pressed Update once after an idle stretch
         var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
         var stalledTicks = 0            // consecutive polls with the swap not moving
+        var offeringPolls = 0           // consecutive polls the store has re-offered the update
         var lastInstallProgress: Double? // last "Installing: N% Complete" we read
         var lastOfferDump: String?      // shape of the last probe we logged (dedupe)
         var loggedAppAlreadyQuitDuringOwnSheet = false  // #472: log that state only once
@@ -764,7 +778,14 @@ public actor AppStoreAXInstaller {
         /// a dismissal elsewhere is told apart from a redraw.
         var sheetlessPromptTicks = 0
 
-        // ~6 min hard cap of *polling*, not of elapsed time — see `askedToQuit`.
+        // A 900-*poll* hard cap, not a cap on elapsed time — see `askedToQuit`, and
+        // `swapHasStalled` for how far the two drift. `startedAt` exists so the line
+        // we log when the budget runs out can say how long that actually took instead
+        // of repeating the nominal figure. On the run of 2026-09-16 the old line
+        // claimed "6-min poll cap reached" for a wait of 16 min 13 s (Xcode, pressed
+        // 00:00:48.743, gave up 00:17:01.771) — a diagnostic that reports a number it
+        // did not measure sends the next reader looking in the wrong place.
+        let startedAt = Date()
         var polls = 0
         while polls < 900 {
             if !askedToQuit { polls += 1 }
@@ -1073,16 +1094,32 @@ public actor AppStoreAXInstaller {
             }
             // Once we've pressed Continue the title is meaningless, so stop reading it.
             let offer = continued ? nil : binding.button
-            if let offer, let title = title(offer) {
-                if let fraction = Self.progressFraction(title) {
+            let offerTitle = offer.flatMap { title($0) }
+            if let offerTitle {
+                if let fraction = Self.progressFraction(offerTitle) {
                     if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download started") }
                     sawProgress = true
                     onStage(.downloading(fraction: fraction))
-                } else if Self.isLoadingTitle(title) {
+                } else if Self.isLoadingTitle(offerTitle) {
                     if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
                     sawProgress = true
                     onStage(.downloading(fraction: 0))
                 }
+            }
+
+            // 3b. The store gave up: a download that ran, then a button offering the
+            // update again with nothing on disk to show for it. Read off the same
+            // title as the progress above, through `abandonWatchdog` — see there for
+            // why each reading counts the way it does.
+            let abandon = Self.abandonWatchdog(
+                reading: Self.offerReading(buttonTitle: offerTitle),
+                sawProgress: sawProgress,
+                awaitingUser: sheetPresent || askedToQuit,
+                offeringPolls: offeringPolls)
+            offeringPolls = abandon.offeringPolls
+            if abandon.abandoned {
+                Log.install.error("appstore-ax: \(appName, privacy: .public) gave up — the App Store has offered the update again for \(Self.abandonedGracePolls) polls with nothing installed (title=\(offerTitle ?? "-", privacy: .public), \(Int(Date().timeIntervalSince(startedAt).rounded()))s after the press)")
+                throw AXError.storeGaveUp(appName)
             }
 
             // 4. Fail-fast: if the press never took (no progress, no sheet), don't spin
@@ -1116,7 +1153,7 @@ public actor AppStoreAXInstaller {
         // What a spent budget means depends on what is still true — see
         // `exhaustedBudgetError`.
         let stillOpen = bundleID.map { Self.isRunning($0) } ?? false
-        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
+        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — \(Self.budgetExhaustedNote(polls: polls, elapsed: Date().timeIntervalSince(startedAt)), privacy: .public) (continued=\(continued) sawProgress=\(sawProgress) appStillOpen=\(stillOpen))")
         throw Self.exhaustedBudgetError(appName: appName, continued: continued, appRunning: stillOpen)
     }
 
@@ -1328,6 +1365,104 @@ public actor AppStoreAXInstaller {
         guard let progress else { return (last, stalledPolls + 1) }
         guard progress == last else { return (progress, 0) }
         return (progress, appRunning ? stalledPolls : stalledPolls + 1)
+    }
+
+    /// What this poll's offer button says about the download. Three answers, because
+    /// the abandonment rule below needs to tell "the store is offering the update
+    /// again" apart from "we could not read a button", and the existing title
+    /// helpers already answer the rest.
+    enum OfferReading: Equatable {
+        /// No button to read this poll. A bare `button=nil` is four different states
+        /// wearing one label — no button on the page, all of them in other apps'
+        /// cards, several of ours mid-navigation, or one of ours the name test
+        /// rejected — and **none** of them is the store withdrawing the download.
+        /// On the Updates-list route it is also what every poll reads once the swap
+        /// starts. Counting it as a re-offer would fail healthy installs.
+        case absent
+        /// A percentage, or one of the "Loading" / "Opening" / "Waiting" titles: the
+        /// download is running.
+        case working
+        /// A button with some other title. On an English store that is "Update";
+        /// the rule never matches on the word, only on "neither a percentage nor a
+        /// loading title", so it holds in every language.
+        case offering
+    }
+
+    static func offerReading(buttonTitle: String?) -> OfferReading {
+        guard let buttonTitle else { return .absent }
+        if progressFraction(buttonTitle) != nil || isLoadingTitle(buttonTitle) { return .working }
+        return .offering
+    }
+
+    /// How many consecutive re-offering polls end the install.
+    ///
+    /// ~35 s at the measured ~575 ms/poll (see `swapHasStalled` for where that number
+    /// comes from). Wide on purpose, for one specific reason: the button also turns
+    /// actionable — "Open" — the moment a swap finishes, and the loop learns the
+    /// install landed from the *bundle on disk*, a step that can trail the button.
+    /// Anything shorter than the gap between those two would turn a successful update
+    /// into a reported failure, which is the one outcome worse than waiting.
+    static let abandonedGracePolls = 60
+
+    /// Whether App Store has abandoned this download, as a pure per-poll step.
+    ///
+    /// The signal is a *sequence*, not a reading: a download that ran (`sawProgress`),
+    /// then a button offering the update again while the bundle on disk has not moved.
+    /// Measured on the mini, 2026-09-16, both of that night's failures:
+    ///
+    /// - **Xcode** — pressed 00:00:48.743, climbed to 50.5%. `appstoreagent` recorded
+    ///   `ASDErrorDomain Code=706 "Not enough space"` (5.45 GB free, 7.23 GB needed)
+    ///   at 00:03:21.819, and the very next poll read `AXTitle="Update"` at
+    ///   00:03:22.155 — **336 ms later**. The button is the store's verdict, and it
+    ///   arrives as fast as anything we are able to see. Without this rule the install
+    ///   sat there until the poll budget ran out at 00:17:01.771 and called it a
+    ///   timeout: 13 min 40 s after the store had already given up.
+    /// - **Nowdex** — pressed 23:53:33.752; Apple's `updateProduct` answered 500 at
+    ///   23:53:35.274, 1.5 s later, and the page went back to offering the update.
+    ///   Note what the momentary `"Loading"` before that had already done: it latched
+    ///   `sawProgress`, and `sawProgress` is exactly what holds the idle fail-fast
+    ///   branch below open. So the one signal that could have ended this run early is
+    ///   the one the failure had already disarmed. The budget ran out at 00:00:45.574.
+    ///
+    /// Why each reading counts the way it does:
+    ///
+    /// - `.working` **resets**. Xcode's download restarted mid-flight that same night
+    ///   (50.1% at 00:01:35.586 → `"Loading"` at 00:01:51.805 → 0% at 00:01:52.753)
+    ///   and finished the second attempt's climb normally. A restart is not a
+    ///   withdrawal, and it announces itself as progress, never as a re-offer.
+    /// - `.absent` **holds** the count rather than advancing or clearing it. It cannot
+    ///   raise a verdict on its own (see `OfferReading.absent`), and it must not wipe
+    ///   one that is genuinely accumulating — Xcode's page went to `button=nil` at
+    ///   00:04:29.933, a minute into a revert that was already permanent.
+    /// - `awaitingUser` **holds** for the same reason. While our quit prompt or App
+    ///   Store's own sheet is up, what the button says is not the store's verdict, and
+    ///   a person who takes half a minute to answer must not spend this budget.
+    /// - Before any progress the count stays at zero: a plain "Update" then is simply
+    ///   the button we are about to press, or one whose press did not take, which is
+    ///   the idle fail-fast branch's business and not this one's.
+    static func abandonWatchdog(
+        reading: OfferReading, sawProgress: Bool, awaitingUser: Bool, offeringPolls: Int
+    ) -> (offeringPolls: Int, abandoned: Bool) {
+        guard sawProgress else { return (0, false) }
+        guard !awaitingUser else { return (offeringPolls, false) }
+        switch reading {
+        case .absent: return (offeringPolls, false)
+        case .working: return (0, false)
+        case .offering:
+            let next = offeringPolls + 1
+            return (next, next >= abandonedGracePolls)
+        }
+    }
+
+    /// The account a spent poll budget gives of itself.
+    ///
+    /// It reports the elapsed time it measured. The line it replaced said "6-min poll
+    /// cap reached", which is the nominal figure — 900 polls × the 400 ms sleep — and
+    /// not what any run takes, because each poll also walks the AX tree two or three
+    /// times and the clock stops entirely while the user is being asked to quit. The
+    /// Xcode run of 2026-09-16 spent 973 s under that label.
+    static func budgetExhaustedNote(polls: Int, elapsed: TimeInterval) -> String {
+        "\(polls)-poll budget spent, \(Int(elapsed.rounded()))s elapsed"
     }
 
     /// Which failure a spent poll budget is, read off what is true when it runs out.

@@ -878,9 +878,19 @@ public struct VendorProbeSource: UpdateSource {
                 // Version still reads, one-click is dead. The app shows this app
                 // as up-to-date-detectable but no longer installable, with no
                 // signal anywhere — so name it.
-                warnings.append(
+                let warning: ProbeWarning =
                     transient.map { .installURLTransient(status: $0.status) }
-                        ?? .installURLUnresolved)
+                        ?? .installURLUnresolved
+                warnings.append(warning)
+                // The warning reaches `duo verify`, but `latestVersion` returns the
+                // remote and drops the warnings, so in the app this row went
+                // detection-only for the round with nothing written anywhere —
+                // a vendor's 429 and a dead install spec looked identical, and
+                // both looked like a recipe that never had one-click. `.notice`
+                // for the same reason as the probe-failure line: `.info` from a
+                // third-party subsystem is not persisted.
+                Log.source.notice(
+                    "vendor probe \(recipe.recipeID, privacy: .public): version \(version, privacy: .public) resolved, install URL did not (\(warning.display, privacy: .public)) — detection-only this round")
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: nil, plan: nil,
                     resolvedDownload: body.resolvedDownload, display: display,

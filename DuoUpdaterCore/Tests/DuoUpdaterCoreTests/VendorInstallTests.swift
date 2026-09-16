@@ -443,7 +443,7 @@ import CryptoKit
     let remote = RemoteVersion(
         shortVersion: "1.06.2508260", version: "1.06.2508260",
         downloadURL: URL(string: "https://dldir1.qq.com/WechatWebDev/release/abc123/wechat_devtools_1.06.2508260_darwin_arm64.pkg")!,
-        sourceName: "Vendor")
+        sourceName: "Vendor", requiresManualInstaller: true, vendorInstallerKind: .pkg)
 
     #expect(
         RecipeSanity.crossChannelArtifact(

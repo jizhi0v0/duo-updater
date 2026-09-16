@@ -6223,31 +6223,29 @@ final class AppListModel {
     /// and are the ones that trip its rate limiter / WAF.
     private static let maxPerHostInstalls = 2
 
-    /// App id → the host that actually served that app's bytes, learned from a
-    /// completed download (see `recordEffectiveHost`). Real bytes frequently come
-    /// from a CDN after redirects, so the gate must key on the server that really
-    /// serves them, not the URL written in the feed — two "different" feed hosts
-    /// that bounce to one CDN still end up sharing a cap, because they each learn
-    /// that same CDN. The cap is about the CDN, not the feed.
+    /// The storage this per-host gate keys off. `static` because its
+    /// predecessor `effectiveHostByApp` was — this move is behaviour-
+    /// preserving, not a new design choice. That leaves an asymmetry with
+    /// `hostInstallGates` twelve lines down, which is an *instance* property:
+    /// learned hosts are process-wide, the gates keyed by them are not. A
+    /// second `AppListModel` would share learned hosts but build its own
+    /// semaphores from them, doubling `maxPerHostInstalls`'s effective cap per
+    /// host — invisible today only because exactly one `AppListModel` is ever
+    /// constructed (`DuoUpdaterApp.swift`'s `@State private var model =
+    /// AppListModel()`).
     ///
-    /// Keyed by APP rather than by feed host, which matters since #671 made the
-    /// vendor probe hand over a `.redirect` spec's ENTRY url: six specs share the
-    /// entry host `go.microsoft.com` (Word/Excel/PowerPoint/OneDrive/Edge/
-    /// m365copilot) and land on at least two different CDNs (measured 2026-09-16:
-    /// Word on `res.public.onecdn.static.microsoft`, Edge on
-    /// `msedge.sf.dl.delivery.mp.microsoft.com`); `discord.com` covers three more.
-    /// Keyed by feed host, the first of those to finish would write its CDN under
-    /// `go.microsoft.com` and every sibling would then be throttled against
-    /// another app's CDN — a host that never serves it a byte, which is the exact
-    /// thing this map exists to avoid.
-    private static var effectiveHostByApp: [String: String] = [:]
+    /// The decision logic itself — which host to key on, and the rationale for
+    /// keying by app rather than by feed host — lives in `EffectiveInstallHost`
+    /// (Core), where it now runs under `EffectiveInstallHostTests` instead of
+    /// only compiling.
+    private static var effectiveInstallHost = EffectiveInstallHost()
 
     /// Remember which host actually served this app's bytes, so its gate keys on
     /// that from its next download on.
     private func recordEffectiveHost(_ result: UpdateResult, finalHost: String?) {
-        guard let feedHost = result.remote?.downloadURL?.host, let finalHost,
-              feedHost != finalHost else { return }
-        Self.effectiveHostByApp[result.id] = finalHost
+        Self.effectiveInstallHost.learn(
+            appID: result.id, feedHost: result.remote?.downloadURL?.host,
+            servedBy: finalHost)
     }
 
     /// One semaphore per download host, created on demand. Main-actor isolated, so
@@ -6256,25 +6254,7 @@ final class AppListModel {
     private var hostInstallGates: [String: AsyncSemaphore] = [:]
 
     private func hostInstallGate(for host: String, appID: String) -> AsyncSemaphore {
-        // Key on the host that actually SERVED this app's bytes once we've
-        // learned it from one of ITS OWN completed downloads (see
-        // `recordEffectiveHost`). Each app's first download still keys on the
-        // feed URL's host: the redirect target can't be known before the first
-        // response, and a HEAD request per install just to learn it is not worth
-        // a round trip. So two apps whose feeds bounce to the SAME CDN are
-        // throttled together once each has downloaded once — they converge
-        // because they each learn that same CDN, not because one inherits the
-        // other's. An app whose own feed host serves IT different CDNs at
-        // different times is throttled on its last-seen one — still better than
-        // throttling on a host that never sends it a byte.
-        //
-        // The inheritance across apps is deliberately gone (#671 review): once
-        // the vendor probe began handing over a `.redirect` spec's entry url,
-        // six Microsoft specs shared `go.microsoft.com` while landing on at
-        // least two different CDNs, so inheriting by feed host meant Word's cap
-        // could be Edge's CDN. The cost is that each app pays one download at
-        // its feed host before it converges.
-        let effective = Self.effectiveHostByApp[appID] ?? host
+        let effective = Self.effectiveInstallHost.host(forApp: appID, feedHost: host)
         if let gate = hostInstallGates[effective] { return gate }
         let gate = AsyncSemaphore(value: Self.maxPerHostInstalls)
         hostInstallGates[effective] = gate

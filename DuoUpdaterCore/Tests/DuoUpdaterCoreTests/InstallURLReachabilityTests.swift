@@ -27,9 +27,13 @@ struct InstallURLReachabilityTests {
         /// - Parameters:
         ///   - headStatus: what `/install` answers a HEAD.
         ///   - rangedGetStatus: what `/install` answers a GET carrying `Range`.
+        ///   - headHeaders: extra response headers on the `/install` HEAD, spelled
+        ///     exactly as given. Vendors send `Retry-After` in lower case
+        ///     (Cloudflare's 429 for `discord.com/api/download/*` did), and whether
+        ///     Foundation finds it anyway is part of what a caller asserts.
         init(
             headStatus: Int, rangedGetStatus: Int, version: String = "2.0.0",
-            dropGET: Bool = false
+            dropGET: Bool = false, headHeaders: [String: String] = [:]
         ) throws {
             let listener = try NWListener(using: .tcp, on: .any)
             self.listener = listener
@@ -57,17 +61,22 @@ struct InstallURLReachabilityTests {
 
                     let status: Int
                     var body = ""
+                    var extra: [String: String] = [:]
                     if path.hasPrefix("/feed") {
                         status = 200
                         body = #"{"version":"\#(version)"}"#
                     } else if method == "HEAD" {
                         status = headStatus
+                        extra = headHeaders
                     } else {
                         status = rangedGetStatus
                     }
                     let payload = Data(body.utf8)
                     var header = "HTTP/1.1 \(status) X\r\n"
                     header += "Content-Type: application/json\r\n"
+                    for (name, value) in extra.sorted(by: { $0.key < $1.key }) {
+                        header += "\(name): \(value)\r\n"
+                    }
                     header += "Content-Length: \(payload.count)\r\n"
                     header += "Connection: close\r\n\r\n"
                     conn.send(

@@ -149,4 +149,103 @@ struct InstallURLTransientTests {
         FileHandle.standardError.write(
             Data("proving rows: \(proving) recipes, \(provingRules) rules\n".utf8))
     }
+
+    // MARK: - #670: a rate limit that names its own wait
+
+    // These four assert a request COUNT, because "did not retry" is the entire
+    // property — a verdict-only assertion passes whether the loop stopped or
+    // burned every attempt and then reported the same thing.
+    //
+    // Each was run against the mutation it claims to catch (2026-09-16); all four
+    // mutations compile, and each killed exactly one of these and nothing else:
+    //
+    //   delete the `Retry-After` guard entirely (the bug as shipped)
+    //     → aRateLimitLongerThanTheBackoffStopsAtTheFirstAttempt
+    //   drop `http.statusCode == 429` so any transient status obeys the header
+    //     → aServerErrorKeepsItsRetriesEvenWhenItNamesALongWait
+    //   keep presence, drop the comparison (`retryAfterDelaySeconds(http) != nil`)
+    //     → aRateLimitInsideTheBackoffBudgetKeepsItsRetries
+    //   read an absent header as an infinite wait (`?? .infinity`)
+    //     → aRateLimitThatNamesNoWaitKeepsItsRetries
+
+    /// One `.redirect` recipe against a stub whose `/install` answers `status`
+    /// with `headers`, reporting how many HEADs the stub actually saw.
+    ///
+    /// Goes through `probeDiagnostic` rather than `resolveInstall` (which is
+    /// private) with `checkingInstallURL` left off, so every `HEAD /install` in
+    /// the tally comes from the resolve loop and nothing else.
+    private static func redirectAttempts(
+        status: Int, headers: [String: String] = [:]
+    ) async throws -> (heads: Int, warnings: [String]) {
+        let server = try InstallURLReachabilityTests.MethodAwareServer(
+            headStatus: status, rangedGetStatus: status, headHeaders: headers)
+        defer { server.stop() }
+        let recipe = VendorProbeRecipe(
+            bundleID: "com.example.ratelimited",
+            url: server.feedURL,
+            mode: .responseBody,
+            versionPattern: #""version":"([0-9.]+)""#,
+            install: VendorInstallSpec(urlSource: .redirect(server.installURL), kind: .zip))
+        let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+        return (server.requests().filter { $0 == "HEAD /install" }.count,
+                outcome.warnings.map(\.display))
+    }
+
+    /// The bug: three attempts inside two seconds at a vendor that just said to
+    /// come back in fifty minutes.
+    ///
+    /// Measured 2026-09-15 (`make release`, ledger
+    /// `${TMPDIR}duo-events-tests/…/events.sqlite`): Discord's download redirect
+    /// answered `HTTP/2 429`, `retry-after: 3000`, `x-ratelimit-scope: shared`,
+    /// and the ledger holds six requests inside three seconds — two channels
+    /// times three attempts. Attempts two and three could not possibly have
+    /// succeeded; all they did was add to a bucket the header says is shared.
+    ///
+    /// The header is sent lower case here because that is how Cloudflare sent it.
+    /// If `HTTPURLResponse` header lookup were case-sensitive this test would see
+    /// three heads, which is the point of spelling it this way rather than
+    /// canonically.
+    @Test func aRateLimitLongerThanTheBackoffStopsAtTheFirstAttempt() async throws {
+        let run = try await Self.redirectAttempts(
+            status: 429, headers: ["retry-after": "3000"])
+        #expect(run.heads == 1,
+                Comment(rawValue: "a 3000s Retry-After must end the loop, saw \(run.heads) HEADs"))
+        #expect(run.warnings == ["installURLTransient: HTTP 429"],
+                Comment(rawValue: "stopping early must still report the rate limit: \(run.warnings)"))
+    }
+
+    /// The discriminator is the header, not the status. A 429 that does not say
+    /// how long keeps the retries it has always had — the probe has no evidence
+    /// the wait is long, and a rate limit with a one-second window is exactly
+    /// what the backoff is for.
+    @Test func aRateLimitThatNamesNoWaitKeepsItsRetries() async throws {
+        let run = try await Self.redirectAttempts(status: 429)
+        #expect(run.heads == 3,
+                Comment(rawValue: "a bare 429 must still retry, saw \(run.heads) HEADs"))
+    }
+
+    /// And the other half of the discriminator: how big. A wait this probe is
+    /// willing to sit through is not a reason to give up.
+    @Test func aRateLimitInsideTheBackoffBudgetKeepsItsRetries() async throws {
+        let run = try await Self.redirectAttempts(
+            status: 429, headers: ["Retry-After": "1"])
+        #expect(run.heads == 3,
+                Comment(rawValue: "1s is inside the 2.1s this loop already waits, saw \(run.heads)"))
+    }
+
+    /// The case the retry exists for, pinned unchanged: `td.telegram.org` answers
+    /// this HEAD with 502 in bursts (see this suite's own doc comment), so a 5xx
+    /// must keep all three attempts — including one carrying a `Retry-After`.
+    ///
+    /// That last part is a scope decision, not a finding about 5xx: whether any
+    /// 5xx here sends the header is unmeasured (the traffic ledger keeps statuses,
+    /// not response headers), and RFC 9110 §10.2.3 defines `Retry-After` for 503
+    /// by name. This case pins today's behaviour so that widening it later is a
+    /// deliberate edit with a red test in front of it.
+    @Test func aServerErrorKeepsItsRetriesEvenWhenItNamesALongWait() async throws {
+        let run = try await Self.redirectAttempts(
+            status: 502, headers: ["Retry-After": "3000"])
+        #expect(run.heads == 3,
+                Comment(rawValue: "Telegram's 502 bursts need the retry, saw \(run.heads) HEADs"))
+    }
 }

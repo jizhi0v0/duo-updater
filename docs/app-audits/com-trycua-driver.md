@@ -62,11 +62,20 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
 `~/.cua-driver/release-channel` 这个文本文件,而它**只在显式传过 `--channel` 时才写**
 （本机默认安装后该文件不存在,`cua-driver channel status` 仍答 `stable`）。
 
-所以今天只接 stable 一轨,而且这是**安全的**:跟 nightly 的用户,他的 0.28.3 比 stable 的
-0.28.2 高,`isNewer` 为假 → 行显示"已最新",不会被推 stable 包;等 stable 追到 0.28.3,
-两边 `isSame` → 仍然不动;stable 走到 0.28.4 时才会提示,那时把他带回 stable 轨。
-要真正支持 nightly,需要先给 `ResolvedChannelStore` 一个读 `release-channel` 文件的
-binding —— 那是另一件事,不在本次范围。
+所以今天只接 stable 一轨。**它不会装错架构、不会降级,但也不是无副作用的**,按时间分三段:
+
+1. nightly 用户在 `0.28.3`、stable 最新是 `0.28.2` —— `isNewer` 为假 → 行显示"已最新",
+   不提示、不推包;
+2. stable 追到 `0.28.3` —— `isSame` 为真 → 仍然不动;
+3. stable 走到 `0.28.4` —— **会提示,而且一键会把 stable 的包装到一个 nightly 装机上**。
+   这不是"装错东西"(同一厂商、同一 bundle id、同一 Team ID、版本确实更新),但它
+   **等于替用户把轨道从 nightly 切到了 stable**,而用户没要求过。
+   ⚠️ 未验证的部分:`~/.cua-driver/release-channel` 仍然写着 `nightly`,所以厂商自己的
+   下一次 `cua-driver update --apply` 大概率又把他拉回 nightly —— 这是读脚本推出来的,
+   没有实测过这个来回。
+
+要真正支持 nightly(以及消掉第 3 段),需要先给 `ResolvedChannelStore` 一个读
+`release-channel` 文件的 binding —— 那是另一件事,不在本次范围。
 
 ## 更新检测
 - 源: `trycua/cua` GitHub Releases，**列表端点**（`usePrereleases: true`）

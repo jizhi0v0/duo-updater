@@ -78,6 +78,36 @@ public struct VendorProbeSource: UpdateSource {
         code >= 500 || code == 429
     }
 
+    /// How long to wait before each `.redirect` HEAD attempt, indexed by attempt
+    /// number — so the count of attempts and the backoff between them are one
+    /// declaration rather than two that can drift apart.
+    ///
+    /// It doubles as the yardstick a `Retry-After` is measured against: what is
+    /// left of this array is the entire wait this probe will ever spend, so a
+    /// vendor asking for longer than that is telling us the remaining attempts
+    /// cannot succeed.
+    static let redirectRetryBackoff: [TimeInterval] = [0, 0.7, 1.4]
+
+    /// The `Retry-After` delay the vendor asked for, in seconds, or nil if it did
+    /// not ask — or asked as a date.
+    ///
+    /// RFC 9110 §10.2.3 allows either form (`Retry-After = HTTP-date /
+    /// delay-seconds`, where `delay-seconds = 1*DIGIT`, a non-negative decimal
+    /// integer). Only the integer form is read here: it is what the one measured
+    /// case sent (Cloudflare's 429 for `discord.com/api/download/*`, 2026-09-15:
+    /// `retry-after: 3000`), and a value this cannot parse falls through to the
+    /// retry loop — which is what EVERY `Retry-After` did before this existed, so
+    /// the date form is a gap rather than a regression.
+    ///
+    /// `Character.isNumber` alone would accept non-ASCII digits, which `1*DIGIT`
+    /// does not, hence the pair.
+    static func retryAfterDelaySeconds(_ response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
+        let digits = raw.trimmingCharacters(in: .whitespaces)
+        guard !digits.isEmpty, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return TimeInterval(digits)
+    }
+
     /// A browser-like UA — several vendor sites reject unfamiliar agents.
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
@@ -1425,9 +1455,10 @@ public struct VendorProbeSource: UpdateSource {
             // which also came back 502, so it is the vendor and not URLSession.
             // Retry a few times, then say which kind of failure it was.
             var lastStatus: Int?
-            for attempt in 0..<3 {
-                if attempt > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 700_000_000)
+            for attempt in Self.redirectRetryBackoff.indices {
+                let pause = Self.redirectRetryBackoff[attempt]
+                if pause > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
                 }
                 var request = URLRequest(url: url)
                 request.httpMethod = "HEAD"
@@ -1442,6 +1473,25 @@ public struct VendorProbeSource: UpdateSource {
                     // 4xx means the URL we were given is wrong — that IS the recipe,
                     // and retrying cannot help. Stop and report it as unresolved.
                     if !Self.isTransientStatus(http.statusCode) { return nil }
+                    // Transient answers whether retrying COULD help; `Retry-After`
+                    // answers how long it would take, and those are two different
+                    // questions that used to be one. Discord's download redirect
+                    // answered this HEAD with 429 and `retry-after: 3000` while
+                    // saying `x-ratelimit-scope: shared` (2026-09-15) — so the two
+                    // remaining attempts could not possibly succeed, and all they
+                    // did was put two more requests into a bucket that may not even
+                    // be ours alone. Give up and report the rate limit instead.
+                    //
+                    // 429 only, deliberately. The case this retry exists for is
+                    // `td.telegram.org`'s 502 bursts, which carry no `Retry-After`
+                    // at all and clear within the backoff; no 5xx measured here has
+                    // ever named a wait, so honouring one would be changing
+                    // behaviour on speculation.
+                    if http.statusCode == 429,
+                       let asked = Self.retryAfterDelaySeconds(http),
+                       asked > Self.redirectRetryBackoff[(attempt + 1)...].reduce(0, +) {
+                        throw TransientInstallURL(status: http.statusCode)
+                    }
                     continue
                 }
                 guard let finalURL = response.url else { return nil }

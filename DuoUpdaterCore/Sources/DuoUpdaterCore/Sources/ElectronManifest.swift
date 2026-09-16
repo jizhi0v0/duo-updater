@@ -25,12 +25,31 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     /// ask for is what we ask for.
     public let channel: String
 
-    public init(provider: String, url: String?, owner: String?, repo: String?, channel: String) {
+    /// Names the directory under `~/Library/Caches` where electron-updater parks
+    /// what it has downloaded — the `pending/` layout `SelfUpdaterStash` reads.
+    ///
+    /// Not derivable from anything else we hold. electron-updater resolves the
+    /// directory as `updaterCacheDirName ?? app.getName()`, and `getName()` is
+    /// Electron's own app name (package.json `name`/`productName`), which is not
+    /// the bundle's display name and is not readable from outside the process.
+    /// The names this key carries have no shared shape to guess from either —
+    /// `@opencode-aidesktop-updater`, `com.google.antigravity`, `QQ-updater`,
+    /// `xyz.chatboxapp.app-updater`, `draw.io-updater` are all real values on one
+    /// machine. So an absent key means "no stash lookup", never a guess: a guessed
+    /// directory that happens to exist belongs to some OTHER app, and the bytes in
+    /// it would be offered as this app's update.
+    public let updaterCacheDirName: String?
+
+    public init(
+        provider: String, url: String?, owner: String?, repo: String?, channel: String,
+        updaterCacheDirName: String? = nil
+    ) {
         self.provider = provider
         self.url = url
         self.owner = owner
         self.repo = repo
         self.channel = channel
+        self.updaterCacheDirName = updaterCacheDirName
     }
 
     /// The macOS manifest address, for the one provider that states it outright.
@@ -140,7 +159,8 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
         return ElectronUpdateConfig(
             provider: provider, url: fields["url"],
             owner: fields["owner"], repo: fields["repo"],
-            channel: fields["channel"] ?? "latest")
+            channel: fields["channel"] ?? "latest",
+            updaterCacheDirName: fields["updaterCacheDirName"])
     }
 }
 

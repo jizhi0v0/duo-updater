@@ -126,7 +126,7 @@ import Testing
 
     /// A snapshot that stores nothing still removes its staging directory.
     ///
-    /// Mutation: drop the `removeItemOffCooperativePool(at: staging)` after `snapshot` in `save` → the
+    /// Mutation: drop the `defer { await removeItemOffCooperativePool(at: staging) }` in `save` → the
     /// staging directory is left in the store.
     @Test func aSnapshotThatStoresNothingLeavesNoStagingBehind() async throws {
         try await withScratchHome { home in
@@ -155,7 +155,7 @@ import Testing
     /// Restore removes each entry's scratch copy whether it lands or cannot even
     /// be staged.
     ///
-    /// Mutation: drop the `removeItemOffCooperativePool(at: scratch)` after `restoreEntry` → a
+    /// Mutation: drop the `defer { await removeItemOffCooperativePool(at: scratch) }` in the loop → a
     /// `DuoUpdater-userdata-<key>-…` directory is left in the temp dir.
     @Test func aRestoreLeavesNoScratchBehind() async throws {
         try await withScratchHome { home in

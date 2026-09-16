@@ -843,13 +843,8 @@ public actor PackageInstaller {
             at: scratch, withIntermediateDirectories: true)) != nil
         else { return .unreadablePayload }
 
-        // One exit, so the scratch removal cannot be skipped. `defer` is what this
-        // would be, but `defer` cannot `await` and these removals must run off the
-        // cooperative pool.
-        let outcome = await Self.readFloor(
-            pkg, candidate: candidate, into: scratch)
-        await removeItemOffCooperativePool(at: scratch)
-        return outcome
+        defer { await removeItemOffCooperativePool(at: scratch) }
+        return await Self.readFloor(pkg, candidate: candidate, into: scratch)
     }
 
     /// Convenience for callers that have no components in hand (tests, and any
@@ -1194,7 +1189,8 @@ public actor PackageInstaller {
     /// For a `.dmg` we mount it, copy the contained `.pkg` out (so the installer
     /// keeps working after we unmount), and return that; otherwise we open the
     /// file itself (a bare `.pkg`, or the `.dmg`/folder as a fallback).
-    private nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) async throws -> URL {
+    /// Internal for `InstallChildProcessTests`.
+    nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) async throws -> URL {
         guard file.pathExtension.lowercased() == "dmg" else { return file }
 
         let mountPoint = workDir.appendingPathComponent("mnt")
@@ -1204,17 +1200,10 @@ public actor PackageInstaller {
             "-mountpoint", mountPoint.path
         ])
         guard attach == 0 else { throw PackageError.noInstallablePackage }
-        // Detached on every path out, as the `defer` that used to sit here did —
-        // spelled out because a `defer` cannot await.
-        let copied: Result<URL, Error>
-        do {
-            copied = .success(try await copyPackage(
-                outOf: mountPoint, into: workDir, installedApp: installedApp))
-        } catch {
-            copied = .failure(error)
-        }
-        _ = await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
-        return try copied.get()
+        // Detached on every path out.
+        defer { _ = await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
+        return try await copyPackage(
+            outOf: mountPoint, into: workDir, installedApp: installedApp)
     }
 
     private nonisolated func copyPackage(

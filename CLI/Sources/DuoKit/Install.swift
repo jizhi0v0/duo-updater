@@ -167,16 +167,15 @@ public enum Install {
             FileHandle.standardError.write(Data("duo: \(error)\n".utf8))
             return 1
         }
-        // Released explicitly rather than in a `defer` spawning a Task: the
-        // process exits immediately after this, and a detached release may never
-        // run. (The kernel drops the flock on exit either way — this keeps the
-        // reference count honest for anything that runs in between.)
-        let code = await apply(
+        // Awaited, not handed to a Task: the process exits immediately after
+        // this, and a detached release may never run. (The kernel drops the flock
+        // on exit either way — this keeps the reference count honest for anything
+        // that runs in between.)
+        defer { await ProcessInstallLock.shared.release() }
+        return await apply(
             plan, settings: settings, routes: options.routes,
             json: options.json, keepBackups: settings.keepBackups,
             installedPopulation: scanned)
-        await ProcessInstallLock.shared.release()
-        return code
     }
 
 

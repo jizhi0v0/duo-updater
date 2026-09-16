@@ -133,6 +133,128 @@ import Testing
         }
     }
 
+    // MARK: - Disk images
+
+    /// A cancelled DMG extraction still unmounts the image, on the exit that
+    /// copied the app out and on the one that found none. The unmount sits in a
+    /// `defer { await … }`, which sees the task as cancelled (SE-0493) — so this
+    /// is also what pins `hdiutil detach` to `.runToCompletion` there.
+    ///
+    /// Mutation: drop the `defer { await detach(mountPoint) }` in `fromDMG` → both
+    /// mount points are still mounted when the call returns or throws.
+    @Test func aCancelledDMGExtractionUnmountsOnBothExits() async throws {
+        let fm = FileManager.default
+        let top = try scratch("dmg")
+        let images = try await diskImages(in: top)
+        let withApp = top.appendingPathComponent("work-app", isDirectory: true)
+        let without = top.appendingPathComponent("work-none", isDirectory: true)
+        let mounts = [withApp, without].map { $0.appendingPathComponent("mnt-ZZFixture.dmg") }
+        defer {
+            for mount in mounts { await forceDetach(mount) }
+            try? fm.removeItem(at: top)
+        }
+
+        try fm.createDirectory(at: withApp, withIntermediateDirectories: true)
+        try fm.copyItem(at: images.full, to: withApp.appendingPathComponent("ZZFixture.dmg"))
+        let app = try await cancelledBeforeStart {
+            try await ArchiveExtractor.extractApp(
+                from: withApp.appendingPathComponent("ZZFixture.dmg"), workDir: withApp)
+        }
+        #expect(app.lastPathComponent == "ZZFixture.app")
+        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the app was copied out")
+
+        try fm.createDirectory(at: without, withIntermediateDirectories: true)
+        try fm.copyItem(at: images.empty, to: without.appendingPathComponent("ZZFixture.dmg"))
+        await #expect(throws: ArchiveExtractor.ExtractError.self) {
+            _ = try await cancelledBeforeStart {
+                try await ArchiveExtractor.extractApp(
+                    from: without.appendingPathComponent("ZZFixture.dmg"), workDir: without)
+            }
+        }
+        #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no app was found")
+    }
+
+    /// The package route's DMG, same two exits: a `.pkg` copied out, and none.
+    ///
+    /// Mutation: drop the `defer { _ = await run("/usr/bin/hdiutil", ["detach", …]) }`
+    /// in `resolveInstaller` → both mount points are still mounted.
+    @Test func aCancelledPackageImageUnmountsOnBothExits() async throws {
+        let fm = FileManager.default
+        let top = try scratch("pkgdmg")
+        let images = try await diskImages(in: top)
+        let withPkg = top.appendingPathComponent("work-pkg", isDirectory: true)
+        let without = top.appendingPathComponent("work-none", isDirectory: true)
+        let mounts = [withPkg, without].map { $0.appendingPathComponent("mnt") }
+        defer {
+            for mount in mounts { await forceDetach(mount) }
+            try? fm.removeItem(at: top)
+        }
+        let installer = PackageInstaller(opener: { _ in })
+        let installedApp = top.appendingPathComponent("ZZFixture.app")
+
+        try fm.createDirectory(at: withPkg, withIntermediateDirectories: true)
+        let copied = try await cancelledBeforeStart {
+            try await installer.resolveInstaller(
+                from: images.full, workDir: withPkg, installedApp: installedApp)
+        }
+        #expect(copied == withPkg.appendingPathComponent("ZZFixture.pkg"))
+        #expect(fm.fileExists(atPath: copied.path))
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the package was copied out")
+
+        try fm.createDirectory(at: without, withIntermediateDirectories: true)
+        await #expect(throws: PackageInstaller.PackageError.self) {
+            _ = try await cancelledBeforeStart {
+                try await installer.resolveInstaller(
+                    from: images.empty, workDir: without, installedApp: installedApp)
+            }
+        }
+        #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
+    }
+
+    /// Two images: `full` holds `ZZFixture.app` and `ZZFixture.pkg` (a plain file
+    /// is enough — nothing here opens it), `empty` holds neither. `makehybrid`
+    /// rather than `create -srcfolder`: the same attachable HFS image in ~30 ms
+    /// instead of ~5 s (measured on macOS 27).
+    private func diskImages(in top: URL) async throws -> (full: URL, empty: URL) {
+        let fm = FileManager.default
+        let fullSource = top.appendingPathComponent("src-full", isDirectory: true)
+        _ = try bundle(at: fullSource.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
+        try Data("pkg".utf8).write(to: fullSource.appendingPathComponent("ZZFixture.pkg"))
+        let emptySource = top.appendingPathComponent("src-empty", isDirectory: true)
+        try fm.createDirectory(at: emptySource, withIntermediateDirectories: true)
+        try Data("nothing".utf8).write(to: emptySource.appendingPathComponent("README.txt"))
+
+        var made: [URL] = []
+        for (source, name) in [(fullSource, "full.dmg"), (emptySource, "empty.dmg")] {
+            let image = top.appendingPathComponent(name)
+            let result = try await ChildProcess.run(
+                "/usr/bin/hdiutil",
+                ["makehybrid", "-quiet", "-hfs", "-hfs-volume-name", "ZZFixture",
+                 "-o", image.path, source.path],
+                onCancel: .runToCompletion)
+            #expect(result.succeeded, "hdiutil makehybrid \(name) failed")
+            made.append(image)
+        }
+        return (made[0], made[1])
+    }
+
+    /// A directory is a mount point when it sits on a different device from its
+    /// parent. A missing directory is not one.
+    private func isMountPoint(_ url: URL) -> Bool {
+        var mine = stat(), parent = stat()
+        guard stat(url.path, &mine) == 0,
+              stat(url.deletingLastPathComponent().path, &parent) == 0 else { return false }
+        return mine.st_dev != parent.st_dev
+    }
+
+    /// Test-side cleanup, so a red run does not leave an image attached.
+    private func forceDetach(_ mount: URL) async {
+        guard isMountPoint(mount) else { return }
+        _ = try? await ChildProcess.run(
+            "/usr/bin/hdiutil", ["detach", mount.path, "-force"], onCancel: .runToCompletion)
+    }
+
     // MARK: - Delta
 
     /// `BinaryDelta` is replaced by an invented tool inside an invented bundle, so

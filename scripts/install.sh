@@ -92,7 +92,7 @@ say "Verifying every language landed in the product"
 
 # Same gate as the release build, so a toolchain change that starts linking a
 # back-deployment library shows up on the first local install, not at release.
-say "Verifying no Swift runtime library macOS 14 lacks is needed"
+say "Verifying no Swift runtime library macOS 15 lacks is needed"
 python3 "$REPO/scripts/check_swift_backdeploy.py" "$PRODUCT"
 
 say "Quitting any running instance"

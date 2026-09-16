@@ -369,7 +369,7 @@ we can't serve and the machine that can't run us the same machine.
 
 **Building needs Swift 6.4 (Xcode 27)**: the install path awaits its cleanup in
 `defer` blocks (SE-0493), which older compilers reject. That is a compiler
-requirement only — the deployment target stays macOS 14. Swift 6 language mode
+requirement only — it does not raise the deployment target. Swift 6 language mode
 throughout (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`).
 
 `xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is

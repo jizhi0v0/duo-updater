@@ -569,7 +569,7 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   删除:备份失败分支的 staging、`restore` 的 scratch、输入法快照、解包/delta 前清理旧产物。
   其中几个原来写在 `defer` 里,而当时 `defer` 不能 `await`——所以改成把中间那段挪进辅助函数、
   调用之后在每个出口删。**Swift 6.4(SE-0493)起 `defer` 可以 `await`,这些已经改回
-  `defer { await … }`**;它不需要新运行时,部署目标 macOS 14 照用,代价是构建要 Xcode 27。
+  `defer { await … }`**;它不需要新运行时,不抬部署目标,代价是构建要 Xcode 27。
   ⚠️ `defer` 里看到的取消状态和函数体一样(提案明写),所以下一条照样成立。
   ⚠️ **`.runToCompletion` 只护住子进程,不护住你自己的代码**:编排代码里的 `Task.sleep`
   在被取消的任务里会立刻返回(`ArchiveExtractor.detach` 的重试间隔为此放进了 detached task)。

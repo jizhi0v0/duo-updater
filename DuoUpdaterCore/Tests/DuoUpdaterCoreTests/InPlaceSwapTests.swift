@@ -424,6 +424,27 @@ import Testing
             in: dir, lock: ProcessInstallLock(url: lockURL)))
     }
 
+    /// A sweep that ran hands the claim back: the next installer — here a second
+    /// open file description on the same path, which `flock` refuses exactly as it
+    /// would another process — can take the lock while the sweep's
+    /// `ProcessInstallLock` is still alive. Kept alive on purpose: letting it go
+    /// would close the descriptor in `deinit` and pass without a release.
+    ///
+    /// Mutation: drop the `defer { await lock.release() }` in
+    /// `recoverInterruptedSwaps` → `acquire` throws `heldByAnother`.
+    @Test func aSweepThatRanReleasesTheLock() async throws {
+        let fm = FileManager.default
+        let dir = try scratch()
+        defer { try? fm.removeItem(at: dir) }
+        let lockURL = dir.appendingPathComponent("install.lock")
+        let sweepLock = ProcessInstallLock(url: lockURL)
+
+        #expect(await InPlaceSwap.recoverInterruptedSwaps(in: dir, lock: sweepLock))
+        try withExtendedLifetime(sweepLock) {
+            try InstallLock.acquire(at: lockURL).release()
+        }
+    }
+
     private func scratch() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoSweepLockTest-\(UUID().uuidString)")

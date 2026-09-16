@@ -473,11 +473,10 @@ struct BackupStoreTests {
         }
     }
 
-    /// A rollback's scratch copy goes whether the restore lands or is refused.
-    /// Removed after the call now rather than in a `defer`, so both exits are
-    /// pinned.
+    /// A rollback's scratch copy goes whether the restore lands or is refused,
+    /// so both exits are pinned.
     ///
-    /// Mutation: drop the `removeItemOffCooperativePool(at: scratch)` after the restore → the scratch
+    /// Mutation: drop the `defer { await removeItemOffCooperativePool(at: scratch) }` → the scratch
     /// directory is left in the temp dir (the refused copy still in it).
     @Test func aRestoreLeavesNoScratchCopyBehind() async throws {
         try await withScratchRoot { root in

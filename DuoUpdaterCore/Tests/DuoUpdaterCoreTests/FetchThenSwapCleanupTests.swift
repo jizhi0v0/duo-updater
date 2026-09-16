@@ -7,8 +7,8 @@ import Testing
 /// apply throwing, and a cancellation landing before the apply. The directory
 /// here is an invented one with a file in it; `download` and `apply` are stubs.
 ///
-/// Mutation: drop the `removeItemOffCooperativePool(at: downloaded.workDir)` after
-/// the apply phase → all three leave the directory behind.
+/// Mutation: drop the `defer { await removeItemOffCooperativePool(at: downloaded.workDir) }`
+/// → all three leave the directory behind.
 @Suite struct FetchThenSwapCleanupTests {
 
     private struct ZZApplyFailed: Error {}

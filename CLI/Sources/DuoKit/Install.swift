@@ -173,7 +173,8 @@ public enum Install {
         // reference count honest for anything that runs in between.)
         let code = await apply(
             plan, settings: settings, routes: options.routes,
-            json: options.json, keepBackups: settings.keepBackups)
+            json: options.json, keepBackups: settings.keepBackups,
+            installedPopulation: scanned)
         await ProcessInstallLock.shared.release()
         return code
     }
@@ -614,9 +615,14 @@ public enum Install {
 
     // MARK: - Applying
 
+    /// - Parameter installedPopulation: the whole scan, for `SelfUpdaterStash`'s
+    ///   attribution gate. Threaded down from `run` rather than rebuilt here: it
+    ///   must be every installed bundle, and `plan` is only the ones being
+    ///   installed — a copy the user never asked about still contests the updater
+    ///   cache directory it shares.
     static func apply(
         _ plan: [Planned], settings: Settings, routes: Set<InstallCoordinator.Route>,
-        json: Bool, keepBackups: Bool
+        json: Bool, keepBackups: Bool, installedPopulation: [InstalledApp]?
     ) async -> Int32 {
         if json { NDJSON.begin("install") }
         let coordinator = InstallCoordinator()
@@ -731,6 +737,11 @@ public enum Install {
             do {
                 let installOutcome = try await coordinator.perform(
                     toInstall, route: route,
+                    // Nil (an abandoned scan) is passed straight through:
+                    // `SelfUpdaterStash` refuses it rather than guessing there is
+                    // no contest. See this function's parameter for why it is the
+                    // whole scan and not `plan`.
+                    installedPopulation: installedPopulation,
                     progress: { stage in
                         guard !json else { return }
                         if let text = describe(stage) { print("   \(text)") }

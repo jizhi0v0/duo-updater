@@ -73,20 +73,24 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 - ⚠️ **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
   `make install` 才炸在 "requires a development team"。`scripts/row-state-gallery.sh` 像
   `install.sh` 一样先 `export DUO_TEAM_ID` 再生成,照抄这个做法。
-- **改了行的画法就跑 `make gallery`**,它把 40 个状态 × 两个界面渲染到
-  `verify/row-states/{popover,workbench}/*.png`,共 80 张。**这些图是提交进仓库的**,
+- **改了行的画法就跑 `make gallery`**,它把 49 个状态 × 两个界面渲染到
+  `verify/row-states/{popover,workbench}/*.png`,共 98 张(2026-09-16 点过盘上的图;
+  以前这里写的是 40 / 80,状态加过之后没跟着改——**这个数会漂,别拿它当断言,要用就现数**)。**这些图是提交进仓库的**,
   所以改动会以图片 diff 的形式出现在 PR 里;两边对同一状态画得不一致,也会并排显示出来。
   脚本先 `rm -rf verify/row-states` 再渲染(渲染器只写不删,改名过一次就留下 8 张孤儿图),
   并用 `-AppleInterfaceStyle Light` 钉住外观 —— `ImageRenderer` 跟着宿主外观走,
-  在深色模式下重跑会把 80 张全改写成与本次改动无关的 diff。
+  在深色模式下重跑会把这 98 张全改写成与本次改动无关的 diff。
   ⚠️ 脚本里那两行 `export AppleLanguages` / `AppleLocale` **对字符串是空操作**,别当成
   它在"选语言"。原因见下面「只渲染英文」那条:这个 target 里根本没有译文可选。
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
-- `make gallery` 有五道闸,都会让构建失败:
+- `make gallery` 的闸都会让构建失败。下面五条是最容易踩的,**但不止五条**:`main.swift`
+  里现在有十来处会把 `failed` 置真(还包括 fixture 缺失、占位图未登记、tooltip 提取器
+  一无所获、tooltip 检查范围漂移)。**要知道当前有哪些,去数 `App/RowStateGallery/main.swift`
+  里的 `failed = true`,别照抄这里的编号。**
 
-  1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加三张解释面板
-     (`38`/`39`/`40`,工作台没有对应视图),而且
+  1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加**六张**解释面板
+     (`38`/`39`/`40`/`44`/`48`/`49`,工作台没有对应视图;2026-09-16 点的,以前这里写的是三张),而且
      白名单的 key 是「界面/状态」不是「状态」—— popover 对同一状态画的是对勾,按名字
      豁免会把检测器在 popover 那半边一起卸掉。⚠️ 判空要**逐像素扫**:第一版用采样网格,
      把 `no-source-covers` 误报成空白——它只有一个几像素高的淡 em dash,网格跨过去了。
@@ -107,8 +111,9 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   4. **豁免已经不需要了**。`mayLookAlike` 是手维护的,一条不再匹配任何东西的豁免就是给
      未来的漂移发的免检证。把视图改严的那个人,正是该顺手撤掉豁免的人,所以这条也让
      构建失败(加 TestFlight 按钮时当场抓到一条)。
-     ⚠️ **`mayBeBlank` 没有这道检测**(#271):一条不再匹配的判空豁免留着照样全绿,那张图
-     就永久免检。改了某个状态的画法、让它从空白变成有内容时,得**自己**回去撤掉那条。
+     ⚠️ **2026-09-16 复核:`mayBeBlank` 现在也有这道检测了,#271 那个缺口已经补上。**
+     `main.swift` 的 `deadBlankExemptions` 和 `mayLookAlike` 那条同形、同样让构建失败。
+     以前这里写的是「`mayBeBlank` 没有这道检测……得自己回去撤掉那条」,已不成立。
   5. **`DownloadReadout` 的枚举顺序被改了**。`AppRow` 走 `allCases` 取第一个合身的,所以
      那个声明顺序就是算法本身,重排会静默改掉每一行下载中的读数,没有编译错误、也没有
      别的测试看得见。图片 diff 是现象不是断言,所以单独一道闸钉它。
@@ -273,7 +278,8 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
   它**管不了断言真不真**,只管它住在哪、长什么形状;换个说法就绕过去了,这是设计如此。
   它会拼接连续注释行再匹配(那句话是**换行断开**的,逐行 grep 一条都抓不到),
   豁免用 `claim-lint:allow-machine-state — <理由>`,理由必填,
-  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`,躲开 `mayBeBlank` 的 #271)。
+  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`;`mayBeBlank` 当年缺的
+  那道检测 #271 现在也补上了)。
 
 **本机这条先记住,省得再翻**:DuoUpdater 是 **arm64-only**,这是产品决策不是构建细节,
 理由写在 `App/project.yml`(`ARCHS: arm64`)——registry 大面积 pin arm64 端点/资源,

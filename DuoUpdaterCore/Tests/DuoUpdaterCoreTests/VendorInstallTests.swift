@@ -838,8 +838,9 @@ import CryptoKit
     // and the Team ID match.
     //
     // Running it BY HAND is still worth it for one reason: the runner has four
-    // GUI apps, and only the dmg row names one of them. The zip and tarGz rows
-    // are covered here or nowhere — see the list below.
+    // GUI apps, and the dmg row is the only one that names any of them (two —
+    // Firefox and Chrome). The zip and tarGz rows are covered here or nowhere
+    // — see the list below.
     guard ProcessInfo.processInfo.environment["DUO_DOWNLOAD_GATE"] == "1" else {
         log("""
             ⚠️ signature-gate download SKIPPED — it fetches real vendor builds (~226 MB
@@ -955,7 +956,7 @@ private let gateBudget: Duration = .seconds(300)
 /// this particular rule reads the list endpoint at `per_page=25` — by its own
 /// audit the most expensive GitHub rule in the registry — which is not
 /// something to spend an anonymous 60/hour budget on.
-private func gateRemote(_ app: InstalledApp) async -> RemoteVersion? {
+private func gateRemote(_ app: InstalledApp, log: @Sendable (String) -> Void) async -> RemoteVersion? {
     guard GitHubReleaseRegistry.rules.contains(where: { $0.bundleID == app.bundleID }) else {
         return await LiveProbe.remote(app, "\(app.name) gate")
     }
@@ -969,11 +970,44 @@ private func gateRemote(_ app: InstalledApp) async -> RemoteVersion? {
             return nil
         }
         return remote
-    } catch {
-        // Split the same way `LiveProbe.remote` splits it: GitHub being down, or
-        // rate-limiting us, is not this repository's regression to go red over.
-        print("   ~ \(app.name) gate: skipped, GitHub fetch failed — \(error)")
+    } catch where gateFailureIsInfra(error) {
+        // GitHub having a bad day is not this repository's regression to go red
+        // over — but it IS the one outcome that leaves this row proving nothing,
+        // so it goes to `log`, the same stderr stream as the `· resolving version`
+        // line above it. On stdout (where the first draft `print`ed it) the
+        // transcript just stops after that line, which is what #351 looked like.
+        log("   ~ \(app.name) gate: skipped, GitHub fetch failed — \(error)")
         return nil
+    } catch {
+        let status = (error as? GitHubReleasesSource.GitHubError).map { "\($0.statusCode)" } ?? "an error"
+        Issue.record(Comment(rawValue: """
+            \(app.name): GitHub answered \(status) for \(app.bundleID ?? "?") — not a \
+            transient status, so the rule no longer points at something real: \(error).
+            """))
+        return nil
+    }
+}
+
+/// Whether a throw out of `latestVersion` is GitHub's fault rather than the
+/// rule's — the same split `ProbeFailure.classification` makes for the vendor
+/// probes, which is what the other half of `gateRemote` runs on.
+///
+/// This exists because `latestVersion` throws rather than returning nil once a
+/// rule matches, deliberately: its own comment says a thrown failure must stay
+/// distinguishable from "no source for this app". Catching every throw alike
+/// puts that nil straight back. A renamed `trycua/cua` 404s on the list
+/// endpoint, and the first draft of this catch printed one line and left the run
+/// GREEN with the only `.tarGz` coverage in the suite gone — the silent-hole
+/// shape the candidate list's own comment cites #339 for.
+private func gateFailureIsInfra(_ error: Error) -> Bool {
+    // Transport: no response at all, so nothing is said about the rule.
+    guard let gh = error as? GitHubReleasesSource.GitHubError else { return true }
+    switch gh {
+    // The budget-exhausted 403/429 subset. Not routed through
+    // `isTransientStatus`: it carries 403 as well as 429, and a 403 that IS the
+    // rate limit must not read as "the repo refused us".
+    case .rateLimited: return true
+    case .badStatus(let code): return VendorProbeSource.isTransientStatus(code)
     }
 }
 
@@ -984,7 +1018,7 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
     // run 33950064978 hung between this one and the next, which is the only reason
     // the wedge could be located at all.
     log("· resolving version")
-    guard let remote = await gateRemote(app) else { return }
+    guard let remote = await gateRemote(app, log: log) else { return }
     guard let url = remote.downloadURL, let kind = remote.vendorInstallerKind else {
         Issue.record(Comment(rawValue: "\(app.name): resolved a version but no install plan"))
         return

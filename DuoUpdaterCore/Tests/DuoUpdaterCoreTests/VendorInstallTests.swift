@@ -817,32 +817,35 @@ import CryptoKit
     }
 
     // Off unless asked for, because this is the only test in the suite that pulls
-    // real vendor builds — measured 2026-09-05, 112.5 MB (ChatWise) + 48.9 MB
-    // (VLC) on the author's Mac, every `make test`. That is metered bandwidth
-    // being spent to re-prove something a hosted runner can prove for free, so
-    // the runner is where it belongs; ci.yml sets the variable.
+    // real vendor builds — 112 MB (ChatWise) + 48 MB (VLC) + 66 MB (Cua Driver)
+    // on the author's Mac, measured 2026-09-16 from this test's own `· downloaded`
+    // lines, every `make test`. That is metered bandwidth being spent to re-prove
+    // something a hosted runner can prove for free, so the runner is where it
+    // belongs; ci.yml sets the variable.
     //
     // An opt-out flag is normally the exact shape of thing this repository refuses
     // — a free pass that goes on being honoured after the reason for it is gone.
     // What makes this one answerable is that BOTH ways of losing the coverage are
     // loud: CI without the flag is an issue, and the flag with nothing to run is
     // an issue. There is no configuration in which this test quietly does nothing.
-    // The intended end state is that CI sets this and nobody runs it by hand. CI
-    // does not set it yet, and the reason is #351: with the flag on, a hosted
-    // runner printed `· resolving version` and then the whole test process stopped
-    // emitting for 46 minutes. So today this check runs NOWHERE by default, which
-    // is a real hole and is written down as one rather than papered over — it is
-    // the only place a downloaded artifact meets sha512, extraction, the code
-    // signature and the Team ID match over real bytes.
+    // The intended end state — CI sets this and nobody runs it by hand — is where
+    // this now is. It was not for a while: with the flag on, a hosted runner
+    // printed `· resolving version` and then stopped emitting for 46 minutes,
+    // which is #351. That is fixed (the gates hop off the cooperative pool) and
+    // #351 is closed; ci.yml has set the variable since e51d3ece and the `test`
+    // check is required on main, so every PR runs this over real bytes — the only
+    // place a downloaded artifact meets sha512, extraction, the code signature
+    // and the Team ID match.
     //
-    // There is deliberately no "fail if CI didn't set it" guard while #351 is
-    // open: it would turn the known hole into a red required check every run,
-    // which trains people to ignore it. Put that guard back with the flag.
+    // Running it BY HAND is still worth it for one reason: the runner has four
+    // GUI apps, and only the dmg row names one of them. The zip and tarGz rows
+    // are covered here or nowhere — see the list below.
     guard ProcessInfo.processInfo.environment["DUO_DOWNLOAD_GATE"] == "1" else {
         log("""
-            ⚠️ signature-gate download SKIPPED — it fetches real vendor builds (~161 MB
-               with ChatWise and VLC installed). Run it with `DUO_DOWNLOAD_GATE=1 make
-               test`. It does NOT run on CI either — see #351.
+            ⚠️ signature-gate download SKIPPED — it fetches real vendor builds (~226 MB
+               on this machine: ChatWise, VLC and Cua Driver). CI runs it on every PR,
+               but only reaches the dmg row; run it here with `DUO_DOWNLOAD_GATE=1 make
+               test` to cover the zip and tarGz candidates a hosted runner does not have.
             """)
         return
     }
@@ -858,9 +861,30 @@ import CryptoKit
     // runner actually has. Without them this test found nothing on CI and said so
     // in a `log` line nobody reads — the same silent-hole shape as #339, on the
     // gate that decides whether a downloaded bundle may replace an installed app.
+    //
+    // The `tarGz` row cannot be given that property, and the reason is worth
+    // stating rather than leaving as a surprise: the runner image ships exactly
+    // four GUI apps — Safari, Chrome, Edge and Firefox (release notes for
+    // `xcode-27-arm64/20260907.0173`, the image ci.yml's `xcode-27` label resolves
+    // to) — and not one of the four carries a `.tarGz` install spec in any
+    // registry.
+    // So on CI this row prints the same "not covered by this run" line the `zip`
+    // row already prints there, and the coverage is real only on a machine that
+    // has one of these installed. That is not the silent hole #339 was about: the
+    // path IS exercised, on the author's Mac, every time the flag is set by hand.
+    //
+    // Cua Driver leads the row because it is the only candidate that reaches the
+    // second half of the tar path. `ArchiveExtractor.firstApp` recurses exactly
+    // one directory down, and Cua Driver's tarball is the only one that needs it:
+    // `cua-driver-rs-<version>-darwin-universal/CuaDriver.app`. Measured
+    // 2026-09-16 by listing all three tarballs — Cline (`Cline.app/`) and
+    // Conductor (`Conductor.app/`) both put the bundle at the archive root, so
+    // they exercise `fromTar` and stop at the top-level scan. They are fallbacks
+    // for a machine without Cua Driver, not substitutes for it.
     let candidates: [(kind: String, ids: [String])] = [
         ("zip", ["app.chatwise"]),
         ("dmg", ["org.videolan.vlc", "org.mozilla.firefox", "com.google.Chrome"]),
+        ("tarGz", ["com.trycua.driver", "bot.cline.app", "com.conductor.app"]),
     ]
     var apps: [InstalledApp] = []
     for (kind, ids) in candidates {
@@ -918,6 +942,41 @@ import CryptoKit
 /// in seconds.
 private let gateBudget: Duration = .seconds(300)
 
+/// Resolve one candidate the way its own registry entry is written.
+///
+/// `LiveProbe.remote` only ever asks `VendorProbeSource`, so handing it a
+/// GitHub-ruled app records "no vendor recipe applies to …" — a red test that
+/// says nothing about the gate it is named after. Every candidate on the list
+/// was a vendor probe until Cua Driver, which is a `GitHubReleaseRule` and is
+/// also the only one whose tarball nests its `.app`, so the two halves of this
+/// function are not a generality: they are the two sources the list now spans.
+///
+/// The token is resolved because `SourceStack` passes one in production and
+/// this particular rule reads the list endpoint at `per_page=25` — by its own
+/// audit the most expensive GitHub rule in the registry — which is not
+/// something to spend an anonymous 60/hour budget on.
+private func gateRemote(_ app: InstalledApp) async -> RemoteVersion? {
+    guard GitHubReleaseRegistry.rules.contains(where: { $0.bundleID == app.bundleID }) else {
+        return await LiveProbe.remote(app, "\(app.name) gate")
+    }
+    let source = GitHubReleasesSource(token: await GitHubToken.resolve())
+    do {
+        guard let remote = try await source.latestVersion(for: app) else {
+            Issue.record(Comment(rawValue: """
+                \(app.name): a GitHub rule exists for \(app.bundleID ?? "?") but it \
+                resolved no version — the rule's tag or channel gate stopped matching.
+                """))
+            return nil
+        }
+        return remote
+    } catch {
+        // Split the same way `LiveProbe.remote` splits it: GitHub being down, or
+        // rate-limiting us, is not this repository's regression to go red over.
+        print("   ~ \(app.name) gate: skipped, GitHub fetch failed — \(error)")
+        return nil
+    }
+}
+
 private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) async throws {
     log("\n=== signature-gate check: \(app.name) (\(app.bundleID ?? "?")) ===")
 
@@ -925,7 +984,7 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
     // run 33950064978 hung between this one and the next, which is the only reason
     // the wedge could be located at all.
     log("· resolving version")
-    guard let remote = await LiveProbe.remote(app, "\(app.name) gate") else { return }
+    guard let remote = await gateRemote(app) else { return }
     guard let url = remote.downloadURL, let kind = remote.vendorInstallerKind else {
         Issue.record(Comment(rawValue: "\(app.name): resolved a version but no install plan"))
         return

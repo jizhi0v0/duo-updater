@@ -168,6 +168,13 @@ nightly 后缀**,和一个（尚未发布的）stable 0.28.3 逐字相同。唯�
   - `spctl -a -t exec`: 退 0，`source=Notarized Developer ID`
   - 对应到闸：`SignatureVerifier` gate 2（deep/strict）、gate 3（Team ID 与被替换拷贝相同）
     都过 —— 而 gate 3 天然成立，因为装机上的那份就是同一个厂商产物。
+- ✅ **它是 `vendorDownloadPassesSignatureGate` 的 `tarGz` 证人。** 那个闸之前只有 zip 和 dmg
+  两行，所以 `ArchiveExtractor.fromTar` 和 `firstApp` 向下递归的那一层从来没有对**真实下载的厂商字节**
+  跑过。选它当头一个候选正是因为嵌套：实测 2026-09-16，Cline（`Cline.app/`）和
+  Conductor（`Conductor.app/`）都把 bundle 放在归档根上，只有这个包需要递归。
+  变异验过：把 `firstApp` 的递归关掉，这条测试当场红在 `noAppFound`。
+  ⚙️ **只在本机生效**：runner 镜像只有 Safari / Chrome / Edge / Firefox，CI 上这一行打
+  “no tarGz candidate installed here”。每跑一轮 +66 MB。
 
 ## 已知问题
 - **轨道在磁盘上不可分辨**（见「Channel 详情」）。今天不构成误装，但也意味着

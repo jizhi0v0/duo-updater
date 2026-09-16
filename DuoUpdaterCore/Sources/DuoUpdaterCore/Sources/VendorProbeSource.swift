@@ -70,6 +70,15 @@ public struct VendorProbeSource: UpdateSource {
     /// `SecureScheme.requireSecureDownload` on every hop rather than `preferHTTPS`
     /// on the last one, plus credential headers stripped when a hop crosses hosts.
     ///
+    /// Two things downstream DO see the entry url rather than the artifact, and
+    /// both were dealt with rather than accepted. `AppListModel`'s per-host
+    /// install gate keys on `downloadURL.host`, and nine `.redirect` specs share
+    /// two entry hosts (`go.microsoft.com` ×6, `discord.com` ×3) while landing on
+    /// different CDNs — so its learned-host map is keyed by app, not by feed host,
+    /// or one sibling's CDN would throttle all of them. And a `.redirect` spec's
+    /// `requestHeaders` would now be stripped on the cross-host hop; none declares
+    /// any today, and the `.redirect` branch below carries the warning.
+    ///
     /// What the app gives up is that a dead `.redirect` spec no longer degrades
     /// the row to detection-only within one round. That costs less than it reads:
     /// the product ships no telemetry, so that degradation reached nobody who
@@ -1473,6 +1482,19 @@ public struct VendorProbeSource: UpdateSource {
             //
             // The entry url still goes through `preferHTTPS` — same treatment the
             // resolved one gets below, and `Downloader` re-checks every hop.
+            //
+            // ⚠️ A `.redirect` spec must not rely on `requestHeaders` reaching the
+            // server that serves the bytes. Deferring means the download now STARTS
+            // at this entry and crosses a host boundary to reach the artifact, and
+            // `Downloader` strips `Authorization` / `Cookie` / `Proxy-Authorization`
+            // on any cross-host hop — where before, it fetched the already-resolved
+            // artifact url directly and made no hop at all. No `.redirect` spec
+            // declares `requestHeaders` today (checked 2026-09-16, all 27), so this
+            // is a trap for the next one rather than a live bug; a vendor that
+            // needs a credential on its artifact wants `.bodyPattern` or
+            // `.versionTemplate`, which resolve without a hop. (`Referer`, the one
+            // such header in the registry today — AweSun — is not stripped, so the
+            // symptom would vary by vendor rather than fail cleanly.)
             guard resolvesInstallRedirects else { return (Self.preferHTTPS(url), checksum) }
             // The only install source that makes its own request, so it is the only
             // one that can fail for reasons that have nothing to do with the recipe.

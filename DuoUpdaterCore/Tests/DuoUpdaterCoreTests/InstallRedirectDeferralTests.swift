@@ -85,11 +85,14 @@ import Network
 
             listener.newConnectionHandler = { conn in
                 conn.start(queue: queue)
-                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, _, _ in
-                    let request = String(decoding: data ?? Data(), as: UTF8.self)
-                    let fields = request.prefix(while: { $0 != "\r" && $0 != "\n" }).split(separator: " ")
-                    let method = fields.first.map(String.init) ?? "GET"
-                    let path = fields.count > 1 ? String(fields[1]) : "/"
+                // The whole request line, not "whatever the first segment held":
+                // this stub branches on the PATH, so a request line split across
+                // TCP segments would answer the feed body to a `/download` HEAD
+                // and fail a test for a reason that is not the code under test.
+                // (The shared `RecipeVerificationTests.StubServer` reads once
+                // because it answers every path identically; that indifference is
+                // exactly what this stub gives up.)
+                Self.readRequestLine(conn) { method, path in
 
                     var status = 200
                     var location: String?
@@ -128,6 +131,29 @@ import Network
             }
             guard let bound = resolved else { throw URLError(.cannotConnectToHost) }
             self.port = bound
+        }
+
+        /// Accumulate until the request line is complete (CRLF), then hand back
+        /// its method and path. Bounded so a client that never sends one cannot
+        /// park the connection forever.
+        private static func readRequestLine(
+            _ conn: NWConnection, _ body: @escaping (String, String) -> Void
+        ) {
+            func step(_ sofar: Data) {
+                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, done, _ in
+                    let buffer = sofar + (data ?? Data())
+                    let text = String(decoding: buffer, as: UTF8.self)
+                    guard let end = text.range(of: "\r\n") else {
+                        if done || buffer.count > 64 * 1024 { return body("GET", "/") }
+                        return step(buffer)
+                    }
+                    let fields = text[text.startIndex..<end.lowerBound].split(separator: " ")
+                    body(
+                        fields.first.map(String.init) ?? "GET",
+                        fields.count > 1 ? String(fields[1]) : "/")
+                }
+            }
+            step(Data())
         }
 
         func feed(_ name: String = "feed") -> URL {

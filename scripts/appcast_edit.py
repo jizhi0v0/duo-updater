@@ -94,17 +94,25 @@ def item_versions(text):
     return out
 
 
-def system_versions(text):
-    """Every distinct `minimumSystemVersion` in the feed.
+def minimum_systems(text):
+    """`(shortVersionString, sparkle:version)` -> `minimumSystemVersion` (None when
+    the item declares none), for every item that `item_versions` reports.
 
-    `generate_appcast --maximum-versions` caps entries **per branch point**, and a
-    differing minimum OS requirement is what makes a branch point. The entry-count
-    rule below models a single whole-feed window, so more than one of these means
-    the model no longer describes the tool's behaviour.
+    That requirement is the branch point `generate_appcast --maximum-versions`
+    caps on, so `check_regenerated` groups entries by it.
     """
-    return sorted(set(re.findall(
-        r"<sparkle:minimumSystemVersion>\s*([^<\s]+)\s*</sparkle:minimumSystemVersion>",
-        _mask_cdata(text))))
+    out = {}
+    for item in _ITEM.finditer(_mask_cdata(text)):
+        body = text[item.start():item.end()]
+        short = re.search(
+            r"<sparkle:shortVersionString>\s*([^<\s]+)\s*</sparkle:shortVersionString>", body)
+        build = re.search(r"<sparkle:version>\s*([^<\s]+)\s*</sparkle:version>", body)
+        minimum = re.search(
+            r"<sparkle:minimumSystemVersion>\s*([^<\s]+)\s*</sparkle:minimumSystemVersion>", body)
+        if short or build:
+            out[(short.group(1) if short else None,
+                 build.group(1) if build else None)] = minimum.group(1) if minimum else None
+    return out
 
 
 def items_for_build(text, build):
@@ -280,6 +288,17 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
     the new feed holds everything the old one had plus this version, clipped to
     the window, and nothing else is acceptable.
 
+    **The window is per minimum macOS, not per feed.** `--maximum-versions` caps
+    "each branch point (e.g. with a different minimum OS requirement)", and that
+    is what the tool does — measured 2026-09-16 on this repo's `generate_appcast`
+    with synthetic archives and a throwaway key: five 14.0 items plus a new 15.0
+    one came out as six, the 14.0 five stayed untouched through five more 15.0
+    releases while the 15.0 items rolled off on their own, and retained items
+    stayed whether or not their archives were in the directory. So each
+    requirement is counted, and its losses judged, as its own window. Raising the
+    deployment target is what creates a second one: the old requirement's items
+    stay for the Macs that cannot take the new one.
+
     Entries are identified by `(shortVersionString, sparkle:version)`. The
     marketing string alone is not an identity — one marketing version can ship
     under two builds, and then losing one of them is invisible.
@@ -290,18 +309,6 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
 
     if not any(short == want for short, _ in new):
         return [f"the regenerated appcast does not contain {want} — it would publish nothing"]
-
-    # `--maximum-versions` is documented as a cap "for each branch point (e.g.
-    # with a different minimum OS requirement)", so the single-window arithmetic
-    # below only describes the tool while every item shares one requirement. It
-    # has, for as long as this feed has existed. If that changes, stop rather
-    # than refuse a legitimate feed with a misleading message.
-    branch_points = system_versions(new_text)
-    if len(branch_points) > 1:
-        problems.append(
-            f"the regenerated appcast has {len(branch_points)} minimum-OS branch points"
-            f" ({', '.join(branch_points)}); --maximum-versions caps each one separately,"
-            " so the entry-count rule here no longer describes what generate_appcast does")
 
     # A strip that did not fire does not fail; it leaves the old item in place
     # and `generate_appcast` adds a second one. Two items for one build means the
@@ -323,16 +330,38 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
     problems.extend(check_signatures_unchanged(old_text, new_text))
     problems.extend(check_archive_urls_unchanged(old_text, new_text))
 
-    expected = min(len(dict.fromkeys(old + [(want, build)])), cap)
-    lost = [entry for entry in old if entry not in new]
-    if len(new) != expected:
-        detail = (f"lost {_render(lost)}" if lost
-                  else "no entry is missing, so something else changed")
-        problems.append(
-            f"the regenerated appcast has {len(new)} entries, expected {expected} ({detail})")
-    if lost and lost != old[len(old) - len(lost):]:
-        problems.append(
-            f"the regenerated appcast lost {_render(lost)} from the middle of the feed")
+    # The published entry belongs to the requirement its regenerated item states,
+    # which on a reissue need not be the old item's. Every other entry is judged
+    # under the requirement it was published with: one that moved has left its
+    # own window and turned up in another, and both counts say so.
+    old_minimum = minimum_systems(old_text)
+    new_minimum = minimum_systems(new_text)
+    published = (want, build)
+    should_hold = {}
+    for entry in old:
+        if entry != published:
+            should_hold.setdefault(old_minimum.get(entry), []).append(entry)
+    should_hold.setdefault(new_minimum.get(published), []).append(published)
+    holds = {}
+    for entry in new:
+        holds.setdefault(new_minimum.get(entry), []).append(entry)
+
+    points = sorted(set(should_hold) | set(holds), key=lambda p: (p is None, p or ""))
+    for point in points:
+        label = "" if len(points) == 1 else f" for minimum macOS {point or '(none)'}"
+        window = [entry for entry in old if old_minimum.get(entry) == point]
+        got = holds.get(point, [])
+        expected = min(len(dict.fromkeys(should_hold.get(point, []))), cap)
+        lost = [entry for entry in window if entry not in new]
+        if len(got) != expected:
+            detail = (f"lost {_render(lost)}" if lost
+                      else "no entry is missing, so something else changed")
+            problems.append(
+                f"the regenerated appcast has {len(got)} entries{label},"
+                f" expected {expected} ({detail})")
+        if lost and lost != window[len(window) - len(lost):]:
+            problems.append(
+                f"the regenerated appcast lost {_render(lost)} from the middle of the feed{label}")
     return problems
 
 

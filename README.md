@@ -350,10 +350,12 @@ cd DuoUpdaterCore && swift build && swift test   # some tests hit the network
 cd App && xcodegen generate && open DuoUpdater.xcodeproj
 ```
 
-**Runs on macOS 14+.** That is the deployment target for the app and both
-packages. Newer-only surfaces — Liquid Glass, and the App Store install route's
-system changes — sit behind `#available` checks, so 14 builds and runs; it is
-just not where this gets exercised day to day.
+**Runs on macOS 15+.** That is the deployment target for the app and all
+packages. Every Apple Silicon Mac can run a newer macOS, so the floor asks a Mac
+still on 14 to upgrade rather than leaving any hardware behind. Newer-only
+surfaces — Liquid Glass, and the App Store install route's system changes — sit
+behind `#available` checks, so 15 builds and runs; it is just not where this
+gets exercised day to day.
 
 **Apple Silicon only** (`ARCHS: arm64` in `App/project.yml`). This is a product
 decision, not an oversight. The vendor recipe registry pins arm64 throughout —
@@ -367,7 +369,7 @@ we can't serve and the machine that can't run us the same machine.
 
 **Building needs Swift 6.4 (Xcode 27)**: the install path awaits its cleanup in
 `defer` blocks (SE-0493), which older compilers reject. That is a compiler
-requirement only — the deployment target stays macOS 14. Swift 6 language mode
+requirement only — it does not raise the deployment target. Swift 6 language mode
 throughout (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`).
 
 `xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is

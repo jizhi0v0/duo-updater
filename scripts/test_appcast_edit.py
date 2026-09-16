@@ -255,14 +255,74 @@ class ChecksThatWereNotPinned(unittest.TestCase):
                    item("0.3.52", "61"), item("0.3.51", "60"))
         self.assertTrue(self.check(old, new, "0.3.54", "64"))
 
-    def test_a_second_minimum_os_stops_rather_than_misreports(self):
-        """`--maximum-versions` caps per branch point, so the single-window count
-        stops describing generate_appcast the moment a second one exists."""
-        old = feed(item("0.3.53", "62"), item("0.3.52", "61"))
-        new = feed(item("0.3.54", "63", min_os="15.0"), item("0.3.53", "62"),
-                   item("0.3.52", "61"))
-        problems = self.check(old, new, "0.3.54", "63")
-        self.assertTrue(any("branch points" in p for p in problems), problems)
+
+class MinimumOSWindows(unittest.TestCase):
+    """`--maximum-versions` caps each minimum-OS branch point on its own. The
+    shapes here are the ones `generate_appcast` produced on synthetic archives
+    (2026-09-16, see `check_regenerated`) when the requirement went 14.0 -> 15.0.
+
+    Mutation: count the whole feed as one window again (one `expected` over all
+    entries, one suffix rule) → all five go red. The two publishable feeds are
+    refused, the 14.0 window losing an entry is accepted, and the last two are
+    refused only for a whole-feed total, which their assertions do not take."""
+
+    CAP = 5
+    SIZE = 1234
+
+    def check(self, old, new, want, build):
+        return ae.check_regenerated(old, new, want, build, self.SIZE, self.CAP)
+
+    @staticmethod
+    def items(numbers, min_os):
+        return [item(f"0.3.{n}", str(n), min_os=min_os) for n in numbers]
+
+    # --- publishable -----------------------------------------------------
+    def test_raising_the_minimum_os_keeps_the_older_window_whole(self):
+        """The release that raises the floor: the full 14.0 window stays for
+        the Macs that cannot take 15.0, so the feed grows to six."""
+        old = feed(*self.items((57, 56, 55, 54, 53), "14.0"))
+        new = feed(*self.items((58,), "15.0"), *self.items((57, 56, 55, 54, 53), "14.0"))
+        self.assertEqual(self.check(old, new, "0.3.58", "58"), [])
+
+    def test_each_minimum_os_rolls_off_on_its_own(self):
+        old = feed(*self.items((62, 61, 60, 59, 58), "15.0"),
+                   *self.items((57, 56, 55, 54, 53), "14.0"))
+        new = feed(*self.items((63, 62, 61, 60, 59), "15.0"),
+                   *self.items((57, 56, 55, 54, 53), "14.0"))
+        self.assertEqual(self.check(old, new, "0.3.63", "63"), [])
+
+    # --- refused ---------------------------------------------------------
+    def test_the_older_window_losing_an_entry_to_the_new_one(self):
+        """What a single whole-feed window would call normal: six entries capped
+        to five, the oldest rolled off. generate_appcast keeps it."""
+        old = feed(*self.items((57, 56, 55, 54, 53), "14.0"))
+        new = feed(*self.items((58,), "15.0"), *self.items((57, 56, 55, 54), "14.0"))
+        problems = self.check(old, new, "0.3.58", "58")
+        self.assertTrue(
+            any("4 entries for minimum macOS 14.0, expected 5" in p for p in problems), problems)
+
+    def test_a_middle_loss_inside_one_window_hidden_behind_its_count(self):
+        """0.3.56 vanishes from the 14.0 window while an unrelated 14.0 entry
+        appears, so that window's count holds and only its suffix rule can
+        catch it.
+
+        Mutation: drop the per-window suffix rule → no problem is reported."""
+        old = feed(*self.items((60, 59), "15.0"), *self.items((57, 56, 55), "14.0"))
+        new = feed(*self.items((61, 60, 59), "15.0"), *self.items((57, 55, 54), "14.0"))
+        problems = self.check(old, new, "0.3.61", "61")
+        self.assertTrue(
+            any("from the middle of the feed for minimum macOS 14.0" in p for p in problems),
+            problems)
+
+    def test_an_entry_that_moves_to_the_new_minimum_os(self):
+        """A retained 14.0 item regenerated as 15.0 would stop being offered to
+        the Macs it was kept for. Six entries, as there should be; only the split
+        between the two windows is wrong."""
+        old = feed(*self.items((57, 56, 55, 54, 53), "14.0"))
+        new = feed(*self.items((58, 57), "15.0"), *self.items((56, 55, 54, 53), "14.0"))
+        problems = self.check(old, new, "0.3.58", "58")
+        self.assertTrue(
+            any("2 entries for minimum macOS 15.0, expected 1" in p for p in problems), problems)
 
 
 class EmbeddedPythonCompiles(unittest.TestCase):

@@ -87,7 +87,7 @@ internal import SystemPackage
 ///   half-applied delta, a DMG left mounted, an `osascript` swap cut between its
 ///   two renames. The run happens in an unstructured task whose cancellation the
 ///   caller's does not reach. (SE-0504's `withTaskCancellationShield` would say
-///   this directly but is not back-deployed, and this ships to macOS 14.)
+///   this directly but is not back-deployed, and this ships to macOS 15.)
 /// - `.terminateChild` — cancelling the calling task tears the child down (the
 ///   deadline's ladder if there is one, otherwise SIGKILL straight away) and this
 ///   throws `CancellationError`; a task already cancelled does not spawn at all.

@@ -58,9 +58,11 @@
   散文）里，散文那趟对 `**full changelog` 开头的行是显式跳过的，于是 `items` 为空、
   `parse` 返回 nil。**加一条 `.gitHubReleases` 的 ChangelogRecipe 只会得到 0 条目**，
   所以没有加。
-- 现状: 版本轨（`releaseHistory`）有版本号和日期，条目正文为空；面板回退到嵌入
-  release 页。厂商哪天开始写正文，`GitHubReleasesSource` 里那条既有的 inline 解析
-  会自动接上，不需要改 recipe。
+- 现状: 版本轨（`releaseHistory`）有版本号和日期。**面板并不会退到嵌入 release 页**
+  ——`GitHubReleasesSource` 在 `structured == nil` 时把 body 原样放进 `releaseNotesHTML`，
+  而工作台那条 if/else 阶梯先读 `releaseNotesHTML`、后读 `changelogURL`，所以面板渲染的
+  是那一行 boilerplate 本身（GitHub 源按 markdown 渲染，出来是加粗的 "Full Changelog:"
+  加一个链接）。厂商哪天开始写正文，同一条 inline 解析会自动接上，不需要改 recipe。
 
 ## 一键安装
 - 状态: **不支持，且不是待办**

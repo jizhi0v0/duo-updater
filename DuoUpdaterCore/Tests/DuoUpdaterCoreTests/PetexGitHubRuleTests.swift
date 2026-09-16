@@ -9,15 +9,31 @@ import Foundation
 /// See `docs/app-audits/ad-neko-petex.md` for the measurements.
 @Suite struct PetexGitHubRuleTests {
 
-    /// The rule as it ships. Every test starts from this rather than from a
-    /// locally built one: a lookup that stops finding it (bundle id typo'd,
-    /// family unregistered, vendor renamed again) has to fail loudly instead of
-    /// leaving the suite green while it exercises a rule nobody runs.
-    private static var rule: GitHubReleaseRule {
+    /// EVERY rule this bundle id carries, not the first one. A second rule is
+    /// the realistic future here (the vendor opens a beta track), and a guard
+    /// that reads `.first` would then inspect one rule and vouch for two.
+    ///
+    /// Non-empty is required rather than assumed: a lookup that stops finding
+    /// anything (bundle id typo'd, family unregistered, vendor renamed again)
+    /// has to fail loudly instead of leaving the suite green while it exercises
+    /// a rule nobody runs.
+    private static var rules: [GitHubReleaseRule] {
+        get throws {
+            let found = GitHubReleaseRegistry.rules.filter { $0.bundleID == "ad.neko.petex" }
+            try #require(!found.isEmpty, "ad.neko.petex is no longer in GitHubReleaseRegistry")
+            return found
+        }
+    }
+
+    /// The stable rule, which is the one whose tag pattern the version tests
+    /// are about. Separate from `rules` so that adding a second channel makes
+    /// this lookup ambiguous-by-absence (a renamed channel fails here) rather
+    /// than silently retargeting the pattern assertions at the new rule.
+    private static var stableRule: GitHubReleaseRule {
         get throws {
             try #require(
-                GitHubReleaseRegistry.rules.first { $0.bundleID == "ad.neko.petex" },
-                "ad.neko.petex is no longer in GitHubReleaseRegistry")
+                self.rules.first { $0.channel == .stable },
+                "ad.neko.petex has no stable rule any more")
         }
     }
 
@@ -27,10 +43,12 @@ import Foundation
     /// swap by themselves, so an install spec copied over from a sibling
     /// Electron recipe could only ever produce an Update button that fails.
     @Test func petexStaysDetectionOnly() throws {
-        let rule = try Self.rule
-        #expect(rule.installAssetPattern == nil,
-                "Petex ships an unsigned build — an install pattern here can only fail the Team-ID gate")
-        #expect(rule.installerKind == nil)
+        for rule in try Self.rules {
+            #expect(rule.installAssetPattern == nil,
+                    "\(rule.bundleID) (\(rule.channel)): Petex ships an unsigned build — an install pattern here can only fail the Team-ID gate")
+            #expect(rule.installerKind == nil,
+                    "\(rule.bundleID) (\(rule.channel)): see above")
+        }
     }
 
     /// The three tags published as of 2026-09-16, and what the source must read
@@ -38,7 +56,7 @@ import Foundation
     /// makes on every release it walks.
     @Test(arguments: [("v1.0.10", "1.0.10"), ("v1.0.9", "1.0.9"), ("v1.0.7", "1.0.7")])
     func realTagsResolveToTheirVersion(tag: String, expected: String) throws {
-        let rule = try Self.rule
+        let rule = try Self.stableRule
         #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
                 == expected)
     }
@@ -53,7 +71,7 @@ import Foundation
     /// vendor's publish script never sets it (`gh release edit --draft=false
     /// --latest` on every push). The anchors are the only gate.
     @Test func aPrereleaseShapedTagIsRejected() throws {
-        let rule = try Self.rule
+        let rule = try Self.stableRule
         #expect(VendorProbeRecipe.extractVersion(from: "v1.0.11-beta.1", pattern: rule.versionPattern)
                 == nil)
         // The failure this guards against, spelled out: the default pattern does

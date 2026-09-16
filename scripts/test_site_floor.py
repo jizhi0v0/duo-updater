@@ -9,6 +9,7 @@ it states a minimum macOS — so a pattern that stops matching the real phrasing
 goes red here rather than printing "found nothing" on release day.
 """
 
+import os
 import pathlib
 import subprocess
 import sys
@@ -83,10 +84,18 @@ class Verdict(unittest.TestCase):
 
 class AgainstAGitRepository(unittest.TestCase):
     """The git half, on a throwaway repository with an `origin` of its own — no
-    network, and never the real site checkout."""
+    network, and never the real site checkout.
+
+    The fixture's own git runs without the machine's global and system config:
+    a `commit.gpgsign = true` there made every commit here invoke a signer, and
+    the three tests error out (reproduced with a config whose gpg program is
+    `/usr/bin/false`). A hooks path or template set globally would do the same."""
+
+    ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
     def git(self, cwd, *args):
-        subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
+                       env=self.ENV)
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -104,7 +113,7 @@ class AgainstAGitRepository(unittest.TestCase):
         self.git(self.origin, "commit", "-q", "-m", "site")
         self.clone = root / "clone"
         subprocess.run(["git", "clone", "-q", str(self.origin), str(self.clone)],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=self.ENV)
 
     def tearDown(self):
         self.tmp.cleanup()

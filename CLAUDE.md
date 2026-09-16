@@ -747,26 +747,30 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - 本仓库常有多个 worktree 同时开着(`.claude/worktrees/*`),而且 `main` 可能在你干活时已经前进。
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
-- ⚠️ **recipe 巡检任务跑在这个 checkout 里,一天四次,会换你的分支。**
-  `com.bobby.duo-recipe-verify`(launchd,`WorkingDirectory` 就是这个工作副本,
-  04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`)。
-  它**开头 `git checkout main`**,然后跑完整轮扫(几分钟),**最后才**
-  `git checkout -b verify/baseline-<时间戳>` —— 而那一步是从**当时的 HEAD** 切的,
-  不是从 main 切的,尽管脚本自己的注释写着"$BRANCH is left exactly where origin has it"。
-  于是有一个几分钟的窗口,两个方向都会出事,2026-09-06 一次跑里两个都出了:
-  1. 它开头切走 main,**不切回来** —— 我随后的 `git commit` 落在了它的分支上。
-  2. 我在窗口里切回自己的特性分支,它的 PR 就从**我的分支**切了出去 ——
-     #386 的 diff 里因此躺着我三个没复审的文件,而它开了 `--auto` squash,
-     CI 一绿就会进 main。**这是「每个 PR 合并前跑复审」那条规矩的一个绕行口**(它本来就不是闸,只靠自律,见「修 issue」一节)。
-  规矩:**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先
-  `git branch --show-current`**,别假设还在自己那条分支上。
-  撞上了先 `gh pr merge <n> --disable-auto` 止损 —— 这一步不需要 force-push、
-  也不动别人的分支;分支已经和 main 分叉的(比如你的 PR 已经单独 squash 合了),
-  关掉让它重跑,别去 rebase 另一个进程的分支。
-  ⚠️ 顺带把没量的那半边说清楚:**发版那条自动流程不在这里面**。
-  `publish-release.sh` 刻意把 appcast 放进一个临时 clone 改,理由写在它自己的注释里
-  ——"Committing the appcast into the working tree would mean the release touches
-  whatever branch happens to be checked out"。**同一个坑,那边防住了,这边没有。**
+- ⚠️ **recipe 巡检任务跑在 mini 上,不在这个 checkout 里。** 2026-09-16 ssh 上去核过:
+  `com.bobby.duo-recipe-verify` 是 **mini** 的 LaunchAgent(`~/Library/LaunchAgents/`,
+  04:17 / 10:17 / 16:17 / 22:17,`runs=119`,日志 `~/Library/Logs/duo-recipe-verify.log`),
+  它的 `WorkingDirectory` 是 **mini 自己的** `/Users/bobby/Developer/duo-updater` ——
+  跟开发机的 `/Users/bobby/Developer/github/duo-updater` **既不是同一个路径、也不是同一台机器**。
+  **它碰不到你的工作副本。** 本文件以前写的是「跑在这个 checkout 里、一天四次、会换你的分支」,
+  那是错的,别再照着它去解释开发机上分支为什么变了。
+  ⚠️ **别在 mini 那个 checkout 里留东西**:每轮收尾 `git reset --hard "origin/$BRANCH"`。
+  2026-09-06 那次事故(baseline PR 从特性分支切出去、带了三个没复审的文件、还开着 `--auto`)
+  **脚本自己已经修掉了**:开分支是 `git checkout -b "$pr_branch" "origin/$BRANCH"`
+  ——显式从 origin/main,不是从当时的 HEAD;收尾 `git checkout "$BRANCH"` 回 main。
+  完整叙述写在 `duo-recipe-verify.sh` 那段注释里(它自己称之为"this job does not own it"),
+  **要看就去读那段**,别在这里重抄一份会漂的副本。
+- **但「先看自己在哪条分支」这条规矩留着**,理由换成真正成立的那个:**这个 checkout 被多个会话和
+  worktree 共用**,别人可能在你干活中途切走分支,或在工作树里留下未提交的改动。
+  所以**跑完任何长命令、或隔了一段时间之后,`commit` / `push` 前先 `git branch --show-current`
+  + `git status`**,别假设还在自己那条分支上,也别把别人的在途改动一起提交。
+  2026-09-16 实测撞过一次:会话开始时在 `main`,中途变成了另一个会话的
+  `fix/notified-version-ledger-set`(其 PR #676 已 squash 合并),而工作树里的 `CLAUDE.md`
+  混着两个会话的编辑 —— 直接 `git commit CLAUDE.md` 就会把别人没写完的东西一起提交进去。
+- ⚠️ 顺带:**发版那条自动流程也是防住的**。`publish-release.sh` 刻意把 appcast 放进一个临时 clone
+  改,理由写在它自己的注释里——"Committing the appcast into the working tree would mean the
+  release touches whatever branch happens to be checked out"。以前这里写「那边防住了,这边没有」,
+  现在两边都防住了。
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
 - 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。

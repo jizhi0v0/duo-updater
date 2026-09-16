@@ -177,6 +177,20 @@ struct NotifiedUpdateVersionsTests {
         #expect(capped.wasAnnounced(side("3.39.0"), under: [key]))
     }
 
+    /// The actual first launch after the upgrade: the list key does not exist yet
+    /// and the whole ledger arrives through the fold. Everything already announced
+    /// stays announced, and a build offered since is still news.
+    ///
+    /// Mutation: dropping `mergeLastAnnounced` from the startup read — the shape
+    /// the correction to `init(persisted:)`'s documentation exists to prevent.
+    @Test func theFirstLaunchAfterTheUpgradeAdoptsTheSingleVersionKey() {
+        var ledger = NotifiedUpdateVersions(persisted: [:])
+        ledger.mergeLastAnnounced([key: "1.0 (2001)", legacy: "0.9"])
+        #expect(ledger.wasAnnounced(side("1.0", "2001"), under: [key]))
+        #expect(ledger.wasAnnounced(side("0.9"), under: [legacy]))
+        #expect(!ledger.wasAnnounced(side("1.0", "2002"), under: [key]))
+    }
+
     /// The single-version projection an older build reads has to name the version
     /// announced LAST, or that build re-announces whatever came after it.
     ///

@@ -73,11 +73,14 @@ public struct NotifiedUpdateVersions: Equatable, Sendable {
         self.entries = entries.mapValues { Array($0.suffix(Self.capacity)) }
     }
 
-    /// Read the persisted shape, which is a plist dictionary whose values are
-    /// arrays now and were bare strings before this ledger grew a list. Both are
-    /// accepted for the same reason `wasAnnounced` accepts a marketing-only entry:
-    /// discarding the old shape would re-announce every pending update at once on
-    /// the first launch after an upgrade.
+    /// Read the list key: a plist dictionary of string arrays.
+    ///
+    /// A bare string is tolerated as a one-element list, but that is NOT what
+    /// carries the upgrade — the ledger that predates the list lives under its own
+    /// key and is folded in by `mergeLastAnnounced`, which is the migration and
+    /// cannot be deleted in favour of this branch. This one only keeps a
+    /// hand-edited preference, or one written by some future shape, from being
+    /// dropped on the floor.
     public init(persisted: [String: Any]) {
         var value: [String: [String]] = [:]
         for (key, stored) in persisted {

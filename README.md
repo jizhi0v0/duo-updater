@@ -365,9 +365,10 @@ second set of URLs for every recipe, each verified against the real endpoint, no
 an architecture switch. Until that exists, shipping arm64-only keeps the machine
 we can't serve and the machine that can't run us the same machine.
 
-**Building needs a toolchain new enough for the macOS 26 SDK**, because some of
-those guarded paths reference macOS 26 APIs. Swift 6 language mode throughout
-(`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`). Developed against Xcode 27.
+**Building needs Swift 6.4 (Xcode 27)**: the install path awaits its cleanup in
+`defer` blocks (SE-0493), which older compilers reject. That is a compiler
+requirement only — the deployment target stays macOS 14. Swift 6 language mode
+throughout (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`).
 
 `xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is
 generated from `App/project.yml` and not checked in. `DuoUpdaterCore/` and `CLI/`

@@ -23,6 +23,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **An app that has already downloaded its own update no longer gets it downloaded twice.** Some apps fetch an update quietly in the background and then wait for you to restart them. Press Update in DuoUpdater and it now installs the copy already sitting on your disk: the update lands in seconds and costs nothing to download. Before, DuoUpdater fetched the same release all over again.
 
+**DuoUpdater now requires macOS 15 Sequoia or later.** A Mac still on macOS 14 keeps the version it has and is no longer offered updates; every Apple Silicon Mac can upgrade to a supported macOS.
+
 ## 0.3.95
 
 **Aside is now supported.** DuoUpdater tells you when a new build of the Aside browser is out and shows its release notes.

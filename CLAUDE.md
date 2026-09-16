@@ -556,12 +556,12 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   `.task` 里跑,popover 一关就被取消,然后把空结果写进 Brew 树)、`brew info`、`gh auth`
   (token 会被缓存十分钟)、`mas outdated`、`launchctl print`、探针的 `unzip`(被杀会被归类成
   recipe 故障)。这几条都是两轮复审抓到的,不是设计时想到的。
-  ⚠️ **swift-subprocess 用了 `Span`,而部署目标是 macOS 14。** Swift 6.2+ 的工具链靠链接
+  ⚠️ **swift-subprocess 用了 `Span`,而部署目标是 macOS 15。** Swift 6.2+ 的工具链靠链接
   `@rpath/libswiftCompatibilitySpan.dylib` 回部署它,macOS 26 起系统自带、更老的系统没有。
   这个分支上 `swift build` 出来的 Debug `duo` 就链接了它,在本机照跑不误;Release 的 app 和
   `duo-cli`(Xcode 27 与 26.6 各量一遍)不链接。`scripts/check_swift_backdeploy.py` 挂在
   `build-cli.sh` / `install.sh` / `notarize.sh` 的构建之后,哪天链接上了而没嵌进去就让构建失败。
-  没在 macOS 14 上实际启动过——这里没有那样的机器。
+  没在 macOS 15 上实际启动过——这里没有那样的机器。
   ⚠️ **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
   拆掉 hop 之后,`replaceItemAt`(它会删掉被替换下来的整个 bundle)、整包遍历和删除又回到了
   协作池上——对抗复审抓到的。现在这些各自进 `offCooperativePool`(删除走

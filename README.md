@@ -350,10 +350,12 @@ cd DuoUpdaterCore && swift build && swift test   # some tests hit the network
 cd App && xcodegen generate && open DuoUpdater.xcodeproj
 ```
 
-**Runs on macOS 14+.** That is the deployment target for the app and both
-packages. Newer-only surfaces — Liquid Glass, and the App Store install route's
-system changes — sit behind `#available` checks, so 14 builds and runs; it is
-just not where this gets exercised day to day.
+**Runs on macOS 15+.** That is the deployment target for the app and all
+packages. Every Apple Silicon Mac can run a newer macOS, so the floor asks a Mac
+still on 14 to upgrade rather than leaving any hardware behind. Newer-only
+surfaces — Liquid Glass, and the App Store install route's system changes — sit
+behind `#available` checks, so 15 builds and runs; it is just not where this
+gets exercised day to day.
 
 **Apple Silicon only** (`ARCHS: arm64` in `App/project.yml`). This is a product
 decision, not an oversight. The vendor recipe registry pins arm64 throughout —

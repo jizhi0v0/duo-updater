@@ -14,7 +14,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **DuoUpdater benötigt jetzt macOS 15 Sequoia oder neuer.** Ein Mac, der noch mit macOS 14 läuft, behält seine Version und bekommt keine Updates mehr angeboten; jeder Mac mit Apple Silicon kann auf ein unterstütztes macOS aktualisieren.
 
-**Unter der Haube.** Routinemäßige Prüfungen kontaktieren die Download-Server der Entwickler nicht mehr – das konnte eine funktionierende „Aktualisieren“-Taste kurz verschwinden lassen, wenn einer dieser Server langsam war.
+**Unter der Haube.** Routinemäßige Prüfungen lösen Download-Links nicht mehr vorab auf – das konnte eine funktionierende „Aktualisieren“-Taste kurz verschwinden lassen, wenn der Download-Server eines Entwicklers nicht antwortete.
 
 ## 0.3.95
 

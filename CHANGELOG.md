@@ -31,7 +31,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **DuoUpdater now requires macOS 15 Sequoia or later.** A Mac still on macOS 14 keeps the version it has and is no longer offered updates; every Apple Silicon Mac can upgrade to a supported macOS.
 
-**Under the hood.** Routine checks no longer contact developers' download servers, which could briefly hide a working Update button whenever one of those servers was slow.
+**Under the hood.** Routine checks no longer look up download links ahead of time, which could briefly hide a working Update button whenever a developer's download server timed out.
 
 ## 0.3.95
 

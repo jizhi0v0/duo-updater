@@ -6,6 +6,7 @@ import Foundation
 /// the file names, and to one family per bundle id.
 public enum AppRecipeIndex {
     public static let all: [AppRecipeSet] = [
+        ad_neko_petex.set,
         ai_deepseek_dsh_desktop.set,
         ai_elementlabs_lmstudio.set,
         ai_opencode_desktop.set,

@@ -374,7 +374,8 @@ PY
     # count holds), and "at most one lost and it must be the oldest" is trivially
     # true of a one-entry feed that lost its only entry. Knowing the cap makes it
     # exact: the new feed holds everything the old one had plus this version,
-    # clipped to the window, and nothing else is acceptable.
+    # clipped to the window, and nothing else is acceptable. There is one window
+    # per minimum macOS — see `appcast_edit.check_regenerated`.
     OLD_APPCAST="$appcast_clone_dir/appcast.xml" NEW_APPCAST="$appcast_archives_dir/appcast.xml" \
         NEW_VERSION="$version" NEW_BUILD="$build" ASSET_ZIP="$ASSET_ZIP" \
         MAX_VERSIONS="$APPCAST_MAX_VERSIONS" REPO_ROOT="$REPO_ROOT" \

@@ -378,12 +378,18 @@ check, not before" comment is the current contract, not history.
 
 ---
 
-Tests: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has no dedicated test for
-the host-gate release point itself (it's exercised indirectly by
-`AppListModel`'s own concurrency, which the app-layer test target does not
-construct — see `CLAUDE.md`'s "App 层的测试 target" section for why). The
-per-host/App-Store gate split itself is `hostInstallGate(for:appID:)` and
-`Self.appStoreInstallGate` in `AppListModel.swift`, upstream of §1.
+Tests: the *keying* decision — which host `hostInstallGate(for:appID:)` should
+charge an app's download against — moved to `EffectiveInstallHost` (Core,
+`DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/EffectiveInstallHost.swift`) and
+is covered by `EffectiveInstallHostTests`; that type's own doc comment carries
+the "why keyed by app, not by feed host" rationale and the #671 history, not
+retold here. Still untested — `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/` has
+no dedicated test for either — are the host-gate *release point* itself (§1;
+exercised only indirectly by `AppListModel`'s own concurrency, which the
+app-layer test target does not construct — see `CLAUDE.md`'s "App 层的测试
+target" section for why) and the per-host/App-Store gate *split*
+(`Self.appStoreInstallGate` vs. `hostInstallGate(for:appID:)`, both still in
+`AppListModel.swift`, upstream of §1). Neither of those moved.
 
 Same absence for §2: nothing constructs `AppListModel` to exercise
 `armRunningAppsMonitor`'s KVO wiring itself. What IS tested, in

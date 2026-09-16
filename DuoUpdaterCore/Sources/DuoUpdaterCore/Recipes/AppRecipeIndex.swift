@@ -142,6 +142,7 @@ public enum AppRecipeIndex {
         com_tinyapp_tableplus.set,
         com_tinyspeck_slackmacgap.set,
         com_todesktop_230313mzl4w4u92.set,
+        com_trycua_driver.set,
         com_typewhisper_mac.set,
         com_unity3d_unityhub.set,
         com_usebruno_app.set,

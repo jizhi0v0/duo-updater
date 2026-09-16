@@ -58,6 +58,12 @@ struct GitHubListPageSizeTests {
         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
+        // Cua Driver: newest 100 releases on 2026-09-16, 21 `cua-driver-rs-v`
+        // tags; worst gap 18 (v0.20.0 → v0.19.3 — five days of nightlies, lume,
+        // fleet and sandbox releases between two stable driver cuts), so 19.
+        // The deepest floor in this table by a wide margin, and the rule pays for
+        // it in bytes; the rule's own comment carries that measurement.
+        "com.trycua.driver/stable": 19,
         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
         // ones (a cyclical train whose copies must be able to take the release

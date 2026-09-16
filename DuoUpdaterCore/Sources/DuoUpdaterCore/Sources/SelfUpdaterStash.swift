@@ -32,23 +32,20 @@ public struct LocalStagedInstaller: Sendable, Equatable {
 /// Finds an installer an app's own updater has already downloaded, so a one-click
 /// update can use those bytes instead of fetching the same release a second time.
 ///
-/// **The default state of this shape is stale debris, not a live offer.** Measured
-/// on one machine on 2026-09-16: four apps had a parked installer totalling 438 MB,
-/// and three of them trailed what was already installed — ChatWise held a build
-/// five months old (26.3.36 against 26.8.0 on disk), Warp one two months old, and
-/// UURemote one older than a copy that was already current. Only OpenCode's was the
-/// release we were about to install. So every gate below is load-bearing: an
-/// implementation that reused whatever it found would have performed three silent
-/// downgrades for one saved download.
+/// **The default state of this shape is stale debris, not a live offer**, so every
+/// gate below is load-bearing — the version comparison most of all. The copies
+/// this was measured against, the shapes deliberately left unimplemented, and what
+/// the substitution switches off in `VendorInstaller.applyVerified` are in
+/// `docs/engine-notes/self-updater-stash.md` §2, §4 and §6.
 public enum SelfUpdaterStash {
 
     /// Where electron-updater parks what it has downloaded.
     ///
     /// The layout is the library's, not the vendor's, so one reader covers the
-    /// whole electron-builder family rather than a recipe per app (28 of the 179
-    /// bundles in `AppScanner.defaultLocations` on one machine). From
+    /// whole electron-builder family rather than needing a recipe per app. From
     /// `DownloadedUpdateHelper` (electron-updater 6.8.9, read out of a shipped
-    /// `app.asar` on 2026-09-16):
+    /// `app.asar` on 2026-09-16; how to survey a machine for it is in
+    /// `docs/engine-notes/self-updater-stash.md` §1):
     ///
     /// ```js
     /// const cacheDir = path.join(this.app.baseCachePath, dirName || this.app.name)
@@ -83,21 +80,16 @@ public enum SelfUpdaterStash {
     ///
     /// - the directory name cannot, because it is what they share;
     /// - the bundle identifier inside the archive cannot either, because two
-    ///   copies of one app have the same one. Measured 2026-09-16:
-    ///   `T3 Code (Alpha)` 0.0.39 and `T3 Code (Nightly)` 0.0.40-nightly both
-    ///   report `com.t3tools.t3code` and both name `t3code-updater`, differing
-    ///   only in the `channel` their `app-update.yml` asks for.
+    ///   copies of one app have the same one.
     ///
-    /// What would be left is the version comparison, and leaning on it here means
-    /// betting correctness on a vendor's version-string habits — T3 Code's two
-    /// channels happen to be distinguishable only because the nightly carries a
-    /// `-nightly.<date>.<n>` suffix. Under this type's contract the loser of that
+    /// What would be left is the version comparison, and leaning on it means
+    /// betting correctness on a vendor's version-string habits. The loser of that
     /// bet is an install of the wrong channel's bytes over the other copy.
-    ///
-    /// Note the shape is not new: `SelfUpdaterStaging.sparkleStagedBundle`
-    /// documents the same collision for Sparkle's cache and records it as a known
-    /// limitation. The difference is what it costs — there it can mislabel a row,
-    /// here it would write the wrong bundle to disk.
+    /// `SelfUpdaterStaging.sparkleStagedBundle` documents the same collision for
+    /// Sparkle's cache; the difference is what it costs — there it can mislabel a
+    /// row, here it would write the wrong bundle to disk. The observed pair of
+    /// copies and why Squirrel's `ShipItState.plist` does NOT have this problem
+    /// are in `docs/engine-notes/self-updater-stash.md` §3.
     ///
     /// Compared by path, so the same bundle appearing twice in `population` (a
     /// caller that concatenated two scans) does not read as a contest.
@@ -177,12 +169,13 @@ extension SelfUpdaterStash {
     /// gate below passes — otherwise nil, and the caller downloads as usual.
     ///
     /// **What this substitution changes, and what it must not.** The bytes we take
-    /// are not the artifact our route resolved: OpenCode's `GitHubReleaseRule`
-    /// selects `opencode-desktop-mac-arm64.dmg`, while electron-updater on macOS
-    /// only ever downloads a zip (`findFile(files, "zip", ["pkg", "dmg"])`). Same
-    /// release, same Team, both notarized — a different container. So everything
-    /// the route publishes that describes *its* artifact stops applying, and the
-    /// caller must drop it rather than run it against these bytes:
+    /// are not the artifact our route resolved: a route can select a dmg while
+    /// electron-updater on macOS only ever downloads a zip
+    /// (`findFile(files, "zip", ["pkg", "dmg"])`). Same release, same Team, both
+    /// notarized — a different container. So everything the route publishes that
+    /// describes *its* artifact stops applying, and the caller must drop it rather
+    /// than run it against these bytes (worked example in
+    /// `docs/engine-notes/self-updater-stash.md` §6):
     ///
     /// - `RemoteVersion.expectedSHA512` digests the dmg. Run here it cannot pass,
     ///   and it would fail as `checksumMismatch` — "may be corrupt or tampered" —
@@ -250,8 +243,9 @@ extension SelfUpdaterStash {
                      as? NSNumber)?.int64Value ?? 0
 
         // Gate 6 — the bytes on disk are the ones the app's updater recorded. Off
-        // the cooperative pool: hashing 149.6 MB measured 0.31 s, which is a whole
-        // thread parked for the duration if run inline (see `OffPool`).
+        // the cooperative pool: this is a whole-file hash, and a hash of a download
+        // parks a thread for its duration if run inline (see `OffPool`). Affordable
+        // here, and why, in `docs/engine-notes/self-updater-stash.md` §5.
         let path = archive.path
         let digestMatches = await offCooperativePool { () -> Bool in
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
@@ -284,10 +278,9 @@ extension SelfUpdaterStash {
     /// unpacking it.
     ///
     /// A zip's central directory sits at the tail and is randomly addressable, so
-    /// this reads roughly 4 KB out of an archive of any size — measured 2026-09-16
-    /// at 6.0 ms on a 149.6 MB / 630-entry archive and 2.0 ms on a 113.0 MB one,
-    /// against 0.56 s to unpack the same archive in full. The cost tracks the
-    /// number of entries, not the number of bytes.
+    /// this reads roughly 4 KB out of an archive of any size: the cost tracks the
+    /// number of entries, not the number of bytes. Timings in
+    /// `docs/engine-notes/self-updater-stash.md` §5.
     ///
     /// The entry is anchored to the archive root (`^[^/]+\.app/Contents/Info.plist$`).
     /// Electron bundles carry four nested helper `.app`s with their own

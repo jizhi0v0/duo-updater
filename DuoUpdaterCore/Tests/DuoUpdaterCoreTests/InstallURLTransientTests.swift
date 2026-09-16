@@ -233,11 +233,15 @@ struct InstallURLTransientTests {
                 Comment(rawValue: "1s is inside the 2.1s this loop already waits, saw \(run.heads)"))
     }
 
-    /// The case the retry exists for, pinned unchanged. `td.telegram.org` answers
-    /// this HEAD with 502 in bursts that the next attempt clears, so a 5xx must
-    /// keep all three attempts — including one carrying a `Retry-After`, which no
-    /// measurement here has ever seen a 5xx do and which is therefore not a
-    /// behaviour to change on speculation.
+    /// The case the retry exists for, pinned unchanged: `td.telegram.org` answers
+    /// this HEAD with 502 in bursts (see this suite's own doc comment), so a 5xx
+    /// must keep all three attempts — including one carrying a `Retry-After`.
+    ///
+    /// That last part is a scope decision, not a finding about 5xx: whether any
+    /// 5xx here sends the header is unmeasured (the traffic ledger keeps statuses,
+    /// not response headers), and RFC 9110 §10.2.3 defines `Retry-After` for 503
+    /// by name. This case pins today's behaviour so that widening it later is a
+    /// deliberate edit with a red test in front of it.
     @Test func aServerErrorKeepsItsRetriesEvenWhenItNamesALongWait() async throws {
         let run = try await Self.redirectAttempts(
             status: 502, headers: ["Retry-After": "3000"])

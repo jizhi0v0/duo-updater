@@ -1478,15 +1478,21 @@ public struct VendorProbeSource: UpdateSource {
                     // questions that used to be one. Discord's download redirect
                     // answered this HEAD with 429 and `retry-after: 3000` while
                     // saying `x-ratelimit-scope: shared` (2026-09-15) — so the two
-                    // remaining attempts could not possibly succeed, and all they
-                    // did was put two more requests into a bucket that may not even
-                    // be ours alone. Give up and report the rate limit instead.
+                    // remaining attempts went out against a vendor that had just
+                    // said it would not serve them for another fifty minutes, into
+                    // a bucket that may not even be ours alone. Give up and report
+                    // the rate limit instead.
                     //
-                    // 429 only, deliberately. The case this retry exists for is
-                    // `td.telegram.org`'s 502 bursts, which carry no `Retry-After`
-                    // at all and clear within the backoff; no 5xx measured here has
-                    // ever named a wait, so honouring one would be changing
-                    // behaviour on speculation.
+                    // 429 only, deliberately — but for want of evidence, not
+                    // because a 5xx is known to be different. RFC 9110 §10.2.3
+                    // defines `Retry-After` for 503 by name, and whether any 5xx
+                    // here has ever sent one is UNMEASURED: the traffic ledger
+                    // records the status and no response headers, so it cannot be
+                    // asked. What is on record about the burst this retry exists
+                    // for is only the status itself — `td.telegram.org` answering
+                    // this HEAD 502, curl included, so the vendor and not us. So
+                    // widening this needs a measurement first, not a reading of
+                    // this comment.
                     if http.statusCode == 429,
                        let asked = Self.retryAfterDelaySeconds(http),
                        asked > Self.redirectRetryBackoff[(attempt + 1)...].reduce(0, +) {

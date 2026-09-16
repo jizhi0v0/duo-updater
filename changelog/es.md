@@ -2,6 +2,20 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.96
+
+**Una app que ya ha descargado su propia actualización ya no la descarga dos veces.** Algunas apps descargan una actualización en segundo plano y luego esperan a que las reinicies. Pulsa Actualizar en DuoUpdater y ahora instala la copia que ya está en tu disco: la actualización se completa en segundos y no hay que descargar nada. Antes, DuoUpdater volvía a descargar la misma versión.
+
+**Cua Driver y Petex ya son compatibles.** DuoUpdater te avisa cuando cualquiera de las dos publica una nueva versión, y Cua Driver además se actualiza con un clic y muestra sus notas de la versión.
+
+**La misma actualización ya no te avisa una y otra vez.** Cuando el servidor de un desarrollador alternaba entre dos versiones, cada comprobación parecía una actualización nueva y enviaba otra notificación.
+
+**Un paquete que se acaba de instalar ya no ofrece volver a instalarse.** Su fila seguía diciendo que el paquete descargado se volvería a abrir.
+
+**DuoUpdater ahora requiere macOS 15 Sequoia o posterior.** Un Mac que siga en macOS 14 conserva la versión que tiene y deja de recibir actualizaciones; todos los Mac con Apple silicon pueden actualizarse a un macOS compatible.
+
+**Por dentro.** Las comprobaciones periódicas ya no consultan los enlaces de descarga por adelantado, lo que podía ocultar por un momento un botón Actualizar que funcionaba cuando el servidor de descarga de un desarrollador no respondía a tiempo.
+
 ## 0.3.95
 
 **Aside ya es compatible.** DuoUpdater te avisa cuando sale una nueva versión del navegador Aside y muestra sus notas de la versión.

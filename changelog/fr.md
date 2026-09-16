@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.96
+
+**Une app qui a déjà téléchargé sa propre mise à jour ne la télécharge plus deux fois.** Certaines apps récupèrent une mise à jour discrètement en arrière-plan, puis attendent que vous les relanciez. Cliquez sur Mettre à jour dans DuoUpdater : il installe désormais la copie déjà présente sur votre disque, la mise à jour se fait en quelques secondes et sans aucun téléchargement. Auparavant, DuoUpdater retéléchargeait la même version.
+
+**Cua Driver et Petex sont désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version de l'une ou l'autre, et Cua Driver se met en plus à jour en un clic et affiche ses notes de version.
+
+**La même mise à jour ne vous est plus signalée encore et encore.** Quand le serveur d'un développeur alternait entre deux versions, chaque vérification ressemblait à une nouvelle mise à jour et envoyait une nouvelle notification.
+
+**Un paquet qui vient d'être installé ne propose plus de s'installer à nouveau.** Sa ligne continuait d'indiquer que le paquet téléchargé serait rouvert.
+
+**DuoUpdater nécessite désormais macOS 15 Sequoia ou version ultérieure.** Un Mac encore sous macOS 14 conserve sa version actuelle et ne se voit plus proposer de mises à jour ; tous les Mac Apple silicon peuvent passer à un macOS pris en charge.
+
+**Sous le capot.** Les vérifications régulières ne résolvent plus les liens de téléchargement à l'avance, ce qui pouvait masquer brièvement un bouton Mettre à jour pourtant fonctionnel quand le serveur de téléchargement d'un développeur ne répondait pas à temps.
+
 ## 0.3.95
 
 **Aside est désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version du navigateur Aside et affiche ses notes de version.

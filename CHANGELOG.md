@@ -23,7 +23,15 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **An app that has already downloaded its own update no longer gets it downloaded twice.** Some apps fetch an update quietly in the background and then wait for you to restart them. Press Update in DuoUpdater and it now installs the copy already sitting on your disk: the update lands in seconds and costs nothing to download. Before, DuoUpdater fetched the same release all over again.
 
+**Cua Driver and Petex are now supported.** DuoUpdater tells you when either one has a new release, and Cua Driver also updates with one click and shows its release notes.
+
+**The same update no longer notifies you over and over.** When a developer's server kept switching between two versions, every check looked like a new update and posted another notification.
+
+**A package that has just installed no longer offers to install again.** Its row used to keep saying the downloaded package would be re-opened.
+
 **DuoUpdater now requires macOS 15 Sequoia or later.** A Mac still on macOS 14 keeps the version it has and is no longer offered updates; every Apple Silicon Mac can upgrade to a supported macOS.
+
+**Under the hood.** Routine checks no longer look up download links ahead of time, which could briefly hide a working Update button whenever a developer's download server timed out.
 
 ## 0.3.95
 

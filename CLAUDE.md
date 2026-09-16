@@ -85,9 +85,12 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
 - `make gallery` 的闸都会让构建失败。下面五条是最容易踩的,**但不止五条**:`main.swift`
-  里现在有十来处会把 `failed` 置真(还包括 fixture 缺失、占位图未登记、tooltip 提取器
-  一无所获、tooltip 检查范围漂移)。**要知道当前有哪些,去数 `App/RowStateGallery/main.swift`
-  里的 `failed = true`,别照抄这里的编号。**
+  里现在有 **10 处**会把 `failed` 置真(还包括占位图未登记、tooltip 提取器一无所获、
+  tooltip 检查范围漂移),**外加一道根本不走 `failed` 的** —— fixture 缺不到位时
+  在 `render()` 开头直接 `exit(1)`。
+  **要知道当前有哪些,去读 `App/RowStateGallery/main.swift` 的失败分支,
+  `failed = true` 和 `exit(1)` 两种写法都要数**;别照抄这里的编号,更别只 grep 一种
+  —— 只数 `failed = true` 会漏掉 fixture 那道,而它恰好是最早跑、最容易忘的一道。
 
   1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加**六张**解释面板
      (`38`/`39`/`40`/`44`/`48`/`49`,工作台没有对应视图;2026-09-16 点的,以前这里写的是三张),而且
@@ -749,12 +752,18 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
 - ⚠️ **recipe 巡检任务跑在 mini 上,不在这个 checkout 里。** 2026-09-16 ssh 上去核过:
   `com.bobby.duo-recipe-verify` 是 **mini** 的 LaunchAgent(`~/Library/LaunchAgents/`,
-  04:17 / 10:17 / 16:17 / 22:17,`runs=119`,日志 `~/Library/Logs/duo-recipe-verify.log`),
+  04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`;
+  `runs` 当时点是 119,**这个计数器每 6 小时涨一次**,别拿它当基准判断 agent 有没有被重载),
   它的 `WorkingDirectory` 是 **mini 自己的** `/Users/bobby/Developer/duo-updater` ——
   跟开发机的 `/Users/bobby/Developer/github/duo-updater` **既不是同一个路径、也不是同一台机器**。
   **它碰不到你的工作副本。** 本文件以前写的是「跑在这个 checkout 里、一天四次、会换你的分支」,
   那是错的,别再照着它去解释开发机上分支为什么变了。
-  ⚠️ **别在 mini 那个 checkout 里留东西**:每轮收尾 `git reset --hard "origin/$BRANCH"`。
+  ⚠️ **别在 mini 那个 checkout 里留东西**:走到「持久化 baseline 且 `pulled` 成功」那条
+  路径时,收尾是 `git checkout "$BRANCH"` + `git reset --hard "origin/$BRANCH"`,
+  未提交的改动会没。
+  ⚠️ **但它不是每轮都跑**:`pulled=0` 时改走本地 commit + `failed=1`,**不 reset**;
+  baseline 没变则根本到不了那段。所以反过来推不成立 ——
+  **「我留的东西还在」不能推出「夜扫没跑」**,它可能跑了、只是走了不 reset 的那条路。
   2026-09-06 那次事故(baseline PR 从特性分支切出去、带了三个没复审的文件、还开着 `--auto`)
   **脚本自己已经修掉了**:开分支是 `git checkout -b "$pr_branch" "origin/$BRANCH"`
   ——显式从 origin/main,不是从当时的 HEAD;收尾 `git checkout "$BRANCH"` 回 main。

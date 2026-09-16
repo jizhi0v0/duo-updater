@@ -2,6 +2,20 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.96
+
+**Eine App, die ihr Update schon selbst geladen hat, lädt es nicht mehr doppelt.** Manche Apps laden ein Update still im Hintergrund und warten dann darauf, dass du sie neu startest. Klickst du in DuoUpdater auf „Aktualisieren“, installiert es jetzt die Kopie, die schon auf deinem Mac liegt: Das Update ist in Sekunden erledigt und kostet keinen Download. Bisher hat DuoUpdater dasselbe Release noch einmal heruntergeladen.
+
+**Cua Driver und Petex werden jetzt unterstützt.** DuoUpdater meldet, wenn eine der beiden Apps ein neues Release hat; Cua Driver lässt sich außerdem mit einem Klick aktualisieren und zeigt seine Versionshinweise.
+
+**Dasselbe Update meldet sich nicht mehr immer wieder.** Wenn der Server eines Entwicklers ständig zwischen zwei Versionen wechselte, sah jede Prüfung wie ein neues Update aus und löste eine weitere Mitteilung aus.
+
+**Ein gerade installiertes Paket bietet nicht mehr an, sich erneut zu installieren.** Seine Zeile sagte bisher weiterhin, das geladene Paket werde erneut geöffnet.
+
+**DuoUpdater benötigt jetzt macOS 15 Sequoia oder neuer.** Ein Mac, der noch mit macOS 14 läuft, behält seine Version und bekommt keine Updates mehr angeboten; jeder Mac mit Apple Silicon kann auf ein unterstütztes macOS aktualisieren.
+
+**Unter der Haube.** Routinemäßige Prüfungen kontaktieren die Download-Server der Entwickler nicht mehr – das konnte eine funktionierende „Aktualisieren“-Taste kurz verschwinden lassen, wenn einer dieser Server langsam war.
+
 ## 0.3.95
 
 **Aside wird jetzt unterstützt.** DuoUpdater meldet, wenn ein neuer Build des Aside-Browsers erschienen ist, und zeigt dessen Versionshinweise.

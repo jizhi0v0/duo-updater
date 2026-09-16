@@ -268,8 +268,9 @@ final class AppListModel {
     /// terminated an app that had finished updating (measured 2026-08-29).
     @ObservationIgnored private var quitAnswers: [String: QuitPromptAnswer] = [:]
     /// App ids the user agreed to quit (via the confirm affordance) for an
-    /// incremental App Store update — App Store's Continue quits but doesn't reopen,
-    /// so we relaunch them ourselves once the new build is in place.
+    /// incremental App Store update — App Store is not guaranteed to reopen what it
+    /// quit (see `AppStoreQuitPolicy`), so we relaunch them ourselves once the new
+    /// build is in place.
     /// Why a row is expecting to be reopened.
     ///
     /// The distinction only decides what to do with an app that is **still
@@ -3738,6 +3739,10 @@ final class AppListModel {
         // here for is exactly what it still does.)
         refreshRunningApps()
         let wasRunningBeforeInstall = isRunning(result)
+        // Which processes, not just whether: the store can quit and relaunch the
+        // app mid-install, and only a survivor needs a restart (see
+        // `PostInstallDisposition.preInstallProcessStillRunning`).
+        let preInstallPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
         if defersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
             // Don't pull the app forward when this deferral came from Update All.
@@ -3926,11 +3931,12 @@ final class AppListModel {
                     return .notInstalled
                 }
                 // Arm the reopen before anything can quit the app. On this route
-                // the store's own daemon terminates a running app to replace its
-                // bundle and never brings it back, whether the user gave consent
-                // in our sheet or in App Store's own — and the `mas` path raises
-                // no sheet at all. `AppStoreQuitPolicy` carries the evidence and
-                // the reason the signal is "was it running", not "did they click".
+                // the store terminates a running app to replace its bundle, and
+                // whether it brings it back depends on how: storedownloadd did not
+                // (including through `mas`, which raises no sheet of ours), while
+                // appstoreagent did after a Continue in App Store's own sheet.
+                // `AppStoreQuitPolicy` carries the evidence and the reason the
+                // signal is "was it running", not "did they click".
                 if AppStoreQuitPolicy.armsReopen(
                     route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
                     reopenAfterQuit[id] = .storeMayCloseIt
@@ -4209,7 +4215,11 @@ final class AppListModel {
             let version = updated.app.shortVersion
             let disposition = PostInstallDisposition.resolve(
                 defersBookkeeping: deferBookkeeping,
-                wasRunningBeforeInstall: wasRunningBeforeInstall,
+                preInstallProcessStillRunning: PostInstallDisposition.preInstallProcessStillRunning(
+                    wasRunningBeforeInstall: wasRunningBeforeInstall,
+                    preInstallPIDs: preInstallPIDs,
+                    // `kill(pid, 0)` asks the kernel, not a cached running-apps list.
+                    isAlive: { kill($0, 0) == 0 || errno == EPERM }),
                 needsRestartAfterRescan: needsRestart.contains(updated.id)
             )
             switch disposition {
@@ -4322,7 +4332,8 @@ final class AppListModel {
         }
         // If an AX App Store update quit the app but then threw before the swap
         // landed (e.g. timed out, or App Store raised an unexpected sheet), Continue
-        // already closed it and won't reopen it — so reopen it ourselves here too,
+        // already closed it, and the store's own relaunch has only been seen after
+        // an update it completed — so reopen it ourselves here too,
         // not only on the success path above. Idempotent: the success path removed
         // it from `reopenAfterQuit`, so this no-ops there.
         reopenIfQuitForUpdate(result, installSucceeded: false)
@@ -5530,8 +5541,8 @@ final class AppListModel {
     /// terminated, so whatever was going to swap the bundle is (or shortly will
     /// be) doing it. Wait for that landing, then launch the app — the step nobody
     /// else takes here, whether it's a ShipIt staged with
-    /// `launchAfterInstallation=false` or an App Store update whose "Continue"
-    /// closes the app without reopening it.
+    /// `launchAfterInstallation=false` or an App Store update that closed the app
+    /// and may not reopen it (see `AppStoreQuitPolicy`).
     ///
     /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
     /// waits: never open the app before the swap has landed, or the updater aborts
@@ -5918,8 +5929,9 @@ final class AppListModel {
         }
         awaitingQuitConfirm[id] = nil
         UpdateNotifier.clearQuitConfirmation(rowID: id)
-        // Quitting the app is what lets App Store swap it, and it does not reopen it
-        // afterwards; remember to do that ourselves once the install lands. Show the
+        // Quitting the app is what lets App Store swap it, and it is not guaranteed to
+        // reopen it afterwards (see `AppStoreQuitPolicy`); remember to do that
+        // ourselves once the install lands. Show the
         // "Relaunching…" indicator meanwhile (cleared when the install settles in
         // `installApp`). Armed on the answer, not on the quit — the installer may find
         // the update already landed and skip the quit entirely, and reopening an app
@@ -5932,8 +5944,8 @@ final class AppListModel {
         Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed)")
     }
 
-    /// Reopen an app we quit for an incremental App Store update (App Store's
-    /// Continue closes it without reopening). Idempotent — the set membership
+    /// Reopen an app we quit for an incremental App Store update (App Store is not
+    /// guaranteed to reopen it; see `AppStoreQuitPolicy`). Idempotent — the set membership
     /// guards against a double reopen — so it's safe to call on both the success
     /// and the error/timeout exit of `install`, ensuring a quit-but-failed update
     /// never strands the user's app closed. Apps that weren't running were never

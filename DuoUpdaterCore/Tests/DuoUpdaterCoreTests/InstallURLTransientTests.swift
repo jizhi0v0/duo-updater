@@ -92,7 +92,15 @@ struct InstallURLTransientTests {
     /// pattern that stopped matching lands on the same fallback as a 429, so this
     /// is not about rate limits.
     @Test func noDetectionOnlyFallbackIsJudgedAsAChannelArtifact() {
+        // Counted, because a registry-derived loop that matches nothing asserts
+        // nothing: rename `install` or `installAssetPattern` and this test would
+        // go on passing while covering neither guard. Measured before the fix:
+        // 30 recipes and 6 rules raise the false complaint, so both floors are
+        // far below today's populations.
+        var recipesChecked = 0
+        var rulesChecked = 0
         for recipe in VendorProbeRegistry.recipes where recipe.install != nil {
+            recipesChecked += 1
             let fallback = VendorProbeSource.makeRemoteVersion(
                 recipe: recipe, version: "1.0.0", install: nil, plan: nil,
                 resolvedDownload: recipe.url)
@@ -102,6 +110,7 @@ struct InstallURLTransientTests {
         // `GitHubReleasesSource` falls back to the repository's releases page
         // when a rule names an install asset the release does not carry.
         for rule in GitHubReleaseRegistry.rules where rule.installAssetPattern != nil {
+            rulesChecked += 1
             let fallback = RemoteVersion(
                 shortVersion: "1.0.0", version: nil,
                 downloadURL: URL(string: "https://github.com/\(rule.slug)/releases"),
@@ -109,5 +118,7 @@ struct InstallURLTransientTests {
             let complaint = RecipeSanity.crossChannelArtifact(rule: rule, remote: fallback)
             #expect(complaint == nil, "\(rule.recipeID): \(complaint ?? "")")
         }
+        #expect(recipesChecked >= 20, "only \(recipesChecked) recipes carry an install spec — this loop has stopped covering the vendor guard")
+        #expect(rulesChecked >= 5, "only \(rulesChecked) rules name an install asset — this loop has stopped covering the GitHub guard")
     }
 }

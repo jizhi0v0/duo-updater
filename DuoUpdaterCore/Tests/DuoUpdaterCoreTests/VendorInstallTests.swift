@@ -206,12 +206,21 @@ import CryptoKit
         // sweep never prints a bare "v?" for a recipe that did resolve.
         let shown = remote?.shortVersion ?? remote?.version ?? "?"
         log("• \(key): v\(shown)  [\(kind)] \(sum)")
-        log("    \(remote?.downloadURL?.absoluteString ?? "NO URL")")
+        // Labelled, because a row with no installer still has a `downloadURL` —
+        // the page, or the probe endpoint. Printing it bare under `[nil]` would
+        // repeat, in this sweep's own output, the conflation it exists to catch.
+        let artifact = remote?.vendorInstallerKind != nil
+        log("    " + (remote?.downloadURL.map {
+            artifact ? $0.absoluteString : "no installer — detection-only fallback: \($0.absoluteString)"
+        } ?? "NO URL"))
         // No installer resolved: ONE finding, in the probe's own words. The
         // detection-only fallback's `downloadURL` is not an installer, so the
         // kind/routing/channel checks below would only restate this as three
         // unrelated failures — one of them accusing the recipe of crossing
         // channels over what was, on 2026-09-15, a 429 from the vendor.
+        // (No separate `downloadURL != nil` assertion: `makeRemoteVersion` takes
+        // both the kind and the URL off the same install plan, so the kind check
+        // below already covers it and a URL assertion here could never fail.)
         guard let remote, remote.vendorInstallerKind != nil else {
             let why = outcome?.failure.map { "\($0.kind): \($0.detail)" }
                 ?? outcome?.warnings.map(\.display).joined(separator: "; ")
@@ -219,7 +228,6 @@ import CryptoKit
             Issue.record("\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)")
             continue
         }
-        #expect(remote.downloadURL != nil, "\(key) resolved an installer kind but no URL")
         // pkg → manual installer (system installer); archives → in-place swap.
         #expect(remote.requiresManualInstaller == (remote.vendorInstallerKind == .pkg),
                 "\(key) install routing disagrees with its kind")

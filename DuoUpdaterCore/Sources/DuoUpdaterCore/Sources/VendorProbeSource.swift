@@ -27,6 +27,62 @@ public struct VendorProbeSource: UpdateSource {
     /// (e.g. Android Studio stable + Canary) list several and are disambiguated
     /// by the installed app's detected channel.
     private let recipes: [String: [VendorProbeRecipe]]
+
+    /// Whether a `.redirect` install spec is followed to the artifact it lands
+    /// on, or handed on as the entry url for `Downloader` to follow later.
+    ///
+    /// Not to be confused with `VendorProbeRecipe.followRedirects`, which is a
+    /// per-recipe property of the VERSION endpoint (whether to read the feed or
+    /// the `Location` header it answers with). This one is about the INSTALL
+    /// spec's `.redirect` source, and it is per-source rather than per-recipe.
+    ///
+    /// `.redirect` is the only install source that makes its own request, and
+    /// this is the one knob that decides who pays for it. It is asked at
+    /// CONSTRUCTION rather than per call because the two callers that matter are
+    /// whole programs, not moments: `SourceStack.make` builds the stack behind a
+    /// user's periodic check (false), and `duo verify` builds its own to audit
+    /// the registry (true, the default). `latestVersion(for:)` cannot decide it —
+    /// `VendorInstallTests.vendorResolvesInstallPlans` reaches the registry
+    /// through that very method and is an audit, so a flag hung off the app entry
+    /// point would have silently switched the channel-crossing sweep off. It did,
+    /// once, before this moved here.
+    ///
+    /// Defaults TRUE: every recipe unit test and both sweeps resolve install
+    /// plans, and an off-by-default knob would stop 27 specs across 17 families
+    /// from resolving at all while taking `RecipeSanity.crossChannelArtifact`
+    /// with them — it would then be judging an entry url as if it were the
+    /// artifact, which is the #669 bug from the other end.
+    ///
+    /// Why the app opts out (issue #671): it was making that request on EVERY
+    /// round for an answer nobody had asked for, aimed at a vendor's *download*
+    /// endpoint — the kind that rate-limits (#669/#670). Measured on one Mac over
+    /// 17.6h at the 5-minute cadence: 3 installed redirect apps, 163 resolutions
+    /// each, two wire requests apiece (the 30x plus the landing 200) — 965 HEADs,
+    /// 2.32% of the app's entire request count.
+    ///
+    /// Nothing on the install path needs the landing url, which is what makes the
+    /// opt-out safe: `vendorInstallerKind` is `spec.kind` and static, the checksum
+    /// and the deltas are read out of the body, the archive's extension is
+    /// normalised from `kind` (`VendorInstaller.normalizedArchive`), and
+    /// `UpdatePolicy` inspects `downloadURL.pathExtension` on its Sparkle branches
+    /// only. `Downloader` follows the redirect when the user presses Update, and
+    /// follows it MORE strictly than the code here does —
+    /// `SecureScheme.requireSecureDownload` on every hop rather than `preferHTTPS`
+    /// on the last one, plus credential headers stripped when a hop crosses hosts.
+    ///
+    /// What the app gives up is that a dead `.redirect` spec no longer degrades
+    /// the row to detection-only within one round. That costs less than it reads:
+    /// the product ships no telemetry, so that degradation reached nobody who
+    /// could fix it — it is invisible even locally (#669: the row "looked
+    /// identical to a recipe that never had one-click") — while `duo verify`, the
+    /// channel that DOES reach a maintainer, still resolves every time. And it
+    /// never was the guarantee it looked like: at the default `every6Hours`
+    /// cadence the answer is up to six hours stale, so a spec that dies after a
+    /// check still yields an Update button that fails on press. Measured in the
+    /// same window, eagerness cost more than it caught: 2 of 489 resolutions were
+    /// bare network timeouts that silently removed a WORKING Update button for a
+    /// whole round, against zero real spec deaths found.
+    let resolvesInstallRedirects: Bool
     private let session: URLSession
     /// The macOS this source answers for, in `HostOS.numericVersion()` spelling.
     /// Injected so both OS gates — the recipe-pinned `hostRequirement` and the
@@ -86,8 +142,10 @@ public struct VendorProbeSource: UpdateSource {
     public init(
         recipes: [VendorProbeRecipe] = VendorProbeRegistry.recipes,
         session: URLSession = .updates,
-        hostOSVersion: String = HostOS.numericVersion()
+        hostOSVersion: String = HostOS.numericVersion(),
+        resolvesInstallRedirects: Bool = true
     ) {
+        self.resolvesInstallRedirects = resolvesInstallRedirects
         // Group by bundle id; each group holds that id's per-channel recipes.
         self.recipes = Dictionary(grouping: recipes, by: { $0.bundleID })
         self.session = session
@@ -1408,6 +1466,14 @@ public struct VendorProbeSource: UpdateSource {
             return (Self.preferHTTPS(url), checksum)
 
         case .redirect(let url):
+            // The app's periodic check does not follow it: `Downloader` will, at
+            // the moment the user presses Update, and it is the only moment the
+            // answer is wanted. See the `resolvesInstallRedirects` property for the
+            // measurement and for why nothing downstream needs the landing url.
+            //
+            // The entry url still goes through `preferHTTPS` — same treatment the
+            // resolved one gets below, and `Downloader` re-checks every hop.
+            guard resolvesInstallRedirects else { return (Self.preferHTTPS(url), checksum) }
             // The only install source that makes its own request, so it is the only
             // one that can fail for reasons that have nothing to do with the recipe.
             // `td.telegram.org` returns 502 to this HEAD in bursts — verified by

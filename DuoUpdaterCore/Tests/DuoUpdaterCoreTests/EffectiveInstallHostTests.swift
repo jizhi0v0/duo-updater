@@ -150,9 +150,12 @@ struct EffectiveInstallHostTests {
     /// nil, instead of leaving it untouched. That mutant compiles and passed
     /// every test in this file, including the version of this one that
     /// started from an empty table (confirmed 2026-09-16; see the worktree
-    /// notes for the raw output). `InstallCoordinator` returns `finalHost: nil`
-    /// on more than one path (e.g. the homebrew branch), so this is not a
-    /// hypothetical caller.
+    /// notes for the raw output). `InstallCoordinator`'s `.homebrew` branch
+    /// returns `finalHost: nil` unconditionally, on every brew install — a
+    /// routine caller, not a hypothetical one. (`Downloader`'s
+    /// `response.url?.host` can also be nil if a completed response's URL
+    /// carries no host, but that is structurally possible, not an observed
+    /// path.)
     @Test func learnWithANilServedByHostRecordsNothing() {
         var table = EffectiveInstallHost()
         let appID = "zz.fixture.appZeta"

@@ -85,3 +85,56 @@ jobs:
           DUO_DOWNLOAD_GATE: "1"
         run: scripts/run-with-hang-report.sh 1800 make test
 
+      # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild
+      # output in the derived-data dir, which dies with the runner. Two first
+      # attempts on 2026-09-16 failed there and could not be diagnosed after the
+      # retry went green: the name-set gate reporting one case never ran (run
+      # 35084900798), and `Could not resolve package dependencies:` with its
+      # reasons only in that file (run 35085768264).
+      #
+      # Globbed because the dir is per checkout (/tmp/duo-app-tests-<hash8>) and
+      # the log per process (app-tests-<pid>.log). Each hosted job gets a fresh
+      # VM, so only this job's dir can match. The rest of that dir is build
+      # products and caches (~500 MB on a local Mac, 2026-09-16).
+      #
+      # Not the .xcresult itself: on a failed run it embeds a system .logarchive,
+      # and uploading the bundle as-is made a 107 MB artifact (run 35087278533,
+      # two 184 MB dyld-cache text files in it). What is worth keeping from it is
+      # extracted below: the per-case results, which answer "did that case run"
+      # without going through the console log the gate parses, and xctest's own
+      # session logs.
+      #
+      # Bounded because it runs before the upload: after a wedge the bundle may be
+      # half-written, and if reading it stalled into the job's 60-minute limit
+      # the upload would depend on how `failure()` evaluates after a job timeout,
+      # which GitHub's expression docs don't define (third-party reports say the
+      # job ends cancelled, which would skip it). Not measured here.
+      - name: Extract app-tests result bundle
+        if: failure()
+        timeout-minutes: 5
+        run: |
+          shopt -s nullglob
+          for bundle in /tmp/duo-app-tests-*/Logs/Test/*.xcresult; do
+            out="${bundle%/Logs/Test/*}/ci-xcresult/$(basename "$bundle" .xcresult)"
+            mkdir -p "$out"
+            xcrun xcresulttool get test-results tests --path "$bundle" > "$out/tests.json" \
+              || echo "::warning::xcresulttool could not read test results from $bundle"
+            xcrun xcresulttool export diagnostics --path "$bundle" --output-path "$out/diagnostics" >/dev/null \
+              || echo "::warning::xcresulttool could not export diagnostics from $bundle"
+            find "$out/diagnostics" -name '*.logarchive' -prune -exec rm -rf {} + 2>/dev/null || true
+          done
+
+      # `failure()` also fires when something other than the app tests failed;
+      # then nothing matches and this only warns. Artifact names must be unique
+      # within a run; the attempt number keeps a failing re-run from depending on
+      # whether an earlier attempt's artifact counts against that.
+      - name: Upload app-tests logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: app-tests-logs-attempt-${{ github.run_attempt }}
+          path: |
+            /tmp/duo-app-tests-*/app-tests-*.log
+            /tmp/duo-app-tests-*/ci-xcresult/
+            /tmp/duo-app-tests-*/Logs/Package/*.xcactivitylog
+

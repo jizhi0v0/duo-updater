@@ -44,7 +44,7 @@ whose page resists parsing fall back to the page itself in a `WKWebView`. Some
 app names are blurred here; they are only this machine's library.
 
 <p align="center">
-  <img src="assets/settings.png" alt="DuoUpdater's General settings: check interval, post-update behaviour including automatic restart and rollback backups, concurrency, and install routing for App Store and self-updating apps." width="760">
+  <img src="assets/settings.png" alt="DuoUpdater's General settings, beside a sidebar listing Folders, Updates, GitHub, Alcove, Ignored and Diagnostics: launch at login, check interval, hiding the Dock icon, whether to show what each app is built with, notifications, automatic relaunch, rollback backups and the space they use, how many apps to check at once, and install routing for App Store updates, self-updating apps and TestFlight betas." width="760">
 </p>
 
 Most of the settings are about how much autonomy you want to give it — whether

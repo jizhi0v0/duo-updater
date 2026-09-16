@@ -93,32 +93,60 @@ struct InstallURLTransientTests {
     /// is not about rate limits.
     @Test func noDetectionOnlyFallbackIsJudgedAsAChannelArtifact() {
         // Counted, because a registry-derived loop that matches nothing asserts
-        // nothing: rename `install` or `installAssetPattern` and this test would
-        // go on passing while covering neither guard. Measured before the fix:
-        // 30 recipes and 6 rules raise the false complaint, so both floors are
-        // far below today's populations.
-        var recipesChecked = 0
-        var rulesChecked = 0
+        // nothing. What is counted is the row where THIS GUARD decides the
+        // answer, not the row the filter admits — the first version counted the
+        // filter (135 recipes / 84 rules) against floors calibrated on the 30/6
+        // that actually complain, so a drift that dropped every non-stable row
+        // would have left ~97/74 iterations, both floors green, and zero
+        // coverage: the same vacuity the counter was added to prevent.
+        //
+        // The population is measured rather than declared: judge the SAME url as
+        // a resolved artifact, and if that complains, this row is one the guard
+        // is holding quiet. No hand-kept list of channels to drift, and it stays
+        // honest if a proof is added or retired.
+        var proving = 0
         for recipe in VendorProbeRegistry.recipes where recipe.install != nil {
-            recipesChecked += 1
             let fallback = VendorProbeSource.makeRemoteVersion(
                 recipe: recipe, version: "1.0.0", install: nil, plan: nil,
                 resolvedDownload: recipe.url)
             let complaint = RecipeSanity.crossChannelArtifact(recipe: recipe, remote: fallback)
             #expect(complaint == nil, "\(recipe.recipeID): \(complaint ?? "")")
+            // `fallback.downloadURL`, not `recipe.url`: the fallback carries
+            // `recipe.downloadURL ?? recipe.url`, so judging the endpoint would
+            // ask about a different string than the one under test for the two
+            // recipes that have a page (28 rows instead of 30).
+            let asArtifact = VendorProbeSource.makeRemoteVersion(
+                recipe: recipe, version: "1.0.0", install: recipe.install,
+                plan: (fallback.downloadURL ?? recipe.url, nil), resolvedDownload: nil)
+            if RecipeSanity.crossChannelArtifact(recipe: recipe, remote: asArtifact) != nil {
+                proving += 1
+            }
         }
+        #expect(proving >= 20,
+                "only \(proving) recipes have a fallback the channel check would otherwise complain about — this loop has stopped covering the vendor guard")
+
         // `GitHubReleasesSource` falls back to the repository's releases page
         // when a rule names an install asset the release does not carry.
+        var provingRules = 0
         for rule in GitHubReleaseRegistry.rules where rule.installAssetPattern != nil {
-            rulesChecked += 1
+            let page = URL(string: "https://github.com/\(rule.slug)/releases")
             let fallback = RemoteVersion(
-                shortVersion: "1.0.0", version: nil,
-                downloadURL: URL(string: "https://github.com/\(rule.slug)/releases"),
+                shortVersion: "1.0.0", version: nil, downloadURL: page,
                 sourceName: "GitHub", requiresManualInstaller: true, vendorInstallerKind: nil)
             let complaint = RecipeSanity.crossChannelArtifact(rule: rule, remote: fallback)
             #expect(complaint == nil, "\(rule.recipeID): \(complaint ?? "")")
+            let asArtifact = RemoteVersion(
+                shortVersion: "1.0.0", version: nil, downloadURL: page,
+                sourceName: "GitHub", vendorInstallerKind: .zip)
+            if RecipeSanity.crossChannelArtifact(rule: rule, remote: asArtifact) != nil {
+                provingRules += 1
+            }
         }
-        #expect(recipesChecked >= 20, "only \(recipesChecked) recipes carry an install spec — this loop has stopped covering the vendor guard")
-        #expect(rulesChecked >= 5, "only \(rulesChecked) rules name an install asset — this loop has stopped covering the GitHub guard")
+        #expect(provingRules >= 5,
+                "only \(provingRules) rules have a fallback the channel check would otherwise complain about — this loop has stopped covering the GitHub guard")
+        // Printed so the floors can be re-calibrated from a run rather than from
+        // a grep: measured 30 recipes / 6 rules on 2026-09-16.
+        FileHandle.standardError.write(
+            Data("proving rows: \(proving) recipes, \(provingRules) rules\n".utf8))
     }
 }

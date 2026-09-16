@@ -142,14 +142,104 @@ import Foundation
         }
     }
 
-    /// One-click is wired for stable and nothing else. If a nightly rule is ever
-    /// added it must arrive with its own signature measurement rather than
-    /// inheriting this one — nightly builds come off a different workflow.
-    @Test func onlyTheStableRuleCarriesAnInstallSpec() throws {
-        for rule in try Self.rules where rule.channel != .stable {
-            #expect(rule.installAssetPattern == nil && rule.installerKind == nil,
-                    "\(rule.bundleID) (\(rule.channel)): a non-stable rule needs its own artifact measurement before it can install")
+    private static var nightlyRule: GitHubReleaseRule {
+        get throws {
+            try #require(
+                self.rules.first { $0.channel == .nightly },
+                "com.trycua.driver has no nightly rule any more")
         }
+    }
+
+    /// The hazard of having two rules on one bundle id in one repo: each is the
+    /// obvious place to copy the other from, and a pattern that drifted wide
+    /// enough to accept the other train would be invisible — same vendor, same
+    /// Team ID, same notarization, past every gate we have. So all four
+    /// directions are pinned, with the real strings from both trains.
+    ///
+    /// The stable→nightly direction is the one that already nearly happens for
+    /// free: a nightly TAG contains a well-formed stable tag, so only the `$`
+    /// anchor separates them. The nightly→stable direction is the reverse and is
+    /// structural (a stable tag has no `-nightly.` segment at all), but it is
+    /// pinned anyway, because "structural today" is what a loosened pattern
+    /// stops being.
+    @Test func theTwoTrainsNeverMatchEachOthersTagsOrAssets() throws {
+        let stable = try Self.stableRule
+        let nightly = try Self.nightlyRule
+
+        let stableTag = "cua-driver-rs-v0.28.2"
+        let nightlyTag = "nightly-cua-driver-rs-v0.28.3-nightly.20260916.35055871159"
+        let stableAsset = "cua-driver-rs-0.28.2-darwin-universal.tar.gz"
+        let nightlyAsset =
+            "cua-driver-rs-0.28.3-nightly.20260916.35055871159-darwin-universal.tar.gz"
+
+        // Tags: each rule reads its own and refuses the other's.
+        #expect(VendorProbeRecipe.extractVersion(from: stableTag, pattern: stable.versionPattern)
+                == "0.28.2")
+        #expect(VendorProbeRecipe.extractVersion(from: nightlyTag, pattern: stable.versionPattern)
+                == nil)
+        #expect(VendorProbeRecipe.extractVersion(from: nightlyTag, pattern: nightly.versionPattern)
+                == "0.28.3")
+        #expect(VendorProbeRecipe.extractVersion(from: stableTag, pattern: nightly.versionPattern)
+                == nil)
+
+        // Assets: same, for the thing that actually gets downloaded.
+        func matches(_ name: String, _ pattern: String?) -> Bool {
+            guard let pattern else { return false }
+            return name.range(of: pattern, options: .regularExpression) != nil
+        }
+        #expect(matches(stableAsset, stable.installAssetPattern))
+        #expect(!matches(nightlyAsset, stable.installAssetPattern))
+        #expect(matches(nightlyAsset, nightly.installAssetPattern))
+        #expect(!matches(stableAsset, nightly.installAssetPattern))
+    }
+
+    /// The nightly rule captures the BASE version, not the full nightly string,
+    /// and that is forced rather than chosen: the installed bundle reports the
+    /// bare base (`0.28.3`), so a captured `0.28.3-nightly.20260916.…` would be a
+    /// prerelease-shaped string against a plain release-shaped one — which
+    /// compares as OLDER, and would mean a nightly copy is never offered anything.
+    ///
+    /// The cost of the base capture is pinned here too, as the thing it is: two
+    /// different nightlies of one base resolve to the same version, so only a base
+    /// bump can produce an offer.
+    @Test func theNightlyRuleCapturesTheBaseVersionSoItCanBeComparedAtAll() throws {
+        let nightly = try Self.nightlyRule
+        let sameBase = [
+            "nightly-cua-driver-rs-v0.28.2-nightly.20260914.34806428689",
+            "nightly-cua-driver-rs-v0.28.2-nightly.20260915.34929088253",
+        ].map { VendorProbeRecipe.extractVersion(from: $0, pattern: nightly.versionPattern) }
+
+        #expect(sameBase == ["0.28.2", "0.28.2"])
+        // The comparison that forced the base capture, stated as an assertion
+        // rather than as a claim in a comment.
+        #expect(!VersionComparator.isNewer("0.28.3-nightly.20260916.35055871159", than: "0.28.3"))
+    }
+
+    /// The nightly rule hands out an artifact on a channel it chose from a
+    /// preference file, so `ChannelProofRegistry` requires it to state how the
+    /// artifact is known to be nightly. Both real URLs are run through the
+    /// registered proof: the nightly one passes, the stable one is caught.
+    @Test func theNightlyArtifactIsProvenToBeOnTheNightlyTrack() throws {
+        let nightly = try Self.nightlyRule
+        try #require(ChannelProofRegistry.githubProofs[
+            ChannelProofKey("com.trycua.driver", .nightly)] != nil)
+
+        func remote(_ url: String) -> RemoteVersion {
+            RemoteVersion(
+                shortVersion: "0.28.3", version: "0.28.3",
+                downloadURL: URL(string: url)!, sourceName: "GitHub",
+                vendorInstallerKind: .tarGz)
+        }
+        let base = "https://github.com/trycua/cua/releases/download/"
+        #expect(RecipeSanity.crossChannelArtifact(rule: nightly, remote: remote(
+            base + "nightly-cua-driver-rs-v0.28.3-nightly.20260916.35055871159/"
+                 + "cua-driver-rs-0.28.3-nightly.20260916.35055871159-darwin-universal.tar.gz"))
+            == nil)
+        // The failure it exists for: the stable train's artifact reaching a
+        // nightly install. Same vendor, same Team ID, same notarization.
+        #expect(RecipeSanity.crossChannelArtifact(rule: nightly, remote: remote(
+            base + "cua-driver-rs-v0.28.2/cua-driver-rs-0.28.2-darwin-universal.tar.gz"))
+            != nil)
     }
 
     /// What the changelog pane gets, and — more to the point — what it does not.

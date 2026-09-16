@@ -4889,17 +4889,23 @@ final class AppListModel {
         })
     }
 
-    /// The downloaded package for this row, if it's still usable: the file is on disk
-    /// AND it installs exactly the version currently on offer. A newer release makes
-    /// the old package wrong, not merely stale, so the row falls back to "Update".
+    /// The downloaded package for this row, if it's still usable: the file is on disk,
+    /// it installs exactly the version currently on offer, AND that version has not
+    /// already landed. A newer release makes the old package wrong, not merely stale,
+    /// so the row falls back to "Update"; a landed one would otherwise keep telling an
+    /// up-to-date row that Install re-opens the package it just installed, because the
+    /// entry deliberately outlives the install. Both halves live in
+    /// `StagedPackageReuse`, which spells out why.
     func stagedPackage(for result: UpdateResult) -> StagedPackage? {
         guard
             let staged = stagedPackages[result.id],
             // Pairs, not marketing strings: a stale package from an earlier build
             // of a frozen-marketing app compared equal to the current offer and was
             // re-opened as if it installed it.
-            let offered = result.remote?.versionSide,
-            VersionComparator.isSame(staged.versionSide, as: offered),
+            StagedPackageReuse.isReusable(
+                staged: staged.versionSide, offered: result.remote?.versionSide,
+                onDisk: result.app.versionSide,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)),
             FileManager.default.fileExists(atPath: staged.url.path)
         else { return nil }
         return staged

@@ -228,3 +228,32 @@ public enum StagedPackagePrune {
         return kept
     }
 }
+
+/// Whether a staged package can still be handed back to macOS's installer for
+/// this row: the thing the row's "Install" button, its "is downloaded" note and
+/// its Discard item all stand on.
+///
+/// Two conditions, and the second is the one that used to be missing. The
+/// package must install exactly what the source offers now (a newer release
+/// makes it wrong, not merely stale), and the app must not already BE that
+/// version. Once the installer has run, the entry stays behind on purpose —
+/// `StagedPackagePrune.keep` holds a landed entry until the reconciler settles
+/// it, and while an Update All batch is in flight nothing reconciles — so a
+/// check without the second condition kept telling an up-to-date row that
+/// Install would re-open the package it had just installed.
+///
+/// "Landed" is `PackageRestartState.hasLanded`, not a third copy of it. Whether
+/// the download is still on disk is the caller's to ask; this stays free of the
+/// filesystem.
+public enum StagedPackageReuse {
+    public static func isReusable(
+        staged: VersionSide,
+        offered: VersionSide?,
+        onDisk: VersionSide?,
+        buildIsDerived: Bool
+    ) -> Bool {
+        guard let offered, VersionComparator.isSame(staged, as: offered) else { return false }
+        return !PackageRestartState.hasLanded(
+            onDiskVersion: onDisk, stagedVersion: staged, buildIsDerived: buildIsDerived)
+    }
+}

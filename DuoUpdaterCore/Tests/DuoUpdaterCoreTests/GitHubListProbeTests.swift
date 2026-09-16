@@ -294,15 +294,21 @@ struct GitHubListProbeTests {
 
     // MARK: - Registry
 
-    /// Bitwarden is the one rule measured to fall back most rounds (its newest
-    /// release is a web/CLI/browser tag far more often than the desktop one),
-    /// so it is opted out; every other prerelease `.newest` rule probes. A new
+    /// The rules measured to fall back most rounds, so a one-row probe would
+    /// only add a request; every other prerelease `.newest` rule probes. A new
     /// opt-out is a measurement to be written down in the rule's comment, and
     /// this list is where it is registered.
+    ///
+    /// * Bitwarden — its newest release is a web/CLI/browser tag far more often
+    ///   than the desktop one.
+    /// * Cua Driver — the same shape with a wider margin: stable driver tags
+    ///   are 88 of this monorepo's 683 published releases (12.9%, the whole
+    ///   history walked 2026-09-16), and the nightly job cuts a release most
+    ///   mornings, so row 0 is almost never the one that rule wants.
     @Test func onlyTheMeasuredRulesAreOptedOutOfProbing() {
         let optedOut = GitHubReleaseRegistry.rules
             .filter { $0.usePrereleases && $0.candidateScope == .newest && !$0.probesNewestFirst }
             .map { "\($0.bundleID)/\($0.channel.rawValue)" }
-        #expect(Set(optedOut) == ["com.bitwarden.desktop/stable"])
+        #expect(Set(optedOut) == ["com.bitwarden.desktop/stable", "com.trycua.driver/stable"])
     }
 }

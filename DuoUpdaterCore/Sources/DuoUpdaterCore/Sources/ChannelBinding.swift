@@ -174,6 +174,7 @@ public enum ChannelBinding {
         WindscribeChannel.bundleID.lowercased(),
         SuperconductorChannel.bundleID.lowercased(),
         MacMouseFixChannel.bundleID.lowercased(),
+        CuaDriverChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -256,6 +257,19 @@ public enum ChannelBinding {
         // `~/Library/Preferences/com.windscribe.Windscribe2.plist`, already
         // inside the first root. Said out loud because the file name is NOT the
         // bundle id, which is the shape that makes a reader check.
+        //
+        // Cua Driver deliberately adds nothing, for super.engineering's reason
+        // below: its file IS outside every root above
+        // (`~/.cua-driver/release-channel`), but the daemon writes its telemetry
+        // state and its own `version_check.json` into that same directory, and
+        // FSEvents streams are recursive — a root there would fire whenever the
+        // app runs, while the file itself changes about as often as a user
+        // decides to switch tracks. The cost of not watching is real and is NOT
+        // "you must reinstall to change it": `cua-driver channel set <track>`
+        // rewrites the file on its own, in a second, with nothing installed
+        // (measured — it flipped `nightly`→`stable`→`nightly` here). So a flip is
+        // picked up on the next scan, or on the app's own launch or quit, rather
+        // than immediately. See `CuaDriverChannel`.
         //
         // super.engineering deliberately adds nothing either, for the opposite
         // reason: its choice IS outside every root above
@@ -393,6 +407,7 @@ public enum ChannelBinding {
         case CodeEditChannel.bundleID.lowercased(): return CodeEditChannel.resolveCurrent
         case MacMouseFixChannel.bundleID.lowercased():
             return MacMouseFixChannel.resolveCurrent
+        case CuaDriverChannel.bundleID.lowercased(): return CuaDriverChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -492,11 +507,20 @@ public enum ChannelBinding {
 
     /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
-    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe and super.engineering have
-    /// bindings, but the binding only picks which `VendorProbeRecipe` runs; the
+    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering and Cua
+    /// Driver have bindings, but the binding only picks which RECIPE runs; the
     /// install comes from that recipe, so their cross-channel question is already
-    /// answered by `ChannelProofRegistry.proofs` and enumerating them here would
-    /// double-count them into a second registry.
+    /// answered by a proof map keyed to that recipe, and enumerating them here
+    /// would double-count them into a second registry.
+    ///
+    /// ⚠️ The name predates the last of them. Six are backed by a
+    /// `VendorProbeRecipe` and answer to `ChannelProofRegistry.proofs`; Cua Driver
+    /// is backed by a `GitHubReleaseRule` and answers to
+    /// `ChannelProofRegistry.githubProofs` instead. The membership test is "the
+    /// binding chooses a recipe and carries no request-side channel signal of its
+    /// own", not which registry that recipe lives in — renaming the set was
+    /// weighed against leaving one honest sentence here, and the sentence won
+    /// because the name is load-bearing in `vendorProbeBackedBindingsAreNotEnumerated`.
     ///
     /// Used two ways, and honest about the weaker one: it is what
     /// `everyBindingIsEnumerated` subtracts to compute what SHOULD be enumerated,
@@ -513,5 +537,6 @@ public enum ChannelBinding {
         CapCutChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
         SuperconductorChannel.bundleID.lowercased(),
+        CuaDriverChannel.bundleID.lowercased(),
     ]
 }

@@ -1,0 +1,52 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-trycua-driver"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.trycua.driver"
+githubRules[0].owner = "trycua"
+githubRules[0].repo = "cua"
+githubRules[0].usePrereleases = true
+githubRules[0].listPageSize = 25
+githubRules[0].versionPattern = "^cua-driver-rs-v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = false
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-universal\\.tar\\.gz$"
+githubRules[0].installerKind? = .tarGz
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.trycua.driver"
+githubRules[1].owner = "trycua"
+githubRules[1].repo = "cua"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 12
+githubRules[1].versionPattern = "^nightly-cua-driver-rs-v([0-9]+\\.[0-9]+\\.[0-9]+)-nightly\\.[0-9]{8}\\.[1-9][0-9]*$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .nightly
+githubRules[1].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]{8}\\.[1-9][0-9]*-darwin-universal\\.tar\\.gz$"
+githubRules[1].installerKind? = .tarGz
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.trycua.driver", channel: .nightly)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.trycua.driver", channel: .nightly)].0 = "/download/nightly-cua-driver-rs-v[0-9.]+-nightly\\."
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

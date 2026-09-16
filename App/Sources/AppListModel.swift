@@ -7156,23 +7156,17 @@ final class AppListModel {
         // pass rather than here — so they ride along in this count only as much as
         // they always did via `isActionableUpdate`.
         let actionable = results.filter(isActionableUpdate)
-        // The version we'd announce for each app; key by `key(for:)` to match how
-        // ignore/skip identify an app (survives the app moving on disk).
-        //
-        // Build-aware: `displayVersion` is marketing-first and a vendor may leave
-        // that string alone across any number of builds, which made every build
-        // after the first read as already-announced. See `NotifiedUpdateVersions`,
-        // where the rule and its baseline migration are executed.
-        func version(_ r: UpdateResult) -> String {
-            NotifiedUpdateVersions.announceKey(r.remote?.versionSide)
-        }
-        var baseline = prefs.notifiedVersions
+        // Key by `key(for:)` to match how ignore/skip identify an app (survives the
+        // app moving on disk). The ledger stores the offered version build-aware and
+        // keeps a bounded list of them per app rather than only the last one; both
+        // rules, and the measurements behind them, live in `NotifiedUpdateVersions`.
+        var ledger = prefs.notifiedVersions
 
         // First run ever: adopt today's pending list as the baseline *silently*. The
         // user can already see it in the app; banners are for what shows up next.
         guard prefs.notificationBaselineSeeded else {
-            for r in actionable { baseline[prefs.key(for: r.app)] = version(r) }
-            prefs.setNotifiedVersions(baseline)
+            for r in actionable { ledger.record(r.remote?.versionSide, under: prefs.key(for: r.app)) }
+            prefs.setNotifiedVersions(ledger)
             prefs.notificationBaselineSeeded = true
             Log.app.info("notify: seeded baseline with \(actionable.count, privacy: .public) pending (no banner)")
             return
@@ -7184,20 +7178,20 @@ final class AppListModel {
         // baseline recorded before the key became build-aware, which
         // `wasAnnounced` handles by also accepting a stored marketing-only value.
         func wasNotified(_ r: UpdateResult) -> Bool {
-            NotifiedUpdateVersions.wasAnnounced(
+            ledger.wasAnnounced(
                 r.remote?.versionSide,
-                under: [prefs.key(for: r.app), prefs.legacyKey(for: r.app)],
-                in: baseline)
+                under: [prefs.key(for: r.app), prefs.legacyKey(for: r.app)])
         }
         let newly = actionable.filter { !wasNotified($0) }
 
         // Record the current target version for every actionable app (so a later
-        // refresh won't re-announce the same version), and drop entries for apps no
-        // longer present in the scan to keep the map from growing without bound.
+        // refresh won't re-announce it), and drop entries for apps no longer present
+        // in the scan to keep the map from growing without bound. Pruning first so an
+        // app that left and came back in the same pass keeps the entry it just got.
         let liveKeys = Set(results.map { prefs.key(for: $0.app) })
-        baseline = baseline.filter { liveKeys.contains($0.key) }
-        for r in actionable { baseline[prefs.key(for: r.app)] = version(r) }
-        prefs.setNotifiedVersions(baseline)
+        ledger.prune(liveKeys: liveKeys)
+        for r in actionable { ledger.record(r.remote?.versionSide, under: prefs.key(for: r.app)) }
+        prefs.setNotifiedVersions(ledger)
 
         guard !newly.isEmpty else { return }
         Log.app.info("notify: \(newly.count, privacy: .public) new updates")

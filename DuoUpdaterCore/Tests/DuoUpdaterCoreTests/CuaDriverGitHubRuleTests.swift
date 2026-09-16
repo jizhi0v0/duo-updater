@@ -84,8 +84,9 @@ import Foundation
     /// that endpoint would not be stale, it would be reading another product.
     ///
     /// `probesNewestFirst` is the same fact from the other side: stable driver
-    /// tags were 88 of the newest 500 rows, so a one-row probe would fall
-    /// through to the full page nearly every round and only add a request.
+    /// tags are 88 of this repo's 683 published releases, so a one-row probe
+    /// would fall through to the full page nearly every round and only add a
+    /// request.
     @Test func theRuleReadsTheListEndpointAndDoesNotProbeTheNewestRow() throws {
         let rule = try Self.stableRule
         #expect(rule.usePrereleases,

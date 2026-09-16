@@ -302,9 +302,9 @@ struct GitHubListProbeTests {
     /// * Bitwarden — its newest release is a web/CLI/browser tag far more often
     ///   than the desktop one.
     /// * Cua Driver — the same shape with a wider margin: stable driver tags
-    ///   were 88 of this monorepo's newest 500 rows (17.6%, measured
-    ///   2026-09-16), and the nightly job cuts a release most mornings, so row
-    ///   0 is almost never the one that rule wants.
+    ///   are 88 of this monorepo's 683 published releases (12.9%, the whole
+    ///   history walked 2026-09-16), and the nightly job cuts a release most
+    ///   mornings, so row 0 is almost never the one that rule wants.
     @Test func onlyTheMeasuredRulesAreOptedOutOfProbing() {
         let optedOut = GitHubReleaseRegistry.rules
             .filter { $0.usePrereleases && $0.candidateScope == .newest && !$0.probesNewestFirst }

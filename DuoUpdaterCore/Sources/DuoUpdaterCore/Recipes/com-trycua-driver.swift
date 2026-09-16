@@ -51,10 +51,10 @@ enum com_trycua_driver {
         // "up to date".
         //
         // probesNewestFirst is off for Bitwarden's reason, only with a wider
-        // margin: stable driver tags are a sixth of this repo's rows and the
-        // nightly job cuts a release most mornings, so row 0 is almost never the
-        // one this rule wants. Probing a page of one would buy a request that fails
-        // over into the full page nearly every round. History has the share.
+        // margin: stable driver tags are about an eighth of this repo's rows and
+        // the nightly job cuts a release most mornings, so row 0 is almost never
+        // the one this rule wants. Probing a page of one would buy a request that
+        // fails over into the full page nearly every round. History has the share.
         //
         // ⚠️ **`.newest` is first-match-wins, and this repo's list order is not
         // strictly semver order.** Replaying every published release, GitHub

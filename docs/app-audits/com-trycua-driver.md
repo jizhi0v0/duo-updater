@@ -9,8 +9,11 @@
   （⚠️ 官方 install 文档写的是 "macOS 14 (Sonoma) or later"，与包里的 13.0 不一致，以包为准的话
   下限更低。没有在 13/14 上实测过，这里只记两个来源不一致这件事）
 - 自更新机制: **有，但全是手动触发的**。`cua-driver check-update` 只查、
-  `cua-driver update --apply` 才换，外加启动时一条被动 banner。没有后台自动更新，
-  所以不会和 DuoUpdater 的 swap 抢同一个 bundle
+  `cua-driver update --apply` 才换，外加启动时一条被动 banner（文档原话是三条路径，
+  并要求 "Keep the check and apply steps separate"）。**没有常驻的自动更新**：装完
+  `launchctl list | grep -i cua` 无命中、`~/Library/LaunchAgents` 下无条目、
+  `cua-driver doctor` 自报 `legacy LaunchAgent: not present`；检查发生在它自己进程运行时，
+  结果缓存在 `~/.cua-driver/version_check.json`。所以不会和 DuoUpdater 的 swap 抢同一个 bundle
 - 分发: 只有 `curl … | bash`（`https://cua.ai/driver/install.sh`），产物来自
   `trycua/cua` 的 GitHub Releases。无 Sparkle feed；Homebrew 无 cask 也无 formula
   （`cua-driver` / `cua` / `cua-driver-rs` 六个 API 端点全 404）；Mac App Store 无上架
@@ -89,22 +92,23 @@ binding —— 那是另一件事,不在本次范围。
 - `listPageSize: 25`。2026-09-16 用 Python 独立复算（不是从 Swift 规则里重读）：最新 100 条
   release 里 21 条命中，相邻两条命中之间最大间距 18（`v0.20.0` → `v0.19.3`，中间五天全是
   nightly / lume / fleet / sandbox），所以下限 19，登记在
-  `GitHubListPageSizeTests.measuredMinimumDepth`。25 是在下限之上留余量，和 Bitwarden 的
+  `GitHubListPageSizeTests.measuredMinimumDepth`（全历史 683 条重算一遍，最大间距同样是 18，
+  所以下限不随窗口变）。25 是在下限之上留余量，和 Bitwarden 的
   10 相对其下限 8 同一个做法。**代价是实打实的**：`curl --compressed` 实测同一端点
   per_page=20 → 76.4 KB、25 → 101.8 KB、40 → 144.0 KB（gzip 线上字节，和请求账本同一单位）。
   这是本 registry 里最贵的一条 GitHub 规则。
   stable 轨若安静得比一页还久，最新那条命中会被挤出页面 —— 那条路径的出口是
   `recordMiss` + 行变 `.unknown`，不是自信地报"已最新"。
-- `probesNewestFirst: false`：最新 500 条 release 里 stable 驱动 tag 占 88 条（17.6%），
+- `probesNewestFirst: false`：全仓 683 条 release 里 stable 驱动 tag 占 88 条（12.9%），
   nightly job 几乎每天早上发一版，所以第 0 行基本不会是这条规则要的那条。探一页一行
   （4.7 KB）几乎每轮都会落空再去付整页的钱。
 - ⚠️ **`.newest` 是"第一个命中就赢"，而这个仓库的列表顺序不严格等于 semver 顺序。**
-  把全部 500 条重放一遍：88 条 stable 驱动 tag 里有**两处**逆序，而且都发生在同一天的
+  把全部 683 条重放一遍：88 条 stable 驱动 tag 里有**两处**逆序，而且都发生在同一天的
   进位上 —— `v0.9.1`（2026-07-20 12:11Z）排在更新的 `v0.10.0`（20:48Z）**前面**，
   `v0.2.9` 排在 `v0.2.18` 前面。列表顺序不是 `created_at`、不是 `published_at`、也不是
   `id` 降序（三者都与它不符），这大概就是厂商自己的安装脚本宁可把命中项按数字排序、
   也不取第一条的原因。`settle()` 里没有这个排序。
-  后果有界：那两个窗口里（各约两天，到下一条 release 为止）这条规则会给出**偏低**的版本，
+  后果有界：那两个窗口里（到下一条 stable release 为止，分别约两天和约六天）这条规则会给出**偏低**的版本，
   即"暂时过时的提示"，不会是"错误的提示"。没有绕过去，是因为 `GitHubCandidateScope`
   里没有一个既不依赖顺序、又适用于"全部 release 都被标成 prerelease"的选项。
 
@@ -192,7 +196,7 @@ cua-driver --version && cua-driver doctor
 - 本机按官方 `install.sh` 装了一份（0.28.2），路径 `/Applications/CuaDriver.app`，
   软链 `~/.local/bin/cua-driver` 指进 bundle 内部。`~/.cua-driver/packages/` 是空的，
   `release-channel` 文件不存在，`cua-driver channel status` 答 `Selected channel: stable`。
-- release 列表：拉了 5 页共 500 条，`cua-driver-rs-v<x.y.z>` 88 条（占 17.6%），
+- release 列表：翻到底共 **683** 条（7 页，第 7 页不满 100 即到底），`cua-driver-rs-v<x.y.z>` **88** 条（占 12.9%，最老一条 `v0.1.3` 位于索引 200，所以这 88 条就是全部，不是某个窗口里的），
   **全部 `prerelease: true`、`draft: false`**；同仓另有 nightly 驱动、`sandbox-*`、
   `fleet-*`、`npm-fleet-*`、`lume-*`、`computer-server-*`、`cua-hyprland-kit-*`、
   以及退役 Swift 驱动的 `cua-driver-v*`（23 条，最后一条 `cua-driver-v0.2.0`）。
@@ -209,7 +213,7 @@ cua-driver --version && cua-driver doctor
   ⚠️ 这是**用今天的返回顺序重放历史**得出的，不是当时的现场观测：结论「那两个窗口里会给出偏低
   的版本」依赖「GitHub 的排序键稳定、当时的相对顺序与今天相同」这个前提，该前提没有独立证据。
   能直接证实的只有今天这一份返回里确实存在这两处逆序。
-- `darwin-universal.tar.gz` 资产：88 条 stable release **每条都有，且每条只有一个**；
+- `darwin-universal.tar.gz` 资产：**全历史** 88 条 stable release **每条都有，且每条只有一个**；
   `-binary` 兄弟从未被本 pattern 命中。
 - 一键端到端（红→绿走真实路径）：
   1. `CUA_DRIVER_RS_VERSION=0.28.1` 钉装旧版 → `Info.plist` 0.28.1，inode 250089576；

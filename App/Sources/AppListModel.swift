@@ -467,10 +467,53 @@ final class AppListModel {
     /// because `canRollback` reads it and both windows disable on that.
     private var bundleChanges: [String: (token: Int, kind: BundleChange)] = [:]
     @ObservationIgnored private var bundleChangeTokens = 0
-    /// id → the "wasn't relaunched: it's being updated / rolled back" text
-    /// `refuseWhileBundleChanges` wrote into `installNotes`. Same discipline as
-    /// `restartHoldBackNotes`; retracted when that bundle change ends.
-    @ObservationIgnored private var bundleBusyNotes: [String: String] = [:]
+    /// A "wasn't relaunched: it's being updated / rolled back" note
+    /// `refuseWhileBundleChanges` put up, and the note it covered.
+    ///
+    /// `installNotes` holds one note per row, and the one a refusal lands on can
+    /// be load-bearing: `backupCurrent`'s "No rollback point…" / "Couldn't back
+    /// up…", the App Store "click Continue" prompt, the "didn't quit — a window
+    /// is waiting" note while its hand-off is armed. Overwriting and then
+    /// retracting would lose it for good, so the covered note is put back — unless
+    /// the store that owned it has retracted it while it was hidden, in which case
+    /// what it described is over and it stays down.
+    private struct BusyNote {
+        let text: String
+        let prior: String?
+        /// `prior` was registered with a store that retracts it on its own
+        /// (`ownsNote`) when it was covered.
+        let priorOwned: Bool
+        /// `prior` was registered in `inFlightNotes`. `pruneRetractedNotes` drops
+        /// a registration whose text is not on screen, so it is re-registered on
+        /// restore and the settle rule gets to judge it again.
+        let priorInFlight: Bool
+    }
+    /// id → the refusal note on screen and what it covered; retracted when that
+    /// bundle change ends (`retractBusyNote`).
+    @ObservationIgnored private var bundleBusyNotes: [String: BusyNote] = [:]
+
+    /// Whether `text` is the note one of the self-retracting stores wrote for
+    /// this row and still means to retract.
+    private func ownsNote(_ id: String, _ text: String) -> Bool {
+        restartHoldBackNotes[id] == text || restartWontQuitNotes[id] == text
+            || appStoreQuitNotes[id] == text
+    }
+
+    /// Take the refusal note down if it is still what the row shows, and put back
+    /// what it covered (see `BusyNote`). If someone replaced the refusal text in
+    /// between, theirs stands and nothing is restored — that writer would have
+    /// replaced the covered note just the same.
+    private func retractBusyNote(_ id: String) {
+        guard let busy = bundleBusyNotes.removeValue(forKey: id),
+              installNotes[id] == busy.text else { return }
+        guard let prior = busy.prior,
+              !(busy.priorOwned && !ownsNote(id, prior)) else {
+            installNotes[id] = nil
+            return
+        }
+        installNotes[id] = prior
+        if busy.priorInFlight { inFlightNotes[id] = prior }
+    }
 
     private func beginBundleChange(_ id: String, _ kind: BundleChange) -> Int {
         bundleChangeTokens += 1
@@ -483,7 +526,7 @@ final class AppListModel {
     private func endBundleChange(_ id: String, token: Int) {
         guard bundleChanges[id]?.token == token else { return }
         bundleChanges[id] = nil
-        retractRestartNote(id, from: &bundleBusyNotes)
+        retractBusyNote(id)
     }
 
     /// Refuse a Relaunch or Restart of a row whose bundle is being replaced, and
@@ -503,8 +546,20 @@ final class AppListModel {
             Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being rolled back right now — not relaunching it")
             note = String(localized: "\(result.app.name) wasn’t relaunched: it is being rolled back right now. Try again once that finishes.")
         }
-        installNotes[result.id] = note
-        bundleBusyNotes[result.id] = note
+        let id = result.id
+        if let mine = bundleBusyNotes[id], installNotes[id] == mine.text {
+            // A repeat refusal while ours is up: keep what the first one covered.
+            bundleBusyNotes[id] = BusyNote(
+                text: note, prior: mine.prior,
+                priorOwned: mine.priorOwned, priorInFlight: mine.priorInFlight)
+        } else {
+            let prior = installNotes[id]
+            bundleBusyNotes[id] = BusyNote(
+                text: note, prior: prior,
+                priorOwned: prior.map { ownsNote(id, $0) } ?? false,
+                priorInFlight: prior != nil && inFlightNotes[id] == prior)
+        }
+        installNotes[id] = note
         return true
     }
 
@@ -3724,9 +3779,9 @@ final class AppListModel {
         // The span in which this install may replace the bundle (`bundleChanges`).
         // Ended early, right before the post-install disposition, so the
         // install's own auto-restart there is not refused as a restart mid-swap;
-        // the `defer` covers every return before that.
+        // the `defer` (declared below the App Store one) covers every return
+        // before that.
         let bundleClaim = beginBundleChange(id, .install)
-        defer { endBundleChange(id, token: bundleClaim) }
         installErrors[id] = nil
         installNotes[id] = nil
         // Retract the "App Store is waiting on you" note on every exit — the prompt
@@ -3739,6 +3794,12 @@ final class AppListModel {
                 installNotes[id] = nil
             }
         }
+        // Declared AFTER the App Store `defer` so it runs BEFORE it: ending the
+        // claim puts back a note a refusal covered (`retractBusyNote`), and the
+        // App Store note has to be back on screen for its own retraction to match
+        // it. The other way round, that retraction drops its registration against
+        // the refusal text and the restore then strands the prompt on the row.
+        defer { endBundleChange(id, token: bundleClaim) }
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual

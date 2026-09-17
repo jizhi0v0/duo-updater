@@ -54,6 +54,10 @@ struct WorkbenchWindowView: View {
     /// always-visible header (with its count pill) is the discovery cue, and expanding
     /// it is opt-in rather than permanently crowding the Apps tree above.
     @State private var rollbackExpanded = false
+    /// Release notes, or the bundle diff against the app's backup. Only offered for
+    /// an app that has a backup; kept across selections so comparing several apps
+    /// in a row does not mean switching back each time.
+    @State private var detailMode: DetailMode = .releaseNotes
     /// Bumped by each "Show in Window" request from the popover's unchecked-brew
     /// tip; the Brew list scrolls to those rows when it sees a value it hasn't
     /// handled. A counter, not a flag, so the list can mark it handled without
@@ -682,10 +686,28 @@ struct WorkbenchWindowView: View {
 
     @ViewBuilder
     private func detail(for result: UpdateResult) -> some View {
+        let hasBackup = model.backupVersion(result.id) != nil
         VStack(alignment: .leading, spacing: 0) {
             DetailHeader(result: result, model: model)
+            if hasBackup {
+                Picker(selection: $detailMode) {
+                    Text("Release Notes").tag(DetailMode.releaseNotes)
+                    Text("Bundle Diff").tag(DetailMode.bundleDiff)
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+            }
             Divider()
-            ReleaseNotesPane(result: result, model: model)
+            if hasBackup && detailMode == .bundleDiff {
+                BundleDiffPane(result: result)
+            } else {
+                ReleaseNotesPane(result: result, model: model)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1650,6 +1672,159 @@ private struct ReleaseNotesPane: View {
         .onAppear {
             Log.changelog.notice(
                 "perf pane=empty \(result.app.name, privacy: .public) origin=\(changelogURLOrigin, privacy: .public) src=\(result.remote?.sourceName ?? "?", privacy: .public)")
+        }
+    }
+}
+
+private enum DetailMode: Hashable {
+    case releaseNotes
+    case bundleDiff
+}
+
+/// `duo diff` in the workbench: the backup taken before this app's last update
+/// against the bundle installed now, as the same raw report the command prints.
+///
+/// Deliberately not interpreted for the reader. The report's own notes say how
+/// each kind of difference misleads (source paths follow logging, a missing
+/// localization key proves nothing), and this surface is for investigating an
+/// update, not for judging one.
+///
+/// Computed when the pane appears and not cached: `.task(id:)` cancels it when the
+/// selection moves on, and `BundleDiff.report` stops walking at the next file, so
+/// scrolling through the Rollback list never leaves bundles hashing behind it.
+private struct BundleDiffPane: View {
+    let result: UpdateResult
+
+    /// The report split for display, with the width its widest line needs.
+    private struct Report: Equatable {
+        let text: String
+        let lines: [String]
+        let width: CGFloat
+
+        init(_ text: String) {
+            self.text = text
+            lines = text.components(separatedBy: "\n")
+                .map { $0.isEmpty ? " " : ($0.count > 1000 ? String($0.prefix(1000)) + "…" : $0) }
+            // Measured, not estimated from a character count: the localization
+            // section carries Chinese values, twice the width of the ASCII around them.
+            let font = NSFont.monospacedSystemFont(
+                ofSize: NSFont.preferredFont(forTextStyle: .callout).pointSize, weight: .regular)
+            width = lines.reduce(0) { widest, line in
+                max(widest, ceil((line as NSString).size(withAttributes: [.font: font]).width))
+            }
+        }
+    }
+
+    private enum Phase: Equatable {
+        case running
+        case done(Report)
+        case failed(String)
+        case noBackup
+    }
+
+    @State private var phase: Phase = .running
+
+    /// A new installed version is a new comparison.
+    private var comparisonID: String {
+        "\(result.id)|\(result.app.shortVersion ?? "")|\(result.app.buildVersion ?? "")"
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .task(id: comparisonID) { await compare() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch phase {
+        case .running:
+            VStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Comparing with the backup…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .done(let report):
+            VStack(alignment: .leading, spacing: 0) {
+                // Its own row, not an overlay: floated over the report it covered
+                // the lines under it.
+                HStack {
+                    Spacer()
+                    Button("Copy Report") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(report.text, forType: .string)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                Divider()
+                // One Text per line, laid out lazily. As a single Text, Baidu Netdisk's
+                // report (256 lines, one of them 2,563 characters) drew nothing at all
+                // while its Copy Report button worked. Suspected, not confirmed: a view
+                // that size is past what can be drawn in one piece. The long line is
+                // split in Core now; the lazy stack keeps a long report from growing
+                // one view without bound, and the cap covers any line Core does not
+                // split. Copy Report still copies every character.
+                //
+                // A lazy stack only measures the rows it has built, so on its own it
+                // is as wide as the window and the report cannot scroll sideways.
+                // The widest line is measured up front and given to the stack.
+                ScrollView([.vertical, .horizontal]) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(report.lines.enumerated()), id: \.offset) { _, line in
+                            Text(verbatim: line)
+                                .font(.system(.callout, design: .monospaced))
+                                .fixedSize(horizontal: true, vertical: true)
+                        }
+                    }
+                    .frame(width: report.width + 8, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding(16)
+                }
+            }
+        case .failed(let message):
+            ContentUnavailableView {
+                Label("Couldn't compare with the backup", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(verbatim: message)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .noBackup:
+            ContentUnavailableView {
+                Label("No backup of this app was found.", systemImage: "externaldrive.badge.questionmark")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func compare() async {
+        phase = .running
+        let app = result.app
+        // The same lookup a rollback makes: the key moved once, so older backups
+        // live under a legacy candidate.
+        let backup = await offCooperativePool {
+            BackupStore.keyCandidates(bundleID: app.bundleID, path: app.path)
+                .lazy.compactMap { BackupStore.backup(forKey: $0) }.first
+        }
+        guard !Task.isCancelled else { return }
+        guard let backup else {
+            phase = .noBackup
+            return
+        }
+        let started = ContinuousClock.now
+        let outcome = await BundleDiff.report(
+            old: backup.bundlePath.path, new: app.path.path,
+            oldLabel: "backup (\(backup.version ?? "?"))", newLabel: "installed")
+        guard !Task.isCancelled else { return }
+        switch outcome {
+        case .success(let report):
+            Log.changelog.info("perf pane=bundle-diff \(app.name, privacy: .public) \(String(describing: ContinuousClock.now - started), privacy: .public)")
+            phase = .done(Report(report))
+        case .failure(let failure):
+            Log.changelog.error("bundle diff failed for \(app.name, privacy: .public): \(failure.description, privacy: .public)")
+            phase = .failed(failure.description)
         }
     }
 }

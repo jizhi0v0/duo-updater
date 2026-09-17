@@ -1231,6 +1231,88 @@
         }
       }
     },
+    "%@ wasn’t relaunched: an update to it is being installed right now. Try again once that finishes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht neu gestartet: Gerade wird ein Update dafür installiert. Versuche es erneut, sobald das abgeschlossen ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se reinició: ahora mismo se está instalando una actualización. Vuelve a intentarlo cuando termine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas été relancé : une mise à jour est en cours d’installation. Réessayez une fois celle-ci terminée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は再起動されませんでした。現在アップデートをインストール中です。完了してからもう一度お試しください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не перезапущено: сейчас устанавливается его обновление. Повторите попытку, когда установка завершится."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有重新启动：正在为它安装更新。安装完成后再试一次。"
+          }
+        }
+      }
+    },
+    "%@ wasn’t relaunched: it is being rolled back right now. Try again once that finishes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht neu gestartet: Es wird gerade auf die vorherige Version zurückgesetzt. Versuche es erneut, sobald das abgeschlossen ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se reinició: ahora mismo se está restaurando la versión anterior. Vuelve a intentarlo cuando termine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas été relancé : le retour à la version précédente est en cours. Réessayez une fois celui-ci terminé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は再起動されませんでした。現在以前のバージョンにロールバック中です。完了してからもう一度お試しください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не перезапущено: сейчас выполняется откат к предыдущей версии. Повторите попытку, когда откат завершится."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有重新启动：正在将它回滚到之前的版本。回滚完成后再试一次。"
+          }
+        }
+      }
+    },
     "%@ — click for details": {
       "extractionState": "manual",
       "localizations": {

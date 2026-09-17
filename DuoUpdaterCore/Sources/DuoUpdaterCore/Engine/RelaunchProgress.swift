@@ -20,8 +20,9 @@ public enum RelaunchLanding: Sendable, Equatable {
     case applied
 
     /// The app's own updater swaps on quit. Launch only once disk shows this
-    /// staged build or newer — never before, or ShipIt aborts with "App Still
-    /// Running Error". If it never lands, leave the app quit: the marker's
+    /// staged build or newer — never before, or a ShipIt with the
+    /// running-instances check aborts with "App Still Running Error"
+    /// (`StagedUpdater`). If it never lands, leave the app quit: the marker's
     /// promise was that specific build.
     case stagedSwap(to: VersionSide)
 
@@ -181,7 +182,7 @@ public enum StagedRelaunchOutcome: Sendable, Equatable {
     /// The app quit (or, for a swap-on-launch updater, was launched to apply it)
     /// and the bundle still had not moved when the wait ran out.
     case swapDidNotLand
-    /// Swap-on-quit only: the app quit, then came back up on the old bundle
+    /// ShipIt only: the app quit, then came back up on the old bundle
     /// (`ReappearanceWatch`). Deliberately says nothing about who reopened it —
     /// the user, a login item, anything — only that it runs without the update.
     case restartedWithoutUpdate
@@ -206,29 +207,39 @@ public enum StagedRelaunchOutcome: Sendable, Equatable {
     }
 }
 
-/// Fail fast when a swap-on-quit app comes back up without the update, instead
-/// of waiting out the whole ~180 s for a swap that has already been abandoned.
+/// Fail fast when a ShipIt app comes back up without the update, instead of
+/// waiting out the whole ~180 s for a swap that has already been abandoned.
 ///
-/// **Why an instance reappearing means the swap is off.** A swap-on-quit
-/// updater replaces the bundle first and launches the app second, so by the time
-/// a new process exists the bundle on disk is already the new one:
+/// **Why an instance reappearing means the swap is off — for ShipIt only.**
+/// ShipIt (Squirrel.Mac) replaces the bundle first and launches the app second,
+/// so by the time a new process exists the bundle on disk is already the new one
+/// — observed in Claude's
+/// `~/Library/Caches/com.anthropic.claudefordesktop.ShipIt/ShipIt_stderr.log`:
+/// "Installation completed successfully" at 09:14:50, "Successfully launched
+/// application" at 09:14:55 (2026-09-14). And it refuses to swap at all while an
+/// instance runs: on 2026-09-17 the app was reopened by hand right after our
+/// quit, and ShipIt logged "Aborting update attempt because there are 1 running
+/// instances of the target app" (SQRLInstallerErrorDomain -9) three seconds
+/// later — while our spinner went on for the full wait. The check is in current
+/// Squirrel.Mac's `Squirrel/SQRLInstaller.m`, and not in every bundled ShipIt —
+/// see `StagedUpdater.shipIt` for the ones seen without it.
 ///
-///   * ShipIt (Squirrel.Mac) — observed in Claude's
-///     `~/Library/Caches/com.anthropic.claudefordesktop.ShipIt/ShipIt_stderr.log`:
-///     "Installation completed successfully" at 09:14:50, "Successfully launched
-///     application" at 09:14:55 (2026-09-14). And it refuses to swap at all while
-///     an instance runs: on 2026-09-17 the app was reopened by hand right after
-///     our quit, and ShipIt logged "Aborting update attempt because there are 1
-///     running instances of the target app" (SQRLInstallerErrorDomain -9) three
-///     seconds later — while our spinner went on for the full wait.
-///   * Sparkle 2 — read from the sources this repo builds against (2.9.6,
-///     `Autoupdate/AppInstaller.m`, `finishInstallationAfterHostTermination`):
-///     `performFinalInstallationProgressBlock` returns, and only then does
-///     `relaunchApplication` run. Read, not measured on a running app. An older
-///     Sparkle embedded by some vendor may differ; unverified.
+/// **Sparkle 2 does not refuse, so it is not judged here.** Read from the
+/// sources this repo builds against (2.9.6), not measured on a running app: the
+/// progress agent (`InstallerProgress/InstallerProgressAppController.m`,
+/// `registerApplicationBundlePath:`) registers the FIRST running instance and
+/// `listenForTerminationWithCompletion:` observes that one alone; nothing in
+/// `Autoupdate/` re-lists running instances before `performFinalInstallationProgressBlock`,
+/// and `Autoupdate/AppInstaller.m` says as much twice ("We could be slightly off
+/// if there were multiple instances running"). So a Sparkle app reopened by the
+/// user or a login item before the install finishes still gets swapped — under
+/// the running old build — and reading that reappearance as "restarted without
+/// the update" would put up a false red line and drop the success notification.
 ///
-/// Swap-on-launch (Spotify) is excluded: there we launch the old build
-/// ourselves and a new pid is the expected next step, not a verdict.
+/// Spotify (swap-on-launch) is excluded too: there we launch the old build
+/// ourselves and a new pid is the expected next step, not a verdict. And an
+/// unknown updater (nothing staged readable, or a detector that did not say)
+/// gets the full wait: a late verdict costs seconds, a false one misreports.
 ///
 /// **The grace.** The poll reads disk first and processes second, so the tick
 /// that first sees the app back up has a disk read taken *before* that
@@ -247,7 +258,20 @@ public struct ReappearanceWatch: Sendable, Equatable {
     /// The tick whose process read first found the app back up, while it still is.
     public private(set) var firstSeenTick: Int?
 
-    public init() {}
+    /// Whether a reappearance can end the wait at all. Fixed at creation, from
+    /// the staged build as it stood when the relaunch started.
+    public let judgesReappearance: Bool
+
+    /// - Parameter staged: the build the relaunch is applying, or nil when its
+    ///   staging could not be read. Only a ShipIt staging turns the watch on;
+    ///   anything else, including nil and a detector that left `updater` unset,
+    ///   leaves it off.
+    public init(for staged: StagedSelfUpdate?) {
+        switch staged?.updater {
+        case .shipIt: judgesReappearance = true
+        case .sparkle, .spotify, nil: judgesReappearance = false
+        }
+    }
 
     /// Feed one tick of the wait, AFTER that tick's disk read came back not
     /// landed. Returns true when the wait should give up.
@@ -256,11 +280,8 @@ public struct ReappearanceWatch: Sendable, Equatable {
     ///   - running: whether this tick's process read found an instance.
     ///   - everQuit: whether every instance has been seen gone at some tick,
     ///     including this one.
-    ///   - appliesOnLaunch: the staged update applies on launch (Spotify).
-    public mutating func observe(
-        tick: Int, running: Bool, everQuit: Bool, appliesOnLaunch: Bool
-    ) -> Bool {
-        guard !appliesOnLaunch, everQuit, running else {
+    public mutating func observe(tick: Int, running: Bool, everQuit: Bool) -> Bool {
+        guard judgesReappearance, everQuit, running else {
             // Gone again (or never counted): nothing to judge; start over if it
             // comes back.
             firstSeenTick = nil

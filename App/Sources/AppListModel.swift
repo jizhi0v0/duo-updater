@@ -425,6 +425,155 @@ final class AppListModel {
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
 
+    /// Whether a rollback may start on this row now — what `rollback` checks, and
+    /// what both windows disable their Roll back entry on, so the click is never a
+    /// silent no-op.
+    ///
+    /// Not during a Relaunch: `relaunchStagedUpdate` marks the row `relaunching`,
+    /// not `installing`, and copies the live bundle into a rollback point before
+    /// it quits the app. A restore swapping the bundle under that copy leaves a
+    /// torn backup whose manifest (computed from the copy) still verifies, and the
+    /// quit that follows lets the app's updater swap its staged build over the
+    /// restore. The install lock does not keep them apart: it is refcounted within
+    /// this process, so both claims succeed.
+    ///
+    /// Stricter than the Relaunch and Restart guards on purpose: those refuse
+    /// only while `bundleChanges` says the bundle is being replaced, but this also
+    /// refuses during a check-only `installing` stage (Check Again, the channel
+    /// and Full Disk Access rechecks). `installing[id]` is one slot with one
+    /// owner — `rollback` writes `.installing` into it, and the recheck's own exit
+    /// would then clear it mid-restore, dropping the spinner and releasing the
+    /// row to a second action while the swap is still running.
+    func canRollback(_ id: String) -> Bool {
+        installing[id] == nil && !relaunching.contains(id) && bundleChanges[id] == nil
+    }
+
+    /// Which operation may be replacing a row's bundle right now.
+    enum BundleChange { case install, rollback }
+
+    /// id → the operation that may be replacing that row's bundle, for as long as
+    /// the operation is ours to run: `performInstall` up to its post-install
+    /// disposition (the auto-restart there is the install's own, run after the
+    /// swap) or its earlier return, and `rollback` from its guard to its return.
+    ///
+    /// That is not always the whole span in which the bundle can change. Known
+    /// gaps, where the claim has ended but a swap may still come:
+    ///   * `.installer` (pkg): `performInstall` returns
+    ///     `.handedOffToSystemInstaller` once Installer.app is open, and the swap
+    ///     happens whenever the user drives that window — nothing here observes it.
+    ///   * App Store (AX route): when the progress poll gives up (the
+    ///     `appstore-ax: … timed out` paths) the install throws and the claim ends,
+    ///     while the store may still be installing. UNVERIFIED — not observed; it
+    ///     follows from the store working independently of our poll.
+    ///   * A `.queued` row waiting at a download gate has no claim yet.
+    ///
+    /// Its own table rather than `installing`, because `installing[id] = .checking`
+    /// is also held by rechecks that never touch the bundle (Check Again, the
+    /// channel, unignore and Full Disk Access rechecks), and the install path
+    /// starts with that same stage — the stage cannot tell the two apart. Refusing
+    /// a Relaunch on `installing` made a banner tap during Check Again do nothing.
+    ///
+    /// Keyed claims (`token`) so a late `end` from one operation cannot erase a
+    /// later operation's claim on the same row. Observed (unlike the note tables)
+    /// because `canRollback` reads it and both windows disable on that.
+    private var bundleChanges: [String: (token: Int, kind: BundleChange)] = [:]
+    @ObservationIgnored private var bundleChangeTokens = 0
+    /// A "wasn't relaunched: it's being updated / rolled back" note
+    /// `refuseWhileBundleChanges` put up, and the note it covered.
+    ///
+    /// `installNotes` holds one note per row, and the one a refusal lands on can
+    /// be load-bearing: `backupCurrent`'s "No rollback point…" / "Couldn't back
+    /// up…", the App Store "click Continue" prompt, the "didn't quit — a window
+    /// is waiting" note while its hand-off is armed. Overwriting and then
+    /// retracting would lose it for good, so the covered note is put back — unless
+    /// the store that owned it has retracted it while it was hidden, in which case
+    /// what it described is over and it stays down.
+    private struct BusyNote {
+        let text: String
+        let prior: String?
+        /// `prior` was registered with a store that retracts it on its own
+        /// (`ownsNote`) when it was covered.
+        let priorOwned: Bool
+        /// `prior` was registered in `inFlightNotes`. `pruneRetractedNotes` drops
+        /// a registration whose text is not on screen, so it is re-registered on
+        /// restore and the settle rule gets to judge it again.
+        let priorInFlight: Bool
+    }
+    /// id → the refusal note on screen and what it covered; retracted when that
+    /// bundle change ends (`retractBusyNote`).
+    @ObservationIgnored private var bundleBusyNotes: [String: BusyNote] = [:]
+
+    /// Whether `text` is the note one of the self-retracting stores wrote for
+    /// this row and still means to retract.
+    private func ownsNote(_ id: String, _ text: String) -> Bool {
+        restartHoldBackNotes[id] == text || restartWontQuitNotes[id] == text
+            || appStoreQuitNotes[id] == text
+    }
+
+    /// Take the refusal note down if it is still what the row shows, and put back
+    /// what it covered (see `BusyNote`). If someone replaced the refusal text in
+    /// between, theirs stands and nothing is restored — that writer would have
+    /// replaced the covered note just the same.
+    private func retractBusyNote(_ id: String) {
+        guard let busy = bundleBusyNotes.removeValue(forKey: id),
+              installNotes[id] == busy.text else { return }
+        guard let prior = busy.prior,
+              !(busy.priorOwned && !ownsNote(id, prior)) else {
+            installNotes[id] = nil
+            return
+        }
+        installNotes[id] = prior
+        if busy.priorInFlight { inFlightNotes[id] = prior }
+    }
+
+    private func beginBundleChange(_ id: String, _ kind: BundleChange) -> Int {
+        bundleChangeTokens += 1
+        bundleChanges[id] = (bundleChangeTokens, kind)
+        return bundleChangeTokens
+    }
+
+    /// Idempotent: a second call with the same token, or one whose claim was
+    /// replaced, does nothing.
+    private func endBundleChange(_ id: String, token: Int) {
+        guard bundleChanges[id]?.token == token else { return }
+        bundleChanges[id] = nil
+        retractBusyNote(id)
+    }
+
+    /// Refuse a Relaunch or Restart of a row whose bundle is being replaced, and
+    /// say so on the row. Reached from row buttons (`.pendingBatchRestart` ranks
+    /// above `.installing`, so "Relaunch now" stays up during a rollback), from a
+    /// banner tap and from Update All's relaunch loops — none of which may quit
+    /// the app mid-swap, and none of which may end in a click that does nothing.
+    /// Returns true when it refused.
+    private func refuseWhileBundleChanges(_ result: UpdateResult, logPrefix: String) -> Bool {
+        guard let change = bundleChanges[result.id]?.kind else { return false }
+        let note: String
+        switch change {
+        case .install:
+            Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being updated right now — not relaunching it")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: an update to it is being installed right now. Try again once that finishes.")
+        case .rollback:
+            Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being rolled back right now — not relaunching it")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being rolled back right now. Try again once that finishes.")
+        }
+        let id = result.id
+        if let mine = bundleBusyNotes[id], installNotes[id] == mine.text {
+            // A repeat refusal while ours is up: keep what the first one covered.
+            bundleBusyNotes[id] = BusyNote(
+                text: note, prior: mine.prior,
+                priorOwned: mine.priorOwned, priorInFlight: mine.priorInFlight)
+        } else {
+            let prior = installNotes[id]
+            bundleBusyNotes[id] = BusyNote(
+                text: note, prior: prior,
+                priorOwned: prior.map { ownsNote(id, $0) } ?? false,
+                priorInFlight: prior != nil && inFlightNotes[id] == prior)
+        }
+        installNotes[id] = note
+        return true
+    }
+
     /// Whether restoring this row's backup would change anything — the workbench's
     /// filter for offering Rollback at all. Decided in Core; see
     /// `BackupStore.rollbackIsDistinct`.
@@ -3638,6 +3787,12 @@ final class AppListModel {
         releaseAfterDownload: GateHandle? = nil
     ) async -> InstallAttemptOutcome {
         let id = result.id
+        // The span in which this install may replace the bundle (`bundleChanges`).
+        // Ended early, right before the post-install disposition, so the
+        // install's own auto-restart there is not refused as a restart mid-swap;
+        // the `defer` (declared below the App Store one) covers every return
+        // before that.
+        let bundleClaim = beginBundleChange(id, .install)
         installErrors[id] = nil
         installNotes[id] = nil
         // Retract the "App Store is waiting on you" note on every exit — the prompt
@@ -3650,6 +3805,15 @@ final class AppListModel {
                 installNotes[id] = nil
             }
         }
+        // Declared after the App Store `defer`, so it runs before it. The order is
+        // not what keeps a covered App Store prompt off the row — `ownsNote` is:
+        // run this way, `retractBusyNote` restores the prompt and the App Store
+        // `defer` then retracts it; run the other way, the App Store `defer` drops
+        // its registration first and `retractBusyNote` sees the prompt is no
+        // longer owned and clears the row. Same result either way, with no
+        // suspension between the two. The order only lets the prompt leave by its
+        // own retraction path.
+        defer { endBundleChange(id, token: bundleClaim) }
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
@@ -4258,6 +4422,10 @@ final class AppListModel {
             // `.notice`, not `.info`: `.info` is not persisted, and this is the line
             // that says why a row did or did not offer a relaunch after the fact.
             Log.install.notice("install disposition: \(updated.app.name, privacy: .public) via \(String(describing: route), privacy: .public) — batch=\(deferBookkeeping, privacy: .public) wasRunning=\(wasRunningBeforeInstall, privacy: .public) prePIDs=\(String(describing: preInstallPIDs), privacy: .public) surviving=\(String(describing: survivingPIDs), privacy: .public) stillRunning=\(preInstallProcessStillRunning, privacy: .public) needsRestart=\(self.needsRestart.contains(updated.id), privacy: .public) → \(String(describing: disposition), privacy: .public)")
+            // The swap is done and re-read; what follows is disposition, including
+            // the auto-restart below, which must not be refused as a restart
+            // during this install's own bundle change.
+            endBundleChange(id, token: bundleClaim)
             switch disposition {
             case .awaitingBatchRestart:
                 let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"
@@ -5204,6 +5372,13 @@ final class AppListModel {
         // without feedback the click reads as "nothing happened" even though it
         // worked. A second click would otherwise fire a second quit.
         guard !relaunching.contains(result.id) else { return }
+        // Not while an install or rollback may be replacing the bundle: this quits
+        // and reopens the app, mid-swap. Reachable from the row — a row waiting on
+        // Update All's restart ranks `.pendingBatchRestart` above `.installing`,
+        // so "Relaunch now" stays up during a rollback — and from a banner tap and
+        // Update All's own restart loop. The install's auto-restart runs after its
+        // bundle change has ended, so it is not refused here.
+        if refuseWhileBundleChanges(result, logPrefix: "restart") { return }
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
@@ -5348,14 +5523,27 @@ final class AppListModel {
 
     /// Apply a self-updater-staged build (the ShipIt "Relaunch to update" state).
     ///
-    /// Crucially different from `restart`: we must **not** reopen the app
-    /// ourselves. The app's own ShipIt swaps the bundle *only while every instance
-    /// is quit*, then relaunches it. `restart`'s immediate `NSWorkspace.open`
-    /// raced that — ShipIt saw the app already back up and aborted with "App Still
-    /// Running Error" every time (the bug behind "Relaunch did nothing, then the
-    /// row flipped to Update"). So here we just quit and let ShipIt take over,
-    /// polling disk to confirm the swap landed. We never optimistically clear the
-    /// staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
+    /// Crucially different from `restart`: for a swap-on-quit updater we must
+    /// **not** reopen the app before the swap has landed. Those swap the bundle
+    /// after the quit, and a reopen from us races that. For ShipIt it failed
+    /// outright: `restart`'s immediate `NSWorkspace.open` put the app back up
+    /// and ShipIt — a Squirrel.Mac build with the running-instances check —
+    /// aborted with "App Still Running Error" every time (the bug behind
+    /// "Relaunch did nothing, then the row flipped to Update"). Sparkle 2 waits
+    /// only on the instance it registered (`StagedUpdater`), so a reopen there
+    /// would leave the old build running while its swap goes ahead — read from
+    /// Sparkle's source, not observed. UNVERIFIED: what an older Squirrel build
+    /// without the running-instances check does on a reopen.
+    ///
+    /// So here we quit, poll disk to confirm the swap landed, and do not reopen
+    /// while waiting. The updater may relaunch the app itself, but not always (a
+    /// ShipIt staged with `launchAfterInstallation=false` does not), so when the
+    /// wait ends — landed or timed out — the app is reopened here if it is still
+    /// closed. Not after a reappearance: it was just seen running. Spotify is the
+    /// exception to that order: its updater applies on the next launch, so this
+    /// reopens it right after the quit (`StagedApplyTrigger.launch`).
+    ///
+    /// We never optimistically clear the staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
     /// version, so a swap that didn't land stays "Relaunch" instead of falling back
     /// to our (colliding) Update.
     func relaunchStagedUpdate(_ result: UpdateResult) async {
@@ -5365,6 +5553,13 @@ final class AppListModel {
             Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
             return
         }
+        // Nor while an install or rollback may be replacing the bundle. A banner
+        // tap (`restart(byID:)`) and the Update All flush reach here directly, and
+        // a Relaunch would copy a bundle the other operation is replacing, then
+        // quit the app so its updater swaps over that operation's result. The
+        // reverse is `canRollback`. Not on `installing` alone: a check-only stage
+        // (Check Again) holds it too, and the Relaunch is safe then.
+        if refuseWhileBundleChanges(result, logPrefix: "relaunch-staged") { return }
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
@@ -5423,7 +5618,7 @@ final class AppListModel {
 
         // Wait for the updater. Success = on-disk version advances past `old`.
         //
-        // Swap-on-quit (ShipIt, Sparkle): with all instances quit it swaps the
+        // Swap-on-quit (ShipIt, Sparkle): with the app quit it swaps the
         // bundle, then relaunches. We deliberately do NOT reopen while waiting —
         // that's what made ShipIt abort. Two phases with very different patience:
         //  • Until it actually quits: short. If it's still up after a few seconds a
@@ -5442,10 +5637,15 @@ final class AppListModel {
         var applied = false
         var everQuit = false
         var launchedAtTick: Int?
-        // Swap-on-quit: an app back up on the old bundle has had its swap called
-        // off (ShipIt aborts with "App Still Running"), so stop waiting ~1 s after
-        // seeing that rather than at `maxTicks`. See `ReappearanceWatch`.
-        var reappearance = ReappearanceWatch()
+        // ShipIt only (`StagedUpdater.shipIt`): an app back up on the old bundle
+        // has had its swap called off (a Squirrel.Mac build with the
+        // running-instances check aborts with "App Still Running"; not every
+        // bundled ShipIt has that check), so stop waiting ~1 s after
+        // seeing that rather than at `maxTicks`. Sparkle swaps anyway and an
+        // unreadable staging says nothing, so both get the full wait. Decided once,
+        // from the staging as it stood before the quit, like `appliesOnLaunch`.
+        // See `ReappearanceWatch`.
+        var reappearance = ReappearanceWatch(for: pendingSelfUpdate[result.id])
         var reappearedWithoutLanding = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
@@ -5499,9 +5699,7 @@ final class AppListModel {
                 }
                 break
             }
-            if reappearance.observe(
-                tick: tick, running: runningNow, everQuit: everQuit,
-                appliesOnLaunch: appliesOnLaunch) {
+            if reappearance.observe(tick: tick, running: runningNow, everQuit: everQuit) {
                 Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")
                 reappearedWithoutLanding = true
                 break
@@ -5643,8 +5841,11 @@ final class AppListModel {
     /// and may not reopen it (see `AppStoreQuitPolicy`).
     ///
     /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
-    /// waits: never open the app before the swap has landed, or the updater aborts
-    /// with "App Still Running" (App Store parks its sheet the same way).
+    /// waits: never open the app before the swap has landed. A ShipIt with the
+    /// running-instances check aborts with "App Still Running" (App Store parks
+    /// its sheet the same way); Sparkle 2 would swap with the reopened old build
+    /// still running (read from its source, not observed); what an older Squirrel
+    /// without that check does is UNVERIFIED (`StagedUpdater`).
     private func relayQuitHandoff(_ handoff: QuitHandoff) async {
         let app = handoff.result.app
         // Reuse the row spinner + re-entry block for the duration of the relay.
@@ -6321,7 +6522,13 @@ final class AppListModel {
     /// ahead of what's on disk.
     func rollback(_ result: UpdateResult) async {
         let id = result.id
-        guard installing[id] == nil else { return }
+        guard canRollback(id) else {
+            Log.install.notice("rollback: \(result.app.name, privacy: .public) is busy (installing=\(self.installing[id] != nil, privacy: .public), relaunching=\(self.relaunching.contains(id), privacy: .public), bundleChange=\(self.bundleChanges[id] != nil, privacy: .public)) — ignoring")
+            return
+        }
+        // Claimed before the first suspension, released on every return.
+        let bundleClaim = beginBundleChange(id, .rollback)
+        defer { endBundleChange(id, token: bundleClaim) }
         let target = result.app.path
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }
@@ -6720,7 +6927,10 @@ final class AppListModel {
             // (on quit, or for Spotify on the reopen `relaunchStagedUpdate` does).
             // Scoped to the same `autoRestartAfterUpdate` opt-in as the restart
             // loop above, since it quits running apps. Ignored apps and skipped
-            // staged versions are left alone (`batchRelaunchesStaged`).
+            // staged versions are left alone (`batchRelaunchesStaged`). `results`
+            // is iterated as it stood when this loop began, so each `result` is
+            // that snapshot even after earlier relaunches rescan their rows; only
+            // `pendingSelfUpdate` and the prefs are read live per row.
             for result in results where UpdatePolicy.batchRelaunchesStaged(
                 result,
                 staged: pendingSelfUpdate[result.id],

@@ -836,8 +836,12 @@ public enum UpdatePolicy {
     /// to the batch's install targets. `nudgeableStaged` is exactly that verdict
     /// for a staged build.
     ///
-    /// Per row, not a filtered list: the caller evaluates it inside the loop, so
-    /// each row is judged after the relaunches before it have rescanned.
+    /// Asked per row as the caller's loop reaches it, but only partly live: that
+    /// loop (`for result in results where …`) iterates the array as it stood when
+    /// the loop started, so `result` — its installed version, remote and status —
+    /// is that snapshot, not what the relaunches before it have rescanned since.
+    /// Only `staged` (read from `pendingSelfUpdate` at that point) and the
+    /// ignore/skip preferences are current.
     public static func batchRelaunchesStaged(
         _ result: UpdateResult,
         staged: StagedSelfUpdate?,

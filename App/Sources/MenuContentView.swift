@@ -1325,7 +1325,11 @@ private struct AppRow: View {
         }
         if let version = model.backupVersion(result.id) {
             Divider()
+            // Disabled on the same rule `rollback` refuses on (`canRollback`: busy
+            // installing, relaunching or replacing the bundle), so the entry never
+            // looks live and does nothing.
             Button("Roll back to \(version)") { Task { await model.rollback(result) } }
+                .disabled(!model.canRollback(result.id))
         }
         // Store-managed apps update through Apple's own apps — give a direct way
         // to jump there from the row, since we don't drive those installs.

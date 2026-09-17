@@ -1094,6 +1094,10 @@ private struct WorkbenchRollbackRow: View {
                 Button("Roll back") { Task { await model.rollback(result) } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
+                    // `rollback` refuses while the row is busy (`canRollback`) —
+                    // here, in practice, a Relaunch of this app (its backup copy,
+                    // then the quit) — so don't offer it.
+                    .disabled(!model.canRollback(result.id))
                     .help("Restore \(result.app.name) \(targetLabel) from the backup taken before its last update")
             }
         }

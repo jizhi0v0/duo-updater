@@ -33,15 +33,17 @@ public enum StagedRelaunchBackup {
     /// the relaunch can go on.
     ///
     /// The copy takes seconds (`InstallCoordinator.wantsBackup` records Word at
-    /// ~8.7s to clone plus ~8.7s to fingerprint; quoted, not re-measured), and the swap-on-quit updaters are waiting for exactly one thing: every
-    /// instance of the app to quit. A user who quits it themselves during that
+    /// ~8.7s to clone plus ~8.7s to fingerprint; quoted, not re-measured), and the swap-on-quit updaters are waiting for the app to quit — a ShipIt
+    /// with the running-instances check for every instance to be gone
+    /// (`StagedUpdater.shipIt`), Sparkle 2 for the one instance it
+    /// registered (`StagedUpdater`). A user who quits it themselves during that
     /// window lets the updater rewrite the bundle while `ditto` is still reading
     /// it. The manifest is computed from the copy, so a torn copy would verify
     /// against itself and restore cleanly into a broken app.
     ///
     /// So a copy is intact only if every instance that was running when it
-    /// started is still running when it ended (none quit, so no swap-on-quit
-    /// could have started), and the bundle on disk still has not moved past the
+    /// started is still running when it ended (none quit — including the one
+    /// Sparkle watches — so no swap-on-quit could have started), and the bundle on disk still has not moved past the
     /// version we copied (no updater swapped it in place either). A reopened app
     /// has new process ids, so quit-and-reopen during the copy is not intact
     /// either. An empty `runningBefore` proves nothing and is not intact.

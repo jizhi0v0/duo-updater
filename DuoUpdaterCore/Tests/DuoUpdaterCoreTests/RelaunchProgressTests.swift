@@ -27,8 +27,8 @@ import Testing
     }
 
     /// The other direction, so the fix cannot become "always true": nothing has
-    /// happened yet, and reopening here is what makes ShipIt abort with "App
-    /// Still Running Error".
+    /// happened yet, and reopening here is what makes a ShipIt with the
+    /// running-instances check abort with "App Still Running Error".
     @Test func anUnchangedBundleHasNotLanded() {
         #expect(!RelaunchProgress.hasLanded(old: amp("128"), disk: amp("128")))
     }
@@ -258,16 +258,41 @@ import Testing
     /// the app having quit before the first of them; returns the tick at which it
     /// gave up, if any.
     private func firstGiveUp(
-        _ running: [Bool], from: Int = 10, appliesOnLaunch: Bool = false, everQuit: Bool = true
+        _ running: [Bool], from: Int = 10, updater: StagedUpdater? = .shipIt,
+        everQuit: Bool = true
     ) -> Int? {
-        var watch = ReappearanceWatch()
+        var watch = ReappearanceWatch(for: staged(by: updater))
         for (offset, isRunning) in running.enumerated() {
-            if watch.observe(tick: from + offset, running: isRunning,
-                             everQuit: everQuit, appliesOnLaunch: appliesOnLaunch) {
+            if watch.observe(tick: from + offset, running: isRunning, everQuit: everQuit) {
                 return from + offset
             }
         }
         return nil
+    }
+
+    /// A staged build shaped the way each detector in `SelfUpdaterStaging` emits
+    /// it: Spotify's applies on launch, the other two on quit.
+    /// `SelfUpdaterStagingTests` / `SparkleStagingTests` pin that the detectors
+    /// really set these.
+    private func staged(by updater: StagedUpdater?) -> StagedSelfUpdate {
+        StagedSelfUpdate(
+            version: "1.0", buildVersion: "130",
+            stagedBundlePath: URL(fileURLWithPath: "/ZZFixture/Staged.app"),
+            appliesOn: updater == .spotify ? .launch : .quit, updater: updater)
+    }
+
+    /// A reappearance ends the wait on ShipIt alone. Sparkle waits on the one
+    /// instance it registered and swaps anyway when the app is reopened, so
+    /// judging it would put up a false "restarted without applying the update"
+    /// over a swap that then lands. Mutations: `.sparkle` → true red;
+    /// `nil` → true red (an unknown updater must get the full wait); `.shipIt` →
+    /// false turns `aReappearanceGivesUpAfterTheGrace` red.
+    @Test func onlyShipItIsJudgedByReappearance() {
+        let back = [false] + Array(repeating: true, count: 50)
+        #expect(firstGiveUp(back, updater: .sparkle) == nil)
+        #expect(firstGiveUp(back, updater: nil) == nil)
+        #expect(!ReappearanceWatch(for: nil).judgesReappearance,
+                "nothing readable staged (an armed Sparkle installer we cannot read) must not fail fast")
     }
 
     /// The 2026-09-17 case: quit, then back up on the old bundle. Seen at tick 11,
@@ -288,10 +313,10 @@ import Testing
         #expect(firstGiveUp(ticks) == 19)
     }
 
-    /// Mutation: drop the `appliesOnLaunch` guard → red. For Spotify we launch the
-    /// old build ourselves; a new pid there is the next step, not a verdict.
+    /// Mutation: `.spotify` → true red. For Spotify we launch the old build
+    /// ourselves; a new pid there is the next step, not a verdict.
     @Test func aSwapOnLaunchIsNeverJudgedByReappearance() {
-        #expect(firstGiveUp([false] + Array(repeating: true, count: 50), appliesOnLaunch: true) == nil)
+        #expect(firstGiveUp([false] + Array(repeating: true, count: 50), updater: .spotify) == nil)
     }
 
     /// Mutation: drop the `everQuit` guard → red. Still up because it never went

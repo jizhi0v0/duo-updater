@@ -226,6 +226,11 @@ struct SparkleStagingTests {
                 parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
 
             #expect(found?.version == "26.9.11")
+            // Sparkle swaps even when the app is reopened before it finishes (it
+            // waits on one instance), so a reappearance must not end the Relaunch
+            // wait. Mutation: tag the Sparkle branch `.shipIt` → red.
+            #expect(found?.updater == .sparkle)
+            #expect(!ReappearanceWatch(for: found).judgesReappearance)
         }
     }
 

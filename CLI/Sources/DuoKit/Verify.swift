@@ -866,9 +866,19 @@ public enum Verify {
                     }
                 }
             }
+            // Which pattern a report should quote. For a renamed macOS artifact the
+            // TAG pattern is still matching every release, so quoting it sends the
+            // reader to the wrong regex — `assetPatternNoMatch` is the one failure
+            // that is about the install pattern instead.
+            let reportedPattern: String
+            if case .assetPatternNoMatch = outcome.failure, let install = rule.installAssetPattern {
+                reportedPattern = install
+            } else {
+                reportedPattern = rule.versionPattern
+            }
             var finding = classify(
                 outcome, registry: .github, host: "api.github.com",
-                pattern: rule.versionPattern,
+                pattern: reportedPattern,
                 attempts: attempt + 1 + tally.count, gatewayRetries: tally.count,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
                 // Issue #101: this used to pass `{ _, _ in [] }`. The vendor

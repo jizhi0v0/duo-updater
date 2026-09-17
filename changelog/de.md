@@ -2,6 +2,30 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.98
+
+**Updates, die über „Neu starten“ abgeschlossen werden, lassen sich jetzt zurücksetzen.** Hat eine App ihr Update schon selbst geladen und du klickst auf „Neu starten“, sichert DuoUpdater jetzt zuerst die aktuelle Version – das Update erscheint dann wie jedes andere unter „Zurücksetzen“. Bisher ließen sich nur Updates rückgängig machen, die DuoUpdater selbst installiert hatte.
+
+**Sieh dir an, was ein Update in einer App verändert hat.** Für jede App mit einer gesicherten Vorversion hat die Werkbank jetzt neben „Versionshinweise“ die Ansicht „Bundle-Vergleich“: Signatur und Berechtigungen, minimale macOS-Version, Hintergrund- und Anmeldeobjekte, mitgelieferte Bibliotheken sowie hinzugefügte, entfernte oder in der Größe geänderte Dateien. `duo diff` macht dasselbe im Terminal für zwei beliebige Kopien einer App.
+
+**„Neu starten“ sagt dir, wenn der eigene Updater einer App das Update nicht angewendet hat.** Schließt sich die App und das Update kommt nie an, steht das jetzt in ihrer Zeile, und „Neu starten“ wird weiter angeboten. Bisher hörte der Fortschrittskreis einfach wortlos auf.
+
+**Cherry Studio zeigt wieder seine neueste Version.** Nachdem Cherry Studio seine Mac-Downloads umbenannt hatte, hielt DuoUpdater ein älteres Release für das neueste: Neuere Kopien galten als „aktuell“, ältere bekamen genau diesen älteren Build angeboten.
+
+**App-Store-Updates hängen nicht mehr an einem Hilfsprogramm, das nicht antwortet.** Antwortete das Hilfsprogramm von DuoUpdater nicht mehr, blieb das Update bei 0 % stehen, und jedes dahinter eingereihte App-Store-Update wartete, bis du DuoUpdater beendet hast.
+
+**„Alle aktualisieren“ startet ignorierte Apps nicht mehr neu.** War „Aktualisierte Apps automatisch neu starten“ eingeschaltet, konnte das Ende eines Durchlaufs eine ignorierte App beenden und wieder öffnen – oder eine, deren geladene Version du übersprungen hattest.
+
+**Tinycast und SuperCmd werden jetzt unterstützt.** DuoUpdater meldet, wenn eine neue Version von Tinycast oder seiner Beta erschienen ist, und erkennt jetzt neben SuperCmd 2 auch das ursprüngliche Open-Source-SuperCmd. Die Versionshinweise von Kimi Code werden jetzt ebenfalls angezeigt.
+
+**Versionshinweise passen zur angebotenen Version.** Die neuesten Versionshinweise von VS Code blieben leer, und kurz nachdem eine neue Version erschienen war, konnte der Bereich stattdessen die Hinweise des vorherigen Release zeigen.
+
+**Das Release-Protokoll trägt dasselbe Release nicht mehr bei jedem Start erneut ein.** Apps wie Claude, Raycast und Cline bekamen bei jedem Start von DuoUpdater einen doppelten Eintrag.
+
+**Die Seitenleiste der Werkbank ist in die Tabs Apps, Brew und Zurücksetzen aufgeteilt.** Klicke auf einen Tab oder ziehe über die Tabs, um zu wechseln; die Suche filtert alle drei gleichzeitig.
+
+**Unter der Haube.** „Neu starten“ und „Zurücksetzen“ für dieselbe App kommen sich nicht mehr in die Quere; ein Update-Feed kann DuoUpdater nicht mehr dazu bringen, Dateien außerhalb seines Download-Ordners zu löschen; Prüfungen im Hintergrund riskieren nicht mehr, dass macOS nach Zugriff auf die Daten anderer Apps fragt; eine sehr große Zahl im Filter „Anfragen“ beendet die App nicht mehr; und die Menüleiste respektiert jetzt eine Administratoranfrage, die du in `duo install` abgelehnt hast.
+
 ## 0.3.97
 
 **Updates für iStat Menus werden jetzt richtig erkannt.** Wenn iStat Menus ein Update neu veröffentlichte, konnte DuoUpdater es nach der Installation weiter anbieten, und ein erneuter Klick auf „Aktualisieren“ endete mit einem Fehler.

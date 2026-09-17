@@ -2,6 +2,30 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.98
+
+**Les mises à jour terminées avec Relancer peuvent désormais être annulées.** Quand une app a déjà téléchargé sa propre mise à jour et que vous cliquez sur Relancer, DuoUpdater enregistre d'abord la version actuelle : la mise à jour apparaît alors dans Restauration comme les autres. Auparavant, seules les mises à jour installées par DuoUpdater lui-même pouvaient être annulées.
+
+**Voyez ce qu'une mise à jour a changé dans une app.** Pour toute app dont une version précédente est enregistrée, l'établi propose désormais une vue Différences du bundle à côté de Notes de version : signature et autorisations, macOS minimal, éléments d'arrière-plan et d'ouverture de session, bibliothèques intégrées, ainsi que les fichiers ajoutés, supprimés ou redimensionnés. `duo diff` fait de même dans le Terminal pour deux copies quelconques d'une app.
+
+**Relancer vous prévient quand le programme de mise à jour d'une app n'a pas appliqué la mise à jour.** Si l'app se ferme et que la mise à jour n'arrive jamais, sa ligne l'indique désormais et propose toujours Relancer. Auparavant, l'indicateur s'arrêtait sans un mot.
+
+**Cherry Studio affiche de nouveau sa version la plus récente.** Après que Cherry Studio a renommé ses téléchargements Mac, DuoUpdater prenait une version plus ancienne pour la dernière : les copies récentes apparaissaient à jour et les plus anciennes se voyaient proposer cette ancienne build.
+
+**Les mises à jour de l'App Store ne restent plus bloquées derrière un assistant qui ne répond pas.** Quand l'assistant de DuoUpdater cessait de répondre, la mise à jour restait à 0 % et toutes les mises à jour App Store en file d'attente patientaient jusqu'à ce que vous quittiez DuoUpdater.
+
+**Tout mettre à jour ne relance plus les apps que vous avez ignorées.** Avec « Relancer automatiquement les applications mises à jour » activé, la fin d'un lot pouvait quitter et rouvrir une app ignorée, ou une app dont vous aviez ignoré la version téléchargée.
+
+**Tinycast et SuperCmd sont désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version de Tinycast ou de sa bêta, et reconnaît désormais le SuperCmd open source d'origine en plus de SuperCmd 2. Les notes de version de Kimi Code s'affichent aussi désormais.
+
+**Les notes de version correspondent à la version proposée.** La dernière page de notes de version de VS Code s'affichait vide, et juste après la sortie d'une nouvelle version, le volet des notes pouvait montrer celles de la version précédente.
+
+**Le Journal des versions n'ajoute plus la même version à chaque lancement.** Des apps comme Claude, Raycast et Cline recevaient une entrée en double à chaque démarrage de DuoUpdater.
+
+**La barre latérale de l'établi est divisée en onglets Applications, Brew et Restauration.** Cliquez sur un onglet ou faites glisser le pointeur sur les onglets pour changer ; la recherche filtre les trois à la fois.
+
+**Sous le capot.** Relancer et Revenir en arrière sur une même app ne se marchent plus dessus ; un flux de mises à jour ne peut plus amener DuoUpdater à supprimer des fichiers hors de son dossier de téléchargement ; les vérifications en arrière-plan ne risquent plus que macOS demande l'accès aux données d'autres apps ; un très grand nombre dans le filtre Requêtes ne fait plus quitter l'app ; et la barre des menus respecte désormais une demande d'administrateur que vous avez refusée dans `duo install`.
+
 ## 0.3.97
 
 **Les mises à jour d'iStat Menus sont correctement détectées.** Quand iStat Menus republiait une mise à jour, DuoUpdater pouvait continuer à la proposer après son installation, et cliquer de nouveau sur Mettre à jour se terminait par une erreur.

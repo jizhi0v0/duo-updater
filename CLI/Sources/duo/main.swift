@@ -32,6 +32,9 @@ commands:
                 into jq or anything that draws.
   verify        Sweep the recipes against their live endpoints and report the
                 ones that can no longer do their job.
+  diff          What changed between two releases of an app, below the version
+                number: signing, entitlements, helpers, files, source paths,
+                localization, Electron packages.
   triage        Ask a model why the flagged recipes broke, and check its answer
                 against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
@@ -204,6 +207,20 @@ verify options:
   --source-digest     Print what the sources in this checkout hash to and exit.
                       What `scripts/build-cli.sh` records beside the binary so
                       the check above has something to compare against.
+
+diff options:
+  <old> <new>         Two releases, each an .app, .zip, .dmg or .pkg. Archives are
+                      unpacked into a temporary directory the way an install would
+                      unpack them, read, and removed; a .dmg is mounted read-only.
+                      Nothing is installed and nothing is written beside the inputs.
+
+  For investigating an update, not for judging one. Every line is a real
+  difference in the bytes, and the report prints beside each section the ways
+  that difference is known to mislead: source paths come from logging and
+  assertions, so a path that disappears usually means logging changed; a
+  localization key missing from the binaries proves nothing; bundler hashes and
+  code signature files change on every build. Ends with where the time went,
+  phase by phase, for each side.
 
 triage options:
   --report <path>     The JSON written by `duo verify --report`. Required.
@@ -482,6 +499,16 @@ case "reconcile":
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))
     run = { await Reconcile.run(reconcile) }
+
+case "diff":
+    // Operands only, so a stray flag is left for `unrecognised()` below to name.
+    let operands = args.operands
+    run = {
+        guard operands.count == 2 else {
+            die("diff needs exactly two releases: duo diff <old> <new>", code: 2)
+        }
+        return await BundleDiff.run(BundleDiff.Options(old: operands[0], new: operands[1]))
+    }
 
 case "help":
     print(usage)

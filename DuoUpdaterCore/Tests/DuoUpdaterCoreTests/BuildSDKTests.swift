@@ -331,3 +331,49 @@ private func nativeBundle(
     let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
     #expect(app.buildSDK == nil)
 }
+
+// MARK: - Every slice's architecture
+
+/// `architectures(at:)` is what `duo diff` reports per Mach-O file. Unlike the
+/// SDK reader above it must name every slice, not just the one DuoUpdater would run.
+@Suite struct MachOArchitecturesTests {
+
+    @Test func aThinImageNamesItsOneSlice() throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        let url = try scratch.write(MachO.image([]), to: "thin")
+        #expect(MachOImports.architectures(at: url) == ["arm64"])
+    }
+
+    /// In stored order, and every slice — the preference for arm64 that the SDK
+    /// reader applies must not leak in here.
+    @Test func aUniversalImageNamesEverySliceInOrder() throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        let intel: UInt32 = 0x0100_0007
+        let file = MachO.fat([
+            (cpu: intel, image: MachO.image([], cpuType: intel)),
+            (cpu: 0x0100_000c, image: MachO.image([])),
+        ])
+        let url = try scratch.write(file, to: "universal")
+        #expect(MachOImports.architectures(at: url) == ["x86_64", "arm64"])
+    }
+
+    /// A Java class file starts with the same four bytes as a fat Mach-O; the word
+    /// after them is its class-file version, never a slice count.
+    @Test func aJavaClassFileIsNotAMachO() throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        var bytes = Data([0xca, 0xfe, 0xba, 0xbe, 0x00, 0x00, 0x00, 0x34])
+        bytes.append(Data(count: 64))
+        let url = try scratch.write(bytes, to: "ZZFixture.class")
+        #expect(MachOImports.architectures(at: url) == nil)
+    }
+
+    @Test func somethingElseEntirelyIsNil() throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        let url = try scratch.write(Data("#!/bin/sh\n".utf8), to: "script")
+        #expect(MachOImports.architectures(at: url) == nil)
+    }
+}

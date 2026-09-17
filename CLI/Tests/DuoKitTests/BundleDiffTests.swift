@@ -1,0 +1,359 @@
+import Testing
+import Foundation
+@testable import DuoKit
+import DuoUpdaterCore
+
+/// `duo diff`'s rules, each against bytes the test wrote. Every noise class here was
+/// hit on a real release pair while the command was being built; the doc comment on
+/// `BundleDiff` names which.
+@Suite struct BundleDiffTests {
+
+    private func scratch() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-diff-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func write(_ data: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url)
+    }
+
+    // MARK: Source paths
+
+    @Test func sourcePathsAreFoundAndStrippedOfSwallowedWords() {
+        let bytes = Data((
+            "\0/ZZBuild/job/0/zzfixture/Module/Feature.swift\0"
+            + "\0window ZZFixture/Window.swift\0"
+            + "\0../../zzfixture/net/socket.cc\0"
+            + "\0noslash.swift\0"            // no directory: not a path
+            + "\0ZZFixture/Module.swiftmodule\0"  // the extension runs on
+        ).utf8)
+        let found = bytes.withUnsafeBytes { SourcePathScanner.paths(in: $0) }
+        #expect(found == [
+            "/ZZBuild/job/0/zzfixture/Module/Feature.swift",
+            "ZZFixture/Window.swift",
+            "../../zzfixture/net/socket.cc",
+        ])
+    }
+
+    /// UU Remote 4.35 → 4.39: 215 files that only switched between `#filePath` and
+    /// `#fileID`. Compared by full path they read as 215 removals and 215 additions.
+    @Test func aRespelledSourcePathIsNoiseNotAChange() {
+        let change = BundleDiff.sourcePathChange(
+            ["/ZZBuild/job-a/zzfixture/Module/Feature.swift", "ZZFixture/Kept.swift"],
+            ["ZZFixture/Feature.swift", "ZZFixture/Kept.swift", "ZZFixture/Added.swift"])
+        #expect(change.added == ["ZZFixture/Added.swift"])
+        #expect(change.removed.isEmpty)
+        #expect(change.respelled == 1)
+    }
+
+    // MARK: Localization
+
+    /// Mac Mouse Fix 3.1.0 moved keys under a new prefix with the same text.
+    @Test func aKeyMovedWithItsValueIsARename() {
+        let change = BundleDiff.localizationChange(
+            ["zz.button-modifier.1": "Click %@ +", "zz.gone": "Removed text"],
+            ["zz.trigger.button-modifier.1": "Click %@ +", "zz.new": "New text"])
+        #expect(change.renamed.map(\.old) == ["zz.button-modifier.1"])
+        #expect(change.renamed.map(\.new) == ["zz.trigger.button-modifier.1"])
+        #expect(change.added == ["zz.new"])
+        #expect(change.removed == ["zz.gone"])
+    }
+
+    private func facts(runs: [String]) -> BundleFacts {
+        var facts = BundleFacts()
+        facts.stringsBlob = Data(runs.map { $0 + "\n" }.joined().utf8)
+        return facts
+    }
+
+    /// A key that is a whole string in the new binaries only; one that the old
+    /// binaries carried inside a longer string, which the exact lookup alone would
+    /// miss; and one found nowhere.
+    @Test func keyEvidenceCoversWholeRunsSubstringsAndAbsence() {
+        let old = facts(runs: ["prefix-ZZFixture.Shared.title-suffix"])
+        let new = facts(runs: ["ZZFixture.New.title", "ZZFixture.Shared.title"])
+        let found = BundleDiff.evidence(
+            for: ["ZZFixture.New.title", "ZZFixture.Shared.title", "ZZFixture.Missing.title"], old: old, new: new)
+        #expect(found["ZZFixture.New.title"] == .referencedByNewBinaries)
+        #expect(found["ZZFixture.Shared.title"] == .referencedByBoth)
+        #expect(found["ZZFixture.Missing.title"] == .notFound)
+    }
+
+    /// Review of #705: an app that uses English text as keys adds `OK`, and a
+    /// substring search finds those two bytes inside unrelated strings.
+    @Test func aShortKeyIsNotFoundInsideLongerStrings() {
+        let old = facts(runs: ["SOK_STATE_ZZFIXTURE"])
+        let new = facts(runs: ["SOK_STATE_ZZFIXTURE", "zz.Cancellation.reason"])
+        let found = BundleDiff.evidence(for: ["OK", "Cancel"], old: old, new: new)
+        #expect(found["OK"] == .notFound)
+        #expect(found["Cancel"] == .notFound)
+    }
+
+    /// Review of #705: a nib's strings file is full of empty titles and repeated
+    /// words; pairing those invents a rename and hides the real removal.
+    @Test func blankOrRepeatedValuesAreNotPairedAsRenames() {
+        let change = BundleDiff.localizationChange(
+            ["zz-old-1.title": "", "zz-old-2.title": "OK", "zz-old-3.title": "OK"],
+            ["zz-new-1.title": "", "zz-new-2.title": "OK"])
+        #expect(change.renamed.isEmpty)
+        #expect(change.removed == ["zz-old-1.title", "zz-old-2.title", "zz-old-3.title"])
+        #expect(change.added == ["zz-new-1.title", "zz-new-2.title"])
+    }
+
+    @Test func nothingToCompareIsSaidRatherThanNoChange() {
+        let empty = BundleFacts()
+        #expect(BundleDiff.localizationSection(old: empty, new: empty)
+            .contains("  NOT COMPARED — no en, Base or zh-Hans .strings file on either side"))
+        #expect(BundleDiff.trustSection(old: empty, new: empty)
+            .contains { $0.hasSuffix("NOT COMPARED — no bundle is at the same path on both sides") })
+    }
+
+    // MARK: Packages against everything else
+
+    private func packageFacts(component: String) -> BundleFacts {
+        var facts = BundleFacts()
+        facts.isPackage = true
+        facts.rootName = "expanded"
+        let app = "\(component)/Payload/Applications/ZZFixture.app"
+        facts.packageComponents = [component: ["identifier": "test.zzfixture"]]
+        facts.bundles = [app: BundleFact(identifier: "test.zzfixture", shortVersion: "2.0")]
+        facts.files = [
+            "\(app)/Contents/MacOS/zzfixture": FileFact(size: 1, digest: "b"),
+            "\(component)/Scripts/postinstall": FileFact(size: 1, digest: "s"),
+            "\(component)/Payload/Library/LaunchDaemons/test.zzfixture.plist": FileFact(size: 1, digest: "d"),
+        ]
+        facts.scripts = ["\(component)/Scripts/postinstall": "#!/bin/sh\n"]
+        return facts
+    }
+
+    /// Review of #705, reproduced on UU Remote 4.41: the pkg against the app taken out
+    /// of that same pkg shared no path, and the trust line read "unchanged in all 0
+    /// common bundles".
+    @Test func aPackageLinesUpWithTheAppInsideIt() {
+        var app = BundleFacts()
+        app.rootName = "ZZFixture.app"
+        app.bundles = [".": BundleFact(identifier: "test.zzfixture", shortVersion: "1.0")]
+        app.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+
+        let package = BundleDiff.aligned(packageFacts(component: "ZZFixture.pkg"))
+        #expect(Set(package.bundles.keys) == ["."])
+        #expect(package.rootName == "ZZFixture.app")
+        #expect(package.files["Contents/MacOS/zzfixture"] != nil)
+        #expect(package.files["<package>/<component>/Scripts/postinstall"] != nil)
+        #expect(package.scripts.keys.sorted() == ["<package>/<component>/Scripts/postinstall"])
+        #expect(BundleDiff.aligned(app).files == app.files)
+
+        let trust = BundleDiff.trustSection(old: app, new: package)
+        #expect(trust.contains { $0.hasSuffix("unchanged in all 1 common bundles") })
+        // The app has no package to compare a signature or scripts with: named as
+        // one-sided, not as a signature that CHANGED to nothing or a script deleted
+        // line by line.
+        #expect(trust.contains { $0.hasPrefix("  package signature (new only):") })
+        #expect(trust.contains("  script <package>/<component>/Scripts/postinstall (new only): 1 lines"))
+        #expect(!trust.contains { $0.contains("CHANGED") || $0.contains("REMOVED,") || $0.contains("ADDED,") })
+        #expect(trust.contains("  package component <component> (new only): identifier=test.zzfixture"))
+        #expect(!trust.contains { $0.hasPrefix("  package component ADDED") || $0.hasPrefix("  package component REMOVED") })
+        #expect(trust.contains("  background/privileged component ADDED   <package>/<component>/Payload/Library/LaunchDaemons/test.zzfixture.plist"))
+    }
+
+    /// A lone component package named after its version lines up across versions.
+    @Test func aVersionedComponentNameLinesUpAcrossPackages() {
+        let old = BundleDiff.aligned(packageFacts(component: "zzfixture-1.0.pkg"))
+        let new = BundleDiff.aligned(packageFacts(component: "zzfixture-2.0.pkg"))
+        #expect(Set(old.files.keys) == Set(new.files.keys))
+        #expect(Set(old.scripts.keys) == Set(new.scripts.keys))
+        #expect(Set(old.packageComponents.keys) == ["<component>"])
+    }
+
+    // MARK: Electron
+
+    /// Chatbox 1.23.3: 777 renames that were all hashes, including hashes of
+    /// letters only, which a per-name guess reads inconsistently across builds.
+    @Test func bundlerHashesAreRemovedUnderDist() {
+        #expect(BundleDiff.withoutBundlerHash("dist/renderer/js/powerquery.Bpmcvcod.js")
+            == BundleDiff.withoutBundlerHash("dist/renderer/js/powerquery.DFjrb-Ms.js"))
+        #expect(BundleDiff.withoutBundlerHash("dist/renderer/js/index-BUjNd0yw.js.map") == "dist/renderer/js/index.js.map")
+        // Outside dist/ an ordinary eight-letter word is left alone.
+        #expect(BundleDiff.withoutBundlerHash("node_modules/zzfixture/lib/zz-renderer.js") == "node_modules/zzfixture/lib/zz-renderer.js")
+    }
+
+    /// An asar written by hand: pickle header, JSON, then the file bytes.
+    private func asar(_ files: [String: Data], integrity: Bool = true) -> Data {
+        var tree: [String: Any] = ["files": [String: Any]()]
+        var body = Data()
+        func insert(_ parts: ArraySlice<String>, _ entry: [String: Any], into node: inout [String: Any]) {
+            var children = node["files"] as? [String: Any] ?? [:]
+            if parts.count == 1 {
+                children[parts.first!] = entry
+            } else {
+                var child = children[parts.first!] as? [String: Any] ?? ["files": [String: Any]()]
+                insert(parts.dropFirst(), entry, into: &child)
+                children[parts.first!] = child
+            }
+            node["files"] = children
+        }
+        for path in files.keys.sorted() {
+            var entry: [String: Any] = ["size": files[path]!.count, "offset": String(body.count)]
+            if integrity { entry["integrity"] = ["hash": "zz-\(path.hashValue)"] }
+            insert(ArraySlice(path.split(separator: "/").map(String.init)), entry, into: &tree)
+            body.append(files[path]!)
+        }
+        var json = try! JSONSerialization.data(withJSONObject: tree)
+        let length = UInt32(json.count)
+        while json.count % 4 != 0 { json.append(0) }
+        var out = Data()
+        func word(_ value: UInt32) { withUnsafeBytes(of: value.littleEndian) { out.append(contentsOf: $0) } }
+        word(4)
+        word(UInt32(8 + json.count))
+        word(UInt32(4 + json.count))
+        word(length)
+        out.append(json)
+        out.append(body)
+        return out
+    }
+
+    @Test func anAsarIsReadWithoutUnpacking() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let archive = directory.appendingPathComponent("app.asar")
+        try write(asar([
+            "package.json": Data(#"{"name":"zzfixture","version":"1.2.3","main":"dist/main.js"}"#.utf8),
+            "node_modules/zzfixture-dep/package.json": Data(#"{"version":"4.5.6"}"#.utf8),
+            "node_modules/@zz/scoped/package.json": Data(#"{"version":"7.8.9"}"#.utf8),
+            // A manifest deep inside a package is a fixture of that package, not one.
+            "node_modules/zzfixture-dep/test/fixtures/package.json": Data(#"{"version":"0.0.0"}"#.utf8),
+            "dist/main.js.map": Data(#"{"sources":["../../src/main/zz.ts","../../node_modules/zzfixture-dep/index.js"]}"#.utf8),
+        ]), to: archive)
+
+        let fact = try BundleFactsReader.readAsar(at: archive)
+        #expect(fact.files.count == 5)
+        #expect(fact.rootPackage["version"] == "1.2.3")
+        #expect(fact.packages == ["node_modules/zzfixture-dep": "4.5.6", "node_modules/@zz/scoped": "7.8.9"])
+        #expect(fact.mapSources["dist/main.js.map"] == ["../../node_modules/zzfixture-dep/index.js", "../../src/main/zz.ts"])
+    }
+
+    @Test func aTruncatedAsarIsRefused() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let archive = directory.appendingPathComponent("app.asar")
+        try write(asar(["package.json": Data("{}".utf8)]).prefix(20), to: archive)
+        #expect(throws: (any Error).self) { try BundleFactsReader.readAsar(at: archive) }
+    }
+
+    // MARK: Trust surface
+
+    /// The package name and the signing timestamp differ on every build, and a
+    /// certificate's fingerprint and expiry sit under its name.
+    @Test func packageSignatureKeepsOnlyWhatIdentifiesTheSigner() {
+        let text = """
+            Package "zzfixture_1.0.pkg":
+               Status: signed by a developer certificate issued by Apple for distribution
+               Notarization: trusted by the Apple notary service
+               Signed with a trusted timestamp on: 2026-09-16 13:08:02 +0000
+               Certificate Chain:
+                1. Developer ID Installer: ZZ Fixture (ZZFIXTURE1)
+                   Expires: 2031-01-01 00:00:00 +0000
+                   SHA256 Fingerprint:
+                       00 11 22
+                2. Developer ID Certification Authority
+            """
+        #expect(BundleFactsReader.packageSignatureLines(text) == [
+            "Status: signed by a developer certificate issued by Apple for distribution",
+            "Notarization: trusted by the Apple notary service",
+            "1. Developer ID Installer: ZZ Fixture (ZZFIXTURE1)",
+            "2. Developer ID Certification Authority",
+        ])
+    }
+
+    private func summary(team: String?, entitlements: [String: String] = [:]) -> SignatureVerifier.SigningSummary {
+        .init(identifier: "test.zzfixture", teamIdentifier: team,
+              authorities: team.map { ["Developer ID Application: ZZ (\($0))"] } ?? [],
+              flags: ["runtime"], runtimeVersion: "27.0.0", entitlements: entitlements)
+    }
+
+    @Test func aChangedTeamAndANewEntitlementAreBothReported() {
+        let rows = BundleDiff.signatureChanges(
+            summary(team: "ZZTEAMOLD1"),
+            summary(team: "ZZTEAMNEW1", entitlements: ["com.apple.security.cs.disable-library-validation": "1"]))
+        #expect(rows.contains("TEAM ID: ZZTEAMOLD1 -> ZZTEAMNEW1"))
+        #expect(rows.contains("entitlement + com.apple.security.cs.disable-library-validation = 1"))
+        #expect(BundleDiff.signatureChanges(summary(team: "ZZTEAM1"), summary(team: "ZZTEAM1")).isEmpty)
+        #expect(BundleDiff.signatureChanges(summary(team: "ZZTEAM1"), nil) == ["signature: signed -> UNSIGNED or unreadable"])
+    }
+
+    @Test func aNewLoginItemIsReportedOnceNotPerFile() {
+        var old = BundleFacts(), new = BundleFacts()
+        old.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+        new.files = old.files
+        for file in ["Contents/Info.plist", "Contents/MacOS/zzhelper"] {
+            new.files["Contents/Library/LoginItems/ZZHelper.app/" + file] = FileFact(size: 1, digest: "b")
+        }
+        let (added, removed) = BundleDiff.privilegedComponents(old: old, new: new)
+        #expect(added == ["Contents/Library/LoginItems/ZZHelper.app"])
+        #expect(removed.isEmpty)
+    }
+
+    /// Re-review of #705: counting `Character("\n")` saw a CRLF `\r\n` as one
+    /// grapheme that is not a newline, so a two-line script read as one.
+    @Test func lineCountsMatchWcForCRLFAndAMissingFinalNewline() {
+        #expect(BundleDiff.lineCount("a\r\nb\r\n") == 2)
+        #expect(BundleDiff.lineCount("a\nb\n") == 2)
+        #expect(BundleDiff.lineCount("a\nb") == 2)
+        #expect(BundleDiff.lineCount("") == 0)
+    }
+
+    @Test func scriptChangesAreLineByLine() {
+        let rows = BundleDiff.lineChanges("#!/bin/sh\nkeep\nold line\n", "#!/bin/sh\nkeep\nnew line\n")
+        #expect(rows == ["- old line", "+ new line"])
+    }
+
+    // MARK: Walking a bundle
+
+    /// Mac Mouse Fix 3.0.8 has three symlinks, and `skipDescendants()` called on one
+    /// skipped the rest of the directory holding it: 102 files seen instead of 280.
+    /// The root bundle is also never yielded by the enumerator, so it is read
+    /// separately and keyed `.`.
+    @Test func aBundleWithSymlinksIsWalkedCompletely() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = directory.appendingPathComponent("ZZFixture.app")
+        let contents = app.appendingPathComponent("Contents")
+        try write(
+            PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": "test.zzfixture", "CFBundleShortVersionString": "1.0",
+                                   "CFBundleVersion": "7", "CFBundleExecutable": "zzfixture"],
+                format: .xml, options: 0),
+            to: contents.appendingPathComponent("Info.plist"))
+        // A framework shaped like Sparkle's: links first in listing order, files after.
+        let framework = contents.appendingPathComponent("Frameworks/ZZKit.framework")
+        for name in ["A", "B", "C", "D"] {
+            try write(Data(name.utf8), to: framework.appendingPathComponent("Versions/A/Resources/\(name).txt"))
+        }
+        try FileManager.default.createSymbolicLink(
+            atPath: framework.appendingPathComponent("Versions/Current").path, withDestinationPath: "A")
+        try FileManager.default.createSymbolicLink(
+            atPath: framework.appendingPathComponent("Resources").path, withDestinationPath: "Versions/Current/Resources")
+        try write(
+            PropertyListSerialization.data(fromPropertyList: ["ZZ.greeting": "Hello"], format: .binary, options: 0),
+            to: contents.appendingPathComponent("Resources/en.lproj/Localizable.strings"))
+        // A thin arm64 header carrying one source path.
+        var machO = Data()
+        for word: UInt32 in [0xfeed_facf, 0x0100_000c, 0, 2, 0, 0, 0, 0] {
+            withUnsafeBytes(of: word.littleEndian) { machO.append(contentsOf: $0) }
+        }
+        machO.append(Data("\0/ZZBuild/zzfixture/App/Main.swift\0".utf8))
+        try write(machO, to: contents.appendingPathComponent("MacOS/zzfixture"))
+
+        let facts = try BundleFactsReader.scan(root: app)
+        let regular = facts.files.filter { !$0.value.digest.hasPrefix("symlink:") }
+        #expect(regular.count == 7)
+        #expect(facts.files.count == 9)
+        #expect(facts.files["Contents/Frameworks/ZZKit.framework/Versions/Current"]?.digest == "symlink:A")
+        #expect(facts.bundles["."]?.shortVersion == "1.0")
+        #expect(facts.strings["Contents/Resources/en.lproj/Localizable.strings"] == ["ZZ.greeting": "Hello"])
+        #expect(facts.machO["Contents/MacOS/zzfixture"]?.architectures == ["arm64"])
+        #expect(facts.machO["Contents/MacOS/zzfixture"]?.sourcePaths == ["/ZZBuild/zzfixture/App/Main.swift"])
+    }
+}

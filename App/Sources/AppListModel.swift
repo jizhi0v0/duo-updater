@@ -234,6 +234,17 @@ final class AppListModel {
     /// quit dialog after stepping away; short enough that a quit hours later is
     /// clearly not this hand-off.
     private static let quitHandoffMaxAge: TimeInterval = 10 * 60
+    /// How long after the app quits a relay waits for a rollback or install of
+    /// ours to end before it gives up and leaves the app quit
+    /// (`waitOutBundleChange`). The patience this relay already gives a vendor's
+    /// swap to land (its 900 ticks). Meant to cover a rollback, whose restore is a
+    /// copy, a manifest hash and a swap — the hash alone was measured at 8.7 s for
+    /// Word (`appStoreRouteWillNotInstall`); a whole restore of a large bundle was
+    /// not measured. Not meant to cover an install, whose claim also spans its
+    /// download and an App Store quit prompt. Reopening an app minutes
+    /// after the user answered its dialog is no longer something they connect to
+    /// that answer.
+    private static let quitHandoffBundleChangePatience: TimeInterval = 180
     /// App ids for which an incremental (AX) App Store update has downloaded but the
     /// app is still running, so App Store is asking to quit it to finish installing.
     /// id → the app's display name (for the prompt). Drives a "Relaunch to finish
@@ -5575,15 +5586,16 @@ final class AppListModel {
         defer { relaunching.remove(result.id); releaseRowOrder() }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
-        // it. Short of a rollback landing, `settleQuitHandoffs` is the only thing
-        // that retracts that note and it iterates `quitHandoffs`, so dropping the
-        // marker alone strands the sentence: the row would still say "it didn't
-        // quit — deal with that window" after this relaunch had quit it and ShipIt
-        // had swapped. Reachable
-        // because the two buttons live on one row: a `.stillRunning` bail here
-        // leaves the note up, and the moment the app's own updater stages a build
-        // (`actionableStaged`) the row switches from Relaunch-to-restart to
-        // Relaunch-to-apply, which is this function.
+        // it. Besides this line, only a fresh `restart` (which drops the marker
+        // too), a rollback landing (where the sentence has become false) and
+        // `settleQuitHandoffs` retract that note, and the last iterates
+        // `quitHandoffs` — so dropping the marker alone strands the sentence for
+        // the path described next: the row would still say "it didn't quit — deal
+        // with that window" after this relaunch had quit it and ShipIt had
+        // swapped. Reachable because the two buttons live on one row: a
+        // `.stillRunning` bail here leaves the note up, and the moment the app's
+        // own updater stages a build (`actionableStaged`) the row switches from
+        // Relaunch-to-restart to Relaunch-to-apply, which is this function.
         quitHandoffs[result.id] = nil
         retractRestartNote(result.id, from: &restartWontQuitNotes)
         // And the red line a previous attempt's timeout left — only if it is still
@@ -5840,7 +5852,8 @@ final class AppListModel {
                 Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) marker expired — not relaunching")
                 continue
             }
-            Task { @MainActor [weak self] in await self?.relayQuitHandoff(handoff) }
+            let quitAt = Date()
+            Task { @MainActor [weak self] in await self?.relayQuitHandoff(handoff, quitAt: quitAt) }
         }
     }
 
@@ -5858,22 +5871,40 @@ final class AppListModel {
     /// still running (read from its source, not observed); what an older Squirrel
     /// without that check does is UNVERIFIED (`StagedUpdater`).
     ///
-    /// Nor while a rollback or install of ours is replacing the bundle
-    /// (`waitOutBundleChange`). The marker outlives the attempt that armed it, and
-    /// nothing on the row is busy meanwhile, so the user can start either one
-    /// before answering the app's dialog. Once that finishes, the app is launched
-    /// on whatever it left on disk: the quit was still one we asked for.
-    private func relayQuitHandoff(_ handoff: QuitHandoff) async {
+    /// Nor while a rollback or install of ours holds the row's `bundleChanges`
+    /// claim (`waitOutBundleChange`). The marker outlives the attempt that armed
+    /// it, and nothing on the row is busy meanwhile, so the user can start either
+    /// one before answering the app's dialog. What happens once the claim ends
+    /// depends on the landing, exactly as it would have without the wait:
+    ///   * `.applied` and `.stagedOnLaunch` launch on whatever is on disk — after
+    ///     a rollback, the restored build.
+    ///   * `.stagedSwap` and `.appStoreSwap` still wait up to ~180 s for their
+    ///     landing. After a rollback that can go two ways, and neither is caught
+    ///     here. The app's own updater may swap its staged build over the restored
+    ///     one on this quit, which is reported as landed (the vendor undoing a
+    ///     rollback is not new). Or the restore leaves disk short of the staged
+    ///     build: `.stagedSwap` then leaves the app quit with nothing on the row
+    ///     — before this wait, the landing could instead be read mid-restore and
+    ///     the app launched into it — and `.appStoreSwap` launches it anyway.
+    /// The wait is bounded from the quit (`quitHandoffBundleChangePatience`); an
+    /// app it gives up on stays quit with a note saying why. After any wait the
+    /// app is launched in the background: every claim starts from a click in
+    /// DuoUpdater (a row, Update All, or its notification), so the user has moved
+    /// on from the front spot sampled when the Relaunch bailed.
+    private func relayQuitHandoff(_ handoff: QuitHandoff, quitAt: Date) async {
         let app = handoff.result.app
+        let id = handoff.result.id
+        let bundleChangeDeadline = quitAt.addingTimeInterval(Self.quitHandoffBundleChangePatience)
         // Waited out before taking the row, so the row keeps showing the rollback
         // or install (`.relaunching` ranks above `.installing` in `RowAction`).
         var waitedOnBundleChange = false
-        guard await waitOutBundleChange(handoff, waited: &waitedOnBundleChange) else { return }
+        guard await waitOutBundleChange(
+            handoff, until: bundleChangeDeadline, waited: &waitedOnBundleChange) else { return }
         // Reuse the row spinner + re-entry block for the duration of the relay.
-        guard !relaunching.contains(handoff.result.id) else { return }
-        relaunching.insert(handoff.result.id)
+        guard !relaunching.contains(id) else { return }
+        relaunching.insert(id)
         pinRowOrder()
-        defer { relaunching.remove(handoff.result.id); releaseRowOrder() }
+        defer { relaunching.remove(id); releaseRowOrder() }
         // `.applied` has nothing to wait for; `.stagedOnLaunch` waits after the launch.
         var landed = !handoff.landing.waitsForDisk && !handoff.landing.landsAfterLaunch
         if handoff.landing.waitsForDisk {
@@ -5911,7 +5942,8 @@ final class AppListModel {
         // Again right before the launch. Holding `relaunching` does not keep an
         // install out: `install` and Update All's targets do not check it, and an
         // install's exits remove it.
-        guard await waitOutBundleChange(handoff, waited: &waitedOnBundleChange) else { return }
+        guard await waitOutBundleChange(
+            handoff, until: bundleChangeDeadline, waited: &waitedOnBundleChange) else { return }
         guard AppRestarter.runningInstances(of: app).isEmpty else {
             await refreshRow(handoff.result)
             return
@@ -5920,7 +5952,8 @@ final class AppListModel {
             await awaitBundleProcessesGone(app)
         }
         Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
-        let relaunched = await relaunchAfterSwap(app, activates: handoff.activates)
+        let relaunched = await relaunchAfterSwap(
+            app, activates: handoff.activates && !waitedOnBundleChange)
         if handoff.landing.landsAfterLaunch && relaunched {
             // Our launch is what applies it (Spotify); the swap follows within
             // seconds. Same ceiling as `relaunchStagedUpdate`'s post-launch wait.
@@ -5938,6 +5971,11 @@ final class AppListModel {
             // "timed out" note left by the attempt that gave up is no longer true.
             // Not after waiting out a rollback or install: that cleared the row's
             // error when it started, so what is there now is its own failure.
+            // That only keeps the line on a row that is not settled — a failed
+            // install whose row still offers the update, say. On an `.upToDate`
+            // row (a failed rollback under an `.applied` hand-off) the settle rule
+            // takes it down on the next row write anyway, including the
+            // `refreshRow` just below (`pruneSettledInstallErrors`).
             installErrors[handoff.result.id] = nil
         }
         await refreshRow(handoff.result)
@@ -5947,26 +5985,35 @@ final class AppListModel {
         }
     }
 
-    /// Wait until no rollback or install holds this row's `bundleChanges` claim,
-    /// so the relay never launches an app while we are replacing its bundle.
-    /// Returns false when it gave up, having re-read the row: the app stays quit.
+    /// Wait until no rollback or install holds this row's `bundleChanges` claim.
+    /// Returns false when `deadline` passed first: the app stays quit, and the row
+    /// says so.
+    ///
+    /// That keeps the relay from launching the app while an operation of ours
+    /// holds the claim — not while the bundle is being replaced by anything at
+    /// all. The claim's own gaps (`bundleChanges`: a pkg handed to Installer.app,
+    /// an App Store install that timed out) are gaps here, and `duo backups
+    /// restore` run from the CLI swaps the bundle in another process, where no
+    /// claim of this model's exists.
     ///
     /// Polled, like the relay's other waits, rather than resumed from
-    /// `endBundleChange`. Capped at `quitHandoffMaxAge`, past which the hand-off
-    /// is no longer a relaunch the user is waiting for; every claim is released on
-    /// every exit, so the cap is a backstop, not an expected ending.
-    ///
-    /// `waited` is set once it has had to wait, and never reset.
-    private func waitOutBundleChange(_ handoff: QuitHandoff, waited: inout Bool) async -> Bool {
+    /// `endBundleChange`. `waited` is set once it has had to wait, and never reset.
+    private func waitOutBundleChange(
+        _ handoff: QuitHandoff, until deadline: Date, waited: inout Bool
+    ) async -> Bool {
         let id = handoff.result.id
         guard let kind = bundleChanges[id]?.kind else { return true }
         waited = true
         Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — a \(String(describing: kind), privacy: .public) is replacing its bundle; waiting for it before relaunching")
-        let deadline = Date().addingTimeInterval(Self.quitHandoffMaxAge)
         while bundleChanges[id] != nil {
             guard Date() < deadline else {
-                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — gave up waiting for the \(String(describing: kind), privacy: .public); leaving it quit")
-                await refreshRow(handoff.result)
+                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — still being changed \(Int(Self.quitHandoffBundleChangePatience), privacy: .public)s after it quit; leaving it quit")
+                // Not `refreshRow`: the operation holding the claim re-reads the
+                // row when it ends. Unregistered, like `backupCurrent`'s note: it
+                // describes something that happened, so it stays until the next
+                // action on the row replaces it. A refusal note it covers is not
+                // put back over it (`retractBusyNote` sees different text).
+                installNotes[id] = String(localized: "\(handoff.result.app.name) wasn’t reopened after it quit: an update or rollback of it was still in progress. Open it yourself when you’re ready.")
                 return false
             }
             try? await Task.sleep(for: .milliseconds(200))

@@ -46,6 +46,11 @@ struct WorkbenchWindowView: View {
     @State private var sidebarTab: SidebarTab = .apps
     /// Lets the selected tab's highlight slide between tabs instead of blinking.
     @Namespace private var tabHighlight
+    /// The tab under the pointer while the highlight is being dragged along the
+    /// track; nil when no drag is in progress. The drag only commits on release.
+    @State private var draggedTab: SidebarTab?
+    /// Each drawn tab's frame in the track, so a drag position maps to a tab.
+    @State private var tabFrames: [SidebarTab: CGRect] = [:]
     /// Release notes, or the bundle diff against the app's backup. Only offered for
     /// an app that has a backup. Set by the tab — the Rollback tab opens on the diff,
     /// Apps and Brew on the notes — and kept across selections within it, so
@@ -420,15 +425,32 @@ struct WorkbenchWindowView: View {
             // two lines for all of them otherwise. Deciding per tab would stack
             // "Rollback" under its icon while "Apps" sits beside its own.
             ViewThatFits(in: .horizontal) {
-                tabRow(lists, shown: tab, stacked: false)
-                tabRow(lists, shown: tab, stacked: true)
+                tabRow(lists, shown: draggedTab ?? tab, stacked: false)
+                tabRow(lists, shown: draggedTab ?? tab, stacked: true)
             }
+            .coordinateSpace(.named(Self.tabTrackSpace))
+            // Dragging along the track moves the highlight and switches on release,
+            // like the system segmented control. Simultaneous, so a plain click still
+            // reaches the tab's button. Only on release: entering a tab moves the
+            // selection and the detail pane, and a drag from Apps to Rollback should
+            // not open Brew's first row on the way.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.tabTrackSpace))
+                    .onChanged { value in
+                        draggedTab = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? draggedTab
+                    }
+                    .onEnded { value in
+                        if let target = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? draggedTab {
+                            sidebarTab = target
+                        }
+                        draggedTab = nil
+                    })
             .padding(3)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))
             .overlay(
                 RoundedRectangle(cornerRadius: 9)
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
-            .animation(.snappy(duration: 0.22), value: tab)
+            .animation(.snappy(duration: 0.22), value: draggedTab ?? tab)
             .padding(.horizontal, 10)
             .padding(.top, 8)
 
@@ -454,6 +476,22 @@ struct WorkbenchWindowView: View {
             }
         }
         .onChange(of: sidebarTab) { _, newTab in tabChanged(to: newTab) }
+    }
+
+    private static let tabTrackSpace = "sidebarTabTrack"
+
+    /// The tab at a horizontal position in the track, clamped to the first and last
+    /// tab so dragging past either end keeps the end tab. A Brew frame outlives the
+    /// Brew tab once nothing brew-managed is left, so it is skipped then.
+    private func tabAt(x: CGFloat, hasBrew: Bool) -> SidebarTab? {
+        let ordered = tabFrames
+            .filter { hasBrew || $0.key != .brew }
+            .sorted { $0.value.minX < $1.value.minX }
+        guard let first = ordered.first, let last = ordered.last else { return nil }
+        if x < first.value.minX { return first.key }
+        if x >= last.value.maxX { return last.key }
+        // Gaps between tabs belong to the tab on their left.
+        return ordered.last { $0.value.minX <= x }?.key
     }
 
     private func tabRow(_ lists: SidebarLists, shown: SidebarTab, stacked: Bool) -> some View {
@@ -526,6 +564,9 @@ struct WorkbenchWindowView: View {
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.tabTrackSpace)) } action: {
+                tabFrames[tab] = $0
+            }
         }
         .buttonStyle(.plain)
         .help(title)

@@ -226,6 +226,27 @@ public struct VendorProbeRecipe: Sendable {
         /// (Spotify: `SpotifyInstaller.zip` (1.8MB) → `Install Spotify.app`'s
         /// `CFBundleShortVersionString`, which tracks the latest client in lockstep.)
         case zipEntryPlist(entry: String, key: String)
+        /// `.redirectFilename`, and then the artifact the redirect resolved to is
+        /// asked what it IS: `entry` (the app's `Info.plist` inside that zip) is
+        /// read with HTTP `Range` requests — a few KB, never the archive — and its
+        /// `CFBundleShortVersionString` and `CFBundleVersion` become the remote
+        /// version. `versionPattern` still has to match the resolved filename, so a
+        /// redirect that stops pointing at the vendor's archive fails as before.
+        ///
+        /// For a vendor whose filename names a release the bundle does not report:
+        /// iStat Menus re-publishes a release as `iStatMenus7.50.1.zip` while the
+        /// bundle inside still says 7.50 and only its build moves. The filename
+        /// alone is then either a permanent phantom update (compare `7.50.1`) or a
+        /// missed one (compare `7.50`); the bundle's own pair is neither, and it is
+        /// exactly the pair the installed copy will report once this artifact is
+        /// installed — which the post-install and relaunch checks compare against.
+        ///
+        /// The bundle's `CFBundleIdentifier` must be the recipe's `bundleID`, and
+        /// the bundle must state both fields, or the probe fails. `versionIsBuild`,
+        /// `displayVersionPattern` and `buildLineage` do not combine with this mode
+        /// — the version comes from the bundle, not from a pattern — which
+        /// `ArchiveInfoPlistRegistryClaims` holds every registry recipe to.
+        case redirectArchiveInfoPlist(entry: String)
     }
 
     /// `CFBundleIdentifier` of the installed app this recipe targets.

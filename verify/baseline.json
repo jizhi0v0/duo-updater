@@ -2051,7 +2051,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "lastGoodAt" : "2026-09-16T08:33:12Z",
-      "lastGoodVersion" : "7.50.1",
+      "lastGoodVersion" : "7.50",
       "sweepsSinceComment" : 0
     },
     "vendor:com.bombich.ccc:beta" : {

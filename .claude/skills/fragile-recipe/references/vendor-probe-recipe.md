@@ -38,7 +38,7 @@ The ones you reach for first:
 VendorProbeRecipe(
     bundleID: String,
     url: URL,                  // endpoint to probe
-    mode: .responseBody,       // .redirectFilename | .responseBody
+    mode: .responseBody,       // .redirectFilename | .responseBody | .zipEntryPlist | .redirectArchiveInfoPlist
     versionPattern: String,    // capture group 1 = version (anchored!)
     downloadURL: URL? = nil,   // where to send the user to download by hand
     changelogURL: URL? = nil,  // human-readable notes page (NOT the download)
@@ -72,6 +72,16 @@ The rest, by the problem they solve — go to the source for the exact semantics
   when a versioned download filename exists.
 - **`.responseBody`** — GET `url`, apply `versionPattern` to the body. For APIs and
   appcasts.
+- **`.zipEntryPlist(entry:key:)`** — `url` is a *small* zip (a stub installer); GET
+  it, extract `entry`, read `key` from that plist. Downloads the whole archive, so
+  never point it at a real installer.
+- **`.redirectArchiveInfoPlist(entry:)`** — `.redirectFilename`, then read the app's
+  `Info.plist` out of the resolved zip by HTTP `Range` (a few KB) and offer the
+  bundle's own marketing version + build. For a vendor whose filename names a
+  release the bundle doesn't report (iStat Menus: `…7.50.1.zip` holds a bundle
+  saying 7.50, only the build moved). `versionPattern` then only has to recognise
+  the file; don't combine it with `versionIsBuild` / `displayVersionPattern` /
+  `buildLineage`.
 - **`versionPattern`** — capture group 1 is the version (whole match if no group).
   **Anchor it** to the app's own field so it can't grab an unrelated number
   (a plugin version, a min-OS, a build of something else). JSON example:

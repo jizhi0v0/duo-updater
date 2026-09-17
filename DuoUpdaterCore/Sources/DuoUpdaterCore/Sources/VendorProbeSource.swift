@@ -771,6 +771,29 @@ public struct VendorProbeSource: UpdateSource {
                 status: body.status, sample: sample)
         }
 
+        // `.redirectArchiveInfoPlist`: the filename matched, so the redirect still
+        // lands on the vendor's archive — now ask that archive which bundle it
+        // holds. Failing here fails the probe: answering with the filename instead
+        // is the phantom update (or the missed one) this mode exists to end.
+        var bundleVersion: VersionSide?
+        if case .redirectArchiveInfoPlist(let entry) = recipe.mode {
+            guard let artifact = body.resolvedDownload else {
+                return fail(.malformedResolvedURL("the redirect resolved no artifact URL"),
+                            status: body.status, sample: sample)
+            }
+            switch await archiveBundleVersion(recipe, artifact: artifact, entry: entry) {
+            case .failure(let failure):
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public): \(version, privacy: .public) resolved, its archive's \(entry, privacy: .public) did not: \(failure.detail, privacy: .public)")
+                if case .httpStatus(let code) = failure {
+                    return fail(failure, status: code, sample: sample)
+                }
+                return fail(failure, status: body.status, sample: sample)
+            case .success(let side):
+                bundleVersion = side
+            }
+        }
+
         // Optional clean marketing string to show instead of an ugly build id
         // (e.g. Android Studio's "2026.1.2 RC 1" vs "AI-261.…"). Display only; the
         // build still drives the comparison. From the same scope, so first-match
@@ -894,7 +917,7 @@ public struct VendorProbeSource: UpdateSource {
                 recipe: recipe, version: version, install: nil, plan: nil,
                 resolvedDownload: body.resolvedDownload, display: display,
                 publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
-                lineage: lineage)
+                bundle: bundleVersion, lineage: lineage)
             return fail(
                 .outsideVendorOSWindow(refusal, release: release), status: body.status,
                 sample: sample, warnings: warnings)
@@ -940,7 +963,7 @@ public struct VendorProbeSource: UpdateSource {
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
                         inBody: body.text, forVersion: version, feedURL: recipe.url),
-                    lineage: lineage)
+                    bundle: bundleVersion, lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {
@@ -992,14 +1015,14 @@ public struct VendorProbeSource: UpdateSource {
                     recipe: recipe, version: version, install: nil, plan: nil,
                     resolvedDownload: body.resolvedDownload, display: display,
                     publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
-                    lineage: lineage)
+                    bundle: bundleVersion, lineage: lineage)
             }
         } else {
             remote = Self.makeRemoteVersion(
                 recipe: recipe, version: version, install: nil, plan: nil,
                 resolvedDownload: body.resolvedDownload, display: display,
                 publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
-                lineage: lineage)
+                bundle: bundleVersion, lineage: lineage)
         }
 
         return ProbeOutcome(
@@ -1072,7 +1095,9 @@ public struct VendorProbeSource: UpdateSource {
         _ recipe: VendorProbeRecipe, endpoint: URL
     ) async -> Result<FetchedBody, ProbeFailure> {
         switch recipe.mode {
-        case .redirectFilename:
+        // `.redirectArchiveInfoPlist` fetches exactly this; the archive read comes
+        // after `versionPattern` has accepted the filename (`probeOutcome`).
+        case .redirectFilename, .redirectArchiveInfoPlist:
             var request = URLRequest(url: endpoint)
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
@@ -1354,6 +1379,7 @@ public struct VendorProbeSource: UpdateSource {
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
         deltas: [DeltaPatch] = [],
+        bundle: VersionSide? = nil,
         lineage: BuildLineage? = nil
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
@@ -1364,8 +1390,13 @@ public struct VendorProbeSource: UpdateSource {
         // engine still compares builds: `evaluate` prefers `version` whenever the
         // installed app has a `buildVersion`, which a `versionIsBuild` app always
         // does — so a display marketing string here never drives the comparison.
-        let shortVersion = recipe.versionIsBuild ? display : version
-        let buildVersion = recipe.versionIsBuild ? version : nil
+        //
+        // A `bundle` pair (`.redirectArchiveInfoPlist`) replaces both: it is the
+        // artifact's own `Info.plist`, so its marketing string IS the bundle's by
+        // construction — the one case besides a Sparkle feed where
+        // `marketingMatchesBundle` is a fact rather than a guess.
+        let shortVersion = bundle.map(\.marketing) ?? (recipe.versionIsBuild ? display : version)
+        let buildVersion = bundle.map(\.build) ?? (recipe.versionIsBuild ? version : nil)
         // Only meaningful alongside a build. A detection-only marketing answer is
         // in no build namespace at all, and stamping one on it would let a future
         // reader think the comparison was namespaced when it wasn't.
@@ -1377,6 +1408,7 @@ public struct VendorProbeSource: UpdateSource {
                 shortVersion: shortVersion,
                 version: buildVersion,
                 buildNamespace: namespace,
+                marketingMatchesBundle: bundle != nil,
                 downloadURL: plan.url,
                 // The install plan's URL is the artifact we fetch — handing it to
                 // a browser downloads a pkg instead of opening a page. The recipe's
@@ -1408,6 +1440,7 @@ public struct VendorProbeSource: UpdateSource {
             shortVersion: shortVersion,
             version: buildVersion,
             buildNamespace: namespace,
+            marketingMatchesBundle: bundle != nil,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
             // Only the curated `downloadURL` is a page. `resolvedDownload` falls
             // back to the probe endpoint, which is an API/redirect that serves a
@@ -1676,6 +1709,170 @@ public struct VendorProbeSource: UpdateSource {
             return .failure(.plistKeyMissing(entry: entry, key: key))
         }
         return .success(value)
+    }
+
+    /// The marketing version and build of the bundle inside a remote zip, read
+    /// with `Range` requests — the runtime behind `Mode.redirectArchiveInfoPlist`.
+    ///
+    /// Classified like the rest of the probe: a transport error or a 5xx/429 is
+    /// infra, anything else a recipe fault — including a host that answers a range
+    /// with the whole archive, since the recipe then cannot work at all.
+    private func archiveBundleVersion(
+        _ recipe: VendorProbeRecipe, artifact: URL, entry: String
+    ) async -> Result<VersionSide, ProbeFailure> {
+        let url = Self.preferHTTPS(artifact)
+        let session = self.session
+        let plistData: Data
+        do {
+            plistData = try await RemoteZipEntry.read(entry) { range in
+                try await Self.archiveBytes(url, range, headers: recipe.requestHeaders, session: session)
+            }
+        } catch let error as RemoteZipEntry.Unreadable {
+            return .failure(.archiveExtractionFailed(error.detail))
+        } catch let error as RemoteZipEntry.ArchiveChanged {
+            return .failure(.archiveChangedDuringRead(error.detail))
+        } catch let error as ArchiveRangeRefused {
+            // 5xx/429 stay a status, so they classify as infra. Anything else is
+            // worded as the ARCHIVE's answer: a bare `.httpStatus` would be reported
+            // against `recipe.url`'s host, which answered its redirect just fine.
+            return .failure(Self.isTransientStatus(error.status)
+                ? .httpStatus(error.status)
+                : .archiveExtractionFailed(error.detail))
+        } catch {
+            return .failure(Self.transportFailure(error))
+        }
+
+        guard
+            let object = try? PropertyListSerialization.propertyList(
+                from: plistData, options: [], format: nil),
+            let plist = object as? [String: Any]
+        else { return .failure(.archiveExtractionFailed("'\(entry)' is not a property list")) }
+        guard let identifier = plist["CFBundleIdentifier"] as? String else {
+            return .failure(.plistKeyMissing(entry: entry, key: "CFBundleIdentifier"))
+        }
+        // The recipe names the app it covers; an archive holding a different one
+        // (a renamed product, a bundled helper listed at this path) says nothing
+        // about that app's version.
+        guard identifier == recipe.bundleID else {
+            return .failure(.archiveExtractionFailed(
+                "'\(entry)' is \(identifier), not \(recipe.bundleID)"))
+        }
+        guard let marketing = VersionSide.plistVersionField(plist["CFBundleShortVersionString"]) else {
+            return .failure(.plistKeyMissing(entry: entry, key: "CFBundleShortVersionString"))
+        }
+        guard let build = VersionSide.plistVersionField(plist["CFBundleVersion"]) else {
+            return .failure(.plistKeyMissing(entry: entry, key: "CFBundleVersion"))
+        }
+        return .success(VersionSide(marketing: marketing, build: build))
+    }
+
+    /// A range the host did not answer with `206 Partial Content` (or a 206 that
+    /// does not describe the bytes asked for).
+    struct ArchiveRangeRefused: Error {
+        let status: Int
+        let detail: String
+    }
+
+    /// One `RemoteZipEntry.Fetch`: exactly the requested bytes, or an error.
+    ///
+    /// `countedBytes`, not `countedData`, for `PackageArchitectureProbe.bytes`'s
+    /// reason: a host that ignores `Range` answers 200 with the whole archive,
+    /// and `countedData` would have it in memory before anything could refuse it.
+    /// Here the status is checked on the response head and the stream is dropped
+    /// unread. `Accept-Encoding: identity` because a range of a compressed
+    /// transfer is a range of different bytes; no cache, because a cached 200 is
+    /// not a range.
+    ///
+    /// A gateway 5xx gets the one retry `versionFeedData` gives every other probe
+    /// request, counted the same way — without it each of these reads would be a
+    /// new place where a single edge hiccup turns the row red.
+    static func archiveBytes(
+        _ url: URL, _ range: RemoteZipEntry.ByteRange, headers: [String: String],
+        session: URLSession, retryDelay: Duration = URLSession.gatewayRetryDelay
+    ) async throws -> RemoteZipEntry.Chunk {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        Self.apply(headers, to: &request)
+        let expected: Int
+        switch range {
+        case .suffix(let count):
+            request.setValue("bytes=-\(count)", forHTTPHeaderField: "Range")
+            expected = count
+        case .span(let start, let end):
+            request.setValue("bytes=\(start)-\(end)", forHTTPHeaderField: "Range")
+            expected = end - start + 1
+        }
+        let host = url.host ?? "the archive host"
+
+        var attempt = 0
+        while true {
+            let (stream, response) = try await session.countedBytes(for: request, purpose: .versionCheck)
+            guard let http = response as? HTTPURLResponse else {
+                stream.task.cancel()
+                throw URLError(.badServerResponse)
+            }
+            if attempt == 0, URLSession.retryableGatewayStatuses.contains(http.statusCode) {
+                stream.task.cancel()
+                Log.source.info(
+                    "archive range \(host, privacy: .public): HTTP \(http.statusCode) — retrying once")
+                GatewayRetry.tally?.record()
+                do { try await Task.sleep(for: retryDelay) } catch { throw URLError(.cancelled) }
+                attempt += 1
+                continue
+            }
+            guard http.statusCode == 206 else {
+                stream.task.cancel()
+                throw ArchiveRangeRefused(
+                    status: http.statusCode,
+                    detail: "\(host) answered a byte range with HTTP \(http.statusCode), not 206")
+            }
+            // "bytes <first>-<last>/<total>"
+            let contentRange = http.value(forHTTPHeaderField: "Content-Range") ?? ""
+            let parts = contentRange.split(whereSeparator: { " -/".contains($0) })
+            guard parts.count == 4, parts[0] == "bytes",
+                  let first = Int(parts[1]), let last = Int(parts[2]), let total = Int(parts[3]),
+                  first <= last, last < total
+            else {
+                stream.task.cancel()
+                throw ArchiveRangeRefused(
+                    status: 206, detail: "\(host)'s Content-Range '\(contentRange)' is not readable")
+            }
+            switch range {
+            case .span(let start, _) where first != start:
+                stream.task.cancel()
+                throw ArchiveRangeRefused(
+                    status: 206, detail: "asked \(host) for bytes from \(start), it sent from \(first)")
+            case .suffix where last != total - 1:
+                stream.task.cancel()
+                throw ArchiveRangeRefused(
+                    status: 206, detail: "asked \(host) for the archive's tail, it sent bytes \(first)-\(last) of \(total)")
+            default:
+                break
+            }
+            let length = min(expected, last - first + 1)
+            var data = Data()
+            data.reserveCapacity(length)
+            // Read to the end of the body rather than breaking out at `length`:
+            // leaving the sequence early cancels the task, and the request ledger then
+            // files every one of these reads as a cancelled request (-999). A 206 body
+            // is exactly the range, so the loop ends on its own; one longer than asked
+            // is refused instead of buffered.
+            for try await byte in stream {
+                guard data.count < length else {
+                    stream.task.cancel()
+                    throw ArchiveRangeRefused(
+                        status: 206, detail: "\(host) sent more than the \(length) bytes asked for")
+                }
+                data.append(byte)
+            }
+            guard data.count == length else { throw URLError(.networkConnectionLost) }
+            let identity = http.value(forHTTPHeaderField: "ETag")
+                ?? http.value(forHTTPHeaderField: "Last-Modified")
+            return RemoteZipEntry.Chunk(data: data, totalLength: total, identity: identity)
+        }
     }
 
     /// Upgrade/normalize download URLs to HTTPS. Our vendor hosts all support TLS,

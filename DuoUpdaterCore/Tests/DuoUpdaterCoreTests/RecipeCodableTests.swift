@@ -129,6 +129,8 @@ struct RecipeCodableTests {
                     (.responseBody, #"{"kind":"responseBody"}"#),
                     (.zipEntryPlist(entry: "a/Info.plist", key: "K"),
                      #"{"kind":"zipEntryPlist","entry":"a/Info.plist","key":"K"}"#),
+                    (.redirectArchiveInfoPlist(entry: "a/Info.plist"),
+                     #"{"kind":"redirectArchiveInfoPlist","entry":"a/Info.plist"}"#),
                 ]),
             .tagged(
                 VendorInstallSpec.URLSource.self,

@@ -321,7 +321,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
 - [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳 · 另记 `requires`（索引里每个版本的 macOS 下限，同一版本内不等：27.0 RC 要 26.6、27.0 beta 要 26.4）2026-09-15 实测
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
-- [ ] [**iStat Menus**](com-bjango-istatmenus.md) · `com.bjango.istatmenus` — 仅迁出历史：小版本 zip 里 marketing 不动、只涨 build，版本正则改为只取 MAJOR.MINOR
+- [ ] [**iStat Menus**](com-bjango-istatmenus.md) · `com.bjango.istatmenus` — 仅迁出历史：重发的 zip 里 marketing 不动、只涨 build；改为按 Range 读包内 Info.plist 的版本与 build
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
 - [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Macs Fan Control**](com-crystalidea-macsfancontrol.md) · `com.crystalidea.macsfancontrol` — 仅迁出历史：一键 zip 的签名核对

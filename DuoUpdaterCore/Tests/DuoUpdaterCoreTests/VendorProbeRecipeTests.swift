@@ -52,6 +52,32 @@ import Foundation
     }
 }
 
+/// `VendorProbeRecipe.Mode.redirectArchiveInfoPlist` takes the version from the
+/// archive's bundle, so the knobs that shape a version read from a pattern have
+/// nothing to act on there — and `makeRemoteVersion` lets the bundle pair win over
+/// them silently. Held for every registry recipe rather than for the one using the
+/// mode today.
+@Suite struct ArchiveInfoPlistRegistryClaims {
+
+    @Test func noArchiveInfoPlistRecipeAlsoShapesItsVersionFromAPattern() {
+        let usesMode: (VendorProbeRecipe) -> Bool = {
+            if case .redirectArchiveInfoPlist = $0.mode { return true }
+            return false
+        }
+        let conflicting = VendorProbeRegistry.recipes.filter {
+            usesMode($0)
+                && ($0.versionIsBuild || $0.displayVersionPattern != nil || $0.buildLineage != nil)
+        }
+        #expect(conflicting.isEmpty, """
+            \(conflicting.map(\.recipeID)) combine `.redirectArchiveInfoPlist` with \
+            `versionIsBuild`, `displayVersionPattern` or `buildLineage`; the archive's own \
+            Info.plist overrides all three.
+            """)
+        // Non-vacuity: the mode is in use, or this checks an empty set.
+        #expect(VendorProbeRegistry.recipes.contains(where: usesMode))
+    }
+}
+
 @Test func intelliJVersionPatternSurvivesAFourthSegment() {
     // JetBrains shipped "2026.2.0.1" against a pattern pinned to exactly three
     // segments, so it matched nothing and the row fell to "unknown" — a silent
@@ -334,26 +360,35 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
     #expect(batchVersion("com.bjango.istatmenus", in: location) == "7.30")
 }
 
-/// A point release's zip is named `7.50.1` but its bundle reports 7.50 (only the
-/// build moves), so the probe must read MAJOR.MINOR and nothing more.
-@Test func iStatMenusPatternDropsThePointReleaseComponent() {
+/// A point release is published as `iStatMenus7.50.1.zip`, so the pattern has to
+/// recognise a third component — it only recognises the file now; the version
+/// offered comes from the archive's `Info.plist` (see the next test).
+@Test func iStatMenusPatternRecognisesPointReleaseFilenames() throws {
     let prefix = "https://cdn.istatmenus.app/files/istatmenus7/versions/"
-    #expect(batchVersion("com.bjango.istatmenus", in: prefix + "iStatMenus7.50.1.zip") == "7.50")
-    #expect(batchVersion("com.bjango.istatmenus", in: prefix + "iStatMenus7.30.1.zip") == "7.30")
-    #expect(batchVersion("com.bjango.istatmenus", in: prefix + "iStatMenus7.50.zip") == "7.50")
+    #expect(batchVersion("com.bjango.istatmenus", in: prefix + "iStatMenus7.50.1.zip") == "7.50.1")
+    #expect(batchVersion("com.bjango.istatmenus", in: prefix + "iStatMenus7.20.7.zip") == "7.20.7")
+    let recipe = try #require(batchRecipe("com.bjango.istatmenus"))
+    guard case .redirectArchiveInfoPlist(let entry) = recipe.mode else {
+        Issue.record("expected .redirectArchiveInfoPlist, got \(recipe.mode)")
+        return
+    }
+    #expect(entry == "iStat Menus.app/Contents/Info.plist")
 }
 
-/// End to end, from the redirect filename through the probe's own remote to the
-/// verdict, against the versions the vendor's real zips carry (`CFBundleShortVersionString`
-/// / `CFBundleVersion`: 7.30.1 → 7.30/2284, 7.50 → 7.50/2355, 7.50.1 → 7.50/2356).
-/// Reading the third component offered `7.50.1` to all three, including the copy
-/// already on 7.50.1, and re-installing could not clear it.
-@Test func iStatMenusPointReleaseIsNotAPerpetualUpdate() throws {
+/// End to end from the pair the vendor's real archives carry
+/// (`CFBundleShortVersionString` / `CFBundleVersion`: 7.30.1 → 7.30/2284,
+/// 7.50 → 7.50/2355, 7.50.1 → 7.50/2356) through the probe's own remote to the
+/// verdict and to the landing check an install is judged by.
+///
+/// Mutation: drop `bundle:` from `makeRemoteVersion` → the remote is the filename's
+/// `7.50.1`, every copy reads one update behind (the reported phantom), and the
+/// installed 7.50.1 never "reaches" it.
+@Test func iStatMenusOffersTheArchivesOwnBuild() throws {
     let recipe = try #require(batchRecipe("com.bjango.istatmenus"))
-    let location = "https://cdn.istatmenus.app/files/istatmenus7/versions/iStatMenus7.50.1.zip"
-    let version = try #require(batchVersion("com.bjango.istatmenus", in: location))
     let remote = VendorProbeSource.makeRemoteVersion(
-        recipe: recipe, version: version, install: nil, plan: nil, resolvedDownload: nil)
+        recipe: recipe, version: "7.50.1", install: nil, plan: nil, resolvedDownload: nil,
+        bundle: VersionSide(marketing: "7.50", build: "2356"))
+    #expect(remote.marketingMatchesBundle)
 
     func copy(_ short: String, _ build: String) -> InstalledApp {
         let path = "/Applications/ZZFixture-iStat Menus.app"
@@ -364,14 +399,18 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
             path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil)
     }
 
-    // Already on the point release: current.
+    // Already on the re-published build (installed by iStat Menus' own updater,
+    // say): current, with nothing to press.
     #expect(UpdateChecker.evaluate(installed: copy("7.50", "2356"), remote: remote) == .upToDate)
-    // On the minor the point release patches: indistinguishable without a build
-    // map, so it reads current — the accepted miss, never a phantom.
-    #expect(UpdateChecker.evaluate(installed: copy("7.50", "2355"), remote: remote) == .upToDate)
-    // An older minor, itself on a point release, is still offered the new minor.
+    // On the build it replaces: offered.
+    #expect(UpdateChecker.evaluate(installed: copy("7.50", "2355"), remote: remote)
+        == .updateAvailable(latest: "7.50"))
+    // An older release that was itself re-published: offered.
     #expect(UpdateChecker.evaluate(installed: copy("7.30", "2284"), remote: remote)
         == .updateAvailable(latest: "7.50"))
+    // What the bundle reports once this archive is installed is what was offered.
+    #expect(VersionComparator.hasReached(
+        remote.versionSide, disk: VersionSide(marketing: "7.50", build: "2356")))
 }
 
 /// Inkscape reads its version from the `/release/` redirect, and installs from

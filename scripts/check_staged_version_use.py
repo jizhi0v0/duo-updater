@@ -153,9 +153,11 @@ SHORT_READ = re.compile(r"readShortVersion(?:OffMain)?\s*\(")
 
 # Pin the one wiring site that must tell Core when the scanner's build does not
 # share the package source's namespace. A test target does compile it
-# (`PackageRestartReconcilerTests` pins the derived-build case), so what this rule
-# guards is the VALUE rather than the presence: a hardcoded `buildIsDerived:`
-# literal would sail past every other check.
+# (`PackageRestartReconcilerTests` pins the derived-build case), but neither half
+# of the argument is self-enforcing at THIS call: `resolve`'s `buildIsDerived` has
+# a default, so omitting it compiles and silently means `false`, and a hardcoded
+# `true` walks past that test — so this rule checks the argument is there AND that
+# it is neither literal.
 PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
 DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
 PACKAGE_RESTART_WINDOW = 10

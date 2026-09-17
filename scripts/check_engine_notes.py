@@ -123,8 +123,8 @@ def comment_blocks(path):
     `joined` back to its line number. A blank `///` separator does NOT break
     a block (it still starts with `//`), so one block is routinely a whole
     multi-paragraph doc comment: reporting the block's first line instead of
-    the pointer's own sent the reader 17-22 lines up the comment in the three
-    real pointers this repo has today.
+    the pointer's own sent the reader 17-22 lines up the comment in the pointers
+    this repo has today.
     """
     lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
     buf, spans, width = [], [], 0

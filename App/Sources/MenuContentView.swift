@@ -899,7 +899,8 @@ private struct BrewUncheckedMark: View {
 }
 
 /// The "?" that stands in for the target version when an app has staged its own
-/// update where we cannot read it (`RowVersionLine.stagedRelaunchVersionUnknown`).
+/// update where we cannot read it
+/// (`RowVersionLineState.stagedRelaunchVersionUnknown`).
 /// Clicking it explains why; a tooltip alone only reaches people who already
 /// suspect the "?" means something. A tap rather than a Button, like
 /// `FullDiskAccessMark`. Shared by the popover row and the workbench detail header.

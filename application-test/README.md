@@ -45,9 +45,8 @@ doc and `docs/app-audits/README.md`.
 
 ## records/
 
-One file per app: the evidence table from the last verification run (date, real
-bundle id, real version, RemotingName/channel marker, detected channel, probe
-result, verdict). This is the proof behind a ✓ in the audit docs.
+Untracked scratch output, not the reference: per-app conclusions live in
+`docs/app-audits/<bundle-id>.md`, which is what a ✓ in an audit doc cites.
 
 > Build artifacts (`.build/`) are git-ignored.
 

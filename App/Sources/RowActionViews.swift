@@ -109,7 +109,7 @@ struct RowActions {
     /// that does nothing. It has happened once already — the workbench's literal
     /// ended at `openToolbox`, so `openTestFlight` was silently dead — which is why
     /// `live(...)` exists. **The two windows must build their actions through it**,
-    /// so adding a tenth action breaks the build at both sites instead of going
+    /// so adding an action breaks the build at both sites instead of going
     /// quiet at whichever one was forgotten.
     var install: () -> Void = {}
     var openStagedPackage: () -> Void = {}

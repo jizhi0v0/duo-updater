@@ -11,7 +11,8 @@ rather than against each other's assumptions.
 Why range reads: a flat package is a xar archive — a 28-byte header, then a
 zlib-compressed table of contents, then the heap. The TOC carries every file's
 offset and length inside the heap, so `Distribution` / `PackageInfo` come out in
-two small Range requests. Expanding the payload instead (`pkgutil --expand-full`)
+three small Range requests (four when `Distribution` carries no declaration and
+`PackageInfo` is tried after it). Expanding the payload instead (`pkgutil --expand-full`)
 is what #400 rejected as unaffordable: the Office packages are GB-scale, and this
 path reads all of them for a couple of hundred kilobytes.
 

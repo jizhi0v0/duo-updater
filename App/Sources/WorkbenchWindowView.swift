@@ -2003,7 +2003,7 @@ struct ChangelogEntriesView: View {
     var showsDatesInline: Bool = false
     /// Whether to offer the side-by-side / long-scroll switch.
     ///
-    /// Off for our own notes: with 53 versions the rail is the only sane way to
+    /// Off for our own notes: with 101 versions the rail is the only sane way to
     /// read them, so the picker sat alone in an empty strip offering a layout
     /// nobody would pick — cost in vertical space and visual noise, no benefit.
     /// A vendor changelog is often a handful of entries where the long scroll is a

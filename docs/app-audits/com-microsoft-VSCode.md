@@ -26,3 +26,5 @@ webview fallback.
 ```
 
 复测 2026-09-14（03:16 UTC，只读 GET，跟随 `/updates` 的重定向）：落到 `/updates/v1_137`，`<h1>Visual Studio Code 1.137</h1>` 与 "Happy Coding!" 之间有 1 个 `<ul>`、1 个 `<blockquote>`。
+
+复测 2026-09-17（只读 GET，跟随 `/updates` 的重定向，#697）：落到 `/updates/v1_138`。`</ul>` 与 "Happy Coding!" 之间出现了 `<p><em>These release notes were generated using GitHub Copilot and might contain inaccuracies.</em></p>`，没有 `<blockquote>`；旧 close anchor 只允许一个可选 `<blockquote>`，于是整页 0 条（sweep 报 `noEntriesExtracted`，连续两轮）。改成「`<blockquote>` 或不含 `<ul>` 的 `<p>` 的任意串」之后，同一组正则（Python `re.S|re.I` 移植）在 v1_138 上抽出 1.138 / September 16, 2026 / 3 条；在 v1_137、v1_136、v1_130、v1_123 上与旧 pattern 的版本、日期、条数、body 长度逐一相同（其中 v1_137 与 v1_123 带 `<blockquote>`，v1_136 与 v1_130 没有）。v1_110、v1_100 是更老的页面布局，新旧 pattern 都是 0 条——recipe 只读最新一页，不受影响。

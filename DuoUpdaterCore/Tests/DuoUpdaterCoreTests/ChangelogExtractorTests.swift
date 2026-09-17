@@ -418,6 +418,45 @@ private let aweSunLegacyRegexRecipe = ChangelogRecipe(
     #expect(changelog.entries[0].items[2] == "Research agent: Run deep research on a topic and get a thorough, well-cited Markdown report.")
 }
 
+// Trimmed real markup from code.visualstudio.com/updates/v1_138 (#697): the
+// Copilot disclaimer `<p><em>` sits between the highlights `</ul>` and
+// "Happy Coding!", where 1.123 had a `<blockquote>`. The old close anchor
+// allowed only the blockquote there, so this page extracted nothing.
+private let vscodeCopilotNoteFixture = """
+<h1>Visual Studio Code 1.138</h1>
+<p>Follow us on <a href="https://www.linkedin.com/showcase/vs-code" class="external-link" target="_blank">LinkedIn</a></p>
+<hr>
+<p><em>Release date: September 16, 2026</em></p>
+<p>Downloads: Mac: <a href="https://update.code.visualstudio.com/1.138.0/darwin-universal-dmg/stable">Universal</a></p>
+<hr>
+<p>Welcome to the 1.138 release of Visual Studio Code. This release helps agents work in your project's development environment, gives Codex sessions more flexibility, and keeps completed sessions organized.</p>
+<ul>
+<li>
+<p><a href="#_run-agent-sessions-in-local-dev-containers">Agent sessions in Dev Containers</a>: Run agents with your project's tools and dependencies in a local Dev Container.</p>
+</li>
+<li>
+<p><a href="#_expanded-codex-support-in-the-agent-host">Expanded Codex harness</a>: Continue Codex sessions across apps, choose between Copilot and ChatGPT subscriptions, and use VS Code tools.</p>
+</li>
+<li>
+<p><a href="#_keep-completed-sessions-organized-preview">Session cleanup (Preview)</a>: Automatically mark merged sessions as done and optionally delete them after a grace period.</p>
+</li>
+</ul>
+<p><em>These release notes were generated using GitHub Copilot and might contain inaccuracies.</em></p>
+<p>Happy Coding!</p>
+"""
+
+@Test func extractsVSCodeHighlightsPastAParagraphAside() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.microsoft.VSCode"))
+    let changelog = try #require(ChangelogExtractor.extract(from: vscodeCopilotNoteFixture, using: recipe))
+
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "1.138")
+    #expect(changelog.entries[0].date == "September 16, 2026")
+    #expect(changelog.entries[0].items.count == 3)
+    #expect(changelog.entries[0].items[0] == "Agent sessions in Dev Containers: Run agents with your project's tools and dependencies in a local Dev Container.")
+    #expect(changelog.entries[0].items[2] == "Session cleanup (Preview): Automatically mark merged sessions as done and optionally delete them after a grace period.")
+}
+
 @Test func extractsCodexAppEntriesAndSkipsGeneralAndCLIReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.openai.codex"))
     let changelog = try #require(ChangelogExtractor.extract(from: codexFixture, using: recipe))

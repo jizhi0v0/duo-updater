@@ -348,7 +348,9 @@ final class AppListModel {
     /// isn't: the row already has the new build on disk, so it reads `.upToDate`
     /// for the whole time this note is up and the settle rule would take it down on
     /// the next rescan with nothing changed. What ends this one is the app finally
-    /// quitting, which `settleQuitHandoffs` observes directly.
+    /// quitting, which `settleQuitHandoffs` observes directly — or a rollback
+    /// landing while the app is still up, after which its "the new version is
+    /// already installed" is no longer true (`rollback`).
     @ObservationIgnored private var restartWontQuitNotes: [String: String] = [:]
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
@@ -444,6 +446,11 @@ final class AppListModel {
     /// owner — `rollback` writes `.installing` into it, and the recheck's own exit
     /// would then clear it mid-restore, dropping the spinner and releasing the
     /// row to a second action while the swap is still running.
+    ///
+    /// Not refused while a quit hand-off is armed (`quitHandoffs`): no operation
+    /// holds the row then, and it looks idle. The relay waits out the
+    /// rollback's `bundleChanges` claim before it launches instead
+    /// (`waitOutBundleChange`).
     func canRollback(_ id: String) -> Bool {
         installing[id] == nil && !relaunching.contains(id) && bundleChanges[id] == nil
     }
@@ -476,6 +483,9 @@ final class AppListModel {
     /// Keyed claims (`token`) so a late `end` from one operation cannot erase a
     /// later operation's claim on the same row. Observed (unlike the note tables)
     /// because `canRollback` reads it and both windows disable on that.
+    ///
+    /// Also what a quit hand-off's relay waits on before it launches the app
+    /// (`waitOutBundleChange`), so the gaps above are gaps for that too.
     private var bundleChanges: [String: (token: Int, kind: BundleChange)] = [:]
     @ObservationIgnored private var bundleChangeTokens = 0
     /// A "wasn't relaunched: it's being updated / rolled back" note
@@ -5565,10 +5575,11 @@ final class AppListModel {
         defer { relaunching.remove(result.id); releaseRowOrder() }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
-        // it. `settleQuitHandoffs` is the only thing that retracts that note and it
-        // iterates `quitHandoffs`, so dropping the marker alone strands the
-        // sentence: the row would still say "it didn't quit — deal with that
-        // window" after this relaunch had quit it and ShipIt had swapped. Reachable
+        // it. Short of a rollback landing, `settleQuitHandoffs` is the only thing
+        // that retracts that note and it iterates `quitHandoffs`, so dropping the
+        // marker alone strands the sentence: the row would still say "it didn't
+        // quit — deal with that window" after this relaunch had quit it and ShipIt
+        // had swapped. Reachable
         // because the two buttons live on one row: a `.stillRunning` bail here
         // leaves the note up, and the moment the app's own updater stages a build
         // (`actionableStaged`) the row switches from Relaunch-to-restart to
@@ -5846,8 +5857,18 @@ final class AppListModel {
     /// its sheet the same way); Sparkle 2 would swap with the reopened old build
     /// still running (read from its source, not observed); what an older Squirrel
     /// without that check does is UNVERIFIED (`StagedUpdater`).
+    ///
+    /// Nor while a rollback or install of ours is replacing the bundle
+    /// (`waitOutBundleChange`). The marker outlives the attempt that armed it, and
+    /// nothing on the row is busy meanwhile, so the user can start either one
+    /// before answering the app's dialog. Once that finishes, the app is launched
+    /// on whatever it left on disk: the quit was still one we asked for.
     private func relayQuitHandoff(_ handoff: QuitHandoff) async {
         let app = handoff.result.app
+        // Waited out before taking the row, so the row keeps showing the rollback
+        // or install (`.relaunching` ranks above `.installing` in `RowAction`).
+        var waitedOnBundleChange = false
+        guard await waitOutBundleChange(handoff, waited: &waitedOnBundleChange) else { return }
         // Reuse the row spinner + re-entry block for the duration of the relay.
         guard !relaunching.contains(handoff.result.id) else { return }
         relaunching.insert(handoff.result.id)
@@ -5887,6 +5908,10 @@ final class AppListModel {
         // One beat of grace: if this vendor's updater *does* relaunch after
         // installing, its open lands right after the swap — don't double-launch.
         try? await Task.sleep(for: .milliseconds(500))
+        // Again right before the launch. Holding `relaunching` does not keep an
+        // install out: `install` and Update All's targets do not check it, and an
+        // install's exits remove it.
+        guard await waitOutBundleChange(handoff, waited: &waitedOnBundleChange) else { return }
         guard AppRestarter.runningInstances(of: app).isEmpty else {
             await refreshRow(handoff.result)
             return
@@ -5908,9 +5933,11 @@ final class AppListModel {
             }
             Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) launched to apply — landed=\(landed, privacy: .public)")
         }
-        if landed {
+        if landed && !waitedOnBundleChange {
             // The update this hand-off was armed for is on disk after all, so a red
             // "timed out" note left by the attempt that gave up is no longer true.
+            // Not after waiting out a rollback or install: that cleared the row's
+            // error when it started, so what is there now is its own failure.
             installErrors[handoff.result.id] = nil
         }
         await refreshRow(handoff.result)
@@ -5918,6 +5945,34 @@ final class AppListModel {
             let version = await Self.readShortVersionOffMain(app.path)
             UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
         }
+    }
+
+    /// Wait until no rollback or install holds this row's `bundleChanges` claim,
+    /// so the relay never launches an app while we are replacing its bundle.
+    /// Returns false when it gave up, having re-read the row: the app stays quit.
+    ///
+    /// Polled, like the relay's other waits, rather than resumed from
+    /// `endBundleChange`. Capped at `quitHandoffMaxAge`, past which the hand-off
+    /// is no longer a relaunch the user is waiting for; every claim is released on
+    /// every exit, so the cap is a backstop, not an expected ending.
+    ///
+    /// `waited` is set once it has had to wait, and never reset.
+    private func waitOutBundleChange(_ handoff: QuitHandoff, waited: inout Bool) async -> Bool {
+        let id = handoff.result.id
+        guard let kind = bundleChanges[id]?.kind else { return true }
+        waited = true
+        Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — a \(String(describing: kind), privacy: .public) is replacing its bundle; waiting for it before relaunching")
+        let deadline = Date().addingTimeInterval(Self.quitHandoffMaxAge)
+        while bundleChanges[id] != nil {
+            guard Date() < deadline else {
+                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — gave up waiting for the \(String(describing: kind), privacy: .public); leaving it quit")
+                await refreshRow(handoff.result)
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — the \(String(describing: kind), privacy: .public) finished; carrying on")
+        return true
     }
 
     /// `readShortVersion` off the main actor. The staged-relaunch poll calls it
@@ -6564,6 +6619,12 @@ final class AppListModel {
             // exclusion, so hand the claim back rather than holding it through a
             // rescan (same reasoning as the apply permit in `performInstall`).
             await ProcessInstallLock.shared.release()
+            // A restart that bailed on a quit dialog said "the new version is
+            // already installed", which the swap just made false. Its hand-off stays
+            // armed: if the app quits now, it comes back on the restored build
+            // (`relayQuitHandoff`). A refusal note covering it does not bring it
+            // back: the store no longer owns it (`retractBusyNote`).
+            retractRestartNote(id, from: &restartWontQuitNotes)
             AppIconCache.invalidate(target.path)
             guard let updated = await recheck(result) else {
                 // See the post-install recheck in `performInstall` for why this

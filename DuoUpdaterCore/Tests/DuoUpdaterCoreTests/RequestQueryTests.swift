@@ -89,6 +89,16 @@ struct RequestQueryTests {
         // And the same through the parser, which is the path the field actually
         // takes: `seconds` keeps 1e300 and the microsecond conversion overflows.
         _ = RequestQuery.parse("size>1e19 took>1e300")
+        // `took>` only converts in `sqlPredicate`, so that is where it has to be
+        // asked. Each of these parses (a bound, not free text) and binds `.max`,
+        // which matches nothing. `9.3e12` is finite and fits `Int64` as seconds;
+        // only its microsecond form is past `2^63`.
+        for value in ["1e300", "inf", "nan", "1e300ms", "9.3e12"] {
+            let query = RequestQuery.parse("took>\(value)")
+            #expect(query.minDuration != nil, "took>\(value)")
+            #expect(query.sqlPredicate().values == [.int(.max)], "took>\(value)")
+        }
+        #expect(RequestQuery.parse("took>5s").sqlPredicate().values == [.int(5_000_000)])
     }
 
     @Test("An unrecognised key is reported, never silently dropped")

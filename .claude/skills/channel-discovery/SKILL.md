@@ -182,7 +182,7 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
 
 - `CHANNEL_COVERAGE_TODO.md` — the breadth ledger this skill refreshes (A/B/C/D)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + `detect()` signal hierarchy
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Fork/Surge/TablePlus/DuoPaste/OrbStack/CleanShot)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Phase 1a lists them)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` — one file per app family; its `channel:` lines are the covered channels to subtract
 - `.claude/skills/app-audit/SKILL.md` — the depth skill this one feeds (Pattern A/B/C/D defined there in full)
 - `application-test/` — `channel-verify`, the on-machine proof `/app-audit` runs

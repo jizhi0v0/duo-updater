@@ -194,7 +194,7 @@ gh api "repos/<owner>/<repo>/git/trees/<default_branch>" -q '.tree[].path'
 gh api "repos/<owner>/<repo>/git/trees/<branch>" -q '.tree[].path'
 ```
 
-Mac Mouse Fix (#555, still open as of this writing): the top-level listing of
+Mac Mouse Fix: the top-level listing of
 the `update-feed` branch is 21 entries, and that's already enough — it shows
 `appcast.xml` **and** `appcast-pre.xml` side by side, plus a
 `generate_releases.py` that writes both, settling the channel question
@@ -666,6 +666,10 @@ An audit that does not know a field exists will report the situation it covers a
 | `variant` | one channel legitimately has more than one endpoint worth asking |
 | `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half**. A STATIC per-generation floor only; a bound that moves release to release must be read from the feed instead, never frozen here |
 | `buildLineage` | the version is a commit hash (no order of its own) and the vendor publishes its release history: the engine orders by position there instead of `VersionComparator`, which on hashes is a coin flip. See `BuildLineage` |
+| `buildNamespace` | with `versionIsBuild`: the published build id is the vendor's own (Mozilla's `application.ini` `BuildID`), not `CFBundleVersion` |
+| `transientBodyPattern` | the vendor sometimes answers with its own error envelope under a success status: reported as transient, not as a broken recipe |
+| `trackClosedPattern` | the body can say, in the vendor's words, that this track has no current build |
+| `installedVersionPattern` | the recipe applies only to installed copies whose marketing version matches (e.g. a new major the old install cannot run) |
 | `identities` (`ProbeIdentity`) | the endpoint only answers for a machine id the app already wrote to disk |
 | `track` (`RolloutTrack`) | one URL, several vendor-assigned tracks, picked by a request-borne value |
 | `requestBody` | the service answers nothing to a GET (Omaha-style) |

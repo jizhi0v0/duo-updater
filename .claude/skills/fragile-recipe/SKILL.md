@@ -127,9 +127,9 @@ examples — don't author from memory:
    duo verify --samples --report verify/report.json --baseline verify/baseline.json
    ```
 
-   `duo verify` runs the **installed** CLI, so run `make cli` first or you are
-   verifying the previous build's recipes. Rebuilding the menu-bar app
-   (`cd App && xcodebuild …`) is only needed to *see* the result in the UI.
+   `duo verify` runs the **installed** CLI, so run `make cli` first; inside a
+   checkout it refuses a binary built from a different tree. Rebuilding the menu-bar app
+   (`make install`) is only needed to *see* the result in the UI.
 
 ## Fetching
 

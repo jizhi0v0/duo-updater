@@ -272,15 +272,13 @@ not against what the vendor serves today:
 duo verify --only <bundle-id-fragment>
 ```
 
-Run `make cli` first; `duo verify` uses the **installed** CLI, so without it you
-are verifying the previous build's recipes. A changelog miss is cosmetic (the UI
+Run `make cli` first; `duo verify` uses the **installed** CLI and refuses one
+built from a different tree. A changelog miss is cosmetic (the UI
 falls back to embedding the vendor page), so this will not block you the way a
 probe miss does — but a recipe that silently stopped matching looks exactly like
 one that never ran.
 
 ## To see it in the UI (optional)
 
-Rebuild and relaunch the menu-bar app, then open Changelog and select the app:
-`cd App && xcodebuild -project DuoUpdater.xcodeproj -scheme DuoUpdater -configuration Debug build`,
-then `open` the built `.app` (use the **full** DerivedData path — a `DuoUpdater-*`
-glob can match multiple build dirs and launch several copies).
+Run `make install` (stable signing identity, deployed to `/Applications`), then
+open Changelog and select the app.

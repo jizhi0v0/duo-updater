@@ -44,6 +44,9 @@ struct GitHubListPageSizeTests {
         // Yaak: latest 100 releases on 2026-09-06, 72 beta tags; worst gap 5
         // (v2025.8.0-beta.1 → v2025.7.0-beta.5), so the floor is 6.
         "app.yaak.desktop/beta": 6,
+        // Tinycast Beta: newest 100 releases on 2026-09-17 (94 exist), 56 beta
+        // tags; worst gap 5 (v0.9.6-beta.53 → v0.9.2-beta.49), so the floor is 6.
+        "com.tinycast.app.beta/beta": 6,
         // Tag gap + 1, and nothing else. An earlier version added
         // `maxReleasesWithoutMacOSAsset` (5) to every floor, on the belief that
         // the walk past assetless releases had to fit inside the page or the

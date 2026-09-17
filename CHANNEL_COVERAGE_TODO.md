@@ -34,6 +34,7 @@
 | **HBuilderX** | alpha `io.dcloud.HBuilderXAlpha` | VendorProbe |
 | **Zed** | preview `dev.zed.Zed-Preview`（`channel: .preview`，2026-06-04 修 channel-gate 回归）| GitHub |
 | **Termius** | beta `com.termius-beta.mac`（issue #91，2026-08-27）| VendorProbe |
+| **Tinycast** | beta `com.tinycast.app.beta`（显示名 "Tinycast Beta"，版本串带 `-beta.N`；仅检测，自签名无 Team ID，2026-09-17）| GitHub |
 
 ### Pattern A\* — 共享 bundle id，但 Mozilla `RemotingName` 可检测
 

@@ -245,6 +245,13 @@ final class AppListModel {
     /// after the user answered its dialog is no longer something they connect to
     /// that answer.
     private static let quitHandoffBundleChangePatience: TimeInterval = 180
+    /// Row ids whose `relaunching` entry a relay put there and still owns.
+    ///
+    /// `relaunching` is a set with several writers, and `performInstall` removes
+    /// the id on its exits without knowing who inserted it. Every other writer
+    /// that inserts drops the id from here, so a relay's `defer` never removes an
+    /// entry a later `restart` or Relaunch put there.
+    @ObservationIgnored private var relayRelaunchHolds: Set<String> = []
     /// App ids for which an incremental (AX) App Store update has downloaded but the
     /// app is still running, so App Store is asking to quit it to finish installing.
     /// id → the app's display name (for the prompt). Drives a "Relaunch to finish
@@ -5401,6 +5408,7 @@ final class AppListModel {
         // bundle change has ended, so it is not refused here.
         if refuseWhileBundleChanges(result, logPrefix: "restart") { return }
         relaunching.insert(result.id)
+        relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
@@ -5582,6 +5590,7 @@ final class AppListModel {
         // (Check Again) holds it too, and the Relaunch is safe then.
         if refuseWhileBundleChanges(result, logPrefix: "relaunch-staged") { return }
         relaunching.insert(result.id)
+        relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
@@ -5903,8 +5912,14 @@ final class AppListModel {
         // Reuse the row spinner + re-entry block for the duration of the relay.
         guard !relaunching.contains(id) else { return }
         relaunching.insert(id)
+        relayRelaunchHolds.insert(id)
         pinRowOrder()
-        defer { relaunching.remove(id); releaseRowOrder() }
+        // Only an entry this relay still owns: an install's exit may have dropped
+        // it, and another relaunch put its own there since (`relayRelaunchHolds`).
+        defer {
+            if relayRelaunchHolds.remove(id) != nil { relaunching.remove(id) }
+            releaseRowOrder()
+        }
         // `.applied` has nothing to wait for; `.stagedOnLaunch` waits after the launch.
         var landed = !handoff.landing.waitsForDisk && !handoff.landing.landsAfterLaunch
         if handoff.landing.waitsForDisk {
@@ -5944,6 +5959,14 @@ final class AppListModel {
         // install's exits remove it.
         guard await waitOutBundleChange(
             handoff, until: bundleChangeDeadline, waited: &waitedOnBundleChange) else { return }
+        // Take the row back if that install's exit dropped it, so it does not look
+        // idle (`canRollback`) through the launch and its retries. If another
+        // relaunch has taken the row since, it is handling the app: stand down.
+        guard relayRelaunchHolds.contains(id) else {
+            Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) — another relaunch took the row meanwhile; standing down")
+            return
+        }
+        relaunching.insert(id)
         guard AppRestarter.runningInstances(of: app).isEmpty else {
             await refreshRow(handoff.result)
             return
@@ -6340,6 +6363,7 @@ final class AppListModel {
         if proceed {
             reopenAfterQuit[id] = .userAskedToQuit
             relaunching.insert(id)
+            relayRelaunchHolds.remove(id)  // this install's now, not a relay's
         }
         quitAnswers[id] = proceed ? .proceed : .declined
         Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed)")

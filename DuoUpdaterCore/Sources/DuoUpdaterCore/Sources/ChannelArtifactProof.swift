@@ -180,7 +180,7 @@ public enum ChannelProofRegistry {
     /// Not "the same filename from the same host" — that is a stronger claim than
     /// the measurement supports. Fork serves
     /// `Fork-2.66.7.dmg` against `Fork-2.69.0.dmg`, Surge puts a per-build hash in
-    /// the name, and only TablePlus reuses one filename (`TablePlus.dmg`, under
+    /// the name, and TablePlus reuses one filename (`TablePlus.dmg`, under
     /// different build-numbered paths). The filenames DIFFER; what none of them
     /// carries is a token that says which train the build came from — a version
     /// or a hash is not a channel. That is not a

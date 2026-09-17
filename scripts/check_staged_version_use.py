@@ -151,8 +151,11 @@ def compares_near(lines, index):
 # four landing checks answer "nothing moved".
 SHORT_READ = re.compile(r"readShortVersion(?:OffMain)?\s*\(")
 
-# No test target compiles this site, so pin the one wiring site that must tell Core
-# when the scanner's build does not share the package source's namespace.
+# Pin the one wiring site that must tell Core when the scanner's build does not
+# share the package source's namespace. A test target does compile it
+# (`PackageRestartReconcilerTests` pins the derived-build case), so what this rule
+# guards is the VALUE rather than the presence: a hardcoded `buildIsDerived:`
+# literal would sail past every other check.
 PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
 DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
 PACKAGE_RESTART_WINDOW = 10

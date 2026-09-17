@@ -916,6 +916,17 @@ public struct GitHubReleasesSource: UpdateSource {
                         "the latest matching release only ships an asset this host cannot run"),
                     tags: resolved.tags)
             }
+            // Two different breakages land here and they need different words —
+            // see the comment above `skippedForMissingAsset` in `settle`: the tag
+            // pattern matched every one of those releases, and the ASSET pattern is
+            // what stopped matching. Reported as a version-pattern miss it reads
+            // like a tag-format change and gets fixed in the wrong place.
+            if resolved.assetMiss > 0 {
+                return outcome(
+                    remote: nil,
+                    failure: .assetPatternNoMatch(walked: resolved.assetMiss),
+                    tags: resolved.tags)
+            }
             // Fetched fine, no tag matched — the shape a tag-format change makes.
             return outcome(
                 remote: nil,
@@ -1179,6 +1190,12 @@ public struct GitHubReleasesSource: UpdateSource {
         let remote: RemoteVersion?
         let tags: [String]
         let archIncompatible: Bool
+        /// How many releases matched the version pattern without carrying an asset
+        /// the install pattern accepts. Non-zero only when that is the whole reason
+        /// no answer came back — i.e. the artifact was renamed — so a diagnostic can
+        /// name the INSTALL pattern instead of blaming the tag pattern, which is
+        /// still matching perfectly.
+        var assetMiss: Int = 0
     }
 
     /// - anchoredTo: the marketing version of the copy on disk, for a rule whose
@@ -1426,7 +1443,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     + "none carried an asset matching the install pattern (\(tags)) — the vendor may "
                     + "have renamed the macOS artifact")
             return Resolution(
-                remote: nil, tags: releases.map(\.tag), archIncompatible: false)
+                remote: nil, tags: releases.map(\.tag), archIncompatible: false,
+                assetMiss: skippedForMissingAsset.count)
         }
         Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
         // Fetched fine but nothing matched the version pattern — the breakage

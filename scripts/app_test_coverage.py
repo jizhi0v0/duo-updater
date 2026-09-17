@@ -73,9 +73,20 @@ RAN = re.compile(r"Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passe
 # timestamp and was never stripped. None of the target's own NSLog calls writes
 # such a string. A case that failed, or only started, still matches neither text.
 #
-# Not handled: both directions in one place — a record split by a log line that
-# itself began inside another log line. Neither text rejoins that record; the
-# case is reported as never run and a rerun clears it.
+# So the repair covers a record that is whole in the raw text (shape 2), and one
+# whose pieces are separated by nothing but whole log lines, each cut from its
+# timestamp to its first newline (shape 1). Other splits can still report a
+# passing case as never run (the interleaving is timing-dependent; the 2026-09-17
+# false red passed on an immediate rerun). That takes no more than one log line
+# and one record, each written in two pieces, and both have been seen
+# writing that way (shape 1 splits a record, shape 2 splits an NSLog line).
+# These, for example, are all still reported as never run:
+#
+#   * log head, record head, log tail, record tail — the record's head lands
+#     inside the log line and its tail doesn't follow on that line;
+#   * a record whose head lands inside a log line and whose tail is on the next;
+#   * a record split by a log message that itself spans lines, so its second
+#     line is left between the pieces.
 #
 # The log-line shape is strict — a timestamp with microseconds and zone, then
 # `name[pid:tid] ` — so a test's own output can't be mistaken for it.

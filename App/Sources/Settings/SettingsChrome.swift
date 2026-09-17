@@ -35,6 +35,8 @@ enum SettingsAnchor: String, Hashable, Sendable {
     /// Linked from the menu's rate-limit banner and from the welcome window's
     /// "Set Up…", both of which are about the token specifically.
     case githubToken
+    /// Linked from the workbench's empty Rollback tab when backups are off.
+    case backups
 
     /// Which page holds it. A page ignores a request for a card it does not have,
     /// so this is what keeps one request from making every page run a scroll —
@@ -43,6 +45,7 @@ enum SettingsAnchor: String, Hashable, Sendable {
         switch self {
         case .testFlightDetection: .general
         case .githubToken: .github
+        case .backups: .general
         }
     }
 }

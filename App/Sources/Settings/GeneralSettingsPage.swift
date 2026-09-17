@@ -22,7 +22,7 @@ struct GeneralSettingsPage: View {
     var body: some View {
         SettingsPage(section: .general) {
             scheduleCard
-            afterUpdateCard
+            afterUpdateCard.settingsAnchor(.backups)
             concurrencyCard
             routingCard
         }

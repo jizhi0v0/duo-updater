@@ -4141,6 +4141,47 @@
         }
       }
     },
+    "A backup is kept each time DuoUpdater updates an app. Apps that update themselves are not backed up.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei jedem Update durch DuoUpdater wird ein Backup aufbewahrt. Apps, die sich selbst aktualisieren, werden nicht gesichert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se conserva una copia de seguridad cada vez que DuoUpdater actualiza una app. Las apps que se actualizan solas no se respaldan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une sauvegarde est conservée chaque fois que DuoUpdater met à jour une application. Les applications qui se mettent à jour elles-mêmes ne sont pas sauvegardées."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater がアプリを更新するたびにバックアップが保持されます。自身で更新するアプリはバックアップされません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервная копия сохраняется каждый раз, когда DuoUpdater обновляет приложение. Приложения, которые обновляются сами, не резервируются."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次由 DuoUpdater 更新应用时都会保留一份备份。自行更新的应用不会被备份。"
+          }
+        }
+      }
+    },
     "A Java app, shipping the runtime it needs.": {
       "extractionState": "manual",
       "localizations": {
@@ -6244,6 +6285,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "请求助理响应 — 用于确认 App Store 更新当前是否真的可以运行"
+          }
+        }
+      }
+    },
+    "Backups are off": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups sind deaktiviert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias de seguridad están desactivadas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sont désactivées"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップはオフです"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии отключены"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份已关闭"
           }
         }
       }
@@ -15402,6 +15484,47 @@
         }
       }
     },
+    "Nothing to roll back yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts zum Zurücksetzen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay nada que revertir"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien à restaurer pour l'instant"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロールバックできる項目はまだありません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока нечего откатывать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无可回滚的项目"
+          }
+        }
+      }
+    },
     "Nothing touches an app while it is open: it installs only once the app is closed, and offers Open instead, leaving the update to the app itself.": {
       "extractionState": "manual",
       "localizations": {
@@ -15972,6 +16095,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开登录项"
+          }
+        }
+      }
+    },
+    "Open Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les Réglages"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定を開く"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть настройки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置"
           }
         }
       }
@@ -22504,6 +22668,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "开启 DuoUpdater 的后台助理"
+          }
+        }
+      }
+    },
+    "Turn them on to roll back an update and compare what it changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviere sie, um ein Update zurückzusetzen und zu vergleichen, was es geändert hat."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actívalas para revertir una actualización y comparar lo que cambió."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activez-les pour annuler une mise à jour et comparer ce qu'elle a modifié."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンにすると、更新をロールバックしたり、変更内容を比較したりできます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите их, чтобы откатывать обновления и сравнивать, что в них изменилось."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启后可回滚更新，并比较更新改动了什么。"
           }
         }
       }

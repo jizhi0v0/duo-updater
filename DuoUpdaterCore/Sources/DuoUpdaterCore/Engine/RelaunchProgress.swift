@@ -4,8 +4,10 @@ import Foundation
 /// whether it has.
 ///
 /// **Why this lives in Core.** It used to be a nested enum inside
-/// `AppListModel`, which has no test target — `App/project.yml` declares four
-/// targets and none of them are tests — so nothing ever executed it. Both of its
+/// `AppListModel`, which no test target compiles — `App/project.yml` declares six
+/// targets, and `DuoUpdaterAppTests` is the only test, compiling only the
+/// sources it names, none of which is `AppListModel` — so nothing ever
+/// executed it. Both of its
 /// version comparisons were wrong in the same way and neither could be caught:
 /// `.stagedSwap` compared a marketing string against a marketing string, so for
 /// an app that ships many builds under one name (`Amp` shipped ten builds called

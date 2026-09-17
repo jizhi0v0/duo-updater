@@ -5,8 +5,9 @@ import Foundation
 ///
 /// Every bucket is computed from `ReleaseEvent.publishedAt` (the vendor's own
 /// release moment) interpreted in a supplied `Calendar` — so the answer is "what
-/// time of day, in *this* clock". The store never records a release without a
-/// trustworthy `publishedAt`, so there's no polling-time noise to filter here.
+/// time of day, in *this* clock". The store does record releases with no hour to
+/// bucket — `vendorDay` events, and detection-only `estimatedRange` ones off our
+/// own polling clock — so only the to-the-minute tier is counted here.
 public struct ReleaseStats: Sendable, Equatable {
     /// Total releases counted.
     public let total: Int

@@ -22,8 +22,8 @@ public enum PathSegment: Sendable, Equatable {
 /// constant, the shape scales to any size, and it takes a tint like any other
 /// vector. It lives in the core package rather than beside the view because it is
 /// the kind of thing that fails silently and subtly (an off-by-one in the arc
-/// conversion is a slightly wrong curve, not a crash), and the app target has no
-/// tests to catch that.
+/// conversion is a slightly wrong curve, not a crash), and no test target
+/// compiles that file.
 ///
 /// Supports the full command set the artwork uses — `M L H V C S Q T A Z` in both
 /// absolute and relative forms — and returns nil rather than a partial outline for

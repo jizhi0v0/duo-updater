@@ -7,8 +7,9 @@ import Foundation
 /// top of a filtered list would be two unrelated numbers with the subtraction
 /// left to the reader.
 ///
-/// In Core, not in the view, for the usual reason — `App/project.yml` has no test
-/// target, so a rule written into a `body` is a rule nothing executes.
+/// In Core, not in the view, for the usual reason — the App test target compiles
+/// only the files it names, so a rule written into a `body` is a rule nothing
+/// executes.
 public struct RequestLogSummary: Sendable, Equatable {
 
     public struct PurposeSlice: Sendable, Equatable, Identifiable {

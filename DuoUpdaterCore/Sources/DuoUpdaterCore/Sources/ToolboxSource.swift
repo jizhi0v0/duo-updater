@@ -200,7 +200,8 @@ public struct ToolboxSource: Sendable {
     /// Latest (version, build, notesLink) for a JetBrains product code in a
     /// channel. `notesLink` is the build's YouTrack release-notes article when the
     /// API carries one (nil otherwise). Returns nil for unknown codes (e.g.
-    /// Android Studio's "AI" → empty `{}`) so the caller falls back to the cache.
+    /// Android Studio's "AI" → empty `{}`) so the caller abstains and the row stays
+    /// "managed by Toolbox" — there is no offline fallback, by design.
     private func apiLatest(code: String, type: String) async throws
         -> (version: String, build: String, notesLink: URL?)? {
         let endpoint = "https://data.services.jetbrains.com/products/releases?code=\(code)&latest=true&type=\(type)"

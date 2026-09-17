@@ -152,7 +152,7 @@ public enum RecipeSanity {
 
     /// First artifact URL in `text` that a one-click could plausibly fetch.
     ///
-    /// Three rules, each of which a live sweep on 2026-08-29 had to teach this
+    /// Four rules, each of which a live sweep on 2026-08-29 had to teach this
     /// function — the first version got LibreWolf wrong and Sogou missing:
     ///
     ///  - **Source archives are not artifacts.** A forge's release JSON always

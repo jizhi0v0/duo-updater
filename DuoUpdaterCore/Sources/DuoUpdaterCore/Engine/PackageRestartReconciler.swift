@@ -156,7 +156,8 @@ public enum RestartLine {
 /// A staged entry outlives its download: the file can be swept by the system
 /// while the entry still has a job to do (keeping the Restart badge lit until
 /// the user relaunches). So this is not "is the file there" — it is four rules,
-/// and three of them keep an entry whose file is gone.
+/// and two of them (a pending id, and a landed build) keep an entry whose file is
+/// gone.
 ///
 /// Split out of `AppListModel.pruneStagedPackages` for the reason its own
 /// comment gave away: it decided "has this landed" with its own copy of the

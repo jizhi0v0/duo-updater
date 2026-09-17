@@ -1882,7 +1882,7 @@ final class AppListModel {
         for result in checked {
             guard let remote = result.remote else { continue }
             // The latest release (when it carries a date, at either the minute
-            // or the day tier — see `ReleaseTimeline`'s three-tier doc)…
+            // or the day tier — see `ReleaseEvent`'s three-tier doc)…
             if remote.publishedAt != nil || remote.vendorDay != nil {
                 await releaseTimelineStore.record(
                     appID: result.app.id,
@@ -8040,14 +8040,16 @@ final class AppListModel {
     /// and only rechecks (a real scan + networked check, same path as
     /// `recheckAfterUnignore`/`retry`) the rows that actually flipped.
     ///
-    /// Called from two sites, chosen after checking on this machine that a
+    /// Called from three sites, chosen after checking on this machine that a
     /// cross-process preference-change notification (`NSDistributedNotificationCenter`,
     /// the Darwin notify center) is not reliably delivered here — see the report
     /// alongside this change for the actual test and its output:
     /// `handleRunningAppsChange` (a bound app launching/quitting — the common
-    /// "open Settings, flip the toggle, quit" flow) and `windowAppeared` (the
+    /// "open Settings, flip the toggle, quit" flow), `windowAppeared` (the
     /// user comes back to DuoUpdater itself — the "leave the vendor app running"
-    /// flow). Coalesced against overlapping calls.
+    /// flow), and the preference-path watcher armed in `armLocalRescan`
+    /// (`"prefs-watch"`) for the case those two both miss. Coalesced against
+    /// overlapping calls.
     private func recheckChannelSwitches(trigger: String) async {
         guard !results.isEmpty else { return }
         // Latest wins: a pass already on the network was started from a choice the

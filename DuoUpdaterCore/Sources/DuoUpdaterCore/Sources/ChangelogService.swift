@@ -26,8 +26,10 @@ public enum ChangelogService {
     /// newest-first index: we fetch it, follow its first link to the latest
     /// version's detail page, and parse that (see `resolveDetailURL`).
     ///
-    /// Results are cached in ``ChangelogCache/shared`` for 15 minutes (keyed on
-    /// `recipe.source`) so the detail window opens instantly on repeat visits.
+    /// Results are cached in ``ChangelogCache/shared`` for 15 minutes (keyed on the
+    /// page `load` actually resolves — per-version for a templated recipe, the feed
+    /// page for a `feedPagePattern` one — plus the recipe's identity as a fragment)
+    /// so the detail window opens instantly on repeat visits.
     /// Concurrent callers for the same recipe are coalesced onto one network
     /// fetch. Cache is cleared on manual refresh — see ``AppListModel/refresh()``.
     ///

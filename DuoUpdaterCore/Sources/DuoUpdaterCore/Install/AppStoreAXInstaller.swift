@@ -246,10 +246,18 @@ public actor AppStoreAXInstaller {
     /// - Parameters:
     ///   - trackID: the App Store numeric id (`AppStoreAvailability.trackID`).
     ///   - onStage: progress callback, same contract as the other installers.
-    ///   - confirmQuit: invoked with the running app's name when App Store asks to
-    ///     quit it to finish installing. Return `true` to press Continue (the app
-    ///     quits and the update lands), `false` to press Cancel (throws `.cancelled`).
-    ///     Not called when the app isn't running — then the update installs directly.
+    ///   - requestQuit: invoked with the running app's name when App Store's
+    ///     "Close this app to update" sheet appears, so the caller can put its own
+    ///     Relaunch/Cancel prompt up. Not called when the app isn't running — then
+    ///     the update installs directly.
+    ///   - quitAnswer: polled while that sheet is up. `QuitPrompt.decide` weighs the
+    ///     answer against what the screen and the disk now show, and returns one of
+    ///     four outcomes: quit the app ourselves (graceful `terminate()` — the
+    ///     sheet's own Continue is not pressable, see the `classifyOwnSheet` arm
+    ///     below), press Cancel and throw `.cancelled`, keep waiting, or "someone
+    ///     else already settled it".
+    ///   - withdrawQuit: retires that prompt once the question no longer has an
+    ///     answer to give.
     ///   - viaUpdatesList: drive App Store's **Updates list** (`showUpdatesPage`) and
     ///     locate the app's row by name, instead of opening its product page. Required
     ///     for **region-locked** apps: their product page is unreachable under a

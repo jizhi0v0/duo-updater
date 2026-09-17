@@ -262,11 +262,13 @@ public actor InstallCoordinator {
 
     /// Fetch and apply `result` by `route`.
     ///
-    /// - Parameter releaseAfterDownload: called once, as soon as the bytes are
-    ///   down (or as soon as a tool that fetches on our behalf finishes), so a
-    ///   per-host gate the caller holds can be handed to the next app rather
-    ///   than spanning the extract and swap too. Must be idempotent — it is not
-    ///   called at all on paths that never reach a download.
+    /// - Parameter releaseAfterDownload: called once per download attempt, as soon
+    ///   as the bytes are down (or as soon as a tool that fetches on our behalf
+    ///   finishes), so a per-host gate the caller holds can be handed to the next
+    ///   app rather than spanning the extract and swap too. A delta-route failure
+    ///   that retries with the full archive downloads twice and so calls this
+    ///   twice. Must be idempotent — it is not called at all on paths that never
+    ///   reach a download.
     /// - Parameter beforeInstallerOpen: `.installer` route only — runs after the
     ///   package passes the gate and before it reaches macOS's Installer, so the
     ///   caller can retire the window this package supersedes while Installer is
@@ -274,7 +276,7 @@ public actor InstallCoordinator {
     /// - Parameter installedPopulation: every bundle this machine's scan knows
     ///   about, for `SelfUpdaterStash`'s attribution gate — whether anyone ELSE
     ///   claims the updater cache directory this app's download would come from.
-    ///   **No default**, so both call sites have to answer it rather than one of
+    ///   **No default**, so every call site has to answer it rather than one of
     ///   them silently inheriting "unknown"; nil is refused, not assumed safe.
     public func perform(
         _ result: UpdateResult,

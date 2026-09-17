@@ -8,9 +8,11 @@ import DuoUpdaterCore
 /// right pane shows the selected app's changelog (recipe → structured → inline
 /// HTML → web page).
 ///
-/// There is no lens switcher any more: download traffic has its own window
-/// (`NetworkWindowView`), so the detail pane is always Release Notes. The toolbar
-/// gear opens Settings in its own window too (`openWindow`), not as a sheet.
+/// There is no *traffic* lens any more: download traffic has its own window
+/// (`NetworkWindowView`). The app-row pane is Release Notes, or the Bundle Diff
+/// when the selected app has a backup; a selected formula or unchecked package has
+/// its own pane instead. The toolbar gear opens Settings in its own window too
+/// (`openWindow`), not as a sheet.
 struct WorkbenchWindowView: View {
     static let windowID = "workbench"
 
@@ -243,8 +245,9 @@ struct WorkbenchWindowView: View {
         }
         .navigationTitle("DuoUpdater")
         .toolbar {
-            // Download traffic has its own window now (NetworkWindowView), so the
-            // detail pane is always Release Notes and needs no lens switcher.
+            // Download traffic has its own window now (NetworkWindowView), so no
+            // traffic lens is needed here; the app-row pane is Release Notes or the
+            // Bundle Diff, which the detail column switches on its own.
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     openWindow(id: SettingsView.windowID)
@@ -328,8 +331,9 @@ struct WorkbenchWindowView: View {
         .onDisappear { model.windowDisappeared() }
         // Debounce the detail pane: the sidebar highlight (`selection`) follows the
         // arrow keys instantly, but `detailSelection` — what the heavy detail renders
-        // — only catches up once the selection holds still for ~160ms. Scrubbing
-        // through 40 apps then fires one detail build instead of 40.
+        // — only catches up once the selection holds still: 400 ms while scrubbing,
+        // 120 ms for a deliberate single step. Scrubbing through 40 apps then fires
+        // one detail build instead of 40.
         .onChange(of: selection) { _, newValue in
             // A selection change means the user is working in the list — by arrow
             // key (already focused) or by clicking a row after the detail pane took
@@ -2003,7 +2007,7 @@ struct ChangelogEntriesView: View {
     var showsDatesInline: Bool = false
     /// Whether to offer the side-by-side / long-scroll switch.
     ///
-    /// Off for our own notes: with 53 versions the rail is the only sane way to
+    /// Off for our own notes: with 101 versions the rail is the only sane way to
     /// read them, so the picker sat alone in an empty strip offering a layout
     /// nobody would pick — cost in vertical space and visual noise, no benefit.
     /// A vendor changelog is often a handful of entries where the long scroll is a
@@ -2757,7 +2761,7 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
 
     /// Puts `reason` on screen in place of a blank pane. `WorkbenchWindowView`'s
     /// SwiftUI layer already has a `ContentUnavailableView` for "nothing to show"
-    /// (`ReleaseNotesPane.emptyNotes`, `FormulaDetail.noNotes`), but this
+    /// (`ReleaseNotesPane.emptyNotes`, `FormulaDetailPane.noNotes`), but this
     /// `WKWebView` is owned by `WebViewCache` and mounted through a plain
     /// `NSViewRepresentable` that only ever creates it — there is no channel from
     /// here back to that SwiftUI state without threading a binding through the

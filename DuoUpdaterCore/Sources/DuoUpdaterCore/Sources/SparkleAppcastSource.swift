@@ -196,8 +196,10 @@ public struct SparkleAppcastSource: UpdateSource {
     /// so we can't read the subscription from outside the bundle. We infer it
     /// instead from the build the user is actually running: match the installed
     /// version to a feed item and read its channel. A stable build (default
-    /// channel) is then never offered a prerelease, and a beta build is offered
-    /// only same-channel betas — never a stable that may be incompatible. When
+    /// channel) is then never offered a prerelease, and a beta build is offered its
+    /// own channel's prereleases IN ADDITION to the default channel — so a newer
+    /// stable is still offered, and only prereleases from channels this copy is not
+    /// on are withheld. When
     /// the installed build isn't in the feed (trimmed history) we fall back to
     /// the default channel, the conservative choice that never pushes a surprise
     /// prerelease.

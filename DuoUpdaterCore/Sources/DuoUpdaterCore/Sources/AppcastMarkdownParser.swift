@@ -39,8 +39,9 @@ enum AppcastMarkdownParser {
                 continue
             }
 
-            // Bullet: `- `, `* `, `+ ` (top-level only; indented sub-bullets fold
-            // into the parent line below via the prose path, kept verbatim).
+            // Bullet: `- `, `* `, `+ `. Indentation is trimmed above, so a
+            // sub-bullet reaches this branch too and is emitted as its own item
+            // rather than folded into the parent line.
             if let marker = ["- ", "* ", "+ "].first(where: { line.hasPrefix($0) }) {
                 let body = String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
                 if !body.isEmpty { out.append(stripInline(body)) }
@@ -80,9 +81,9 @@ enum AppcastMarkdownParser {
 
     // MARK: - Internals
 
-    /// Strip the lightweight inline emphasis markers (`**`, `*`, `` ` ``) that
-    /// would otherwise render literally in the plain-text item view. Links and
-    /// emoji are left intact — they read fine as written.
+    /// Strip the lightweight inline emphasis markers (`**`, `` ` ``) that would
+    /// otherwise render literally in the plain-text item view; a single `*` is
+    /// left alone. Links and emoji are left intact — they read fine as written.
     private static func stripInline(_ text: String) -> String {
         var s = text
         for token in ["**", "`"] {

@@ -21,7 +21,7 @@ import Foundation
 ///  - `UpdateChecker.evaluate` decides whether that item is an UPDATE, and refuses
 ///    when the marketing version says backwards. Pinned by
 ///    `aTrimmedBetaIsNotOfferedTheOlderStable` and
-///    `aSourceThatNamesItsOwnVersionsIsNotSecondGuessed`.
+///    `aSourceThatDoesNotSpeakTheBundlesVersionsIsNotSecondGuessed`.
 ///
 /// ⚠️ The rest are one-directional: they fail if the guard OVER-withholds, and
 /// they pass with the guard deleted entirely. That is deliberate (over-withholding

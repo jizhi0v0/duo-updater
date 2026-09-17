@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tinyapp.tableplus"
 changelogs[0].source = URL("https://tableplus.com/osx/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h3[^>]*>Version (?<version>\\d+\\.\\d+(?:\\.\\d+)?) \\(\\d+\\)(?:\\s*-\\s*(?<title>[^<]+))?</h3>\\s*<h4[^>]*>Release date:\\s*(?<date>[^.<]+)[^<]*</h4>.*?<ul>(?<body>.*?)</ul>"
 changelogs[0].itemPatterns = Array(count: 1)

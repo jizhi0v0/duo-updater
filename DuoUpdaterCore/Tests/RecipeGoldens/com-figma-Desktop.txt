@@ -78,6 +78,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.figma.Desktop"
 changelogs[0].source = URL("https://www.figma.com/release-notes/feed/atom.xml")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<entry>\\s*<title type=\"html\"><!\\[CDATA\\[(?<version>.*?)\\]\\]></title>\\s*<id>[^<]*</id>\\s*<link[^>]*/>\\s*<updated>(?<date>[^T]+)T[^<]*</updated>\\s*(?<body><content type=\"html\"><!\\[CDATA\\[.*?\\]\\]></content>)"
 changelogs[0].itemPatterns = Array(count: 1)

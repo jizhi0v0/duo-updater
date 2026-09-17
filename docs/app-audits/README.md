@@ -256,6 +256,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Electron-covered (auto-detected via the bundle's `app-update.yml`, no version recipe)
 
 - [x] [**Kimi**](com-moonshot-kimichat.md) · `com.moonshot.kimichat` — C · 检测走 ElectronManifestSource · manifest 要带 `noCache` 查询串才过得了 CDN 边缘副本 · 官网 DMG 是安装器 · 2026-09-11
+- [x] [**Kimi Code**](com-kimi-code-desktop.md) · `com.kimi.code.desktop` — C（`versionFromTemplate`：每版一个不带版本号的 `changelog.en.md`）· 检测与 zip 一键走 ElectronManifestSource · canary 在私有 GitHub 仓库，不接 · 2026-09-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 

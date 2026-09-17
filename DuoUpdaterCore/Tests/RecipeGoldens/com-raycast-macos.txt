@@ -81,6 +81,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.raycast.macos"
 changelogs[0].source = URL("https://www.raycast.com/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<span id=\"(?<version>[0-9][0-9.]*)\"></span>.*?changelogDate\">(?<date>[^<]+)</span>.*?changelogBody\">(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 1)
@@ -110,6 +111,7 @@ changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "com.raycast.macos"
 changelogs[1].source = URL("https://www.raycast.com/changelog/macos-v1")
 changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .html
 changelogs[1].entryPattern = "<span id=\"(?<version>[0-9][0-9.]*)\"></span>.*?changelogDate\">(?<date>[^<]+)</span>.*?changelogBody\">(?<body>.*?)</article>"
 changelogs[1].itemPatterns = Array(count: 1)

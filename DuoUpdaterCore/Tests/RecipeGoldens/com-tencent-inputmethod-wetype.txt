@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tencent.inputmethod.wetype"
 changelogs[0].source = URL("https://z.weixin.qq.com/web/change-log/macos")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "\"version\":\"(?<version>[0-9][^\"]*)\",\"content\":\"[^\"]*\",\"content_html\":\"(?<body>[^\"]*)\",\"platform\":3"
 changelogs[0].itemPatterns = Array(count: 3)

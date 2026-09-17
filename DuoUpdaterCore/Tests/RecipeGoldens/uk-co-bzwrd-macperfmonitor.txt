@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "uk.co.bzwrd.macperfmonitor"
 changelogs[0].source = URL("https://raw.githubusercontent.com/Zesty0wl/mac-performance-monitor/main/CHANGELOG.md")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "(?:^|\\n)##\\s+\\[(?<version>[0-9][^\\]]*)\\]\\s*-\\s*(?<date>[^\\n]+)\\n(?<body>.*?)(?=\\n##\\s|\\z)"
 changelogs[0].itemPatterns = Array(count: 1)

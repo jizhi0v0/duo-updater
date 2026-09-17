@@ -84,6 +84,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.workbuddy.workbuddy"
 changelogs[0].source = URL("https://www.workbuddy.cn/docs/workbuddy/Changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h2[^>]*>\\s*(?<version>\\d+(?:\\.\\d+)+)(?:[^<\u{FF08}(]*[\u{FF08}(](?<date>[^\u{FF09})<]+)[\u{FF09})])?(?:(?!</h2>).)*</h2>\\s*<ul[^>]*>(?<body>.*?)</ul>"
 changelogs[0].itemPatterns = Array(count: 1)

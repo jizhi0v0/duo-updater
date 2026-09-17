@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.github.GitHubClient"
 changelogs[0].source = URL("https://central.github.com/deployments/desktop/desktop/changelog.json")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = ""
 changelogs[0].itemPatterns = Array(count: 0)
@@ -38,6 +39,7 @@ changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "com.github.GitHubClient"
 changelogs[1].source = URL("https://central.github.com/deployments/desktop/desktop/changelog.json?env=beta")
 changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .html
 changelogs[1].entryPattern = ""
 changelogs[1].itemPatterns = Array(count: 0)

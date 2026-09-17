@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.todesktop.230313mzl4w4u92"
 changelogs[0].source = URL("https://cursor.com/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "href=\"/changelog/[^\"]+\"><time[^>]*>(?<version>[^<]+)</time>.*?<h1[^>]*>\\s*<a[^>]*href=\"/changelog/[^\"]+\"[^>]*>(?<title>.*?)</a>\\s*</h1>.*?<div class=\"prose[^\"]*\">(?<body>.*?)(?=<p class=\"text-theme-text-sec|<footer|\\z)"
 changelogs[0].itemPatterns = Array(count: 2)

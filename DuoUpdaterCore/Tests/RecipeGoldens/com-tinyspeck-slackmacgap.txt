@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tinyspeck.slackmacgap"
 changelogs[0].source = URL("https://slack.com/release-notes/mac")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<article>\\s*(?:<a name=\"[^\"]*\"></a>\\s*)?<h2[^>]*>Slack\\s+(?<version>[\\d.]+)</h2>\\s*(?:<p[^>]*>(?<date>[^<]*)</p>\\s*)?(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 1)

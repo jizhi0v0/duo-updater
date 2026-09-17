@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.typewhisper.mac"
 changelogs[0].source = URL("https://www.typewhisper.com/en/changelog/")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = ">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>(?:(?!>macOS</span><h3|>Windows</span><h3).)*?<p class=\"mt-1 text-xs text-muted-foreground\">(?<date>[^<]*)</p><div class=\"prose[^\"]*\"[^>]*>(?<body>.*?)</div>"
 changelogs[0].itemPatterns = Array(count: 2)

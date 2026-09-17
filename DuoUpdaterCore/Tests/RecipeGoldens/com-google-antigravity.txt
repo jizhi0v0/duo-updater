@@ -72,6 +72,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.google.antigravity"
 changelogs[0].source = URL("https://antigravity.google/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "href=\"/releases\\?tab=hub&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)"
 changelogs[0].itemPatterns = Array(count: 1)
@@ -101,6 +102,7 @@ changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "com.google.antigravity-ide"
 changelogs[1].source = URL("https://antigravity.google/changelog")
 changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .html
 changelogs[1].entryPattern = "href=\"/releases\\?tab=ide&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)"
 changelogs[1].itemPatterns = Array(count: 1)

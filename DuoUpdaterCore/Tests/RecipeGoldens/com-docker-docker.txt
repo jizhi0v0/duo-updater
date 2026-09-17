@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.docker.docker"
 changelogs[0].source = URL("https://docs.docker.com/desktop/release-notes.md")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "## (?<version>[0-9]+\\.[0-9]+\\.[0-9]+)\\n\\n<em[^>]*>(?<date>[0-9-]+)</em>(?<body>[\\s\\S]*?)(?=\\n## |\\z)"
 changelogs[0].itemPatterns = Array(count: 1)

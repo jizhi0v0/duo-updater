@@ -46,6 +46,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.sublimetext.4"
 changelogs[0].source = URL("https://www.sublimetext.com/download")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<article[^>]*>\\s*<h3>(?:[^<]*?\\(Build\\s+)?(?:Build\\s+)?(?<version>4\\d{3})\\)?</h3>\\s*<div class=\"release-date\">(?<date>[^<]*)</div>(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 1)

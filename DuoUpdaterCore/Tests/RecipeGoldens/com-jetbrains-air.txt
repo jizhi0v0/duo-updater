@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.jetbrains.air"
 changelogs[0].source = URL("https://air.dev/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "\\{version:\"(?<version>[^\"]+)\",date:\"(?<date>[^\"]*)\",title:\"(?<title>(?:\\\\.|[^\"\\\\])*)\",(?<body>.*?)(?=\\},\\{version:\"|\\}\\][,;])"
 changelogs[0].itemPatterns = Array(count: 4)

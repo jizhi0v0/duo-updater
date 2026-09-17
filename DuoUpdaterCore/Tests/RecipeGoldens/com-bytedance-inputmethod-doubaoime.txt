@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.bytedance.inputmethod.doubaoime"
 changelogs[0].source = URL("https://ime.doubao.com/api/v1/version/list?channel=release&version_code=1&platform=macos")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = "\"platform\":\"macOS\",\"version_name\":\"(?<version>[0-9][^\"]*)\",\"version_code\":\\d+,\"change_log\":\"(?<body>(?:\\\\.|[^\"\\\\])*)\""
 changelogs[0].itemPatterns = Array(count: 2)

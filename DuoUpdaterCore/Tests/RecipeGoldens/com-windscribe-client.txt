@@ -97,6 +97,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.windscribe.client"
 changelogs[0].source = URL("https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = ""
 changelogs[0].itemPatterns = Array(count: 0)
@@ -125,6 +126,7 @@ changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "com.windscribe.client"
 changelogs[1].source = URL("https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40")
 changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .json
 changelogs[1].entryPattern = ""
 changelogs[1].itemPatterns = Array(count: 0)
@@ -153,6 +155,7 @@ changelogs[2] = struct ChangelogRecipe
 changelogs[2].bundleID = "com.windscribe.client"
 changelogs[2].source = URL("https://api.github.com/repos/Windscribe/Desktop-App/releases?per_page=40")
 changelogs[2].sourceTemplate = nil
+changelogs[2].versionFromTemplate = false
 changelogs[2].mode = .json
 changelogs[2].entryPattern = ""
 changelogs[2].itemPatterns = Array(count: 0)

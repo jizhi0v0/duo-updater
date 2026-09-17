@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.DanPristupov.Fork"
 changelogs[0].source = URL("https://git-fork.com/releasenotes")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h4 class=\"header4 release-notes\">Fork (?<version>[^<]+)</h4>.*?<h5 class=\"date\">(?<date>[^<]+)</h5>(?<body>.*?)(?=<h4 class=\"header4 release-notes\">|$)"
 changelogs[0].itemPatterns = Array(count: 1)

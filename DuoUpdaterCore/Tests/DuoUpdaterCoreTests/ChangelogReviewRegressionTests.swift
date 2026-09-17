@@ -70,13 +70,18 @@ private let hbuilderXCodeSpanFixture = #"""
 /// `[text](url)` links the `.md` recipes have to unwrap. Kept as two named shapes
 /// rather than widened to "any JSON": a vendor's own JSON API is not Markdown,
 /// and unwrapping there would eat punctuation the vendor typed.
+///
+/// A templated recipe's body comes from `sourceTemplate`, so that is the address
+/// checked for it (Kimi Code's `binaries/{version}/changelog.en.md`).
 @Test func onlyMarkdownSourceRecipesUnwrapCodeSpans() {
-    func bodyIsMarkdown(_ source: URL) -> Bool {
+    func bodyIsMarkdown(_ recipe: ChangelogRecipe) -> Bool {
+        if let template = recipe.sourceTemplate { return template.hasSuffix(".md") }
+        let source = recipe.source
         if source.path.hasSuffix(".md") { return true }
         return source.host == "api.github.com" && source.path.hasSuffix("/releases")
     }
     let flagged = ChangelogRecipeRegistry.recipes.filter(\.markdownSource)
-    #expect(flagged.allSatisfy { bodyIsMarkdown($0.source) },
+    #expect(flagged.allSatisfy(bodyIsMarkdown),
             "markdownSource belongs on recipes whose body really is Markdown")
     #expect(!flagged.isEmpty, "HBuilderX stable + alpha should be flagged")
 }

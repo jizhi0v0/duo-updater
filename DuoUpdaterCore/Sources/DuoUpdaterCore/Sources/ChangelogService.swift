@@ -62,7 +62,8 @@ public enum ChangelogService {
         return await ChangelogCache.shared.load(for: cacheURL) {
             Log.source.debug(
                 "changelog cache miss: \(resolved.host ?? "?", privacy: .public)")
-            let parsed = await fetchAndParse(recipe, resolved: resolved, session: session)
+            let parsed = await fetchAndParse(
+                recipe, resolved: resolved, version: version, session: session)
             // Recipe health is recorded here, inside the cache-miss closure, so an
             // in-memory hit doesn't re-assert an outcome it never re-tested.
             await recordHealth(recipe, parsed: parsed, fetched: resolved)
@@ -191,7 +192,7 @@ public enum ChangelogService {
                 detailFetch = (nil, nil)
             }
         }
-        let parsed = parse(recipe, body: detailFetch.body)
+        let parsed = parse(recipe, body: detailFetch.body, version: version)
         await recordHealth(recipe, parsed: parsed, fetched: detailURL ?? resolved)
         return ChangelogDiagnostic(
             changelog: parsed, resolvedURL: resolved, httpStatus: fetched.status,
@@ -210,20 +211,25 @@ public enum ChangelogService {
     /// The fetch + parse half, shared by the cached and uncached entry points so
     /// a sweep exercises exactly the path the app does.
     private static func fetchAndParse(
-        _ recipe: ChangelogRecipe, resolved: URL, session: URLSession
+        _ recipe: ChangelogRecipe, resolved: URL, version: String?, session: URLSession
     ) async -> Changelog? {
         if recipe.structuredFormat != nil {
             return parse(recipe, body: await fetchBody(resolved, recipe: recipe, session: session))
         }
         guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session)
         else { return nil }
-        return parse(recipe, body: await fetchBody(pageURL, recipe: recipe, session: session))
+        return parse(
+            recipe, body: await fetchBody(pageURL, recipe: recipe, session: session),
+            version: version)
     }
 
     /// Turn a fetched page into entries, by whichever route the recipe declares.
     /// Pure: both the cached path and the diagnostic path go through it, so a
-    /// sweep can never parse differently from the app.
-    static func parse(_ recipe: ChangelogRecipe, body: String?) -> Changelog? {
+    /// sweep can never parse differently from the app. `version` is the one the
+    /// page was resolved for (see `ChangelogRecipe.versionFromTemplate`).
+    static func parse(
+        _ recipe: ChangelogRecipe, body: String?, version: String? = nil
+    ) -> Changelog? {
         guard let body else { return nil }
         if let format = recipe.structuredFormat {
             return StructuredChangelogDecoder.decode(
@@ -232,7 +238,7 @@ public enum ChangelogService {
                 includesPromotedStable: recipe.includesPromotedStable,
                 tagPattern: recipe.tagPattern)
         }
-        return ChangelogExtractor.extract(from: body, using: recipe)
+        return ChangelogExtractor.extract(from: body, using: recipe, version: version)
     }
 
     /// A changelog recipe is as fragile as a probe recipe and, until now,

@@ -46,6 +46,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.postmanlabs.mac"
 changelogs[0].source = URL("https://mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = ""
 changelogs[0].itemPatterns = Array(count: 0)

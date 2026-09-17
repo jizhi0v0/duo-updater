@@ -146,6 +146,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.google.Chrome"
 changelogs[0].source = URL("https://chromereleases.googleblog.com/search/label/Stable%20updates")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "title='Stable Channel Update for Desktop'>(?>(?:(?!<span class='publishdate').)*?<span class='publishdate'[^>]*>\\s*(?<date>[^<]+?)\\s*</span>)(?>(?:(?!<script type='text/template'>).)*?<script type='text/template'>\\s*)(?=(?:(?!</script>).)*?(?<version>\\d+\\.\\d+\\.\\d+\\.\\d+))(?<body>(?:(?!</script>).)*?)</script>"
 changelogs[0].itemPatterns = Array(count: 2)

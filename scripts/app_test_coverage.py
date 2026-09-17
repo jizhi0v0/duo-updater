@@ -54,15 +54,25 @@ import sys
 #
 # The SF Symbols column is used when SWT_SF_SYMBOLS_ENABLED is set true, or
 # when it's unset and /Library/Fonts/SF-Pro.ttf exists (ABI/EntryPoints/
-# EntryPoint.swift, same branch). So on any Mac with SF Pro installed, a marker class holding only
-# `✔━` reports every case as never run. With ANSI escape codes on (a TTY),
-# swift-testing wraps the marker in color codes, and in SF Symbols mode adds
-# a second space after it. Neither form matches. xcodebuild writes to a pipe,
-# not a TTY, so that's expected not to arise; this is UNVERIFIED.
+# EntryPoint.swift, same branch). So on any Mac with SF Pro installed, a
+# marker class holding only `✔━` reports every case as never run.
 #
-# Measured 2026-09-17 on the 70 logs then under /tmp/duo-app-tests-* (these get
-# reclaimed, so it can't be re-run): every pass occurrence read `✔ Test`, and
-# the U+200B or torn barrier sat before the marker, never between it and `Test`.
+# Not matched, each a false red:
+#
+#   * With ANSI escape codes on (a TTY), swift-testing wraps the marker in color
+#     codes, and in SF Symbols mode adds a second space after it. xcodebuild
+#     writes to a pipe, not a TTY, so that's not expected to arise (UNVERIFIED).
+#   * Before swiftlang/swift-testing#1585 (merged 2026-02-24, e.g. release/6.2),
+#     a pass with known issues printed `✘` (SF Symbols U+100883), the failure
+#     glyph, so it can't be added without letting failures through. On such a
+#     toolchain a case that passes with a known issue is reported as never
+#     run. No App test uses withKnownIssue. Whether an older toolchain ever
+#     runs this gate is UNVERIFIED.
+#
+# Measured 2026-09-17 on the 70 logs then under /tmp/duo-app-tests-*: every
+# pass occurrence read `✔ Test`, and the U+200B or torn barrier sat before the
+# marker, never between it and `Test`. Those logs are transient (the directory
+# is reclaimed), so this can't be re-run.
 RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
 
 # A log line the test process wrote to stderr (NSLog, or os_log echoed because
@@ -105,21 +115,29 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?:
 #             tail `) passed⏎`. Cutting the log line out, through the record's
 #             newline, leaves `◇ Test foo() passed`.
 #
-# What holds now: a name is counted only where `✔ Test ` or `━ Test ` sits
-# directly before it, and swift-testing prints that prefix only for a case that
-# passed. A timestamped log line can't start inside `✔ Test name(`: its first
-# `-` fits nowhere in it. Cutting whole log lines out can only rejoin pieces
-# around that prefix. So a case that failed, started or was cancelled is counted
-# only if text the test process wrote itself (a log message, or print() to
-# stdout, which is never stripped) supplies part of the `✔ Test name(` prefix at
-# the exact point where a record was torn. Once the prefix is real, what follows
-# it can't change whose name it is, so the parens stay `[^)]*`. Bounding them
-# closed no false pass in the sweep below and added 168 missed interleavings.
-# A single-line grep of App/ and DuoUpdaterCore/Sources finds no log or print
-# call that writes `✔` or `━`.
+# What holds now: a name is counted only where one of the four pass markers
+# and `Test ` sit directly before it. swift-testing prints that prefix in two
+# places. One is the pass record itself. The other is a known issue being
+# recorded (`━ Test foo() recorded a known issue at …`), which happens even if
+# the case fails later. Whole, that record doesn't match: its verb isn't
+# `passed`. Torn, with a log line supplying `) passed`, it can count a case that
+# then fails. That's harmless to the gate, because a failing case already fails
+# xcodebuild and app-tests.sh stops there, before the gate reads the log.
 #
-# Checked by brute force on 2026-09-17, with each writer torn at every point
-# into at most two pieces and interleaved every way:
+# A timestamped log line can't start inside `✔ Test name(`: its first `-` fits
+# nowhere in it. Cutting whole log lines out can only rejoin pieces around that
+# prefix. So a case that failed, started, was skipped or was cancelled is counted
+# only if (a) it recorded a known issue, as above, or (b) text the test process
+# wrote itself (a log message, or print() to stdout, which is never stripped)
+# supplies part of a pass prefix at the exact point where a record was torn.
+# Once the prefix is real, what follows it can't change whose name it is, so
+# the parens stay `[^)]*`. A single-line grep of App/ and DuoUpdaterCore/Sources
+# finds no log or print call that writes `✔` or `━`.
+#
+# Swept by brute force on 2026-09-17, before the SF Symbols markers were added,
+# with a script that is not committed, so the numbers can't be re-run from this
+# repo. Each writer was torn at every point into at most two pieces and
+# interleaved every way:
 #
 #   * one non-pass record (started / failed / cancelled / parameterized) and
 #     one log line whose message is `probe (ok) passed`, `check(x) passed`,
@@ -130,10 +148,12 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?:
 #   * a started or failed record, a log line ending in `probe (ok) passed` or
 #     `) passed`, and a real pass record for another case (so a `✔` from a
 #     different record is on hand), all three torn: no false pass, against
-#     457618 interleavings before;
+#     457618 interleavings with the marker-less pattern;
 #   * the one message that does get a non-passing case counted is a log line
 #     that is itself a whole `✔ Test foo() passed`. That's the exposure
-#     described above, not a splice.
+#     described above, not a splice;
+#   * bounding the parens to argument labels closed no false pass and missed
+#     168 more interleavings of a real pass record.
 #
 # More pieces per writer, or two records tearing each other in more than two
 # pieces, were not swept.
@@ -160,13 +180,13 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?:
 #   * a record split by a log message that itself spans lines, so its second
 #     line is left between the pieces.
 #
-# Requiring the marker adds tears between it and `Test` to the first two.
-# Brute force counts 2181 missed interleavings in each of those orderings,
-# against 2013 without the marker.
+# Requiring the marker adds tears between it and `Test` to the first two. The
+# same uncommitted sweep counted 2181 missed interleavings in each of those
+# orderings, against 2013 without the marker.
 #
 # Whether any of these occur in practice is UNVERIFIED. Of the 70 logs under
-# /tmp/duo-app-tests-* on 2026-09-17, five held a torn pass record, each shape 1
-# or shape 2, and all five are recovered.
+# /tmp/duo-app-tests-* on 2026-09-17 (transient, as above), five held a torn
+# pass record, each shape 1 or shape 2, and all five are recovered.
 #
 # The log-line shape is strict — a timestamp with microseconds and zone, then
 # `name[pid:tid] ` — so a test's own output can't be mistaken for it.

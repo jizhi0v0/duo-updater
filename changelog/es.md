@@ -2,6 +2,30 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.98
+
+**Las actualizaciones que termina Reabrir ahora se pueden revertir.** Cuando una app ya ha descargado su propia actualización y pulsas Reabrir, DuoUpdater guarda primero la versión actual, así que la actualización aparece en Reversión como cualquier otra. Antes solo se podían deshacer las actualizaciones que instalaba el propio DuoUpdater.
+
+**Mira qué cambió una actualización dentro de una app.** Para cualquier app con una versión anterior guardada, el workbench tiene ahora una vista Diferencias del paquete junto a Notas de la versión: firma y permisos, macOS mínimo, ítems en segundo plano y de inicio de sesión, bibliotecas incluidas, y los archivos que se añadieron, se eliminaron o cambiaron de tamaño. `duo diff` hace lo mismo desde Terminal para dos copias cualesquiera de una app.
+
+**Reabrir te avisa cuando el actualizador de una app no aplicó la actualización.** Si la app se cierra y la actualización nunca llega, su fila ahora lo dice y sigue ofreciendo Reabrir. Antes, el indicador se detenía sin decir nada.
+
+**Cherry Studio vuelve a mostrar su versión más reciente.** Después de que Cherry Studio renombrara sus descargas para Mac, DuoUpdater tomaba una versión anterior por la más reciente: las copias recientes aparecían como actualizadas y a las más antiguas se les ofrecía esa compilación anterior.
+
+**Las actualizaciones de la App Store ya no se atascan detrás de un asistente que no responde.** Cuando el asistente de DuoUpdater dejaba de responder, la actualización se quedaba en el 0 % y todas las actualizaciones de la App Store en cola esperaban hasta que salías de DuoUpdater.
+
+**Actualizar todo ya no reabre las apps que has ignorado.** Con «Reabrir automáticamente las apps actualizadas» activado, el final de un lote podía cerrar y volver a abrir una app ignorada, o una cuya versión descargada habías omitido.
+
+**Tinycast y SuperCmd ya son compatibles.** DuoUpdater te avisa cuando sale una nueva versión de Tinycast o de su beta, y ahora reconoce el SuperCmd original de código abierto además de SuperCmd 2. Las notas de la versión de Kimi Code también se muestran ahora.
+
+**Las notas de la versión corresponden a la versión ofrecida.** La página de notas más reciente de VS Code aparecía vacía y, justo después de salir una versión nueva, el panel de notas podía mostrar las de la versión anterior.
+
+**El Registro de versiones ya no añade la misma versión en cada arranque.** Apps como Claude, Raycast y Cline sumaban una entrada duplicada cada vez que se iniciaba DuoUpdater.
+
+**La barra lateral del workbench se divide en las pestañas Apps, Brew y Reversión.** Haz clic en una pestaña o arrastra sobre ellas para cambiar; la búsqueda filtra las tres a la vez.
+
+**Por dentro.** Reabrir y Revertir sobre la misma app ya no se pisan; un feed de actualizaciones ya no puede hacer que DuoUpdater borre archivos fuera de su carpeta de descargas; las comprobaciones en segundo plano ya no corren el riesgo de que macOS pida acceso a los datos de otras apps; un número muy grande en el filtro de Solicitudes ya no cierra la app; y la barra de menús respeta ahora una solicitud de administrador que rechazaste en `duo install`.
+
 ## 0.3.97
 
 **Las actualizaciones de iStat Menus se detectan correctamente.** Cuando iStat Menus volvía a publicar una actualización, DuoUpdater podía seguir ofreciéndola después de instalarla, y volver a pulsar Actualizar terminaba en un error.

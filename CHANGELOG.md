@@ -27,13 +27,21 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Relaunch tells you when an app's own updater didn't apply the update.** If the app closes and the update never lands, the row now says so and still offers Relaunch. Before, the spinner stopped without a word.
 
+**Cherry Studio shows its newest version again.** After Cherry Studio renamed its Mac downloads, DuoUpdater treated an older release as the latest, so recent copies read "up to date" and older ones were offered that older build.
+
+**App Store updates no longer stall behind an unresponsive helper.** When DuoUpdater's helper stopped answering, the update sat at 0% and every App Store update queued behind it waited until you quit DuoUpdater.
+
 **Update All no longer relaunches apps you've ignored.** With "Relaunch updated apps automatically" on, the end of a batch could quit and reopen an ignored app, or one whose downloaded version you had skipped.
 
-**Tinycast and SuperCmd are now supported.** DuoUpdater tells you when a new version of Tinycast, or its beta, is out, and now recognizes the original open-source SuperCmd alongside SuperCmd 2.
+**Tinycast and SuperCmd are now supported.** DuoUpdater tells you when a new version of Tinycast, or its beta, is out, and now recognizes the original open-source SuperCmd alongside SuperCmd 2. Kimi Code's release notes now show up too.
 
-**VS Code release notes show up again.** The latest VS Code release notes page came up empty.
+**Release notes match the version on offer.** The latest VS Code release notes page came up empty, and right after a new version appeared, the notes pane could show the previous release instead.
+
+**The Release Log no longer adds the same release again on every launch.** Apps such as Claude, Raycast and Cline gained a duplicate entry each time DuoUpdater started.
 
 **The workbench sidebar is split into Apps, Brew and Rollback tabs.** Click a tab or drag across them to switch; search narrows all three at once.
+
+**Under the hood.** Relaunch and Roll back on the same app no longer run over each other; an update feed can no longer make DuoUpdater delete files outside its download folder; background checks no longer risk macOS asking for access to other apps' data; a very large number in the Requests filter no longer quits the app; and the menu bar now respects an administrator prompt you declined in `duo install`.
 
 ## 0.3.97
 

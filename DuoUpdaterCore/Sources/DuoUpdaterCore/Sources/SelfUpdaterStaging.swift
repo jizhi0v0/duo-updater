@@ -79,11 +79,21 @@ public enum StagedApplyTrigger: Sendable, Hashable {
 /// behave alike once the app is quit, and the difference decides whether an
 /// instance that comes back up means the swap is off (`ReappearanceWatch`).
 public enum StagedUpdater: Sendable, Hashable {
-    /// Squirrel.Mac's ShipIt. Refuses to swap while an instance of the target
-    /// runs: `Squirrel/SQRLInstaller.m` lists `runningApplicationsWithBundleIdentifier`
-    /// filtered to the target bundle right before installing, and fails with
-    /// `SQRLInstallerErrorAppStillRunning` ("Aborting update attempt because there
-    /// are %lu running instances of the target app") if any are left.
+    /// Squirrel.Mac's ShipIt. Builds that include the running-instances check
+    /// refuse to swap while an instance of the target runs: current
+    /// `Squirrel/SQRLInstaller.m` (master, read 2026-09-17) lists
+    /// `runningApplicationsWithBundleIdentifier` filtered to the target bundle
+    /// right before installing, and fails with `SQRLInstallerErrorAppStillRunning`
+    /// ("Aborting update attempt because there are %lu running instances of the
+    /// target app") if any are left.
+    ///
+    /// Not every bundled ShipIt has it. Grepped 2026-09-17, per copy: the
+    /// `ShipIt` inside one aTrust copy carries "Aborting update" but not that
+    /// line (an older Squirrel), and the one inside one Ollama copy is a symlink
+    /// to a binary with neither string nor `SQRLInstaller` — not Squirrel.Mac.
+    /// UNVERIFIED: what either does when the app is reopened mid-install. The detector cannot tell the builds apart, so it tags them
+    /// all `.shipIt`; for one without the check a reappearance can end the
+    /// Relaunch wait early with a false "restarted without applying the update".
     case shipIt
     /// Sparkle 2's parked installer. Does not refuse: it watches the one instance
     /// it registered and swaps once that one exits, whatever else is running.

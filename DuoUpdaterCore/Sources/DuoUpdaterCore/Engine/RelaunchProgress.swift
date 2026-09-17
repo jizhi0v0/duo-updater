@@ -219,8 +219,9 @@ public enum StagedRelaunchOutcome: Sendable, Equatable {
 /// instance runs: on 2026-09-17 the app was reopened by hand right after our
 /// quit, and ShipIt logged "Aborting update attempt because there are 1 running
 /// instances of the target app" (SQRLInstallerErrorDomain -9) three seconds
-/// later — while our spinner went on for the full wait. The check is in
-/// Squirrel.Mac's `Squirrel/SQRLInstaller.m` (see `StagedUpdater.shipIt`).
+/// later — while our spinner went on for the full wait. The check is in current
+/// Squirrel.Mac's `Squirrel/SQRLInstaller.m`, and not in every bundled ShipIt —
+/// see `StagedUpdater.shipIt` for the ones seen without it.
 ///
 /// **Sparkle 2 does not refuse, so it is not judged here.** Read from the
 /// sources this repo builds against (2.9.6), not measured on a running app: the

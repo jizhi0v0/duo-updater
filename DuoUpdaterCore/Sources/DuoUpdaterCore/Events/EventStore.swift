@@ -318,6 +318,10 @@ public actor EventStore {
         Log.app.error("events: database unwritable; dropped \(dropped, privacy: .public) buffered events")
     }
 
+    /// Events waiting for a commit. For tests: a batch kept after a failed commit
+    /// on a connection that stays unwritable has no other observable.
+    var bufferedCountForTesting: Int { buffer.count }
+
     private func scheduleFlush() {
         guard pendingFlush == nil else { return }
         pendingFlush = Task { [weak self, flushDelay] in
@@ -361,8 +365,14 @@ public actor EventStore {
         let batch = buffer
         buffer = []
 
+        // A failed insert fails the batch, the same as a failed `COMMIT`. `BEGIN`
+        // succeeding does not mean the database will take a write: on a read-only
+        // store SQLite grants `BEGIN IMMEDIATE`, refuses every INSERT, and then
+        // commits the empty transaction — so with the result ignored, the buffer
+        // was cleared and nothing had been written.
+        var inserted = true
         for event in batch {
-            insert(event, into: db)
+            guard insert(event, into: db) else { inserted = false; break }
             // The rollup rides along in the same transaction as the row it
             // summarises. That is the whole reason there is no second file: the
             // two cannot disagree about a transfer, because a crash between them
@@ -371,7 +381,7 @@ public actor EventStore {
                 upsertTotal(request, client: event.client, into: db)
             }
         }
-        guard exec(db, "COMMIT;") else {
+        guard inserted, exec(db, "COMMIT;") else {
             exec(db, "ROLLBACK;")
             buffer.insert(contentsOf: batch, at: 0)
             trimBufferIfRunaway()

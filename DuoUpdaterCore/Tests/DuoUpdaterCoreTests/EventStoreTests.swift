@@ -772,6 +772,45 @@ struct EventStoreTests {
                 "the batch was dropped rather than deferred")
     }
 
+    /// The transaction opening is not the only place a commit can fail. On a
+    /// read-only database SQLite grants `BEGIN IMMEDIATE` and refuses the
+    /// INSERT, and `COMMIT` then succeeds on an empty transaction — so a failed
+    /// insert that is not checked clears the buffer with nothing written.
+    @Test("A read-only database keeps the batch instead of committing it empty")
+    func aReadOnlyDatabaseKeepsTheBatch() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("events-ro-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("events.sqlite")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        do {
+            let seed = EventStore(fileURL: url, flushEventCount: 1, flushDelay: .milliseconds(10))
+            await seed.append(Self.event(host: "first.example.com"))
+            await seed.flush()
+        }
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o444], ofItemAtPath: url.path + suffix)
+        }
+        // `open()` sets the modes back to 0600, but only after SQLite has opened
+        // the file read-only; the connection stays read-only for its lifetime.
+
+        // One past the cap in a single batch, so the same flush also shows the
+        // kept batch is trimmed rather than left to grow.
+        let readOnly = EventStore(fileURL: url, flushEventCount: .max, flushDelay: .seconds(3600))
+        for _ in 0...EventStore.maxBufferedEvents {
+            await readOnly.append(Self.event(host: "kept.example.com"))
+        }
+        await readOnly.flush()
+
+        let stored = await readOnly.coverage().count
+        let buffered = await readOnly.bufferedCountForTesting
+        #expect(stored == 1, "the read-only store took a write")
+        #expect(buffered == EventStore.maxBufferedEvents,
+                "the failed batch was dropped, or kept without the cap")
+    }
+
     /// Runs `body` with `DUO_STATE_DIR` unset, restoring exactly what was
     /// there before — including restoring to "unset" when nothing was there.
     ///

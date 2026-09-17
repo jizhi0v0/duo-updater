@@ -27,9 +27,10 @@ public enum ChangelogService {
     /// version's detail page, and parse that (see `resolveDetailURL`).
     ///
     /// Results are cached in ``ChangelogCache/shared`` for 15 minutes (keyed on
-    /// `recipe.source`) so the detail window opens instantly on repeat visits.
-    /// Concurrent callers for the same recipe are coalesced onto one network
-    /// fetch. Cache is cleared on manual refresh — see ``AppListModel/refresh()``.
+    /// the resolved page, the recipe and `version` — see `cacheKeyURL`) so the
+    /// detail window opens instantly on repeat visits. Concurrent callers for the
+    /// same key are coalesced onto one network fetch. Cache is cleared on manual
+    /// refresh — see ``AppListModel/refresh()``.
     ///
     /// `feedPage` is `ChangelogRecipeSelection.feedPage(for:recipe:)`, and has no
     /// default on purpose: a caller that omits it compiles, and every
@@ -287,10 +288,11 @@ public enum ChangelogService {
         return await ChangelogDiskCache.shared.get(for: key)
     }
 
-    /// The in-memory cache slot for a recipe: the resolved page URL with the
-    /// recipe's own identity appended as a fragment, so no two recipes can land in
-    /// the same slot. The fragment never reaches the network — `load` always
-    /// fetches the un-fragmented `resolved`.
+    /// The in-memory cache slot for a recipe and target version: the resolved page
+    /// URL with the recipe's own identity, plus the version when there is one,
+    /// appended as a fragment, so no two recipes can land in the same slot. The
+    /// fragment never reaches the network — `load` always fetches the
+    /// un-fragmented `resolved`.
     ///
     /// The identity is folded in for EVERY recipe, not just the structured
     /// per-channel ones this started out covering (Warp's `channel_versions.json`).

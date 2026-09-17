@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// `ChangelogCache` is a `[URL: Entry]` keyed by whatever `cacheKeyURL` returns,
-/// and its doc comment promises "each recipe owns exactly one cache slot". That
+/// and its doc comment promises "no two recipes share a slot". That
 /// held only for structured recipes: they got the channel folded into the key as a
 /// fragment, and everyone else got the bare resolved URL. Two recipes that read
 /// two different products out of ONE page (Antigravity's hub and its IDE, both

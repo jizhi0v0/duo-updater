@@ -267,6 +267,78 @@ public enum SignatureVerifier {
         try signingInfo(at: url)[kSecCodeInfoIdentifier as String] as? String
     }
 
+    /// What a signature says about the code, for `duo diff` to compare across two
+    /// releases. Read from `SecCodeCopySigningInformation` — the same fields
+    /// `codesign -dvv` prints — without spawning it once per bundle.
+    ///
+    /// Not a validity check: a tampered bundle still reports what its signature
+    /// claims. Blocking Security call, so callers stay off the cooperative pool.
+    public struct SigningSummary: Sendable, Equatable {
+        public let identifier: String?
+        public let teamIdentifier: String?
+        /// Certificate subject summaries, leaf first — codesign's `Authority=` lines.
+        public let authorities: [String]
+        /// CodeDirectory flags by codesign's names, e.g. `["runtime"]`.
+        public let flags: [String]
+        /// The hardened-runtime version, e.g. `27.0.0`.
+        public let runtimeVersion: String?
+        /// Flattened to `key -> value`, nested keys joined with `.` and arrays
+        /// joined with `, `, so a single changed entry compares as one line.
+        public let entitlements: [String: String]
+
+        public init(
+            identifier: String?, teamIdentifier: String?, authorities: [String], flags: [String],
+            runtimeVersion: String?, entitlements: [String: String]
+        ) {
+            self.identifier = identifier
+            self.teamIdentifier = teamIdentifier
+            self.authorities = authorities
+            self.flags = flags
+            self.runtimeVersion = runtimeVersion
+            self.entitlements = entitlements
+        }
+    }
+
+    /// Nil when the bundle is unsigned or its signature cannot be read.
+    public static func signingSummary(at url: URL) -> SigningSummary? {
+        // Unsigned code is not an error here: the call succeeds with nothing but
+        // `main-executable` in it. Signed code always carries an identifier.
+        guard let info = try? signingInfo(at: url), info[kSecCodeInfoIdentifier as String] != nil
+        else { return nil }
+        let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate] ?? []
+        let flagBits = (info[kSecCodeInfoFlags as String] as? NSNumber)?.uint32Value ?? 0
+        // Named as `codesign` names them, so the output reads like its `flags=(…)`.
+        let names: [(UInt32, String)] = [
+            (0x0000_0001, "host"), (0x0000_0002, "adhoc"), (0x0000_0100, "hard"),
+            (0x0000_0200, "kill"), (0x0000_0400, "expires"), (0x0000_0800, "restrict"),
+            (0x0000_1000, "enforcement"), (0x0000_2000, "library-validation"),
+            (0x0001_0000, "runtime"), (0x0002_0000, "linker-signed"),
+        ]
+        let runtime = (info[kSecCodeInfoRuntimeVersion as String] as? NSNumber)?.uint32Value
+        return SigningSummary(
+            identifier: info[kSecCodeInfoIdentifier as String] as? String,
+            teamIdentifier: info[kSecCodeInfoTeamIdentifier as String] as? String,
+            authorities: certificates.map { SecCertificateCopySubjectSummary($0) as String? ?? "?" },
+            flags: names.filter { flagBits & $0.0 != 0 }.map(\.1),
+            runtimeVersion: runtime.map { "\($0 >> 16).\(($0 >> 8) & 0xff).\($0 & 0xff)" },
+            entitlements: flattened(info[kSecCodeInfoEntitlementsDict as String] as? [String: Any] ?? [:]))
+    }
+
+    static func flattened(_ value: Any, prefix: String = "") -> [String: String] {
+        switch value {
+        case let dict as [String: Any]:
+            var out: [String: String] = [:]
+            for (key, child) in dict {
+                out.merge(flattened(child, prefix: prefix.isEmpty ? key : prefix + "." + key)) { first, _ in first }
+            }
+            return out
+        case let array as [Any]:
+            return [prefix: array.map { "\($0)" }.joined(separator: ", ")]
+        default:
+            return [prefix: "\(value)"]
+        }
+    }
+
     private static func signingInfo(at url: URL) throws -> [String: Any] {
         let code = try staticCode(at: url)
         var info: CFDictionary?

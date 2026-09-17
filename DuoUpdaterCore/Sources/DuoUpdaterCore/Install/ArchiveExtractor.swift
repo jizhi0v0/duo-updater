@@ -2,7 +2,9 @@ import Foundation
 
 /// Extracts a downloaded Sparkle archive and returns the `.app` bundle inside.
 /// Supports the common formats: `.dmg` (hdiutil), `.zip` (ditto), and tarballs.
-enum ArchiveExtractor {
+///
+/// Public for `duo diff`, which unpacks two releases the same way an install would.
+public enum ArchiveExtractor {
 
     enum ExtractError: LocalizedError {
         case unsupported(String)
@@ -51,7 +53,7 @@ enum ArchiveExtractor {
     /// cancellation — a DMG left mounted because a cancel landed between attach and
     /// detach is exactly what must not happen. That is also what the
     /// `offCooperativePool` hop its callers used to make guaranteed.
-    static func extractApp(from archive: URL, workDir: URL) async throws -> URL {
+    public static func extractApp(from archive: URL, workDir: URL) async throws -> URL {
         let ext = archive.pathExtension.lowercased()
         switch ext {
         case "dmg":

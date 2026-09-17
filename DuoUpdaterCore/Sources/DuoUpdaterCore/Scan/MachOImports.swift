@@ -119,6 +119,60 @@ public enum MachOImports {
         }
     }
 
+    /// Every slice's architecture, in the order the image stores them — e.g.
+    /// `["x86_64", "arm64"]` for a universal binary. `Bundle.executableArchitectures`
+    /// answers this for a bundle's main executable only; `duo diff` asks it of every
+    /// Mach-O file in a release, helpers and dylibs included.
+    ///
+    /// Header reads only, like the rest of this type. Nil when the file is not a
+    /// little-endian Mach-O image or a fat file of them.
+    public static func architectures(at url: URL) -> [String]? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let magic = read32(handle, at: 0, bigEndian: false) else { return nil }
+
+        func sliceName(at offset: UInt64) -> String? {
+            guard let sliceMagic = read32(handle, at: offset, bigEndian: false),
+                  sliceMagic == Magic.macho64 || sliceMagic == Magic.macho32,
+                  let cpuType = read32(handle, at: offset + 4, bigEndian: false),
+                  let subtype = read32(handle, at: offset + 8, bigEndian: false)
+            else { return nil }
+            return architectureName(cpuType: cpuType, subtype: subtype & 0x00ff_ffff)
+        }
+
+        switch magic {
+        case Magic.macho64, Magic.macho32:
+            return sliceName(at: 0).map { [$0] }
+        case Magic.fat, Magic.fat64:
+            // Java class files share the fat magic; the word after it is then a
+            // class file version (45 and up), which the bound below refuses.
+            guard let count = read32(handle, at: 4, bigEndian: true), count > 0, count < 64 else { return nil }
+            let entrySize: UInt64 = magic == Magic.fat64 ? 32 : 20
+            var names: [String] = []
+            for index in 0..<UInt64(count) {
+                let base = 8 + index * entrySize
+                let offset = magic == Magic.fat64
+                    ? read64(handle, at: base + 8, bigEndian: true)
+                    : read32(handle, at: base + 8, bigEndian: true).map(UInt64.init)
+                guard let offset, let name = sliceName(at: offset) else { return nil }
+                names.append(name)
+            }
+            return names
+        default:
+            return nil
+        }
+    }
+
+    static func architectureName(cpuType: UInt32, subtype: UInt32) -> String {
+        switch cpuType {
+        case cpuTypeARM64: return subtype == 2 ? "arm64e" : "arm64"
+        case 0x0100_0007: return "x86_64"
+        case 0x0200_000c: return "arm64_32"
+        case 7: return "i386"
+        default: return String(format: "cputype 0x%x", cpuType)
+        }
+    }
+
     /// Whether `libraries` contains a link against the framework named `name`.
     /// Matches on the `<name>.framework/` path component, which is stable across
     /// the `@rpath` / absolute / versioned spellings an install name can take.

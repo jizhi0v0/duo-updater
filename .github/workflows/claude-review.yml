@@ -73,6 +73,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: ${{ steps.prep.outputs.prompt }}
+          # Put the reviewer's tool calls in the run Summary. Input is trusted
+          # here (the maintainer's own PRs only), which is the action's condition.
+          display_report: "true"
           claude_args: >-
             --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
 

@@ -6285,14 +6285,6 @@ final class AppListModel {
         )
     }
 
-    /// Called when the user opts into incremental App Store updates: if Accessibility
-    /// isn't granted yet, guide them to grant it right away (the drag-to-authorize
-    /// panel) rather than letting the first update fail. No-op when already trusted.
-    func guideAccessibilityForIncrementalIfNeeded() {
-        guard !AppStoreAXInstaller.isTrusted else { return }
-        presentAccessibilityPermissionFlow()
-    }
-
     /// Set once we've floated the Accessibility panel during a mas-fallback this run,
     /// so a user who's content with the full route isn't nagged on every update.
     @ObservationIgnored private var didGuideAccessibilityThisSession = false

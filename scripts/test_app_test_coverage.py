@@ -75,10 +75,12 @@ class SplicedLogLines(unittest.TestCase):
 class StillAGate(unittest.TestCase):
     """The repair must not invent passes.
 
-    Mutation: drop the `passed` anchor from `RAN`, or match the raw text with a
-    pattern that lacks it → the started and failed cases are counted, including
-    the failure spliced into a log line, which only the raw-text half of
-    `ran_cases` sees whole.
+    Mutation: drop BOTH the `[✔━] ` marker and the `passed` anchor from `RAN`
+    → the started and failed cases are counted, including the failure spliced
+    into a log line, which only the raw-text half of `ran_cases` sees whole.
+    Dropping only one of them keeps this class green: either one rejects a whole
+    `◇`/`✘` record. For torn records only the marker does; see
+    `TornRecordsDoNotBorrowAVerdict`.
     """
 
     def test_a_case_that_only_started_is_not_counted(self):
@@ -99,6 +101,110 @@ class StillAGate(unittest.TestCase):
             "cted connection — no client requirement is installed on this listener\n"
         )
         self.assertEqual(atc.ran_cases(text), set())
+
+
+# Prefix of a timestamped log line, as the test process writes it.
+TS = "2026-09-17 17:08:17.095680+0800 xctest[1112:8721793] "
+
+
+class TornRecordsDoNotBorrowAVerdict(unittest.TestCase):
+    """A record torn by a log line must not take `passed` from the log line.
+
+    Constructed, not copied from a log: nothing like these has been seen. Each
+    one is a record that did NOT pass, glued to log text that ends in `passed`.
+    The first two are the counterexamples from the review of #716.
+
+    Mutation: drop the `[✔━] ` marker from `RAN` → all four are counted.
+    Mutation: keep the marker for the raw text but match the stripped text with
+    a marker-less pattern → only the third is counted, the one where cutting
+    the log line out assembles `◇ Test foo() passed`.
+    """
+
+    def test_a_started_record_torn_at_its_paren_is_not_counted(self):
+        text = "◇ Test foo(" + TS + "helper: probe (ok) passed\n) started.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_failed_record_torn_at_its_paren_is_not_counted(self):
+        text = "✘ Test foo(" + TS + "check(x) passed\n) failed after 0.001 seconds with 1 issue.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_started_record_whose_tail_lands_in_a_log_line_is_not_counted(self):
+        # Record head, log head, record tail, log tail. Cutting the log line out
+        # (through the record's newline) leaves `◇ Test foo() passed`.
+        text = "◇ Test foo(" + TS + "msg) started.\n) passed\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_marker_from_another_record_is_not_borrowed(self):
+        text = "✔ Test bar() passed after 0.001 seconds.\n◇ Test foo(" + TS + "probe (ok) passed\n) started.\n"
+        self.assertEqual(atc.ran_cases(text), {"bar"})
+
+
+class SFSymbolsOutput(unittest.TestCase):
+    """With SF Symbols on, swift-testing prints private-use characters instead of
+    `✔`/`━`: pass U+10105B, pass with known issues U+100882, fail U+100884
+    (`Event.Symbol._sfSymbolInfo`, swift-testing release/6.4.0). When it writes
+    to a pipe it also turns ANSI mode on, which adds a second space after an SF
+    glyph. The pass record below is copied from `make test` on 2026-09-17 with
+    SWT_SF_SYMBOLS_ENABLED=1: the SwiftPM half printed every one of its 3483 pass
+    records that way.
+
+    The same run's xcodebuild half still printed `✔ Test`, even with the variable
+    confirmed in xctest's environment (via TEST_RUNNER_SWT_SF_SYMBOLS_ENABLED).
+    So this is defence for output the App tests weren't seen to produce.
+
+    Mutation: drop U+10105B / U+100882 from `RAN`'s marker class → the two pass
+    cases come back empty.
+    Mutation: allow exactly one space after the marker → the real SwiftPM record
+    comes back empty.
+    Mutation: widen the marker to any non-space character → the torn SF failure
+    is counted.
+    """
+
+    def test_an_sf_symbols_pass_written_to_a_pipe_is_counted(self):
+        text = "\U0010105B  Test capCutReadsJoinBetaOutOfTheRealINI() passed after 0.013 seconds.\n"
+        self.assertEqual(atc.ran_cases(text), {"capCutReadsJoinBetaOutOfTheRealINI"})
+
+    def test_an_sf_symbols_pass_with_a_known_issue_is_counted(self):
+        text = "\U00100882 Test foo(_:) with 2 test cases passed after 0.001 seconds with 1 known issue.\n"
+        self.assertEqual(atc.ran_cases(text), {"foo"})
+
+    def test_a_torn_sf_symbols_failure_is_not_counted(self):
+        text = "\U00100884  Test foo(" + TS + "probe (ok) passed\n) failed after 0.001 seconds with 1 issue.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+
+class ReadsUTF8WhateverTheLocale(unittest.TestCase):
+    """The markers are non-ASCII, so a log read with the locale's encoding
+    stops matching. Measured 2026-09-17: under LC_ALL=en_US.ISO8859-1 the gate
+    reported 0 of 51 cases run, and under LC_ALL=C with PYTHONUTF8=0 it crashed
+    reading the Swift sources. Which locales a host has is host state, so
+    rather than switch locales this runs the gate with every implicit-encoding
+    read turned into an error.
+
+    Mutation: drop `encoding="utf-8"` from either `read_text` call in
+    `app_test_coverage` → the subprocess exits non-zero with an EncodingWarning.
+    """
+
+    def test_the_gate_names_its_encoding_for_every_read(self):
+        import subprocess
+        import tempfile
+
+        # EncodingWarning and `-X warn_default_encoding` are 3.10+; older
+        # interpreters ignore both and this would pass without checking anything.
+        self.assertGreaterEqual(sys.version_info[:2], (3, 10))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "Tests").mkdir()
+            (root / "Tests" / "ZZFixtureTests.swift").write_text(
+                "// — non-ASCII on purpose\n@Test func zzFixtureCase() {}\n", encoding="utf-8")
+            (root / "app-tests.log").write_text(
+                "✔ Test zzFixtureCase() passed after 0.001 seconds.\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning",
+                 str(pathlib.Path(atc.__file__)), str(root / "app-tests.log"), str(root / "Tests")],
+                capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[0], "1 1")
 
 
 if __name__ == "__main__":

@@ -237,7 +237,9 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
       <上轮 head>..<新 head>` 列出的就是作者自己的提交,逐个 `git show`;**再对
       `git log --merges --first-parent <上轮 head>..<新 head>` 的每个 merge 跑 `git show --remerge-diff <merge>`**
       ——解冲突时改的东西只存在于 merge commit 里,普通提交一个都看不到它(2026-09-17 模拟:解冲突加的一行
-      在作者提交里命中 0 次、在 remerge-diff 里 1 次,且 remerge-diff 只列出冲突文件,不带 main 那边的改动);
+      在作者提交里命中 0 次、在 remerge-diff 里 1 次。remerge-diff 比的是「重新自动合并出的树」和「实际的 merge」,
+      所以列出的是**合并结果与自动合并不同的所有文件**——合并时顺手改了没冲突的文件也会出现——
+      但不带 main 那边干净合进来的改动);
     - rebase 过(is-ancestor 退 1)→ `git range-diff <旧 base>..<上轮 head> <新 base>..<新 head>`,
       base 取 `git merge-base origin/main <head>`;标 `!` 的提交看它给的差异,标 `>` 的是新增提交,
       **range-diff 不打印新增提交的补丁**,要另外 `git show`。

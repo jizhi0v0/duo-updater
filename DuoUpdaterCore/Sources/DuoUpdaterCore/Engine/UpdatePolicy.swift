@@ -826,6 +826,29 @@ public enum UpdatePolicy {
         return isVersionSkipped(staged.versionSide) ? nil : staged
     }
 
+    /// Whether "Update All", with restart-after-update on, relaunches this row's
+    /// staged self-update once the batch has finished installing.
+    ///
+    /// That sweep used to ask `actionableStaged`, so an app the user had ignored,
+    /// or whose staged version they had skipped, was quit and relaunched by a
+    /// button that is meant to act only on what the user still wants — the same
+    /// "stop telling me about this" verdict `isActionableUpdate` already applies
+    /// to the batch's install targets. `nudgeableStaged` is exactly that verdict
+    /// for a staged build.
+    ///
+    /// Per row, not a filtered list: the caller evaluates it inside the loop, so
+    /// each row is judged after the relaunches before it have rescanned.
+    public static func batchRelaunchesStaged(
+        _ result: UpdateResult,
+        staged: StagedSelfUpdate?,
+        isIgnored: Bool,
+        isVersionSkipped: (VersionSide) -> Bool
+    ) -> Bool {
+        nudgeableStaged(
+            result, staged: staged, isIgnored: isIgnored,
+            isVersionSkipped: isVersionSkipped) != nil
+    }
+
     /// Normalize app bundle paths reported by running processes back to the live
     /// installed bundle. The premise: macOS *can* keep a process mapped to
     /// DuoUpdater's temporary `replaceItemAt` staging name after a hot swap;

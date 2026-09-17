@@ -768,6 +768,53 @@ private func storeAvailability(
         "staged trailing the latest is not nudgeable, ignored or not")
 }
 
+// MARK: - batchRelaunchesStaged
+
+/// "Update All" with restart-after-update on relaunched every row whose staged
+/// build was the latest (`actionableStaged`), so it quit apps the user had
+/// ignored or whose staged version they had skipped.
+///
+/// Mutations, each turning at least one expectation red:
+/// - body replaced by `actionableStaged(result, staged: staged) != nil` (the bug):
+///   the ignored and skipped rows.
+/// - `isIgnored` dropped: the ignored row. `isVersionSkipped` dropped: the
+///   skipped row.
+/// - the staged-is-latest half dropped: the trailing row. Body `false`: the
+///   visible row and the different-version-skipped row.
+@Test func updateAllDoesNotRelaunchAnIgnoredAppOrASkippedStagedVersion() {
+    let remote = fixtureResult(
+        source: "Vendor", vendorInstallerKind: .zip,
+        app: fixtureApp(path: "/Applications/ZZFixture-BatchRelaunch.app"))
+    let never: (VersionSide) -> Bool = { _ in false }
+
+    #expect(
+        UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: staged("2.0"), isIgnored: false, isVersionSkipped: never),
+        "a visible app with the latest staged is still relaunched")
+    #expect(
+        !UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: staged("2.0"), isIgnored: true, isVersionSkipped: never),
+        "an ignored app is not quit by Update All")
+    #expect(
+        !UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: staged("2.0"), isIgnored: false,
+            isVersionSkipped: { $0.marketing == "2.0" }),
+        "the staged version is the one the user skipped")
+    #expect(
+        UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: staged("2.0"), isIgnored: false,
+            isVersionSkipped: { $0.marketing == "1.9" }),
+        "a different version was skipped — this one is still relaunched")
+    #expect(
+        !UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: staged("1.5"), isIgnored: false, isVersionSkipped: never),
+        "staged trailing the latest is not relaunched")
+    #expect(
+        !UpdatePolicy.batchRelaunchesStaged(
+            remote, staged: nil, isIgnored: false, isVersionSkipped: never),
+        "nothing staged, nothing to relaunch")
+}
+
 // MARK: - actionableStaged
 
 @Test func actionableStagedOnlyWhenTheStagedBuildIsTheLatest() {

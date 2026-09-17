@@ -6539,8 +6539,13 @@ final class AppListModel {
             // batch: the installs are done, and the app's own updater does the swap
             // (on quit, or for Spotify on the reopen `relaunchStagedUpdate` does).
             // Scoped to the same `autoRestartAfterUpdate` opt-in as the restart
-            // loop above, since it quits running apps.
-            for result in results where actionableStaged(result) != nil {
+            // loop above, since it quits running apps. Ignored apps and skipped
+            // staged versions are left alone (`batchRelaunchesStaged`).
+            for result in results where UpdatePolicy.batchRelaunchesStaged(
+                result,
+                staged: pendingSelfUpdate[result.id],
+                isIgnored: prefs.isIgnored(result.app),
+                isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) }) {
                 if Task.isCancelled { break }
                 await relaunchStagedUpdate(result)
             }

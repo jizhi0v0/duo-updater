@@ -663,7 +663,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `buildNamespace` | with `versionIsBuild`: the published build id is the vendor's own (Mozilla's `application.ini` `BuildID`), not `CFBundleVersion` |
 | `transientBodyPattern` | the vendor sometimes answers with its own error envelope under a success status: reported as transient, not as a broken recipe |
 | `trackClosedPattern` | the body can say, in the vendor's words, that this track has no current build |
-| `installedVersionPattern` | the recipe applies only to installed copies whose marketing version matches (e.g. a new major the old install cannot run) |
+| `installedVersionPattern` | the recipe applies only to installed copies whose marketing version matches (a new major is a separate, often paid, product rather than the next version) |
 | `identities` (`ProbeIdentity`) | the endpoint only answers for a machine id the app already wrote to disk |
 | `track` (`RolloutTrack`) | one URL, several vendor-assigned tracks, picked by a request-borne value |
 | `requestBody` | the service answers nothing to a GET (Omaha-style) |

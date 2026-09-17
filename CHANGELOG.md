@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.97
 
-**iStat Menus updates are detected correctly.** When iStat Menus re-released an update, DuoUpdater could keep offering it after it was installed, and pressing Update again ended in an error. It now also offers those re-released builds when you don't have them yet.
+**iStat Menus updates are detected correctly.** When iStat Menus re-released an update, DuoUpdater could keep offering it after it was installed, and pressing Update again ended in an error.
 
 **Memoh Desktop is now supported.** DuoUpdater tells you when a new version is out and can update it in one click.
 

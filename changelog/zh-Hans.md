@@ -4,7 +4,7 @@
 
 ## 0.3.97
 
-**iStat Menus 的更新现在能正确识别。** iStat Menus 重新发布某个更新后，DuoUpdater 可能在装好之后仍然提示这个更新，再点「更新」还会报错。现在装好就不再提示；还没装上重新发布版本的，也会正常提示。
+**iStat Menus 的更新现在能正确识别。** iStat Menus 重新发布某个更新后，DuoUpdater 可能在装好之后仍然提示这个更新，再点「更新」还会报错。
 
 **现在支持 Memoh Desktop 了。** 有新版本时 DuoUpdater 会告诉你，并能一键更新。
 

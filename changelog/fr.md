@@ -4,7 +4,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.97
 
-**Les mises à jour d'iStat Menus sont correctement détectées.** Quand iStat Menus republiait une mise à jour, DuoUpdater pouvait continuer à la proposer après son installation, et cliquer de nouveau sur Mettre à jour se terminait par une erreur. Il propose désormais aussi ces builds republiés quand vous ne les avez pas encore.
+**Les mises à jour d'iStat Menus sont correctement détectées.** Quand iStat Menus republiait une mise à jour, DuoUpdater pouvait continuer à la proposer après son installation, et cliquer de nouveau sur Mettre à jour se terminait par une erreur.
 
 **Memoh Desktop est désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version et peut la mettre à jour en un clic.
 

@@ -29,49 +29,38 @@ struct WorkbenchWindowView: View {
     @State private var lastSelectionChange = Date.distantPast
     /// The pending debounce, cancelled and restarted on each selection change.
     @State private var detailSettleTask: Task<Void, Never>?
-    /// Whether the Apps list holds the keyboard, so ↑/↓ scrub the selection without
-    /// having to click a row first.
+    /// Whether the visible sidebar list holds the keyboard, so ↑/↓ scrub the
+    /// selection without having to click a row first.
     ///
     /// It has to be claimed explicitly. Measured on the shipping window: it opened
     /// with `AXFocusedUIElement` on the search field (the sidebar's first AppKit
     /// view, which AppKit auto-focuses) or on nothing at all — either way the arrow
     /// keys had no destination. `defaultFocus` alone did not move it; setting this
     /// once the first results land does.
-    @FocusState private var appsListFocused: Bool
-    /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
-    /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
+    @FocusState private var listFocused: Bool
+    /// Sidebar filter text, applied to the list the current tab shows. Empty shows
+    /// everything; otherwise rows whose name (or bundle id) contains the query,
+    /// case/diacritic-insensitively.
     @State private var searchText = ""
-    /// Collapsed/expanded state for the sidebar trees.
-    @State private var appsExpanded = true
-    /// The Brew tree starts collapsed and then remembers whatever you last left it
-    /// as — `@AppStorage`, not `@State`, so the choice survives closing the window.
-    /// Collapsed is only the first-run default: brew casks and formulae are a
-    /// secondary channel, and having them expanded pushed the Apps tree up every
-    /// time the window opened.
-    @AppStorage("workbenchBrewExpanded") private var brewExpanded = false
-    /// The Rollback section (apps with a restorable backup) — its own collapse state.
-    /// Collapsed by default: it's a recovery surface that can list many apps, so the
-    /// always-visible header (with its count pill) is the discovery cue, and expanding
-    /// it is opt-in rather than permanently crowding the Apps tree above.
-    @State private var rollbackExpanded = false
+    /// Which list the sidebar shows. Not persisted: the window always opens on Apps.
+    @State private var sidebarTab: SidebarTab = .apps
+    /// Lets the selected tab's highlight slide between tabs instead of blinking.
+    @Namespace private var tabHighlight
     /// Release notes, or the bundle diff against the app's backup. Only offered for
-    /// an app that has a backup; kept across selections so comparing several apps
-    /// in a row does not mean switching back each time.
+    /// an app that has a backup. Set by the tab — the Rollback tab opens on the diff,
+    /// Apps and Brew on the notes — and kept across selections within it, so
+    /// comparing several apps in a row does not mean switching back each time.
     @State private var detailMode: DetailMode = .releaseNotes
     /// Bumped by each "Show in Window" request from the popover's unchecked-brew
     /// tip; the Brew list scrolls to those rows when it sees a value it hasn't
     /// handled. A counter, not a flag, so the list can mark it handled without
     /// changing its own `.task(id:)` and cancelling the highlight it just started —
-    /// and so collapsing and re-expanding the tree later doesn't replay it.
+    /// and so leaving the Brew tab and coming back later doesn't replay it.
     @State private var uncheckedRevealRequest = 0
     @State private var uncheckedRevealHandled = 0
     /// Briefly true after a reveal, so the rows it scrolled to stand out.
     @State private var highlightUnchecked = false
 
-    /// Negative top padding that cancels the top inset VSplitView adds to each pane's
-    /// sidebar list (see `splitRegion`). Measured at 10pt; kept as one constant so the
-    /// two panes stay in sync and it's a single knob to retune.
-    private static let splitPaneListInset: CGFloat = -10
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
@@ -136,42 +125,54 @@ struct WorkbenchWindowView: View {
     /// `apps` narrowed by the search field. A blank query passes everything through;
     /// otherwise we match the query against the app name and bundle id (so
     /// "com.google" finds Chrome too), ignoring case and diacritics.
-    private var filteredApps: [UpdateResult] {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return apps }
-        return apps.filter { result in
-            if result.app.name.localizedStandardContains(query) { return true }
-            if let bundleID = result.app.bundleID,
-               bundleID.localizedStandardContains(query) { return true }
-            return false
-        }
+    private var searchQuery: String { searchText.trimmingCharacters(in: .whitespaces) }
+
+    private func matchesSearch(_ result: UpdateResult) -> Bool {
+        let query = searchQuery
+        guard !query.isEmpty else { return true }
+        if result.app.name.localizedStandardContains(query) { return true }
+        if let bundleID = result.app.bundleID, bundleID.localizedStandardContains(query) { return true }
+        return false
     }
 
-    /// The three derived lists the sidebar draws, built ONCE per body pass and
-    /// handed down.
+    private func matchesSearch(_ name: String) -> Bool {
+        searchQuery.isEmpty || name.localizedStandardContains(searchQuery)
+    }
+
+    /// The derived lists the sidebar draws, built ONCE per body pass and handed down.
     ///
     /// They used to be computed properties read from the view builders that need
-    /// them — `filteredApps` from three (`appsHeader`, the list, its empty
+    /// them — `filteredApps` from three (the section header, the list, its empty
     /// overlay), `rollbackableApps` from four, `brewCasks` from three — so one
     /// pass re-ran every `filter` and every `sort(localizedCaseInsensitiveCompare)`
     /// three or four times over. And the pass is not rare: the body reads
     /// `model.installing`, so every download tick re-runs all of it.
+    ///
+    /// Each list is already narrowed by the search, so a tab's count pill and its
+    /// rows always agree. `hasBrew` is not: a search that matches no Brew row must
+    /// not make the Brew tab disappear from under the reader.
     struct SidebarLists {
         let filteredApps: [UpdateResult]
         let brewCasks: [UpdateResult]
+        let brewFormulae: [BrewInstalledFormula]
+        let brewUnchecked: [BrewUncheckedPackage]
+        /// The "Homebrew x is available" row, searched by the name it shows, so a
+        /// query that matches nothing empties the Brew tab like the other two.
+        let homebrewSelfUpdate: HomebrewSelfUpdate?
         let rollbackable: [UpdateResult]
-
-        /// Whether to show the Rollback section at all — hidden when nothing is
-        /// restorable.
-        var hasRollback: Bool { !rollbackable.isEmpty }
-        /// Content-fitting height for the (bottom-pinned) Rollback list, capped so a
-        /// long list scrolls internally instead of crowding out the Apps tree above it.
-        var rollbackListHeight: CGFloat { min(CGFloat(rollbackable.count) * 34 + 12, 240) }
+        let hasBrew: Bool
     }
 
     private var sidebarLists: SidebarLists {
-        SidebarLists(filteredApps: filteredApps, brewCasks: brewCasks,
-                     rollbackable: rollbackableApps)
+        SidebarLists(
+            filteredApps: apps.filter(matchesSearch),
+            brewCasks: brewCasks.filter(matchesSearch),
+            brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
+            brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
+            homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
+            rollbackable: rollbackableApps.filter(matchesSearch),
+            hasBrew: !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty
+                || !model.brewUnchecked.isEmpty || model.homebrewSelfUpdate != nil)
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
@@ -258,7 +259,7 @@ struct WorkbenchWindowView: View {
             }
             // Claim the keyboard only now: before the rows exist there is no list to
             // focus, and the search field has already taken it by default.
-            appsListFocused = true
+            listFocused = true
         }
         // Brew tree data (formulae + the cask set derives from results above).
         .task { await model.refreshBrewFormulae() }
@@ -278,7 +279,7 @@ struct WorkbenchWindowView: View {
             // view — so ↑/↓ went dead again after any trip away from the window
             // (measured: AXFocusedUIElement back on the search text field).
             // Skipped mid-search, where the caret is where the user wants it.
-            if searchText.isEmpty { appsListFocused = true }
+            if searchText.isEmpty { listFocused = true }
             // The lock and the TestFlight tip offer "Grant…" from a mirror of the
             // permission that only the menu's open and the Welcome/Settings polling
             // refresh. Coming back from System Settings is exactly this moment.
@@ -319,7 +320,7 @@ struct WorkbenchWindowView: View {
             // mid-keystroke, and the outline drops the `scrollRowToVisible` that
             // normally follows an arrow-key selection — the highlight walks off the
             // bottom of the viewport and never comes back, even after the keys stop.
-            if !appsListFocused { appsListFocused = true }
+            if !listFocused { listFocused = true }
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public)")
             // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms
@@ -359,135 +360,196 @@ struct WorkbenchWindowView: View {
     private func applyRequestedApp() {
         guard let id = model.requestedWorkbenchAppID else { return }
         model.requestedWorkbenchAppID = nil
+        // The row may be a Homebrew cask, which lives on the Brew tab. The tab is
+        // set first; `tabChanged` then finds the selection already in its list and
+        // leaves it alone.
+        sidebarTab = brewCasks.contains { $0.id == id } ? .brew : .apps
         selection = id
         detailSelection = id
     }
 
     /// Honor a pending "Show in Window" from the popover's unchecked-brew tip:
-    /// open the Brew tree if it's collapsed and ask its list to reveal those rows.
-    /// Clears the request like `applyRequestedApp`.
+    /// switch to the Brew tab and ask its list to reveal those rows. Clears the
+    /// request like `applyRequestedApp`.
     private func applyRequestedBrewUnchecked() {
         guard model.requestedWorkbenchBrewUnchecked else { return }
         model.requestedWorkbenchBrewUnchecked = false
         guard !model.brewUnchecked.isEmpty else { return }
-        brewExpanded = true
+        // A search would hide the very rows being revealed.
+        searchText = ""
+        sidebarTab = .brew
         uncheckedRevealRequest += 1
     }
 
     // MARK: - Sidebar
 
-    /// A prominent, full-width-clickable group header that lives OUTSIDE the
-    /// scrolling lists (so both Apps and Brew titles are always on screen at once —
-    /// you never have to scroll the app list to discover Brew). The whole row
-    /// toggles the section; the rotating chevron shows collapsed/expanded and the
-    /// trailing pill shows the item count.
-    @ViewBuilder
-    private func sectionHeader<Accessory: View>(
-        _ title: String, systemImage: String, count: Int, expanded: Binding<Bool>,
-        @ViewBuilder accessory: () -> Accessory = { EmptyView() }
-    ) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { expanded.wrappedValue.toggle() }
-            } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
-                    Image(systemName: systemImage)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    // Holds its size instead of compressing: the accessory beside it
-                    // is a translated button, and "Обновить формулы" is wide enough
-                    // to squeeze this to nothing — at which point a four-letter
-                    // section name wraps to "Bre / w". The button truncates instead.
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 8)
-                    Text("\(count)")
-                        .font(.caption.weight(.semibold)).monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        // Same reason as the title: with the title pinned, the
-                        // squeeze lands here next, and "52" came out stacked as
-                        // "5 / 2" inside the capsule.
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 7).padding(.vertical, 1)
-                        .background(.quaternary, in: Capsule())
-                }
-                .foregroundStyle(.primary)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            // Optional trailing control (e.g. Brew's bulk Upgrade) — a sibling of the
-            // collapse button, so tapping it never toggles the section.
-            accessory()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+    /// Which list the sidebar shows — one at a time, each at full height.
+    ///
+    /// These used to be collapsible trees stacked in one column: Apps and Brew
+    /// sharing a split, and Rollback pinned beneath them, collapsed by default and
+    /// capped at 240 pt. The Rollback list, where a backup's Bundle Diff lives, was
+    /// the hardest part of the window to find and the one with the least room.
+    enum SidebarTab: Hashable {
+        case apps, brew, rollback
     }
 
-    /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
-    /// see only the Apps tree (no empty Brew header).
-    private func hasBrew(_ lists: SidebarLists) -> Bool {
-        !lists.brewCasks.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
-            || model.homebrewSelfUpdate != nil
-    }
-
-    /// Total brew items, for the Brew header's count pill and its list height.
+    /// Rows the Brew list shows after the search, for the tab's count.
     private func brewItemCount(_ lists: SidebarLists) -> Int {
-        lists.brewCasks.count + model.brewFormulae.count + model.brewUnchecked.count
+        lists.brewCasks.count + lists.brewFormulae.count + lists.brewUnchecked.count
+            + (lists.homebrewSelfUpdate == nil ? 0 : 1)
+    }
+
+    /// The tab actually drawn: a remembered Brew tab falls back to Apps once there
+    /// is nothing brew-managed left to show.
+    private func shownTab(_ lists: SidebarLists) -> SidebarTab {
+        sidebarTab == .brew && !lists.hasBrew ? .apps : sidebarTab
     }
 
     @ViewBuilder
     private func sidebar(_ lists: SidebarLists) -> some View {
+        let tab = shownTab(lists)
         VStack(spacing: 0) {
+            // The whole row picks one layout: one line per tab while every tab fits,
+            // two lines for all of them otherwise. Deciding per tab would stack
+            // "Rollback" under its icon while "Apps" sits beside its own.
+            ViewThatFits(in: .horizontal) {
+                tabRow(lists, shown: tab, stacked: false)
+                tabRow(lists, shown: tab, stacked: true)
+            }
+            .padding(3)
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            .animation(.snappy(duration: 0.22), value: tab)
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+
             AppSearchField(text: $searchText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
 
-            // Fill the middle and top-align: without this, when both trees are
-            // collapsed (no list filling the space) the outer VStack would center the
-            // headers vertically, floating them in the middle with empty space above.
-            splitRegion(lists)
-                .frame(maxHeight: .infinity, alignment: .top)
-
-            // Rollback pinned to the bottom, below the Apps/Brew split (so it never
-            // disturbs that draggable divider). Only shown when something is
-            // restorable; the always-visible header is the discovery surface for
-            // apps that have already updated and dropped out of the lists above.
-            if lists.hasRollback {
-                Divider()
-                rollbackHeader(lists)
-                if rollbackExpanded { rollbackListView(lists) }
+            switch tab {
+            case .apps:
+                appsListView(lists)
+            case .brew:
+                if !model.brewOutdatedFormulae.isEmpty {
+                    HStack {
+                        Spacer()
+                        brewBulkUpgrade
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                }
+                brewListView(lists)
+            case .rollback:
+                rollbackListView(lists)
             }
         }
+        .onChange(of: sidebarTab) { _, newTab in tabChanged(to: newTab) }
     }
 
-    private func appsHeader(_ lists: SidebarLists) -> some View {
-        sectionHeader(String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
-                      count: lists.filteredApps.count, expanded: $appsExpanded)
-    }
-
-    private func brewHeader(_ lists: SidebarLists) -> some View {
-        sectionHeader(String(localized: "Brew"), systemImage: "mug.fill",
-                      count: brewItemCount(lists), expanded: $brewExpanded) {
-            brewBulkUpgrade
+    private func tabRow(_ lists: SidebarLists, shown: SidebarTab, stacked: Bool) -> some View {
+        HStack(spacing: 4) {
+            tabButton(.apps, title: String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
+                      count: lists.filteredApps.count, shown: shown, stacked: stacked)
+            if lists.hasBrew {
+                tabButton(.brew, title: String(localized: "Brew"), systemImage: "mug.fill",
+                          count: brewItemCount(lists), shown: shown, stacked: stacked)
+            }
+            tabButton(.rollback, title: String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
+                      count: lists.rollbackable.count, shown: shown, stacked: stacked)
         }
     }
 
-    private func rollbackHeader(_ lists: SidebarLists) -> some View {
-        sectionHeader(String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
-                      count: lists.rollbackable.count, expanded: $rollbackExpanded)
+    /// One tab: icon, title and count on one line when the row has room, otherwise
+    /// icon and count on top with the title beneath. At the sidebar's 260 pt minimum
+    /// a tab is ~75 pt wide inside the track. The widest title measured at caption
+    /// semibold is the German "Zurücksetzen", 69 pt; the stacked layout's scale
+    /// factor covers whatever is wider.
+    private func tabButton(
+        _ tab: SidebarTab, title: String, systemImage: String, count: Int, shown: SidebarTab,
+        stacked: Bool
+    ) -> some View {
+        let selected = tab == shown
+        let icon = Image(systemName: systemImage).font(.body)
+        let countText = Text("\(count)")
+            .font(.caption.weight(.semibold)).monospacedDigit()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+        return Button {
+            sidebarTab = tab
+        } label: {
+            Group {
+                if stacked {
+                    VStack(spacing: 2) {
+                        HStack(spacing: 4) {
+                            icon
+                            countText
+                        }
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                } else {
+                    // No scale factor here: ViewThatFits measures the unscaled width,
+                    // so a title that only fits shrunk must take the stacked layout.
+                    // On the text baseline: the count is a size smaller than the
+                    // title, and centred it rides visibly higher than the title.
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        icon
+                        Text(title)
+                            .font(.callout.weight(.semibold))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        countText.opacity(0.75)
+                    }
+                    .padding(.horizontal, 6)
+                }
+            }
+            .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.accentColor.opacity(0.16))
+                        .matchedGeometryEffect(id: "selectedTab", in: tabHighlight)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(title)
     }
 
-    /// The Rollback list: every app with a backup we can restore, each with an inline
-    /// "Roll back to vX" action. Reuses `$selection`, so clicking a row also opens that
-    /// app's changelog in the detail pane — useful context before undoing an update.
+    /// Entering a tab sets which pane the detail opens on, and moves the selection
+    /// into the tab's own list when it is not already there — a detail pane showing
+    /// an app the visible list does not contain reads as a bug.
+    private func tabChanged(to tab: SidebarTab) {
+        detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
+        let lists = sidebarLists
+        let ids: [String]
+        switch tab {
+        case .apps:
+            ids = lists.filteredApps.map(\.id)
+        case .brew:
+            ids = lists.brewCasks.map(\.id)
+                + lists.brewFormulae.map { "brew:formula:\($0.name)" }
+                + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+        case .rollback:
+            ids = lists.rollbackable.map(\.id)
+        }
+        if let current = selection, ids.contains(current) { return }
+        selection = ids.first
+        detailSelection = selection
+        listFocused = true
+    }
+
+    /// The Rollback tab: every app with a backup we can restore, each with an inline
+    /// "Roll back" action. Selecting one opens its Bundle Diff, the change a rollback
+    /// would undo.
     private func rollbackListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
             ForEach(lists.rollbackable) { result in
@@ -499,10 +561,46 @@ struct WorkbenchWindowView: View {
             }
         }
         .listStyle(.sidebar)
-        .frame(height: lists.rollbackListHeight)
+        .focused($listFocused)
+        .overlay {
+            if lists.rollbackable.isEmpty {
+                if !searchQuery.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    rollbackEmptyState
+                }
+            }
+        }
     }
 
-    /// Bulk "Upgrade All" for the Brew tree — runs `brew upgrade --formula` (all
+    /// Why the Rollback tab is empty, which is the question a reader has here: either
+    /// backups are off, or no update has gone through DuoUpdater since they were
+    /// turned on. An app that updates itself replaces its bundle without us, so it
+    /// never gets a backup — said here because it is the case people will hit.
+    @ViewBuilder
+    private var rollbackEmptyState: some View {
+        if model.prefs.keepBackups {
+            ContentUnavailableView {
+                Label("Nothing to roll back yet", systemImage: "arrow.uturn.backward")
+            } description: {
+                Text("A backup is kept each time DuoUpdater updates an app. Apps that update themselves are not backed up.")
+            }
+        } else {
+            ContentUnavailableView {
+                Label("Backups are off", systemImage: "arrow.uturn.backward")
+            } description: {
+                Text("Turn them on to roll back an update and compare what it changed.")
+            } actions: {
+                Button("Open Settings") {
+                    model.requestedSettingsAnchor = .backups
+                    openWindow(id: SettingsView.windowID)
+                    model.surfaceWindow(sceneID: SettingsView.windowID)
+                }
+            }
+        }
+    }
+
+    /// Bulk "Upgrade All" for the Brew tab — runs `brew upgrade --formula` (all
     /// outdated CLI formulae at once). Only shown when there are formulae to upgrade;
     /// casks stay per-row (their own distribution channel). A spinner replaces it
     /// while the bulk run is in flight.
@@ -529,46 +627,7 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The two trees. Only when BOTH are open does it use a native VSplitView
-    /// (NSSplitView) — that's the case that needs a draggable divider, and the
-    /// system splitter resizes the NSScrollView-backed lists without the ghosting a
-    /// hand-rolled per-frame resize causes. The moment either tree is collapsed there's
-    /// nothing to resize, so it drops to a plain stack with a thin Divider — avoiding
-    /// NSSplitView's heavy splitter bar rendering as a black line against a 34pt
-    /// collapsed pane.
-    @ViewBuilder
-    private func splitRegion(_ lists: SidebarLists) -> some View {
-        if hasBrew(lists) && appsExpanded && brewExpanded {
-            VSplitView {
-                // VSplitView gives each pane's sidebar list a ~10pt top inset that the
-                // collapsed (plain-VStack) layout doesn't, so the list sat 10pt lower
-                // under its header only while the split was engaged (measured: the rows
-                // shifted down exactly 20px @2x). Pull each list back up by that inset so
-                // both layouts hug the header identically.
-                VStack(spacing: 0) { appsHeader(lists); appsListView(lists).padding(.top, Self.splitPaneListInset) }
-                    .frame(minHeight: 120)
-                VStack(spacing: 0) { brewHeader(lists); brewListView(lists).padding(.top, Self.splitPaneListInset) }
-                    .frame(minHeight: 100)
-            }
-            // Persist the divider position across launches. VSplitView exposes no
-            // position binding, so we reach the backing NSSplitView and give it an
-            // autosaveName — AppKit then saves/restores the split to UserDefaults.
-            .background(SplitViewAutosave(name: "duo.workbench.sidebarSplit"))
-        } else {
-            VStack(spacing: 0) {
-                appsHeader(lists)
-                if appsExpanded { appsListView(lists).frame(maxHeight: .infinity) }
-                if hasBrew(lists) {
-                    Divider()
-                    brewHeader(lists)
-                    if brewExpanded { brewListView(lists).frame(maxHeight: .infinity) }
-                }
-            }
-        }
-    }
-
-    /// The Apps tree's scrolling list (extracted so the split layout above stays
-    /// readable).
+    /// The Apps tab's list.
     private func appsListView(_ lists: SidebarLists) -> some View {
         List(selection: $selection) {
             ForEach(lists.filteredApps) { result in
@@ -592,7 +651,7 @@ struct WorkbenchWindowView: View {
             }
         }
         .listStyle(.sidebar)
-        .focused($appsListFocused)
+        .focused($listFocused)
         .overlay {
             if lists.filteredApps.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -600,12 +659,12 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The Brew tree's scrolling list: brew-managed casks (reusing the app row + its
+    /// The Brew tab's list: brew-managed casks (reusing the app row + its
     /// existing install path) above outdated CLI formulae (their own inline action).
     private func brewListView(_ lists: SidebarLists) -> some View {
         ScrollViewReader { proxy in
             List(selection: $selection) {
-                if let update = model.homebrewSelfUpdate {
+                if let update = lists.homebrewSelfUpdate {
                     HomebrewSelfUpdateSidebarRow(update: update, model: model)
                         // Nothing to show in the detail pane for Homebrew itself.
                         .selectionDisabled()
@@ -629,21 +688,27 @@ struct WorkbenchWindowView: View {
                         grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
                         .tag(result.id)
                 }
-                ForEach(model.brewFormulae) { formula in
+                ForEach(lists.brewFormulae) { formula in
                     BrewFormulaSidebarRow(formula: formula, model: model)
                         .tag("brew:formula:\(formula.name)")
                 }
-                ForEach(model.brewUnchecked) { package in
+                ForEach(lists.brewUnchecked) { package in
                     BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
                         .tag("brew:unchecked:\(package.id)")
                 }
             }
             .listStyle(.sidebar)
-            // Runs on a new request, and also when this list is created by the expand
-            // that request caused (with the tree collapsed there was no list to scroll).
+            .focused($listFocused)
+            .overlay {
+                if brewItemCount(lists) == 0, !searchQuery.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                }
+            }
+            // Runs on a new request, and also when this list is created by the tab
+            // switch that request caused (on another tab there was no list to scroll).
             .task(id: uncheckedRevealRequest) {
                 guard uncheckedRevealRequest != uncheckedRevealHandled else { return }
-                // Let a list that expand just created lay out its rows before
+                // Let a list that tab switch just created lay out its rows before
                 // scrolling it. Not measured whether the wait is strictly needed.
                 try? await Task.sleep(for: .milliseconds(150))
                 // Marked handled only by the task that actually scrolls. A freshly
@@ -651,7 +716,7 @@ struct WorkbenchWindowView: View {
                 // height 80 → 381, and this task woke cancelled); marking it before
                 // the sleep let that dead list's task claim the request, so the
                 // list on screen never scrolled.
-                guard !Task.isCancelled, let last = model.brewUnchecked.last else { return }
+                guard !Task.isCancelled, let last = lists.brewUnchecked.last else { return }
                 uncheckedRevealHandled = uncheckedRevealRequest
                 withAnimation(.easeIn(duration: 0.2)) { highlightUnchecked = true }
                 // The unchecked rows are the tail of the list; anchoring the last one
@@ -710,42 +775,6 @@ struct WorkbenchWindowView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-// MARK: - Split-view autosave
-
-/// Gives the `VSplitView`'s backing `NSSplitView` an `autosaveName` so AppKit
-/// persists its divider position across launches (SwiftUI's `VSplitView` exposes
-/// no position binding of its own). Introspects the window's view tree for the
-/// FIRST horizontal-divider split view — `isVertical == false` skips the
-/// `NavigationSplitView`'s own (vertical-divider) sidebar split, which we don't
-/// want to bind to.
-private struct SplitViewAutosave: NSViewRepresentable {
-    let name: String
-
-    func makeNSView(context: Context) -> NSView {
-        let probe = NSView()
-        DispatchQueue.main.async { [weak probe] in
-            guard let root = probe?.window?.contentView,
-                  let split = Self.firstHorizontalSplit(in: root) else { return }
-            // Setting the same autosaveName on every appearance is idempotent; AppKit
-            // restores the saved position when the name is assigned.
-            if split.autosaveName != name { split.autosaveName = name }
-        }
-        return probe
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    /// Depth-first search for a split view whose dividers are horizontal (panes
-    /// stacked vertically — what VSplitView produces).
-    private static func firstHorizontalSplit(in view: NSView) -> NSSplitView? {
-        if let split = view as? NSSplitView, !split.isVertical { return split }
-        for sub in view.subviews {
-            if let found = firstHorizontalSplit(in: sub) { return found }
-        }
-        return nil
     }
 }
 

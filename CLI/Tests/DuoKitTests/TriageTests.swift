@@ -12,12 +12,12 @@ import DuoUpdaterCore
     private func finding(
         status: FindingStatus = .broken, bundleID: String = "com.example.app",
         sample: String? = "some body", pattern: String? = #"v([0-9.]+)"#,
-        warnings: [String] = []
+        warnings: [String] = [], failureKind: String = "versionPatternNoMatch"
     ) -> Finding {
         Finding(
             recipeID: "vendor:\(bundleID):stable", registry: .vendor, bundleID: bundleID,
             channel: "stable", status: status, version: "1.0.0",
-            failureKind: status == .broken ? "versionPatternNoMatch" : nil,
+            failureKind: status == .broken ? failureKind : nil,
             warnings: warnings, endpointHost: "example.invalid", pattern: pattern,
             bodySample: sample)
     }
@@ -55,6 +55,17 @@ import DuoUpdaterCore
     @Test func nothingIsAskedWithoutACapturedBody() {
         let why = Triage.eligibility(finding(sample: nil), baseline: baseline(streak: 3))
         #expect(why?.contains("no captured body") == true)
+    }
+
+    /// A renamed GitHub asset carries the tag list as its body. Asked for a version
+    /// pattern, the model would hand back a tag regex that verifies against it —
+    /// a "✅ Verified" fix for the regex the finding says is fine.
+    @Test func anAssetPatternMissIsNotAsked() {
+        let f = finding(
+            sample: "v2.0.14\nv2.0.13", pattern: #"^App-[0-9.]+-arm64\.dmg$"#,
+            failureKind: ProbeFailure.assetPatternNoMatch(walked: 6).kind)
+        let why = Triage.eligibility(f, baseline: baseline(streak: 3))
+        #expect(why?.contains("asset-pattern miss") == true)
     }
 
     /// The same question twice produces the same answer and costs another call —

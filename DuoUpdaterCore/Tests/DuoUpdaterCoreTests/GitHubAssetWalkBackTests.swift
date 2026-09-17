@@ -132,7 +132,11 @@ import Testing
         let rule = Self.rule(slug)
         let source = GitHubReleasesSource(
             rules: [rule], session: URLSession(configuration: config))
-        return await source.resolveDiagnostic(rule)
+        // The host is pinned: every fixture asset is arm64-only, so on an Intel
+        // Mac `HostArch.current` would turn each answer into an arch-incompatible
+        // `notApplicable` and the boundary cases would measure nothing.
+        return await source.resolveDiagnostic(
+            rule, preferring: .arm64, allowingIntelTranslation: false)
     }
 
     /// Six asset-less releases: past the tolerance, no answer, and the report must

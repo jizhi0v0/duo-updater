@@ -48,7 +48,10 @@ struct WorkbenchWindowView: View {
     @Namespace private var tabHighlight
     /// The tab under the pointer while the highlight is being dragged along the
     /// track; nil when no drag is in progress. The drag only commits on release.
-    @State private var draggedTab: SidebarTab?
+    /// `@GestureState`, not `@State`: it is reset when the drag is cancelled as well
+    /// as when it ends, and `onEnded` does not run for a cancelled drag, so a plain
+    /// state reset there would leave the highlight on a tab that is not shown.
+    @GestureState private var draggedTab: SidebarTab?
     /// Each drawn tab's frame in the track, so a drag position maps to a tab.
     @State private var tabFrames: [SidebarTab: CGRect] = [:]
     /// Release notes, or the bundle diff against the app's backup. Only offered for
@@ -436,14 +439,13 @@ struct WorkbenchWindowView: View {
             // not open Brew's first row on the way.
             .simultaneousGesture(
                 DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.tabTrackSpace))
-                    .onChanged { value in
-                        draggedTab = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? draggedTab
+                    .updating($draggedTab) { value, dragged, _ in
+                        dragged = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? dragged
                     }
                     .onEnded { value in
-                        if let target = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? draggedTab {
+                        if let target = tabAt(x: value.location.x, hasBrew: lists.hasBrew) {
                             sidebarTab = target
                         }
-                        draggedTab = nil
                     })
             .padding(3)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))

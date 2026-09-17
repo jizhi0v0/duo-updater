@@ -2,6 +2,14 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.97
+
+**Les mises à jour d'iStat Menus sont correctement détectées.** Quand iStat Menus republiait une mise à jour, DuoUpdater pouvait continuer à la proposer après son installation, et cliquer de nouveau sur Mettre à jour se terminait par une erreur. Il propose désormais aussi ces builds republiés quand vous ne les avez pas encore.
+
+**Memoh Desktop est désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version et peut la mettre à jour en un clic.
+
+**Tout mettre à jour ne vous demande plus de relancer une app de l'App Store déjà rouverte.** Quand l'App Store ferme une app et la rouvre sur sa nouvelle version, sa ligne l'affiche aussitôt comme mise à jour, au lieu d'indiquer « Relancer maintenant » jusqu'à la fin de tout le lot.
+
 ## 0.3.96
 
 **Une app qui a déjà téléchargé sa propre mise à jour ne la télécharge plus deux fois.** Certaines apps récupèrent une mise à jour discrètement en arrière-plan, puis attendent que vous les relanciez. Cliquez sur Mettre à jour dans DuoUpdater : il installe désormais la copie déjà présente sur votre disque, la mise à jour se fait en quelques secondes et sans aucun téléchargement. Auparavant, DuoUpdater retéléchargeait la même version.

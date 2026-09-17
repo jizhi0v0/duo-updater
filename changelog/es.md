@@ -2,6 +2,14 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.97
+
+**Las actualizaciones de iStat Menus se detectan correctamente.** Cuando iStat Menus volvía a publicar una actualización, DuoUpdater podía seguir ofreciéndola después de instalarla, y volver a pulsar Actualizar terminaba en un error. Ahora también ofrece esas compilaciones republicadas cuando todavía no las tienes.
+
+**Memoh Desktop ya es compatible.** DuoUpdater te avisa cuando sale una nueva versión y puede actualizarla con un clic.
+
+**Actualizar todo ya no te pide reabrir una app de la App Store que ya se ha vuelto a abrir.** Cuando la App Store cierra una app y la vuelve a abrir con su nueva versión, su fila la muestra como actualizada al momento, en lugar de decir «Reabrir ahora» hasta que terminaba todo el lote.
+
 ## 0.3.96
 
 **Una app que ya ha descargado su propia actualización ya no la descarga dos veces.** Algunas apps descargan una actualización en segundo plano y luego esperan a que las reinicies. Pulsa Actualizar en DuoUpdater y ahora instala la copia que ya está en tu disco: la actualización se completa en segundos y no hay que descargar nada. Antes, DuoUpdater volvía a descargar la misma versión.

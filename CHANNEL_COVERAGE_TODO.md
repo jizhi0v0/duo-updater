@@ -35,6 +35,7 @@
 | **Zed** | preview `dev.zed.Zed-Preview`（`channel: .preview`，2026-06-04 修 channel-gate 回归）| GitHub |
 | **Termius** | beta `com.termius-beta.mac`（issue #91，2026-08-27）| VendorProbe |
 | **Tinycast** | beta `com.tinycast.app.beta`（显示名 "Tinycast Beta"，版本串带 `-beta.N`；仅检测，自签名无 Team ID，2026-09-17）| GitHub |
+| **SuperCmd** | beta `com.supercmd.SuperCmd.beta`（显示名 "SuperCmd Beta"，独立 feed `appcast-beta.xml` 由包的 `SUFeedURL` 声明，零 recipe，2026-09-17）| Sparkle |
 
 ### Pattern A\* — 共享 bundle id，但 Mozilla `RemotingName` 可检测
 

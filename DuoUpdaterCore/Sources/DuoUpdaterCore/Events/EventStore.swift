@@ -1402,8 +1402,15 @@ public actor EventStore {
     /// collapses into whatever the tiebreaker says, and the tiebreaker used to be
     /// a random UUID. Matches the payload timestamps, so the envelope and the
     /// event it wraps cannot disagree about which of two events came first.
+    ///
+    /// Saturates rather than trapping (`RequestQuery.int64`): a query bound
+    /// arrives from outside — `duo events --since 1e14d` or `infd` is a date no
+    /// `Int64` of microseconds can hold, and it used to kill the process. A cutoff
+    /// before every representable instant is no lower bound, and one after every
+    /// instant is no upper bound, which is what the clamped value means in SQL.
     static func micros(_ date: Date) -> Int64 {
-        Int64((date.timeIntervalSince1970 * 1_000_000).rounded())
+        let value = (date.timeIntervalSince1970 * 1_000_000).rounded()
+        return RequestQuery.int64(value) ?? (value < 0 ? .min : .max)
     }
 
     static func date(_ micros: Int64) -> Date {

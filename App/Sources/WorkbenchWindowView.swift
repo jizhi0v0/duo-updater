@@ -1723,6 +1723,8 @@ private struct BundleDiffPane: View {
     }
 
     @State private var phase: Phase = .running
+    @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
 
     /// A new installed version is a new comparison.
     private var comparisonID: String {
@@ -1752,9 +1754,25 @@ private struct BundleDiffPane: View {
                 // the lines under it.
                 HStack {
                     Spacer()
-                    Button("Copy Report") {
+                    Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(report.text, forType: .string)
+                        // A click has to say it landed; the same confirm-and-revert as
+                        // the Brew trust command's copy button.
+                        copied = true
+                        copiedResetTask?.cancel()
+                        copiedResetTask = Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            guard !Task.isCancelled else { return }
+                            copied = false
+                        }
+                    } label: {
+                        // Both labels always laid out, one hidden, so the button keeps
+                        // the wider one's size in every language instead of jumping.
+                        ZStack {
+                            Label("Copy Report", systemImage: "doc.on.doc").opacity(copied ? 0 : 1)
+                            Label("Copied", systemImage: "checkmark").opacity(copied ? 1 : 0)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)

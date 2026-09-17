@@ -387,6 +387,23 @@ import Foundation
         #expect(report.contains("\nTIMINGS (old and new are read concurrently)\n"))
     }
 
+    /// Re-review of #706: the fix was tested by setting `omittedByBackup` directly,
+    /// so nothing covered `report(omittedFromOld:)` handing the list to the old
+    /// side — deleting that one line left every test green.
+    @Test func theReportKeepsFilesTheBackupSkippedOutOfAdded() async throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let backup = try minimalApp(in: directory.appendingPathComponent("backup"))
+        let installed = try minimalApp(in: directory.appendingPathComponent("installed"))
+        try write(Data("state".utf8), to: installed.appendingPathComponent("Contents/zz.mmkv"))
+
+        let report = try await BundleDiff.report(
+            old: backup.path, new: installed.path, omittedFromOld: ["Contents/zz.mmkv"]).get()
+        #expect(report.contains("  1 more only on the new side because the backup skipped them"))
+        #expect(report.contains("0 added, 0 removed"))
+        #expect(!report.contains("  + Contents/zz.mmkv"))
+    }
+
     @Test func aMissingInputIsAFailureNotAnEmptyReport() async throws {
         let result = await BundleDiff.report(old: "/ZZFixture-does-not-exist.app", new: "/ZZFixture-nor-this.app")
         #expect(throws: BundleDiff.Failure.self) { try result.get() }

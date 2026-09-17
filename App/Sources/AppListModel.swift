@@ -425,6 +425,21 @@ final class AppListModel {
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
 
+    /// Whether a rollback may start on this row now — what `rollback` checks, and
+    /// what both windows disable their Roll back entry on, so the click is never a
+    /// silent no-op.
+    ///
+    /// Not during a Relaunch: `relaunchStagedUpdate` marks the row `relaunching`,
+    /// not `installing`, and copies the live bundle into a rollback point before
+    /// it quits the app. A restore swapping the bundle under that copy leaves a
+    /// torn backup whose manifest (computed from the copy) still verifies, and the
+    /// quit that follows lets the app's updater swap its staged build over the
+    /// restore. The install lock does not keep them apart: it is refcounted within
+    /// this process, so both claims succeed.
+    func canRollback(_ id: String) -> Bool {
+        installing[id] == nil && !relaunching.contains(id)
+    }
+
     /// Whether restoring this row's backup would change anything — the workbench's
     /// filter for offering Rollback at all. Decided in Core; see
     /// `BackupStore.rollbackIsDistinct`.
@@ -5365,6 +5380,16 @@ final class AppListModel {
             Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
             return
         }
+        // Nor during an install or rollback of the same row. The row itself offers
+        // no Relaunch then (it shows that stage), but a banner tap
+        // (`restart(byID:)`) and the Update All flush reach here directly — and a
+        // Relaunch would copy a bundle the other operation is replacing, then quit
+        // the app so its updater swaps over that operation's result. The reverse
+        // is `canRollback`.
+        guard installing[result.id] == nil else {
+            Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is installing or rolling back — not relaunching")
+            return
+        }
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
@@ -6322,7 +6347,10 @@ final class AppListModel {
     /// ahead of what's on disk.
     func rollback(_ result: UpdateResult) async {
         let id = result.id
-        guard installing[id] == nil else { return }
+        guard canRollback(id) else {
+            Log.install.notice("rollback: \(result.app.name, privacy: .public) is busy (installing=\(self.installing[id] != nil, privacy: .public), relaunching=\(self.relaunching.contains(id), privacy: .public)) — ignoring")
+            return
+        }
         let target = result.app.path
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }

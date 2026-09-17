@@ -54,14 +54,28 @@ import sys
 #
 # The SF Symbols column is used when SWT_SF_SYMBOLS_ENABLED is set true, or
 # when it's unset and /Library/Fonts/SF-Pro.ttf exists (ABI/EntryPoints/
-# EntryPoint.swift, same branch). So on any Mac with SF Pro installed, a
-# marker class holding only `✔━` reports every case as never run.
+# EntryPoint.swift, same branch). ANSI mode is on for a TTY and also for a pipe
+# (`swift test` reads the test process through one), and in SF Symbols mode it
+# adds a second space after the glyph. Hence one or two spaces.
+#
+# What was measured on 2026-09-17 (Xcode 27.0, 27A266a), running `make test`
+# with SWT_SF_SYMBOLS_ENABLED=1:
+#
+#   * The SwiftPM half printed `U+10105B  Test …` with two spaces, for all 3483
+#     pass records. A `✔`-only marker would have matched none of them.
+#   * xcodebuild does not pass a plain exported variable to xctest; it was
+#     absent from xctest's environment. TEST_RUNNER_SWT_SF_SYMBOLS_ENABLED=1
+#     does get SWT_SF_SYMBOLS_ENABLED=1 there (`man xcodebuild`, TEST_RUNNER_<VAR>),
+#     yet the App-test log still printed `✔ Test` with one space for all 51
+#     cases. So the output this gate reads was not seen to change. Whether an
+#     installed SF-Pro.ttf changes it isn't tested (none here), but per
+#     EntryPoint.swift the font only matters when the variable is unset. The
+#     SF markers are defence, not a measured need.
 #
 # Not matched, each a false red:
 #
-#   * With ANSI escape codes on (a TTY), swift-testing wraps the marker in color
-#     codes, and in SF Symbols mode adds a second space after it. xcodebuild
-#     writes to a pipe, not a TTY, so that's not expected to arise (UNVERIFIED).
+#   * With color on (TERM set, as in a terminal), swift-testing wraps the
+#     marker in ANSI color codes. No App-test log has had one.
 #   * Before swiftlang/swift-testing#1585 (merged 2026-02-24, e.g. release/6.2),
 #     a pass with known issues printed `✘` (SF Symbols U+100883), the failure
 #     glyph, so it can't be added without letting failures through. On such a
@@ -73,7 +87,7 @@ import sys
 # pass occurrence read `✔ Test`, and the U+200B or torn barrier sat before the
 # marker, never between it and `Test`. Those logs are transient (the directory
 # is reclaimed), so this can't be re-run.
-RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
+RAN = re.compile(r"[✔━\U0010105B\U00100882] {1,2}Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
 
 # A log line the test process wrote to stderr (NSLog, or os_log echoed because
 # xcodebuild runs tests with OS_ACTIVITY_DT_MODE) interleaves with swift-testing's
@@ -134,10 +148,10 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?:
 # the parens stay `[^)]*`. A single-line grep of App/ and DuoUpdaterCore/Sources
 # finds no log or print call that writes `✔` or `━`.
 #
-# Swept by brute force on 2026-09-17, before the SF Symbols markers were added,
-# with a script that is not committed, so the numbers can't be re-run from this
-# repo. Each writer was torn at every point into at most two pieces and
-# interleaved every way:
+# Swept by brute force on 2026-09-17 with a script that is not committed, so
+# the numbers can't be re-run from this repo. Re-run on the final pattern (SF
+# markers, one or two spaces), it gave the same numbers. Each writer was torn
+# at every point into at most two pieces and interleaved every way:
 #
 #   * one non-pass record (started / failed / cancelled / parameterized) and
 #     one log line whose message is `probe (ok) passed`, `check(x) passed`,

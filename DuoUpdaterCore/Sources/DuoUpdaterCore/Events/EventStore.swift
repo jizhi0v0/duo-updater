@@ -790,9 +790,8 @@ public actor EventStore {
     /// The two halves of that are exactly what is needed, and why this is the
     /// mechanism rather than a hook: SQLite has **no** cross-process push, and
     /// our own writes are already known to us without asking the database. So
-    /// this catches `duo` writing from another process, and
-    /// the `writes` half of the token catches this process's own flushes with no
-    /// polling at all.
+    /// this catches `duo` writing from another process, and the `writes` half
+    /// of the token covers this process's own flushes without a database query.
     ///
     /// Paired with `writes` because data_version deliberately ignores our own
     /// commits — a viewer that only watched it would never see the app's own

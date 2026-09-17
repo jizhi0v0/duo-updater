@@ -4,10 +4,10 @@ import Testing
 
 /// The two relaunch decisions that used to live inside `AppListModel`, where no
 /// test could reach them — `App/project.yml` declares six targets and only
-/// `DuoUpdaterAppTests` is a test, compiling `ScanRowAssembly.swift` and
-/// `RequestCoverageHonesty.swift`, not `AppListModel`. Both were wrong in the same
-/// way, and the wrongness was only
-/// visible on an app whose marketing version does not move between builds.
+/// `DuoUpdaterAppTests` is a test, compiling only the sources it names, and
+/// `AppListModel` is not among them. Both were wrong in the same way, and the
+/// wrongness was only visible on an app whose marketing version does not move
+/// between builds.
 ///
 /// Every fixture here is the Amp shape: `CFBundleShortVersionString` frozen at
 /// "1.0" while `CFBundleVersion` climbs. Measured 2026-08-28 — Amp shipped ten

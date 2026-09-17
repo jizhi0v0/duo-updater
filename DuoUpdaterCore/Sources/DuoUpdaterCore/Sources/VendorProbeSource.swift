@@ -5,9 +5,11 @@ import Foundation
 /// "probe recipe" (see `VendorProbeRecipe`) that reads the latest version
 /// straight from the vendor's own download endpoint.
 ///
-/// Wired after the three standard sources — and before `ElectronManifestSource`,
-/// which is last — so it only runs when the standard sources have all missed:
-/// vendor probes are slow, fragile, and should never pre-empt a reliable source.
+/// Wired after the standard sources (App Store, Xcode, Sparkle, Homebrew,
+/// GitHub Releases — plus Alcove when the user has credentials) and before
+/// `ElectronManifestSource`, which is last — so it only runs when the standard
+/// sources have all missed: vendor probes are slow, fragile, and should never
+/// pre-empt a reliable source.
 ///
 /// Never reports a version it isn't confident about, so it can't produce a
 /// false "update available". What it does NOT do is stay quiet about failing:

@@ -19,7 +19,7 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 
 - **编译通过不算验证。** 说"修好了 / 可以提交了"之前贴出实际命令和结果。
 - 修 recipe 要先复现红:拿到坏掉的原始响应体(`--samples`),确认新规则在**那份真实响应**上过,再跑全量。
-- 新增/改 recipe **必须补一条回归测试**;凡是该由「每条 recipe 都得满足」来表达的性质,用例要**从 registry 推导**,不要手写一份会漂移的清单。范式是 `ChangelogURLPolicyTests` 的「Derived from the registries」一节(遍历 `VendorProbeRegistry.recipes` / `ChangelogRecipeRegistry.recipes`),`AppAuditCoverageTests`、`ChannelGuardTests` 同理。⚠️ **`RecipeHealthTests` / `RecipeVerificationTests` 不是这个范式**——2026-09-07 实测:前者 `grep -c Registry` 为 0,测的是 `RecipeHealth` 这个 actor、id 是合成的;后者是 2026-08-08 两个真实故障的回放套件。这条以前指着它们,照着看的人找不到可抄的东西。
+- 新增/改 recipe **必须补一条回归测试**;凡是该由「每条 recipe 都得满足」来表达的性质,用例要**从 registry 推导**,不要手写一份会漂移的清单。范式是 `ChangelogURLPolicyTests` 的「Derived from the registries」一节(遍历 `VendorProbeRegistry.recipes` / `ChangelogRecipeRegistry.recipes`),`AppAuditCoverageTests`、`ChannelGuardTests` 同理。**`RecipeHealthTests` / `RecipeVerificationTests` 不是这个范式**——2026-09-07 实测:前者 `grep -c Registry` 为 0,测的是 `RecipeHealth` 这个 actor、id 是合成的;后者是 2026-08-08 两个真实故障的回放套件。
 - 新增/改 recipe(`Recipes/` 下任何家族文件、`AppRecipeIndex.all`、家族共用的 helper)**必须重录 golden** 并连同 diff 一起提交:`DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests`(录制那一轮故意失败,去掉变量再跑一遍看绿)。为什么、以及两个各自绿的 PR 合进去之后怎么红,见 `RecipeGoldenTests` 的文档注释。
 - 全量 `duo verify` 约 150 个请求 / 3 分钟,别为了省时间只验一个就宣布全绿。
 - **`duo verify` 现在自己会拒绝跑陈旧二进制,不用再靠记性。** recipe 是编译进二进制的,
@@ -70,17 +70,16 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   布局量当入参传下去)。这不是洁癖:`PopoverRowAction` / `WorkbenchRowAction` 靠这条才能
   不构造 `AppListModel` 就被画出来——而 `AppListModel.init` 会注册通知权限、起定时器、装
   FS watcher,harness 里构造它既重又有副作用。动作一律走 `RowActions` 闭包。
-- ⚠️ **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
+- **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
   `make install` 才炸在 "requires a development team"。`scripts/row-state-gallery.sh` 像
   `install.sh` 一样先 `export DUO_TEAM_ID` 再生成,照抄这个做法。
-- **改了行的画法就跑 `make gallery`**,它把 49 个状态 × 两个界面渲染到
-  `verify/row-states/{popover,workbench}/*.png`,共 98 张(2026-09-16 点过盘上的图;
-  以前这里写的是 40 / 80,状态加过之后没跟着改——**这个数会漂,别拿它当断言,要用就现数**)。**这些图是提交进仓库的**,
+- **改了行的画法就跑 `make gallery`**,它把每个状态 × 两个界面渲染到
+  `verify/row-states/{popover,workbench}/*.png`(张数随状态增减,**别拿它当断言,要用就现数**)。**这些图是提交进仓库的**,
   所以改动会以图片 diff 的形式出现在 PR 里;两边对同一状态画得不一致,也会并排显示出来。
   脚本先 `rm -rf verify/row-states` 再渲染(渲染器只写不删,改名过一次就留下 8 张孤儿图),
   并用 `-AppleInterfaceStyle Light` 钉住外观 —— `ImageRenderer` 跟着宿主外观走,
-  在深色模式下重跑会把这 98 张全改写成与本次改动无关的 diff。
-  ⚠️ 脚本里那两行 `export AppleLanguages` / `AppleLocale` **对字符串是空操作**,别当成
+  在深色模式下重跑会把这些图全改写成与本次改动无关的 diff。
+  脚本里那两行 `export AppleLanguages` / `AppleLocale` **对字符串是空操作**,别当成
   它在"选语言"。原因见下面「只渲染英文」那条:这个 target 里根本没有译文可选。
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
@@ -93,9 +92,9 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   —— 只数 `failed = true` 会漏掉 fixture 那道,而它恰好是最早跑、最容易忘的一道。
 
   1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加**六张**解释面板
-     (`38`/`39`/`40`/`44`/`48`/`49`,工作台没有对应视图;2026-09-16 点的,以前这里写的是三张),而且
+     (`38`/`39`/`40`/`44`/`48`/`49`,工作台没有对应视图),而且
      白名单的 key 是「界面/状态」不是「状态」—— popover 对同一状态画的是对勾,按名字
-     豁免会把检测器在 popover 那半边一起卸掉。⚠️ 判空要**逐像素扫**:第一版用采样网格,
+     豁免会把检测器在 popover 那半边一起卸掉。判空要**逐像素扫**:第一版用采样网格,
      把 `no-source-covers` 误报成空白——它只有一个几像素高的淡 em dash,网格跨过去了。
   2. **同一界面上两个状态画出完全相同的像素**。这条抓的是「视图没读 state 里的东西」:
      popover 曾经在阶梯搬进 Core 之后仍留着自己的 `stagedFileName` / `storeManagedHere` /
@@ -103,7 +102,7 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
      照样全绿——它只问「画了没有」,不问「画对没有」。真的只差 tooltip 的成对状态登记进
      `mayLookAlike`,**带上理由**。
 
-  ⚠️ **两份白名单的 key 都必须带界面前缀,`mayLookAlike` 也是。** 第一版用裸状态名,
+  **两份白名单的 key 都必须带界面前缀,`mayLookAlike` 也是。** 第一版用裸状态名,
   七条豁免里四条只在一个界面上挣到、却把另一个界面白送掉——最坏的是那对 App Store 闸,
   理由写的是"**工作台**故意把两个闸合并成一个 Label",顺手关掉了 popover 那半边,而
   popover 恰恰必须把它们画成地球徽章和三角徽章。判空那条的文档里写过这个道理,
@@ -114,18 +113,16 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   4. **豁免已经不需要了**。`mayLookAlike` 是手维护的,一条不再匹配任何东西的豁免就是给
      未来的漂移发的免检证。把视图改严的那个人,正是该顺手撤掉豁免的人,所以这条也让
      构建失败(加 TestFlight 按钮时当场抓到一条)。
-     ⚠️ **2026-09-16 复核:`mayBeBlank` 现在也有这道检测了,#271 那个缺口已经补上。**
-     `main.swift` 的 `deadBlankExemptions` 和 `mayLookAlike` 那条同形、同样让构建失败。
-     以前这里写的是「`mayBeBlank` 没有这道检测……得自己回去撤掉那条」,已不成立。
+     `mayBeBlank` 也有这道检测:`main.swift` 的 `deadBlankExemptions` 和 `mayLookAlike` 那条同形、同样让构建失败。
   5. **`DownloadReadout` 的枚举顺序被改了**。`AppRow` 走 `allCases` 取第一个合身的,所以
      那个声明顺序就是算法本身,重排会静默改掉每一行下载中的读数,没有编译错误、也没有
      别的测试看得见。图片 diff 是现象不是断言,所以单独一道闸钉它。
 
-  ⚠️ **碰撞比对要跟「所有」同摘要的前驱比,不能只比一个。** 三个状态撞在一起、其中两对
+  **碰撞比对要跟「所有」同摘要的前驱比,不能只比一个。** 三个状态撞在一起、其中两对
   已豁免时,只留一个前驱会让第三对永远不报,而且报不报取决于这份清单的编号顺序——它
   被重编过号。判空豁免掉的图不参与碰撞比对(空白跟空白必然相同,那不是信号)。
 
-- ⚠️ **fixture 的分布本身就是一个坑,而且犯过两次。** 判空全绿可能只是在量 fixture 而不是量
+- **fixture 的分布本身就是一个坑,而且犯过两次。** 判空全绿可能只是在量 fixture 而不是量
   代码:2026-09 那次多语言 harness 给每行喂 `remote: nil`,整屏截出「Reveal in Finder」,
   看着像真 UI 其实全落在兜底分支;这次 gallery 用一份 `remote.appStore == nil` 的行,
   三个 App Store 状态全掉进 `openButton`,`appStoreTrailing` 一次都没被画过。所以
@@ -133,12 +130,12 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   修完 App Store 那三个,`sourceHint` 的三个分支和 `.upToDate` 的三个分支仍然各自只画得出
   一个,因为那份行恒定是 `isMASApp: false` / `sparkleFeedURL: nil`。现在 MAS、Sparkle、
   TestFlight 都有专门的行。**加分支时先问:它是看 state 还是看行?看行的就需要新 fixture。**
-- ⚠️ **`ImageRenderer` 画不出 `.buttonStyle(.borderless)` 里的 SF Symbol**,会渲染成黄底
+- **`ImageRenderer` 画不出 `.buttonStyle(.borderless)` 里的 SF Symbol**,会渲染成黄底
   红斜杠的占位图(三方对照探针验过:裸 `Image(systemName:)` 正常,包进 borderless button
   就坏,跟 `.popover` 无关)。受影响的三张登记在 `notFaithful` 里,每次运行都打印出来:
   popover 的两个琥珀徽章和地球徽章。**这三张的画面不能当真**,同一状态看工作台那张
   (它用 `Label`,渲染是对的)。
-- ⚠️ **gallery 只渲染英文,而且换语言也没用**。`RowStateGallery` 是 `type: tool`,产物是裸
+- **gallery 只渲染英文,而且换语言也没用**。`RowStateGallery` 是 `type: tool`,产物是裸
   Mach-O 不是 `.app`,`App/project.yml` 里只有 app 那一个 target 有 resources 阶段——所以
   `Localizable.xcstrings` 根本没被编进去,视图里的 `String(localized:)` 无论进程 locale 是什么
   都返回英文。(实测:`Build/Products/Debug/RowStateGallery` 下没有 `.lproj`、没有
@@ -155,7 +152,7 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   `MenuLayoutMetrics.width` 370 − `AppRow` 左右 padding 24 − 图标 30 − `HStack(spacing:10)` 的三个
   间隔 30 = **286pt**,由"名字列 + Spacer + 尾部控件"分。名字列剩多少 = 286 − 尾部控件宽度,
   再拿它去比**本机真实装的 147 个 app 名**(`.body` 字体)有几个放不下。
-  ⚠️ **尾部控件必须按组合量**:`errorBadge` 是 `Text` + 6 + 32pt 的重试按钮,不是一个 `Text`。
+  **尾部控件必须按组合量**:`errorBadge` 是 `Text` + 6 + 32pt 的重试按钮,不是一个 `Text`。
   当时量出来 ru 的 `Ограничение частоты запросов` 组合后 **201.9pt**,名字只剩 **84.1pt**,
   **147 个名字里 26 个被截断**;换成 `Лимит запросов` 后是 122.2pt / 163.8pt / 1 个
   (剩下那个 `Another Redis Desktop Manager` 195pt 在英文下也一样截,那是地板)。
@@ -165,7 +162,7 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   各自只多截 1~2 个名字,已在地板附近,**没有跟着一起改**——按量到的改,不按看着长的改。
 - **`.help()` 的文案在 PNG 里根本不存在**,所以"只差 tooltip"这个豁免理由是有代价的。
   #263 补了一半:`mayLookAlike` 的 12 对里,**只有两对**的注释真的声称"靠 tooltip 区分"
-  (10/11 和 13/19),现在有检查用 `Mirror` 反射把两边的 `.help()` 收出来比对。⚠️ 那是
+  (10/11 和 13/19),现在有检查用 `Mirror` 反射把两边的 `.help()` 收出来比对。那是
   SwiftUI 私有的 `HelpView<Content>` 形状,OS/Xcode 升级可能失配——所以"到处都没收到 help
   文案"会单独报 `TOOLTIP EXTRACTOR FOUND NOTHING` 而不是静默放行。剩下十对的注释写的是
   **故意画成一样**(不是靠 tooltip 区分),没有被这条检查覆盖,也不该被覆盖。
@@ -194,9 +191,11 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
     `/code-review high`(对抗复审则是编号攻击面清单)。设计理由、自己排除过的风险别往里塞——
     那正是要让它独立重新推一遍的东西。
   - **brief 里写明**:不跑构建和测试(会和你撞)、不改工作树(不带 `--fix` / `--comment`)、
-    **把每条 finding 连同 `file:line`、失败场景、证据写进最终回复**。
-    父会话只看得到它的最终回复;skill 在 subagent 里调 `ReportFindings` 之后正文还会不会出现,
-    **未验证**,所以别赌。
+    **不调 `ReportFindings`,把每条 finding 连同 `file:line`、失败场景、证据写进最终回复**。
+    父会话只看得到它的最终回复,而两份说明对正文给的指令相反:`ReportFindings` 的工具说明写调了它
+    就不要再把 findings 打成文本;`/code-review` skill 据复审 subagent 转述,要求调完再在最终回复里逐条复述
+    (2026-09-17;工具说明是读的原文,skill 原文未亲自读到)。照前者走,正文就没有 findings,
+    下一条要求的第一行 `阻塞项:无` 会把它伪装成「真没有」。不调工具,就不用赌哪份说明赢。
   - **最终回复的格式也写进 brief**:第一行是结论 `阻塞项:无` 或 `阻塞项:N 条`,然后分两节
     「阻塞项」「非阻塞项」,按下面「裁定」那条的定义分。**「无」要明说**,不能靠没列东西来暗示——
     没列可能是真没有,也可能是正文丢了(见上一条)。分类是它的判断,裁定仍然是作者的(见下)。
@@ -228,7 +227,7 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
     > 不新增风格、可选重构建议;没有新证据,不重复已裁定的问题。
 
     **复查审的是增量,不是整个 PR**:这次修复的提交,加上它们波及的调用点和引用处。
-    ⚠️ **两点 diff `git diff <上轮 head>..<新 head>` 只在分支线性前进时等于「这次修复」**。两轮之间 rebase 到
+    **两点 diff `git diff <上轮 head>..<新 head>` 只在分支线性前进时等于「这次修复」**。两轮之间 rebase 到
     新 main 或合过 main,它会把别人合进 main 的 PR 一起算进来(2026-09-17 在 #718 上模拟过:rebase 之后
     这个范围混进了 #716 的 `scripts/app_test_coverage.py`)。所以先判,再取范围:
     - `git merge-base --is-ancestor <上轮 head> <新 head>` 退 0,**且** `git log --merges <上轮 head>..<新 head>`
@@ -269,7 +268,7 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
     理由是下面「为什么不追求零 finding」那条:审文字总能挑出东西,每条都开 issue,
     等于把「追零 finding」的循环挪到了 issue 列表里。
   - **停止条件**:已确认的阻塞项全部闭环,必要检查通过,剩余风险已明确处理。
-  - ⚠️ **用 `ReportFindings` 把发现重报成 `fixed` 不是复查**,是状态更新:它说「我改了」,不看改出来的东西。
+  - **用 `ReportFindings` 把发现重报成 `fixed` 不是复查**,是状态更新:它说「我改了」,不看改出来的东西。
   - **为什么修复要复查**:修的时候最自信、审得最松。2026-09-03 #314 多轮对抗复审共 13 条缺陷,其中 4 条在
     `App/Sources`,**这 4 条里 3 条是修上一条时引入的**(#315 的 PR 描述)。2026-09-15 #660 第一轮复审抓到
     `test_targets()` 的正则匹配不了带连字符的 target 名;修复 c01be6f1 放宽了正则、根因没动(没匹配上的
@@ -294,7 +293,7 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
 `database is locked`,先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),
 再看是不是同一个 checkout 里跑了两遍——**同 checkout 并发是唯一剩下的碰撞面**,没修。
 
-⚠️ **回收是刻意 fail-closed 的**:只删同时满足「名字是 `duo-<用途>-<8 位 hex>`」和「带 `origin`
+**回收是刻意 fail-closed 的**:只删同时满足「名字是 `duo-<用途>-<8 位 hex>`」和「带 `origin`
 标记且标记指向的 checkout 已经没了」的目录。手工造的那些(`/tmp/duo-dd-292`、`/tmp/duo-pr240-dd`
 之类)一律不碰——2026-09-04 量的时候 `/tmp` 里有 **19G** 这类缓存、每份约 450M,而磁盘只剩
 38G。**给每个 checkout 发一个独立路径而不回收,等于把一个会误判的失败换成一块满了的盘。**
@@ -320,7 +319,7 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
   加商店闸」的**唯一记录理由**,撑了一周,并且被转抄进另外三个文件。
   要么复测,要么写明「转引自 X,未复测」。
 
-- ⚠️ **这一条自己也栽在下一条上,2026-09-12 实测。** 上面这段原先接着写:
+- **这一条自己也栽在下一条上,2026-09-12 实测。** 上面这段原先接着写:
   「(Keka 是 Developer ID 签的、没有 `_MASReceipt`,而 `isMAS` 的推导那天和今天逐字相同)」
   ——那个**更正本身是错的**,而且错法和它要纠正的那句一模一样。
   两台机器同为 Keka 1.6.7:一台 `/Applications/Keka.app/Contents/_MASReceipt/receipt`
@@ -342,8 +341,7 @@ xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住—
   它**管不了断言真不真**,只管它住在哪、长什么形状;换个说法就绕过去了,这是设计如此。
   它会拼接连续注释行再匹配(那句话是**换行断开**的,逐行 grep 一条都抓不到),
   豁免用 `claim-lint:allow-machine-state — <理由>`,理由必填,
-  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`;`mayBeBlank` 当年缺的
-  那道检测 #271 现在也补上了)。
+  而且**一条不再匹配任何东西的豁免会让构建失败**(照抄 `mayLookAlike`)。
 
 **本机这条先记住,省得再翻**:DuoUpdater 是 **arm64-only**,这是产品决策不是构建细节,
 理由写在 `App/project.yml`(`ARCHS: arm64`)——registry 大面积 pin arm64 端点/资源,
@@ -380,7 +378,7 @@ subagent 读不到 memory。
 三次 `/code-review` 抓到的六条里,四条是这一个形状。**它不是偶然,是默认行为**:
 逐处修改是省力路径,而"还有没有别的副本"这个问题不问就不会自己冒出来。
 
-⚠️ **顺带一个反例,别照着补**:发现 `cd "$(git rev-parse --show-toplevel)"` 在仓库外
+**顺带一个反例,别照着补**:发现 `cd "$(git rev-parse --show-toplevel)"` 在仓库外
 不失败之后,最顺手的补法 `|| exit 1` **是无效的**——`cd ""` 返回 0,`||` 永远不触发
 (2026-09-07 实测,从 `/tmp` 跑照样往下走、退 0)。要 `ROOT=$(...) && cd "$ROOT"`,
 让 git 自己的退出码传出来。**修完要跑一遍那个失败场景**,别只看代码像不像对的。
@@ -405,7 +403,7 @@ skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来�
   判断不了时失败关闭。
 - **`shortVersion ?? buildVersion` 用于显示可以,喂给比较就是 bug**;`buildVersion ?? shortVersion`
   才是比较用的顺序。`RemoteVersion.displayVersion` 同理——它是显示用的,比较要 `versionSide`。
-- ⚠️ **`AppScanner.buildVersionIsOverridden` 的 app(Xcode、豆包输入法)存的 build 不是 bundle 自己的**。
+- **`AppScanner.buildVersionIsOverridden` 的 app(Xcode、豆包输入法)存的 build 不是 bundle 自己的**。
   豆包真实的 `CFBundleVersion` 每个 build 都是平的 `1`,scanner 存的是自定义 key 里那个数。
   **拿它跟直接读 plist 的结果比就是两个命名空间**,会恒假。要么退回只比 marketing,要么两边都用同一来源。
 - `scripts/check_staged_version_use.py`(挂在 `make test` 里)会拦住 marketing-first 喂进比较、
@@ -419,7 +417,7 @@ skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来�
 `UpdatePolicy.needsAction`、`BadgeReadout`、`RowActionFacts.assemble` 都是这么落的),
 App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 依赖的文件。
 
-⚠️ **"接线"不等于"必须留在 App"。** 2026-09-04 搬 `needsAction` / `badgeCount` /
+**"接线"不等于"必须留在 App"。** 2026-09-04 搬 `needsAction` / `badgeCount` /
 `rowState` 时先量了一遍依赖:那三处引用的 `InstallStage`、`RowActionFacts`、`UpdateRoute`、
 `stagedRelaunchLine` **全都已经在 Core**,`AppListModel` 的七张表也全是
 `[String: X]` / `Set<String>` 这种 Core 看得见的类型。所以它们整块搬进 Core 就行,
@@ -441,10 +439,8 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   恰恰是这类。可以真的试一下:把 `performRefresh` 里的
   `let provenNow = ResolvedChannelStore.Snapshot()` 挪到 `await checker.check(plan.check)`
   **之前**,它就违反了紧挨着的那句注释("Read after the check, not before"),而**编译通过、
-  9 条测试全绿**。给 `merged` 传一份过期的 `prior` 同理。别把这一节读成「App 层的行组装
+  测试全绿**。给 `merged` 传一份过期的 `prior` 同理。别把这一节读成「App 层的行组装
   现在有覆盖了」。
-  (⚠️ 第一版这里写的是「把 `proofs` 和 `provenNow` 对调」——那两个变量在**两个不同的函数**里,
-  从来不同时在作用域内,照着做会发现根本改不了。举例的变异必须是真能做出来的那一个。)
 - **这个 target 只编译被点名的文件,不是整个 `Sources`。** 这不是为了省时间:
   `AppListModel.swift` 引用 `SettingsView`,会把整棵 SwiftUI 拉进来;而
   `AppListModel.init` 会注册通知、装两个 FSEvent 流、KVO 观察全机进程、起周期检查循环
@@ -462,19 +458,19 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   写死路径会复刻多 worktree 撞锁的坑,而这里的症状是**测试随机失败**,
   比"构建变慢"更容易被误读成真回归。
 - **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
-  `ScanRowAssemblyTests` 现在是 9 条用例 / 10 个变异,10 个全部**编译通过**(不是靠编译
+  变异要**编译通过**(不是靠编译
   错误变红)且只打中该打中的用例。没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle`
   是 fixture 守卫)要在注释里说明。
-- ⚠️ **「这个分支的 carry 没丢」不等于「这个分支还在」。** 第一版把 Toolbox 和 TestFlight
+- **「这个分支的 carry 没丢」不等于「这个分支还在」。** 第一版把 Toolbox 和 TestFlight
   两个早返回合成一条用例、只断言 channel 活着,于是**把这两个分支整个删掉,8 条测试全绿**
   ——那份 fixture 让 `evaluateToolbox`、`evaluate`、`was.status` 三者答案相同,状态那一半是
   `f(X)==f(X)`。现在两条用例各自断言 status,并且 fixture 刻意让三者**互不相同**。
   加用例时先问:**有没有一份输入能让"正确实现"和"删掉这段"给出不同答案?** 造不出来
   就说明这条用例没在量这段代码。
-  ⚠️ 准确的说法是「**正确答案与每一个错答案都不同**」,不是「三个候选互不相同」——实测这两份
+  准确的说法是「**正确答案与每一个错答案都不同**」,不是「三个候选互不相同」——实测这两份
   fixture 里 `evaluate` 和 `was.status` 恰好相等,闸照样成立,但照着"三者互不相同"去推下一份
   fixture 会瞄错属性。
-- ⚠️ **防空过闸要比「名字集合」,不要比两个总数。** 这条闸被写错过三次,每次都是实测才发现:
+- **防空过闸要比「名字集合」,不要比两个总数。** 这条闸被写错过三次,每次都是实测才发现:
   1. **读运行摘要**:某条用例标了 `.disabled()` 时,swift-testing 的摘要**仍然**是
      `Test run with 9 tests` —— 它数的是它知道的、不是它跑过的,所以闸在用例被关掉时放行。
   2. **拿逐条行数去比声明条数**:`@Test(.disabled("…"))` 换行写(**这个仓库的主流写法**,
@@ -484,25 +480,25 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   跳过注释),从日志抽出真的跑过的用例名,断言前者 ⊆ 后者,并且**把没跑的那条名字打出来**。
   三个变异实测:同行 `.disabled()`、换行 `.disabled()`、target 里拿掉 `- path: Tests`,
   三个都红且点名;参数化用例不再误红。
-- ⚠️ **从日志抽用例名的两个坑,都是量出来的、不是猜出来的**:
+- **从日志抽用例名的两个坑,都是量出来的、不是猜出来的**:
   (1) 行首**不能锚 `^`** —— xcodebuild 会在某些行前面加 `XCTestOutputBarrier` 标记(有时还
   被截断成半个 token),swift-testing 还会吐一个 U+200B,实测让 `grep -c "^✔ Test …"`
   把 8 条数成 7 条。要数**出现次数**。(我第一版把原因写成"并行输出交织、两条记录挤到一行",
   复审去数了九份真实日志:**零行**含两条记录 —— 现象对、机制错。)
   (2) 括号**不一定是空的、`passed` 也不一定紧跟在括号后面**:参数化用例打的是
   `Test foo(_:) with 2 test cases passed`。两个假设各让闸错过一次。
-- ⚠️ **「用例是否真的在跑」这件事目前只有 `app-tests.sh` 那条闸在管;「用例是否真的在量代码」
+- **「用例是否真的在跑」这件事目前只有 `app-tests.sh` 那条闸在管;「用例是否真的在量代码」
   只有这份文件的一段话在管。** 没有任何挂进 `make test` 的东西会去跑变异——
   `make gallery` 的 `mayLookAlike`/`mayBeBlank` 是这个仓库把同类规矩变成构建失败的先例,
   这里还没有等价物。所以上面那两条是**约定**,不是闸。
-- ⚠️ **fixture 不能比生产的判据宽。** `Proofs` 第一版按路径答,而真正的
+- **fixture 不能比生产的判据宽。** `Proofs` 第一版按路径答,而真正的
   `provenChannelSnapshot` 要求 path + `shortVersion` + `buildVersion` 三者全中——于是一条
   用例断言了**生产代码根本产生不出来的结果**。fixture 现在按「一份拷贝的一个版本」作键。
 - **harness 自己也要有防空过闸,而且这条闸也要变异验证。** `app-tests.sh` 会在
   「执行了 0 个用例」时失败(target 不再编译 `App/Tests`、或 xcodebuild 改了摘要行),
-  实测:把 `- path: Tests` 从 target 里拿掉,它红;拿回来,9 executed。没有这条闸的话,
+  实测:把 `- path: Tests` 从 target 里拿掉,它红;拿回来,用例照常执行。没有这条闸的话,
   `App/Tests` 被改名之后 `make test` 会永远绿着什么都不跑。
-- ⚠️ **`set -o pipefail` 会让「grep 没匹配到」变成脚本失败。** 第一版在 `set -e` 恢复之后
+- **`set -o pipefail` 会让「grep 没匹配到」变成脚本失败。** 第一版在 `set -e` 恢复之后
   用 `... | grep ... | head` 输出结果,于是**成功路径上**只要 xcodebuild 改了摘要措辞,
   一次全绿的运行就会以无任何信息的失败告终。现在每个过滤都带 `|| true`,完整日志落盘到
   `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
@@ -524,7 +520,7 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 `resolvingSymlinksInPath()` —— **对不存在的路径是恒等变换,对存在的符号链接不是**。
 本机没有 `Xcode.app`(跑的是 Xcode-beta)所以绿;CI runner 镜像里有一个、解析到别处,所以红。
 
-⚠️ **`== nil` 的断言对这种漂移免疫,所以它在哪里都绿。** key 一漂,查不到就是 nil,
+**`== nil` 的断言对这种漂移免疫,所以它在哪里都绿。** key 一漂,查不到就是 nil,
 用例照样通过,但已经不在量它声称在量的那条规则了。同一份 PR 里两条 tombstone 用例分别指着
 `/Applications/AndDrive.app`(正是那个 bug 报告里的 app)和一个真的 ClaudeWakeHost bundle,
 它们在本机的变异覆盖是**靠运气挣来的**:这两个今天碰巧不是符号链接。**失败的那条反而是
@@ -570,14 +566,14 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 `ProcessInstallLock.shared.claim()`**。别为了「更安全」把生产那边的稳定名字改成 UUID:
 那个名字有用途(崩溃后按名字回收),锁已经保证了它的安全性。
 
-- ⚠️ **harness 照抄了生产的命名、却不带那把锁,就是把安全前提丢了。**
+- **harness 照抄了生产的命名、却不带那把锁,就是把安全前提丢了。**
   2026-09-07 实测:`installPipelineDryRun` 用 `DuoUpdaterTest-<scratchSlug>`,而 `scratchSlug`
   是安装路径的 SHA-256(刻意跨进程稳定,好让崩掉的安装按名字回收)、`temporaryDirectory`
   是 per-user 不是 per-process —— 于是两个 worktree 同时跑就互删对方正在下的包,输给的那个
   在最后一步改名时炸成「either the former doesn't exist, or the folder containing the latter
   doesn't exist」。**而它是以「install path broken for: <app>」的形式报出来的**:一次碰撞穿着
   厂商故障的衣服,出现在唯一负责报告厂商故障的那个测试里。现在名字带 per-run UUID。
-- ⚠️ **同一个 checkout 里起两个 `swift test` 撞不上**,SwiftPM 的构建锁会把它们串起来
+- **同一个 checkout 里起两个 `swift test` 撞不上**,SwiftPM 的构建锁会把它们串起来
   (实测:两个各约 20s 的运行,总耗时 43s,双绿)。所以**复现这类跨进程 bug,第二个进程必须给
   `--scratch-path`**,否则你量的是排队,不是并发——我头两次复现就是这么假绿的。
 - 顺带:清理这类遗留目录时,**别拿目录自己的 mtime 当「多久没动过」**。目录 mtime 记的是
@@ -612,18 +608,18 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   ——旧的 hop 本来就不可取消,半个 swap / 没卸载的 DMG / 半个 delta 比跑完更糟。
   `.terminateChild` 只留给**被取消之后没人再用这个结果**的读:目前只有 App Store 的 `open`
   (取消会从安装流程里抛出去)和 `duo triage` 的 opencode(失败只记日志、不写建议)。
-  ⚠️ **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,一律 `.runToCompletion`——
+  **只读不等于能杀**:被取消之后调用方还会接着用这个结果的,一律 `.runToCompletion`——
   `lsappinfo`(空表会清掉所有 Restart 徽标)、`brew` 的几个读(`refreshBrewFormulae` 从视图的
   `.task` 里跑,popover 一关就被取消,然后把空结果写进 Brew 树)、`brew info`、`gh auth`
   (token 会被缓存十分钟)、`mas outdated`、`launchctl print`、探针的 `unzip`(被杀会被归类成
   recipe 故障)。这几条都是两轮复审抓到的,不是设计时想到的。
-  ⚠️ **swift-subprocess 用了 `Span`,而部署目标是 macOS 15。** Swift 6.2+ 的工具链靠链接
+  **swift-subprocess 用了 `Span`,而部署目标是 macOS 15。** Swift 6.2+ 的工具链靠链接
   `@rpath/libswiftCompatibilitySpan.dylib` 回部署它,macOS 26 起系统自带、更老的系统没有。
   这个分支上 `swift build` 出来的 Debug `duo` 就链接了它,在本机照跑不误;Release 的 app 和
   `duo-cli`(Xcode 27 与 26.6 各量一遍)不链接。`scripts/check_swift_backdeploy.py` 挂在
   `build-cli.sh` / `install.sh` / `notarize.sh` 的构建之后,哪天链接上了而没嵌进去就让构建失败。
   没在 macOS 15 上实际启动过——这里没有那样的机器。
-  ⚠️ **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
+  **子进程不再需要 hop,不等于它周围的同步代码也不需要。** 以前整段 swap/备份都在一个 hop 里,
   拆掉 hop 之后,`replaceItemAt`(它会删掉被替换下来的整个 bundle)、整包遍历和删除又回到了
   协作池上——对抗复审抓到的。现在这些各自进 `offCooperativePool`(删除走
   `removeItemOffCooperativePool(at:)`),子进程在 hop 之间 `await`。第二轮复审又抓到一批漏掉的
@@ -631,10 +627,10 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   其中几个原来写在 `defer` 里,而当时 `defer` 不能 `await`——所以改成把中间那段挪进辅助函数、
   调用之后在每个出口删。**Swift 6.4(SE-0493)起 `defer` 可以 `await`,这些已经改回
   `defer { await … }`**;它不需要新运行时,不抬部署目标,代价是构建要 Xcode 27。
-  ⚠️ `defer` 里看到的取消状态和函数体一样(提案明写),所以下一条照样成立。
-  ⚠️ **`.runToCompletion` 只护住子进程,不护住你自己的代码**:编排代码里的 `Task.sleep`
+  `defer` 里看到的取消状态和函数体一样(提案明写),所以下一条照样成立。
+  **`.runToCompletion` 只护住子进程,不护住你自己的代码**:编排代码里的 `Task.sleep`
   在被取消的任务里会立刻返回(`ArchiveExtractor.detach` 的重试间隔为此放进了 detached task)。
-  ⚠️ **offCooperativePool 的闭包里没有 task-local。** 把一段读 `BackupStore.$rootOverride`
+  **offCooperativePool 的闭包里没有 task-local。** 把一段读 `BackupStore.$rootOverride`
   的代码挪进 hop,它就读到真实的备份库——`BackupStore.restore` 的完整性检查就这么把篡改过的
   备份放了行,是篡改测试红了才发现的。先在 hop 外读好,再传进去。
 - **`Task.detached` 不是替代品**,它仍然跑在协作池上。这条 `BrewFormulaReleaseService`
@@ -644,7 +640,7 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   多次 hop 就是多次意外打乱它的机会。例外是闸序列里夹着要 `await` 的子进程
   (`PackageInstaller.handOver`:闸门跑 `pkgutil`/`xar`,再算封条)——那就只能按语句顺序写成
   几次 `await`,顺序由代码的先后保证,并在注释里写明为什么拆开。
-- ⚠️ **这不是 CI 专属问题。** `InstallPermits(applies: 2)` 意味着产品里就有两个并发 apply,
+- **这不是 CI 专属问题。** `InstallPermits(applies: 2)` 意味着产品里就有两个并发 apply,
   启动时的 `recoverInterruptedSwapsOnce` 再加一个(2026-09-13 起 `recoverInterruptedSwaps` 自己
   把签名校验那段包进 `offCooperativePool`,以前是裸 `Task.detached`)。**CI 只是核数低到能撞上的地方。**
 - **有一道闸:`scripts/check_offpool.py`(挂在 `make test` 里)。** 它对每个阻塞调用往外找
@@ -657,7 +653,7 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   防空过是**按写法**的:`BLOCKING` 里每个写法都得至少命中一处,最后一处调用没了就挪进 `RETIRED`
   并写理由(再出现会报)。以前是「总数 ≥ 5」,把唯一那处 `SecStaticCodeCheckValidity` 改名改没了
   还剩 8 处,照样绿。
-  ⚠️ **它看不穿同步函数**:阻塞调用写在同步函数里、从 async 调它而不 hop,是合法的 Swift、
+  **它看不穿同步函数**:阻塞调用写在同步函数里、从 async 调它而不 hop,是合法的 Swift、
   闸也不报——它只管调用点自己是不是阻塞调用。`InPlaceSwap.replace` 曾经就是这样
   (同步、里面有 `waitUntilExit`);它现在是 async,但同样的洞对 `SecStaticCode*` 包装和
   `BoundedBlockingWork.run` 包装依然存在。
@@ -666,11 +662,11 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   `gh auth token` 的两个调用方、四处 CLI、十一处在 `Task.detached` 里构造
   `TestFlightInventory` 的地方。闸在修前的 main 上报 8 处、修后 0 处(51 个阻塞调用点全在同步
   函数或 hop 里)。
-  ⚠️ **hop 只该包真会阻塞的那段。** 第一版把 `GitHubToken.resolve` 整个包进去,连「读 Settings
+  **hop 只该包真会阻塞的那段。** 第一版把 `GitHubToken.resolve` 整个包进去,连「读 Settings
   里的 token」这种纯内存步骤也要先排 Dispatch 队列才能返回,而它外面套着 2 秒的 `firstResult`
   竞速——14 核本机秒过,3 核 runner 上队列准入就吃掉了 2 秒,Settings 里的 token 被当成匿名。
   现在 `GitHubToken.preresolved(explicit:)` 不 hop,只有 `gh auth token` 那步进池外。
-- ⚠️ **修法能救池,不保证能救那个调用。** 那个 Security 的 group 到底在等什么,至今不知道
+- **修法能救池,不保证能救那个调用。** 那个 Security 的 group 到底在等什么,至今不知道
   (栈里没有 XPC 帧,没有任何线程在推进校验)。所以它把「整进程死掉」换成「一个操作卡住」,
   这已经是巨大的改善,但别把它说成"修好了那个调用"。
 
@@ -688,32 +684,32 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   `pull_request` + `push: main` + `workflow_dispatch`、**不带任何 secret**、action 按 SHA 钉住。
   公开仓库的标准 runner 免费不限量;单 job 上限 6 小时,我们自己设 60 分钟。
 - **`test` 是 main 的必需状态检查**,直推 main 被拒(实测退出码 1)。
-- ⚠️ **`[skip ci]` 会把 PR 永久焊死。** GitHub 文档明说:被 commit message / path filter /
+- **`[skip ci]` 会把 PR 永久焊死。** GitHub 文档明说:被 commit message / path filter /
   branch filter 跳过的 workflow,它的 check **停在 Pending**,而要求它的 PR 无法合并。
   实测:带 `[skip ci]` 的 PR `mergeStateStatus=BLOCKED`、`statusCheckRollup` 长度 0、
   `gh pr merge` 退 1。**`paths-ignore` 同理,不能当豁免用。**
-  ⚠️ ⚠️ **扫描不限于第一行,所以「写到」这个标记就会触发它。** 2026-09-05 实测:一条
+  **扫描不限于第一行,所以「写到」这个标记就会触发它。** 2026-09-05 实测:一条
   记录这个坑的提交,主题行干净、标记只出现在**正文**里(而且是包在反引号里的),
   GitHub 照样跳过了整个 workflow —— PR #353 停在 BLOCKED、零个 check、**根本没有 run**。
   在提交信息里提到它时要改写(比如写成「a skip-ci marker」),**文件里怎么写都行**,
   被扫的只有提交信息。
-- ⚠️ **`gh pr merge --auto` 成功 ≠ 已合并**,它在 check 还没报告时就返回 0。任何拿返回值
+- **`gh pr merge --auto` 成功 ≠ 已合并**,它在 check 还没报告时就返回 0。任何拿返回值
   当"合并完成"的脚本,会在 CI 变红时静默丢东西。两处自动流程(mini 夜间基线、发版的
   appcast)都改成轮询 PR 的 `state` 到 `MERGED`,上限 30 分钟。
-- ⚠️ **复审发现问题就先说,别攒一轮再推。** 2026-09-07 实测的时间线:be36b32 的 run 在
+- **复审发现问题就先说,别攒一轮再推。** 2026-09-07 实测的时间线:be36b32 的 run 在
   **03:28:45Z** 结束,PR 在 **03:29:00Z** 合并——15 秒后,绿的、且就是当时的 head,
   **这次合并在 CI 意义上完全正确,绿了就是可合的**(错不在这里,在下面)。而我把复审改出来的修正提交在 **03:34:24Z**,
   **比合并晚 324 秒**:那四条缺陷在被合进去的那一刻,一条都还没说出口。得靠 #403 补。
   **缺陷没被说出口的每一分钟都是它自己的时间窗**,而那次关窗的是我自己 03:22:10Z 开的 `--auto`
   (`autoMergeRequest.enabledAt`)。所以要么把话说在前面,要么复审没完就 `--disable-auto`
   ——攒一轮再推、又让 `--auto` 开着,是在跟自己设的计时器赛跑。
-- ⚠️ **已合并 PR 的 `headRefOid` 会冻在合并那一刻,继续往它的分支推是对 PR 的静默空操作。**
+- **已合并 PR 的 `headRefOid` 会冻在合并那一刻,继续往它的分支推是对 PR 的静默空操作。**
   推完 `git ls-remote origin <branch>` 是新 SHA,而 `gh pr view <n> --json headRefOid`
   仍报旧 SHA——两个都对,但看起来**极像「GitHub 在滞后」**。我当时就是这么误诊的,还准备
   把这条假机制写进本文件。**判据是 `state`,不是 `headRefOid`**:
   `gh pr view <n> --json state,headRefOid`,`MERGED`/`CLOSED` 就说明推过去没人看。
   (更早的教训同形:`--auto` 返回 0 也不代表合了,判据同样是 `state`。)
-- ⚠️ **「没有 pending 的 check」≠「我这个提交被验过了」。** `until [ pending == 0 ]` 这种轮询
+- **「没有 pending 的 check」≠「我这个提交被验过了」。** `until [ pending == 0 ]` 这种轮询
   在**上一个提交的绿勾还挂着**时会立刻退出,把旧结果当成新结果报出来——实测就这么退过一次。
   合并前要比对**那次 run 的 `head_sha` 和 PR 的 head**:
   ```sh
@@ -723,20 +719,20 @@ Swift concurrency 的协作池**宽度约等于核数,而且线程阻塞时不�
   #403 就是这么验的(`aa9f400b` == `aa9f400b`)才合的。**绿勾不带提交号,人眼看不出它验的是哪棵树。**
 - **`make test` 经 `scripts/run-with-hang-report.sh` 跑**,超时会对每个候选进程抓
   `sample(1)`、打两轮相隔 60 秒的 CPU 增量和线程栈、杀进程树、退 124。
-  ⚠️ **「杀树」以前是全机 `pkill -9 -f 'swift-test|xcodebuild|…'`**,2026-09-13 有三个并行
+  **「杀树」以前是全机 `pkill -9 -f 'swift-test|xcodebuild|…'`**,2026-09-13 有三个并行
   worktree 的 `make test` 被别人的超时杀成 `Killed: 9`,而且长得像自己的构建失败。
   现在按 `pgrep -P` 递归收集 `$child` 的后代再杀。本机看到无缘无故的 `Killed: 9`,
   先查是不是哪个旧 checkout 还在跑旧版脚本。
-  ⚠️ **看门狗必须在进程外**:进程内的要靠跑到的代码上膛(上一版在下载闸里上膛,
+  **看门狗必须在进程外**:进程内的要靠跑到的代码上膛(上一版在下载闸里上膛,
   结果闸关着那轮它根本不存在),而异步超时是**它要报告的那个池上的 Task**,
   运行时停止调度时它永远不会触发——实测 5 分钟的 `firstToFinish` 坐穿了 16 分钟静默。
-- ⚠️ **必需检查验的是 PR 的头,不是合并结果。** `strict_required_status_checks_policy`
+- **必需检查验的是 PR 的头,不是合并结果。** `strict_required_status_checks_policy`
   是 **false**,即不要求分支与 main 同步就能合。这是刻意的:开了它,每次 main 前进,那两条
   自动 PR(mini 夜间基线、发版 appcast)都得 rebase —— 正是它们刚被重写来避开的失败,
   而这个仓库常有多个 PR 并行。
   **代价**:一个基于旧 main 验过的 PR 可以合进新 main,**这个组合从没被测过**。
   真出了那种事再考虑打开,别把它当成"已经防住了"。
-- ⚠️ **发版那道闸验的是「工作树」,不是 main。** `publish-release.sh` 只要求提交
+- **发版那道闸验的是「工作树」,不是 main。** `publish-release.sh` 只要求提交
   **在某个远端分支上**(`is on no remote branch, so GitHub cannot tag it`),**不要求在 main 上**。
   而那道真下厂商包的闸只在 CI 上跑过 main。实际都是从 main 打 tag、差异为零,
   **但那是惯例不是保证**。从侧分支发版时那棵树没被那道闸验过。
@@ -764,7 +760,7 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   堵死在 `write` 上——现象是 CPU 恒为 `0:00.00`、日志文件 0 字节、看起来"特别慢"。
   判据三条:`lsof` 看 fd 1/2 是不是 PIPE、stdin 是不是 `/dev/null`(排除等输入)、
   日志有没有在长。2026-09-02 发 0.3.80 时它在前置检查阶段就堵住了。
-- ⚠️ **杀这类命令必须杀整棵进程树。** 同一次里我只 kill 了两个 `bash publish-release.sh`,
+- **杀这类命令必须杀整棵进程树。** 同一次里我只 kill 了两个 `bash publish-release.sh`,
   没杀它们派生的 `swift test`,那条孤儿链(`sh → swift-test → swiftpm-testing-helper`)
   一直攥着 `DuoUpdaterCore/.build` 的 SwiftPM 锁。下一轮于是停在
   `Another instance of SwiftPM (PID: …) is already running … waiting until that process
@@ -773,11 +769,11 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   杀完再查一遍(注意自己的轮询 shell 会因为命令行里含关键字而被 grep 命中,不是残留)。
 - **判断"卡住了"要看有没有在推进,不是看 CPU。** 我一度断言下载卡死,实测那个
   `.partial` 文件 20 秒涨了 966KB —— CPU 为 0 只是在等网络。量文件大小,别看 `%CPU`。
-  ⚠️ **反过来用是成立的,而且是唯一能区分"卡死"和"慢"的判据**:**间隔一分钟量两次
+  **反过来用是成立的,而且是唯一能区分"卡死"和"慢"的判据**:**间隔一分钟量两次
   累计 CPU 时间**,不涨就是没在执行。2026-09-05 就是靠这个把 #351 定死的——两个进程
   60 秒里各烧了 0.00 秒和 0.01 秒。单看一次栈做不到:慢的调用和卡住的调用长得一模一样。
   `scripts/run-with-hang-report.sh` 把这套做成了工具,别再手搓。
-- ⚠️ **「输出停了」不等于「执行停了」。** CI 的日志是缓冲的,退出时才刷,实测偏差约
+- **「输出停了」不等于「执行停了」。** CI 的日志是缓冲的,退出时才刷,实测偏差约
   **235 秒**。我据此断言过"它从没到某一行",而那行其实早就印过了——只是还没刷出来。
   要定位就插阶段行 + 拿栈,别拿最后一行日志当现场。
 
@@ -785,16 +781,14 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - `CHANGELOG.md` 是发布说明的**唯一真源**:`scripts/publish-release.sh` 直接读对应版本那一节,塞进 GitHub Release 和 Sparkle appcast。**英文**,写给用户看的人话,不要写 commit 流水账。
 - **写用户得到了什么,不写我们是怎么查出来的。** 一句加粗的收益,最多再补一句"以前是什么样",格式规范写在 `CHANGELOG.md` 开头。**0.3.80 起改的**,之前那些是旧的长篇体例,保持原样别动。具体不要写的:排查过程、量到的毫秒数、文件名和符号名、issue 号、复审抓到了什么。用户感知不到的改动(重构、内部加固、多数性能优化)合并成结尾一句 "Under the hood:",或者干脆不写——性能优化只有在用户真的会感觉到时才单独成条。
-- ⚠️ 我在 0.3.80 那次先用中文重写了整节才发现:**这个文件历来是英文的**,而且会原样发给全量用户。改之前先看一眼相邻版本。
+- 我在 0.3.80 那次先用中文重写了整节才发现:**这个文件历来是英文的**,而且会原样发给全量用户。改之前先看一眼相邻版本。
 - `make install` / `make cli` 用的是**稳定的 Developer ID 签名**,这不是洁癖:macOS 把 TCC 授权(完全磁盘访问、辅助功能、App 管理)绑在代码身份上,ad-hoc 签名每次重编 CDHash 都变,授权就掉。别为了图快改成 ad-hoc。
 - `make notarize` → `dist/DuoUpdater-notarized.zip`;`make release` 才推 GitHub Release。
-- **发版不再在本机下厂商的包了,别再按旧说法预留那段等待。** `publish-release.sh` 跑的是
+- **发版不在本机下厂商的包。** `publish-release.sh` 跑的是
   同一个 `make test`,而那道真下包的闸(`vendorDownloadPassesSignatureGate`)现在由
   `DUO_DOWNLOAD_GATE` 控制,**只有 ci.yml 设它**。本机一轮实测从 **~185 MB 降到 ~25 MB**
   ——数字来自仓库自己的请求账本(见下面「量流量」那条),不是估算。
-  这条以前写的是「gate 测试要真下厂商的包,所以耗时取决于下行带宽,2026-09-02 实测经
-  Surge 代理只有 ~48 KB/s」。那个场景**不会再发生**,除非你手动 `DUO_DOWNLOAD_GATE=1 make release`。
-- ⚠️ **缺口要知道**:`make release` 跑的是「即将发布的那棵树」,而那道闸只在 CI 上跑过 main。
+- **缺口要知道**:`make release` 跑的是「即将发布的那棵树」,而那道闸只在 CI 上跑过 main。
   发版都是从 main 打 tag、差异为零,**但那是惯例不是保证**。要在发版那一刻也过一遍就
   `DUO_DOWNLOAD_GATE=1 make release`,代价是每次 +160 MB。
 - **量流量走仓库自己的账本,别用 `curl -sI` 估。** `Traffic/` 在调用点打 `RequestPurpose`、
@@ -813,18 +807,17 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 - 本仓库常有多个 worktree 同时开着(`.claude/worktrees/*`),而且 `main` 可能在你干活时已经前进。
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
-- ⚠️ **recipe 巡检任务跑在 mini 上,不在这个 checkout 里。** 2026-09-16 ssh 上去核过:
+- **recipe 巡检任务跑在 mini 上,不在这个 checkout 里。** 2026-09-16 ssh 上去核过:
   `com.bobby.duo-recipe-verify` 是 **mini** 的 LaunchAgent(`~/Library/LaunchAgents/`,
   04:17 / 10:17 / 16:17 / 22:17,日志 `~/Library/Logs/duo-recipe-verify.log`;
   `runs` 当时点是 119,**这个计数器每 6 小时涨一次**,别拿它当基准判断 agent 有没有被重载),
   它的 `WorkingDirectory` 是 **mini 自己的** `/Users/bobby/Developer/duo-updater` ——
   跟开发机的 `/Users/bobby/Developer/github/duo-updater` **既不是同一个路径、也不是同一台机器**。
-  **它碰不到你的工作副本。** 本文件以前写的是「跑在这个 checkout 里、一天四次、会换你的分支」,
-  那是错的,别再照着它去解释开发机上分支为什么变了。
-  ⚠️ **别在 mini 那个 checkout 里留东西**:走到「持久化 baseline 且 `pulled` 成功」那条
+  **它碰不到你的工作副本**,开发机上的分支变了不是它干的。
+  **别在 mini 那个 checkout 里留东西**:走到「持久化 baseline 且 `pulled` 成功」那条
   路径时,收尾是 `git checkout "$BRANCH"` + `git reset --hard "origin/$BRANCH"`,
   未提交的改动会没。
-  ⚠️ **但它不是每轮都跑**:`pulled=0` 时改走本地 commit + `failed=1`,**不 reset**;
+  **但它不是每轮都跑**:`pulled=0` 时改走本地 commit + `failed=1`,**不 reset**;
   baseline 没变则根本到不了那段。所以反过来推不成立 ——
   **「我留的东西还在」不能推出「夜扫没跑」**,它可能跑了、只是走了不 reset 的那条路。
   2026-09-06 那次事故(baseline PR 从特性分支切出去、带了三个没复审的文件、还开着 `--auto`)
@@ -839,10 +832,9 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   2026-09-16 实测撞过一次:会话开始时在 `main`,中途变成了另一个会话的
   `fix/notified-version-ledger-set`(其 PR #676 已 squash 合并),而工作树里的 `CLAUDE.md`
   混着两个会话的编辑 —— 直接 `git commit CLAUDE.md` 就会把别人没写完的东西一起提交进去。
-- ⚠️ 顺带:**发版那条自动流程也是防住的**。`publish-release.sh` 刻意把 appcast 放进一个临时 clone
+- 顺带:**发版那条自动流程也是防住的**。`publish-release.sh` 刻意把 appcast 放进一个临时 clone
   改,理由写在它自己的注释里——"Committing the appcast into the working tree would mean the
-  release touches whatever branch happens to be checked out"。以前这里写「那边防住了,这边没有」,
-  现在两边都防住了。
+  release touches whatever branch happens to be checked out"。
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
 - 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。

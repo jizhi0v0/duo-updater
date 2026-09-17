@@ -64,7 +64,7 @@ The rest, by the problem they solve — go to the source for the exact semantics
 | Service answers nothing to a GET (Omaha-style) | `requestBody` |
 | WAF needs a Referer, or rejects the default UA | `requestHeaders` |
 | Endpoint sometimes returns a "nothing new" / closed-track body | `transientBodyPattern`, `trackClosedPattern` |
-| The body also states the version the caller already has | `installedVersionPattern` |
+| Recipe applies only to installed copies whose marketing version matches (a new major is a separate, often paid, product rather than the next version) | `installedVersionPattern` |
 | Versions are commit hashes (no order of their own); the vendor publishes its release history | `buildLineage` — see `BuildLineage` |
 
 - **`.redirectFilename`** — `url` is a stable link that 302s to the real package;
@@ -155,7 +155,7 @@ blamed on the updater and is hard to diagnose.
 ## Validating against the real endpoint (do this before landing)
 
 1. Note the **installed** version: `mdls -name kMDItemVersion "/Applications/<App>.app"`.
-2. Fetch the endpoint (Python; `curl` is trapped — see SKILL.md) and run your
+2. Fetch the endpoint to a file (see SKILL.md → Fetching) and run your
    `versionPattern` over the real body:
 
 ```bash

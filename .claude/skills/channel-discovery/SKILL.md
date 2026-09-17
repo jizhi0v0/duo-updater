@@ -43,7 +43,7 @@ Reusing `app-audit`'s four patterns:
 | **C. Same id, tag-filtered / keyed** | One bundle id + feed; an in-app toggle selects items via channel tag or header/license (OrbStack, TablePlus, CleanShot) | **PRIMARY TARGET** — same |
 | **D. Same id, undetectable** | In-app/server-side opt-in that leaves **no local artifact** (Slack Beta, Obsidian Insider) | Document as dead-end, do not re-investigate |
 
-The user asked specifically about **B/C**: apps where you trigger stable→preview
+**B/C are the focus**: apps where you trigger stable→preview
 *inside the app*. The deciding question is never "does it have a toggle" — it's
 **"does flipping the toggle leave a readable local artifact"** (a `defaults` key, a
 license file, a feed URL in prefs). That can only be settled empirically, so this
@@ -94,8 +94,8 @@ brew cat --cask "<name>@beta" 2>/dev/null | grep -iE "name|url|pkgid|auto_update
 A `@beta`/`@nightly` cask that installs a **distinct .app/bundle id** → Pattern A.
 A vendor with betas but **no separate cask** → the channel is likely in-app (B/C/D).
 
-**1d. Per surviving candidate, web-research the in-app toggle question** (use
-Python `urllib`/`WebFetch`, browser UA — `curl` is trapped):
+**1d. Per surviving candidate, web-research the in-app toggle question** (send a
+browser-like User-Agent):
 - "Does `<app>` have an in-app Beta/Preview/Insider/Nightly toggle, and where?"
   (vendor docs, release notes, support forum). Note the exact Settings path.
 - Does anyone document *where the choice is stored* (a `defaults`/plist key, a
@@ -166,23 +166,19 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
    until `/app-audit` toggles a real install and diffs `defaults`.
 3. **Never mark a candidate detectable / ✓.** Highest you go is "B/C candidate,
    worth toggling." Only `channel-verify` on a real bundle earns a ✓.
-4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 lists Pattern-D apps
-   already ruled out (Slack Beta, Obsidian Insider, …). Not dead ends, despite older
-   notes: Figma Beta is Pattern A (`com.figma.DesktopBeta`, covered), Raycast's
-   v2 is a machine-selected train, not a channel (§3, corrected 2026-08-27), and
-   Insomnia Beta is reopened — detection is ready, only the rule is missing (§3,
-   corrected 2026-09-14; alpha stays blocked).
-   Re-confirm only if you have a NEW signal; otherwise skip.
+4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 holds the Pattern-D
+   apps already ruled out and the verdicts later corrected; go by its current entry,
+   not by older notes. Re-confirm only if you have a NEW signal; otherwise skip.
 5. **Don't double-cover.** Subtract anything already in VendorProbeRecipe /
    GitHubReleasesSource / a `*Channel.swift` ChannelBinding before listing it.
-6. **Fetching:** `curl` is trapped by a local wrapper — use Python `urllib` or
-   `WebFetch`, always with a browser-like User-Agent.
+6. **Fetching:** always send a browser-like User-Agent; several vendor endpoints
+   reject unfamiliar agents.
 
 ## File map
 
 - `CHANNEL_COVERAGE_TODO.md` — the breadth ledger this skill refreshes (A/B/C/D)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + `detect()` signal hierarchy
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Fork/Surge/TablePlus/DuoPaste/OrbStack/CleanShot)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift` + `*Channel.swift` — the B/C resolvers already built (Phase 1a lists them)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` — one file per app family; its `channel:` lines are the covered channels to subtract
 - `.claude/skills/app-audit/SKILL.md` — the depth skill this one feeds (Pattern A/B/C/D defined there in full)
 - `application-test/` — `channel-verify`, the on-machine proof `/app-audit` runs

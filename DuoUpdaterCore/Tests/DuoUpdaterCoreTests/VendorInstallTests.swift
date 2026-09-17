@@ -180,6 +180,10 @@ import CryptoKit
             }
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 
+    // When the nightly `duo verify` last resolved each recipe, per the committed
+    // baseline. Unreadable means empty, which excuses nothing.
+    let lastGood = committedLastGoodDates()
+
     for key in targets {
         let outcome = results[key] ?? nil
         let remote = outcome?.remote
@@ -225,7 +229,15 @@ import CryptoKit
             let why = outcome?.failure.map { "\($0.kind): \($0.detail)" }
                 ?? outcome?.warnings.map(\.display).joined(separator: "; ")
                 ?? "no recipe applied"
-            Issue.record("\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)")
+            let message = "\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)"
+            if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
+               excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt) {
+                withKnownIssue("vendor outage on a recipe the nightly sweep resolved on \(lastGoodAt) — see excusesVendorOutage") {
+                    Issue.record(Comment(rawValue: message))
+                }
+            } else {
+                Issue.record(Comment(rawValue: message))
+            }
             continue
         }
         // pkg → manual installer (system installer); archives → in-place swap.
@@ -239,6 +251,75 @@ import CryptoKit
             #expect(complaint == nil, "\(key): \(complaint ?? "")")
         }
     }
+}
+
+/// Whether the live sweep above may report a miss as a known issue instead of
+/// failing: the vendor's version endpoint answered 5xx/429 (after the sweep's
+/// retry), AND the nightly sweep resolved this recipe within its infra window.
+///
+/// The sweep is `test`, the check every PR needs to merge, and it probes vendors
+/// the PR did not touch. On 2026-09-17 Termius's beta feed answered 503
+/// (`x-cache: LambdaExecutionError from cloudfront`, for every path under
+/// `mac-beta-universal/`, while the stable feed answered 200) and every open PR
+/// went red for it.
+///
+/// The status alone does not excuse a miss: a new recipe whose URL a server
+/// 500s on must not pass a PR on it. The anchor is evidence the recipe worked —
+/// `lastGoodAt` from `verify/baseline.json`, which the nightly sweep sets only
+/// when the recipe resolved a version. No entry excuses nothing. An EDITED recipe
+/// keeps its ID and so its anchor; that gap is left to the nightly.
+///
+/// The window is `Baseline.infraWindow`'s 5 days (DuoKit, not importable here).
+/// The nightly counts it from the first unreachable sweep, this from the last
+/// good one, which is earlier — so this stops excusing no later than the nightly
+/// starts reporting the recipe as gone.
+/// A 4xx, a pattern that stopped matching, and transport errors — the
+/// runner's own network among them — are never excused. Neither is
+/// `installURLTransient`: `lastGoodAt` proves the version resolved, not the
+/// installer.
+func excusesVendorOutage(
+    _ failure: ProbeFailure?, lastGoodAt: Date?, now: Date = Date()
+) -> Bool {
+    guard case .httpStatus(let code)? = failure, VendorProbeSource.isTransientStatus(code),
+          let lastGoodAt
+    else { return false }
+    return now.timeIntervalSince(lastGoodAt) < 5 * 24 * 60 * 60
+}
+
+/// `lastGoodAt` per recipe ID from the committed `verify/baseline.json`.
+private func committedLastGoodDates() -> [String: Date] {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // DuoUpdaterCoreTests
+        .deletingLastPathComponent()   // Tests
+        .deletingLastPathComponent()   // DuoUpdaterCore
+        .deletingLastPathComponent()   // repo root
+        .appendingPathComponent("verify/baseline.json")
+    guard let data = try? Data(contentsOf: url),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let entries = json["entries"] as? [String: [String: Any]]
+    else { return [:] }
+    let iso = ISO8601DateFormatter()
+    return entries.compactMapValues { ($0["lastGoodAt"] as? String).flatMap(iso.date(from:)) }
+}
+
+@Test func vendorOutageIsExcusedOnlyForARecipeThatRecentlyWorked() {
+    let now = Date()
+    let fresh = now.addingTimeInterval(-3_600)
+    let stale = now.addingTimeInterval(-6 * 24 * 60 * 60)
+    #expect(excusesVendorOutage(.httpStatus(503), lastGoodAt: fresh, now: now))
+    #expect(excusesVendorOutage(.httpStatus(429), lastGoodAt: fresh, now: now))
+    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: nil, now: now),
+            "a recipe the nightly never resolved has not shown it works")
+    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: stale, now: now),
+            "past the infra window the nightly calls it gone")
+    #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, now: now))
+    #expect(!excusesVendorOutage(.versionPatternNoMatch(sampleBytes: 10), lastGoodAt: fresh, now: now))
+    #expect(!excusesVendorOutage(.transport(urlErrorCode: -1003, "host not found"), lastGoodAt: fresh, now: now))
+    #expect(!excusesVendorOutage(nil, lastGoodAt: fresh, now: now),
+            "no failure means a detection-only fallback, which this does not cover")
+
+    // The anchor has to be readable, or the excuse is dead code that fails closed.
+    #expect(committedLastGoodDates().count > 200)
 }
 
 /// `ChannelProofRegistry.proofs` must cover every non-stable install recipe, and

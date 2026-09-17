@@ -30,7 +30,10 @@
   - v2: 发布仓的 GitHub Release（`SuperCmd.dmg`）；Homebrew 第三方 tap `shobhit99/tap/supercmd`
     （官网给的命令；cask `version "1.0.7"`，**没有** `auto_updates`，`depends_on macos: :sequoia`）
   - v1: GitHub Release；Homebrew 第三方 tap `supercmdlabs/supercmd/supercmd`（cask `version "1.0.26"`、`auto_updates true`）
-  - 主 homebrew-cask 无收录（`brew info --cask supercmd` 报不存在）；Mac App Store 无上架
+  - 主 homebrew-cask 无收录（`brew info --cask supercmd` 报不存在；2026-09-17 的 `formulae.brew.sh/api/cask.json`
+    共 7734 个 cask，token 与 artifacts 里都没有 supercmd）；Mac App Store 无上架
+  - 所以 `HomebrewCaskSource` 对三者都不会作答：`HomebrewCaskCatalog` 只读主仓那份 `cask.json`，第三方 tap 的 cask
+    根本进不了索引。这与两个 tap cask 有没有 `auto_updates` **无关**——那道闸只作用于索引里的 cask。
 
 ## 覆盖矩阵
 
@@ -40,7 +43,7 @@
 |--------------------|---------|----------|-----|--------|-------------|
 | **v2 stable**      | ✓（通用，零 recipe） | —（第三方 tap） | — | — | — |
 | **v2 beta**        | ✓（通用，零 recipe） | — | — | — | — |
-| **v1 stable**      | — | —（第三方 tap，且 `auto_updates`） | — | ✓（仅检测） | — |
+| **v1 stable**      | — | —（第三方 tap） | — | ✓（仅检测） | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: v2 与 v2 Beta 为 **Sparkle**，v1 为 **GitHub**。
 

@@ -7,8 +7,10 @@ enum com_supercmd_app {
         // SuperCmd v1 — the open-source Electron launcher (`SuperCmdLabs/SuperCmd`,
         // `com.supercmd.app`). Its `app-update.yml` says only `provider: github`,
         // which `ElectronManifestSource` deliberately does not turn into an address,
-        // so without this rule a v1 copy reads as unknown. The vendor's tap cask is
-        // `auto_updates true` and defers.
+        // so without this rule a v1 copy reads as unknown. Homebrew cannot answer
+        // either: the only cask is in the vendor's own tap, and `HomebrewCaskCatalog`
+        // reads the main catalog alone (no SuperCmd entry among its 7734 casks,
+        // 2026-09-17), so that cask never reaches the `auto_updates` gate at all.
         //
         // v2 is a DIFFERENT app: closed-source, native, `com.supercmd.SuperCmd`, with
         // its own `SUFeedURL` into `SuperCmdLabs/supercmd-v2-releases`, so the generic

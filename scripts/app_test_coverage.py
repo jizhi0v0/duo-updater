@@ -40,13 +40,30 @@ import sys
 # The pass marker must sit right before `Test`, because the log-line repair below
 # matches on text that interleaved writers glued together, and without it the
 # name and the `passed` could come from different writers (see "What this does
-# and doesn't guarantee"). swift-testing prints `✔` for a pass and `━` for a pass
-# with known issues; a case that started is `◇`, a failure `✘`, a cancellation
-# `➜` (Sources/Testing/Events/Recorder/Event.Symbol.swift in
-# swiftlang/swift-testing). All 3563 pass occurrences in the 70 logs under
-# /tmp/duo-app-tests-* on 2026-09-17 read `✔ Test`; the U+200B or torn barrier
-# sits before the marker, never between it and `Test`.
-RAN = re.compile(r"[✔━] Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
+# and doesn't guarantee").
+#
+# The symbols, from Sources/Testing/Events/Recorder/Event.Symbol.swift on
+# swiftlang/swift-testing release/6.4.0 (Xcode 27 ships Swift 6.4.0):
+#
+#                              unicodeCharacter   SF Symbols (private use)
+#   pass                       ✔ U+2714           U+10105B
+#   pass with known issues     ━ U+2501           U+100882
+#   default (started)          ◇ U+25C7           U+1007C8
+#   fail                       ✘ U+2718           U+100884
+#   skip (skipped, cancelled)  ➜ U+279C           U+10065F
+#
+# The SF Symbols column is used when SWT_SF_SYMBOLS_ENABLED is set true, or
+# when it's unset and /Library/Fonts/SF-Pro.ttf exists (ABI/EntryPoints/
+# EntryPoint.swift, same branch). So on any Mac with SF Pro installed, a marker class holding only
+# `✔━` reports every case as never run. With ANSI escape codes on (a TTY),
+# swift-testing wraps the marker in color codes, and in SF Symbols mode adds
+# a second space after it. Neither form matches. xcodebuild writes to a pipe,
+# not a TTY, so that's expected not to arise; this is UNVERIFIED.
+#
+# Measured 2026-09-17 on the 70 logs then under /tmp/duo-app-tests-* (these get
+# reclaimed, so it can't be re-run): every pass occurrence read `✔ Test`, and
+# the U+200B or torn barrier sat before the marker, never between it and `Test`.
+RAN = re.compile(r"[✔━\U0010105B\U00100882] Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
 
 # A log line the test process wrote to stderr (NSLog, or os_log echoed because
 # xcodebuild runs tests with OS_ACTIVITY_DT_MODE) interleaves with swift-testing's

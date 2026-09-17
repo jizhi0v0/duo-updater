@@ -139,5 +139,31 @@ class TornRecordsDoNotBorrowAVerdict(unittest.TestCase):
         self.assertEqual(atc.ran_cases(text), {"bar"})
 
 
+class SFSymbolsOutput(unittest.TestCase):
+    """With SF Symbols on, swift-testing prints private-use characters instead of
+    `✔`/`━`. That happens when SWT_SF_SYMBOLS_ENABLED is set, or when it's unset
+    and /Library/Fonts/SF-Pro.ttf exists. The code points are from
+    `Event.Symbol._sfSymbolInfo` on swift-testing release/6.4.0: pass U+10105B,
+    pass with known issues U+100882, fail U+100884, default (started) U+1007C8.
+
+    Mutation: drop U+10105B / U+100882 from `RAN`'s marker class → the two pass
+    cases come back empty, and on such a Mac every case is reported as never run.
+    Mutation: widen the marker to any non-space character → the torn SF failure
+    is counted.
+    """
+
+    def test_an_sf_symbols_pass_is_counted(self):
+        text = "\U0010105B Test foo() passed after 0.001 seconds.\n"
+        self.assertEqual(atc.ran_cases(text), {"foo"})
+
+    def test_an_sf_symbols_pass_with_a_known_issue_is_counted(self):
+        text = "\U00100882 Test foo(_:) with 2 test cases passed after 0.001 seconds with 1 known issue.\n"
+        self.assertEqual(atc.ran_cases(text), {"foo"})
+
+    def test_a_torn_sf_symbols_failure_is_not_counted(self):
+        text = "\U00100884 Test foo(" + TS + "probe (ok) passed\n) failed after 0.001 seconds with 1 issue.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+
 if __name__ == "__main__":
     unittest.main()

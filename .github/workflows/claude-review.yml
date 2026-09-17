@@ -1,0 +1,102 @@
+# Automatic Claude review on the maintainer's own pull requests.
+#
+# Every run is a fresh reviewer with no context from the session that wrote the
+# pull request. What carries over between rounds is the PR itself: each review is
+# posted as a comment ending in a `claude-review:v1` marker with the reviewed head
+# SHA, and the author answers it in a comment. prepare.sh reads those back:
+#
+#   • no earlier review          → full review of the PR's own diff
+#   • earlier review, new commits → recheck: only the first-parent, non-merge
+#                                   commits since the reviewed SHA, plus the
+#                                   previous findings and the author's verdicts
+#   • nothing new (re-run, ready_for_review on the same SHA, a base-branch
+#     merge only)                 → skip
+#
+# This is the first workflow here that uses a secret, so it is fenced three ways:
+#
+#   • The job only runs when the PR author is the maintainer and the head branch
+#     lives in this repository. Fork PRs never reach the action.
+#   • `pull_request`, never `pull_request_target`: GitHub withholds secrets from
+#     workflows triggered by a fork, so even a mistake in the `if:` leaks nothing.
+#   • claude-code-action refuses actors without write access and all bots by
+#     default. `allowed_non_write_users` / `allowed_bots` are deliberately unset.
+#
+# The reviewer reads REVIEW.md, the checkout and the PR description, runs
+# read-only git, and writes its review file. Posting is done by the last step,
+# not by the model.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.user.login == 'jizhi0v0' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      WORK: ${{ github.workspace }}/.claude-review
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The default pull_request checkout is the synthetic merge commit; the
+      # markers record head SHAs, so check out the head itself, with history.
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide full review, recheck or skip
+        id: prep
+        run: .github/claude-review/prepare.sh
+
+      - name: Review
+        if: steps.prep.outputs.mode != 'skip'
+        uses: anthropics/claude-code-action@3b8197d3d486006dd4af54613517f21ac6ac625e # v1.0.227
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prep.outputs.prompt }}
+          # Put the reviewer's tool calls in the run Summary. Input is trusted
+          # here (the maintainer's own PRs only), which is the action's condition.
+          display_report: "true"
+          claude_args: >-
+            --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+
+      - name: Post the review
+        if: steps.prep.outputs.mode != 'skip'
+        env:
+          MODE: ${{ steps.prep.outputs.mode }}
+          ROUND: ${{ steps.prep.outputs.round }}
+        run: |
+          if [ ! -s "$WORK/review.md" ]; then
+            echo "::error::The reviewer finished without writing $WORK/review.md"
+            exit 1
+          fi
+          {
+            echo "### Claude review · round $ROUND ($MODE) · \`${HEAD_SHA:0:7}\`"
+            echo
+            cat "$WORK/review.md"
+            echo
+            echo "<!-- claude-review:v1 sha=$HEAD_SHA round=$ROUND -->"
+          } > "$WORK/comment.md"
+          gh pr comment "$PR" --repo "$REPO" --body-file "$WORK/comment.md"

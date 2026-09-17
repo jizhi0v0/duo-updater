@@ -75,10 +75,12 @@ class SplicedLogLines(unittest.TestCase):
 class StillAGate(unittest.TestCase):
     """The repair must not invent passes.
 
-    Mutation: drop the `passed` anchor from `RAN`, or match the raw text with a
-    pattern that lacks it → the started and failed cases are counted, including
-    the failure spliced into a log line, which only the raw-text half of
-    `ran_cases` sees whole.
+    Mutation: drop BOTH the `[✔━] ` marker and the `passed` anchor from `RAN`
+    → the started and failed cases are counted, including the failure spliced
+    into a log line, which only the raw-text half of `ran_cases` sees whole.
+    Dropping only one of them keeps this class green: either one rejects a whole
+    `◇`/`✘` record. For torn records only the marker does; see
+    `TornRecordsDoNotBorrowAVerdict`.
     """
 
     def test_a_case_that_only_started_is_not_counted(self):
@@ -99,6 +101,42 @@ class StillAGate(unittest.TestCase):
             "cted connection — no client requirement is installed on this listener\n"
         )
         self.assertEqual(atc.ran_cases(text), set())
+
+
+# Prefix of a timestamped log line, as the test process writes it.
+TS = "2026-09-17 17:08:17.095680+0800 xctest[1112:8721793] "
+
+
+class TornRecordsDoNotBorrowAVerdict(unittest.TestCase):
+    """A record torn by a log line must not take `passed` from the log line.
+
+    Constructed, not copied from a log: nothing like these has been seen. Each
+    one is a record that did NOT pass, glued to log text that ends in `passed`.
+    The first two are the counterexamples from the review of #716.
+
+    Mutation: drop the `[✔━] ` marker from `RAN` → all four are counted.
+    Mutation: keep the marker for the raw text but match the stripped text with
+    a marker-less pattern → only the third is counted, the one where cutting
+    the log line out assembles `◇ Test foo() passed`.
+    """
+
+    def test_a_started_record_torn_at_its_paren_is_not_counted(self):
+        text = "◇ Test foo(" + TS + "helper: probe (ok) passed\n) started.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_failed_record_torn_at_its_paren_is_not_counted(self):
+        text = "✘ Test foo(" + TS + "check(x) passed\n) failed after 0.001 seconds with 1 issue.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_started_record_whose_tail_lands_in_a_log_line_is_not_counted(self):
+        # Record head, log head, record tail, log tail. Cutting the log line out
+        # (through the record's newline) leaves `◇ Test foo() passed`.
+        text = "◇ Test foo(" + TS + "msg) started.\n) passed\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_marker_from_another_record_is_not_borrowed(self):
+        text = "✔ Test bar() passed after 0.001 seconds.\n◇ Test foo(" + TS + "probe (ok) passed\n) started.\n"
+        self.assertEqual(atc.ran_cases(text), {"bar"})
 
 
 if __name__ == "__main__":

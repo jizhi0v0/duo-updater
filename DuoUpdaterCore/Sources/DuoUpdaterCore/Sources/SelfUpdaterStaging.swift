@@ -62,8 +62,9 @@ public struct StagedSelfUpdate: Sendable, Hashable {
 /// The event on which an app's own updater applies a build it has staged.
 ///
 /// Decides what Relaunch has to do. For `.quit` we must quit and then keep our
-/// hands off until disk moves — reopening early makes ShipIt abort with "App
-/// Still Running Error". For `.launch` the quit alone does nothing: disk never
+/// hands off until disk moves — reopening early makes a ShipIt with the
+/// running-instances check abort with "App Still Running Error", and leaves the
+/// others running the old build under the swap (`StagedUpdater`). For `.launch` the quit alone does nothing: disk never
 /// moves until someone opens the app again, so waiting for it is a guaranteed
 /// timeout.
 public enum StagedApplyTrigger: Sendable, Hashable {

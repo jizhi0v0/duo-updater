@@ -5520,13 +5520,19 @@ final class AppListModel {
 
     /// Apply a self-updater-staged build (the ShipIt "Relaunch to update" state).
     ///
-    /// Crucially different from `restart`: we must **not** reopen the app
-    /// ourselves. The app's own ShipIt swaps the bundle *only while every instance
-    /// is quit*, then relaunches it. `restart`'s immediate `NSWorkspace.open`
-    /// raced that — ShipIt saw the app already back up and aborted with "App Still
-    /// Running Error" every time (the bug behind "Relaunch did nothing, then the
-    /// row flipped to Update"). So here we just quit and let ShipIt take over,
-    /// polling disk to confirm the swap landed. We never optimistically clear the
+    /// Crucially different from `restart`: for a swap-on-quit updater we must
+    /// **not** reopen the app ourselves. Those swap the bundle after the quit and
+    /// then relaunch it, and a reopen from us races that. For ShipIt it failed
+    /// outright: `restart`'s immediate `NSWorkspace.open` put the app back up
+    /// and ShipIt — a Squirrel.Mac build with the running-instances check —
+    /// aborted with "App Still Running Error" every time (the bug behind
+    /// "Relaunch did nothing, then the row flipped to Update"). Older Squirrel
+    /// builds lack that check and Sparkle 2 waits only on the instance it
+    /// registered (`StagedUpdater`), so for those a reopen would instead run the
+    /// old build while the swap lands under it. Either way the app's own updater
+    /// does the relaunch. So here we just quit and let it take over, polling disk
+    /// to confirm the swap landed. Spotify is the exception: its updater applies
+    /// on the next launch, so this does reopen it (`StagedApplyTrigger.launch`). We never optimistically clear the
     /// staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
     /// version, so a swap that didn't land stays "Relaunch" instead of falling back
     /// to our (colliding) Update.
@@ -5823,8 +5829,9 @@ final class AppListModel {
     /// and may not reopen it (see `AppStoreQuitPolicy`).
     ///
     /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
-    /// waits: never open the app before the swap has landed, or the updater aborts
-    /// with "App Still Running" (App Store parks its sheet the same way).
+    /// waits: never open the app before the swap has landed — a ShipIt with the
+    /// running-instances check aborts with "App Still Running", other updaters
+    /// swap under the reopened old build (App Store parks its sheet the same way).
     private func relayQuitHandoff(_ handoff: QuitHandoff) async {
         let app = handoff.result.app
         // Reuse the row spinner + re-entry block for the duration of the relay.

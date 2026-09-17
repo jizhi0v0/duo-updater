@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.philandro.anydesk"
 changelogs[0].source = URL("https://download.anydesk.com/changelog.txt")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "(?<date>\\d{2}\\.\\d{2}\\.\\d{4}) - (?<version>\\d+(?:\\.\\d+)+) \\(macOS\\)[ \\t]*\\n-+\\n(?<body>.*?)(?=\\n\\d{2}\\.\\d{2}\\.\\d{4} - |\\z)"
 changelogs[0].itemPatterns = Array(count: 1)

@@ -115,6 +115,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "io.tailscale.ipn.macsys"
 changelogs[0].source = URL("https://tailscale.com/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<article id=\"(?<date>[^\"]+)\"[^>]*>.*?<h3 class=\"changelog-title[^\"]*\">Tailscale v(?<version>[^<]+)</h3>(?<body>.*?)(?=<div id=\"|</article>)"
 changelogs[0].itemPatterns = Array(count: 1)

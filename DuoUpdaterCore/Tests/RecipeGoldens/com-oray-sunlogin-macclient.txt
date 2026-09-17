@@ -47,6 +47,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.oray.sunlogin.macclient"
 changelogs[0].source = URL("https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = ""
 changelogs[0].itemPatterns = Array(count: 0)

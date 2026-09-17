@@ -69,6 +69,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.openai.codex"
 changelogs[0].source = URL("https://learn.chatgpt.com/docs/changelog?type=codex-app")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<li id=\"codex-[^\"]*\"[^>]*data-codex-topics=\"[^\"]*codex-app[^\"]*\"[^>]*>.*?<time[^>]*>(?<date>[^<]+)</time>.*?<h3[^>]*>\\s*<span>\\s*(?<title>.*?)\\s*(?:<span[^>]*>\\s*(?<version>[^<]+)\\s*</span>)?\\s*</span>.*?</h3>.*?<article[^>]*>(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 2)

@@ -86,6 +86,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.anthropic.claudefordesktop"
 changelogs[0].source = URL("https://claude.com/docs/cowork/changelog.md")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = ""
 changelogs[0].itemPatterns = Array(count: 0)

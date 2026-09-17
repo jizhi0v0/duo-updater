@@ -78,6 +78,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "io.dcloud.HBuilderX"
 changelogs[0].source = URL("https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "## (?<version>[0-9]+\\.[0-9]+\\.[0-9]+)\\n(?<body>.*?)(?=\\n## |$)"
 changelogs[0].itemPatterns = Array(count: 1)
@@ -107,6 +108,7 @@ changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "io.dcloud.HBuilderXAlpha"
 changelogs[1].source = URL("https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_alpha.md")
 changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .html
 changelogs[1].entryPattern = "## (?<version>[0-9]+\\.[0-9]+\\.[0-9]+-alpha)\\n(?<body>.*?)(?=\\n## |$)"
 changelogs[1].itemPatterns = Array(count: 1)

@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "pl.maketheweb.cleanshotx"
 changelogs[0].source = URL("https://cleanshot.com/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<div class=\"version\"[^>]*>\\s*<div class=\"date\"[^>]*>(?<date>[^<]*)</div>\\s*<div class=\"content\"[^>]*>\\s*<div class=\"topbar\"[^>]*>\\s*<div class=\"number\"[^>]*>(?<version>[^<]+)</div>(?:(?!<div class=\"version\").)*?<ul[^>]*class=\"changes\"[^>]*>(?<body>.*?)</ul>"
 changelogs[0].itemPatterns = Array(count: 1)

@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tencent.xinWeChat"
 changelogs[0].source = URL("https://weixin.qq.com/updates?platform=mac")
 changelogs[0].sourceTemplate? = "https://weixin.qq.com/updates?platform=mac&version={version}"
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "\u{5FAE}\u{4FE1} (?<version>[0-9]+(?:\\.[0-9]+)+) for Mac.*?\u{53D1}\u{5E03}\u{65E5}\u{671F}[\u{FF1A}: ]*(?<date>[0-9-]+).*?<div id=\"page_center\"[^>]*>(?<body>.*?)</div>"
 changelogs[0].itemPatterns = Array(count: 1)

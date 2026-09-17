@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.microsoft.Headlamp"
 changelogs[0].source = URL("https://api.github.com/repos/kubernetes-sigs/headlamp/releases?per_page=40")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = "\"tag_name\"\\s*:\\s*\"v(?<version>[0-9][^\"]*)\"(?:(?!\"tag_name\"\\s*:).)*?\"prerelease\"\\s*:\\s*false\\s*,(?:(?!\"tag_name\"\\s*:).)*?\"published_at\"\\s*:\\s*\"(?<date>[^\"T]+)T(?:(?!\"tag_name\"\\s*:).)*?\"body\"\\s*:\\s*\"(?<body>(?:\\\\.|[^\"\\\\])*)\""
 changelogs[0].itemPatterns = Array(count: 2)

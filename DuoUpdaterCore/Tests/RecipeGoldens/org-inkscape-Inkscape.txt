@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "org.inkscape.Inkscape"
 changelogs[0].source = URL("https://wiki.inkscape.org/wiki/Release_notes/1.4")
 changelogs[0].sourceTemplate? = "https://wiki.inkscape.org/wiki/Release_notes/{version}"
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h1 id=\"firstHeading\"[^>]*>Release notes/(?<version>[0-9]+(?:\\.[0-9]+)*)</h1>.*?<h2[^>]*>\\s*<span[^>]*id=\"Changes_and_Bug_Fixes\"(?<body>.*?)<h2[^>]*>\\s*<span[^>]*id=\"Other_releases\""
 changelogs[0].itemPatterns = Array(count: 1)

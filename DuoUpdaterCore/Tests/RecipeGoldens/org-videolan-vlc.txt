@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "org.videolan.vlc"
 changelogs[0].source = URL("https://www.videolan.org/vlc/releases/")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h1[^>]*>(?:[\\d.]+/)*(?<version>[\\d.]+)\\s*Fixes</h1>\\s*(?<body>.*?)(?=<h1|</section>)"
 changelogs[0].itemPatterns = Array(count: 1)

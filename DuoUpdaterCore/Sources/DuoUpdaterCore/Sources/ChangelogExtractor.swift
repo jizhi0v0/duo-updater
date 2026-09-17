@@ -20,7 +20,13 @@ public enum ChangelogExtractor {
 
     /// Parse `text` into a `Changelog` per `recipe`, or nil when nothing usable
     /// comes out (caller then falls back to the web view).
-    public static func extract(from text: String, using recipe: ChangelogRecipe) -> Changelog? {
+    ///
+    /// `version` is the version the page was resolved for. Only a
+    /// `versionFromTemplate` recipe reads it; without one its entries have neither
+    /// a version nor a title and are dropped below.
+    public static func extract(
+        from text: String, using recipe: ChangelogRecipe, version requested: String? = nil
+    ) -> Changelog? {
         guard let entryRegex = compile(recipe.entryPattern) else { return nil }
         let itemRegexes = recipe.itemPatterns.compactMap(compile)
         guard !itemRegexes.isEmpty else { return nil }
@@ -47,8 +53,9 @@ public enum ChangelogExtractor {
             let title = group(match, "title", in: text)
                 .map { clean($0, recipe) }
                 .flatMap { $0.isEmpty ? nil : $0 }
-            let version = group(match, "version", in: text)
-                .map { clean($0, recipe) } ?? ""
+            let version = recipe.versionFromTemplate
+                ? requested ?? ""
+                : group(match, "version", in: text).map { clean($0, recipe) } ?? ""
             guard title != nil || !version.isEmpty else { return }
 
             let date = group(match, "date", in: text)

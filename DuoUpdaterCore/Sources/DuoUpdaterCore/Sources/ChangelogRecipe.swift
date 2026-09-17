@@ -60,6 +60,22 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// in for it.
     public let sourceTemplate: String?
 
+    /// The fetched document names no version, so each entry's version is the one
+    /// `sourceTemplate`'s `{version}` was resolved with. For vendors whose
+    /// per-release notes file is only the notes: Kimi Code's
+    /// `binaries/<version>/changelog.en.md` opens straight on `### Polish`, and the
+    /// version exists only in the path.
+    ///
+    /// The requested version is the only thing that can name such an entry, so
+    /// with no version (a sweep that has none, the untemplated `source` fallback)
+    /// nothing is extracted and the pane falls back as for any failed parse —
+    /// never a versionless entry. What the flag needs from the rest of the recipe
+    /// (a `{version}` template, one entry, no `version` or `title`
+    /// group of its own) is
+    /// enforced over the registry by `ChangelogReviewRegressionTests`. Default
+    /// false.
+    public let versionFromTemplate: Bool
+
 
     /// Response shape. `.html` runs the regexes against the raw markup; `.json`
     /// is identical mechanically (regex over the body) but named separately so a
@@ -561,6 +577,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         channel: ReleaseChannel? = nil,
         includesPromotedStable: Bool = false,
         sourceTemplate: String? = nil,
+        versionFromTemplate: Bool = false,
         newestLast: Bool = false,
         imagePattern: String? = nil,
         headingPattern: String? = nil,
@@ -590,6 +607,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.channel = channel
         self.includesPromotedStable = includesPromotedStable
         self.sourceTemplate = sourceTemplate
+        self.versionFromTemplate = versionFromTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
         self.headingPattern = headingPattern
@@ -725,7 +743,8 @@ public struct ChangelogRecipe: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case bundleID, source, sourceTemplate, mode, entryPattern, itemPatterns
+        case bundleID, source, sourceTemplate, versionFromTemplate, mode, entryPattern
+        case itemPatterns
         case stripTags, decodeEntities, escapedMarkup, markdownSource, maxEntries
         case minItemLength, newestLast, indexLinkPattern, feedPagePattern, channel
         case includesPromotedStable, imagePattern, headingPattern, minimumAppVersion
@@ -777,6 +796,8 @@ public struct ChangelogRecipe: Codable, Sendable {
                 Bool.self, forKey: .includesPromotedStable, default: d.includesPromotedStable),
             sourceTemplate: try c.decodeOptional(
                 String.self, forKey: .sourceTemplate, default: d.sourceTemplate),
+            versionFromTemplate: try c.decode(
+                Bool.self, forKey: .versionFromTemplate, default: d.versionFromTemplate),
             newestLast: try c.decode(Bool.self, forKey: .newestLast, default: d.newestLast),
             imagePattern: try c.decodeOptional(
                 String.self, forKey: .imagePattern, default: d.imagePattern),
@@ -805,6 +826,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         try c.encode(bundleID, forKey: .bundleID)
         try c.encode(source, forKey: .source)
         try c.encodeOptional(sourceTemplate, forKey: .sourceTemplate, defaultIsNil: d.sourceTemplate == nil)
+        try c.encode(versionFromTemplate, forKey: .versionFromTemplate)
         try c.encode(mode, forKey: .mode)
         try c.encode(entryPattern, forKey: .entryPattern)
         try c.encode(itemPatterns, forKey: .itemPatterns)

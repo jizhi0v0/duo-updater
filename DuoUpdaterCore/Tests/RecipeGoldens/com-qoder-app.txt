@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.qoder.app"
 changelogs[0].source = URL("https://docs.qoder.com/release-notes/qoder")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "data-component-part=\"update-label\">(?<date>[^<]{3,40})</div>(?:(?!data-component-part=\"update-label\").)*?data-component-part=\"update-description\">(?:Qoder\\s+)?(?<version>[0-9]+(?:\\.[0-9]+)+)</div>(?:(?!data-component-part=\"update-label\").)*?data-component-part=\"update-content\">(?<body>(?:(?!data-component-part=\"update-label\").)*?)</div></div></div>"
 changelogs[0].itemPatterns = Array(count: 1)

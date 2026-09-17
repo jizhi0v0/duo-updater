@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "net.freemacsoft.AppCleaner"
 changelogs[0].source = URL("https://freemacsoft.net/appcleaner/releasenotes.html")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h2>AppCleaner\\s+(?<version>[^\\s<]+)\\s*<span[^>]*releasedate[^>]*>\\s*-\\s*(?<date>[^<]+)</span>.*?</h2>\\s*<ul[^>]*>(?<body>.*?)</ul>"
 changelogs[0].itemPatterns = Array(count: 1)

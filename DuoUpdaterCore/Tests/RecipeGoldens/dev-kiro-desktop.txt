@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "dev.kiro.desktop"
 changelogs[0].source = URL("https://kiro.dev/changelog/feed.rss")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<item>\\s*<title>(?:IDE(?: (?<version>[0-9][0-9.]*))?: )?(?<title>[^<]*)</title>\\s*<link>[^<]*</link>\\s*<guid>[^<]*</guid>\\s*<pubDate>[A-Za-z]{3}, (?<date>[0-9]{2} [A-Za-z]{3} [0-9]{4})[^<]*</pubDate>\\s*<category>IDE</category>\\s*<description><!\\[CDATA\\[(?<body>[\\s\\S]*?)\\]\\]></description>"
 changelogs[0].itemPatterns = Array(count: 1)

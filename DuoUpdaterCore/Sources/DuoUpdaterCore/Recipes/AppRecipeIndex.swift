@@ -83,6 +83,7 @@ public enum AppRecipeIndex {
         com_jgraph_drawio_desktop.set,
         com_kagi_kagimacOS.set,
         com_kangfenmao_CherryStudio.set,
+        com_kimi_code_desktop.set,
         com_lemon_lvoverseas.set,
         com_local_claudestatusbar.set,
         com_longbridge_app_desktop.set,

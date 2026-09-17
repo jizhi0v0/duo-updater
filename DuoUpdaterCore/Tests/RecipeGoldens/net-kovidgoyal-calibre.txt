@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "net.kovidgoyal.calibre"
 changelogs[0].source = URL("https://calibre-ebook.com/whats-new")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h2 class=\"release-title\">Release:\\s*(?<version>[\\d.]+)\\s*\\[(?<date>[^\\]]*)\\]</h2>(?<body>.*?)(?=<h2 class=\"release-title\">|</div>\\s*</div>\\s*</div>)"
 changelogs[0].itemPatterns = Array(count: 1)

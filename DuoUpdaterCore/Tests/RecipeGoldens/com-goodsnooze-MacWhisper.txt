@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.goodsnooze.macwhisper"
 changelogs[0].source = URL("https://macwhisper-site.vercel.app/release_notes.html")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<h2>(?<version>[0-9][^<]*)</h2>(?<body>.*?)(?=<h2>|\\z)"
 changelogs[0].itemPatterns = Array(count: 1)

@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.conductor.app"
 changelogs[0].source = URL("https://www.conductor.build/changelog")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<article[^>]*>\\s*<div[^>]*>.*?font-mono[^>]*>(?<version>[^<]+)</div>.*?<span[^>]*text-muted-foreground[^>]*>(?<date>[^<]*)</span>.*?</div></div>\\s*<div class=\"min-w-0\">(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 1)

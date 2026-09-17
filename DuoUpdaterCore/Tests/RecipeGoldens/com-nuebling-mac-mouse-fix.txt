@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.nuebling.mac-mouse-fix"
 changelogs[0].source = URL("https://raw.githubusercontent.com/noah-nuebling/mac-mouse-fix/update-feed/appcast.xml")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<title>(?<version>[^<]+)</title>.*?<body>\\s*(?:<p><strong>\\x{2139}.*?<hr\\s*/?>)?(?<body>.*)</body>"
 changelogs[0].itemPatterns = Array(count: 2)

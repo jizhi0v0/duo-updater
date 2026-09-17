@@ -44,6 +44,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tencent.qqmusicmac"
 changelogs[0].source = URL("https://y.qq.com/download/download.js")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .json
 changelogs[0].entryPattern = "\"Ftitle\":\"Mac\"[^{}]*?\"Fversion\":\"[^\"]*?(?<version>[0-9]+(?:\\.[0-9]+)+)\"[^{}]*?\"Fdesc\":\"(?<body>(?:[^\"\\\\]|\\\\.)*?)(?:\\\\n\\|?)*\u{53D1}\u{5E03}\u{65F6}\u{95F4}[:\u{FF1A}]\\s*(?<date>[0-9]{4}-[0-9]{1,2}-[0-9]{1,2})(?:[^\"\\\\]|\\\\.)*\"[^{}]*?\"Flink1\":\"[^\"]*QQMusicMac[0-9]"
 changelogs[0].itemPatterns = Array(count: 1)

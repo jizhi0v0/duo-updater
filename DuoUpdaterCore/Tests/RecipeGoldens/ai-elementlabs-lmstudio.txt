@@ -47,6 +47,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "ai.elementlabs.lmstudio"
 changelogs[0].source = URL("https://lmstudio.ai/changelog/lmstudio")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "href=\"/changelog/(?:lmstudio/)?lmstudio-v[^\"]*\">\\s*<span class=\"sr-only\">LM Studio (?<version>[^<]+)</span></a>.*?<div class=\"markdown-body[^\"]*\"[^>]*>(?<body>.*?)</div>\\s*</div>\\s*</div>"
 changelogs[0].itemPatterns = Array(count: 1)

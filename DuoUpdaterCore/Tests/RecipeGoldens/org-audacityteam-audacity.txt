@@ -10,6 +10,7 @@ changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "org.audacityteam.audacity"
 changelogs[0].source = URL("https://github.com/audacity/audacity/releases")
 changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<section[^>]*aria-labelledby=\"hd-[^\"]*\"[^>]*>\\s*<h2 class=\"sr-only\"[^>]*>Audacity (?<version>\\d+\\.\\d+\\.\\d+)</h2>.*?<relative-time[^>]*datetime=\"(?<date>[^T]+)T[^\"]*\"[^>]*>.*?<div[^>]*class=\"markdown-body[^\"]*\"[^>]*>(?<body>.*?)</div>\\s*</div>"
 changelogs[0].itemPatterns = Array(count: 1)

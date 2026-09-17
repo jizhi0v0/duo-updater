@@ -23,8 +23,9 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `ChangelogRecipe.init` currently takes **27** parameters. Beyond the ones below it
-> also carries `channel`, `includesPromotedStable`, `sourceTemplate`, `newestLast`,
+> `ChangelogRecipe.init` currently takes **28** parameters. Beyond the ones below it
+> also carries `channel`, `includesPromotedStable`, `sourceTemplate`,
+> `versionFromTemplate`, `newestLast`,
 > `imagePattern`, `headingPattern`, `minimumAppVersion`, `belowAppVersion`,
 > `structuredFormat`, `httpMethod`, `requestBody`, `skipSections`, `tagPattern`,
 > `acknowledgedStaleEntry` and `feedPagePattern`. Read
@@ -161,7 +162,9 @@ the real index (vendors put newest first, but verify).
 When the vendor has no index but names each page after the version, template the
 URL instead: `sourceTemplate` with `{version}`, `{majorMinor}` (one page per minor,
 patches folded in: Blender), `{major}` (Opera) or `{appleDocVersion}` (Xcode). The
-page then follows the installed or offered build, with nothing to bump.
+page then follows the installed or offered build, with nothing to bump. If the
+per-version file never names its version (Kimi Code's `changelog.en.md` is just the
+notes), set `versionFromTemplate` so the entry takes the version from the URL.
 
 A version-pinned `source` is the last resort. It fails silently: it keeps parsing
 the old page after the vendor ships, and nothing warns. Bumping it by hand is no

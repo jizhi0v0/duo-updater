@@ -29,20 +29,25 @@ public enum BundleDiff {
     /// command-line argument, "backup") belongs. Cancelling the task stops the
     /// walk between files: the workbench starts one per selected app, and a
     /// selection that moves on must not leave two multi-gigabyte bundles hashing.
+    ///
+    /// `omittedFromOld` names files the old side lacks on purpose — a backup's
+    /// skipped runtime state — so they are not reported as added by the update.
     public static func report(
-        old oldPath: String, new newPath: String, oldLabel: String? = nil, newLabel: String? = nil
+        old oldPath: String, new newPath: String, oldLabel: String? = nil, newLabel: String? = nil,
+        omittedFromOld: [String] = []
     ) async -> Result<String, Failure> {
         let stop = StopFlag()
         return await withTaskCancellationHandler {
             await compare(old: oldPath, new: newPath, oldLabel: oldLabel ?? oldPath,
-                          newLabel: newLabel ?? newPath, stop: stop)
+                          newLabel: newLabel ?? newPath, omittedFromOld: omittedFromOld, stop: stop)
         } onCancel: {
             stop.set()
         }
     }
 
     private static func compare(
-        old oldPath: String, new newPath: String, oldLabel: String, newLabel: String, stop: StopFlag
+        old oldPath: String, new newPath: String, oldLabel: String, newLabel: String,
+        omittedFromOld: [String], stop: StopFlag
     ) async -> Result<String, Failure> {
         let totalStart = ContinuousClock.now
         let scratch = FileManager.default.temporaryDirectory
@@ -58,7 +63,8 @@ public enum BundleDiff {
 
         let old: BundleFacts, new: BundleFacts
         switch sides {
-        case (.success(let a), .success(let b)):
+        case (.success(var a), .success(let b)):
+            a.omittedByBackup = Set(omittedFromOld)
             old = aligned(a)
             new = aligned(b)
         case (.failure(let error), _), (_, .failure(let error)):
@@ -219,6 +225,7 @@ public enum BundleDiff {
         out.asars = rekey(facts.asars)
         out.scripts = rekey(facts.scripts)
         out.unindexedMachO = facts.unindexedMachO.map(key)
+        out.omittedByBackup = Set(facts.omittedByBackup.map(key))
         out.packageComponents = Dictionary(
             facts.packageComponents.map { (component($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
         if let app { out.rootName = (component(app) as NSString).lastPathComponent }
@@ -470,7 +477,11 @@ public enum BundleDiff {
 
     static func filesSection(old: BundleFacts, new: BundleFacts) -> [String] {
         var out = ["", "FILES"]
-        let (added, removed) = keyChanges(old.files, new.files)
+        let (everyAdded, removed) = keyChanges(old.files, new.files)
+        // Not in the backup because the backup skipped them, not because the update
+        // brought them: unreadable runtime state an app keeps inside its own bundle.
+        let skippedByBackup = everyAdded.filter { old.omittedByBackup.contains($0) }
+        let added = everyAdded.filter { !old.omittedByBackup.contains($0) }
         let common = Set(old.files.keys).intersection(new.files.keys)
         let changed = common.filter { old.files[$0]!.digest != new.files[$0]!.digest }
         let signature = changed.filter { $0.contains("_CodeSignature/") || $0.hasSuffix("CodeResources") }
@@ -479,6 +490,11 @@ public enum BundleDiff {
             + "\(changed.count) changed (\(machO.count) Mach-O, \(signature.count) code signature, "
             + "\(changed.count - machO.count - signature.count) other)")
         out.append("  note: every Mach-O and signature file changes on any rebuild; sizes below are the signal")
+        if !skippedByBackup.isEmpty {
+            out.append("  \(skippedByBackup.count) more only on the new side because the backup skipped them "
+                + "(unreadable runtime state, not part of the update):")
+            out += capped(skippedByBackup.map { "      \($0)" }, 20)
+        }
         out += capped(added.map { "  + \($0) (\(bytes(new.files[$0]!.size)))" }, 40)
         out += capped(removed.map { "  - \($0) (\(bytes(old.files[$0]!.size)))" }, 40)
         let deltas = changed
@@ -537,8 +553,8 @@ public enum BundleDiff {
             let total = Set((new.machO[key]?.sourcePaths ?? []).map { ($0 as NSString).lastPathComponent }).count
             out.append("  \(key): +\(change.added.count) -\(change.removed.count) of \(total) file names"
                 + (change.respelled > 0 ? ", \(change.respelled) only respelled (noise)" : ""))
-            out += capped(groupedByDirectory(change.added).map { "      + " + $0 }, 40)
-            out += capped(groupedByDirectory(change.removed).map { "      - " + $0 }, 40)
+            out += groupedByDirectory(change.added, prefix: "      + ", directoryLimit: 40)
+            out += groupedByDirectory(change.removed, prefix: "      - ", directoryLimit: 40)
         }
         if !any {
             let count = new.machO.values.filter { !$0.sourcePaths.isEmpty }.count
@@ -549,22 +565,31 @@ public enum BundleDiff {
 
     static let namesPerLine = 8
 
-    static func groupedByDirectory(_ paths: [String]) -> [String] {
+    /// Paths grouped by directory, a few names per line, cut after `directoryLimit`
+    /// directories.
+    ///
+    /// A few names per line: joined into one, Baidu Netdisk 8.8.3's bundled GLib put
+    /// 2,563 characters on a single line, and the workbench drew the whole report
+    /// blank. The limit counts directories, not lines — cutting by lines let one
+    /// large directory use up the whole allowance and hide every other directory.
+    static func groupedByDirectory(_ paths: [String], prefix: String = "", directoryLimit: Int = .max) -> [String] {
         var groups: [String: [String]] = [:]
         for path in paths {
             let url = path as NSString
             groups[url.deletingLastPathComponent, default: []].append(url.lastPathComponent)
         }
-        // A few names per line. Joined into one, Baidu Netdisk 8.8.3's bundled
-        // GLib put 2,563 characters on a single line, and the workbench drew the
-        // whole report blank.
-        return groups.keys.sorted().flatMap { directory in
-            stride(from: 0, to: groups[directory]!.count, by: namesPerLine).map { start in
-                let names = groups[directory]!.sorted()
+        let directories = groups.keys.sorted()
+        var lines = directories.prefix(directoryLimit).flatMap { directory in
+            let names = groups[directory]!.sorted()
+            return stride(from: 0, to: names.count, by: namesPerLine).map { start in
                 let chunk = names[start..<min(start + namesPerLine, names.count)]
-                return "\(directory)/{\(chunk.joined(separator: ", "))}"
+                return "\(prefix)\(directory)/{\(chunk.joined(separator: ", "))}"
             }
         }
+        if directories.count > directoryLimit {
+            lines.append("\(prefix)… \(directories.count - directoryLimit) more directories")
+        }
+        return lines
     }
 
     // MARK: Localization

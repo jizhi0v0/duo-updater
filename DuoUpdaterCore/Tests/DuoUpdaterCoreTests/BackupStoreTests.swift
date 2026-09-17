@@ -558,6 +558,10 @@ struct BackupStoreTests {
             #expect(!FileManager.default.fileExists(
                 atPath: saved.bundlePath.appendingPathComponent("Contents/mmkv.default").path),
                 "the unreadable dropping must not be in the stored copy")
+            // Recorded, and read back: a bundle diff against this backup uses it
+            // to keep the dropping from reading as a file the update added.
+            #expect(saved.omittedFiles == ["Contents/mmkv.default"])
+            #expect(BackupStore.backup(forKey: key)?.omittedFiles == ["Contents/mmkv.default"])
 
             try makeApp(named: "Fixture.app", in: root, marker: "new")
             #expect(try await BackupStore.restore(forKey: key, over: app) == "1.0")

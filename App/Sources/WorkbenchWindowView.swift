@@ -1816,7 +1816,8 @@ private struct BundleDiffPane: View {
         let started = ContinuousClock.now
         let outcome = await BundleDiff.report(
             old: backup.bundlePath.path, new: app.path.path,
-            oldLabel: "backup (\(backup.version ?? "?"))", newLabel: "installed")
+            oldLabel: "backup (\(backup.version ?? "?"))", newLabel: "installed",
+            omittedFromOld: backup.omittedFiles)
         guard !Task.isCancelled else { return }
         switch outcome {
         case .success(let report):

@@ -13,6 +13,9 @@ struct BundleFacts: Sendable {
     /// Read from a `.pkg`, whose paths start at the expanded package rather than at
     /// an app. `BundleDiff.aligned` rewrites them before anything is compared.
     var isPackage = false
+    /// Paths a backup deliberately did not copy (`BackupStore.Backup.omittedFiles`).
+    /// Set on the old side only, by the caller that knows it is a backup.
+    var omittedByBackup: Set<String> = []
     /// `pkgutil --check-signature`, minus the lines that differ on every signing.
     /// Nil when the input was not a pkg.
     var packageSignature: [String]?

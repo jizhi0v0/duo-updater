@@ -73,6 +73,12 @@ public enum BackupStore {
         /// it on its own, silently undoing the rollback. Worth saying while the
         /// user is deciding. Nil for backups written before this was recorded.
         public let fromAppStore: Bool?
+        /// Files the copy deliberately left out, relative to the bundle root
+        /// (`Contents/mmkv.default`): unreadable and outside the code seal, so the
+        /// app's own runtime state rather than payload. Empty when nothing was
+        /// omitted or the backup predates recording it. A bundle diff against
+        /// this backup needs it, or those files read as added by the update.
+        public let omittedFiles: [String]
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -368,7 +374,8 @@ public enum BackupStore {
         return Backup(
             key: key, version: version, buildVersion: buildVersion,
             bundlePath: dest, savedAt: savedAt,
-            fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore)
+            fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
+            omittedFiles: unreadable.unsealed)
     }
 
     // MARK: - Query
@@ -400,7 +407,8 @@ public enum BackupStore {
         return Backup(
             key: key, version: meta.version, buildVersion: meta.buildVersion,
             bundlePath: bundle, savedAt: meta.savedAt,
-            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore)
+            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
+            omittedFiles: meta.omittedFiles ?? [])
     }
 
     // MARK: - Restore

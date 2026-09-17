@@ -59,6 +59,37 @@ import Foundation
         #expect(Set(listed) == Set(names))
     }
 
+    /// Review of #706: the cap counted lines once a directory spanned several, so
+    /// one large directory used it all and the next directory was never shown.
+    @Test func theCapCountsDirectoriesNotLines() {
+        let big = (1...320).map { "../zzfixture/third_party/zz\($0).c" }
+        let lines = BundleDiff.groupedByDirectory(big + ["ZZFixture/App/Feature/New.swift"], directoryLimit: 40)
+        #expect(lines.contains("ZZFixture/App/Feature/{New.swift}"))
+        #expect(lines.count == 41)
+
+        let many = (1...45).map { "zz/dir\($0)/file.swift" }
+        let capped = BundleDiff.groupedByDirectory(many, prefix: "  + ", directoryLimit: 40)
+        #expect(capped.count == 41)
+        #expect(capped.last == "  + … 5 more directories")
+    }
+
+    /// Review of #706: a backup skips unreadable runtime state inside the bundle
+    /// (ToDesk's mmkv files), and without being told the diff listed those as added.
+    @Test func filesTheBackupSkippedAreNotReportedAsAdded() {
+        var old = BundleFacts(), new = BundleFacts()
+        old.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+        old.omittedByBackup = ["Contents/zz.mmkv"]
+        new.files = old.files
+        new.files["Contents/zz.mmkv"] = FileFact(size: 5, digest: "unreadable")
+        new.files["Contents/Resources/zz-new.txt"] = FileFact(size: 5, digest: "n")
+        let files = BundleDiff.filesSection(old: old, new: new)
+        #expect(files.contains { $0.contains("1 added, 0 removed") })
+        #expect(files.contains("  + Contents/Resources/zz-new.txt (5 bytes)"))
+        #expect(!files.contains { $0.hasPrefix("  + Contents/zz.mmkv") })
+        #expect(files.contains { $0.hasPrefix("  1 more only on the new side because the backup skipped them") })
+        #expect(files.contains("      Contents/zz.mmkv"))
+    }
+
     // MARK: Localization
 
     /// Mac Mouse Fix 3.1.0 moved keys under a new prefix with the same text.

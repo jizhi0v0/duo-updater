@@ -4,6 +4,7 @@ enum com_tinycast_app {
     static let set = AppRecipeSet(
         family: "com-tinycast-app",
         githubRules: [
+        // History: docs/app-audits/com-tinycast-app.md#历史与实测
         // Tinycast — an open-source native launcher (`abue-ammar/tinycast`). No
         // Sparkle: the app's own updater reads this repo's Releases list, so the
         // rules below read exactly what the vendor's updater reads. Homebrew's
@@ -46,9 +47,9 @@ enum com_tinycast_app {
         // stable release is a different app (`Tinycast.app`), never the release
         // a beta copy graduates into, and the vendor's updater never offers it.
         //
-        // listPageSize: newest 100 releases on 2026-09-17 (94 exist), 56 beta
-        // tags, worst gap 5 (v0.9.6-beta.53 → v0.9.2-beta.49), floor 6; 10 for
-        // headroom. `probesNewestFirst` keeps the common round a page of one.
+        // listPageSize 10 covers the worst run of non-beta releases between two
+        // betas with headroom; the floor is pinned in `GitHubListPageSizeTests`.
+        // `probesNewestFirst` keeps the common round a page of one.
         GitHubReleaseRule(
             bundleID: "com.tinycast.app.beta",
             owner: "abue-ammar", repo: "tinycast",

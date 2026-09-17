@@ -107,3 +107,15 @@ beta 的 `-beta.N` 里 `N` 是 Actions 的 run number，跨 base 版本持续递
 ## 建议下一步
 1. 无。stable/beta 检测已接入。
 2. 厂商发布包换成 Developer ID 签名后，重新评估一键安装。
+
+## 历史与实测
+
+从 recipe 注释迁出（2026-09-17）。正文逐字，只去掉了行首 `// `；每组标明出处。
+
+### Recipes/com-tinycast-app.swift — GitHubReleaseRule（beta 的 listPageSize）
+
+转引自 recipe 注释，未复测。结论（10 覆盖最大间隔并留余量、下限由 `GitHubListPageSizeTests` 钉住）留在代码里，这里是原段落全文。
+
+listPageSize: newest 100 releases on 2026-09-17 (94 exist), 56 beta
+tags, worst gap 5 (v0.9.6-beta.53 → v0.9.2-beta.49), floor 6; 10 for
+headroom. `probesNewestFirst` keeps the common round a page of one.

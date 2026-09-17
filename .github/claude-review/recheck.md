@@ -23,6 +23,8 @@ Quote the exact lines behind every status and every new finding. If you cannot p
 
 This runner has no macOS toolchain, so you cannot build or run the tests. Do not try.
 
+You have no network access. When these commits assert something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it under "Unverified external claims" instead. The author verifies those locally.
+
 ## Output
 
 Write the recheck to `@OUT@`. Do not modify any other file. Use this format:
@@ -38,3 +40,9 @@ Write the recheck to `@OUT@`. Do not modify any other file. Use this format:
 1. `path/to/file.swift:123`: the defect in one sentence
    - Trigger: …
    - Evidence: the quoted line(s)
+
+If there are any, end with:
+
+**Unverified external claims**
+
+- `path/to/file:123`: the claim, quoted

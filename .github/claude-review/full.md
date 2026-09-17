@@ -19,6 +19,8 @@ Before reporting a finding, quote the exact line or lines that show it, and stat
 
 This runner has no macOS toolchain, so you cannot build or run the tests. Do not try.
 
+You have no network access. When the diff asserts something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it under "Unverified external claims" instead. The author verifies those locally.
+
 ## Output
 
 Write the review to `@OUT@`. Do not modify any other file. Use this format:
@@ -30,3 +32,9 @@ Write the review to `@OUT@`. Do not modify any other file. Use this format:
    - Evidence: the quoted line(s)
 
 If N is 0, write `**Blocking findings: 0**` and one sentence on what you checked.
+
+If there are any, end with:
+
+**Unverified external claims**
+
+- `path/to/file:123`: the claim, quoted

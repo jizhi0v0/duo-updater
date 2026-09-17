@@ -451,10 +451,21 @@ final class AppListModel {
     /// Which operation may be replacing a row's bundle right now.
     enum BundleChange { case install, rollback }
 
-    /// id → the operation that may be replacing that row's bundle, for exactly the
-    /// span in which it may: `performInstall` up to its post-install disposition
-    /// (the auto-restart there is the install's own, run after the swap), and
-    /// `rollback` from its guard to its return.
+    /// id → the operation that may be replacing that row's bundle, for as long as
+    /// the operation is ours to run: `performInstall` up to its post-install
+    /// disposition (the auto-restart there is the install's own, run after the
+    /// swap) or its earlier return, and `rollback` from its guard to its return.
+    ///
+    /// That is not always the whole span in which the bundle can change. Known
+    /// gaps, where the claim has ended but a swap may still come:
+    ///   * `.installer` (pkg): `performInstall` returns
+    ///     `.handedOffToSystemInstaller` once Installer.app is open, and the swap
+    ///     happens whenever the user drives that window — nothing here observes it.
+    ///   * App Store (AX route): when the progress poll gives up (the
+    ///     `appstore-ax: … timed out` paths) the install throws and the claim ends,
+    ///     while the store may still be installing. UNVERIFIED — not observed; it
+    ///     follows from the store working independently of our poll.
+    ///   * A `.queued` row waiting at a download gate has no claim yet.
     ///
     /// Its own table rather than `installing`, because `installing[id] = .checking`
     /// is also held by rechecks that never touch the bundle (Check Again, the

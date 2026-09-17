@@ -271,7 +271,7 @@ struct WorkbenchWindowView: View {
             } else if model.owesTestFlightRead {
                 await model.refresh()
             } else {
-                await model.refreshLocal()
+                await model.refreshLocal(unattended: false)
             }
             if !hadRequest && selection == nil {
                 selection = apps.first?.id
@@ -304,7 +304,7 @@ struct WorkbenchWindowView: View {
             // permission that only the menu's open and the Welcome/Settings polling
             // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
-            Task { await model.refreshLocal() }
+            Task { await model.refreshLocal(unattended: false) }
             // Brew too: `refreshLocal` doesn't read it, and nothing watches brew's
             // files, so a `brew trust` / `upgrade` / `update` run in a terminal (the
             // unchecked pane hands out the trust command to copy) stayed invisible
@@ -320,7 +320,9 @@ struct WorkbenchWindowView: View {
         // sees is wasted work and battery.
         .onReceive(refreshTimer) { _ in
             guard scenePhase != .background else { return }
-            Task { await model.refreshLocal() }
+            // Unattended: this fires on a 180s clock, not because the user did
+            // anything.
+            Task { await model.refreshLocal(unattended: true) }
         }
         // Keep lifecycle bookkeeping in the model so focus/badge refresh behavior
         // matches the other top-level windows.

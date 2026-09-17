@@ -167,7 +167,7 @@ struct MenuContentView: View {
                 await model.refresh()
             } else {
                 Log.app.info("menu .task: results present → refreshLocal()")
-                await model.refreshLocal()
+                await model.refreshLocal(unattended: false)
             }
             // After the check, so the rows it names are this open's rows.
             model.offerFullDiskAccessIfNeeded()

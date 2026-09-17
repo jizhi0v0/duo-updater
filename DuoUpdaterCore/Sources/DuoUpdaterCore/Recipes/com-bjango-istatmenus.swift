@@ -13,11 +13,21 @@ enum com_bjango_istatmenus {
         // notarized. The pattern skips the `7` in the product name and takes the
         // version that follows it.
         // snapshot-lint:allow — this dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block relies on it.
+        //
+        // Only MAJOR.MINOR is read. A point release keeps the two-component
+        // marketing version and bumps only the build (`iStatMenus7.50.1.zip`
+        // holds a bundle reporting 7.50), so the filename's third component
+        // names nothing the bundle reports: reading it made every copy —
+        // including one already on the point release — show one update behind,
+        // forever, and a re-install could not clear it. Nothing public maps a
+        // point release to its build, so point releases go unoffered (the app's
+        // own updater still delivers them); the next MINOR is still detected.
+        // History: docs/app-audits/com-bjango-istatmenus.md#历史与实测
         VendorProbeRecipe(
             bundleID: "com.bjango.istatmenus",
             url: URL(string: "https://download.istatmenus.app/istatmenus7/download/")!,
             mode: .redirectFilename,
-            versionPattern: #"iStatMenus([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.zip"#,
+            versionPattern: #"iStatMenus([0-9]+\.[0-9]+)(?:\.[0-9]+)?\.zip"#,
             downloadURL: URL(string: "https://bjango.com/mac/istatmenus/"),
             changelogURL: URL(string: "https://bjango.com/mac/istatmenus/versionhistory/"),
             install: VendorInstallSpec(

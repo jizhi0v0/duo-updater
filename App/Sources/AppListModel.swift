@@ -268,8 +268,9 @@ final class AppListModel {
     /// terminated an app that had finished updating (measured 2026-08-29).
     @ObservationIgnored private var quitAnswers: [String: QuitPromptAnswer] = [:]
     /// App ids the user agreed to quit (via the confirm affordance) for an
-    /// incremental App Store update — App Store's Continue quits but doesn't reopen,
-    /// so we relaunch them ourselves once the new build is in place.
+    /// incremental App Store update — App Store is not guaranteed to reopen what it
+    /// quit (see `AppStoreQuitPolicy`), so we relaunch them ourselves once the new
+    /// build is in place.
     /// Why a row is expecting to be reopened.
     ///
     /// The distinction only decides what to do with an app that is **still
@@ -3738,6 +3739,10 @@ final class AppListModel {
         // here for is exactly what it still does.)
         refreshRunningApps()
         let wasRunningBeforeInstall = isRunning(result)
+        // Which processes, not just whether: the store can quit and relaunch the
+        // app mid-install, and only a survivor needs a restart (see
+        // `PostInstallDisposition.preInstallProcessStillRunning`).
+        let preInstallPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
         if defersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
             // Don't pull the app forward when this deferral came from Update All.
@@ -3926,11 +3931,12 @@ final class AppListModel {
                     return .notInstalled
                 }
                 // Arm the reopen before anything can quit the app. On this route
-                // the store's own daemon terminates a running app to replace its
-                // bundle and never brings it back, whether the user gave consent
-                // in our sheet or in App Store's own — and the `mas` path raises
-                // no sheet at all. `AppStoreQuitPolicy` carries the evidence and
-                // the reason the signal is "was it running", not "did they click".
+                // the store terminates a running app to replace its bundle, and
+                // whether it brings it back depends on how: storedownloadd did not
+                // (including through `mas`, which raises no sheet of ours), while
+                // appstoreagent did after a Continue in App Store's own sheet.
+                // `AppStoreQuitPolicy` carries the evidence and the reason the
+                // signal is "was it running", not "did they click".
                 if AppStoreQuitPolicy.armsReopen(
                     route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
                     reopenAfterQuit[id] = .storeMayCloseIt
@@ -4207,19 +4213,29 @@ final class AppListModel {
             // the Restart action. Otherwise the in-place swap is already fully in
             // effect and there's nothing left to do.
             let version = updated.app.shortVersion
+            // `kill(pid, 0)` asks the kernel, not a cached running-apps list. Probed
+            // once, so the decision and the log line below read the same answer.
+            let survivingPIDs = preInstallPIDs.filter { kill($0, 0) == 0 || errno == EPERM }
+            let preInstallProcessStillRunning = PostInstallDisposition.preInstallProcessStillRunning(
+                wasRunningBeforeInstall: wasRunningBeforeInstall,
+                preInstallPIDs: preInstallPIDs,
+                isAlive: { survivingPIDs.contains($0) })
             let disposition = PostInstallDisposition.resolve(
                 defersBookkeeping: deferBookkeeping,
-                wasRunningBeforeInstall: wasRunningBeforeInstall,
+                preInstallProcessStillRunning: preInstallProcessStillRunning,
                 needsRestartAfterRescan: needsRestart.contains(updated.id)
             )
+            // `.notice`, not `.info`: `.info` is not persisted, and this is the line
+            // that says why a row did or did not offer a relaunch after the fact.
+            Log.install.notice("install disposition: \(updated.app.name, privacy: .public) via \(String(describing: route), privacy: .public) — batch=\(deferBookkeeping, privacy: .public) wasRunning=\(wasRunningBeforeInstall, privacy: .public) prePIDs=\(String(describing: preInstallPIDs), privacy: .public) surviving=\(String(describing: survivingPIDs), privacy: .public) stillRunning=\(preInstallProcessStillRunning, privacy: .public) needsRestart=\(self.needsRestart.contains(updated.id), privacy: .public) → \(String(describing: disposition), privacy: .public)")
             switch disposition {
             case .awaitingBatchRestart:
                 let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"
                 pendingBatchRestart[updated.id] = from
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, waiting for batch restart")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, waiting for batch restart")
 
             case .awaitingRestart:
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
                 // Finish the job the user started: a one-click Update shouldn't leave
                 // a second "Relaunch" click dangling. Auto-relaunch unless the user
@@ -4231,7 +4247,7 @@ final class AppListModel {
                     await restart(updated)
                 }
             case .complete:
-                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
+                Log.install.notice("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
@@ -4322,7 +4338,8 @@ final class AppListModel {
         }
         // If an AX App Store update quit the app but then threw before the swap
         // landed (e.g. timed out, or App Store raised an unexpected sheet), Continue
-        // already closed it and won't reopen it — so reopen it ourselves here too,
+        // already closed it, and the store's own relaunch has only been seen after
+        // an update it completed — so reopen it ourselves here too,
         // not only on the success path above. Idempotent: the success path removed
         // it from `reopenAfterQuit`, so this no-ops there.
         reopenIfQuitForUpdate(result, installSucceeded: false)
@@ -5530,8 +5547,8 @@ final class AppListModel {
     /// terminated, so whatever was going to swap the bundle is (or shortly will
     /// be) doing it. Wait for that landing, then launch the app — the step nobody
     /// else takes here, whether it's a ShipIt staged with
-    /// `launchAfterInstallation=false` or an App Store update whose "Continue"
-    /// closes the app without reopening it.
+    /// `launchAfterInstallation=false` or an App Store update that closed the app
+    /// and may not reopen it (see `AppStoreQuitPolicy`).
     ///
     /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
     /// waits: never open the app before the swap has landed, or the updater aborts
@@ -5918,8 +5935,9 @@ final class AppListModel {
         }
         awaitingQuitConfirm[id] = nil
         UpdateNotifier.clearQuitConfirmation(rowID: id)
-        // Quitting the app is what lets App Store swap it, and it does not reopen it
-        // afterwards; remember to do that ourselves once the install lands. Show the
+        // Quitting the app is what lets App Store swap it, and it is not guaranteed to
+        // reopen it afterwards (see `AppStoreQuitPolicy`); remember to do that
+        // ourselves once the install lands. Show the
         // "Relaunching…" indicator meanwhile (cleared when the install settles in
         // `installApp`). Armed on the answer, not on the quit — the installer may find
         // the update already landed and skip the quit entirely, and reopening an app
@@ -5932,8 +5950,8 @@ final class AppListModel {
         Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed)")
     }
 
-    /// Reopen an app we quit for an incremental App Store update (App Store's
-    /// Continue closes it without reopening). Idempotent — the set membership
+    /// Reopen an app we quit for an incremental App Store update (App Store is not
+    /// guaranteed to reopen it; see `AppStoreQuitPolicy`). Idempotent — the set membership
     /// guards against a double reopen — so it's safe to call on both the success
     /// and the error/timeout exit of `install`, ensuring a quit-but-failed update
     /// never strands the user's app closed. Apps that weren't running were never
@@ -5955,14 +5973,19 @@ final class AppListModel {
     private func reopenIfQuitForUpdate(_ result: UpdateResult, installSucceeded: Bool) {
         let id = result.id
         guard let reason = reopenAfterQuit.removeValue(forKey: id) else { return }
-        if !AppRestarter.runningInstances(of: result.app).isEmpty {
+        // Every exit below logs at `.notice`: whether we or the store brought an app
+        // back, and whether a hand-off was armed over a process the store had already
+        // relaunched, is otherwise unrecoverable after the fact (`.info` is not
+        // persisted, and the open itself used to leave no trace at all).
+        let runningPIDs = AppRestarter.runningInstances(of: result.app).map(\.processIdentifier)
+        if !runningPIDs.isEmpty {
             // Still up. Whether to hand this to the terminate observer turns on
             // whether a quit is actually coming — not on who asked for one.
             //
             // Gating on `userAskedToQuit` alone looked equivalent and was not:
             // that reason is only ever set by the App Store AX sheet, and the
             // strategy preference coerces every non-region-locked update onto
-            // `mas`, which raises no sheet. So the arm was `storeMayCloseIt` in
+            // `mas`, which raises no sheet of ours. So the arm was `storeMayCloseIt` in
             // the shipping configuration, this dropped it, and a running app that
             // `storedownloadd` terminated a few seconds after the install
             // returned stayed closed with nothing recorded — the exact failure
@@ -5972,7 +5995,10 @@ final class AppListModel {
             // so the quit is expected. A failed or cancelled one closed nothing,
             // and arming there is how a cancelled update relaunched an app the
             // user had closed themselves ten minutes later.
-            guard reason == .userAskedToQuit || installSucceeded else { return }
+            guard reason == .userAskedToQuit || installSucceeded else {
+                Log.install.notice("reopen-after-quit: \(result.app.name, privacy: .public) not reopening — running=\(String(describing: runningPIDs), privacy: .public), reason=\(String(describing: reason), privacy: .public), install did not succeed")
+                return
+            }
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.
@@ -5980,14 +6006,22 @@ final class AppListModel {
                 quitHandoffs[id] = QuitHandoff(
                     result: result, landing: .appStoreSwap(past: result.app.versionSide),
                     activates: false, armedAt: Date())
-                Log.install.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down)")
+                Log.install.notice("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down) running=\(String(describing: runningPIDs), privacy: .public) reason=\(String(describing: reason), privacy: .public)")
                 return
             }
         }
+        let name = result.app.name
+        Log.install.notice("reopen-after-quit: opening \(name, privacy: .public) — running=\(String(describing: runningPIDs), privacy: .public) reason=\(String(describing: reason), privacy: .public) installSucceeded=\(installSucceeded, privacy: .public)")
         let config = NSWorkspace.OpenConfiguration()
         config.activates = false
         NSWorkspace.shared.openApplication(
-            at: result.app.path, configuration: config, completionHandler: { _, _ in })
+            at: result.app.path, configuration: config, completionHandler: { app, error in
+                if let error {
+                    Log.install.notice("reopen-after-quit: open of \(name, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
+                } else {
+                    Log.install.notice("reopen-after-quit: open of \(name, privacy: .public) returned pid \(app?.processIdentifier ?? -1, privacy: .public)")
+                }
+            })
     }
 
     /// A small launch rect at the center of the window the user is currently

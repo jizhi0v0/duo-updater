@@ -493,6 +493,47 @@
         }
       }
     },
+    "%@ quit, but its own updater didn’t apply the update in time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde beendet, aber sein eigener Updater hat das Update nicht rechtzeitig angewendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ se cerró, pero su propio actualizador no aplicó la actualización a tiempo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a quitté, mais son propre outil de mise à jour n’a pas appliqué la mise à jour à temps."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了しましたが、アプリ自身のアップデータが時間内にアップデートを適用しませんでした。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ закрылось, но его собственный механизм обновления не успел применить обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已退出，但它自带的更新程序没有及时应用更新。"
+          }
+        }
+      }
+    },
     "%@ doesn’t publish a changelog we can read.": {
       "extractionState": "manual",
       "localizations": {

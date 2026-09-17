@@ -161,3 +161,100 @@ public enum RelaunchProgress {
         return VersionComparator.isNewer(disk, than: old)
     }
 }
+
+/// How a Relaunch of a self-updater-staged build ended, once
+/// `relaunchStagedUpdate` stops waiting — and so what the row has to say.
+///
+/// Before this existed the three endings looked identical on screen: the
+/// spinner dropped, the row was re-read, and only `applied=false` in the log
+/// told a swap that never landed apart from one that did. DuoUpdater's own
+/// install path puts a red line under the row when it fails; a relaunch whose
+/// updater never swapped the bundle is the same kind of failure from where the
+/// user sits (they clicked, their app closed, nothing got newer).
+public enum StagedRelaunchOutcome: Sendable, Equatable {
+    /// Disk moved past the version installed when we asked for the quit.
+    case applied
+    /// The app never went down (a save prompt, a sign-in sheet). Not a failure
+    /// of the updater: the swap could not start, and a quit hand-off is armed
+    /// to finish the job if the user answers that window.
+    case wontQuit
+    /// The app quit (or, for a swap-on-launch updater, was launched to apply it)
+    /// and the bundle still had not moved when the wait ran out.
+    case swapDidNotLand
+
+    /// - Parameters:
+    ///   - landed: whether the on-disk version advanced during the wait.
+    ///   - everQuit: whether every instance was observed gone at some tick.
+    ///
+    /// `landed` is asked first on purpose. Each tick of the poll reads disk
+    /// before it looks at the process list and stops on a landing, so the
+    /// function can end with `landed` true and `everQuit` false whenever the quit
+    /// and the swap both fall between two polls. (Not measured how often that
+    /// happens; the code allows it, and a bundle that moved is a success
+    /// however quickly it moved.)
+    public static func classify(landed: Bool, everQuit: Bool) -> StagedRelaunchOutcome {
+        if landed { return .applied }
+        return everQuit ? .swapDidNotLand : .wontQuit
+    }
+}
+
+/// The red "didn't apply" line a failed staged relaunch left under a row, and
+/// the version it was measured against.
+///
+/// Kept beside the text in `installErrors` for two reasons. `installErrors` has
+/// other writers (every install clears or replaces it), so retraction must only
+/// take down this exact text. And the thing that makes the line untrue is
+/// precise — the bundle moving past `old` — whereas the generic settle rule
+/// (`UpdatePolicy.settledRowIDs`, `.upToDate` only) is both too early and too
+/// late here: `UpdatePolicy.actionableStaged` admits a staged build newer than
+/// both the installed copy and the remote, so a Relaunch row can have status
+/// `.upToDate` — the settle rule would erase the line on the very refresh that
+/// follows writing it — and a row whose status is `.unknown` or `.error` after
+/// a late landing would keep it until some other action on the row.
+public struct StagedRelaunchFailure: Sendable, Equatable {
+    public let message: String
+    public let old: VersionSide
+    /// The same flag the relaunch wait passed to `RelaunchProgress.hasLanded`
+    /// (`AppScanner.buildVersionIsOverridden`), so the retraction counts a landing
+    /// by exactly the rule the wait used when it gave up.
+    public let buildIsDerived: Bool
+
+    public init(message: String, old: VersionSide, buildIsDerived: Bool) {
+        self.message = message
+        self.old = old
+        self.buildIsDerived = buildIsDerived
+    }
+
+    /// The ids whose failure line should come down now: still showing our text,
+    /// and either the row is gone or its installed version has moved past `old`
+    /// — the update landed after we stopped waiting.
+    ///
+    /// - Parameters:
+    ///   - failures: what `relaunchStagedUpdate` recorded, by row id.
+    ///   - errors: `installErrors` as it stands.
+    ///   - installed: every current row's installed version, by row id. Empty
+    ///     is the pre-first-scan state, not "every app vanished", and retracts
+    ///     nothing.
+    public static func retractable(
+        _ failures: [String: StagedRelaunchFailure],
+        errors: [String: String],
+        installed: [String: VersionSide]
+    ) -> Set<String> {
+        guard !installed.isEmpty else { return [] }
+        var ids: Set<String> = []
+        for (id, failure) in failures where errors[id] == failure.message {
+            guard let disk = installed[id] else {
+                ids.insert(id)   // the app is gone from disk
+                continue
+            }
+            // Both sides come from the scanner here, so the build would compare
+            // either way; the flag is passed anyway so this agrees with the wait
+            // (which read disk raw and had to drop a derived build).
+            if RelaunchProgress.hasLanded(
+                old: failure.old, disk: disk, buildIsDerived: failure.buildIsDerived) {
+                ids.insert(id)
+            }
+        }
+        return ids
+    }
+}

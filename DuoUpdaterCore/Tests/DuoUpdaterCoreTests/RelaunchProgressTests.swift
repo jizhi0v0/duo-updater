@@ -204,3 +204,85 @@ import Testing
             buildIsDerived: false))
     }
 }
+
+/// What a staged Relaunch tells the user when it stops waiting, and when that
+/// red line comes back down. `relaunchStagedUpdate` (App) only wires these.
+@Suite struct StagedRelaunchOutcomeTests {
+
+    // MARK: - classify
+
+    /// Mutation: ask `everQuit` before `landed` → red. The poll checks disk first
+    /// and stops on a landing, so a quit and swap that both fall between two
+    /// polls end with no quit observed; that must still read as applied, not as
+    /// an app that wouldn't quit.
+    @Test func aLandingWithNoObservedQuitIsApplied() {
+        #expect(StagedRelaunchOutcome.classify(landed: true, everQuit: false) == .applied)
+        #expect(StagedRelaunchOutcome.classify(landed: true, everQuit: true) == .applied)
+    }
+
+    /// Mutation: return `.swapDidNotLand` for every non-landing → red. A save
+    /// prompt holding the quit is not the updater failing; that path arms a
+    /// hand-off and must not paint the row red.
+    @Test func neverQuittingIsNotAFailure() {
+        #expect(StagedRelaunchOutcome.classify(landed: false, everQuit: false) == .wontQuit)
+    }
+
+    /// Mutation: return `.wontQuit` for every non-landing → red. This is the
+    /// silent failure being fixed: the app went down and the bundle never moved.
+    @Test func quittingWithoutALandingIsTheFailure() {
+        #expect(StagedRelaunchOutcome.classify(landed: false, everQuit: true) == .swapDidNotLand)
+    }
+
+    // MARK: - retractable
+
+    private let id = "/Applications/ZZFixture-Staged.app"
+    private let message = "ZZFixture quit, but its own updater didn’t apply the update in time."
+    private func amp(_ build: String) -> VersionSide { VersionSide(marketing: "1.0", build: build) }
+    private var failure: [String: StagedRelaunchFailure] {
+        [id: StagedRelaunchFailure(message: message, old: amp("128"), buildIsDerived: false)]
+    }
+
+    /// The update landed after we stopped waiting — a build-only move, the Amp
+    /// shape. Mutation: compare `old.marketing` alone → red.
+    @Test func aLateLandingRetractsTheLine() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [id: amp("129")]) == [id])
+    }
+
+    /// An app whose build the scanner overrides is judged the way the wait judged
+    /// it: marketing only. Mutation: ignore `failure.buildIsDerived` → red.
+    @Test func aDerivedBuildRetractsOnlyOnAMarketingMove() {
+        let derived = [id: StagedRelaunchFailure(message: message, old: amp("128"), buildIsDerived: true)]
+        #expect(StagedRelaunchFailure.retractable(
+            derived, errors: [id: message], installed: [id: amp("129")]).isEmpty)
+        #expect(StagedRelaunchFailure.retractable(
+            derived, errors: [id: message],
+            installed: [id: VersionSide(marketing: "1.1", build: "129")]) == [id])
+    }
+
+    /// Mutation: retract whenever the row is present → red. Nothing moved, so
+    /// the line is still true.
+    @Test func nothingMovedKeepsTheLine() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [id: amp("128")]).isEmpty)
+    }
+
+    /// Mutation: drop the `errors[id] == message` match → red. An install that
+    /// failed since then wrote its own error; a later landing of the staged
+    /// build must not erase that one.
+    @Test func someoneElsesErrorIsLeftAlone() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: "ZZFixture install failed"], installed: [id: amp("129")]).isEmpty)
+    }
+
+    /// The app was removed: nothing left for the line to describe. An empty
+    /// `installed` is the pre-first-scan state and retracts nothing. Mutation:
+    /// drop the `installed.isEmpty` guard → red.
+    @Test func aVanishedRowRetractsButNoRowsAtAllDoNot() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message],
+            installed: ["/Applications/ZZFixture-Other.app": amp("1")]) == [id])
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [:]).isEmpty)
+    }
+}

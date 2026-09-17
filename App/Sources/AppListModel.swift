@@ -63,10 +63,34 @@ final class AppListModel {
     /// which rows count as settled (and, importantly, which do not).
     private func pruneSettledInstallErrors() {
         guard !installErrors.isEmpty else { return }
+        // A failed staged relaunch's line has its own, exact retraction
+        // (`retractLandedRelaunchFailures`); `.upToDate` is not evidence about it.
+        let ownRetraction = installErrors.keys.filter {
+            stagedRelaunchFailures[$0]?.message == installErrors[$0]
+        }
         for id in UpdatePolicy.settledRowIDs(
-            installErrors.keys, results: results, installing: Set(installing.keys)
+            installErrors.keys.filter { !ownRetraction.contains($0) },
+            results: results, installing: Set(installing.keys)
         ) {
             installErrors[id] = nil
+        }
+        retractLandedRelaunchFailures()
+    }
+
+    /// Take down the "didn't apply" lines whose update has since landed (or whose
+    /// app is gone), and forget registrations some other writer has already
+    /// replaced. The decision is `StagedRelaunchFailure.retractable` in Core.
+    private func retractLandedRelaunchFailures() {
+        guard !stagedRelaunchFailures.isEmpty else { return }
+        let installed = Dictionary(
+            results.map { ($0.id, $0.app.versionSide) }, uniquingKeysWith: { first, _ in first })
+        for id in StagedRelaunchFailure.retractable(
+            stagedRelaunchFailures, errors: installErrors, installed: installed
+        ) {
+            installErrors[id] = nil
+        }
+        stagedRelaunchFailures = stagedRelaunchFailures.filter {
+            installErrors[$0.key] == $0.value.message
         }
     }
 
@@ -331,6 +355,12 @@ final class AppListModel {
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
     /// `installNotes` has other writers, and a parallel `Set` of ids would drift.
     @ObservationIgnored private var appStoreQuitNotes: [String: String] = [:]
+    /// id → the red "its updater didn't apply the update" line
+    /// `relaunchStagedUpdate` wrote into `installErrors`, with the version it was
+    /// measured against. Retracted by `retractLandedRelaunchFailures` when the
+    /// bundle moves past that version, and by the next Relaunch attempt; see
+    /// `StagedRelaunchFailure` for why the generic settle rule is kept off it.
+    @ObservationIgnored private var stagedRelaunchFailures: [String: StagedRelaunchFailure] = [:]
     /// The notes this model wrote to describe an action still in progress *whose
     /// row will tell us when it ended* — the self-updater hand-off, the re-opened
     /// installer, and the App Store quit prompt — keyed by id, holding the exact
@@ -5350,6 +5380,12 @@ final class AppListModel {
         // Relaunch-to-apply, which is this function.
         quitHandoffs[result.id] = nil
         retractRestartNote(result.id, from: &restartWontQuitNotes)
+        // And the red line a previous attempt's timeout left — only if it is still
+        // ours. This attempt either lands, says so again, or ends somewhere else.
+        if let prior = stagedRelaunchFailures.removeValue(forKey: result.id),
+           installErrors[result.id] == prior.message {
+            installErrors[result.id] = nil
+        }
         var running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit (or,
@@ -5474,7 +5510,24 @@ final class AppListModel {
         if AppRestarter.runningInstances(of: result.app).isEmpty {
             await relaunchAfterSwap(result.app, activates: wasFrontmost)
         }
-        Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
+        let outcome = StagedRelaunchOutcome.classify(landed: applied, everQuit: everQuit)
+        Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
+        if outcome == .swapDidNotLand {
+            // The user clicked, their app closed, and nothing got newer — say so,
+            // the way a failed install does. Written BEFORE the refresh below, so
+            // a swap that lands in the gap is retracted by that same refresh
+            // (`retractLandedRelaunchFailures`) rather than shown as a failure.
+            //
+            // `installErrors` only adds the red line: the row's button still comes
+            // from `RowAction.state`, which never reads it, so a row whose staging
+            // is still there keeps offering Relaunch — not an Update that would
+            // collide with the parked updater.
+            let message = String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
+            installErrors[result.id] = message
+            stagedRelaunchFailures[result.id] = StagedRelaunchFailure(
+                message: message, old: old,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID))
+        }
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
         // (via `computeSelfUpdateStaging`'s departed-id sweep), keeps "Relaunch" if
         // it didn't. Never optimistic, never an Update fallback. Use the per-app

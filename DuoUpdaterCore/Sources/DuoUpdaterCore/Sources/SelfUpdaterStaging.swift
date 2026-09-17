@@ -16,15 +16,20 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     public let stagedBundlePath: URL
     /// What makes the app's own updater swap this build in.
     public let appliesOn: StagedApplyTrigger
+    /// Which updater staged it, set by the detector that found it. Nil means
+    /// nobody said, and a decision keyed on it must take its safe side (see
+    /// `ReappearanceWatch.init(for:)`).
+    public let updater: StagedUpdater?
 
     public init(
         version: String, buildVersion: String?, stagedBundlePath: URL,
-        appliesOn: StagedApplyTrigger = .quit
+        appliesOn: StagedApplyTrigger = .quit, updater: StagedUpdater? = nil
     ) {
         self.version = version
         self.buildVersion = buildVersion
         self.stagedBundlePath = stagedBundlePath
         self.appliesOn = appliesOn
+        self.updater = updater
     }
 
     /// What identifies this staged build when the question is "is this a
@@ -62,12 +67,29 @@ public struct StagedSelfUpdate: Sendable, Hashable {
 /// moves until someone opens the app again, so waiting for it is a guaranteed
 /// timeout.
 public enum StagedApplyTrigger: Sendable, Hashable {
-    /// Squirrel's ShipIt and Sparkle's parked installer: swap once every
-    /// instance has quit.
+    /// Squirrel's ShipIt and Sparkle's parked installer: swap once the app has
+    /// quit. They differ on a second instance — see `StagedUpdater`.
     case quit
     /// Spotify: the next launch of the *old* build spawns `sp_relauncher`, which
     /// swaps the bundle and opens the new one.
     case launch
+}
+
+/// The updater that staged a `StagedSelfUpdate`. Carried because they do not
+/// behave alike once the app is quit, and the difference decides whether an
+/// instance that comes back up means the swap is off (`ReappearanceWatch`).
+public enum StagedUpdater: Sendable, Hashable {
+    /// Squirrel.Mac's ShipIt. Refuses to swap while an instance of the target
+    /// runs: `Squirrel/SQRLInstaller.m` lists `runningApplicationsWithBundleIdentifier`
+    /// filtered to the target bundle right before installing, and fails with
+    /// `SQRLInstallerErrorAppStillRunning` ("Aborting update attempt because there
+    /// are %lu running instances of the target app") if any are left.
+    case shipIt
+    /// Sparkle 2's parked installer. Does not refuse: it watches the one instance
+    /// it registered and swaps once that one exits, whatever else is running.
+    case sparkle
+    /// Spotify's own updater, which applies on the next launch.
+    case spotify
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -203,7 +225,8 @@ public enum SelfUpdaterStaging {
         }
 
         return StagedSelfUpdate(
-            version: stagedShort, buildVersion: stagedBuild, stagedBundlePath: staged)
+            version: stagedShort, buildVersion: stagedBuild, stagedBundlePath: staged,
+            updater: .shipIt)
     }
 
     /// Spotify's native staged update. Spotify's own updater downloads the next
@@ -271,7 +294,7 @@ public enum SelfUpdaterStaging {
         return StagedSelfUpdate(
             version: versionTo, buildVersion: nil,
             stagedBundlePath: URL(fileURLWithPath: updatePath),
-            appliesOn: .launch)
+            appliesOn: .launch, updater: .spotify)
     }
 
     /// Parse a string-keyed dictionary from either a property list or JSON.
@@ -374,7 +397,7 @@ public enum SelfUpdaterStaging {
             return StagedSelfUpdate(
                 version: short,
                 buildVersion: VersionSide.plistVersionField(dict["CFBundleVersion"]),
-                stagedBundlePath: url)
+                stagedBundlePath: url, updater: .sparkle)
         }
         return nil
     }

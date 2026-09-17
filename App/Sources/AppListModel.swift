@@ -5423,7 +5423,7 @@ final class AppListModel {
 
         // Wait for the updater. Success = on-disk version advances past `old`.
         //
-        // Swap-on-quit (ShipIt, Sparkle): with all instances quit it swaps the
+        // Swap-on-quit (ShipIt, Sparkle): with the app quit it swaps the
         // bundle, then relaunches. We deliberately do NOT reopen while waiting —
         // that's what made ShipIt abort. Two phases with very different patience:
         //  • Until it actually quits: short. If it's still up after a few seconds a
@@ -5442,10 +5442,13 @@ final class AppListModel {
         var applied = false
         var everQuit = false
         var launchedAtTick: Int?
-        // Swap-on-quit: an app back up on the old bundle has had its swap called
+        // ShipIt only: an app back up on the old bundle has had its swap called
         // off (ShipIt aborts with "App Still Running"), so stop waiting ~1 s after
-        // seeing that rather than at `maxTicks`. See `ReappearanceWatch`.
-        var reappearance = ReappearanceWatch()
+        // seeing that rather than at `maxTicks`. Sparkle swaps anyway and an
+        // unreadable staging says nothing, so both get the full wait. Decided once,
+        // from the staging as it stood before the quit, like `appliesOnLaunch`.
+        // See `ReappearanceWatch`.
+        var reappearance = ReappearanceWatch(for: pendingSelfUpdate[result.id])
         var reappearedWithoutLanding = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
@@ -5499,9 +5502,7 @@ final class AppListModel {
                 }
                 break
             }
-            if reappearance.observe(
-                tick: tick, running: runningNow, everQuit: everQuit,
-                appliesOnLaunch: appliesOnLaunch) {
+            if reappearance.observe(tick: tick, running: runningNow, everQuit: everQuit) {
                 Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")
                 reappearedWithoutLanding = true
                 break

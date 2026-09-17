@@ -71,6 +71,11 @@ struct SelfUpdaterStagingTests {
             // ShipIt swaps on quit — reopening early is what makes it abort, so
             // this must not pick up Spotify's launch-first order.
             #expect(result?.appliesOn == .quit)
+            // ShipIt aborts a swap while an instance runs, which is what lets a
+            // reappearance end the Relaunch wait. Mutation: drop `updater:
+            // .shipIt` from the ShipIt branch → red.
+            #expect(result?.updater == .shipIt)
+            #expect(ReappearanceWatch(for: result).judgesReappearance)
         }
     }
 
@@ -250,6 +255,8 @@ struct SelfUpdaterStagingTests {
                 applicationSupportDirectory: appSupport))
             #expect(result.appliesOn == .launch)
             #expect(RelaunchLanding.staged(result) == .stagedOnLaunch(to: result.versionSide))
+            #expect(result.updater == .spotify)
+            #expect(!ReappearanceWatch(for: result).judgesReappearance)
         }
     }
 

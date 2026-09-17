@@ -216,21 +216,88 @@ import Testing
     /// polls end with no quit observed; that must still read as applied, not as
     /// an app that wouldn't quit.
     @Test func aLandingWithNoObservedQuitIsApplied() {
-        #expect(StagedRelaunchOutcome.classify(landed: true, everQuit: false) == .applied)
-        #expect(StagedRelaunchOutcome.classify(landed: true, everQuit: true) == .applied)
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: false, reappearedWithoutLanding: false) == .applied)
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: true, reappearedWithoutLanding: false) == .applied)
     }
 
     /// Mutation: return `.swapDidNotLand` for every non-landing → red. A save
     /// prompt holding the quit is not the updater failing; that path arms a
     /// hand-off and must not paint the row red.
     @Test func neverQuittingIsNotAFailure() {
-        #expect(StagedRelaunchOutcome.classify(landed: false, everQuit: false) == .wontQuit)
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: false, reappearedWithoutLanding: false) == .wontQuit)
     }
 
     /// Mutation: return `.wontQuit` for every non-landing → red. This is the
     /// silent failure being fixed: the app went down and the bundle never moved.
     @Test func quittingWithoutALandingIsTheFailure() {
-        #expect(StagedRelaunchOutcome.classify(landed: false, everQuit: true) == .swapDidNotLand)
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: true, reappearedWithoutLanding: false) == .swapDidNotLand)
+    }
+
+    /// Mutation: ignore `reappearedWithoutLanding` → red. An app running again on
+    /// the old bundle must not be told its updater "didn't apply the update in
+    /// time" — no amount of time was going to help.
+    @Test func aReappearanceIsItsOwnEnding() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: true, reappearedWithoutLanding: true) == .restartedWithoutUpdate)
+    }
+
+    /// Mutation: ask `reappearedWithoutLanding` before `landed` → red. A landing
+    /// is a success whatever else was seen on the way.
+    @Test func aLandingBeatsAReappearance() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: true, reappearedWithoutLanding: true) == .applied)
+    }
+
+    // MARK: - ReappearanceWatch
+
+    /// Feed `watch` one tick per element of `running` starting at `from`, with
+    /// the app having quit before the first of them; returns the tick at which it
+    /// gave up, if any.
+    private func firstGiveUp(
+        _ running: [Bool], from: Int = 10, appliesOnLaunch: Bool = false, everQuit: Bool = true
+    ) -> Int? {
+        var watch = ReappearanceWatch()
+        for (offset, isRunning) in running.enumerated() {
+            if watch.observe(tick: from + offset, running: isRunning,
+                             everQuit: everQuit, appliesOnLaunch: appliesOnLaunch) {
+                return from + offset
+            }
+        }
+        return nil
+    }
+
+    /// The 2026-09-17 case: quit, then back up on the old bundle. Seen at tick 11,
+    /// so the verdict comes at tick 16 — five disk reads taken after the sighting,
+    /// ~1 s — not at tick 11 and not 180 s later. Literal ticks on purpose, so a
+    /// changed grace shows up here. Mutations: give up on the sighting tick (grace
+    /// 0) → red; `>` instead of `>=` → red.
+    @Test func aReappearanceGivesUpAfterTheGrace() {
+        // tick 10: gone; ticks 11…: running again
+        #expect(firstGiveUp([false] + Array(repeating: true, count: 20)) == 16)
+    }
+
+    /// Mutation: keep `firstSeenTick` when the app is gone again → red. A brief
+    /// reappearance that goes away is not a verdict; the clock starts over.
+    @Test func goingAwayAgainRestartsTheGrace() {
+        // 10 gone, 11–12 up, 13 gone, 14… up → counts from 14
+        let ticks = [false, true, true, false] + Array(repeating: true, count: 20)
+        #expect(firstGiveUp(ticks) == 19)
+    }
+
+    /// Mutation: drop the `appliesOnLaunch` guard → red. For Spotify we launch the
+    /// old build ourselves; a new pid there is the next step, not a verdict.
+    @Test func aSwapOnLaunchIsNeverJudgedByReappearance() {
+        #expect(firstGiveUp([false] + Array(repeating: true, count: 50), appliesOnLaunch: true) == nil)
+    }
+
+    /// Mutation: drop the `everQuit` guard → red. Still up because it never went
+    /// down is the save-prompt path (`wontQuit`), which has its own rule.
+    @Test func anAppThatNeverQuitIsNotAReappearance() {
+        #expect(firstGiveUp(Array(repeating: true, count: 50), everQuit: false) == nil)
     }
 
     // MARK: - retractable

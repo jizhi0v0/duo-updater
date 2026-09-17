@@ -5442,6 +5442,11 @@ final class AppListModel {
         var applied = false
         var everQuit = false
         var launchedAtTick: Int?
+        // Swap-on-quit: an app back up on the old bundle has had its swap called
+        // off (ShipIt aborts with "App Still Running"), so stop waiting ~1 s after
+        // seeing that rather than at `maxTicks`. See `ReappearanceWatch`.
+        var reappearance = ReappearanceWatch()
+        var reappearedWithoutLanding = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
             if RelaunchProgress.hasLanded(
@@ -5458,7 +5463,8 @@ final class AppListModel {
                 guard tick - launchedAtTick < postLaunchTicks else { break }
                 continue
             }
-            if AppRestarter.runningInstances(of: result.app).isEmpty {
+            let runningNow = !AppRestarter.runningInstances(of: result.app).isEmpty
+            if !runningNow {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
                 if appliesOnLaunch {
                     await awaitBundleProcessesGone(result.app)
@@ -5493,6 +5499,13 @@ final class AppListModel {
                 }
                 break
             }
+            if reappearance.observe(
+                tick: tick, running: runningNow, everQuit: everQuit,
+                appliesOnLaunch: appliesOnLaunch) {
+                Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")
+                reappearedWithoutLanding = true
+                break
+            }
         }
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
         // app back so the user isn't left without it — in the background unless it
@@ -5507,12 +5520,26 @@ final class AppListModel {
                 try? await Task.sleep(for: .milliseconds(200))
             }
         }
-        if AppRestarter.runningInstances(of: result.app).isEmpty {
+        // Not after a reappearance: the app was just seen running, so there is
+        // nothing to bring back, and if it is gone again in the instant since,
+        // somebody closed it on purpose — a launch here would reopen it unasked.
+        if !reappearedWithoutLanding && AppRestarter.runningInstances(of: result.app).isEmpty {
             await relaunchAfterSwap(result.app, activates: wasFrontmost)
         }
-        let outcome = StagedRelaunchOutcome.classify(landed: applied, everQuit: everQuit)
+        let outcome = StagedRelaunchOutcome.classify(
+            landed: applied, everQuit: everQuit,
+            reappearedWithoutLanding: reappearedWithoutLanding)
         Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
-        if outcome == .swapDidNotLand {
+        let failureMessage: String? = switch outcome {
+        case .applied, .wontQuit: nil
+        case .swapDidNotLand:
+            String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
+        case .restartedWithoutUpdate:
+            // Neutral about who reopened it: all we saw is that it runs again on
+            // the old bundle.
+            String(localized: "\(result.app.name) restarted without applying the update.")
+        }
+        if let message = failureMessage {
             // The user clicked, their app closed, and nothing got newer — say so,
             // the way a failed install does. Written BEFORE the refresh below, so
             // a swap that lands in the gap is retracted by that same refresh
@@ -5522,7 +5549,6 @@ final class AppListModel {
             // from `RowAction.state`, which never reads it, so a row whose staging
             // is still there keeps offering Relaunch — not an Update that would
             // collide with the parked updater.
-            let message = String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
             installErrors[result.id] = message
             stagedRelaunchFailures[result.id] = StagedRelaunchFailure(
                 message: message, old: old,

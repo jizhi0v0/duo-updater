@@ -534,6 +534,47 @@
         }
       }
     },
+    "%@ restarted without applying the update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde neu gestartet, ohne das Update anzuwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ se reinició sin aplicar la actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a redémarré sans appliquer la mise à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はアップデートを適用しないまま再起動しました。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ перезапустилось, не применив обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 重新启动了，但没有应用更新。"
+          }
+        }
+      }
+    },
     "%@ doesn’t publish a changelog we can read.": {
       "extractionState": "manual",
       "localizations": {

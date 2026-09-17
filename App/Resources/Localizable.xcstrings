@@ -1313,6 +1313,47 @@
         }
       }
     },
+    "%@ wasn’t reopened after it quit: an update or rollback of it was still in progress. Open it yourself when you’re ready.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nach dem Beenden nicht wieder geöffnet: Ein Update oder Zurücksetzen der App lief noch. Öffne sie selbst, wenn du so weit bist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se volvió a abrir después de cerrarse: todavía había una actualización o una restauración de la versión anterior en curso. Ábrela tú cuando quieras."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas été rouvert après avoir quitté : une mise à jour ou un retour à la version précédente était encore en cours. Ouvrez-le vous-même quand vous le souhaitez."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了後に再度開かれませんでした。アップデートまたはロールバックがまだ進行中でした。準備ができたらご自身で開いてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не было открыто снова после выхода: обновление или откат ещё выполнялись. Откройте его сами, когда будете готовы."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 退出后没有重新打开：它的更新或回滚仍在进行中。准备好后请自行打开。"
+          }
+        }
+      }
+    },
     "%@ — click for details": {
       "extractionState": "manual",
       "localizations": {

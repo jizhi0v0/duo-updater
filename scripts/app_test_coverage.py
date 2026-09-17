@@ -39,19 +39,46 @@ import sys
 RAN = re.compile(r"Test ([A-Za-z0-9_]+)\([^)]*\)(?: with \d+ test cases?)? passed")
 
 # A log line the test process wrote to stderr (NSLog, or os_log echoed because
-# xcodebuild runs tests with OS_ACTIVITY_DT_MODE) can land INSIDE a swift-testing
-# record, splitting it across two lines:
+# xcodebuild runs tests with OS_ACTIVITY_DT_MODE) interleaves with swift-testing's
+# records mid-line, in either direction. Both are measured, not assumed:
 #
-#   ✔ Test aCopyTha2026-09-13 19:21:20.342690+0800 xctest[16059:13752262] [logging-persist] cannot open file …
-#   tBecameABetaReadsTheStore() passed after 0.007 seconds.
+# 1. The log line lands INSIDE a record and splits it across two lines
+#    (app-tests-16030.log, 2026-09-13):
 #
-# Measured, not assumed: HelperPeerGateTests' code-signing checks make Security
-# and libxpc log, and the gate NSLogs its rejections; with that suite disabled
-# the same run printed no such lines at all. The split name matches nothing, so
-# a case that passed was reported as never run. Cutting each such log line out,
-# newline included, rejoins the record. The shape is strict — a timestamp with
-# microseconds and zone, then `name[pid:tid] ` — so a test's own output can't be
-# mistaken for it.
+#      ✔ Test aCopyTha2026-09-13 19:21:20.342690+0800 xctest[16059:13752262] [logging-persist] cannot open file …
+#      tBecameABetaReadsTheStore() passed after 0.007 seconds.
+#
+#    The split name matches nothing. Cutting the log line out, newline included,
+#    rejoins the record.
+#
+# 2. The record lands INSIDE a log line, and the rest of the log message follows
+#    on the next line (app-tests-781.log, 2026-09-17):
+#
+#      2026-09-17 17:08:17.095680+0800 xctest[1112:8721793] duo-helper: reje✔ Test aFailedCheckKeepsItsChannelAcrossARescan() passed after 0.004 seconds.
+#      cted connection — no client requirement is installed on this listener …
+#
+#    Here the record is intact, but cutting the log line out cuts it out too.
+#
+# Either way a case that passed was reported as never run. HelperPeerGateTests'
+# code-signing checks make Security and libxpc log, and the gate NSLogs its
+# rejections; with that suite disabled the same run printed no such lines at all.
+#
+# No single text serves both, so `ran_cases` matches RAN on the raw text AND on
+# the text with log lines cut out, and takes the union. The union adds no new way
+# to invent a pass. Everything in it is a `Test name(…) passed` occurrence from
+# one of the two texts. The stripped text was already trusted. The raw text adds only
+# occurrences inside a timestamped log line, and a log line says that only if the
+# test process itself logs a pass record naming a declared case. That exposure
+# already existed for anything the tests print() to stdout, which carries no
+# timestamp and was never stripped. None of the target's own NSLog calls writes
+# such a string. A case that failed, or only started, still matches neither text.
+#
+# Not handled: both directions in one place — a record split by a log line that
+# itself began inside another log line. Neither text rejoins that record; the
+# case is reported as never run and a rerun clears it.
+#
+# The log-line shape is strict — a timestamp with microseconds and zone, then
+# `name[pid:tid] ` — so a test's own output can't be mistaken for it.
 SPLICED_LOG_LINE = re.compile(
     r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+[+-]\d{4} [^\s\[]+\[\d+:[0-9a-fA-F]+\] [^\n]*\n"
 )
@@ -59,7 +86,8 @@ FUNC = re.compile(r"\bfunc\s+([A-Za-z0-9_]+)\s*\(")
 
 
 def ran_cases(text: str) -> set[str]:
-    return set(RAN.findall(SPLICED_LOG_LINE.sub("", text)))
+    # Union of both texts: see the comment above SPLICED_LOG_LINE.
+    return set(RAN.findall(text)) | set(RAN.findall(SPLICED_LOG_LINE.sub("", text)))
 
 
 def declared_cases(root: pathlib.Path) -> set[str]:

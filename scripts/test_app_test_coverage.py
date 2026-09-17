@@ -165,5 +165,39 @@ class SFSymbolsOutput(unittest.TestCase):
         self.assertEqual(atc.ran_cases(text), set())
 
 
+class ReadsUTF8WhateverTheLocale(unittest.TestCase):
+    """The markers are non-ASCII, so a log read with the locale's encoding
+    stops matching. Measured 2026-09-17: under LC_ALL=en_US.ISO8859-1 the gate
+    reported 0 of 51 cases run, and under LC_ALL=C with PYTHONUTF8=0 it crashed
+    reading the Swift sources. Which locales a host has is host state, so
+    rather than switch locales this runs the gate with every implicit-encoding
+    read turned into an error.
+
+    Mutation: drop `encoding="utf-8"` from either `read_text` call in
+    `app_test_coverage` → the subprocess exits non-zero with an EncodingWarning.
+    """
+
+    def test_the_gate_names_its_encoding_for_every_read(self):
+        import subprocess
+        import tempfile
+
+        # EncodingWarning and `-X warn_default_encoding` are 3.10+; older
+        # interpreters ignore both and this would pass without checking anything.
+        self.assertGreaterEqual(sys.version_info[:2], (3, 10))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "Tests").mkdir()
+            (root / "Tests" / "ZZFixtureTests.swift").write_text(
+                "// — non-ASCII on purpose\n@Test func zzFixtureCase() {}\n", encoding="utf-8")
+            (root / "app-tests.log").write_text(
+                "✔ Test zzFixtureCase() passed after 0.001 seconds.\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning",
+                 str(pathlib.Path(atc.__file__)), str(root / "app-tests.log"), str(root / "Tests")],
+                capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[0], "1 1")
+
+
 if __name__ == "__main__":
     unittest.main()

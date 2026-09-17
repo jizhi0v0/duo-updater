@@ -185,7 +185,7 @@ def declared_cases(root: pathlib.Path) -> set[str]:
     names: set[str] = set()
     for path in sorted(root.rglob("*.swift")):
         pending = False
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             # Skip comments. This suite documents its own mutations in prose
             # that names `@Test`, which a text scan would otherwise read as a
@@ -208,7 +208,10 @@ def main() -> int:
         print("0 0")
         print("")
         return 1
-    ran = ran_cases(log.read_text(errors="replace"))
+    # UTF-8 explicitly: every marker is non-ASCII, and the locale's encoding
+    # (ISO8859-1, or US-ASCII under LC_ALL=C with PYTHONUTF8=0) either stops
+    # them matching or fails on the Swift sources.
+    ran = ran_cases(log.read_text(encoding="utf-8", errors="replace"))
     declared = declared_cases(tests)
     print(f"{len(declared)} {len(ran & declared)}")
     print(" ".join(sorted(declared - ran)))

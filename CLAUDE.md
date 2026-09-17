@@ -203,10 +203,13 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   - **最终回复的格式也写进 brief**:第一行是结论 `阻塞项:无` 或 `阻塞项:N 条`,然后分两节
     「阻塞项」「非阻塞项」,按下面「裁定」那条的定义分。**「无」要明说**,不能靠没列东西来暗示——
     没列可能是真没有,也可能是正文丢了(见上一条)。分类是它的判断,裁定仍然是作者的(见下)。
-  - **在 subagent 里调 `/code-review`,审查跑在 skill 自己的 fork 运行里**(2026-09-17 观测两次:
-    调用只带参数 `high <PR>`,返回 `Skill "code-review" completed (forked execution).`)。两个后果:
+  - **在 subagent 里调 `/code-review`,审查跑在 skill 自己的 fork 运行里。** 2026-09-17 两次复审都这么报告,
+    证据强弱不同:一次是 subagent 直接看到调用只带参数 `high <PR>`、返回
+    `Skill "code-review" completed (forked execution).`;另一次只有 reviewer 一句「单独跑的」,没有调用和返回原文。
+    两个后果:
     1. **brief 里的约束到不了执行审查的那次运行。** 上面「不跑构建和测试」「不改工作树」、回复格式,
-       管的都是 subagent;那次运行只收到 skill 正文和参数,会不会跑 `make test` 靠它自己判断。所以
+       管的都是 subagent;那次运行收到的是 skill 正文和参数,据它自述还有 CLAUDE.md 和 memory(未亲自核实),
+       但没有 brief,会不会跑 `make test` 靠它自己读 CLAUDE.md 判断。所以
        **审查进行期间,作者自己别在同一个 checkout 里跑构建和测试**——防撞车只能靠这一边;格式由 subagent 事后整理。
     2. **subagent 交回的是转述。** brief 里要它**逐条标明哪些是自己对着文件核过的、哪些是转述**。
        下面「原文」指的是 subagent 的最终回复,不是审查运行本身的输出;针对性复查续上的也是 subagent,

@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.97
+
+**iStat Menus updates are detected correctly.** When iStat Menus re-released an update, DuoUpdater could keep offering it after it was installed, and pressing Update again ended in an error.
+
+**Memoh Desktop is now supported.** DuoUpdater tells you when a new version is out and can update it in one click.
+
+**Update All no longer asks you to relaunch an App Store app that has already reopened.** When the App Store closes an app and reopens it on its new version, its row now shows it as updated right away, instead of saying "Relaunch now" until the whole batch finished.
+
 ## 0.3.96
 
 **An app that has already downloaded its own update no longer gets it downloaded twice.** Some apps fetch an update quietly in the background and then wait for you to restart them. Press Update in DuoUpdater and it now installs the copy already sitting on your disk: the update lands in seconds and costs nothing to download. Before, DuoUpdater fetched the same release all over again.

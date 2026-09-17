@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.97
+
+**Updates für iStat Menus werden jetzt richtig erkannt.** Wenn iStat Menus ein Update neu veröffentlichte, konnte DuoUpdater es nach der Installation weiter anbieten, und ein erneuter Klick auf „Aktualisieren“ endete mit einem Fehler.
+
+**Memoh Desktop wird jetzt unterstützt.** DuoUpdater meldet, wenn eine neue Version erschienen ist, und kann sie mit einem Klick aktualisieren.
+
+**„Alle aktualisieren“ fordert dich nicht mehr auf, eine App-Store-App neu zu starten, die schon wieder geöffnet ist.** Wenn der App Store eine App schließt und mit der neuen Version wieder öffnet, zeigt ihre Zeile sie jetzt sofort als aktualisiert an, statt bis zum Ende des ganzen Durchlaufs „Jetzt neu starten“ anzuzeigen.
+
 ## 0.3.96
 
 **Eine App, die ihr Update schon selbst geladen hat, lädt es nicht mehr doppelt.** Manche Apps laden ein Update still im Hintergrund und warten dann darauf, dass du sie neu startest. Klickst du in DuoUpdater auf „Aktualisieren“, installiert es jetzt die Kopie, die schon auf deinem Mac liegt: Das Update ist in Sekunden erledigt und kostet keinen Download. Bisher hat DuoUpdater dasselbe Release noch einmal heruntergeladen.

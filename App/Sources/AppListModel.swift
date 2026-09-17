@@ -436,8 +436,76 @@ final class AppListModel {
     /// quit that follows lets the app's updater swap its staged build over the
     /// restore. The install lock does not keep them apart: it is refcounted within
     /// this process, so both claims succeed.
+    ///
+    /// Stricter than the Relaunch and Restart guards on purpose: those refuse
+    /// only while `bundleChanges` says the bundle is being replaced, but this also
+    /// refuses during a check-only `installing` stage (Check Again, the channel
+    /// and Full Disk Access rechecks). `installing[id]` is one slot with one
+    /// owner — `rollback` writes `.installing` into it, and the recheck's own exit
+    /// would then clear it mid-restore, dropping the spinner and releasing the
+    /// row to a second action while the swap is still running.
     func canRollback(_ id: String) -> Bool {
-        installing[id] == nil && !relaunching.contains(id)
+        installing[id] == nil && !relaunching.contains(id) && bundleChanges[id] == nil
+    }
+
+    /// Which operation may be replacing a row's bundle right now.
+    enum BundleChange { case install, rollback }
+
+    /// id → the operation that may be replacing that row's bundle, for exactly the
+    /// span in which it may: `performInstall` up to its post-install disposition
+    /// (the auto-restart there is the install's own, run after the swap), and
+    /// `rollback` from its guard to its return.
+    ///
+    /// Its own table rather than `installing`, because `installing[id] = .checking`
+    /// is also held by rechecks that never touch the bundle (Check Again, the
+    /// channel, unignore and Full Disk Access rechecks), and the install path
+    /// starts with that same stage — the stage cannot tell the two apart. Refusing
+    /// a Relaunch on `installing` made a banner tap during Check Again do nothing.
+    ///
+    /// Keyed claims (`token`) so a late `end` from one operation cannot erase a
+    /// later operation's claim on the same row. Observed (unlike the note tables)
+    /// because `canRollback` reads it and both windows disable on that.
+    private var bundleChanges: [String: (token: Int, kind: BundleChange)] = [:]
+    @ObservationIgnored private var bundleChangeTokens = 0
+    /// id → the "wasn't relaunched: it's being updated / rolled back" text
+    /// `refuseWhileBundleChanges` wrote into `installNotes`. Same discipline as
+    /// `restartHoldBackNotes`; retracted when that bundle change ends.
+    @ObservationIgnored private var bundleBusyNotes: [String: String] = [:]
+
+    private func beginBundleChange(_ id: String, _ kind: BundleChange) -> Int {
+        bundleChangeTokens += 1
+        bundleChanges[id] = (bundleChangeTokens, kind)
+        return bundleChangeTokens
+    }
+
+    /// Idempotent: a second call with the same token, or one whose claim was
+    /// replaced, does nothing.
+    private func endBundleChange(_ id: String, token: Int) {
+        guard bundleChanges[id]?.token == token else { return }
+        bundleChanges[id] = nil
+        retractRestartNote(id, from: &bundleBusyNotes)
+    }
+
+    /// Refuse a Relaunch or Restart of a row whose bundle is being replaced, and
+    /// say so on the row. Reached from row buttons (`.pendingBatchRestart` ranks
+    /// above `.installing`, so "Relaunch now" stays up during a rollback), from a
+    /// banner tap and from Update All's relaunch loops — none of which may quit
+    /// the app mid-swap, and none of which may end in a click that does nothing.
+    /// Returns true when it refused.
+    private func refuseWhileBundleChanges(_ result: UpdateResult, logPrefix: String) -> Bool {
+        guard let change = bundleChanges[result.id]?.kind else { return false }
+        let note: String
+        switch change {
+        case .install:
+            Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being updated right now — not relaunching it")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: an update to it is being installed right now. Try again once that finishes.")
+        case .rollback:
+            Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being rolled back right now — not relaunching it")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being rolled back right now. Try again once that finishes.")
+        }
+        installNotes[result.id] = note
+        bundleBusyNotes[result.id] = note
+        return true
     }
 
     /// Whether restoring this row's backup would change anything — the workbench's
@@ -3653,6 +3721,12 @@ final class AppListModel {
         releaseAfterDownload: GateHandle? = nil
     ) async -> InstallAttemptOutcome {
         let id = result.id
+        // The span in which this install may replace the bundle (`bundleChanges`).
+        // Ended early, right before the post-install disposition, so the
+        // install's own auto-restart there is not refused as a restart mid-swap;
+        // the `defer` covers every return before that.
+        let bundleClaim = beginBundleChange(id, .install)
+        defer { endBundleChange(id, token: bundleClaim) }
         installErrors[id] = nil
         installNotes[id] = nil
         // Retract the "App Store is waiting on you" note on every exit — the prompt
@@ -4273,6 +4347,10 @@ final class AppListModel {
             // `.notice`, not `.info`: `.info` is not persisted, and this is the line
             // that says why a row did or did not offer a relaunch after the fact.
             Log.install.notice("install disposition: \(updated.app.name, privacy: .public) via \(String(describing: route), privacy: .public) — batch=\(deferBookkeeping, privacy: .public) wasRunning=\(wasRunningBeforeInstall, privacy: .public) prePIDs=\(String(describing: preInstallPIDs), privacy: .public) surviving=\(String(describing: survivingPIDs), privacy: .public) stillRunning=\(preInstallProcessStillRunning, privacy: .public) needsRestart=\(self.needsRestart.contains(updated.id), privacy: .public) → \(String(describing: disposition), privacy: .public)")
+            // The swap is done and re-read; what follows is disposition, including
+            // the auto-restart below, which must not be refused as a restart
+            // during this install's own bundle change.
+            endBundleChange(id, token: bundleClaim)
             switch disposition {
             case .awaitingBatchRestart:
                 let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"
@@ -5219,6 +5297,13 @@ final class AppListModel {
         // without feedback the click reads as "nothing happened" even though it
         // worked. A second click would otherwise fire a second quit.
         guard !relaunching.contains(result.id) else { return }
+        // Not while an install or rollback may be replacing the bundle: this quits
+        // and reopens the app, mid-swap. Reachable from the row — a row waiting on
+        // Update All's restart ranks `.pendingBatchRestart` above `.installing`,
+        // so "Relaunch now" stays up during a rollback — and from a banner tap and
+        // Update All's own restart loop. The install's auto-restart runs after its
+        // bundle change has ended, so it is not refused here.
+        if refuseWhileBundleChanges(result, logPrefix: "restart") { return }
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
@@ -5380,16 +5465,13 @@ final class AppListModel {
             Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
             return
         }
-        // Nor during an install or rollback of the same row. The row itself offers
-        // no Relaunch then (it shows that stage), but a banner tap
-        // (`restart(byID:)`) and the Update All flush reach here directly — and a
-        // Relaunch would copy a bundle the other operation is replacing, then quit
-        // the app so its updater swaps over that operation's result. The reverse
-        // is `canRollback`.
-        guard installing[result.id] == nil else {
-            Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is installing or rolling back — not relaunching")
-            return
-        }
+        // Nor while an install or rollback may be replacing the bundle. A banner
+        // tap (`restart(byID:)`) and the Update All flush reach here directly, and
+        // a Relaunch would copy a bundle the other operation is replacing, then
+        // quit the app so its updater swaps over that operation's result. The
+        // reverse is `canRollback`. Not on `installing` alone: a check-only stage
+        // (Check Again) holds it too, and the Relaunch is safe then.
+        if refuseWhileBundleChanges(result, logPrefix: "relaunch-staged") { return }
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
@@ -6348,9 +6430,12 @@ final class AppListModel {
     func rollback(_ result: UpdateResult) async {
         let id = result.id
         guard canRollback(id) else {
-            Log.install.notice("rollback: \(result.app.name, privacy: .public) is busy (installing=\(self.installing[id] != nil, privacy: .public), relaunching=\(self.relaunching.contains(id), privacy: .public)) — ignoring")
+            Log.install.notice("rollback: \(result.app.name, privacy: .public) is busy (installing=\(self.installing[id] != nil, privacy: .public), relaunching=\(self.relaunching.contains(id), privacy: .public), bundleChange=\(self.bundleChanges[id] != nil, privacy: .public)) — ignoring")
             return
         }
+        // Claimed before the first suspension, released on every return.
+        let bundleClaim = beginBundleChange(id, .rollback)
+        defer { endBundleChange(id, token: bundleClaim) }
         let target = result.app.path
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }

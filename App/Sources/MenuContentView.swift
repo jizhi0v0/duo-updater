@@ -1325,8 +1325,9 @@ private struct AppRow: View {
         }
         if let version = model.backupVersion(result.id) {
             Divider()
-            // Disabled on the same rule `rollback` refuses on (busy installing or
-            // relaunching), so the entry never looks live and does nothing.
+            // Disabled on the same rule `rollback` refuses on (`canRollback`: busy
+            // installing, relaunching or replacing the bundle), so the entry never
+            // looks live and does nothing.
             Button("Roll back to \(version)") { Task { await model.rollback(result) } }
                 .disabled(!model.canRollback(result.id))
         }

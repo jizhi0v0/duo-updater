@@ -360,6 +360,13 @@ struct WorkbenchWindowView: View {
     private func applyRequestedApp() {
         guard let id = model.requestedWorkbenchAppID else { return }
         model.requestedWorkbenchAppID = nil
+        // A search that hides the row would leave it out of the list: `tabChanged`
+        // would then move the selection to the tab's first row and open a different
+        // app, or, with the tab unchanged, the detail would show a row the list
+        // does not.
+        if let result = model.results.first(where: { $0.id == id }), !matchesSearch(result) {
+            searchText = ""
+        }
         // The row may be a Homebrew cask, which lives on the Brew tab. The tab is
         // set first; `tabChanged` then finds the selection already in its list and
         // leaves it alone.

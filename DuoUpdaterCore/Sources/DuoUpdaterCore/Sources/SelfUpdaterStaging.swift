@@ -63,8 +63,10 @@ public struct StagedSelfUpdate: Sendable, Hashable {
 ///
 /// Decides what Relaunch has to do. For `.quit` we must quit and then keep our
 /// hands off until disk moves — reopening early makes a ShipIt with the
-/// running-instances check abort with "App Still Running Error", and leaves the
-/// others running the old build under the swap (`StagedUpdater`). For `.launch` the quit alone does nothing: disk never
+/// running-instances check abort with "App Still Running Error", and would
+/// leave a Sparkle 2 app running its old build while the swap goes ahead (read
+/// from Sparkle's source). UNVERIFIED for an older Squirrel without that check;
+/// see `StagedUpdater`. For `.launch` the quit alone does nothing: disk never
 /// moves until someone opens the app again, so waiting for it is a guaranteed
 /// timeout.
 public enum StagedApplyTrigger: Sendable, Hashable {

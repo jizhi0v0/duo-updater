@@ -3805,11 +3805,14 @@ final class AppListModel {
                 installNotes[id] = nil
             }
         }
-        // Declared AFTER the App Store `defer` so it runs BEFORE it: ending the
-        // claim puts back a note a refusal covered (`retractBusyNote`), and the
-        // App Store note has to be back on screen for its own retraction to match
-        // it. The other way round, that retraction drops its registration against
-        // the refusal text and the restore then strands the prompt on the row.
+        // Declared after the App Store `defer`, so it runs before it. The order is
+        // not what keeps a covered App Store prompt off the row — `ownsNote` is:
+        // run this way, `retractBusyNote` restores the prompt and the App Store
+        // `defer` then retracts it; run the other way, the App Store `defer` drops
+        // its registration first and `retractBusyNote` sees the prompt is no
+        // longer owned and clears the row. Same result either way, with no
+        // suspension between the two. The order only lets the prompt leave by its
+        // own retraction path.
         defer { endBundleChange(id, token: bundleClaim) }
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
@@ -5521,19 +5524,26 @@ final class AppListModel {
     /// Apply a self-updater-staged build (the ShipIt "Relaunch to update" state).
     ///
     /// Crucially different from `restart`: for a swap-on-quit updater we must
-    /// **not** reopen the app ourselves. Those swap the bundle after the quit and
-    /// then relaunch it, and a reopen from us races that. For ShipIt it failed
+    /// **not** reopen the app before the swap has landed. Those swap the bundle
+    /// after the quit, and a reopen from us races that. For ShipIt it failed
     /// outright: `restart`'s immediate `NSWorkspace.open` put the app back up
     /// and ShipIt — a Squirrel.Mac build with the running-instances check —
     /// aborted with "App Still Running Error" every time (the bug behind
-    /// "Relaunch did nothing, then the row flipped to Update"). Older Squirrel
-    /// builds lack that check and Sparkle 2 waits only on the instance it
-    /// registered (`StagedUpdater`), so for those a reopen would instead run the
-    /// old build while the swap lands under it. Either way the app's own updater
-    /// does the relaunch. So here we just quit and let it take over, polling disk
-    /// to confirm the swap landed. Spotify is the exception: its updater applies
-    /// on the next launch, so this does reopen it (`StagedApplyTrigger.launch`). We never optimistically clear the
-    /// staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
+    /// "Relaunch did nothing, then the row flipped to Update"). Sparkle 2 waits
+    /// only on the instance it registered (`StagedUpdater`), so a reopen there
+    /// would leave the old build running while its swap goes ahead — read from
+    /// Sparkle's source, not observed. UNVERIFIED: what an older Squirrel build
+    /// without the running-instances check does on a reopen.
+    ///
+    /// So here we quit, poll disk to confirm the swap landed, and do not reopen
+    /// while waiting. The updater may relaunch the app itself, but not always (a
+    /// ShipIt staged with `launchAfterInstallation=false` does not), so when the
+    /// wait ends — landed or timed out — the app is reopened here if it is still
+    /// closed. Not after a reappearance: it was just seen running. Spotify is the
+    /// exception to that order: its updater applies on the next launch, so this
+    /// reopens it right after the quit (`StagedApplyTrigger.launch`).
+    ///
+    /// We never optimistically clear the staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
     /// version, so a swap that didn't land stays "Relaunch" instead of falling back
     /// to our (colliding) Update.
     func relaunchStagedUpdate(_ result: UpdateResult) async {
@@ -5627,8 +5637,10 @@ final class AppListModel {
         var applied = false
         var everQuit = false
         var launchedAtTick: Int?
-        // ShipIt only: an app back up on the old bundle has had its swap called
-        // off (ShipIt aborts with "App Still Running"), so stop waiting ~1 s after
+        // ShipIt only (`StagedUpdater.shipIt`): an app back up on the old bundle
+        // has had its swap called off (a Squirrel.Mac build with the
+        // running-instances check aborts with "App Still Running"; not every
+        // bundled ShipIt has that check), so stop waiting ~1 s after
         // seeing that rather than at `maxTicks`. Sparkle swaps anyway and an
         // unreadable staging says nothing, so both get the full wait. Decided once,
         // from the staging as it stood before the quit, like `appliesOnLaunch`.
@@ -5829,9 +5841,11 @@ final class AppListModel {
     /// and may not reopen it (see `AppStoreQuitPolicy`).
     ///
     /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
-    /// waits: never open the app before the swap has landed — a ShipIt with the
-    /// running-instances check aborts with "App Still Running", other updaters
-    /// swap under the reopened old build (App Store parks its sheet the same way).
+    /// waits: never open the app before the swap has landed. A ShipIt with the
+    /// running-instances check aborts with "App Still Running" (App Store parks
+    /// its sheet the same way); Sparkle 2 would swap with the reopened old build
+    /// still running (read from its source, not observed); what an older Squirrel
+    /// without that check does is UNVERIFIED (`StagedUpdater`).
     private func relayQuitHandoff(_ handoff: QuitHandoff) async {
         let app = handoff.result.app
         // Reuse the row spinner + re-entry block for the duration of the relay.

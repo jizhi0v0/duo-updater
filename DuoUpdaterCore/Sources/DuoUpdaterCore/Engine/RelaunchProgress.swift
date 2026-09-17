@@ -20,8 +20,9 @@ public enum RelaunchLanding: Sendable, Equatable {
     case applied
 
     /// The app's own updater swaps on quit. Launch only once disk shows this
-    /// staged build or newer — never before, or ShipIt aborts with "App Still
-    /// Running Error". If it never lands, leave the app quit: the marker's
+    /// staged build or newer — never before, or a ShipIt with the
+    /// running-instances check aborts with "App Still Running Error"
+    /// (`StagedUpdater`). If it never lands, leave the app quit: the marker's
     /// promise was that specific build.
     case stagedSwap(to: VersionSide)
 

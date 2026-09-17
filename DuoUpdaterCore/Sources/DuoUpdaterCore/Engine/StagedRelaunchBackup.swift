@@ -33,8 +33,9 @@ public enum StagedRelaunchBackup {
     /// the relaunch can go on.
     ///
     /// The copy takes seconds (`InstallCoordinator.wantsBackup` records Word at
-    /// ~8.7s to clone plus ~8.7s to fingerprint; quoted, not re-measured), and the swap-on-quit updaters are waiting for the app to quit — ShipIt
-    /// for every instance to be gone, Sparkle 2 for the one instance it
+    /// ~8.7s to clone plus ~8.7s to fingerprint; quoted, not re-measured), and the swap-on-quit updaters are waiting for the app to quit — a ShipIt
+    /// with the running-instances check for every instance to be gone
+    /// (`StagedUpdater.shipIt`), Sparkle 2 for the one instance it
     /// registered (`StagedUpdater`). A user who quits it themselves during that
     /// window lets the updater rewrite the bundle while `ditto` is still reading
     /// it. The manifest is computed from the copy, so a torn copy would verify

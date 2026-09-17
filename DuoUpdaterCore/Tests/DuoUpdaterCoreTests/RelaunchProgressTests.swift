@@ -27,8 +27,8 @@ import Testing
     }
 
     /// The other direction, so the fix cannot become "always true": nothing has
-    /// happened yet, and reopening here is what makes ShipIt abort with "App
-    /// Still Running Error".
+    /// happened yet, and reopening here is what makes a ShipIt with the
+    /// running-instances check abort with "App Still Running Error".
     @Test func anUnchangedBundleHasNotLanded() {
         #expect(!RelaunchProgress.hasLanded(old: amp("128"), disk: amp("128")))
     }

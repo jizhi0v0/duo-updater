@@ -79,7 +79,11 @@ jobs:
           # Put the reviewer's tool calls in the run Summary. Input is trusted
           # here (the maintainer's own PRs only), which is the action's condition.
           display_report: "true"
+          # The reviewer's model is the repository variable CLAUDE_REVIEW_MODEL
+          # (Settings → Secrets and variables → Actions → Variables), so it can
+          # change without a pull request. Unset means the action's default.
           claude_args: >-
+            ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
 
       - name: Post the review

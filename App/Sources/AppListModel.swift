@@ -5306,7 +5306,7 @@ final class AppListModel {
                 activates: wasFrontmost
                     || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
                 armedAt: Date())
-            Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
+            Log.app.notice("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
             // Say so. Without this the row is indistinguishable from a click that
             // did nothing: 30 seconds of spinner, then the same button back. The
             // sentence has to send the user to the app rather than back to this
@@ -5362,7 +5362,7 @@ final class AppListModel {
         guard result.app.bundleID != nil else { return }
         // Block re-entry: a slow swap must not be re-triggered by repeated clicks.
         guard !relaunching.contains(result.id) else {
-            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
+            Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
             return
         }
         relaunching.insert(result.id)
@@ -5392,7 +5392,7 @@ final class AppListModel {
             // for a swap-on-launch updater, its next open), not on demand from us.
             // Leave the badge; a later check clears it once the app itself applies
             // the update.
-            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — its updater applies it on its own")
+            Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) not running — its updater applies it on its own")
             return
         }
 
@@ -5418,7 +5418,7 @@ final class AppListModel {
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
         // swap on quit and must not be reopened early. See `StagedApplyTrigger`.
         let appliesOnLaunch = pendingSelfUpdate[result.id]?.appliesOn == .launch
-        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)")
+        Log.app.notice("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)")
         for app in running { app.terminate() }
 
         // Wait for the updater. Success = on-disk version advances past `old`.
@@ -5462,7 +5462,7 @@ final class AppListModel {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
                 if appliesOnLaunch {
                     await awaitBundleProcessesGone(result.app)
-                    Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) quit — launching it to apply the staged build")
+                    Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) quit — launching it to apply the staged build")
                     await relaunchAfterSwap(result.app, activates: wasFrontmost)
                     launchedAtTick = tick
                 }
@@ -5474,7 +5474,7 @@ final class AppListModel {
                 // swaps — and an app staged with launchAfterInstallation=false
                 // stays closed with nobody to relaunch it. Arm the terminate
                 // observer to finish the job (`settleQuitHandoffs`).
-                Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
+                Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 if let staged = pendingSelfUpdate[result.id] {
                     quitHandoffs[result.id] = QuitHandoff(
                         result: result,
@@ -5484,12 +5484,12 @@ final class AppListModel {
                         activates: wasFrontmost
                             || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
                         armedAt: Date())
-                    Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) → \(staged.version, privacy: .public) (relaunch if it quits and the swap lands)")
+                    Log.app.notice("relaunch-handoff: armed for \(result.app.name, privacy: .public) → \(staged.version, privacy: .public) (relaunch if it quits and the swap lands)")
                 } else {
                     // `.stagedSwap` is bound to a version, and an installer whose
                     // staging we cannot read gives none. Its own quit still applies
                     // the update; nobody reopens the app afterwards.
-                    Log.app.info("relaunch-handoff: not armed for \(result.app.name, privacy: .public) — staged version unknown")
+                    Log.app.notice("relaunch-handoff: not armed for \(result.app.name, privacy: .public) — staged version unknown")
                 }
                 break
             }
@@ -5511,7 +5511,7 @@ final class AppListModel {
             await relaunchAfterSwap(result.app, activates: wasFrontmost)
         }
         let outcome = StagedRelaunchOutcome.classify(landed: applied, everQuit: everQuit)
-        Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
+        Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         if outcome == .swapDidNotLand {
             // The user clicked, their app closed, and nothing got newer — say so,
             // the way a failed install does. Written BEFORE the refresh below, so
@@ -5602,7 +5602,7 @@ final class AppListModel {
                 // Too long since the bail: this quit is the user closing the app,
                 // not a late answer to that dialog. ShipIt still swaps — we just
                 // don't bring the app back unasked.
-                Log.app.info("relaunch-handoff: \(handoff.result.app.name, privacy: .public) marker expired — not relaunching")
+                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) marker expired — not relaunching")
                 continue
             }
             Task { @MainActor [weak self] in await self?.relayQuitHandoff(handoff) }
@@ -5629,13 +5629,13 @@ final class AppListModel {
         // `.applied` has nothing to wait for; `.stagedOnLaunch` waits after the launch.
         var landed = !handoff.landing.waitsForDisk && !handoff.landing.landsAfterLaunch
         if handoff.landing.waitsForDisk {
-            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the swap to land")
+            Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the swap to land")
             for _ in 0..<900 {  // same patience as `relaunchStagedUpdate`'s swap wait (~180s)
                 try? await Task.sleep(for: .milliseconds(200))
                 guard AppRestarter.runningInstances(of: app).isEmpty else {
                     // Back up without us — the updater relaunched it itself, or the
                     // user reopened it. Either way our job is done; re-read the row.
-                    Log.app.info("relaunch-handoff: \(app.name, privacy: .public) reappeared on its own — standing down")
+                    Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) reappeared on its own — standing down")
                     await refreshRow(handoff.result)
                     return
                 }
@@ -5653,7 +5653,7 @@ final class AppListModel {
             // the app quit, exactly as if the user had closed it. (An App Store
             // hand-off doesn't come here: we closed that app ourselves, so it gets
             // reopened regardless — see `Landing.launchesWithoutLanding`.)
-            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) swap never landed — leaving it quit")
+            Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) swap never landed — leaving it quit")
             await refreshRow(handoff.result)
             return
         }
@@ -5667,7 +5667,7 @@ final class AppListModel {
         if handoff.landing.landsAfterLaunch {
             await awaitBundleProcessesGone(app)
         }
-        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
+        Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
         let relaunched = await relaunchAfterSwap(app, activates: handoff.activates)
         if handoff.landing.landsAfterLaunch && relaunched {
             // Our launch is what applies it (Spotify); the swap follows within
@@ -5679,7 +5679,7 @@ final class AppListModel {
                     break
                 }
             }
-            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) launched to apply — landed=\(landed, privacy: .public)")
+            Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) launched to apply — landed=\(landed, privacy: .public)")
         }
         if landed {
             // The update this hand-off was armed for is on disk after all, so a red

@@ -6749,7 +6749,10 @@ final class AppListModel {
             // (on quit, or for Spotify on the reopen `relaunchStagedUpdate` does).
             // Scoped to the same `autoRestartAfterUpdate` opt-in as the restart
             // loop above, since it quits running apps. Ignored apps and skipped
-            // staged versions are left alone (`batchRelaunchesStaged`).
+            // staged versions are left alone (`batchRelaunchesStaged`). `results`
+            // is iterated as it stood when this loop began, so each `result` is
+            // that snapshot even after earlier relaunches rescan their rows; only
+            // `pendingSelfUpdate` and the prefs are read live per row.
             for result in results where UpdatePolicy.batchRelaunchesStaged(
                 result,
                 staged: pendingSelfUpdate[result.id],

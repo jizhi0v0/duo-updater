@@ -144,8 +144,10 @@ public enum MachOImports {
         case Magic.macho64, Magic.macho32:
             return sliceName(at: 0).map { [$0] }
         case Magic.fat, Magic.fat64:
-            // Java class files share the fat magic; the word after it is then a
-            // class file version (45 and up), which the bound below refuses.
+            // Java class files share the fat magic. The word after it is then
+            // minor << 16 | major — 52 for a Java 8 class — which this bound does
+            // NOT refuse; `sliceName` does, when the "slice" it points at has no
+            // Mach-O magic.
             guard let count = read32(handle, at: 4, bigEndian: true), count > 0, count < 64 else { return nil }
             let entrySize: UInt64 = magic == Magic.fat64 ? 32 : 20
             var names: [String] = []

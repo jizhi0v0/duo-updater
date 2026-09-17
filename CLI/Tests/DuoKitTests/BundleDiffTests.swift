@@ -81,6 +81,90 @@ import DuoUpdaterCore
         #expect(found["ZZFixture.Missing.title"] == .notFound)
     }
 
+    /// Review of #705: an app that uses English text as keys adds `OK`, and a
+    /// substring search finds those two bytes inside unrelated strings.
+    @Test func aShortKeyIsNotFoundInsideLongerStrings() {
+        let old = facts(runs: ["SOK_STATE_ZZFIXTURE"])
+        let new = facts(runs: ["SOK_STATE_ZZFIXTURE", "zz.Cancellation.reason"])
+        let found = BundleDiff.evidence(for: ["OK", "Cancel"], old: old, new: new)
+        #expect(found["OK"] == .notFound)
+        #expect(found["Cancel"] == .notFound)
+    }
+
+    /// Review of #705: a nib's strings file is full of empty titles and repeated
+    /// words; pairing those invents a rename and hides the real removal.
+    @Test func blankOrRepeatedValuesAreNotPairedAsRenames() {
+        let change = BundleDiff.localizationChange(
+            ["zz-old-1.title": "", "zz-old-2.title": "OK", "zz-old-3.title": "OK"],
+            ["zz-new-1.title": "", "zz-new-2.title": "OK"])
+        #expect(change.renamed.isEmpty)
+        #expect(change.removed == ["zz-old-1.title", "zz-old-2.title", "zz-old-3.title"])
+        #expect(change.added == ["zz-new-1.title", "zz-new-2.title"])
+    }
+
+    @Test func nothingToCompareIsSaidRatherThanNoChange() {
+        let empty = BundleFacts()
+        #expect(BundleDiff.localizationSection(old: empty, new: empty)
+            .contains("  NOT COMPARED — no en, Base or zh-Hans .strings file on either side"))
+        #expect(BundleDiff.trustSection(old: empty, new: empty)
+            .contains { $0.hasSuffix("NOT COMPARED — no bundle is at the same path on both sides") })
+    }
+
+    // MARK: Packages against everything else
+
+    private func packageFacts(component: String) -> BundleFacts {
+        var facts = BundleFacts()
+        facts.isPackage = true
+        facts.rootName = "expanded"
+        let app = "\(component)/Payload/Applications/ZZFixture.app"
+        facts.packageComponents = [component: ["identifier": "test.zzfixture"]]
+        facts.bundles = [app: BundleFact(identifier: "test.zzfixture", shortVersion: "2.0")]
+        facts.files = [
+            "\(app)/Contents/MacOS/zzfixture": FileFact(size: 1, digest: "b"),
+            "\(component)/Scripts/postinstall": FileFact(size: 1, digest: "s"),
+            "\(component)/Payload/Library/LaunchDaemons/test.zzfixture.plist": FileFact(size: 1, digest: "d"),
+        ]
+        facts.scripts = ["\(component)/Scripts/postinstall": "#!/bin/sh\n"]
+        return facts
+    }
+
+    /// Review of #705, reproduced on UU Remote 4.41: the pkg against the app taken out
+    /// of that same pkg shared no path, and the trust line read "unchanged in all 0
+    /// common bundles".
+    @Test func aPackageLinesUpWithTheAppInsideIt() {
+        var app = BundleFacts()
+        app.rootName = "ZZFixture.app"
+        app.bundles = [".": BundleFact(identifier: "test.zzfixture", shortVersion: "1.0")]
+        app.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+
+        let package = BundleDiff.aligned(packageFacts(component: "ZZFixture.pkg"))
+        #expect(Set(package.bundles.keys) == ["."])
+        #expect(package.rootName == "ZZFixture.app")
+        #expect(package.files["Contents/MacOS/zzfixture"] != nil)
+        #expect(package.files["<package>/<component>/Scripts/postinstall"] != nil)
+        #expect(package.scripts.keys.sorted() == ["<package>/<component>/Scripts/postinstall"])
+        #expect(BundleDiff.aligned(app).files == app.files)
+
+        let trust = BundleDiff.trustSection(old: app, new: package)
+        #expect(trust.contains { $0.hasSuffix("unchanged in all 1 common bundles") })
+        // The app has no package to compare a signature or scripts with: named as
+        // one-sided, not as a signature that CHANGED to nothing or a script deleted
+        // line by line.
+        #expect(trust.contains { $0.hasPrefix("  package signature (new only):") })
+        #expect(trust.contains("  script <package>/<component>/Scripts/postinstall (new only): 1 lines"))
+        #expect(!trust.contains { $0.contains("CHANGED") || $0.contains("REMOVED,") || $0.contains("ADDED,") })
+        #expect(trust.contains("  background/privileged component ADDED   <package>/<component>/Payload/Library/LaunchDaemons/test.zzfixture.plist"))
+    }
+
+    /// A lone component package named after its version lines up across versions.
+    @Test func aVersionedComponentNameLinesUpAcrossPackages() {
+        let old = BundleDiff.aligned(packageFacts(component: "zzfixture-1.0.pkg"))
+        let new = BundleDiff.aligned(packageFacts(component: "zzfixture-2.0.pkg"))
+        #expect(Set(old.files.keys) == Set(new.files.keys))
+        #expect(Set(old.scripts.keys) == Set(new.scripts.keys))
+        #expect(Set(old.packageComponents.keys) == ["<component>"])
+    }
+
     // MARK: Electron
 
     /// Chatbox 1.23.3: 777 renames that were all hashes, including hashes of

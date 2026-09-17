@@ -11,6 +11,9 @@ import DuoUpdaterCore
 /// for an app, zip or dmg, and the `pkgutil --expand-full` directory for a pkg.
 struct BundleFacts: Sendable {
     var rootName = ""
+    /// Read from a `.pkg`, whose paths start at the expanded package rather than at
+    /// an app. `BundleDiff.aligned` rewrites them before anything is compared.
+    var isPackage = false
     /// `pkgutil --check-signature`, minus the lines that differ on every signing.
     /// Nil when the input was not a pkg.
     var packageSignature: [String]?
@@ -542,12 +545,30 @@ enum PrintableRuns {
         return runs
     }
 
-    /// Whether `needle` occurs anywhere in `blob`.
-    static func contains(_ blob: Data, _ needle: String) -> Bool {
+    /// Whether `needle` occurs in `blob` as a word of its own: not preceded or
+    /// followed by a letter, digit or underscore. `Cancel` is not in `Cancellation`,
+    /// `OK` is not in `SOK_STATE`.
+    static func containsDelimited(_ blob: Data, _ needle: String) -> Bool {
         let bytes = Array(needle.utf8)
         guard !bytes.isEmpty, blob.count >= bytes.count else { return false }
+        func isWordByte(_ byte: UInt8) -> Bool {
+            (byte >= 0x30 && byte <= 0x39) || (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A) || byte == 0x5F
+        }
         return blob.withUnsafeBytes { hay in
-            bytes.withUnsafeBytes { n in memmem(hay.baseAddress, hay.count, n.baseAddress, n.count) != nil }
+            bytes.withUnsafeBytes { n in
+                guard let base = hay.baseAddress else { return false }
+                var offset = 0
+                while offset + n.count <= hay.count,
+                      let hit = memmem(base + offset, hay.count - offset, n.baseAddress, n.count) {
+                    let start = base.distance(to: UnsafeRawPointer(hit))
+                    let end = start + n.count
+                    let clearBefore = start == 0 || !isWordByte(hay[start - 1])
+                    let clearAfter = end == hay.count || !isWordByte(hay[end])
+                    if clearBefore && clearAfter { return true }
+                    offset = start + 1
+                }
+                return false
+            }
         }
     }
 }

@@ -46,8 +46,8 @@ public enum BundleDiff {
         let old: BundleFacts, new: BundleFacts
         switch sides {
         case (.success(let a), .success(let b)):
-            old = a
-            new = b
+            old = aligned(a)
+            new = aligned(b)
         case (.failure(let error), _), (_, .failure(let error)):
             FileHandle.standardError.write(Data("duo diff: \(error.description)\n".utf8))
             return 1
@@ -143,7 +143,62 @@ public enum BundleDiff {
         }
         for entry in facts.timings.entries { timings.add(entry.phase, entry.elapsed) }
         facts.timings = timings
+        facts.isPackage = package != nil
         return .success(facts)
+    }
+
+    // MARK: - Aligning a package with everything else
+
+    static let packagePrefix = "<package>/"
+    static let componentPlaceholder = "<component>"
+
+    /// A pkg's paths rewritten to line up with any other input.
+    ///
+    /// An `.app`, zip or dmg is read from the bundle itself, so its paths are
+    /// `Contents/…`; a pkg is read from its expanded tree, so the same file is
+    /// `UURemote.pkg/Payload/Applications/UURemote.app/Contents/…`. Left alone,
+    /// comparing an installed app with the next pkg shares no path at all, and the
+    /// report said every bundle was removed and re-added while its trust line read
+    /// "unchanged in all 0 common bundles". So: everything inside the package's
+    /// main app becomes app-relative; everything else — scripts, launchd plists,
+    /// receipts — goes under `<package>/`; and a lone component package's name,
+    /// which some vendors version, becomes `<component>`.
+    static func aligned(_ facts: BundleFacts) -> BundleFacts {
+        guard facts.isPackage else { return facts }
+        var out = facts
+        let components = Array(facts.packageComponents.keys)
+        func component(_ key: String) -> String {
+            guard components.count == 1, let only = components.first else { return key }
+            if key == only { return componentPlaceholder }
+            return key.hasPrefix(only + "/") ? componentPlaceholder + key.dropFirst(only.count) : key
+        }
+        var probe = BundleFacts()
+        probe.bundles = Dictionary(
+            facts.bundles.map { (component($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+        let app = mainBundleKey(probe)
+        func key(_ raw: String) -> String {
+            let path = component(raw)
+            if let app {
+                if path == app { return "." }
+                if path.hasPrefix(app + "/") { return String(path.dropFirst(app.count + 1)) }
+            }
+            return packagePrefix + path
+        }
+        func rekey<V>(_ map: [String: V]) -> [String: V] {
+            Dictionary(map.map { (key($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+        }
+        out.files = rekey(facts.files)
+        out.bundles = rekey(facts.bundles)
+        out.machO = rekey(facts.machO)
+        out.strings = rekey(facts.strings)
+        out.launchdPlists = rekey(facts.launchdPlists)
+        out.asars = rekey(facts.asars)
+        out.scripts = rekey(facts.scripts)
+        out.unindexedMachO = facts.unindexedMachO.map(key)
+        out.packageComponents = Dictionary(
+            facts.packageComponents.map { (component($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+        if let app { out.rootName = (component(app) as NSString).lastPathComponent }
+        return out
     }
 
     // MARK: - Report
@@ -155,6 +210,10 @@ public enum BundleDiff {
         out.append("duo diff")
         out.append("  old: \(oldInput)  \(label(old))")
         out.append("  new: \(newInput)  \(label(new))")
+        if old.isPackage != new.isPackage {
+            out.append("  note: only one side is a package. The app inside it is compared with the other side;")
+            out.append("  installer items (scripts, launchd plists, receipts) have no counterpart and show under <package>/.")
+        }
         out += timings.time("compare: trust surface") { trustSection(old: old, new: new) }
         out += timings.time("compare: files") { filesSection(old: old, new: new) }
         out += timings.time("compare: source paths") { sourcePathSection(old: old, new: new) }
@@ -189,7 +248,19 @@ public enum BundleDiff {
     static func trustSection(old: BundleFacts, new: BundleFacts) -> [String] {
         var out = ["", "TRUST SURFACE"]
 
-        if old.packageSignature != nil || new.packageSignature != nil {
+        if old.isPackage != new.isPackage {
+            // One side is an app: there is no second package to compare the
+            // signature or the scripts with, so say which side has them.
+            let side = old.isPackage ? "old" : "new"
+            let package = old.isPackage ? old : new
+            out.append("  package signature (\(side) only): " + (package.packageSignature ?? []).joined(separator: " | "))
+            for name in package.scripts.keys.sorted() {
+                let text = package.scripts[name]!
+                // As `wc -l` counts, plus a last line that has no newline.
+                let lines = text.filter { $0 == "\n" }.count + (text.isEmpty || text.hasSuffix("\n") ? 0 : 1)
+                out.append("  script \(name) (\(side) only): \(lines) lines")
+            }
+        } else if old.packageSignature != nil || new.packageSignature != nil {
             if old.packageSignature == new.packageSignature {
                 out.append("  package signature: unchanged (\(new.packageSignature?.first ?? "?"))")
             } else {
@@ -207,7 +278,7 @@ public enum BundleDiff {
             default: break
             }
         }
-        for name in Set(old.scripts.keys).union(new.scripts.keys).sorted() {
+        for name in Set(old.scripts.keys).union(new.scripts.keys).sorted() where old.isPackage == new.isPackage {
             let a = old.scripts[name], b = new.scripts[name]
             if a == b {
                 out.append("  script \(name): unchanged")
@@ -276,7 +347,8 @@ public enum BundleDiff {
             }
         }
         out.append("  signing identity, entitlements, minimum macOS, update feed: "
-            + (unchangedTrust == common.count ? "unchanged in all \(common.count) common bundles"
+            + (common.isEmpty ? "NOT COMPARED — no bundle is at the same path on both sides"
+                : unchangedTrust == common.count ? "unchanged in all \(common.count) common bundles"
                 : "changed in \(common.count - unchangedTrust) of \(common.count) bundles (above)"))
         if !trackingVersions.isEmpty {
             out.append("  embedded components with their own version:")
@@ -473,17 +545,29 @@ public enum BundleDiff {
         }
     }
 
-    /// A removed key and an added key with the same value are paired as a rename,
-    /// one to one, in key order — Mac Mouse Fix 3.1.0 moved `button-modifier.1` to
+    /// A removed key and an added key with the same value are paired as a rename —
+    /// Mac Mouse Fix 3.1.0 moved `button-modifier.1` to
     /// `trigger.substring.button-modifier.1`, which otherwise reads as a feature
     /// removed and another added.
+    ///
+    /// Only when the pairing is unambiguous: the value is not blank, and exactly one
+    /// removed key and exactly one added key carry it. A nib's strings file is full
+    /// of empty titles and repeated `OK`s, and pairing those would hide a real
+    /// removal behind an invented rename.
     static func localizationChange(_ old: [String: String], _ new: [String: String]) -> LocalizationChange {
         var added = Set(new.keys).subtracting(old.keys).sorted()
         var removed = Set(old.keys).subtracting(new.keys).sorted()
         let changed = Set(old.keys).intersection(new.keys).filter { old[$0] != new[$0] }.sorted()
+        let removedByValue = Dictionary(grouping: removed, by: { old[$0]! })
+        let addedByValue = Dictionary(grouping: added, by: { new[$0]! })
         var renamed: [(String, String)] = []
         for oldKey in removed {
-            guard let index = added.firstIndex(where: { new[$0] == old[oldKey] }) else { continue }
+            let value = old[oldKey]!
+            guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  removedByValue[value]?.count == 1,
+                  let candidates = addedByValue[value], candidates.count == 1,
+                  let index = added.firstIndex(of: candidates[0])
+            else { continue }
             renamed.append((oldKey, added.remove(at: index)))
         }
         let renamedOld = Set(renamed.map(\.0))
@@ -505,6 +589,14 @@ public enum BundleDiff {
     /// deduplicated first — `en` and `zh-Hans` carry the same ones. Measured on UU
     /// Remote 4.35 → 4.39 (207 new keys per file): 5.6 s searching every key in
     /// every file serially.
+    ///
+    /// The substring fallback only counts a key that stands as a word inside the
+    /// longer string, and only for keys of `minimumSubstringKeyBytes` or more: an
+    /// app that uses English text as keys adds `OK` and `Cancel`, which occur inside
+    /// any number of unrelated strings (`SOK_STATE`, `Cancellation`). A length floor
+    /// alone did not do it — `Cancel` is six bytes.
+    static let minimumSubstringKeyBytes = 6
+
     static func evidence(for keys: Set<String>, old: BundleFacts, new: BundleFacts) -> [String: KeyEvidence] {
         let ordered = Array(keys)
         guard !ordered.isEmpty else { return [:] }
@@ -514,8 +606,9 @@ public enum BundleDiff {
         defer { results.deallocate() }
         DispatchQueue.concurrentPerform(iterations: ordered.count) { index in
             let key = ordered[index]
-            let inNew = newRuns.contains(key) || PrintableRuns.contains(new.stringsBlob, key)
-            let inOld = inNew && (oldRuns.contains(key) || PrintableRuns.contains(old.stringsBlob, key))
+            let searchable = key.utf8.count >= minimumSubstringKeyBytes
+            let inNew = newRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(new.stringsBlob, key))
+            let inOld = inNew && (oldRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(old.stringsBlob, key)))
             (results.baseAddress! + index).initialize(
                 to: !inNew ? .notFound : inOld ? .referencedByBoth : .referencedByNewBinaries)
         }
@@ -549,7 +642,11 @@ public enum BundleDiff {
             out += capped(change.changed.map { "      ~ \($0): \(clip(oldValues[$0] ?? "")) -> \(clip(values[$0] ?? ""))" }, 30)
             out += capped(change.renamed.map { "      renamed \($0.old) -> \($0.new)" }, 30)
         }
-        if !any { out.append("  no change") }
+        if changes.isEmpty {
+            out.append("  NOT COMPARED — no en, Base or zh-Hans .strings file on either side")
+        } else if !any {
+            out.append("  no change in \(changes.count) strings files")
+        }
         return out
     }
 

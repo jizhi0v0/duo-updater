@@ -6,7 +6,7 @@ makes that one command, exercising the *production* `ReleaseChannel.detect()` an
 `VendorProbeSource` (linked from `../DuoUpdaterCore` — never a re-implementation).
 
 This exists because trusting a vendor's *version feed* instead of a *real bundle*
-silently shipped two broken Thunderbird recipes (see `records/`). The feed carried
+silently shipped two broken Thunderbird recipes. The feed carried
 `…esr`/`…b3` suffixes the installed app strips, and used bundle ids the real
 builds don't. Only mounting the actual DMGs surfaced it.
 
@@ -43,10 +43,12 @@ doc and `docs/app-audits/README.md`.
   (HEAD it to read the resolved filename/version before downloading).
 - Mount read-only and let the harness inspect: it takes the `.dmg` directly.
 
-## records/
+## Where the evidence goes
 
-Untracked scratch output, not the reference: per-app conclusions live in
-`docs/app-audits/<bundle-id>.md`, which is what a ✓ in an audit doc cites.
+In the audit doc's own 「如何复验」 section: real bundle id, real version,
+RemotingName/channel marker, detected channel, probe result and verdict per
+channel. That section is what backs a ✓. `records/` is no longer tracked, and
+`scripts/check_app_audits.py` fails the build on an audit that links to it.
 
 > Build artifacts (`.build/`) are git-ignored.
 

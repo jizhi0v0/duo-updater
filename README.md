@@ -57,8 +57,10 @@ Apps are scanned from `/Applications`, `/Applications/Utilities`, and
 `~/Applications`, then checked against multiple update sources, in priority order:
 
 1. **Mac App Store** — iTunes lookup API, with storefront/region awareness
-   (only native `mac-software` results are trusted; iOS-on-Mac apps are skipped
-   to avoid phantom updates).
+   (the lookup's version is only trusted for native `mac-software` listings and
+   wrapped iPhone/iPad apps; an iOS-on-Mac app with a separate Mac release line is
+   read from its Mac product page instead, and gets no version if that page has
+   none, to avoid phantom updates).
 2. **Xcode Releases** — non-App-Store Xcode beta and RC builds, matched to the
    installed release channel.
 3. **Sparkle** — the app's own `SUFeedURL` appcast.

@@ -3,10 +3,11 @@
 
     python3 scripts/test_app_test_coverage.py
 
-The fixtures are lines copied from real `scripts/app-tests.sh` logs on 2026-09-13,
-where a stderr log line from the test process landed inside a swift-testing
-record and the gate reported a passing case as never run. Every case names the
-mutation it catches.
+The fixtures are lines copied from real `scripts/app-tests.sh` logs, where a
+stderr log line from the test process and a swift-testing record interleaved
+mid-line and the gate reported a passing case as never run: on 2026-09-13 the log
+line landed inside the record, on 2026-09-17 the record landed inside the log
+line. Every case names the mutation it catches.
 """
 
 import pathlib
@@ -31,6 +32,14 @@ SPLIT_BY_NSLOG = (
     "ad() passed after 0.005 seconds.\n"
 )
 
+# The reverse: a whole record spliced into the tail of an NSLog line, the rest of
+# the message on the next line (app-tests-781.log, 2026-09-17).
+RECORD_INSIDE_NSLOG = (
+    "2026-09-17 17:08:17.095680+0800 xctest[1112:8721793] duo-helper: reje"
+    "✔ Test aFailedCheckKeepsItsChannelAcrossARescan() passed after 0.004 seconds.\n"
+    "cted connection — no client requirement is installed on this listener\n"
+)
+
 # A log line on its own line, between intact records — must change nothing.
 STANDALONE = (
     "✔ Test aThreeDayFloorReadsInDays() passed after 0.003 seconds.\n"
@@ -40,8 +49,13 @@ STANDALONE = (
 
 
 class SplicedLogLines(unittest.TestCase):
-    """Mutation: make `ran_cases` match `RAN` on the raw text (drop the
-    `SPLICED_LOG_LINE.sub`) → both split cases come back empty."""
+    """Mutation: make `ran_cases` match `RAN` on the raw text only (drop the
+    `SPLICED_LOG_LINE.sub` half) → both split cases come back empty.
+    Mutation: make it match on the stripped text only (drop the raw half) → the
+    record inside the NSLog line is cut out with it and comes back empty.
+    Mutation: loosen `SPLICED_LOG_LINE` to any text up to a newline (e.g.
+    `r"[^\\n]*\\n"`) → the split record's first half is cut out too, and both
+    split cases come back empty."""
 
     def test_a_record_split_by_os_log_is_rejoined(self):
         self.assertEqual(atc.ran_cases(SPLIT_BY_OS_LOG), {"aCopyThatBecameABetaReadsTheStore"})
@@ -49,18 +63,22 @@ class SplicedLogLines(unittest.TestCase):
     def test_a_record_split_by_nslog_is_rejoined(self):
         self.assertEqual(atc.ran_cases(SPLIT_BY_NSLOG), {"aWrappedBetaIsRetaggedFromTheStoreItRead"})
 
+    def test_a_record_inside_an_nslog_line_is_kept(self):
+        self.assertEqual(atc.ran_cases(RECORD_INSIDE_NSLOG),
+                         {"aFailedCheckKeepsItsChannelAcrossARescan"})
+
     def test_a_standalone_log_line_changes_nothing(self):
         self.assertEqual(atc.ran_cases(STANDALONE),
                          {"aThreeDayFloorReadsInDays", "anEmptyStoreIsNotTreatedAsFullyCovered"})
 
 
 class StillAGate(unittest.TestCase):
-    """The repair must neither invent passes nor erase real ones.
+    """The repair must not invent passes.
 
-    Mutation: loosen `SPLICED_LOG_LINE` to any text up to a newline (e.g.
-    `r"[^\\n]*\\n"`) → records are cut out too, and `anotherCase` disappears.
-    Mutation: drop the `passed` anchor from `RAN` → the started and failed cases
-    are counted.
+    Mutation: drop the `passed` anchor from `RAN`, or match the raw text with a
+    pattern that lacks it → the started and failed cases are counted, including
+    the failure spliced into a log line, which only the raw-text half of
+    `ran_cases` sees whole.
     """
 
     def test_a_case_that_only_started_is_not_counted(self):
@@ -72,6 +90,14 @@ class StillAGate(unittest.TestCase):
 
     def test_a_failed_case_is_not_counted(self):
         text = "✘ Test aFailingCase() failed after 0.001 seconds with 1 issue.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_failure_inside_a_log_line_is_not_counted(self):
+        text = (
+            "2026-09-17 17:08:17.095680+0800 xctest[1112:8721793] duo-helper: reje"
+            "✘ Test aFailingCase() failed after 0.001 seconds with 1 issue.\n"
+            "cted connection — no client requirement is installed on this listener\n"
+        )
         self.assertEqual(atc.ran_cases(text), set())
 
 

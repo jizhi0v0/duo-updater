@@ -319,7 +319,10 @@ private func committedLastGoodDates() -> [String: Date] {
             "no failure means a detection-only fallback, which this does not cover")
 
     // The anchor has to be readable, or the excuse is dead code that fails closed.
-    #expect(committedLastGoodDates().count > 200)
+    // Only `vendor:` keys: the sweep looks up `ProbeOutcome.recipeID`, and the
+    // changelog/github/appstore rows (205 of 366 anchors on 2026-09-17) would keep
+    // a whole-file count green with no vendor anchor left. 161 on that day.
+    #expect(committedLastGoodDates().keys.filter { $0.hasPrefix("vendor:") }.count > 100)
 }
 
 /// `ChannelProofRegistry.proofs` must cover every non-stable install recipe, and

@@ -153,6 +153,8 @@ import DuoUpdaterCore
         #expect(trust.contains { $0.hasPrefix("  package signature (new only):") })
         #expect(trust.contains("  script <package>/<component>/Scripts/postinstall (new only): 1 lines"))
         #expect(!trust.contains { $0.contains("CHANGED") || $0.contains("REMOVED,") || $0.contains("ADDED,") })
+        #expect(trust.contains("  package component <component> (new only): identifier=test.zzfixture"))
+        #expect(!trust.contains { $0.hasPrefix("  package component ADDED") || $0.hasPrefix("  package component REMOVED") })
         #expect(trust.contains("  background/privileged component ADDED   <package>/<component>/Payload/Library/LaunchDaemons/test.zzfixture.plist"))
     }
 
@@ -291,6 +293,15 @@ import DuoUpdaterCore
         let (added, removed) = BundleDiff.privilegedComponents(old: old, new: new)
         #expect(added == ["Contents/Library/LoginItems/ZZHelper.app"])
         #expect(removed.isEmpty)
+    }
+
+    /// Re-review of #705: counting `Character("\n")` saw a CRLF `\r\n` as one
+    /// grapheme that is not a newline, so a two-line script read as one.
+    @Test func lineCountsMatchWcForCRLFAndAMissingFinalNewline() {
+        #expect(BundleDiff.lineCount("a\r\nb\r\n") == 2)
+        #expect(BundleDiff.lineCount("a\nb\n") == 2)
+        #expect(BundleDiff.lineCount("a\nb") == 2)
+        #expect(BundleDiff.lineCount("") == 0)
     }
 
     @Test func scriptChangesAreLineByLine() {

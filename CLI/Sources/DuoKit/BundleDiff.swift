@@ -254,11 +254,11 @@ public enum BundleDiff {
             let side = old.isPackage ? "old" : "new"
             let package = old.isPackage ? old : new
             out.append("  package signature (\(side) only): " + (package.packageSignature ?? []).joined(separator: " | "))
+            for component in package.packageComponents.keys.sorted() {
+                out.append("  package component \(component) (\(side) only): \(describe(package.packageComponents[component]!))")
+            }
             for name in package.scripts.keys.sorted() {
-                let text = package.scripts[name]!
-                // As `wc -l` counts, plus a last line that has no newline.
-                let lines = text.filter { $0 == "\n" }.count + (text.isEmpty || text.hasSuffix("\n") ? 0 : 1)
-                out.append("  script \(name) (\(side) only): \(lines) lines")
+                out.append("  script \(name) (\(side) only): \(lineCount(package.scripts[name]!)) lines")
             }
         } else if old.packageSignature != nil || new.packageSignature != nil {
             if old.packageSignature == new.packageSignature {
@@ -269,7 +269,8 @@ public enum BundleDiff {
                 out.append("    new: " + (new.packageSignature ?? []).joined(separator: " | "))
             }
         }
-        for component in Set(old.packageComponents.keys).union(new.packageComponents.keys).sorted() {
+        for component in Set(old.packageComponents.keys).union(new.packageComponents.keys).sorted()
+        where old.isPackage == new.isPackage {
             switch (old.packageComponents[component], new.packageComponents[component]) {
             case (nil, let b?): out.append("  package component ADDED \(component): \(describe(b))")
             case (let a?, nil): out.append("  package component REMOVED \(component): \(describe(a))")
@@ -800,6 +801,12 @@ public enum BundleDiff {
             }
         }
         return out
+    }
+
+    /// Lines as `wc -l` counts them — newline bytes, so a CRLF script is not one
+    /// line per grapheme `\r\n` — plus a last line that has no newline.
+    static func lineCount(_ text: String) -> Int {
+        text.utf8.filter { $0 == 0x0A }.count + (text.isEmpty || text.utf8.last == 0x0A ? 0 : 1)
     }
 
     static func capped(_ lines: [String], _ limit: Int) -> [String] {

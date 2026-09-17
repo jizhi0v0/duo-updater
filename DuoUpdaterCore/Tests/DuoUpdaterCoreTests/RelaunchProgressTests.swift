@@ -204,3 +204,152 @@ import Testing
             buildIsDerived: false))
     }
 }
+
+/// What a staged Relaunch tells the user when it stops waiting, and when that
+/// red line comes back down. `relaunchStagedUpdate` (App) only wires these.
+@Suite struct StagedRelaunchOutcomeTests {
+
+    // MARK: - classify
+
+    /// Mutation: ask `everQuit` before `landed` → red. The poll checks disk first
+    /// and stops on a landing, so a quit and swap that both fall between two
+    /// polls end with no quit observed; that must still read as applied, not as
+    /// an app that wouldn't quit.
+    @Test func aLandingWithNoObservedQuitIsApplied() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: false, reappearedWithoutLanding: false) == .applied)
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: true, reappearedWithoutLanding: false) == .applied)
+    }
+
+    /// Mutation: return `.swapDidNotLand` for every non-landing → red. A save
+    /// prompt holding the quit is not the updater failing; that path arms a
+    /// hand-off and must not paint the row red.
+    @Test func neverQuittingIsNotAFailure() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: false, reappearedWithoutLanding: false) == .wontQuit)
+    }
+
+    /// Mutation: return `.wontQuit` for every non-landing → red. This is the
+    /// silent failure being fixed: the app went down and the bundle never moved.
+    @Test func quittingWithoutALandingIsTheFailure() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: true, reappearedWithoutLanding: false) == .swapDidNotLand)
+    }
+
+    /// Mutation: ignore `reappearedWithoutLanding` → red. An app running again on
+    /// the old bundle must not be told its updater "didn't apply the update in
+    /// time" — no amount of time was going to help.
+    @Test func aReappearanceIsItsOwnEnding() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: false, everQuit: true, reappearedWithoutLanding: true) == .restartedWithoutUpdate)
+    }
+
+    /// Mutation: ask `reappearedWithoutLanding` before `landed` → red. A landing
+    /// is a success whatever else was seen on the way.
+    @Test func aLandingBeatsAReappearance() {
+        #expect(StagedRelaunchOutcome.classify(
+            landed: true, everQuit: true, reappearedWithoutLanding: true) == .applied)
+    }
+
+    // MARK: - ReappearanceWatch
+
+    /// Feed `watch` one tick per element of `running` starting at `from`, with
+    /// the app having quit before the first of them; returns the tick at which it
+    /// gave up, if any.
+    private func firstGiveUp(
+        _ running: [Bool], from: Int = 10, appliesOnLaunch: Bool = false, everQuit: Bool = true
+    ) -> Int? {
+        var watch = ReappearanceWatch()
+        for (offset, isRunning) in running.enumerated() {
+            if watch.observe(tick: from + offset, running: isRunning,
+                             everQuit: everQuit, appliesOnLaunch: appliesOnLaunch) {
+                return from + offset
+            }
+        }
+        return nil
+    }
+
+    /// The 2026-09-17 case: quit, then back up on the old bundle. Seen at tick 11,
+    /// so the verdict comes at tick 16 — five disk reads taken after the sighting,
+    /// ~1 s — not at tick 11 and not 180 s later. Literal ticks on purpose, so a
+    /// changed grace shows up here. Mutations: give up on the sighting tick (grace
+    /// 0) → red; `>` instead of `>=` → red.
+    @Test func aReappearanceGivesUpAfterTheGrace() {
+        // tick 10: gone; ticks 11…: running again
+        #expect(firstGiveUp([false] + Array(repeating: true, count: 20)) == 16)
+    }
+
+    /// Mutation: keep `firstSeenTick` when the app is gone again → red. A brief
+    /// reappearance that goes away is not a verdict; the clock starts over.
+    @Test func goingAwayAgainRestartsTheGrace() {
+        // 10 gone, 11–12 up, 13 gone, 14… up → counts from 14
+        let ticks = [false, true, true, false] + Array(repeating: true, count: 20)
+        #expect(firstGiveUp(ticks) == 19)
+    }
+
+    /// Mutation: drop the `appliesOnLaunch` guard → red. For Spotify we launch the
+    /// old build ourselves; a new pid there is the next step, not a verdict.
+    @Test func aSwapOnLaunchIsNeverJudgedByReappearance() {
+        #expect(firstGiveUp([false] + Array(repeating: true, count: 50), appliesOnLaunch: true) == nil)
+    }
+
+    /// Mutation: drop the `everQuit` guard → red. Still up because it never went
+    /// down is the save-prompt path (`wontQuit`), which has its own rule.
+    @Test func anAppThatNeverQuitIsNotAReappearance() {
+        #expect(firstGiveUp(Array(repeating: true, count: 50), everQuit: false) == nil)
+    }
+
+    // MARK: - retractable
+
+    private let id = "/Applications/ZZFixture-Staged.app"
+    private let message = "ZZFixture quit, but its own updater didn’t apply the update in time."
+    private func amp(_ build: String) -> VersionSide { VersionSide(marketing: "1.0", build: build) }
+    private var failure: [String: StagedRelaunchFailure] {
+        [id: StagedRelaunchFailure(message: message, old: amp("128"), buildIsDerived: false)]
+    }
+
+    /// The update landed after we stopped waiting — a build-only move, the Amp
+    /// shape. Mutation: compare `old.marketing` alone → red.
+    @Test func aLateLandingRetractsTheLine() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [id: amp("129")]) == [id])
+    }
+
+    /// An app whose build the scanner overrides is judged the way the wait judged
+    /// it: marketing only. Mutation: ignore `failure.buildIsDerived` → red.
+    @Test func aDerivedBuildRetractsOnlyOnAMarketingMove() {
+        let derived = [id: StagedRelaunchFailure(message: message, old: amp("128"), buildIsDerived: true)]
+        #expect(StagedRelaunchFailure.retractable(
+            derived, errors: [id: message], installed: [id: amp("129")]).isEmpty)
+        #expect(StagedRelaunchFailure.retractable(
+            derived, errors: [id: message],
+            installed: [id: VersionSide(marketing: "1.1", build: "129")]) == [id])
+    }
+
+    /// Mutation: retract whenever the row is present → red. Nothing moved, so
+    /// the line is still true.
+    @Test func nothingMovedKeepsTheLine() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [id: amp("128")]).isEmpty)
+    }
+
+    /// Mutation: drop the `errors[id] == message` match → red. An install that
+    /// failed since then wrote its own error; a later landing of the staged
+    /// build must not erase that one.
+    @Test func someoneElsesErrorIsLeftAlone() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: "ZZFixture install failed"], installed: [id: amp("129")]).isEmpty)
+    }
+
+    /// The app was removed: nothing left for the line to describe. An empty
+    /// `installed` is the pre-first-scan state and retracts nothing. Mutation:
+    /// drop the `installed.isEmpty` guard → red.
+    @Test func aVanishedRowRetractsButNoRowsAtAllDoNot() {
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message],
+            installed: ["/Applications/ZZFixture-Other.app": amp("1")]) == [id])
+        #expect(StagedRelaunchFailure.retractable(
+            failure, errors: [id: message], installed: [:]).isEmpty)
+    }
+}

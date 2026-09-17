@@ -129,6 +129,7 @@ public enum AppRecipeIndex {
         com_steipete_codexbar.set,
         com_sublimemerge.set,
         com_sublimetext_4.set,
+        com_supercmd_app.set,
         com_surteesstudios_Bartender.set,
         com_t3tools_t3code.set,
         com_tclementdev_timemachineeditor_application.set,

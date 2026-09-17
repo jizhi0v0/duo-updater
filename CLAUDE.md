@@ -227,8 +227,19 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
     > 请复查上轮已确认的阻塞问题,验证修复是否有效,并检查修复影响范围内是否引入新回归。提供代码或测试证据。
     > 不新增风格、可选重构建议;没有新证据,不重复已裁定的问题。
 
-    **复查审的是增量,不是整个 PR**:范围是 `git diff <上轮审过的 head SHA>..<新 head>`,加上这些改动
-    波及的调用点和引用处。**别让它再调一次 `/code-review <PR>`**——那审的是整个 PR 的 diff,
+    **复查审的是增量,不是整个 PR**:这次修复的提交,加上它们波及的调用点和引用处。
+    ⚠️ **两点 diff `git diff <上轮 head>..<新 head>` 只在分支线性前进时等于「这次修复」**。两轮之间 rebase 到
+    新 main 或合过 main,它会把别人合进 main 的 PR 一起算进来(2026-09-17 在 #718 上模拟过:rebase 之后
+    这个范围混进了 #716 的 `scripts/app_test_coverage.py`)。所以先判,再取范围:
+    - `git merge-base --is-ancestor <上轮 head> <新 head>` 退 0,**且** `git log --merges <上轮 head>..<新 head>`
+      为空 → 线性,用两点 diff;
+    - 合过 main(上一条 is-ancestor 仍退 0,但 `--merges` 非空)→ `git log --no-merges --first-parent
+      <上轮 head>..<新 head>` 列出的就是作者自己的提交,逐个 `git show`;
+    - rebase 过(is-ancestor 退 1)→ `git range-diff <旧 base>..<上轮 head> <新 base>..<新 head>`,
+      base 取 `git merge-base origin/main <head>`;标 `!` 的提交看它给的差异,标 `>` 的是新增提交,
+      **range-diff 不打印新增提交的补丁**,要另外 `git show`。
+    这三条命令 2026-09-17 在 #718 的提交上各跑过一遍(模拟 rebase 和合 main)。brief 里直接给出算好的
+    提交列表,别让 reviewer 自己猜。**别让它再调一次 `/code-review <PR>`**——那审的是整个 PR 的 diff,
     上一轮看过的部分会被重新挑一遍,正是下面「为什么不追求零 finding」说的那个停不下来的循环;
     而且它上下文里带着自己上一轮的结论,重跑得到的多半是复述或对旧结论的修补,不是独立的第二遍。
     续不上(换了会话、ID 丢了、被手动停掉、过了保留期)就新派一个,把上一轮的 finding 原文、裁定和

@@ -234,11 +234,14 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
     - `git merge-base --is-ancestor <上轮 head> <新 head>` 退 0,**且** `git log --merges <上轮 head>..<新 head>`
       为空 → 线性,用两点 diff;
     - 合过 main(上一条 is-ancestor 仍退 0,但 `--merges` 非空)→ `git log --no-merges --first-parent
-      <上轮 head>..<新 head>` 列出的就是作者自己的提交,逐个 `git show`;
+      <上轮 head>..<新 head>` 列出的就是作者自己的提交,逐个 `git show`;**再对
+      `git log --merges --first-parent <上轮 head>..<新 head>` 的每个 merge 跑 `git show --remerge-diff <merge>`**
+      ——解冲突时改的东西只存在于 merge commit 里,普通提交一个都看不到它(2026-09-17 模拟:解冲突加的一行
+      在作者提交里命中 0 次、在 remerge-diff 里 1 次,且 remerge-diff 只列出冲突文件,不带 main 那边的改动);
     - rebase 过(is-ancestor 退 1)→ `git range-diff <旧 base>..<上轮 head> <新 base>..<新 head>`,
       base 取 `git merge-base origin/main <head>`;标 `!` 的提交看它给的差异,标 `>` 的是新增提交,
       **range-diff 不打印新增提交的补丁**,要另外 `git show`。
-    这三条命令 2026-09-17 在 #718 的提交上各跑过一遍(模拟 rebase 和合 main)。brief 里直接给出算好的
+    这些命令 2026-09-17 在 #718 的提交上各跑过一遍(模拟 rebase、合 main、合 main 时解冲突)。brief 里直接给出算好的
     提交列表,别让 reviewer 自己猜。**别让它再调一次 `/code-review <PR>`**——那审的是整个 PR 的 diff,
     上一轮看过的部分会被重新挑一遍,正是下面「为什么不追求零 finding」说的那个停不下来的循环;
     而且它上下文里带着自己上一轮的结论,重跑得到的多半是复述或对旧结论的修补,不是独立的第二遍。

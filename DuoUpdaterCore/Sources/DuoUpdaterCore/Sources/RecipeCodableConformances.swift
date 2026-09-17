@@ -129,7 +129,7 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, zipEntryPlist
+        case redirectFilename, responseBody, zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
@@ -137,6 +137,7 @@ extension VendorProbeRecipe.Mode: Codable {
             switch $0 {
             case .redirectFilename, .responseBody: return []
             case .zipEntryPlist: return ["entry", "key"]
+            case .redirectArchiveInfoPlist: return ["entry"]
             }
         }
         switch kind {
@@ -146,6 +147,9 @@ extension VendorProbeRecipe.Mode: Codable {
             self = .zipEntryPlist(
                 entry: try c.decode(String.self, forKey: .init("entry")),
                 key: try c.decode(String.self, forKey: .init("key")))
+        case .redirectArchiveInfoPlist:
+            self = .redirectArchiveInfoPlist(
+                entry: try c.decode(String.self, forKey: .init("entry")))
         }
     }
 
@@ -160,6 +164,9 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(CodingKind.zipEntryPlist.rawValue, forKey: .init("kind"))
             try c.encode(entry, forKey: .init("entry"))
             try c.encode(key, forKey: .init("key"))
+        case .redirectArchiveInfoPlist(let entry):
+            try c.encode(CodingKind.redirectArchiveInfoPlist.rawValue, forKey: .init("kind"))
+            try c.encode(entry, forKey: .init("entry"))
         }
     }
 }

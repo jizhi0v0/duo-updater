@@ -200,8 +200,8 @@ extension Verify {
 
         // The marketing string is what the baseline's monotonicity check reads,
         // and it is the only field on this side that may be compared against the
-        // installed copy's own `CFBundleShortVersionString` (`RemoteVersion`
-        // sets `marketingMatchesBundle` for exactly this source). A feed that
+        // installed copy's own `CFBundleShortVersionString` (`SparkleAppcastSource`
+        // sets `marketingMatchesBundle` on what it returns). A feed that
         // stops publishing it moves `evaluate` onto its build branch and leaves
         // the baseline nothing it may record without changing namespaces
         // mid-history, so the version goes nil rather than silently becoming a

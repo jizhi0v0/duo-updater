@@ -51,9 +51,17 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     case malformedResolvedURL(String)
     /// `.zipEntryPlist`: the archive downloaded but `unzip` couldn't produce the
     /// entry (vendor changed the stub installer's layout).
+    /// `.redirectArchiveInfoPlist`: the archive or its `Info.plist` could not be
+    /// read by range, or holds another app.
     case archiveExtractionFailed(String)
-    /// `.zipEntryPlist`: the entry parsed as a plist but lacks the key.
+    /// `.zipEntryPlist` / `.redirectArchiveInfoPlist`: the entry parsed as a plist
+    /// but lacks the key.
     case plistKeyMissing(entry: String, key: String)
+    /// `.redirectArchiveInfoPlist`: a later range read described a different copy
+    /// of the archive than the first (its length or `Last-Modified`/`ETag`
+    /// moved) — the vendor replaced the file in place mid-read. Infra: nothing is
+    /// wrong with the recipe, and the next check reads one copy.
+    case archiveChangedDuringRead(String)
     /// **The signature failure of a broken recipe**: the endpoint answered, the
     /// body arrived, and `versionPattern` matched nothing in it.
     case versionPatternNoMatch(sampleBytes: Int)
@@ -126,7 +134,8 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return .notApplicable
         case .buildLineageUnavailable(let inner):
             return inner.classification
-        case .transport, .nonHTTPResponse, .vendorErrorEnvelope, .buildLineageMissesVersion:
+        case .transport, .nonHTTPResponse, .vendorErrorEnvelope, .buildLineageMissesVersion,
+             .archiveChangedDuringRead:
             return .infra
         case .httpStatus(let code):
             // 5xx and 429 are the vendor having a bad day; 4xx means the URL we
@@ -156,6 +165,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .vendorErrorEnvelope: return "vendorErrorEnvelope"
         case .buildLineagePatternNoMatch: return "buildLineagePatternNoMatch"
         case .buildLineageMissesVersion: return "buildLineageMissesVersion"
+        case .archiveChangedDuringRead: return "archiveChangedDuringRead"
         case .buildLineageUnavailable(let inner): return "buildLineageUnavailable.\(inner.kind)"
         case .channelDiscoveryBroken: return "channelDiscoveryBroken"
         }
@@ -183,6 +193,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
                 + "pattern matched no build — the vendor changed that document's shape"
         case .buildLineageUnavailable(let inner):
             return "the release-order document could not be read: \(inner.detail)"
+        case .archiveChangedDuringRead(let why): return why
         case .buildLineageMissesVersion(let version):
             return "the release-order document does not list \(version) yet — the vendor "
                 + "publishes it separately from the version manifest"

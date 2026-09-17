@@ -4,9 +4,9 @@
 
 ## 历史与实测
 
-### Recipes/com-bjango-istatmenus.swift — VendorProbe（`download.istatmenus.app/istatmenus7/download/` 的重定向文件名）
+### Recipes/com-bjango-istatmenus.swift — VendorProbe（`download.istatmenus.app/istatmenus7/download/` 重定向到的 zip）
 
-#### 2026-09-17：小版本号只在文件名里，版本正则改为只取 MAJOR.MINOR
+#### 2026-09-17（第一版修法，#699，已被下一节取代）：小版本号只在文件名里，版本正则改为只取 MAJOR.MINOR
 
 用户反馈：点 Update 7.50.1 之后报「The install finished without an error, but iStat Menus on disk is still 7.50 — what was downloaded wasn't 7.50.1.」。
 
@@ -42,3 +42,45 @@
   | 7.50.1（2356） | `UPDATE 7.50 → 7.50.1` | `up to date` |
 
   旧正则那两行是临时把 pattern 改回去重编后跑的，7.50.1 那行就是用户看到的幽灵更新。
+
+#### 2026-09-17（第二版修法）：只取 MAJOR.MINOR 会漏掉绝大多数重发，改为读包内 Info.plist
+
+#699 合并后复核「是不是所有版本都这样」，结论是第一版的代价被低估了：
+
+- **重发很频繁。** Homebrew cask（`Casks/i/istat-menus.rb`）的提交历史里，文件名带第三段的版本：
+  7.0.2/.6/.8，7.01.1/.3/.4/.5/.7/.8/.9，7.02.1–.5、.9–.15、.17，7.10.0/.2/.4/.6，7.20.4/.6/.7，7.30.1，7.50.1。
+  cask 自己写着 `sha256 :no_check # required as upstream package is updated in-place`。
+  只取 MAJOR.MINOR 时，7.02 周期那十几次重发一次都不会提示。
+- **厂商自己不把第三段当版本号。** `bjango.com/mac/istatmenus/versionhistory/` 只列 `7.5`、`7.3`、`7.2 (2273)`、`7.2`、`7.1`、`7.02`、`7.01`、`7.0`。
+- **又核了一个真实包**：`iStatMenus7.20.7.zip` → `7.20` / `2268`（共 3 个带第三段的包都是 marketing 不动）。
+  7.20.7 之前的重发包 CDN 上已 404 或 301 到 `iStatMenus7.20.zip`，无法核。所以「所有重发都这样」是 n=3 加厂商历史页写法的推断。
+- **CDN 支持 Range**：`accept-ranges: bytes`，`Range` 请求回 206。`iStatMenus7.50.1.zip` 的目录里 `iStat Menus.app/Contents/Info.plist` 是第 10 条（共 3060 条，目录偏移 910 B），
+  压缩后约 1 KB。
+
+改法：新的 probe mode `.redirectArchiveInfoPlist(entry:)`。仍用重定向文件名确认拿到的是 iStat 的 zip（`versionPattern` 恢复为能匹配第三段），
+然后按 Range 读包内 `Info.plist`，把包自己的 `CFBundleShortVersionString` / `CFBundleVersion` 当作远端版本。
+这样 2355 的副本会被提示、2356 的副本显示已是最新，而安装后磁盘上报的正好是被提示的那一对，安装后与重启落地的检查不需要改。
+
+否决过的方案：只在「安装后」加豁免（build 变了就允许显示版本对不上）。安装后的检查本来就只在 build 也没变时报错，
+而提示本身来自每次检查的比较，所以这样改既消不掉一直显示的「有更新」，也消不掉已在 2356 的副本点「更新」后的报错。
+
+
+复验（同日，改完之后）：
+
+- 生产链：`swift run --package-path application-test channel-verify "<解出的 iStat Menus.app>"`，对着当时线上的 7.50.1 重定向：
+
+  | 包 | 第一版（只取 MAJOR.MINOR） | 第二版（读包内 Info.plist） |
+  |---|---|---|
+  | 7.20.7（2268） | — | `UPDATE 7.20 (2268) → 7.50 (2356)` |
+  | 7.30（2282） | `UPDATE 7.30 → 7.50` | `UPDATE 7.30 (2282) → 7.50 (2356)` |
+  | 7.30.1（2284） | `UPDATE 7.30 → 7.50` | `UPDATE 7.30 (2284) → 7.50 (2356)` |
+  | 7.50（2355） | `up to date`（漏报） | `UPDATE 7.50 (2355) → 7.50 (2356)` |
+  | 7.50.1（2356） | `up to date` | `up to date` |
+
+- 每次检查的额外流量，取自请求账本（`duo events --host cdn.istatmenus.app`，`duo verify --only istat` 一轮）：
+  3 个 206 的 GET，响应体 1,024 + 4,096 + 2,120 = 7,240 B，另加每个约 0.4 KB 的响应头。
+  第一轮实测这 3 行都记成了 `errorCode -999`：读够字节就 `break` 会取消任务，账本把它们当成被取消的请求。
+  改成把 206 的响应体读到自然结束（超过所请求长度则拒绝）后复测，3 行都没有错误码。
+- `verify/baseline.json` 里这条 recipe 的 `lastGoodVersion` 同步改成 `7.50`：`duo verify` 记的是 `shortVersion ?? version`，
+  两版修法报出的都是包里的 `7.50`，而基线里存的是旧写法的 `7.50.1`，`Baseline.reconcile` 会把它报成「version went BACKWARDS」。
+

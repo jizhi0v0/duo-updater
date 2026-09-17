@@ -182,11 +182,12 @@ public struct RemoteVersion: Sendable, Hashable {
     /// side: it puts "27.0 beta 6" here against an installed "27.0", and says so
     /// in its own comment.
     ///
-    /// Only `SparkleAppcastSource` sets it today, because that is the one source
-    /// where the field is the bundle's own string by construction
-    /// (`sparkle:shortVersionString` is what the vendor's own updater compares)
-    /// and the one measured against every feed this machine reads. Turning it on
-    /// for another source is a measurement, not a default.
+    /// Set where the field is the bundle's own string by construction, and only
+    /// there: `SparkleAppcastSource` (`sparkle:shortVersionString` is what the
+    /// vendor's own updater compares, and it was measured against every feed this
+    /// machine reads) and a `VendorProbeRecipe.Mode.redirectArchiveInfoPlist`
+    /// recipe (the value is read out of the artifact's own `Info.plist`). Turning
+    /// it on for another source is a measurement, not a default.
     public let marketingMatchesBundle: Bool
     /// Where to download the new build (Sparkle `enclosure url`). This is the
     /// ARTIFACT — a .dmg/.pkg/.zip the installer fetches. Never surface it as a

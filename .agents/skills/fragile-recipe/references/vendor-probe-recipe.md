@@ -155,7 +155,7 @@ blamed on the updater and is hard to diagnose.
 ## Validating against the real endpoint (do this before landing)
 
 1. Note the **installed** version: `mdls -name kMDItemVersion "/Applications/<App>.app"`.
-2. Fetch the endpoint (Python; `curl` is trapped — see SKILL.md) and run your
+2. Fetch the endpoint to a file (see SKILL.md → Fetching) and run your
    `versionPattern` over the real body:
 
 ```bash

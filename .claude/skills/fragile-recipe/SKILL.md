@@ -45,8 +45,7 @@ examples — don't author from memory:
    Also note the **installed version** (`mdls -name kMDItemVersion …`) — you need
    it to sanity-check a vendor probe later.
 
-2. **Fetch the raw response.** See "Fetching" below — `curl` is intercepted by a
-   local shell wrapper, so use Python or WebFetch.
+2. **Fetch the raw response** and save it to a file. See "Fetching" below.
 
 3. **Inspect the real structure.** Look at the *actual* bytes, not a
    markdown-rendered summary. Find the repeating shape (changelog: the
@@ -132,11 +131,9 @@ examples — don't author from memory:
    verifying the previous build's recipes. Rebuilding the menu-bar app
    (`cd App && xcodebuild …`) is only needed to *see* the result in the UI.
 
-## Fetching (read this — `curl` is trapped)
+## Fetching
 
-A local zsh wrapper intercepts `curl` whenever the command line contains a URL and
-fails with a misleading directory error (`目录不存在: -c`). `command curl` doesn't
-escape it either. **Don't fight it — fetch another way:**
+Save the raw response to a file with a browser-like User-Agent, for example:
 
 ```bash
 /usr/bin/python3 - <<'PY'

@@ -1008,6 +1008,6 @@ Core (read as needed):
 - `CHANNEL_COVERAGE_TODO.md` — channel gap analysis
 - `docs/app-audits/` — persisted audit results
 
-Fetching (same constraint as fragile-recipe skill):
-- `curl` is trapped by local wrapper — use Python `urllib` or `WebFetch`
+Fetching (see the fragile-recipe skill):
+- Validate regexes against raw bytes saved to a file, not WebFetch's markdown
 - Always use a browser-like User-Agent

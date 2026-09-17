@@ -94,8 +94,8 @@ brew cat --cask "<name>@beta" 2>/dev/null | grep -iE "name|url|pkgid|auto_update
 A `@beta`/`@nightly` cask that installs a **distinct .app/bundle id** → Pattern A.
 A vendor with betas but **no separate cask** → the channel is likely in-app (B/C/D).
 
-**1d. Per surviving candidate, web-research the in-app toggle question** (use
-Python `urllib`/`WebFetch`, browser UA — `curl` is trapped):
+**1d. Per surviving candidate, web-research the in-app toggle question** (send a
+browser-like User-Agent):
 - "Does `<app>` have an in-app Beta/Preview/Insider/Nightly toggle, and where?"
   (vendor docs, release notes, support forum). Note the exact Settings path.
 - Does anyone document *where the choice is stored* (a `defaults`/plist key, a
@@ -175,8 +175,8 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
    Re-confirm only if you have a NEW signal; otherwise skip.
 5. **Don't double-cover.** Subtract anything already in VendorProbeRecipe /
    GitHubReleasesSource / a `*Channel.swift` ChannelBinding before listing it.
-6. **Fetching:** `curl` is trapped by a local wrapper — use Python `urllib` or
-   `WebFetch`, always with a browser-like User-Agent.
+6. **Fetching:** always send a browser-like User-Agent; several vendor endpoints
+   reject unfamiliar agents.
 
 ## File map
 

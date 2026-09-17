@@ -43,7 +43,7 @@ Reusing `app-audit`'s four patterns:
 | **C. Same id, tag-filtered / keyed** | One bundle id + feed; an in-app toggle selects items via channel tag or header/license (OrbStack, TablePlus, CleanShot) | **PRIMARY TARGET** — same |
 | **D. Same id, undetectable** | In-app/server-side opt-in that leaves **no local artifact** (Slack Beta, Obsidian Insider) | Document as dead-end, do not re-investigate |
 
-The user asked specifically about **B/C**: apps where you trigger stable→preview
+**B/C are the focus**: apps where you trigger stable→preview
 *inside the app*. The deciding question is never "does it have a toggle" — it's
 **"does flipping the toggle leave a readable local artifact"** (a `defaults` key, a
 license file, a feed URL in prefs). That can only be settled empirically, so this
@@ -166,13 +166,9 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
    until `/app-audit` toggles a real install and diffs `defaults`.
 3. **Never mark a candidate detectable / ✓.** Highest you go is "B/C candidate,
    worth toggling." Only `channel-verify` on a real bundle earns a ✓.
-4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 lists Pattern-D apps
-   already ruled out (Slack Beta, Obsidian Insider, …). Not dead ends, despite older
-   notes: Figma Beta is Pattern A (`com.figma.DesktopBeta`, covered), Raycast's
-   v2 is a machine-selected train, not a channel (§3, corrected 2026-08-27), and
-   Insomnia Beta is reopened — detection is ready, only the rule is missing (§3,
-   corrected 2026-09-14; alpha stays blocked).
-   Re-confirm only if you have a NEW signal; otherwise skip.
+4. **Don't re-open dead-ends.** `CHANNEL_COVERAGE_TODO.md` §3 holds the Pattern-D
+   apps already ruled out and the verdicts later corrected; go by its current entry,
+   not by older notes. Re-confirm only if you have a NEW signal; otherwise skip.
 5. **Don't double-cover.** Subtract anything already in VendorProbeRecipe /
    GitHubReleasesSource / a `*Channel.swift` ChannelBinding before listing it.
 6. **Fetching:** always send a browser-like User-Agent; several vendor endpoints

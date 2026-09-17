@@ -304,7 +304,7 @@ history, OS floor — the generic source already does.
 If the Homebrew cask has `auto_updates: true`, `HomebrewCaskSource` returns nil —
 the app **falls through** to the next source in the priority chain. This means:
 - Having a cask ≠ having detection. The cask is metadata, not an update channel.
-- You MUST confirm another source (Sparkle / GitHub / VendorProbe) answers,
+- Confirm another source (Sparkle / GitHub / VendorProbe) answers,
   otherwise the app lands on "unknown".
 - Check: `brew info --cask "<name>" | grep auto_updates`
 - Common pattern: Electron apps self-update (`auto_updates: true`) but have no
@@ -402,7 +402,7 @@ For each (distribution source × channel) combination that we want to support:
 **MAS / Homebrew:**
 - These are mostly automatic — just confirm the app is listed
 
-### Phase 3½: Version scheme validation (CRITICAL for VendorProbe/GitHub)
+### Phase 3½: Version scheme validation (VendorProbe/GitHub)
 
 If 1a-00 found the release/build script, read how it stamps the version before
 guessing from probed strings below — an open-source build script usually states
@@ -475,8 +475,8 @@ channel, and the live probe's from→to verdict.
 - Channels that genuinely **share** the installed bundle id (confirmed) and detect
   via an unambiguous signal → no separate download needed.
 - Any channel with a **possibly-independent bundle id**, a **suffix-stripping feed**
-  (Mozilla), or **no detection signal** → MUST be verified on a real bundle before
-  the recipe is marked ✓. Until then it's **needs-verify**, not ✓.
+  (Mozilla), or **no detection signal** → verify on a real bundle before
+  marking the recipe ✓. Until then it's **needs-verify**, not ✓.
 
 **Persist the evidence in the audit doc's own 「如何复验」 section** — the real
 bundle id / version / channel marker / detected channel / probe verdict per channel.
@@ -535,13 +535,7 @@ recipe had already shipped:
   capped (`min12.0/max14.3`, `min14.3/max15.0`, `max10.10.6`). The SAME version is
   bucketed by OS into different artifacts, and one bucket carries no enclosure at
   all. The recipe reads it with a bare regex, so **those buckets are invisible to
-  the code** — that part is durable, and it is the point of this section. (The
-  separate hazard the same audit left open, version and download URL selected
-  independently so a vendor reorder could pair "4.1.13" with a 3.8 artifact, was
-  a real bug and has since been closed with `entryStartPattern`. Which is the
-  lesson twice over: the audit doc reasoned about the ordering in prose and
-  moved on, and prose does not re-evaluate itself when the vendor changes the
-  feed.)
+  the code** — that part is durable, and it is the point of this section.
 
 ```bash
 # Look for BOTH bounds. Do not grep only for the one you expect to find.

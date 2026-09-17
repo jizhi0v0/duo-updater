@@ -79,8 +79,8 @@ Several worktrees are usually open at once and a shared path makes two xcodebuil
 collide on the same SQLite lock — which surfaces as `database is locked`, or as a
 hang, both of which look like a real failure.
 
-The app target build is not optional: the bulk of what you are moving is used by
-`App/Sources/AppListModel.swift`, which the package tests do not compile.
+The app target build is not optional: `App/Sources` uses Core code in ways the
+package tests do not compile.
 
 ## Your final message
 

@@ -856,25 +856,6 @@ import DuoUpdaterCore
         #expect(payload["outcome"] as? String == "declined")
     }
 
-    /// #726: `duo install --json` with every candidate refused (no plan, only
-    /// refusals) used to exit 1 with the reason reported nowhere on stdout —
-    /// `run` returned before `apply` ever opened the NDJSON stream. `run` now
-    /// emits one `refusalPayload` row per refusal itself. This pins the exact
-    /// shape that fix relies on: the same `skipped` category `apply`'s own
-    /// not-installed rows use, and no `route` key — the classification loop
-    /// that builds `refusals` never carries one this far (`Decision.refuse`'s
-    /// second value is discarded at the call site).
-    @Test func refusalPayloadUsesTheSkippedShapeWithNoRoute() {
-        let payload = Install.refusalPayload(
-            name: "Fixture", reason: "detection only — this source publishes no installable artefact")
-        #expect(payload["app"] as? String == "Fixture")
-        #expect(payload["applied"] as? Bool == false)
-        #expect(payload["outcome"] as? String == "skipped")
-        #expect(payload["reason"] as? String
-            == "detection only — this source publishes no installable artefact")
-        #expect(payload["route"] == nil)
-    }
-
     /// #435: `installedPayload` is what `emit` writes for an item
     /// `InstallCoordinator.perform` returned from without throwing. The
     /// `.installer` route returns `applied == false` (bytes fetched and

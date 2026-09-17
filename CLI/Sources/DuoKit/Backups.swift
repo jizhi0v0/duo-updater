@@ -197,8 +197,12 @@ public enum Backups {
                 """)
             }
         }
-        guard assumeYes || confirm(app: app.name) else {
-            print("Cancelled.")
+        guard assumeYes || confirm(app: app.name, json: json) else {
+            if json {
+                FileHandle.standardError.write(Data("duo: cancelled\n".utf8))
+            } else {
+                print("Cancelled.")
+            }
             return 0
         }
 
@@ -291,13 +295,19 @@ public enum Backups {
     /// Ask before overwriting the installed bundle. Mirrors `Install.confirm`:
     /// with no terminal there is nobody to ask, so a piped or scripted run must
     /// pass `--yes` explicitly rather than having consent assumed for it.
-    static func confirm(app: String) -> Bool {
+    static func confirm(app: String, json: Bool = false) -> Bool {
         guard isatty(STDIN_FILENO) == 1 else {
             FileHandle.standardError.write(Data(
                 "duo: not a terminal — pass --yes to restore without confirmation\n".utf8))
             return false
         }
-        print("Restore \(app) from backup, overwriting the installed copy? [y/N] ", terminator: "")
+        let prompt = "Restore \(app) from backup, overwriting the installed copy? [y/N] "
+        // To stderr in `--json` mode, same as `Install.confirm`.
+        if json {
+            FileHandle.standardError.write(Data(prompt.utf8))
+        } else {
+            print(prompt, terminator: "")
+        }
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"

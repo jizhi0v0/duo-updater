@@ -78,23 +78,17 @@ public enum Install {
             return 2
         }
 
-        // `--json` opens the NDJSON stream right here, before anything else can
-        // reach stdout: every exit below this point — an empty plan, a
-        // refusals-only run, `--dry-run`, a cancelled confirmation — must stay
-        // inside one valid stream with the schema line first, not just the rows
-        // `apply` itself writes. `apply` used to open the stream on its own,
-        // which fixed `duo install --json | jq` breaking on its first line only
-        // for runs that reached `apply` — every EARLIER return still had no
-        // schema line, and therefore no valid stream, at all.
+        // Opens the NDJSON stream before anything else can reach stdout, so
+        // every exit below stays inside one valid stream with the schema line
+        // first — not just the rows `apply` writes.
         if options.json { NDJSON.begin("install") }
 
         // `--all` means "the updates I would see", which excludes ignored apps —
         // so don't spend a request on them either. A *named* app is honoured even
         // when hidden (see the loop below), and must therefore still be checked.
         let checkable = settings.appsWorthChecking(selected, named: !options.queries.isEmpty)
-        // Suppressed in `--json` mode: the schema line above is already stdout's
-        // first line, and `Check` states the same rule outright (its TestFlight
-        // note goes to stderr "so `--json` stays one object per line").
+        // Suppressed in `--json` mode: the schema line above is already
+        // stdout's first line (same rule `Check`'s TestFlight note follows).
         if !options.json {
             print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
         }
@@ -110,7 +104,9 @@ public enum Install {
             runningBundleIDs: Check.runningBundleIDs())
 
         var plan: [Planned] = []
-        var refusals: [(UpdateResult, String)] = []
+        // Carries `Decision.refuse`'s route (when `classify` had derived one)
+        // through to the `--json` row below; `describe` just ignores it.
+        var refusals: [(UpdateResult, String, InstallCoordinator.Route?)] = []
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
             guard result.hasUpdate else { continue }
             // An explicitly named app is one the user asked for by name, so a
@@ -123,40 +119,31 @@ public enum Install {
                 // asked for, so listing it under "Skipping" would be noise.
                 guard options.routes.isEmpty || options.routes.contains(route) else { continue }
                 plan.append(Planned(result: result, route: route))
-            case .refuse(let why, _):
-                refusals.append((result, why))
+            case .refuse(let why, let route):
+                refusals.append((result, why, route))
             }
         }
 
         guard !plan.isEmpty || !refusals.isEmpty else {
-            // In `--json` mode the schema line opened above is the whole
-            // stream: zero rows, the same convention `Check`/`Backups` use for
-            // an empty result.
+            // `--json` mode: the schema line already opened is the whole
+            // stream — zero rows, the convention `Check`/`Backups` also use.
             if !options.json { print(emptyPlanLine(scanAbandoned: scanned == nil)) }
             return 0
         }
 
         if options.json {
-            // Each refusal gets the same row `apply`'s own not-installed items
-            // do (`refusalPayload`, wrapping `skippedPayload`). Without this,
-            // a refusals-only run (the `guard !plan.isEmpty else { return 1 }`
-            // below) exited with the reason reported nowhere.
-            for (result, why) in refusals {
-                NDJSON.emit(refusalPayload(name: result.app.name, reason: why))
+            // Each refusal gets the same row `apply` writes for a
+            // not-installed item (`skippedPayload`, `outcome: .skipped`).
+            for (result, why, route) in refusals {
+                NDJSON.emit(skippedPayload(name: result.app.name, route: route, reason: why, outcome: .skipped))
             }
         } else {
-            // The human plan, also before the schema line — suppressed in
-            // `--json` mode for the reason above.
+            // The human plan — suppressed in `--json` mode (see above).
             describe(plan, refusals: refusals)
         }
-        // `--json --dry-run` does not enumerate `plan` itself: every existing
-        // row shape asserts something that did or would happen to an item
-        // (`installedPayload`'s `installed`/`openedInstaller`, `skippedPayload`'s
-        // "why this was not going to happen"), and neither is true of an item
-        // nothing was even attempted on. The refusals above are still reported
-        // — they're a fact about the item, not about this run skipping it — but
-        // a plan item's "would install" line stays human-mode only rather than
-        // inventing a new outcome category for it.
+        // `--json --dry-run` doesn't enumerate `plan` itself: no existing row
+        // shape fits an item nothing was attempted on (each one asserts an
+        // install did or would happen, or a refusal).
         if options.dryRun { return plan.isEmpty ? 0 : 1 }
         guard !plan.isEmpty else { return 1 }
         guard options.assumeYes || confirm(count: plan.count, json: options.json) else {
@@ -571,7 +558,7 @@ public enum Install {
         }
     }
 
-    static func describe(_ plan: [Planned], refusals: [(UpdateResult, String)]) {
+    static func describe(_ plan: [Planned], refusals: [(UpdateResult, String, InstallCoordinator.Route?)]) {
         if !plan.isEmpty {
             print("\nWill install:")
             for item in plan {
@@ -582,7 +569,7 @@ public enum Install {
         }
         if !refusals.isEmpty {
             print("\nSkipping:")
-            for (result, why) in refusals {
+            for (result, why, _) in refusals {
                 print("  \(result.app.name)  —  \(why)")
             }
         }
@@ -599,9 +586,7 @@ public enum Install {
             return false
         }
         let prompt = "Install \(count) update\(count == 1 ? "" : "s")? [y/N] "
-        // To stderr in `--json` mode, like every other prompt/prose in this
-        // file — stdin is still a terminal (guarded above), so the user sees
-        // it exactly as before, but stdout stays the NDJSON stream alone.
+        // To stderr in `--json` mode — stdout stays the NDJSON stream alone.
         if json {
             FileHandle.standardError.write(Data(prompt.utf8))
         } else {
@@ -681,10 +666,7 @@ public enum Install {
         _ plan: [Planned], settings: Settings, routes: Set<InstallCoordinator.Route>,
         json: Bool, keepBackups: Bool, installedPopulation: [InstalledApp]?
     ) async -> Int32 {
-        // The schema line is `run`'s job now, not this function's: it must be
-        // stdout's first line on every exit from `run`, including the ones
-        // that return before `apply` is ever called (empty plan, refusals-only,
-        // `--dry-run`) — see `run`'s own comment on its `NDJSON.begin` call.
+        // The schema line is `run`'s job now — see its `NDJSON.begin` call.
         let coordinator = InstallCoordinator()
         // `elevationRequiredPaths` is a fact about the install locations, which
         // don't move between plan and apply — computed once, like the plan's own
@@ -1066,19 +1048,6 @@ public enum Install {
         ]
         if let route { payload["route"] = route.rawValue }
         return payload
-    }
-
-    /// The `--json` row for one refusal from the initial classification loop
-    /// in `run` — pulled out as a pure function (mirroring `skippedPayload`
-    /// itself) so a refusals-only run's exact shape is testable without
-    /// capturing stdout. Same category `reconsider`'s `.skip` maps to for a
-    /// refusal discovered later (`RowOutcome.skipped`); `route: nil` for the
-    /// same reason `emitSkipped`'s doc comment gives for `apply`'s own rows —
-    /// the classification loop's `Decision.refuse` second value is discarded
-    /// before this is called, and a stale or guessed route here could
-    /// contradict `reason`.
-    static func refusalPayload(name: String, reason: String) -> [String: Any] {
-        skippedPayload(name: name, route: nil, reason: reason, outcome: .skipped)
     }
 
     /// Progress worth a line of terminal output. The fine-grained download

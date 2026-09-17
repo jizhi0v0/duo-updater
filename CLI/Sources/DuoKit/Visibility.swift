@@ -56,7 +56,11 @@ public enum Visibility {
         // check can say. The others are offline.
         let results: [UpdateResult]
         if options.action == .skip {
-            print("Checking \(selected.count) app\(selected.count == 1 ? "" : "s")…")
+            // Suppressed in `--json` mode: `report` below opens the NDJSON
+            // stream, and this must not reach stdout ahead of it.
+            if !options.json {
+                print("Checking \(selected.count) app\(selected.count == 1 ? "" : "s")…")
+            }
             results = await Inventory.checker(settings).check(selected)
         } else {
             results = selected.map { UpdateResult(app: $0, remote: nil, status: .unknown) }

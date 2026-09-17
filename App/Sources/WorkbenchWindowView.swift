@@ -540,7 +540,10 @@ struct WorkbenchWindowView: View {
         // count before the search (digits are monospaced, so width follows the digit
         // count) and the count sits at its leading edge.
         let countText = ZStack(alignment: .leading) {
-            Text("\(max(count, reservedCount))").hidden()
+            // Sizes the slot only. `hidden()` is documented as not drawn and not
+            // interactive, but says nothing about VoiceOver, so it is taken out of
+            // the accessibility tree explicitly rather than risk "175 3" being read.
+            Text("\(max(count, reservedCount))").hidden().accessibilityHidden(true)
             Text("\(count)")
         }
             .font(.caption.weight(.semibold)).monospacedDigit()

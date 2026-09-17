@@ -169,18 +169,30 @@ struct WorkbenchWindowView: View {
         let homebrewSelfUpdate: HomebrewSelfUpdate?
         let rollbackable: [UpdateResult]
         let hasBrew: Bool
+        /// Each tab's count before the search, which the count's slot is sized to so
+        /// the icon and title hold still while typing narrows the count.
+        let appsTotal: Int
+        let brewTotal: Int
+        let rollbackTotal: Int
     }
 
     private var sidebarLists: SidebarLists {
-        SidebarLists(
-            filteredApps: apps.filter(matchesSearch),
-            brewCasks: brewCasks.filter(matchesSearch),
+        let allApps = apps
+        let allCasks = brewCasks
+        let allRollbackable = rollbackableApps
+        let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
+            + (model.homebrewSelfUpdate == nil ? 0 : 1)
+        return SidebarLists(
+            filteredApps: allApps.filter(matchesSearch),
+            brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
-            rollbackable: rollbackableApps.filter(matchesSearch),
-            hasBrew: !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty
-                || !model.brewUnchecked.isEmpty || model.homebrewSelfUpdate != nil)
+            rollbackable: allRollbackable.filter(matchesSearch),
+            hasBrew: brewTotal > 0,
+            appsTotal: allApps.count,
+            brewTotal: brewTotal,
+            rollbackTotal: allRollbackable.count)
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
@@ -499,13 +511,16 @@ struct WorkbenchWindowView: View {
     private func tabRow(_ lists: SidebarLists, shown: SidebarTab, stacked: Bool) -> some View {
         HStack(spacing: 4) {
             tabButton(.apps, title: String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
-                      count: lists.filteredApps.count, shown: shown, stacked: stacked)
+                      count: lists.filteredApps.count, reservedCount: lists.appsTotal,
+                      shown: shown, stacked: stacked)
             if lists.hasBrew {
                 tabButton(.brew, title: String(localized: "Brew"), systemImage: "mug.fill",
-                          count: brewItemCount(lists), shown: shown, stacked: stacked)
+                          count: brewItemCount(lists), reservedCount: lists.brewTotal,
+                          shown: shown, stacked: stacked)
             }
             tabButton(.rollback, title: String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
-                      count: lists.rollbackable.count, shown: shown, stacked: stacked)
+                      count: lists.rollbackable.count, reservedCount: lists.rollbackTotal,
+                      shown: shown, stacked: stacked)
         }
     }
 
@@ -515,12 +530,19 @@ struct WorkbenchWindowView: View {
     /// semibold is the German "Zurücksetzen", 69 pt; the stacked layout's scale
     /// factor covers whatever is wider.
     private func tabButton(
-        _ tab: SidebarTab, title: String, systemImage: String, count: Int, shown: SidebarTab,
-        stacked: Bool
+        _ tab: SidebarTab, title: String, systemImage: String, count: Int, reservedCount: Int,
+        shown: SidebarTab, stacked: Bool
     ) -> some View {
         let selected = tab == shown
         let icon = Image(systemName: systemImage).font(.body)
-        let countText = Text("\(count)")
+        // The tab is centred as a whole, so a count that loses a digit to the search
+        // would shift the icon and title with it. The slot keeps the width of the
+        // count before the search (digits are monospaced, so width follows the digit
+        // count) and the count sits at its leading edge.
+        let countText = ZStack(alignment: .leading) {
+            Text("\(max(count, reservedCount))").hidden()
+            Text("\(count)")
+        }
             .font(.caption.weight(.semibold)).monospacedDigit()
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)

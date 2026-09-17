@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Guard the seam where `StagedSelfUpdate` is consumed.
 
-Core holds the rules and is heavily tested; `App/Sources` is 13k lines with no
-test target at all, so nothing executes it and the only failures that reach a
+Core holds the rules and is heavily tested; `App/Sources` is ~26k lines and only
+a couple of its files compile into `DuoUpdaterAppTests`, so most of it never
+executes and the only failures that reach a
 user are of one shape: **Core has the right rule and the caller does not use
 it.** Two shipped bugs had exactly that shape, both found on 2026-08-28 after
 Amp — which shipped ten builds as `1.0` in a day — made them visible:
@@ -150,8 +151,13 @@ def compares_near(lines, index):
 # four landing checks answer "nothing moved".
 SHORT_READ = re.compile(r"readShortVersion(?:OffMain)?\s*\(")
 
-# App/Sources has no test target, so pin the one wiring site that must tell Core
-# when the scanner's build does not share the package source's namespace.
+# Pin the one wiring site that must tell Core when the scanner's build does not
+# share the package source's namespace. A test target does compile it
+# (`PackageRestartReconcilerTests` pins the derived-build case), but neither half
+# of the argument is self-enforcing at THIS call: `resolve`'s `buildIsDerived` has
+# a default, so omitting it compiles and silently means `false`, and a hardcoded
+# `true` walks past that test — so this rule checks the argument is there AND that
+# it is neither literal.
 PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
 DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
 PACKAGE_RESTART_WINDOW = 10
@@ -172,7 +178,7 @@ PRUNE_STAGED_ISSAME = re.compile(
 # adding one back: the rule as first rewritten passed it.
 #
 # Expected count is zero, so this needs no vacuity guard: there is no such site
-# left in any Sources tree (the eight remaining `VersionComparator.isSame` calls
+# left in any Sources tree (the nine remaining `VersionComparator.isSame` calls
 # compare two sides that are not one scanner value against one package value).
 BANNED_DIRECT_LANDED = re.compile(r"VersionComparator\.isSame\s*\(\s*app\.versionSide")
 PRUNE_STAGED_WINDOW = 6

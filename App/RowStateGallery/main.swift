@@ -210,23 +210,26 @@ func render() {
         failed = true
     }
 
-    // #263: SIX of `mayLookAlike`'s pairs are justified in their own comment as
-    // differentiated BY the tooltip — "the help text says which one" for
+    // #263: FIFTEEN of `mayLookAlike`'s pairs are justified in their own comment
+    // as differentiated BY the tooltip — "the help text says which one" for
     // 10-vs-11 and the two 01-vs-10/11 pairs the picture comparison later
-    // surfaced, "the tooltip is what separates them" for 13-vs-19, "only the
-    // tooltip says which" for 29-vs-41 and (issue #546) 22-vs-43 — a claim
+    // surfaced, "a tooltip that cannot name the version" for 45 (which therefore
+    // collides with everything 10 collides with), "the tooltip is what separates
+    // them" for 13-vs-19, "only the tooltip says which" for 29-vs-41 and (issue
+    // #546) 22-vs-43, and #634's "Supported up to…" vs "Requires macOS…" for
+    // 46-vs-47 — a claim
     // nothing checked, because `.help()` text is invisible in a PNG by
     // construction. This verifies those rather than trusting them: collect
     // every `.help()` string reachable from each side (via `collectHelpTexts`'s
     // Mirror-reflection walk — see its own doc comment for the technique and its
-    // risk) and require the two sets to differ. (This count drifted to "FOUR"
-    // at some point after 29-vs-41 was added below without updating it — the
-    // exact class of drift CLAUDE.md's "改一处说法之前,先数它有几份" warns
-    // about; corrected while touching this list for #546 rather than left to
-    // compound further.)
+    // risk) and require the two sets to differ. (This count has drifted twice —
+    // to "FOUR" when 29-vs-41 was added, then left at "SIX" while 45's, #546's and
+    // #634's pairs went in above — the exact class of drift CLAUDE.md's
+    // "改一处说法之前,先数它有几份" warns about. Count
+    // `tooltipDifferentiatedPairs` before changing this line.)
     //
-    // Deliberately NOT applied to the remaining pairs (15-vs-28, 18-vs-22,
-    // 17-vs-23, 27-vs-31, 29-vs-32): their own comments claim the OPPOSITE —
+    // Deliberately NOT applied to the pairs whose own comments claim the
+    // OPPOSITE — 15-vs-28, 18-vs-22, 17-vs-23 and 27-vs-31 among them: their
     // "one button", "a tile cannot show which explanation appears", "the same
     // marker … never reads like something we could update ourselves" — i.e. those
     // are deliberately identical end-to-end, tooltip included, not "differentiated

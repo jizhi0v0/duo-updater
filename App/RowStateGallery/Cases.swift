@@ -318,8 +318,9 @@ enum RowStateGalleryCases {
     static let mayBeBlank: Set<String> = [
         "workbench/30-up-to-date",
         // The workbench has no view for "the popover's explanation panel" — see
-        // `workbenchTile` above. Its badge for the same state is already drawn at
-        // 18/21/22; these three names exist only to exercise the popover half.
+        // `workbenchTile` above. Each one's badge for the same state is already
+        // drawn at 18/21/22 and, for the later three, 43/46/47; these six names
+        // exist only to exercise the popover half.
         "workbench/38-major-upgrade-explanation",
         "workbench/39-region-hint-explanation",
         "workbench/40-mac-compat-hint-explanation",
@@ -453,7 +454,7 @@ enum RowStateGalleryCases {
         // Cause 1: an SF Symbol inside a `.buttonStyle(.borderless)` button —
         // verified with a three-way probe: a bare `Image(systemName:)` renders
         // correctly, the same image wrapped in a borderless Button does not, and
-        // `.popover` has no bearing on it. These three are the popover's
+        // `.popover` has no bearing on it. These six are the popover's
         // amber/globe badges; the workbench draws the same STATES correctly (it
         // uses `Label`, not a borderless button) — so for this cause, the other
         // surface IS a faithful twin. Read that tile instead.

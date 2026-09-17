@@ -131,9 +131,10 @@ public actor BrewFormulaService {
     /// `outdated()`, an empty read for `runReading`).
     ///
     /// `HomebrewInstaller.brewPath()` is asked only by the real executor
-    /// (`executor(brewPath:)` below, wired in `init()`), not by
-    /// `outdated()` / `installedLeaves()` / `outdatedCasks()` themselves — those
-    /// three used to each ask it directly before running the subprocess, which
+    /// (`executor(brewPath:)` below, wired in `init()`), not by the read paths
+    /// themselves (`outdated()` / `installedLeaves()` / `outdatedCasks()`, and
+    /// `uncheckedPackages()` since it landed) — the first three used to each ask it
+    /// directly before running the subprocess, which
     /// would leave a fake executor unable to answer "no brew" on its own and would
     /// leave a test for "did the two reads overlap" quietly asking the real host
     /// underneath its own fixture. See CLAUDE.md "测试不能问宿主".
@@ -465,10 +466,10 @@ public actor BrewFormulaService {
     /// `brew update`), and await its exit.
     ///
     /// This is the ONLY place `HomebrewInstaller.brewPath()` is consulted for the
-    /// three read paths in this actor — keeping that check out of `outdated()` /
-    /// `installedLeaves()` / `outdatedCasks()` themselves is what lets a fake
-    /// `Executor` answer "no brew" on its own, without a test asking the actual
-    /// host underneath its own fixture.
+    /// four read paths in this actor — `outdated()`, `installedLeaves()`,
+    /// `uncheckedPackages()` and `outdatedCasks()` — keeping that check out of
+    /// those methods themselves is what lets a fake `Executor` answer "no brew" on
+    /// its own, without a test asking the actual host underneath its own fixture.
     ///
     /// stderr is discarded, as it was: `ChildProcess` drains it either way, so a
     /// long run of deprecation warnings or a Ruby backtrace cannot wedge the

@@ -5,7 +5,7 @@ import DuoUpdaterCore
 // electron-verify — on-machine verification for `ElectronManifestSource`, the one
 // source with no registry to sweep.
 //
-// `duo verify` enumerates three registries (vendor / github / changelog). This
+// `duo verify` enumerates six registries, none of which this source is in. This
 // source has none: the address it reads lives in each installed bundle's own
 // `Contents/Resources/app-update.yml`, so the only place the set of covered apps
 // exists is the machine. That is what this harness is for — it walks the real

@@ -751,8 +751,8 @@ public enum StructuredChangelogDecoder {
     /// way we arrived at it.
     ///
     /// GitHub's `prerelease` flag is the track split, and `channel` says which side
-    /// of it to read. `nil` — every recipe that registers no channel, which is all
-    /// of them but BetterDisplay's — means stable only, and is the behavior this
+    /// of it to read. `nil` — a `.gitHubReleases` recipe that registers no channel
+    /// — means stable only, and is the behavior this
     /// decoder has always had: offering a prerelease's notes beside a stable
     /// install would describe a build the user was never shown. A recipe that DOES
     /// name a channel is opting into the other side, and must only do so for a

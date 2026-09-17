@@ -168,7 +168,7 @@ BLOCK_COMMENT = """\
     }
 """
 
-# `/*` inside a `//` comment — `Scan/AppRuntime.swift:252` really does this.
+# `/*` inside a `//` comment — `Scan/AppRuntime.swift:279` really does this.
 SLASH_STAR_INSIDE_LINE_COMMENT = """\
     private func probe() async {
         // `Contents/MacOS/*.app` is also where subprocesses live

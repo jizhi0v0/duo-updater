@@ -194,9 +194,11 @@ public actor VendorInstaller {
         guard download.appliedPatch != nil else {
             return try await applyVerified(result, download: download, onStage: onStage)
         }
-        // Any failure on the patch route is recoverable by taking the full archive,
-        // which is always published alongside it; the coordinator retries on this
-        // type alone, so a real gate failure on the full route still stops.
+        // A failure on the patch route is recoverable by taking the full archive,
+        // which is always published alongside it — except a liveness gate (OS
+        // floor, architecture), which refuses the full archive for the identical
+        // reason and is re-thrown unwrapped instead. The coordinator retries on
+        // this type alone, so a real gate failure on the full route still stops.
         do {
             try await applyVerified(result, download: download, onStage: onStage)
         } catch {

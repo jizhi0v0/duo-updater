@@ -15,7 +15,7 @@ import Foundation
 /// them. (When the check does find a new version, the notes are keyed by
 /// version, so that app's pane moves to the new version's key on its own.)
 ///
-/// **Why this lives in Core.** `AppListModel` has no test target, and the
+/// **Why this lives in Core.** No test target compiles `AppListModel`, and the
 /// distinction used to be carried by a `Bool` named for one of its
 /// consequences (`allowTestFlight`), which is how the other consequence — the
 /// wholesale changelog reset — came to run on every hourly tick under a

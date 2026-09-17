@@ -46,7 +46,8 @@ test:
 	python3 scripts/check_prose_claims.py
 	python3 scripts/check_offpool.py
 
-# Render every row state to verify/row-states/*.png. The images are committed:
+# Render every row state to verify/row-states/<surface>/*.png. The images are
+# committed:
 # re-run after a UI change and read the diff. Fails if a state draws nothing.
 gallery:
 	@scripts/row-state-gallery.sh
@@ -64,6 +65,6 @@ export NOTARYTOOL_PROFILE
 notarize:
 	@scripts/notarize.sh
 
-# Build, notarize, and publish a GitHub Release into the public binary-only repo.
+# Build, notarize, and publish a GitHub Release (`RELEASE_REPO`, this repository).
 release:
 	@scripts/publish-release.sh

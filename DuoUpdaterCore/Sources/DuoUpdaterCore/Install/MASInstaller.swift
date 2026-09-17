@@ -9,15 +9,17 @@ import Foundation
 /// Getting this to run headlessly took three macOS-specific pieces, each found
 /// the hard way:
 ///   • **Root.** mas talks to the install daemon. From a GUI app we can't feed
-///     its internal `sudo` a password, so we run mas as root via an
-///     `osascript … with administrator privileges` prompt (native Touch ID).
+///     its internal `sudo` a password, so root comes from the privileged helper
+///     over XPC (`PrivilegedMASRunner` below) — no per-install prompt. This used
+///     to be an `osascript … with administrator privileges` escalation.
 ///   • **The user's identity.** Run as a clean root, mas can't find the per-user
 ///     App Store account and bails with "Failed to get sudo uid". Invoked via
 ///     `sudo` it would read SUDO_UID/SUDO_GID to seteuid back to the user; we
 ///     inject those ourselves (this process IS the user), reproducing sudo.
 ///   • **The user's GUI session.** The download is driven by `storedownloadd`,
-///     which only transfers inside the user's Aqua session. osascript escalation
-///     lands in a sessionless context where the download silently never starts
+///     which only transfers inside the user's Aqua session. Root obtained outside
+///     that session — the helper included, as the old osascript escalation was —
+///     lands in a context where the download silently never starts
 ///     (queued forever, no network). `launchctl asuser <uid>` re-associates the
 ///     command with that session — the missing piece that makes downloads run.
 ///
@@ -185,8 +187,10 @@ public actor MASInstaller {
         /// ⚠️ **What actually reaches this in production is a delisted app.** The
         /// other candidate — a wrapped iPhone/iPad app, which lives in the iOS
         /// catalog and is never in mas's namespace — cannot get here: measured
-        /// 2026-09-09, `masInstaller.install` has exactly two call sites
-        /// (`AppListModel` ~3206 / ~3241) and three gates stand in front of them —
+        /// 2026-09-09, `masInstaller.install` has exactly two call sites, both in
+        /// `AppListModel.performInstall` (the `.full` route, and the `.incremental`
+        /// fallback taken when Accessibility isn't granted) and three gates stand
+        /// in front of them —
         /// `UpdatePolicy.canAutoInstall` excludes `isiOSAppOnMac` on the `.full`
         /// route, `AppListModel` redirects those rows to the App Store deep link
         /// before any install runs, and the `.incremental` route excludes them from

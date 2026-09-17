@@ -20,7 +20,7 @@ import Foundation
 /// which reads as "up to date" in a window that otherwise reserves blank for
 /// exactly that — see issue #264.
 public enum CheckFailureRules {
-    /// Three rounds of a check interval (an hour by default) is long past the
+    /// Three rounds of a check interval (six hours by default) is long past the
     /// point where "retry" is the useful advice — for the banner. See the type
     /// doc for why a row's own state does not use this at all.
     public static let chronicThreshold = 3

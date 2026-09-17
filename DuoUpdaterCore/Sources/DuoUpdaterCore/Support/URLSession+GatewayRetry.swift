@@ -63,8 +63,9 @@ public extension URLSession {
     /// stated one.
     /// `purpose` only labels the request in ``RequestTotal``; it changes nothing
     /// about the fetch. It defaults to `.versionCheck` because that is what a
-    /// version feed is — the one caller that is something else (`ChangelogService`
-    /// fetching a release-notes feed through this same retry) passes its own.
+    /// version feed is — the one caller that is something else
+    /// (`HomebrewCaskCatalog`, whose catalog fetch passes `purpose: .catalog`)
+    /// passes its own.
     func versionFeedData(
         for request: URLRequest,
         label: String,

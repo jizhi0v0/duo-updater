@@ -5,9 +5,11 @@ import Foundation
 /// "probe recipe" (see `VendorProbeRecipe`) that reads the latest version
 /// straight from the vendor's own download endpoint.
 ///
-/// Wired as the **final** source in the checker so it only runs when the three
-/// standard sources have all missed — vendor probes are slow, fragile, and
-/// should never pre-empt a reliable source.
+/// Wired after the standard sources (App Store, Xcode, Sparkle, Homebrew,
+/// GitHub Releases — plus Alcove when the user has credentials) and before
+/// `ElectronManifestSource`, which is last — so it only runs when the standard
+/// sources have all missed: vendor probes are slow, fragile, and should never
+/// pre-empt a reliable source.
 ///
 /// Never reports a version it isn't confident about, so it can't produce a
 /// false "update available". What it does NOT do is stay quiet about failing:
@@ -297,8 +299,9 @@ public struct VendorProbeSource: UpdateSource {
     /// what went wrong.
     ///
     /// Throwing does not change which source answers. `UpdateChecker` continues to
-    /// the next source on a throw exactly as it does on a nil, and this source is
-    /// last in the stack — the error only surfaces when nothing else answered.
+    /// the next source on a throw exactly as it does on a nil, and only
+    /// `ElectronManifestSource` follows it — the error surfaces when nothing else
+    /// answered.
     public struct ProbeFailed: LocalizedError {
         public let bundleID: String
         public let failure: ProbeFailure?
@@ -478,7 +481,8 @@ public struct VendorProbeSource: UpdateSource {
     /// this reads whichever the recipe filled — which is also why endpoints
     /// sharing a channel must agree on `versionIsBuild` (a build compared against
     /// a marketing string is the phantom-update bug that flag exists to prevent).
-    /// `VendorProbeRegistryTests` enforces that agreement.
+    /// `VendorInstallTests.channelProofsCoverEveryChannelRecipe` enforces that
+    /// agreement.
     private static func comparable(_ remote: RemoteVersion?) -> String? {
         remote.flatMap { $0.version ?? $0.shortVersion }
     }

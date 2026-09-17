@@ -146,10 +146,13 @@ public actor SparkleInstaller {
         }
         // Everything that can go wrong on the patch route is recoverable by taking
         // the full archive instead — a patch that won't apply, a signature that
-        // won't verify, a reconstructed bundle that fails a gate. Sparkle makes the
-        // same choice ("in any case where a binary delta update fails to install,
-        // Sparkle falls back to downloading and installing the regular full
-        // update"), and it holds here for the same reason: the patch is an
+        // won't verify, a reconstructed bundle whose TRUST gates fail — with one
+        // exception: a LIVENESS gate (OS floor, architecture) refuses the full
+        // archive for the identical reason, so that error is re-thrown unwrapped
+        // instead of retried (see `deltaRouteFailureIsWorthRetrying`). Sparkle
+        // makes the same choice ("in any case where a binary delta update fails to
+        // install, Sparkle falls back to downloading and installing the regular
+        // full update"), and it holds here for the same reason: the patch is an
         // optimisation over a download that is always available, so nothing is lost
         // by abandoning it. The full route's failures are NOT wrapped — there the
         // gate really is telling us not to install.

@@ -4,9 +4,9 @@ import Foundation
 /// whether something is actually in front of the user.
 ///
 /// A value type rather than the `CFDictionary` `CGWindowListCopyWindowInfo` hands
-/// back, so the rule below can be tested without a window server: the App target
-/// has no tests (see `CLAUDE.md`), and this rule is the reason the window either
-/// appears or does not.
+/// back, so the rule below can be tested without a window server: the App test
+/// target compiles only the files it names, and this rule is the reason the window
+/// either appears or does not.
 public struct WindowInfo: Sendable, Equatable {
     /// `kCGWindowNumber` — matches `NSWindow.windowNumber`.
     public let number: Int

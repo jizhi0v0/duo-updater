@@ -534,8 +534,10 @@ public enum Verify {
                     Finding.machineNotePrefix + "oneClickCandidate: " + candidate)
             }
             // Hand the pkgarch sweep the URL this probe already resolved. Doing it
-            // here rather than re-probing is the difference between 44 small Range
-            // reads and hitting 22 vendor endpoints a second time in one run.
+            // here rather than re-probing is the difference between the 66–88 small
+            // Range reads those 22 packages cost (three or four each, see
+            // `PackageArchitectureProbe.headerLength`) and hitting 22 vendor
+            // endpoints a second time in one run.
             await installURLs.record(
                 recipe.recipeID, installArtifactURL(outcome))
             return finding
@@ -826,7 +828,7 @@ public enum Verify {
         _ rules: [GitHubReleaseRule], options: VerifyOptions,
         installed: [String: InstalledVersion]
     ) async -> [Finding] {
-        // All 13 rules share api.github.com, so host-grouping would serialize
+        // Every GitHub rule shares api.github.com, so host-grouping would serialize
         // them anyway. That is the correct behaviour — one shared rate limit.
         var token = options.githubToken
         if token == nil { token = await GitHubToken.resolve() }
@@ -864,9 +866,19 @@ public enum Verify {
                     }
                 }
             }
+            // Which pattern a report should quote. For a renamed macOS artifact the
+            // TAG pattern is still matching every release, so quoting it sends the
+            // reader to the wrong regex — `assetPatternNoMatch` is the one failure
+            // that is about the install pattern instead.
+            let reportedPattern: String
+            if case .assetPatternNoMatch = outcome.failure, let install = rule.installAssetPattern {
+                reportedPattern = install
+            } else {
+                reportedPattern = rule.versionPattern
+            }
             var finding = classify(
                 outcome, registry: .github, host: "api.github.com",
-                pattern: rule.versionPattern,
+                pattern: reportedPattern,
                 attempts: attempt + 1 + tally.count, gatewayRetries: tally.count,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
                 // Issue #101: this used to pass `{ _, _ in [] }`. The vendor

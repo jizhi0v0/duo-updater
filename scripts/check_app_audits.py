@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """`docs/app-audits/` is the single maintained reference for how each app
-publishes updates. This keeps it honest about three things that have each gone
+publishes updates. This keeps it honest about four things that have each gone
 wrong at least once.
 
 1. **The index drifts.** `README.md` is hand-written; five audits had been

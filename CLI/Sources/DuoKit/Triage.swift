@@ -227,6 +227,16 @@ public enum Triage {
             return "streak \(baseline.streak(finding.recipeID))/"
                 + "\(Baseline.actionableThreshold) — not yet worth analysing"
         }
+        // The one pattern failure the model cannot be asked about. The question is
+        // "propose a VERSION pattern", checked against the captured body — and for
+        // a renamed GitHub asset that body is the tag list, which the version
+        // pattern already matches. Any tag regex would come back "✅ Verified" on an
+        // issue whose whole point is that the tag regex is fine; the asset names
+        // the real fix needs were never captured.
+        if finding.failureKind == ProbeFailure.assetPatternNoMatch(walked: 0).kind {
+            return "asset-pattern miss — the captured body is the tag list, which "
+                + "cannot show or check an install-pattern fix"
+        }
         guard finding.bodySample != nil else {
             return "no captured body to analyse"
         }

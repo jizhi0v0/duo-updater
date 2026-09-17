@@ -162,7 +162,7 @@ def strip_noise(line, in_block=False, in_multiline=False):
     log message, a regex, or a comment is not a scope. Walked character by
     character rather than run through a pile of regexes in some order, because
     every order is wrong for something: this repo has `/*` inside a `//` comment
-    (`AppRuntime.swift:252`), `#\"…\"#` regexes full of quotes, and multi-line SQL.
+    (`AppRuntime.swift:279`), `#\"…\"#` regexes full of quotes, and multi-line SQL.
     """
     if in_multiline:
         return "", in_block, ('"""' not in line)

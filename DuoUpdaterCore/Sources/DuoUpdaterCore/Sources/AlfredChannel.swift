@@ -1,15 +1,13 @@
 import Foundation
 
-/// Alfred (`com.runningwithcrayons.Alfred`) — a feed-swap Sparkle app. Stable and
-/// beta share one bundle id and the same Info.plist `SUFeedURL`
-/// (`https://www.alfredapp.com/appcast.xml`). The user toggles "Pre-releases" in
-/// Alfred's Update preferences, which sets `prereleases` in a machine-specific
-/// plist under `Alfred.alfredpreferences/preferences/local/*/update/prefs.plist`.
-/// When true, the app's own Sparkle delegate swaps the feed to
-/// `https://www.alfredapp.com/prerelease.xml` at runtime.
+/// Alfred (`com.runningwithcrayons.Alfred`) — the user's channel lives in the
+/// app's own preferences: toggling "Pre-releases" in Alfred's Update preferences
+/// sets `prereleases` in a machine-specific plist under
+/// `Alfred.alfredpreferences/preferences/local/*/update/prefs.plist`.
 ///
-/// We mirror that swap: read the same key and override the feed URL so the
-/// SparkleAppcastSource fetches the correct channel. Unreadable → stable, the
+/// We read that same key and report the channel it selects, so our endpoint
+/// agrees with the app's own choice. Channel only — see `resolve` for why this
+/// resolution deliberately carries no feed override. Unreadable → stable, the
 /// conservative default that never pushes a surprise beta.
 enum AlfredChannel {
     static let bundleID = "com.runningwithcrayons.Alfred"

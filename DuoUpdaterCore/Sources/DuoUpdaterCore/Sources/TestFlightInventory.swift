@@ -69,8 +69,8 @@ public struct TestFlightInventory: Sendable {
     }
 
     /// macOS builds present in the DB, keyed by bundle id. The value carries the
-    /// newest available build plus the full set of build numbers, so we can both
-    /// offer an update and recognize that an on-disk build is a TestFlight install.
+    /// newest available build, so an update can be offered; the build-number set
+    /// that recognizes an on-disk TestFlight install is `buildsByBundleID` below.
     private let appsByBundleID: [String: App]
     /// The (bundleID, build) macOS pairs `ZINSTALLSTATUSRAW` marks as installed
     /// HERE — used to confirm a given on-disk app really is the TestFlight
@@ -151,8 +151,9 @@ public struct TestFlightInventory: Sendable {
 
     /// Whether the build rows could be queried at all. `false` when the store opened
     /// but neither row query prepared — the "schema just didn't match" read, which
-    /// comes back `accessible` and empty. Only `awaitingRebuild` asks: such a read
-    /// says nothing about whether a rebuild has finished.
+    /// comes back `accessible` and empty. `awaitingRebuild` skips such a read and
+    /// `TestFlightRefresh.storeIsRebuilding` reports it as unknown rather than
+    /// complete: it says nothing about whether a rebuild has finished.
     public let rowsReadable: Bool
 
     /// Whether we actually opened the TestFlight database. `false` means the file
@@ -192,7 +193,7 @@ public struct TestFlightInventory: Sendable {
     /// `BoundedBlockingWork` bounds the *wait*, it does not un-block it: the
     /// calling thread still sits in `DispatchSemaphore.wait` for up to
     /// `openTimeout` seconds, and every caller builds this from `Task.detached`,
-    /// which runs on the cooperative pool. Eleven construction sites in the menu
+    /// which runs on the cooperative pool. Every construction site in the menu
     /// bar app × five seconds is the #351 shape with a cap on it — and the cap is
     /// reached exactly when the app-data gate is unanswered, which is when the
     /// app has the most other work in flight. See `offCooperativePool`.

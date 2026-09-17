@@ -65,6 +65,17 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// **The signature failure of a broken recipe**: the endpoint answered, the
     /// body arrived, and `versionPattern` matched nothing in it.
     case versionPatternNoMatch(sampleBytes: Int)
+    /// The **tag** pattern matched release after release, and none of them carried
+    /// an asset matching `installAssetPattern` — the vendor renamed the macOS
+    /// artifact. A recipe problem, like `versionPatternNoMatch`, and split from it
+    /// because the two need different words: this one means the tag pattern is
+    /// FINE and the install pattern is what stopped matching, so a report that
+    /// named the version pattern would send someone to fix the wrong regex.
+    ///
+    /// `walked` is how many releases the walk examined before giving up, which is
+    /// the size of the evidence: one is a platform-partial release, a run of them
+    /// is a rename.
+    case assetPatternNoMatch(walked: Int)
     /// The pattern matched nothing, but the same pattern with its segment count
     /// made variable matches `wouldMatch`. That is a vendor changing how many
     /// dot-separated numbers their version has — the Zotero `9.0.6` -> `10.0`
@@ -143,7 +154,8 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return (code >= 500 || code == 429) ? .infra : .recipe
         case .redirectMissingLocation, .malformedResolvedURL,
              .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch,
-             .versionSegmentCountChanged, .channelDiscoveryBroken, .buildLineagePatternNoMatch:
+             .assetPatternNoMatch, .versionSegmentCountChanged, .channelDiscoveryBroken,
+             .buildLineagePatternNoMatch:
             return .recipe
         }
     }
@@ -161,6 +173,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .archiveExtractionFailed: return "archiveExtractionFailed"
         case .plistKeyMissing: return "plistKeyMissing"
         case .versionPatternNoMatch: return "versionPatternNoMatch"
+        case .assetPatternNoMatch: return "assetPatternNoMatch"
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
         case .vendorErrorEnvelope: return "vendorErrorEnvelope"
         case .buildLineagePatternNoMatch: return "buildLineagePatternNoMatch"
@@ -184,6 +197,9 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .plistKeyMissing(let entry, let key): return "\(entry) has no key '\(key)'"
         case .channelDiscoveryBroken(let why): return why
         case .versionPatternNoMatch(let bytes): return "no match in \(bytes)-byte body"
+        case .assetPatternNoMatch(let walked):
+            return "\(walked) release(s) matched the version pattern but none carried an asset "
+                + "matching the install pattern — the vendor may have renamed the macOS artifact"
         case .versionSegmentCountChanged(let would, let bytes):
             return "no match in \(bytes)-byte body, but the same pattern with a "
                 + "variable segment count matches \(would) — the vendor changed "

@@ -14,7 +14,7 @@ import Foundation
 /// extended one release at a time without a migration.
 ///
 /// Deliberately in Core rather than next to the view: this is the part with rules
-/// in it, `App/Sources` has no test target, and the same substitution has to hold
+/// in it, no test target compiles that file, and the same substitution has to hold
 /// for a language file that is empty, stale, ahead of English, or absent.
 public enum SelfChangelogLocalization {
 

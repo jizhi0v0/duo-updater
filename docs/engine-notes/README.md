@@ -57,8 +57,9 @@ what to do when the number has already drifted once.
 6. **Add the new file to the Index below** — `check_engine_notes.py` fails
    the build if a tracked `.md` in this directory isn't listed there.
 7. `make test`, open the PR, then follow the review flow in CLAUDE.md,
-   「修 issue」, starting with `/code-review high`. The flow is not restated
-   here so the two cannot drift.
+   「修 issue」, starting with `/code-review high` run in a fresh subagent — not
+   in the session that wrote the PR. The flow is not restated here so the
+   two cannot drift.
 
 ## Index
 

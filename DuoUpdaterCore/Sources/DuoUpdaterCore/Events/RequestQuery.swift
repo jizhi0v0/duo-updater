@@ -281,10 +281,34 @@ public struct RequestQuery: Sendable, Equatable {
         for (suffix, scale) in units where trimmed.hasSuffix(suffix) {
             let number = trimmed.dropLast(suffix.count).trimmingCharacters(in: .whitespaces)
             guard let magnitude = Double(number) else { return nil }
-            return Int64(magnitude * scale)
+            return int64(magnitude * scale)
         }
         guard let magnitude = Double(trimmed) else { return nil }
-        return Int64(magnitude)
+        return int64(magnitude)
+    }
+
+    /// `Int64` for a `Double`, or nil when it has no `Int64` — the only safe way,
+    /// because `Int64.init(_: Double)` *traps* (it does not clamp or saturate) on
+    /// an infinite, NaN or out-of-range value.
+    ///
+    /// This is not theoretical: the magnitudes come from text a person typed, and
+    /// `Double(String)` accepts far more than a byte count can hold — `"1e19"` is
+    /// a perfectly finite `Double` that is larger than `Int64.max`, and `"inf"` /
+    /// `"nan"` parse too. Typing `size>1e19` into the Requests filter field used to
+    /// kill the process, because `RequestLogPane` parses in `body` on the main
+    /// actor. The file's contract is "**Parsing never fails.** … anything
+    /// unrecognised degrades to free text" (:10) — a bound we cannot represent is
+    /// unrecognised, so nil (⇒ free text) is the honest answer.
+    ///
+    /// The bound is `2^63`, written as a `Double` because that is the value the
+    /// conversion actually has to stay below: `Int64.max` is not representable as a
+    /// `Double`, and `Double(Int64.max)` rounds *up* to `2^63`, so comparing against
+    /// it would admit a value that still traps.
+    private static let int64Limit = 9_223_372_036_854_775_808.0   // 2^63
+
+    static func int64(_ value: Double) -> Int64? {
+        guard value.isFinite, value >= -int64Limit, value < int64Limit else { return nil }
+        return Int64(value)
     }
 
     /// `5s`, `500ms`, `2.5` (bare numbers are seconds).
@@ -463,7 +487,11 @@ public struct RequestQuery: Sendable, Equatable {
             // end yields NULL and is excluded, which is the honest answer to
             // "took longer than 5s" for a hop that was never timed.
             clauses.append("(\(Self.durationMicros)) >= ?")
-            values.append(.int(Int64((minDuration * 1_000_000).rounded())))
+            // `int64`, not `Int64`: `took>1e300` survives `seconds(_:)` as a finite
+            // `Double` whose microsecond form overflows (and `took>inf` is infinite
+            // outright), and the conversion traps on both. A bound this large
+            // matches nothing, which is what an out-of-range `took>` means.
+            values.append(.int(Self.int64((minDuration * 1_000_000).rounded()) ?? .max))
         }
         for word in text {
             clauses.append("(host || COALESCE(json_extract(payload, '$.path'), '') LIKE ?)")

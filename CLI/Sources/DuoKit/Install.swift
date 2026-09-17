@@ -78,11 +78,20 @@ public enum Install {
             return 2
         }
 
+        // Opens the NDJSON stream before anything else can reach stdout, so
+        // every exit below stays inside one valid stream with the schema line
+        // first — not just the rows `apply` writes.
+        if options.json { NDJSON.begin("install") }
+
         // `--all` means "the updates I would see", which excludes ignored apps —
         // so don't spend a request on them either. A *named* app is honoured even
         // when hidden (see the loop below), and must therefore still be checked.
         let checkable = settings.appsWorthChecking(selected, named: !options.queries.isEmpty)
-        print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
+        // Suppressed in `--json` mode: the schema line above is already
+        // stdout's first line (same rule `Check`'s TestFlight note follows).
+        if !options.json {
+            print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
+        }
         let results = await Inventory.checker(settings).check(checkable)
 
         let staged = stagedSelfUpdates(for: results)
@@ -95,7 +104,9 @@ public enum Install {
             runningBundleIDs: Check.runningBundleIDs())
 
         var plan: [Planned] = []
-        var refusals: [(UpdateResult, String)] = []
+        // Carries `Decision.refuse`'s route (when `classify` had derived one)
+        // through to the `--json` row below; `describe` just ignores it.
+        var refusals: [(UpdateResult, String, InstallCoordinator.Route?)] = []
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
             guard result.hasUpdate else { continue }
             // An explicitly named app is one the user asked for by name, so a
@@ -108,21 +119,39 @@ public enum Install {
                 // asked for, so listing it under "Skipping" would be noise.
                 guard options.routes.isEmpty || options.routes.contains(route) else { continue }
                 plan.append(Planned(result: result, route: route))
-            case .refuse(let why, _):
-                refusals.append((result, why))
+            case .refuse(let why, let route):
+                refusals.append((result, why, route))
             }
         }
 
         guard !plan.isEmpty || !refusals.isEmpty else {
-            print(emptyPlanLine(scanAbandoned: scanned == nil))
+            // `--json` mode: the schema line already opened is the whole
+            // stream — zero rows, the convention `Check`/`Backups` also use.
+            if !options.json { print(emptyPlanLine(scanAbandoned: scanned == nil)) }
             return 0
         }
 
-        describe(plan, refusals: refusals)
+        if options.json {
+            // Each refusal gets the same row `apply` writes for a
+            // not-installed item (`skippedPayload`, `outcome: .skipped`).
+            for (result, why, route) in refusals {
+                NDJSON.emit(skippedPayload(name: result.app.name, route: route, reason: why, outcome: .skipped))
+            }
+        } else {
+            // The human plan — suppressed in `--json` mode (see above).
+            describe(plan, refusals: refusals)
+        }
+        // `--json --dry-run` doesn't enumerate `plan` itself: no existing row
+        // shape fits an item nothing was attempted on (each one asserts an
+        // install did or would happen, or a refusal).
         if options.dryRun { return plan.isEmpty ? 0 : 1 }
         guard !plan.isEmpty else { return 1 }
-        guard options.assumeYes || confirm(count: plan.count) else {
-            print("Cancelled.")
+        guard options.assumeYes || confirm(count: plan.count, json: options.json) else {
+            if options.json {
+                FileHandle.standardError.write(Data("duo: cancelled\n".utf8))
+            } else {
+                print("Cancelled.")
+            }
             return 0
         }
 
@@ -147,8 +176,16 @@ public enum Install {
             }
             if !started.isEmpty {
                 for planned in started {
-                    print("Skipping \(planned.result.app.name): started while waiting for confirmation, "
-                          + "and your vendor policy defers to its own updater.")
+                    if options.json {
+                        NDJSON.emit(skippedPayload(
+                            name: planned.result.app.name, route: planned.route,
+                            reason: "started while waiting for confirmation, and your vendor "
+                                + "policy defers to its own updater.",
+                            outcome: .skipped))
+                    } else {
+                        print("Skipping \(planned.result.app.name): started while waiting for confirmation, "
+                              + "and your vendor policy defers to its own updater.")
+                    }
                 }
                 plan.removeAll { planned in
                     started.contains { $0.result.app.path == planned.result.app.path }
@@ -521,7 +558,7 @@ public enum Install {
         }
     }
 
-    static func describe(_ plan: [Planned], refusals: [(UpdateResult, String)]) {
+    static func describe(_ plan: [Planned], refusals: [(UpdateResult, String, InstallCoordinator.Route?)]) {
         if !plan.isEmpty {
             print("\nWill install:")
             for item in plan {
@@ -532,7 +569,7 @@ public enum Install {
         }
         if !refusals.isEmpty {
             print("\nSkipping:")
-            for (result, why) in refusals {
+            for (result, why, _) in refusals {
                 print("  \(result.app.name)  —  \(why)")
             }
         }
@@ -542,13 +579,19 @@ public enum Install {
     /// Ask before replacing anything. With no terminal there is nobody to ask,
     /// so a piped or scripted run must pass `--yes` explicitly rather than
     /// having consent assumed for it.
-    static func confirm(count: Int) -> Bool {
+    static func confirm(count: Int, json: Bool = false) -> Bool {
         guard isatty(STDIN_FILENO) == 1 else {
             FileHandle.standardError.write(Data(
                 "duo: not a terminal — pass --yes to install without confirmation\n".utf8))
             return false
         }
-        print("Install \(count) update\(count == 1 ? "" : "s")? [y/N] ", terminator: "")
+        let prompt = "Install \(count) update\(count == 1 ? "" : "s")? [y/N] "
+        // To stderr in `--json` mode — stdout stays the NDJSON stream alone.
+        if json {
+            FileHandle.standardError.write(Data(prompt.utf8))
+        } else {
+            print(prompt, terminator: "")
+        }
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"
@@ -623,7 +666,7 @@ public enum Install {
         _ plan: [Planned], settings: Settings, routes: Set<InstallCoordinator.Route>,
         json: Bool, keepBackups: Bool, installedPopulation: [InstalledApp]?
     ) async -> Int32 {
-        if json { NDJSON.begin("install") }
+        // The schema line is `run`'s job now — see its `NDJSON.begin` call.
         let coordinator = InstallCoordinator()
         // `elevationRequiredPaths` is a fact about the install locations, which
         // don't move between plan and apply — computed once, like the plan's own

@@ -3206,7 +3206,13 @@ final class AppListModel {
     /// the running process stays old. That flips its row to up-to-date AND lets
     /// `computeRestartInfo` surface a Restart badge. No network: the full update
     /// check still runs on first open and on the manual refresh.
-    func refreshLocal() async {
+    /// `unattended` says the trigger was a timer or FSEvents rather than something
+    /// the user aimed at us. It decides which TestFlight gate the scan uses — see
+    /// `unattendedMayReadTestFlightStore` — because this one function serves both
+    /// callers and `mayReadTestFlightStore` admits `.unknown`, which is right only
+    /// for a refresh someone asked for. No default: every caller states it, so a
+    /// new unattended trigger can't silently fall through to the attended gate.
+    func refreshLocal(unattended: Bool) async {
         // Don't churn the list while an install is in flight: this rebuilds and
         // re-sorts `results` wholesale, which would reorder/replace the row under
         // an active spinner. Installs key by id and finish fine, but the visible
@@ -3224,7 +3230,7 @@ final class AppListModel {
             Log.app.debug("local rescan: skipped — \(reason, privacy: .public)")
             return
         }
-        await performLocalRescan()
+        await performLocalRescan(unattended: unattended)
     }
 
     /// The guard-free body of `refreshLocal`: re-scan disk, re-derive every row's
@@ -3233,7 +3239,7 @@ final class AppListModel {
     /// mid-flight — `refreshLocal` (behind its guard) and `installAll`'s post-batch
     /// sweep — go through here so an app that self-updated externally is re-evaluated
     /// and clears, not just the restart badge.
-    private func performLocalRescan() async {
+    private func performLocalRescan(unattended: Bool) async {
         localRescanDeferred = false
         // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
         // off KVO on `runningApplications` (`docs/engine-notes/app-list-model.md`
@@ -3243,8 +3249,16 @@ final class AppListModel {
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
         // The scanner's default reads TestFlight's store — not when that read
-        // cannot succeed (`mayReadTestFlightStore`).
-        let readsTestFlight = mayReadTestFlightStore
+        // cannot succeed, and not when nobody asked for this rescan. A timer or an
+        // FSEvents change reaching the ATTENDED gate would open another app's
+        // container with nothing known about the grant, which is the read that
+        // raises macOS's "access data from other apps" prompt (`TestFlightDetection`
+        // states the rule; the store watcher and the local poll already use
+        // `unattendedMayReadTestFlightStore`). `installAll`'s sweep and the
+        // menu/workbench opens and focus refreshes keep the attended gate: the user
+        // is there. The workbench's own 180s backstop timer is not — it fires
+        // whether or not anyone's looking — so it passes `unattended: true`.
+        let readsTestFlight = unattended ? unattendedMayReadTestFlightStore : mayReadTestFlightStore
         // The whole closure off the cooperative pool, not just the TestFlight
         // read: `AppScanner.scan()` is synchronous to the bottom and bounded the
         // same way (see `BoundedBlockingWork`), so a detached task here parks a
@@ -5312,7 +5326,7 @@ final class AppListModel {
     /// and `needsRestart` from the fresh on-disk version, and clears the banner if
     /// it's been applied), then only restart if it's *still* pending.
     func restart(byID id: String) async {
-        await refreshLocal()
+        await refreshLocal(unattended: false)
         guard let result = results.first(where: { $0.id == id }) else {
             UpdateNotifier.clearSelfDownloaded(appID: id)  // gone from the scan — drop the banner
             return
@@ -7026,7 +7040,7 @@ final class AppListModel {
         // new build during the "Update All" — is re-evaluated and clears, instead of
         // keeping its stale "update available" row until the next backstop tick. Safe
         // here: every install in the batch has finished, so there's no spinner to churn.
-        await performLocalRescan()
+        await performLocalRescan(unattended: false)
         // The authoritative process-version sweep inside `performLocalRescan` has
         // now converted these provisional states into `needsRestart` (or proved the
         // app stopped meanwhile). From here the normal Restart state owns the row.
@@ -7501,7 +7515,7 @@ final class AppListModel {
             return
         }
         Log.app.debug("local rescan: triggered (watcher or backstop)")
-        await refreshLocal()
+        await refreshLocal(unattended: true)
     }
 
     /// A narrowed local rescan run *while* an install is in flight: re-read disk and
@@ -7515,8 +7529,11 @@ final class AppListModel {
     private func clearSettledExternalUpdates() async {
         guard !results.isEmpty else { return }
         let extraScan = prefs.customScanLocations
-        // Same gate as `refreshLocal`: the scanner's default reads TestFlight's store.
-        let readsTestFlight = mayReadTestFlightStore
+        // Unattended, and this function's ONLY caller is `backgroundLocalRescan` —
+        // a timer or an FSEvents change — so it takes the unattended gate. The
+        // attended one admits `.unknown`, which here would open TestFlight's
+        // container on a trigger nobody aimed at us.
+        let readsTestFlight = unattendedMayReadTestFlightStore
         // Off the cooperative pool for the reason `refreshLocal` gives.
         let found = await offCooperativePool(qos: .utility) {
             AppScanner(
@@ -7553,7 +7570,7 @@ final class AppListModel {
     /// deferred, so a plain single install pays no extra scan.
     private func drainDeferredLocalRescan() async {
         guard localRescanDeferred, installing.isEmpty, !isInstallingAll else { return }
-        await performLocalRescan()
+        await performLocalRescan(unattended: false)
     }
 
     /// Seed `runningAppPaths` from the current process list and keep it live.

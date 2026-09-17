@@ -8,17 +8,19 @@ import Foundation
 /// Entries expire after ``ttl`` seconds so the window always reflects recent
 /// releases rather than a session-long snapshot.
 ///
-/// Keyed on the recipe's canonical `source` URL plus the recipe's own identity as
-/// a fragment (``ChangelogService/cacheKeyURL(for:resolved:)``), so each recipe
-/// owns exactly one cache slot and no two recipes share one — several recipes can
-/// read one page (Warp's three channels, Antigravity's two products). The per-run
+/// Keyed on the page URL `load` resolves plus a fragment naming the recipe and the
+/// target version, `<recipeID>@<version>` (just `<recipeID>` when no version is
+/// given; ``ChangelogService/cacheKeyURL(for:resolved:version:)``). So a recipe
+/// owns one slot per version it is asked for — ``invalidate(fragment:)`` drops
+/// them all — and no two recipes share a slot: several recipes can read one page
+/// (Warp's three channels, Antigravity's two products). The per-run
 /// resolved detail URL stays out of it, so index redirects don't inflate the key
 /// space. The cache stores parsed ``Changelog`` values —
 /// not raw HTML — so it carries no ambiguity about what `nil` means.
 ///
 /// Concurrent callers requesting the same URL while a fetch is in-flight are
 /// coalesced onto a single `Task` (the same pattern ``HomebrewCaskCatalog`` uses
-/// for its ~2 MB catalog download), so each recipe is fetched at most once per
+/// for its ~2 MB catalog download), so each slot is fetched at most once per
 /// TTL window regardless of how many detail windows race.
 ///
 /// Thread-safe via Swift's actor isolation. ``ChangelogService`` is the only
@@ -118,10 +120,20 @@ public actor ChangelogCache {
     /// caller after an on-disk update knows the recipe but not which versions the
     /// user has opened. Matching on the fragment is what makes "drop this recipe's
     /// notes" unable to miss. Compared percent-encoded, because that is how
-    /// ``ChangelogService/cacheKeyURL(for:resolved:)`` writes it.
+    /// ``ChangelogService/cacheKeyURL(for:resolved:version:)`` writes it.
     public func invalidate(fragment: String) {
         let keys = Set(store.keys).union(inflight.keys)
-            .filter { $0.fragment(percentEncoded: true) == fragment }
+            .filter { key in
+                guard let f = key.fragment(percentEncoded: true) else { return false }
+                // Exact for a slot keyed on the recipe alone, and
+                // `<fragment>@<version>` for the per-version slots `cacheKeyURL`
+                // now writes — a recipe with a fixed `source` can hold one slot per
+                // target version, and "drop this recipe's notes" has to mean all of
+                // them. The separator is what keeps this from matching a recipe
+                // whose id merely starts with this one.
+                return f == fragment
+                    || f.hasPrefix(fragment + ChangelogService.versionTagSeparator)
+            }
         for key in keys { invalidate(key) }
     }
 

@@ -39,6 +39,28 @@ func die(_ msg: String, code: Int32) -> Never {
     exit(code)
 }
 
+/// The channel `--expect` names, or nil when the flag was not given at all.
+///
+/// A `--expect` with no value after it is **bad input** (exit 2), not "no
+/// expectation". Every failure path below is gated on the expectation being
+/// present — the mismatch branches, the "a recipe IS keyed to this bundle but
+/// answered nothing" arm, and the unknown-status arm — so a valueless flag made
+/// the run assert nothing at all and exit 0. Measured on this checkout:
+///
+///     channel-verify /tmp/zz-fix/ZZNoUpdater.app --expect beta   → exit 1, MISMATCH
+///     channel-verify /tmp/zz-fix/ZZNoUpdater.app --expect        → exit 0, no message
+///
+/// The second is what a caller reads as "verified". It is the ordinary result of
+/// `--expect "$CHANNEL"` in a shell where `CHANNEL` is unset — the expansion
+/// disappears and the flag becomes the last argument.
+func expectedChannel(_ argv: [String]) -> String? {
+    guard let i = argv.firstIndex(of: "--expect") else { return nil }
+    guard i + 1 < argv.count else {
+        die("--expect needs a channel (got none — an unset shell variable?)", code: 2)
+    }
+    return argv[i + 1].lowercased()
+}
+
 // MARK: - args
 
 let argv = CommandLine.arguments
@@ -54,8 +76,7 @@ guard argv.count >= 2 else {
 if argv[1] == "--scan" {
     guard argv.count >= 3 else { die("usage: channel-verify --scan <bundleID> [--expect <channel>]", code: 2) }
     let wantBundle = argv[2]
-    var want: String? = nil
-    if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count { want = argv[i + 1].lowercased() }
+    let want = expectedChannel(argv)
 
     let installed = AppScanner().scan()
     guard let app = installed.first(where: { $0.bundleID == wantBundle }) else {
@@ -113,8 +134,7 @@ if argv[1] == "--scan" {
 if argv[1] == "--check" {
     guard argv.count >= 3 else { die("usage: channel-verify --check <bundleID> [--expect <channel>]", code: 2) }
     let wantBundle = argv[2]
-    var want: String? = nil
-    if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count { want = argv[i + 1].lowercased() }
+    let want = expectedChannel(argv)
 
     let scanner = AppScanner()
     let installed = scanner.scan()
@@ -169,10 +189,7 @@ if argv[1] == "--check" {
 }
 
 let inputPath = argv[1]
-var expected: String? = nil
-if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count {
-    expected = argv[i + 1].lowercased()
-}
+let expected = expectedChannel(argv)
 
 // MARK: - resolve the .app (mounting a DMG read-only if needed)
 

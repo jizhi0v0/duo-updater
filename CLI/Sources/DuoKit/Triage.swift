@@ -390,6 +390,15 @@ public enum Triage {
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") else {
             throw TriageError("the reply contained no JSON object")
         }
+        // The two indices are found independently, so nothing relates them: a reply
+        // whose last `}` precedes its first `{` — a stray closing brace in a regex
+        // example, then an object the stream truncated before closing — built
+        // `text[start...end]` with `end < start`, which is a precondition failure
+        // rather than a throw. `duo triage` died on a signal and the caller's
+        // `catch` could not see it. Refuse it as the schema error it is.
+        guard start <= end else {
+            throw TriageError("could not decode the reply as the requested schema")
+        }
         let slice = String(text[start...end])
         guard let parsed = try? JSONDecoder().decode(RawSuggestion.self, from: Data(slice.utf8))
         else { throw TriageError("could not decode the reply as the requested schema") }

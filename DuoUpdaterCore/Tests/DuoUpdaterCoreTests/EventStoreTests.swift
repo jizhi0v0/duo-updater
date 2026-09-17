@@ -453,6 +453,32 @@ struct EventStoreTests {
         #expect(paths == ["/0", "/1", "/2", "/3", "/4", "/5"])
     }
 
+    @Test("A time bound no Int64 of microseconds can hold is clamped, not converted")
+    func outOfRangeTimeBoundsClamp() async {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        await store.append(Self.event(path: "/only"))
+
+        // What `Events.parseSince` builds from `--since 1e14d` and `--since infd`:
+        // one finite but past `Int64.min` microseconds, one infinite. Both used to
+        // trap in `micros`, on both paths `duo events` takes.
+        let farPast = Date().addingTimeInterval(-1e14 * 86_400)
+        let infinitePast = Date().addingTimeInterval(-.infinity)
+        #expect(EventStore.micros(farPast) == .min)
+        #expect(EventStore.micros(infinitePast) == .min)
+        #expect(EventStore.micros(Date(timeIntervalSince1970: .infinity)) == .max)
+
+        for since in [farPast, infinitePast] {
+            #expect(await store.rawRows(EventQuery(since: since, limit: 10)).count == 1)
+            var filter = RequestQuery()
+            filter.since = since
+            #expect(await store.requestRows(filter, limit: 10).count == 1)
+        }
+        let farFuture = Date(timeIntervalSince1970: 1e14 * 86_400)
+        #expect(await store.rawRows(EventQuery(until: farFuture, limit: 10)).count == 1)
+        #expect(await store.rawRows(EventQuery(since: farFuture, limit: 10)).isEmpty)
+    }
+
     // MARK: - The halves that have to be measured
 
     /// Loopback HTTP/1.1 server. `redirectFirst` answers the first request with a

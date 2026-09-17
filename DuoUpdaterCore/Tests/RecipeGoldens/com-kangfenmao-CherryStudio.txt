@@ -19,7 +19,7 @@ githubRules[0].candidateScope = .newest
 githubRules[0].probesNewestFirst = true
 githubRules[0].installedTagPrefix = nil
 githubRules[0].channel = .stable
-githubRules[0].installAssetPattern? = "^Cherry-Studio-[0-9.]+-arm64\\.dmg$"
+githubRules[0].installAssetPattern? = "^Cherry-Studio-[0-9.]+-(?:mac-)?arm64\\.dmg$"
 githubRules[0].installerKind? = .dmg
 
 appStoreCases = Array(count: 0)

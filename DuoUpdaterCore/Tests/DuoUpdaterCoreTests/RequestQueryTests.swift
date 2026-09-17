@@ -69,6 +69,38 @@ struct RequestQueryTests {
         #expect(RequestQuery.seconds("2.5") == 2.5)
     }
 
+    @Test("A magnitude no Int64 can hold is refused, not converted")
+    func outOfRangeMagnitudesAreRefused() {
+        // `Int64.init(_: Double)` *traps* — it does not clamp or saturate — on an
+        // infinite, NaN or out-of-range value, and `Double(String)` happily accepts
+        // all of these. `RequestLogPane` builds its query in `body`, so a filter
+        // typed into the field is parsed on the main actor on every keystroke:
+        // `size>1e19` took the whole menu-bar app down rather than reporting a
+        // filter it could not use. `1e19` is the interesting one — finite, so no
+        // `isFinite` check catches it, merely larger than `Int64.max`.
+        #expect(RequestQuery.bytes("1e19") == nil)
+        #expect(RequestQuery.bytes("99999999999999999999") == nil)
+        #expect(RequestQuery.bytes("inf") == nil)
+        #expect(RequestQuery.bytes("nan") == nil)
+        #expect(RequestQuery.bytes("1e19GB") == nil)
+        // Still accepts what it always did, including the unit scaling.
+        #expect(RequestQuery.bytes("1000000000000") == 1_000_000_000_000)
+        #expect(RequestQuery.bytes("10MB") == 10_000_000)
+        // And the same through the parser, which is the path the field actually
+        // takes: `seconds` keeps 1e300 and the microsecond conversion overflows.
+        _ = RequestQuery.parse("size>1e19 took>1e300")
+        // `took>` only converts in `sqlPredicate`, so that is where it has to be
+        // asked. Each of these parses (a bound, not free text) and binds `.max`,
+        // which matches nothing. `9.3e12` is finite and fits `Int64` as seconds;
+        // only its microsecond form is past `2^63`.
+        for value in ["1e300", "inf", "nan", "1e300ms", "9.3e12"] {
+            let query = RequestQuery.parse("took>\(value)")
+            #expect(query.minDuration != nil, "took>\(value)")
+            #expect(query.sqlPredicate().values == [.int(.max)], "took>\(value)")
+        }
+        #expect(RequestQuery.parse("took>5s").sqlPredicate().values == [.int(5_000_000)])
+    }
+
     @Test("An unrecognised key is reported, never silently dropped")
     func unknownKeysSurface() {
         // The failure this guards is a filter that reads as narrowing while

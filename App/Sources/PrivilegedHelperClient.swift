@@ -298,32 +298,26 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     }
 
     private func ensureReachable() async throws {
-        let answered = try await withThrowingTaskGroup(of: Bool.self) { group in
-            group.addTask { [self] in await probeVersion() }
-            group.addTask {
-                try await Task.sleep(for: Self.reachabilityTimeout)
-                return false
-            }
-            let first = try await group.next() ?? false
-            group.cancelAll()
-            return first
-        }
-        guard answered else {
-            // Drop the connection: a fresh one is the only way a later attempt can
-            // bind to a helper that did eventually come up.
-            clearConnection()
-            log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
-            throw MASInstaller.MASError.helperUnresponsive
-        }
-    }
-
-    /// One `helperVersion` round-trip: true if the helper answered, false if the
-    /// connection errored out. Never returns on a peer that stays silent — that's
-    /// what `ensureReachable`'s timeout is for.
-    private func probeVersion() async -> Bool {
+        // A deadline and a probe raced through ONE continuation — not a task group
+        // with a timeout child. This used to be
+        // `withThrowingTaskGroup { probe; sleep; first = await group.next() }`, and
+        // that cannot work: the group does not return until **every** child has
+        // finished, while `probeVersion` sits in a `withCheckedContinuation` that no
+        // cancellation can resume. So on a peer that accepts the connection and
+        // never replies — the exact state this timeout exists for, measured and
+        // quoted above ("the connection is accepted and the reply simply never
+        // comes") — the deadline child resumed `group.next()` with `false` and the
+        // call then hung in the group's implicit drain anyway. Reproduced on this
+        // machine with this shape in isolation: the process had to be killed after
+        // its own timeout expired. `ResumeGuard` lets whichever side loses the race
+        // be a no-op, which is what the guard was already there for.
         let conn = connection()
-        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let answered = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             let once = ResumeGuard()
+            Task {
+                try? await Task.sleep(for: Self.reachabilityTimeout)
+                once.once { cont.resume(returning: false) }
+            }
             guard let proxy = conn.remoteObjectProxyWithErrorHandler({ _ in
                 once.once { cont.resume(returning: false) }
             }) as? MASHelperProtocol else {
@@ -331,6 +325,17 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
                 return
             }
             proxy.helperVersion { _ in once.once { cont.resume(returning: true) } }
+        }
+        guard answered else {
+            // Drop the connection: a fresh one is the only way a later attempt can
+            // bind to a helper that did eventually come up. Invalidate it too, so the
+            // call still parked on the silent peer is torn down rather than left
+            // holding its continuation — `clearConnection` alone only drops our
+            // reference to a connection that is still live.
+            clearConnection()
+            conn.invalidate()
+            log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
+            throw MASInstaller.MASError.helperUnresponsive
         }
     }
 

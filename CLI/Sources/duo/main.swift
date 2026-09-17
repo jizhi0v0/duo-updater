@@ -410,7 +410,18 @@ case "events":
         // the first time somebody runs it bare.
         eventOptions.query.since = Date().addingTimeInterval(-24 * 3600)
     }
-    eventOptions.query.limit = args.int("limit") ?? 200
+    // A NEGATIVE limit is not a small window, it is no window at all: SQLite reads
+    // `LIMIT -5` as "no upper bound", so `duo events --limit -5` printed the entire
+    // retained history — the opposite of what `--limit` documents, and of why the
+    // default window exists. `ArgParser` refuses only a non-integer, and `-5` does
+    // not begin with `--`, so it arrives here as the flag's value. (`duo requests
+    // recent` already refuses a non-positive count.)
+    if let requested = args.int("limit") {
+        guard requested > 0 else { die("--limit must be a positive number of rows", code: 2) }
+        eventOptions.query.limit = requested
+    } else {
+        eventOptions.query.limit = 200
+    }
     eventOptions.query.kind = args.value("kind")
     eventOptions.query.host = args.value("host")
     if let purpose = args.value("purpose") {

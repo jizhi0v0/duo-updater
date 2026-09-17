@@ -261,6 +261,15 @@ public actor EventStore {
     /// it. Nothing in the app passes true today; the parameter exists so that a
     /// future caller that means it has to say so.
     public func reset(includingInstalls: Bool = false) {
+        // Drain `staging` first, for the reason `flush` gives — and here the
+        // opposite of it matters just as much: `stage` hands events over from a
+        // delegate callback and only *then* schedules `absorbStaged` on a Task
+        // (`:194`), so a reset that ran in that window would clear the buffer, miss
+        // the staged events, and let the Task drop them back into the emptied
+        // buffer for the next flush to write. The log the caller was told is
+        // cleared would come back holding entries from before the reset, and their
+        // totals with it — the disagreement this method exists to prevent.
+        absorbStaged()
         pendingFlush?.cancel()
         pendingFlush = nil
         buffer = []
@@ -328,7 +337,18 @@ public actor EventStore {
     }
 
     private func commitBuffer() {
-        guard !buffer.isEmpty, let db = open() else { return }
+        // `trimBufferIfRunaway` on the un-openable path too, not only on the
+        // `BEGIN`/`COMMIT` failures below. `open()` is the failure that *stays*
+        // failed — an unwritable file or directory is not a lost race for the write
+        // lock — and returning here without trimming made `maxBufferedEvents`
+        // unreachable in exactly the state it is documented for ("A database that
+        // stays unwritable must not turn a diagnostic log into a memory leak"), at
+        // the measured ~1.5 KB an event. `buffer.isEmpty` needs no trim of its own.
+        guard let db = open() else {
+            trimBufferIfRunaway()
+            return
+        }
+        guard !buffer.isEmpty else { return }
 
         // The transaction opens *before* the buffer is taken, and the buffer is
         // only cleared once it has. Written the other way round, a `BEGIN` that
@@ -1392,8 +1412,15 @@ public actor EventStore {
     /// collapses into whatever the tiebreaker says, and the tiebreaker used to be
     /// a random UUID. Matches the payload timestamps, so the envelope and the
     /// event it wraps cannot disagree about which of two events came first.
+    ///
+    /// Saturates rather than trapping (`RequestQuery.int64`): a query bound
+    /// arrives from outside — `duo events --since 1e14d` or `infd` is a date no
+    /// `Int64` of microseconds can hold, and it used to kill the process. A cutoff
+    /// before every representable instant is no lower bound, and one after every
+    /// instant is no upper bound, which is what the clamped value means in SQL.
     static func micros(_ date: Date) -> Int64 {
-        Int64((date.timeIntervalSince1970 * 1_000_000).rounded())
+        let value = (date.timeIntervalSince1970 * 1_000_000).rounded()
+        return RequestQuery.int64(value) ?? (value < 0 ? .min : .max)
     }
 
     static func date(_ micros: Int64) -> Date {

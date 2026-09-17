@@ -135,4 +135,45 @@ private actor FetchCounter {
         #expect(ChangelogService.cacheKeyURL(for: old, resolved: page)
             != ChangelogService.cacheKeyURL(for: new, resolved: page))
     }
+
+    /// A recipe with a fixed `source` resolves to ONE page for every version, so
+    /// keying on the page alone made a request for a NEW version an in-memory HIT
+    /// of the previous version's fetch: inside the 15-minute TTL — the check can
+    /// run every 5 minutes (`Preferences`) — the notes pane showed the previous
+    /// release's entries beside a row offering the new one, and it did not repair
+    /// itself, because the caller marks the key confirmed and the disk write lives
+    /// inside the fetch closure that an in-memory hit skips.
+    ///
+    /// The other tests here warm one version per recipe, which is why none of them
+    /// could see it.
+    @Test func twoVersionsOfOneFixedSourceGetDistinctKeys() async {
+        let page = URL(string: "https://zzfixture.example/notes")!
+        let recipe = ChangelogRecipe(bundleID: "zz.fixture.app", source: page)
+        let keys = ["2.0", "2.1"].map {
+            ChangelogService.cacheKeyURL(for: recipe, resolved: page, version: $0)
+        }
+        #expect(keys[0] != keys[1], "two versions of one page must not share a slot")
+
+        // And `invalidateMemoryCache` still drops BOTH slots: "drop this recipe's
+        // notes" is a statement about the recipe, not about one version of it.
+        let cache = ChangelogCache()
+        let counter = FetchCounter()
+        func warm(_ version: String) async {
+            let key = ChangelogService.cacheKeyURL(for: recipe, resolved: page, version: version)
+            _ = await cache.load(for: key) {
+                await counter.bump()
+                return Changelog(entries: [.init(title: "t", version: version, date: nil, items: ["i"])])
+            }
+        }
+        for version in ["2.0", "2.1"] { await warm(version) }
+        #expect(await counter.count == 2)
+        for version in ["2.0", "2.1"] { await warm(version) }
+        #expect(await counter.count == 2, "a warm slot must not fetch again")
+
+        await ChangelogService.invalidateMemoryCache(for: recipe, in: cache)
+
+        for version in ["2.0", "2.1"] { await warm(version) }
+        #expect(await counter.count == 4,
+                "invalidateMemoryCache missed a version slot — the key now carries the version")
+    }
 }

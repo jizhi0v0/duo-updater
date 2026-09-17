@@ -82,7 +82,15 @@ public enum Install {
         // so don't spend a request on them either. A *named* app is honoured even
         // when hidden (see the loop below), and must therefore still be checked.
         let checkable = settings.appsWorthChecking(selected, named: !options.queries.isEmpty)
-        print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
+        // `--json` is one object per line, after a schema line — and the schema line
+        // is emitted inside `apply` (`NDJSON.begin`), so nothing may reach stdout
+        // before it. This line did, which broke `duo install --json | jq` on the
+        // first line of its input. Same rule the rest of `apply` already follows
+        // (`if !json { print("→ …") }`) and that `Check` states outright (its
+        // TestFlight note goes to stderr "so `--json` stays one object per line").
+        if !options.json {
+            print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
+        }
         let results = await Inventory.checker(settings).check(checkable)
 
         let staged = stagedSelfUpdates(for: results)
@@ -118,7 +126,9 @@ public enum Install {
             return 0
         }
 
-        describe(plan, refusals: refusals)
+        // The human plan, also before the schema line — suppressed in `--json` mode
+        // for the reason above.
+        if !options.json { describe(plan, refusals: refusals) }
         if options.dryRun { return plan.isEmpty ? 0 : 1 }
         guard !plan.isEmpty else { return 1 }
         guard options.assumeYes || confirm(count: plan.count) else {

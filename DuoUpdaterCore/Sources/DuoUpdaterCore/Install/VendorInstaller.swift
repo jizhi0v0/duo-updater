@@ -138,8 +138,14 @@ public actor VendorInstaller {
 
         // Scratch dir we own. Removed up front so a retry starts clean; on
         // failure we remove it again below; on success it stays for `apply`.
+        //
+        // `displayVersion` is vendor-supplied and goes through
+        // `filesystemSafeToken` — see the same construction in `SparkleInstaller`
+        // for the measured traversal (`999.0/../../…`) that a raw interpolation
+        // turns into a recursive delete outside the scratch dir.
         let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-vendor-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
+            .appendingPathComponent(
+                "DuoUpdater-vendor-\(result.app.scratchSlug)-\((remote.displayVersion ?? "new").filesystemSafeToken)")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         do {

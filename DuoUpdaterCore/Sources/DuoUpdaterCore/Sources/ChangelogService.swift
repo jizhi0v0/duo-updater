@@ -55,7 +55,7 @@ public enum ChangelogService {
         // identity as well as the page, so recipes that share one endpoint (Warp's
         // three channels; Antigravity's two products) never serve each other's
         // notes out of a shared slot.
-        let cacheURL = cacheKeyURL(for: recipe, resolved: resolved)
+        let cacheURL = cacheKeyURL(for: recipe, resolved: resolved, version: version)
         let diskCacheKey = diskKey(for: recipe, version: version, feedPage: feedPage)
         return await ChangelogCache.shared.load(for: cacheURL) {
             Log.source.debug(
@@ -307,16 +307,40 @@ public enum ChangelogService {
     /// of distinct pages — it is the same identity the health store and `duo
     /// verify`'s baseline key on. Percent-encoded so the fragment can't fail to
     /// parse: a nil `URL(string:)` here would silently reinstate the collision.
-    static func cacheKeyURL(for recipe: ChangelogRecipe, resolved: URL) -> URL {
-        URL(string: resolved.absoluteString + "#" + cacheKeyFragment(for: recipe)) ?? resolved
+    static func cacheKeyURL(for recipe: ChangelogRecipe, resolved: URL, version: String? = nil) -> URL {
+        URL(string: resolved.absoluteString + "#" + cacheKeyFragment(for: recipe, version: version))
+            ?? resolved
     }
+
+    /// Separates the recipe identity from the target version inside the fragment.
+    /// `@` cannot occur in either half — both are percent-encoded to
+    /// `.alphanumerics` — so a slot's fragment splits unambiguously, which is what
+    /// `ChangelogCache.invalidate(fragment:)` relies on to find every version slot
+    /// one recipe owns.
+    static let versionTagSeparator = "@"
 
     /// The recipe-identity half of the key, on its own — what
     /// `invalidateMemoryCache` matches on to find every version-resolved slot this
     /// recipe owns.
-    static func cacheKeyFragment(for recipe: ChangelogRecipe) -> String {
-        recipe.recipeID
+    ///
+    /// With a `version`, the identity is suffixed with it. That is not decoration:
+    /// for a recipe with a fixed `source` (no `sourceTemplate`), `resolved` is the
+    /// same URL for every version, so keying on the page alone made a *new*
+    /// version's request an in-memory HIT of the previous version's fetch. Inside
+    /// the 15-minute TTL — two minutes of it is enough, since the check can run
+    /// every 5 (`Preferences`) — the notes pane then showed the previous release's
+    /// entries beside a row offering the new one, and because the caller that
+    /// triggered the read marks the key confirmed and the disk write lives inside
+    /// the fetch closure, nothing re-read it for the rest of the session. The doc
+    /// comment on `load` already promised this ("Cache on THIS resolved URL so
+    /// different versions … never serve each other's notes"); this is what makes it
+    /// true for the fixed-source case too.
+    static func cacheKeyFragment(for recipe: ChangelogRecipe, version: String? = nil) -> String {
+        let identity = recipe.recipeID
             .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? recipe.recipeID
+        guard let version, !version.isEmpty else { return identity }
+        let tag = version.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? version
+        return identity + versionTagSeparator + tag
     }
 
     /// The disk-cache key for a recipe+version, or nil when no version is known

@@ -625,17 +625,27 @@ final class Preferences {
     /// what this depends on.
     private func observeExternalWrites() {
         externalObserver = DefaultsKeyObserver(
-            defaults: defaults, keys: [Key.ignoredKeys, Key.skippedVersions]
+            defaults: defaults,
+            keys: [Key.ignoredKeys, Key.skippedVersions, Key.declinedElevationKeys]
         ) { [weak self] in
             // Already hopped to the main actor by the observer.
             MainActor.assumeIsolated { self?.reloadVisibilityLists() }
         }
     }
 
-    /// Pull the two lists back off disk. Assignment goes through `didSet`, which
-    /// writes the identical value back — harmless, and cheaper than a second code
-    /// path — but only when something actually changed, so this cannot ping-pong
-    /// with the observer that triggered it.
+    /// Pull the externally-written lists back off disk. Assignment goes through
+    /// `didSet`, which writes the identical value back — harmless, and cheaper than
+    /// a second code path — but only when something actually changed, so this cannot
+    /// ping-pong with the observer that triggered it.
+    ///
+    /// Three lists, not two: `duo install` writes the declined-elevation set into
+    /// this same suite (`DuoKit/Settings.recordDeclinedElevation`, over the shared
+    /// `UpdateSettings.declinedElevationKeysKey`), and the CLI tells the user the
+    /// menu bar will offer the panel again — "Remembered so neither `duo` nor the
+    /// menu bar re-raises the panel for this copy until the user asks". Without
+    /// reloading it here the running app kept its launch-time copy, so it still
+    /// offered the one-click and hid the row menu's way back, and then its next
+    /// write to that key (a whole-set `didSet`) deleted the CLI's entry outright.
     private func reloadVisibilityLists() {
         let freshIgnored = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         if freshIgnored != ignoredKeys {
@@ -647,6 +657,11 @@ final class Preferences {
         if freshSkipped != skippedVersions {
             skippedVersions = freshSkipped
             Log.app.info("prefs: skip list changed externally — \(freshSkipped.count, privacy: .public) entries")
+        }
+        let freshDeclined = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
+        if freshDeclined != declinedElevationKeys {
+            declinedElevationKeys = freshDeclined
+            Log.app.info("prefs: declined-elevation list changed externally — \(freshDeclined.count, privacy: .public) entries")
         }
     }
 

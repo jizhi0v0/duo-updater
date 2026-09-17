@@ -307,3 +307,45 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     #expect(await reloaded.timeline(forAppID: "/v.app")?.events.first?.estimatedRange?.start == d1)
     await store.reset()
 }
+
+/// The dedupe key must survive the store's OWN JSON round trip. `.iso8601` writes
+/// whole seconds (measured: `1786000224.042387` comes back as `1786000224.0`),
+/// and three shipped recipes report sub-second publish times — Claude Desktop's
+/// real body carries `"pub_date":"2026-08-14T22:50:24.042387"`, and Raycast and
+/// Cline carry milliseconds too. `record` compared `publishedAt` with `==`, so
+/// the date read back after a relaunch no longer matched the one the feed kept
+/// reporting: the same release was appended again on every launch, growing
+/// `releases.json` without bound, inflating `ReleaseStats`, and eventually giving
+/// `ReleaseLogView.Row.id` (version+date) duplicates inside one `ForEach`.
+///
+/// Every other test here uses whole-second dates, which is exactly why none of
+/// them could see it.
+@Test func aSubSecondPublishDateIsNotLoggedAgainAfterARelaunch() async {
+    let url = tempFileURL()
+    let id = "/Applications/Claude.app"
+    // The shape `ReleaseDate.parseWithPrecision` keeps from that pub_date.
+    let published = Date(timeIntervalSince1970: 1_786_000_224.042387)
+
+    let first = ReleaseTimelineStore(fileURL: url)
+    let added = await first.record(
+        appID: id, appName: "Claude", bundleID: "com.anthropic.claudefordesktop",
+        version: "1.0.1234", sourceName: "Vendor", publishedAt: published)
+    #expect(added)
+    await first.flush()
+
+    // A relaunch: a fresh store reading what the first one wrote.
+    let relaunched = ReleaseTimelineStore(fileURL: url)
+    let recordedAgain = await relaunched.record(
+        appID: id, appName: "Claude", bundleID: "com.anthropic.claudefordesktop",
+        version: "1.0.1234", sourceName: "Vendor", publishedAt: published)
+    #expect(!recordedAgain, "the same release must not be re-recorded after a relaunch")
+    #expect(await relaunched.timeline(forAppID: id)?.events.count == 1)
+
+    // Truncating to the stored precision must not collapse two real releases
+    // into one: a different version is still its own event.
+    let another = await relaunched.record(
+        appID: id, appName: "Claude", bundleID: "com.anthropic.claudefordesktop",
+        version: "1.0.1235", sourceName: "Vendor", publishedAt: published)
+    #expect(another)
+    #expect(await relaunched.timeline(forAppID: id)?.events.count == 2)
+}

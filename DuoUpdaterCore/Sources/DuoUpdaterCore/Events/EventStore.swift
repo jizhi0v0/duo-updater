@@ -261,6 +261,15 @@ public actor EventStore {
     /// it. Nothing in the app passes true today; the parameter exists so that a
     /// future caller that means it has to say so.
     public func reset(includingInstalls: Bool = false) {
+        // Drain `staging` first, for the reason `flush` gives — and here the
+        // opposite of it matters just as much: `stage` hands events over from a
+        // delegate callback and only *then* schedules `absorbStaged` on a Task
+        // (`:194`), so a reset that ran in that window would clear the buffer, miss
+        // the staged events, and let the Task drop them back into the emptied
+        // buffer for the next flush to write. The log the caller was told is
+        // cleared would come back holding entries from before the reset, and their
+        // totals with it — the disagreement this method exists to prevent.
+        absorbStaged()
         pendingFlush?.cancel()
         pendingFlush = nil
         buffer = []
@@ -324,7 +333,18 @@ public actor EventStore {
     }
 
     private func commitBuffer() {
-        guard !buffer.isEmpty, let db = open() else { return }
+        // `trimBufferIfRunaway` on the un-openable path too, not only on the
+        // `BEGIN`/`COMMIT` failures below. `open()` is the failure that *stays*
+        // failed — an unwritable file or directory is not a lost race for the write
+        // lock — and returning here without trimming made `maxBufferedEvents`
+        // unreachable in exactly the state it is documented for ("A database that
+        // stays unwritable must not turn a diagnostic log into a memory leak"), at
+        // the measured ~1.5 KB an event. `buffer.isEmpty` needs no trim of its own.
+        guard let db = open() else {
+            trimBufferIfRunaway()
+            return
+        }
+        guard !buffer.isEmpty else { return }
 
         // The transaction opens *before* the buffer is taken, and the buffer is
         // only cleared once it has. Written the other way round, a `BEGIN` that

@@ -121,7 +121,17 @@ public actor ChangelogCache {
     /// ``ChangelogService/cacheKeyURL(for:resolved:)`` writes it.
     public func invalidate(fragment: String) {
         let keys = Set(store.keys).union(inflight.keys)
-            .filter { $0.fragment(percentEncoded: true) == fragment }
+            .filter { key in
+                guard let f = key.fragment(percentEncoded: true) else { return false }
+                // Exact for a slot keyed on the recipe alone, and
+                // `<fragment>@<version>` for the per-version slots `cacheKeyURL`
+                // now writes — a recipe with a fixed `source` can hold one slot per
+                // target version, and "drop this recipe's notes" has to mean all of
+                // them. The separator is what keeps this from matching a recipe
+                // whose id merely starts with this one.
+                return f == fragment
+                    || f.hasPrefix(fragment + ChangelogService.versionTagSeparator)
+            }
         for key in keys { invalidate(key) }
     }
 

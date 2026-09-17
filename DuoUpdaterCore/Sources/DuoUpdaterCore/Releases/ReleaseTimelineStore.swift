@@ -89,6 +89,21 @@ public actor ReleaseTimelineStore {
         guard let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
               !version.isEmpty else { return false }
 
+        // The two dates the dedupe below compares are truncated to the precision
+        // `save()`/`load()` actually carry, because a key that does not survive its
+        // own store is not a key. `.iso8601` writes whole seconds — measured:
+        // `1786000224.042387` is written and read back as `1786000224.0`, while a
+        // whole second round-trips equal — so a fractional `publishedAt` kept at
+        // full precision here stopped matching the copy read back after a launch,
+        // and the SAME release was appended again on every relaunch. Three shipped
+        // recipes report sub-second times (Claude Desktop's
+        // `2026-08-14T22:50:24.042387`, Raycast, Cline), so the release log grew one
+        // duplicate per launch per release — inflating `ReleaseStats`, growing
+        // `releases.json` without bound, and eventually colliding
+        // `ReleaseLogView.Row.id` (which is version+date based) in a `ForEach`.
+        let publishedAt = publishedAt.map(Self.storedPrecision)
+        let vendorDay = vendorDay.map(Self.storedPrecision)
+
         var timeline = timelines[appID] ?? AppReleaseTimeline(
             appID: appID, appName: appName, bundleID: bundleID
         )
@@ -254,8 +269,11 @@ public actor ReleaseTimelineStore {
     public func flush() -> Bool {
         let wroteTimelines = timelinesDirty
         if timelinesDirty {
-            save()
-            timelinesDirty = false
+            // Stay dirty when the write failed, so the next `flush` retries it
+            // instead of the batch being dropped. The return value still means what
+            // it says — the in-memory snapshot the UI holds did change, which is
+            // what its callers act on — so this only affects the retry.
+            timelinesDirty = !save()
         }
         if observationsDirty {
             saveObservations()
@@ -307,7 +325,7 @@ public actor ReleaseTimelineStore {
 
     // MARK: - Persistence
 
-    private func save() {
+    private func save() -> Bool {
         do {
             let dir = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -317,9 +335,19 @@ public actor ReleaseTimelineStore {
             let data = try encoder.encode(timelines)
             // Atomic so a crash mid-write can't leave a truncated, unreadable file.
             try data.write(to: fileURL, options: .atomic)
+            return true
         } catch {
             Log.app.error("release-log: failed to persist: \(error.localizedDescription, privacy: .public)")
+            return false
         }
+    }
+
+    /// A date at the precision this store's own JSON round-trips — see the call
+    /// site in `record` for the duplicate-per-launch this prevents. Whole seconds,
+    /// because `.iso8601` writes whole seconds: measured, `1786000224.042387`
+    /// comes back as `1786000224.0`, while a whole second comes back equal.
+    static func storedPrecision(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
     }
 
     private static func load(from url: URL) -> [String: AppReleaseTimeline] {

@@ -96,8 +96,22 @@ public actor SparkleInstaller {
 
         // Scratch dir we own. Removed up front so a retry starts clean; on
         // failure we remove it again below; on success it stays for `apply`.
+        //
+        // `displayVersion` is the FEED's string, and it goes through
+        // `filesystemSafeToken` for the reason that helper exists: interpolated
+        // raw, a version such as `999.0/../../../../Users/me/Documents` makes this
+        // URL resolve outside the scratch dir — `appendingPathComponent` keeps `/`
+        // as a separator and the kernel follows `..` — so the `removeItem` below
+        // (and the caller's `defer`, and the failure path at the catch) recursively
+        // deletes whatever directory the feed named. Measured: a workDir built this
+        // way resolved to the target and the cleanup destroyed it. That runs before
+        // the EdDSA and Team-ID gates, so it is reachable from a hijacked feed that
+        // every signature check downstream would have refused. `scratchSlug` was
+        // already sanitized (`InstalledApp.safePathComponent`); only this half was
+        // not.
         let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
+            .appendingPathComponent(
+                "DuoUpdater-\(result.app.scratchSlug)-\((remote.displayVersion ?? "new").filesystemSafeToken)")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         do {

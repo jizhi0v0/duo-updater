@@ -286,10 +286,6 @@ public enum ChangelogExtractor {
             withTemplate: "$1$2")
     }
 
-    /// Turn line-breaking tags into spaces, then drop every remaining tag. Done in
-    /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
-    /// Internal (not `private`) so `StructuredChangelogDecoder` can reuse it for
-    /// vendor HTML that arrives already JSON-unescaped by `Decodable`.
     /// Element names a real HTML changelog uses. Anything not on this list is
     /// left alone as text — which is the whole point (see `stripHTMLElements`).
     private static let htmlElementNames = [
@@ -306,7 +302,7 @@ public enum ChangelogExtractor {
     /// Compiled once, not per call. `clean()` runs for every item, heading, title,
     /// version and date of every entry, so a 60-release page with 20 notes each
     /// re-compiled these thousands of times per panel open — and the element-name
-    /// alternation below re-joined its 70 names each time on top of that.
+    /// alternation below re-joined its 69 names each time on top of that.
     /// `NSRegularExpression` is immutable and thread-safe, which is what lets these
     /// be `static let` (the same reason `RecordedPath.tokenShapes` is).
     private static let elementBreakRegex = try? NSRegularExpression(
@@ -353,6 +349,10 @@ public enum ChangelogExtractor {
         options: [.caseInsensitive])
     private static let anyTagRegex = try? NSRegularExpression(pattern: #"<[^>]+>"#)
 
+    /// Turn line-breaking tags into spaces, then drop every remaining tag. Done in
+    /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
+    /// Internal (not `private`) so `StructuredChangelogDecoder` can reuse it for
+    /// vendor HTML that arrives already JSON-unescaped by `Decodable`.
     static func stripTags(_ s: String) -> String {
         var out = s
         if let breaks = tagBreakRegex {

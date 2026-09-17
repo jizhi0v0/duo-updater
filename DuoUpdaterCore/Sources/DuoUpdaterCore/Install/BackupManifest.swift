@@ -19,12 +19,14 @@ import Foundation
 /// job, on the way in.
 public struct BackupManifest: Codable, Equatable, Sendable {
 
-    /// SHA-256 over a canonical rendering of the tree: one line per file, sorted
-    /// by path, `relative/path\tsize\tsha256`. Sorting is what makes it stable —
-    /// directory enumeration order is not guaranteed across filesystems.
+    /// SHA-256 over a canonical rendering of the tree: one line per entry, sorted
+    /// by path — `relative/path\tsize\tsha256` for a regular file, and
+    /// `relative/path\t->\ttarget` for a symlink, which is hashed by its
+    /// destination rather than followed (see `compute`). Sorting is what makes it
+    /// stable — directory enumeration order is not guaranteed across filesystems.
     public let digest: String
-    /// How many files it covers, so a mismatch can say whether the shape changed
-    /// or only the contents.
+    /// How many entries it covers — symlinks included, not only regular files — so
+    /// a mismatch can say whether the shape changed or only the contents.
     public let fileCount: Int
 
     /// Files a bundle contains that we cannot read, split by whether the code

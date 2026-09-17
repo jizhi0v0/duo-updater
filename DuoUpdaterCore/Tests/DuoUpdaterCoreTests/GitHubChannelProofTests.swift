@@ -168,8 +168,9 @@ struct GitHubChannelProofTests {
     /// that matches inside that constant is satisfied by every URL the rule can
     /// ever resolve — including stable's — and can therefore never fail. That is
     /// the failure `aProofMustBeAbleToFailOnItsOwnRepository` below describes,
-    /// but it names ONE bundle id, and `stablesArtifactUnderAChannelRuleIsCaught`
-    /// hand-lists three; neither sees a rule added later. This one is derived, so
+    /// but it names ONE bundle id, and
+    /// `stablesArtifactUnderAChannelRuleIsCaughtEveryTime` hand-lists three; neither
+    /// sees a rule added later. This one is derived, so
     /// it covers the next one automatically.
     ///
     /// Caught in practice: writing the Vorssaint beta proof, a mutation to the

@@ -230,15 +230,15 @@ public actor EventStore {
         }
     }
 
+    /// How many events this process has committed. Part of ``changeToken()``.
+    private var writes: Int64 = 0
+
     /// Commit now, and wait for it. For the CLI, which exits before the
     /// coalescing timer would fire, and for tests.
     ///
     /// Drains ``staging`` first: an event handed over by a delegate callback may
     /// not have reached the actor yet, and a flush that skipped it would lose
     /// exactly the last request of a run.
-    /// How many events this process has committed. Part of ``changeToken()``.
-    private var writes: Int64 = 0
-
     public func flush() {
         absorbStaged()
         pendingFlush?.cancel()
@@ -791,7 +791,7 @@ public actor EventStore {
     /// mechanism rather than a hook: SQLite has **no** cross-process push, and
     /// our own writes are already known to us without asking the database. So
     /// this catches `duo` writing from another process, and
-    /// ``didChangeNotification`` catches this process's own flushes with no
+    /// the `writes` half of the token catches this process's own flushes with no
     /// polling at all.
     ///
     /// Paired with `writes` because data_version deliberately ignores our own
@@ -1139,7 +1139,8 @@ public actor EventStore {
         // index regardless of ordering — so the dead index was deleted rather
         // than repaired. If you are looking for it because a comment or an old
         // report mentioned it: it does not exist, on any machine, and grepping
-        // the repo for `events_app_at` today turns up only this comment.
+        // the repo for `events_app_at` today turns up only this comment and the
+        // two references in `EventStoreSchemaDriftTests`.
         //
         // This claim has an expiry date, not just a grep: `EventStoreSchemaDriftTests
         // .freshInstallSchemaMatchesDeclaration` asserts the exact index set below

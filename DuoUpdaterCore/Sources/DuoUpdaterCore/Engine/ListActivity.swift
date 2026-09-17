@@ -42,7 +42,7 @@ public struct ListActivity: Sendable, Equatable {
     ///
     /// The caller holds these as `installing: [String: InstallStage]`, so the
     /// natural spelling at the call site was `hasRowInstalls: !installing.isEmpty`
-    /// — a negation on the App side, where there is no test target to hold it. A
+    /// — a negation on the App side, which no test target compiles. A
     /// slip to `installing.isEmpty` inverts the entire gate (every whole-list
     /// action dead while idle, live while installing) and nothing would have caught
     /// it. Passing the count keeps the one polarity decision in Core, under test.

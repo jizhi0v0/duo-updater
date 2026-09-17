@@ -16,7 +16,8 @@ import Foundation
 ///
 /// Security: the resolved feed URL carries `?key=<licenseKey>`. The key is a
 /// credential, so it must never be logged or persisted. Audited (2026-06-03):
-/// nothing prints `sparkleFeedURL` — `SparkleAppcastSource` does no logging,
+/// nothing prints `sparkleFeedURL` — `SparkleAppcastSource` logs the bundle id
+/// and versions only, never the feed URL,
 /// `UpdateChecker`/`AppListModel` log by app name/version/source name only, the
 /// URL-keyed `ChangelogCache` is in-memory and keyed on the *changelog recipe*
 /// source (cleanshot.com/changelog), not this feed, and `InstalledApp` is not

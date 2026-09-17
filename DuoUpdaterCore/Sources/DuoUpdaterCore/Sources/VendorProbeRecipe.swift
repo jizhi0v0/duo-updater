@@ -475,8 +475,9 @@ public struct VendorProbeRecipe: Sendable {
     public let mode: Mode
 
     /// Regex applied to the probed text (final-URL filename, or response body).
-    /// The first capture group is taken as the version; if there are no capture
-    /// groups, the whole match is used. Keep it anchored/specific enough that it
+    /// Capture group 1 is taken as the version, the whole match when the pattern
+    /// captures nothing, and every group joined with `.` when it captures more
+    /// than once (see `version(of:in:)`). Keep it anchored/specific enough that it
     /// won't match an unrelated number on the page.
     public let versionPattern: String
 
@@ -1264,7 +1265,7 @@ public enum VendorProbeRegistry {
     }
 
     /// One recipe for a project on SourceForge's `best_release.json` API — the
-    /// shape GrandPerspective, TigerVNC and qBittorrent all share.
+    /// shape GrandPerspective and TigerVNC share.
     ///
     /// TRAP: the API's TOP-LEVEL `release` key names whichever platform
     /// SourceForge treats as the project's primary download — often Windows

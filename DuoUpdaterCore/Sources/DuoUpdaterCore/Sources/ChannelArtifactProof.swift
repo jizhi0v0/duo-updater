@@ -178,7 +178,7 @@ public enum ChannelProofRegistry {
     /// signal lives entirely in the REQUEST.
     ///
     /// Not "the same filename from the same host" — that is a stronger claim than
-    /// the measurement supports and it is false for three of the four. Fork serves
+    /// the measurement supports. Fork serves
     /// `Fork-2.66.7.dmg` against `Fork-2.69.0.dmg`, Surge puts a per-build hash in
     /// the name, and only TablePlus reuses one filename (`TablePlus.dmg`, under
     /// different build-numbered paths). The filenames DIFFER; what none of them
@@ -220,7 +220,8 @@ public enum ChannelProofRegistry {
     /// That third predicate is the real discriminator, and it deliberately covers
     /// two shapes rather than one:
     ///
-    ///   * **Request-keyed** (Fork, Surge, IINA, TablePlus) — the channel signal
+    ///   * **Request-keyed** (Fork, Surge, IINA, Mac Mouse Fix, TablePlus) — the
+    ///     channel signal
     ///     is which URL we fetched or which header we sent, and nothing in the
     ///     response corroborates it. TablePlus is the sharpest: retire
     ///     `X-Tiny-Beta-Update` and a beta user is served the stable dmg, past

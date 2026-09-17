@@ -206,7 +206,8 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     ///
     /// Derived here rather than in the view so the window and `duo` agree on
     /// what to call a bundle, and so the derivation is executed by something:
-    /// `App/Sources` has no test target.
+    /// the App test target compiles only the files it names, and this is not one
+    /// of them.
     public var appName: String? {
         guard let appID, !appID.isEmpty else { return nil }
         return URL(fileURLWithPath: appID).deletingPathExtension().lastPathComponent

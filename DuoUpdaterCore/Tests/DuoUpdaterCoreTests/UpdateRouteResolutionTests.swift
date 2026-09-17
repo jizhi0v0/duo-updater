@@ -3,7 +3,7 @@ import Testing
 
 /// `UpdateRoute.resolve(_:)` — the ladder that decides how an available update
 /// would be applied. Moved out of `AppListModel.rowRoute(for:)` (issue #261)
-/// because `App/project.yml` has no test target, so this rung of the ladder had
+/// because the App test target compiles only the files it names, so this rung had
 /// been re-derived (not moved) when `RowActionState` made that trip and was
 /// executed by nothing — only hand-compared against the view it replaced. Order
 /// is significant and is the whole content of these tests, the same way it is for

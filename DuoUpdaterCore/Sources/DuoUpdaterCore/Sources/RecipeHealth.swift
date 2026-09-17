@@ -79,8 +79,8 @@ public actor RecipeHealth {
         /// both are listed — dropping the id would merge them on screen exactly
         /// where keying by the shared part merged them in storage.
         ///
-        /// In Core rather than in the view because the view file has no test target
-        /// over it; this is pure string work with a test next to it.
+        /// In Core rather than in the view because no test target compiles that
+        /// file; this is pure string work with a test next to it.
         public func displayName(resolving names: [String: String]) -> String {
             if let exact = names[id] { return exact }
             for part in id.split(separator: ":") where !part.isEmpty {

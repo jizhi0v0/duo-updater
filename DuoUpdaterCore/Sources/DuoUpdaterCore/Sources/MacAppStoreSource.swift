@@ -811,8 +811,8 @@ public struct MacAppStoreSource: UpdateSource {
         var macCompatible: Bool?
         var minimumMacOS: String?
         if checkMacCompat, let trackId = result.trackId {
-            // This IS a wrapped iOS binary (the guard on `checkMacCompat` at
-            // both call sites), so `macSupported` — "does the wrapped binary
+            // This IS a wrapped iOS binary (the guard on `checkMacCompat` at its
+            // one call site), so `macSupported` — "does the wrapped binary
             // run on a Mac at all" — is still the right question, unlike
             // branches 1/3 above which ask `publishesMacBuild` instead.
             let facts = try await cachedMacCompatibilityPageFacts(trackId: trackId, region: region)
@@ -825,9 +825,10 @@ public struct MacAppStoreSource: UpdateSource {
                                  storeName: result.trackName)
         }
         // `releaseNotes` is the "What's New" text for the latest version. Safe to
-        // trust here: we only reach this for native Mac listings or wrapped iOS
-        // apps (guarded upstream), where the notes match the actual installed
-        // build — not an unrelated track. Plain text (newline-delimited).
+        // trust here: this branch is reached only for wrapped iOS copies (native
+        // Mac listings went to `nativeMacVersion` above), where the notes match the
+        // actual installed build — not an unrelated track. Plain text
+        // (newline-delimited).
         let notes = result.releaseNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         return RemoteVersion(
             shortVersion: version,

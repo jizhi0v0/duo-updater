@@ -129,7 +129,7 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     }
 
     /// `app-update.yml` is a flat map of scalars, so this reads it as one rather
-    /// than pulling a YAML parser in for five keys. Values may be single-quoted
+    /// than pulling a YAML parser in for six keys. Values may be single-quoted
     /// (Notion writes `url: 'https://…'`), which is the only quoting the file uses.
     ///
     /// An empty value is dropped rather than stored: QQ ships `provider: generic`
@@ -231,7 +231,8 @@ public struct ElectronManifest: Sendable, Hashable {
             return universal
         }
         guard let path, !path.isEmpty, !Self.namesForeignArch(path, host: arch) else { return nil }
-        // The top-level scalars carry no size, so a `path` fallback reports none.
+        // The top-level scalars carry no size of their own, so a `path` fallback
+        // can only report one a `files:` entry naming the same url also declares.
         return File(url: path, sha512: sha512, size: files.first { $0.url == path }?.size)
     }
 

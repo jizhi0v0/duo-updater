@@ -147,10 +147,10 @@ public struct ToolboxInventory: Sendable {
         VendorProbeRecipe.extractVersion(from: raw, pattern: #"([0-9]+(?:\.[0-9]+)+)"#) ?? raw
     }
 
-    /// Channel cache: the highest `build.id` + its `version.name` (both nil when
-    /// Toolbox hasn't cached this channel's builds yet), the configured release
-    /// channel ("release"/"eap" from the quality filter), and the pinned version
-    /// line ("keep version" — the `version_filter.name`, nil when absent).
+    /// Channel cache: the configured release channel ("release"/"eap" from the
+    /// quality filter) and the pinned version line ("keep version" — the
+    /// `version_filter.name`, nil when absent). Deliberately nothing from the
+    /// cached build list — see the body.
     private static func channelInfo(channelsDir: URL, channelId: String)
         -> (type: String, pinnedLine: String?)? {
         let file = channelsDir.appendingPathComponent("\(channelId).json")

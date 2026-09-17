@@ -5,8 +5,10 @@ import Foundation
 /// unlock it.
 public struct ResolvedChannel: Sendable, Equatable {
     public let channel: ReleaseChannel
-    /// The feed to use instead of the app's Info.plist `SUFeedURL`. Non-nil only
-    /// for "feed-swap" apps (Fork, Surge) where each channel is a different URL.
+    /// The feed to use instead of the app's Info.plist `SUFeedURL`. Non-nil for
+    /// every resolver that fetches a different feed per channel — Fork, Surge,
+    /// IINA, Mac Mouse Fix and CleanShot (whose URL is licence-keyed) — and for
+    /// Ghostty, which supplies the feed its bundle never declares.
     /// nil for channel-tag apps (DuoPaste, OrbStack) — the channel narrows which
     /// `<sparkle:channel>` we accept, the feed doesn't change.
     public let feedOverride: URL?

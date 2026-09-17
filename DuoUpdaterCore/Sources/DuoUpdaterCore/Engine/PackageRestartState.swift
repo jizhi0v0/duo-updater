@@ -71,10 +71,11 @@ public enum PackageRestartState: Sendable, Equatable {
     /// already carrying a newer one (the staged package was superseded, not
     /// applied).
     ///
-    /// Named and shared because **two** places decide it and they must not drift:
-    /// `resolve` above, and `StagedPackagePrune.keep`, which keeps a landed entry
-    /// so restart tracking survives a one-scan flicker even after the download is
-    /// swept. Those were two copies of the same expression in two files, with the
+    /// Named and shared because **three** places decide it and they must not drift:
+    /// `resolve` above, `StagedPackagePrune.keep`, which keeps a landed entry so
+    /// restart tracking survives a one-scan flicker even after the download is
+    /// swept, and `StagedPackageReuse.isReusable`. The first two were copies of the
+    /// same expression in two files, with the
     /// invariant maintained by a comment in one of them saying it matched the
     /// other — the shape CLAUDE.md records as having already drifted twice here.
     ///

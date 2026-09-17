@@ -262,8 +262,8 @@ extension AppStoreGate {
 /// Everything `UpdateRoute.resolve(_:)` reads about one row, gathered by the
 /// caller so the decision itself stays pure and testable.
 ///
-/// Moved out of `AppListModel.rowRoute(for:)` (issue #261): `App/project.yml`
-/// carries no test target for `App/Sources`, so this was the one rung of the two
+/// Moved out of `AppListModel.rowRoute(for:)` (issue #261): the App test target
+/// compiles only the files it names, so this was the one rung of the two
 /// row-state ladders that had genuinely been re-derived rather than moved when
 /// `RowActionState` made that trip, and it was executed by nothing — only
 /// hand-compared against the view it replaced. `RowActionFacts.route` stays the
@@ -406,7 +406,7 @@ public struct RowStateTables: Sendable {
     ///
     /// Every parameter above has a default because the tests populate one table
     /// at a time on purpose, which is exactly the shape CLAUDE.md records for
-    /// `RowActions`: nine closures with empty defaults meant a forgotten one
+    /// `RowActions`: eleven closures with empty defaults meant a forgotten one
     /// compiled and shipped a dead button. Here there is one production caller,
     /// so adding another table and forgetting to wire it would compile, render
     /// a plausible row, and be caught by nothing — not the gallery (which never

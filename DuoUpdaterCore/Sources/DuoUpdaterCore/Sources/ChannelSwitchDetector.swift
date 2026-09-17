@@ -18,8 +18,8 @@ import CryptoKit
 /// decide, cheaply and without any network, whether a real recheck is warranted
 /// at all.
 ///
-/// Why the *whole* `ResolvedChannel`, not just `.channel`: four of the ten bound
-/// apps are feed-swap or header-keyed (see `ChannelBinding`'s doc comment) —
+/// Why the *whole* `ResolvedChannel`, not just `.channel`: six of the sixteen
+/// bound apps are feed-swap or header-keyed (see `ChannelBinding`'s doc comment) —
 /// CleanShot in particular keeps `.channel == .stable` always and encodes the
 /// actual entitlement entirely in `feedOverride` (a personalized, license-keyed
 /// URL). Comparing `.channel` alone would see CleanShot as never changing and
@@ -126,8 +126,8 @@ public enum ChannelSwitchDetector {
     /// menu-bar utilities, anything the user opens all day — while the pass behind
     /// it reads one vendor preference per bound app, and Surge's resolver reads a
     /// plist off disk. Without this gate that ran on every such event; with it, it
-    /// runs when one of the nine apps whose channel can actually change appeared
-    /// or disappeared.
+    /// runs when one of the sixteen bound apps whose channel can actually change
+    /// appeared or disappeared.
     ///
     /// **Two snapshots, not one identifier.** The monitor's primary source is KVO
     /// on `NSWorkspace.runningApplications`, which reports the array, not "who

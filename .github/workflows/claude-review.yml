@@ -21,8 +21,9 @@
 #   • claude-code-action refuses actors without write access and all bots by
 #     default. `allowed_non_write_users` / `allowed_bots` are deliberately unset.
 #
-# The reviewer can read the checkout, run read-only git, and write its review
-# file. Posting is done by the last step, not by the model.
+# The reviewer reads REVIEW.md, the checkout and the PR description, runs
+# read-only git, and writes its review file. Posting is done by the last step,
+# not by the model.
 name: Claude review
 
 on:
@@ -50,6 +51,8 @@ jobs:
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_REF: ${{ github.event.pull_request.base.ref }}
       PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
       WORK: ${{ github.workspace }}/.claude-review
       GH_TOKEN: ${{ github.token }}
     steps:

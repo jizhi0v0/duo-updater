@@ -3,6 +3,7 @@
 # See .github/workflows/claude-review.yml for the round model.
 #
 # Inputs (env): REPO PR HEAD_SHA BASE_REF PR_AUTHOR WORK
+#   PR_TITLE PR_BODY  from the event payload; written to a file for the reviewer
 #   COMMENTS_JSON  optional: read PR comments from this file instead of the API
 #                  (used to test this script locally)
 # Outputs ($GITHUB_OUTPUT): mode=full|recheck|skip, round, prompt
@@ -12,6 +13,11 @@ set -euo pipefail
 : "${GITHUB_OUTPUT:?}"
 here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$WORK"
+
+# The title and description go to a file the reviewer reads, never into the
+# prompt: the prompt travels through a heredoc in $GITHUB_OUTPUT, and free
+# text could contain its delimiter.
+printf '# %s\n\n%s\n' "${PR_TITLE:-}" "${PR_BODY:-(no description)}" > "$WORK/pr.md"
 
 if [ -n "${COMMENTS_JSON:-}" ]; then
   cp "$COMMENTS_JSON" "$WORK/comments.json"
@@ -45,6 +51,7 @@ fill() { # template -> prompt output
   t="${t//@PREV_SHA@/${prev_sha:-}}"
   t="${t//@PREV@/$WORK/prev-round.md}"
   t="${t//@OUT@/$WORK/review.md}"
+  t="${t//@PRINFO@/$WORK/pr.md}"
   printf '%s\n' "$t" > "$WORK/prompt.md"
   {
     echo "prompt<<CLAUDE_REVIEW_PROMPT_EOF"

@@ -289,6 +289,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**CodeEdit**](app-codeedit-CodeEdit.md) · `app.codeedit.CodeEdit` — S · 每个 release 的 appcast 只有一条、且都打 `dev` tag（没有默认 channel），落后一版的副本会读成 unknown；加常量 `ChannelBinding` 放行 `dev` · 真包 v0.3.6 挂载验证 ✓ · 2026-09-12
 - [x] [**coconutBattery**](com-coconut-flavour-coconutBattery.md) · `com.coconut-flavour.coconutBattery` — S · cask 是 `auto_updates`（Homebrew 让位），Sparkle 排在前面先应答 · 签名 feed，通用一键 ✓ · 真包 4.4.0 验证 ✓ · 2026-09-14 feed 无 beta 条目（08-29 有），beta needs-verify · 2026-09-14 复核
 - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
+- [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
 
 ## Investigated — blocked safely
 

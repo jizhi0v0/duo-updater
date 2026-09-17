@@ -1,5 +1,4 @@
 import Foundation
-import DuoUpdaterCore
 
 /// `duo diff <old> <new>`: what changed between two releases of an app, below the
 /// version number.
@@ -19,18 +18,32 @@ import DuoUpdaterCore
 ///   of up to 15 UTF-8 bytes, so `strings` cannot see them.
 /// - **Bundler hashes are not changes.** Every Vite chunk is renamed per build;
 ///   with the hash removed Chatbox's 777 renames were zero.
+///
+/// In Core so the workbench and `duo diff` print the same report from the same code.
 public enum BundleDiff {
 
-    public struct Options: Sendable {
-        public var old: String
-        public var new: String
-        public init(old: String, new: String) {
-            self.old = old
-            self.new = new
+    /// Compare two releases and return the full report, timings included.
+    ///
+    /// Each side is a path to an `.app`, `.zip`, `.dmg` or `.pkg`; a label for it
+    /// goes in the report header, which is where a caller's own wording (a
+    /// command-line argument, "backup") belongs. Cancelling the task stops the
+    /// walk between files: the workbench starts one per selected app, and a
+    /// selection that moves on must not leave two multi-gigabyte bundles hashing.
+    public static func report(
+        old oldPath: String, new newPath: String, oldLabel: String? = nil, newLabel: String? = nil
+    ) async -> Result<String, Failure> {
+        let stop = StopFlag()
+        return await withTaskCancellationHandler {
+            await compare(old: oldPath, new: newPath, oldLabel: oldLabel ?? oldPath,
+                          newLabel: newLabel ?? newPath, stop: stop)
+        } onCancel: {
+            stop.set()
         }
     }
 
-    public static func run(_ options: Options) async -> Int32 {
+    private static func compare(
+        old oldPath: String, new newPath: String, oldLabel: String, newLabel: String, stop: StopFlag
+    ) async -> Result<String, Failure> {
         let totalStart = ContinuousClock.now
         let scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-diff-\(UUID().uuidString)", isDirectory: true)
@@ -39,8 +52,8 @@ public enum BundleDiff {
 
         // Both sides at once: unpacking and hashing are independent, and on a pair
         // of large releases each side is most of the run.
-        async let oldSide = read(options.old, scratch: scratch.appendingPathComponent("old"))
-        async let newSide = read(options.new, scratch: scratch.appendingPathComponent("new"))
+        async let oldSide = read(oldPath, scratch: scratch.appendingPathComponent("old"), stop: stop)
+        async let newSide = read(newPath, scratch: scratch.appendingPathComponent("new"), stop: stop)
         let sides = await (oldSide, newSide)
 
         let old: BundleFacts, new: BundleFacts
@@ -49,14 +62,14 @@ public enum BundleDiff {
             old = aligned(a)
             new = aligned(b)
         case (.failure(let error), _), (_, .failure(let error)):
-            FileHandle.standardError.write(Data("duo diff: \(error.description)\n".utf8))
-            return 1
+            return .failure(error)
         }
+        if stop.isSet { return .failure(.cancelled) }
 
         // CPU work that fans out over `concurrentPerform`, so not on the pool.
         let (reported, compareTimings) = await offCooperativePool {
             var timings = PhaseTimings()
-            let lines = report(old: old, new: new, oldInput: options.old, newInput: options.new, timings: &timings)
+            let lines = report(old: old, new: new, oldInput: oldLabel, newInput: newLabel, timings: &timings)
             return (lines, timings)
         }
         var lines = reported
@@ -69,17 +82,26 @@ public enum BundleDiff {
         lines += timingSection(
             old: old, new: new, compare: compareTimings, cleanup: cleanupElapsed,
             total: ContinuousClock.now - totalStart)
-        print(lines.joined(separator: "\n"))
-        return 0
+        return .success(lines.joined(separator: "\n"))
     }
 
-    struct Failure: Error, CustomStringConvertible {
-        let description: String
+    public struct Failure: Error, CustomStringConvertible, Sendable, Equatable {
+        public let description: String
+        public static let cancelled = Failure(description: "cancelled")
+    }
+
+    /// Set from a cancellation handler, read between files inside an
+    /// `offCooperativePool` hop, where the task's own cancellation is not visible.
+    final class StopFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        func set() { lock.withLock { value = true } }
+        var isSet: Bool { lock.withLock { value } }
     }
 
     // MARK: - Reading one side
 
-    static func read(_ input: String, scratch: URL) async -> Result<BundleFacts, Failure> {
+    static func read(_ input: String, scratch: URL, stop: StopFlag = StopFlag()) async -> Result<BundleFacts, Failure> {
         let url = URL(fileURLWithPath: (input as NSString).expandingTildeInPath)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -126,7 +148,9 @@ public enum BundleDiff {
 
         var facts: BundleFacts
         do {
-            facts = try await offCooperativePool { try BundleFactsReader.scan(root: root) }
+            facts = try await offCooperativePool { try BundleFactsReader.scan(root: root, stop: stop) }
+        } catch is CancellationError {
+            return .failure(.cancelled)
         } catch {
             return .failure(Failure(description: "\(input): cannot read \(root.path): \(error.localizedDescription)"))
         }
@@ -361,8 +385,9 @@ public enum BundleDiff {
         out += removedPrivileged.map { "  background/privileged component REMOVED \($0)" }
 
         let (addedExecutables, removedExecutables) = keyChanges(old.machO, new.machO)
-        out += addedExecutables.map { "  executable ADDED   \($0)" }
-        out += removedExecutables.map { "  executable REMOVED \($0)" }
+        // Capped like every other list: Baidu Netdisk 8.8.3 vendored 45 dylibs at once.
+        out += capped(addedExecutables.map { "  executable ADDED   \($0)" }, 40)
+        out += capped(removedExecutables.map { "  executable REMOVED \($0)" }, 40)
         for key in Set(old.machO.keys).intersection(new.machO.keys).sorted() {
             let a = old.machO[key]!, b = new.machO[key]!
             var rows: [String] = []
@@ -399,7 +424,7 @@ public enum BundleDiff {
         case (let a?, let b?):
             var rows: [String] = []
             if a.identifier != b.identifier {
-                rows.append("signed identifier: \(a.identifier ?? "none") -> \(b.identifier ?? "none")")
+                rows.append("signed identifier: \(shown(a.identifier)) -> \(shown(b.identifier))")
             }
             if a.teamIdentifier != b.teamIdentifier {
                 rows.append("TEAM ID: \(a.teamIdentifier ?? "none") -> \(b.teamIdentifier ?? "none")")
@@ -522,13 +547,24 @@ public enum BundleDiff {
         return out
     }
 
+    static let namesPerLine = 8
+
     static func groupedByDirectory(_ paths: [String]) -> [String] {
         var groups: [String: [String]] = [:]
         for path in paths {
             let url = path as NSString
             groups[url.deletingLastPathComponent, default: []].append(url.lastPathComponent)
         }
-        return groups.keys.sorted().map { "\($0)/{\(groups[$0]!.sorted().joined(separator: ", "))}" }
+        // A few names per line. Joined into one, Baidu Netdisk 8.8.3's bundled
+        // GLib put 2,563 characters on a single line, and the workbench drew the
+        // whole report blank.
+        return groups.keys.sorted().flatMap { directory in
+            stride(from: 0, to: groups[directory]!.count, by: namesPerLine).map { start in
+                let names = groups[directory]!.sorted()
+                let chunk = names[start..<min(start + namesPerLine, names.count)]
+                return "\(directory)/{\(chunk.joined(separator: ", "))}"
+            }
+        }
     }
 
     // MARK: Localization
@@ -824,6 +860,12 @@ public enum BundleDiff {
 
     static func signedBytes(_ count: Int64) -> String {
         count == 0 ? "no change" : (count > 0 ? "+" : "-") + bytes(abs(count))
+    }
+
+    /// An absent or empty value spelled out, so `x ->  -> y` never reads as a gap.
+    static func shown(_ value: String?) -> String {
+        guard let value else { return "none" }
+        return value.isEmpty ? "(empty)" : value
     }
 
     static func chain(_ authorities: [String]) -> String {

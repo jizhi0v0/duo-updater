@@ -507,7 +507,7 @@ case "diff":
         guard operands.count == 2 else {
             die("diff needs exactly two releases: duo diff <old> <new>", code: 2)
         }
-        return await BundleDiff.run(BundleDiff.Options(old: operands[0], new: operands[1]))
+        return await DiffCommand.run(old: operands[0], new: operands[1])
     }
 
 case "help":

@@ -1,7 +1,6 @@
 import CryptoKit
 import Darwin
 import Foundation
-import DuoUpdaterCore
 
 /// Everything `duo diff` compares, read from one unpacked release.
 ///
@@ -14,6 +13,9 @@ struct BundleFacts: Sendable {
     /// Read from a `.pkg`, whose paths start at the expanded package rather than at
     /// an app. `BundleDiff.aligned` rewrites them before anything is compared.
     var isPackage = false
+    /// Paths a backup deliberately did not copy (`BackupStore.Backup.omittedFiles`).
+    /// Set on the old side only, by the caller that knows it is a backup.
+    var omittedByBackup: Set<String> = []
     /// `pkgutil --check-signature`, minus the lines that differ on every signing.
     /// Nil when the input was not a pkg.
     var packageSignature: [String]?
@@ -111,7 +113,7 @@ enum BundleFactsReader {
     /// Walks, hashes and parses everything under `root`, signatures included.
     /// Synchronous disk and Security work throughout: callers run it off the
     /// cooperative pool, in one hop.
-    static func scan(root: URL) throws -> BundleFacts {
+    static func scan(root: URL, stop: BundleDiff.StopFlag = BundleDiff.StopFlag()) throws -> BundleFacts {
         let fm = FileManager.default
         let base = root.resolvingSymlinksInPath().standardizedFileURL
         var facts = BundleFacts()
@@ -133,6 +135,7 @@ enum BundleFactsReader {
 
         var walkStart = ContinuousClock.now
         for case let url as URL in walker {
+            if stop.isSet { throw CancellationError() }
             let rel = relativePath(of: url, under: base)
             let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey])
             if values?.isSymbolicLink == true {

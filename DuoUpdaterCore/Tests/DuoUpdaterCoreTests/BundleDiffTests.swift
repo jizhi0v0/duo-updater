@@ -1,7 +1,6 @@
 import Testing
 import Foundation
-@testable import DuoKit
-import DuoUpdaterCore
+@testable import DuoUpdaterCore
 
 /// `duo diff`'s rules, each against bytes the test wrote. Every noise class here was
 /// hit on a real release pair while the command was being built; the doc comment on
@@ -47,6 +46,48 @@ import DuoUpdaterCore
         #expect(change.added == ["ZZFixture/Added.swift"])
         #expect(change.removed.isEmpty)
         #expect(change.respelled == 1)
+    }
+
+    /// Baidu Netdisk 8.8.3 bundled GLib, and its source paths grouped under one
+    /// directory made a 2,563-character line that the workbench could not draw.
+    @Test func aLargeDirectoryIsSplitAcrossLinesWithoutLosingNames() {
+        let names = (1...20).map { "zz\($0).c" }
+        let lines = BundleDiff.groupedByDirectory(names.map { "../zzfixture/gio/" + $0 })
+        #expect(lines.count == 3)
+        #expect(lines.allSatisfy { $0.hasPrefix("../zzfixture/gio/{") })
+        let listed = lines.flatMap { $0.dropFirst("../zzfixture/gio/{".count).dropLast().components(separatedBy: ", ") }
+        #expect(Set(listed) == Set(names))
+    }
+
+    /// Review of #706: the cap counted lines once a directory spanned several, so
+    /// one large directory used it all and the next directory was never shown.
+    @Test func theCapCountsDirectoriesNotLines() {
+        let big = (1...320).map { "../zzfixture/third_party/zz\($0).c" }
+        let lines = BundleDiff.groupedByDirectory(big + ["ZZFixture/App/Feature/New.swift"], directoryLimit: 40)
+        #expect(lines.contains("ZZFixture/App/Feature/{New.swift}"))
+        #expect(lines.count == 41)
+
+        let many = (1...45).map { "zz/dir\($0)/file.swift" }
+        let capped = BundleDiff.groupedByDirectory(many, prefix: "  + ", directoryLimit: 40)
+        #expect(capped.count == 41)
+        #expect(capped.last == "  + … 5 more directories")
+    }
+
+    /// Review of #706: a backup skips unreadable runtime state inside the bundle
+    /// (ToDesk's mmkv files), and without being told the diff listed those as added.
+    @Test func filesTheBackupSkippedAreNotReportedAsAdded() {
+        var old = BundleFacts(), new = BundleFacts()
+        old.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+        old.omittedByBackup = ["Contents/zz.mmkv"]
+        new.files = old.files
+        new.files["Contents/zz.mmkv"] = FileFact(size: 5, digest: "unreadable")
+        new.files["Contents/Resources/zz-new.txt"] = FileFact(size: 5, digest: "n")
+        let files = BundleDiff.filesSection(old: old, new: new)
+        #expect(files.contains { $0.contains("1 added, 0 removed") })
+        #expect(files.contains("  + Contents/Resources/zz-new.txt (5 bytes)"))
+        #expect(!files.contains { $0.hasPrefix("  + Contents/zz.mmkv") })
+        #expect(files.contains { $0.hasPrefix("  1 more only on the new side because the backup skipped them") })
+        #expect(files.contains("      Contents/zz.mmkv"))
     }
 
     // MARK: Localization
@@ -283,6 +324,16 @@ import DuoUpdaterCore
         #expect(BundleDiff.signatureChanges(summary(team: "ZZTEAM1"), nil) == ["signature: signed -> UNSIGNED or unreadable"])
     }
 
+    /// Baidu Netdisk 8.8.3's image viewer went from an empty signed identifier to a
+    /// real one, which printed as `signed identifier:  -> com.baidu…`.
+    @Test func anEmptyIdentifierIsSpelledOut() {
+        let empty = SignatureVerifier.SigningSummary(
+            identifier: "", teamIdentifier: "ZZTEAM1", authorities: [], flags: [], runtimeVersion: nil, entitlements: [:])
+        let named = SignatureVerifier.SigningSummary(
+            identifier: "test.zzfixture", teamIdentifier: "ZZTEAM1", authorities: [], flags: [], runtimeVersion: nil, entitlements: [:])
+        #expect(BundleDiff.signatureChanges(empty, named) == ["signed identifier: (empty) -> test.zzfixture"])
+    }
+
     @Test func aNewLoginItemIsReportedOnceNotPerFile() {
         var old = BundleFacts(), new = BundleFacts()
         old.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
@@ -307,6 +358,67 @@ import DuoUpdaterCore
     @Test func scriptChangesAreLineByLine() {
         let rows = BundleDiff.lineChanges("#!/bin/sh\nkeep\nold line\n", "#!/bin/sh\nkeep\nnew line\n")
         #expect(rows == ["- old line", "+ new line"])
+    }
+
+    // MARK: The public entry point
+
+    private func minimalApp(in directory: URL) throws -> URL {
+        let app = directory.appendingPathComponent("ZZFixture-report.app")
+        try write(
+            PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": "test.zzfixture.report", "CFBundleShortVersionString": "3.0",
+                                   "CFBundleVersion": "30"],
+                format: .xml, options: 0),
+            to: app.appendingPathComponent("Contents/Info.plist"))
+        try write(Data("zz".utf8), to: app.appendingPathComponent("Contents/Resources/zz.txt"))
+        return app
+    }
+
+    /// What the workbench and `duo diff` both call: the whole report, header to
+    /// timings, as one string.
+    @Test func theReportComparesTwoAppsEndToEnd() async throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        let result = await BundleDiff.report(old: app.path, new: app.path, oldLabel: "backup", newLabel: "installed")
+        let report = try result.get()
+        #expect(report.hasPrefix("duo diff\n  old: backup  ZZFixture-report.app 3.0 (30)\n  new: installed  ZZFixture-report.app 3.0 (30)"))
+        #expect(report.contains("\nTRUST SURFACE\n"))
+        #expect(report.contains("\nTIMINGS (old and new are read concurrently)\n"))
+    }
+
+    /// Re-review of #706: the fix was tested by setting `omittedByBackup` directly,
+    /// so nothing covered `report(omittedFromOld:)` handing the list to the old
+    /// side — deleting that one line left every test green.
+    @Test func theReportKeepsFilesTheBackupSkippedOutOfAdded() async throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let backup = try minimalApp(in: directory.appendingPathComponent("backup"))
+        let installed = try minimalApp(in: directory.appendingPathComponent("installed"))
+        try write(Data("state".utf8), to: installed.appendingPathComponent("Contents/zz.mmkv"))
+
+        let report = try await BundleDiff.report(
+            old: backup.path, new: installed.path, omittedFromOld: ["Contents/zz.mmkv"]).get()
+        #expect(report.contains("  1 more only on the new side because the backup skipped them"))
+        #expect(report.contains("0 added, 0 removed"))
+        #expect(!report.contains("  + Contents/zz.mmkv"))
+    }
+
+    @Test func aMissingInputIsAFailureNotAnEmptyReport() async throws {
+        let result = await BundleDiff.report(old: "/ZZFixture-does-not-exist.app", new: "/ZZFixture-nor-this.app")
+        #expect(throws: BundleDiff.Failure.self) { try result.get() }
+    }
+
+    /// The workbench cancels when the selection moves on; the walk must stop at the
+    /// next file rather than hash the rest of a multi-gigabyte bundle.
+    @Test func aStoppedWalkThrowsCancellation() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        let stop = BundleDiff.StopFlag()
+        stop.set()
+        #expect(throws: CancellationError.self) { try BundleFactsReader.scan(root: app, stop: stop) }
+        #expect(throws: Never.self) { try BundleFactsReader.scan(root: app) }
     }
 
     // MARK: Walking a bundle

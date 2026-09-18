@@ -135,6 +135,7 @@ changelogs[0].imagePattern = nil
 changelogs[0].headingPattern = nil
 changelogs[0].minimumAppVersion = nil
 changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
 changelogs[0].acknowledgedStaleEntry = nil
 changelogs[0].structuredFormat = nil
 changelogs[0].httpMethod = .get

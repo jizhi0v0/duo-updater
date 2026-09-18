@@ -71,12 +71,15 @@ protocol BrewCrossChecked: VerifySelectable {
 extension VendorProbeRecipe: BrewCrossChecked {}
 extension GitHubReleaseRule: BrewCrossChecked {}
 
-/// The three cask fields the cross-check reads. `CaskEntry` has no public
+/// The cask fields the cross-check reads. `CaskEntry` has no public
 /// initializer, so tests hand these in instead.
 struct CaskFacts: Sendable {
     let token: String
     let version: String
     let autoUpdates: Bool
+    /// Found under the `.app` filename rather than under the recipe's bundle id
+    /// — a plausible match, not a declared one, so the complaint says so (#743).
+    var matchedByAppFilename = false
 }
 
 public enum Verify {
@@ -1049,6 +1052,19 @@ public enum Verify {
                    ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
                 warnings.append(complaint)
             }
+            // And the reverse: this page ahead of every probe row for the app,
+            // which is what a frozen probe looks like (#743). Against the SWEEP's
+            // own readings, never against `version` above — that one falls back to
+            // the installed copy, and "the changelog leads the machine I ran on"
+            // is not a statement about the probe at all.
+            if let complaint = changelogLeadsProbeComplaint(
+                entry: top,
+                probeVersionsByChannel: probeVersionsByChannel(
+                    forBundleID: recipe.bundleID, among: versionSources),
+                carriesOtherTrainEntries: recipe.carriesOtherTrainEntries,
+                ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
+                warnings.append(complaint)
+            }
             return Finding(
                 recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
                 channel: recipe.channel?.rawValue ?? "-",
@@ -1067,10 +1083,13 @@ public enum Verify {
         }
     }
 
-    /// Second opinion from Homebrew, for the ~35% of vendor bundle ids the cask
-    /// catalog can resolve (measured against the live catalog, not assumed — the
+    /// Second opinion from Homebrew, for the vendor bundle ids the cask catalog
+    /// can resolve (measured against the live catalog, not assumed — the
     /// bundle-id key is built from each cask's `uninstall: quit:` field, so
-    /// coverage is partial by construction).
+    /// coverage is partial by construction: of the 228 bundle ids the two
+    /// cross-checked registries held on 2026-09-18 — 138 vendor probes and 90
+    /// GitHub rules, no overlap — 88 resolve by that key and 39 more by the `.app`
+    /// fallback `liveCasks` adds, 39% to 55%).
     ///
     /// **Deliberately one-directional.** A cask *behind* our probe is the normal
     /// state of the world: brew lags, and `auto_updates true` casks lag
@@ -1091,24 +1110,139 @@ public enum Verify {
               !cask.autoUpdates  // an auto-updating cask's version is decorative
         else { return nil }
 
-        func majorMinor(_ v: String) -> String {
-            v.split(separator: ".").prefix(2).joined(separator: ".")
-        }
-        let ours = majorMinor(version)
-        let theirs = majorMinor(cask.version)
+        // `numericMajorMinor`, not a bare two-component split: brew spells some
+        // versions `version,build` (`librewolf` ships `156.0,1`) and others
+        // `version+revision`, and the suffix lands in the second component — so
+        // the cask read as a whole release AHEAD of an identical version. The
+        // phantom direction below had always stripped it; this one had not, and
+        // only never fired because every cask carrying such a spelling was
+        // reached through a key this function could not resolve.
+        let ours = numericMajorMinor(version)
+        let theirs = numericMajorMinor(cask.version)
+        // Both complaints below rest on this cask being this app's, so both carry
+        // the caveat when the key was guessed — not just the first one.
+        let keyNote = cask.matchedByAppFilename ? caskKeyNote(cask.token, recipe.bundleID) : ""
         if ours != theirs, VersionComparator.isNewer(theirs, than: ours) {
             return "Homebrew's cask `\(cask.token)` is at \(cask.version) while this recipe "
-                + "reads \(version) — the probe may be stuck on a stale element"
+                + "reads \(version) — the probe may be stuck on a stale element" + keyNote
         }
         return phantomVersionComplaint(
             caskToken: cask.token, caskVersion: cask.version, version: version,
-            publishedAt: publishedAt, now: now)
+            publishedAt: publishedAt, now: now).map { $0 + keyNote }
     }
 
     /// Every cask the live catalog lists for a bundle id; none when it can't load.
+    ///
+    /// Falls back to the `.app` filename key when the bundle id resolves nothing,
+    /// which is the second half of #743. A cask records a bundle id only in its
+    /// `uninstall: quit:` field, and the id it records is the vendor's, which need
+    /// not be the one we measured off the shipped bundle: `workbuddy-cn` quits
+    /// `com.tencent.workbuddy.mac` while our recipe is keyed
+    /// `com.workbuddy.workbuddy`. The cask was right all along — 5.5.6 against the
+    /// 5.3.14 our frozen probe kept reporting — and this cross-check simply could
+    /// not see it. Worse, the miss is indistinguishable from "no cask exists",
+    /// including to a human writing an app audit: both audits for that family
+    /// recorded `无 cask` for a source that was merely mis-keyed.
+    ///
+    /// Measured over all 228 cross-checked bundle ids against the live catalog on
+    /// 2026-09-18 — both registries, not just the vendor probes, since
+    /// `GitHubReleaseRule` is `BrewCrossChecked` too: 39 resolve no cask by id and
+    /// exactly one by filename. Ambiguous ones are already gone by then;
+    /// `Telegram.app` is installed by both `telegram` (12.10) and
+    /// `telegram-desktop` (7.2.9), which are different apps on different
+    /// numbering, and the wrong pick reads as a five-major lead. Running the real
+    /// `brewComplaint` over the 259 recipes and rules that have a baseline
+    /// version, the 39 raise exactly two complaints between them, and both are
+    /// the WorkBuddy CN rows this exists for.
     @Sendable static func liveCasks(bundleID: String) async -> [CaskFacts] {
-        let entries = (try? await HomebrewCaskCatalog.shared.entries(forBundleID: bundleID)) ?? []
-        return entries.map { CaskFacts(token: $0.token, version: $0.version, autoUpdates: $0.autoUpdates) }
+        func facts(_ entries: [CaskEntry], byFilename: Bool) -> [CaskFacts] {
+            entries.map {
+                CaskFacts(token: $0.token, version: $0.version, autoUpdates: $0.autoUpdates,
+                          matchedByAppFilename: byFilename)
+            }
+        }
+        let byID = (try? await HomebrewCaskCatalog.shared.entries(forBundleID: bundleID)) ?? []
+        guard byID.isEmpty, let filename = caskAppFilename(forBundleID: bundleID) else {
+            return facts(byID, byFilename: false)
+        }
+        let byApp = (try? await HomebrewCaskCatalog.shared.entries(forAppFilename: filename)) ?? []
+        return unambiguousCasks(facts(byApp, byFilename: true))
+    }
+
+    /// The `.app` filename to try for a bundle id whose own key resolves nothing.
+    ///
+    /// The last dot component, which is what a reverse-DNS id ends with and what
+    /// vendors name the bundle after: `com.workbuddy.workbuddy` → `workbuddy.app`,
+    /// matching `WorkBuddy.app` because the catalog's filename index is
+    /// case-folded. A guess, and treated as one — see `unambiguousCasks` and the
+    /// note every complaint carries.
+    ///
+    /// Nil when that component is a QUALIFIER rather than a name. Plenty of ids
+    /// are `tld.vendor.name.channel` or `tld.vendor.name.platform`, and their last
+    /// component says nothing about which app it is. Of those 228 ids, **52**
+    /// derive one, across ten stems:
+    ///
+    ///     desktop ×16   app ×16   beta ×5   mac ×5   nightly ×3
+    ///     dev ×2        client ×2  canary ×1  macos ×1  preview ×1
+    ///
+    /// No cask ships an artifact under any of those names today, which is the only
+    /// reason none of them resolves, and "no vendor has yet named a bundle
+    /// `App.app`" is not a property worth resting a filed issue on.
+    ///
+    /// `beta`, `nightly`, `dev`, `canary` and `preview` come from `ReleaseChannel`
+    /// itself rather than a hand-copy, so a channel added there cannot quietly
+    /// become a cask key. **The other five do not.** `macos` is the thin one —
+    /// `com.raycast.macos` is the only id carrying it, which is exactly the shape
+    /// somebody trims as dead weight. `client` is carried by two
+    /// (`com.spotify.client`, `com.windscribe.client`), so losing either still
+    /// leaves the stem earning its place.
+    ///
+    /// Every id above is pinned by name in
+    /// `BrewCaskKeyTests.aQualifierIsNotAName`, so trimming a hand-written stem
+    /// fails a test that names the app it would break rather than quietly putting
+    /// Raycast back on the `macos.app` key. Read the counts from the table, not
+    /// from this paragraph, when deciding whether a stem is still carried.
+    static func caskAppFilename(forBundleID bundleID: String) -> String? {
+        guard let last = bundleID.split(separator: ".").last, !last.isEmpty,
+              !qualifierComponents.contains(last.lowercased())
+        else { return nil }
+        return "\(last).app"
+    }
+
+    /// Last components that qualify an app rather than name one: every release
+    /// channel, plus the platform and generic words vendors append.
+    /// Lowercased on both sides — `ReleaseChannel.guineaPig`'s raw value is
+    /// camel-cased, so a set built from the raw values verbatim would miss it
+    /// against a lowercased component and silently let one channel through.
+    static let qualifierComponents: Set<String> =
+        Set(ReleaseChannel.allCases.map { $0.rawValue.lowercased() })
+            .union(["app", "desktop", "mac", "macos", "osx", "ios", "client", "gui"])
+
+    /// Casks found under a filename, kept only when they are ONE cask and its own
+    /// channel siblings (`gimp` + `gimp@dev`, `emacs-app` + `@nightly` +
+    /// `@pretest`). Two unrelated tokens installing the same filename mean the
+    /// filename does not identify an app, and a guess is not worth a wrong
+    /// accusation: nothing is returned and the app is cross-checked no more than
+    /// it was before.
+    static func unambiguousCasks(_ casks: [CaskFacts]) -> [CaskFacts] {
+        let families = Set(casks.map { $0.token.split(separator: "@").first.map(String.init) ?? $0.token })
+        return families.count == 1 ? casks : []
+    }
+
+    /// Appended to any complaint raised through the filename fallback: the match
+    /// is plausible rather than declared, and the reader has to be able to see
+    /// that before acting on it — as well as see which cask to record in the
+    /// app's audit, where "no cask" is what a key miss looks like.
+    static func caskKeyNote(_ token: String, _ bundleID: String) -> String {
+        // NOT "declares a different id": the catalog's bundle-id index is built
+        // only from `uninstall: quit:`, and a cask with an `app` artifact and no
+        // `uninstall` stanza at all is the ordinary shape — 36 of the 39 casks the
+        // fallback reaches declare no quit id whatever, and only `mstystudio`,
+        // `headlamp` and `workbuddy-cn` declare a competing one. All this branch
+        // knows is that the cask does not claim OUR id.
+        " (matched on the app filename, not on \(bundleID) — `\(token)` does not "
+            + "declare that bundle id in its `uninstall quit:`, so confirm the two "
+            + "are the same app)"
     }
 
     /// Which of a bundle's casks speaks for this channel — by position in `tokens`.
@@ -1296,6 +1430,130 @@ public enum Verify {
         guard (1...12).contains(components.month!), (1...31).contains(components.day!)
         else { return nil }
         return gmtCalendar.date(from: components)
+    }
+
+    /// The other direction: flag a changelog that reads AHEAD of every probe row
+    /// for its app — which is what a **frozen probe** looks like from the outside.
+    ///
+    /// `changelogLagComplaint` above is deliberately one-directional and that is
+    /// the gap this closes (#743). Every other history check compares a row
+    /// against *its own* previous value, so a recipe that reads wrong
+    /// *consistently* never moves and never complains: WorkBuddy's `.cn` pair sat
+    /// green at 5.3.14 for weeks while the same sweep's changelog row held 5.5.6,
+    /// both written with the identical `lastGoodAt`.
+    ///
+    /// **Above EVERY row, not above one of them.** Comparing against an arbitrary
+    /// probe row reads a multi-channel app's other train as a disagreement —
+    /// Thunderbird's changelog at 156.0 against its own ESR row at 140.16.0esr.
+    /// Requiring the lead over all of them makes that case fall out for free: the
+    /// stable row matches, so nothing is flagged.
+    ///
+    /// A naive reversal is ~80% false positives (measured over the committed
+    /// baseline: 50 apps carry both a probe row and a changelog row, 4 have the
+    /// changelog leading, 1 is a real bug). The other three are each a known,
+    /// already-modelled situation, and this is where each is excluded:
+    ///
+    /// - **two numbering namespaces on one channel** — Claude for Desktop's GA
+    ///   redirect and its Squirrel rollout endpoint are both `.stable` and answer
+    ///   in different namespaces (2.2553.0 against 1.46388.4). "Above every row"
+    ///   means nothing when the rows are not one ordered train, so a channel whose
+    ///   rows disagree with EACH OTHER takes the whole app out of this check.
+    ///   Across channels disagreement is normal and is handled above instead.
+    /// - **another train's entries on the page** — Obsidian's insider builds
+    ///   share its changelog with stable; see `ChangelogRecipe.carriesOtherTrainEntries`.
+    /// - **one release spelled two ways** — Thunderbird Beta's page says
+    ///   `157.0beta` where its probe says `157.0b2`. `numericMajorMinor` drops the
+    ///   qualifier from both, which is sound for a check that only ever asks
+    ///   whether a WHOLE release separates the two.
+    ///
+    /// Persistence is not enforced here: a publishing-order skew resolves in a
+    /// sweep or two, and `Baseline.actionableThreshold` already holds a warning
+    /// back until it has survived two sweeps before anything is filed.
+    ///
+    /// The first full live sweep with this check raised exactly one warning the
+    /// baseline had not — HBuilderX, whose notes carry 5.26.2026091702 while its
+    /// `release.json` went back to 5.24.2026081301 — so the complaint names that
+    /// reading as well as the frozen-probe one. Its 5.26 dmg is still on the CDN
+    /// and still answers, so the config was rolled back, not the release
+    /// withdrawn; the message says "stopped offering" for that reason.
+    static func changelogLeadsProbeComplaint(
+        entry: String, probeVersionsByChannel: [String: [String]],
+        carriesOtherTrainEntries: Bool = false, ordersByLineage: Bool = false
+    ) -> String? {
+        // Same scoping as `changelogLagComplaint`: hash builds have no order a
+        // version string can show, and a headline captured into `version` is not a
+        // version at all.
+        if ordersByLineage || carriesOtherTrainEntries { return nil }
+        guard entry.first?.isNumber == true else { return nil }
+        let rows = probeVersionsByChannel.values.flatMap { $0 }
+        guard !rows.isEmpty, rows.allSatisfy({ $0.first?.isNumber == true }) else { return nil }
+        // A channel that answers in two namespaces cannot be led or trailed.
+        for versions in probeVersionsByChannel.values
+        where Set(versions.map(numericMajorMinor)).count > 1 {
+            return nil
+        }
+        guard rows.allSatisfy({ leads(entry, $0) }) else { return nil }
+        let listed = rows.sorted().joined(separator: ", ")
+        // Both readings, because the first full live sweep with this check turned
+        // up the second one: HBuilderX's notes carry 5.26.2026091702 while the
+        // `release.json` the probe reads went back to 5.24.2026081301 (Homebrew's
+        // cask agrees with the probe). Naming only the frozen-probe reading would
+        // send whoever picks that up looking for a pattern that is fine.
+        //
+        // "stopped offering", not "pulled": HBuilderX's 5.26 dmg is still on the
+        // CDN and still answers — only the config that points at it went back. A
+        // reader told the release was withdrawn would check the artifact, find it,
+        // and conclude the warning was wrong.
+        return "newest changelog entry (\(entry)) reads AHEAD of every probe row "
+            + "(\(listed)) — either the probe is stuck on a stale element, which no "
+            + "history check can see because a consistently wrong reading never moves, "
+            + "or the vendor stopped offering a release its notes still carry"
+    }
+
+    /// Whether `entry` is a whole release ahead of `probe`, by the same two
+    /// yardsticks `changelogLagComplaint` uses in the other direction: days for a
+    /// date-encoded scheme, major.minor for everything else.
+    private static func leads(_ entry: String, _ probe: String) -> Bool {
+        if let entryDay = buildDate(entry), let probeDay = buildDate(probe) {
+            let days = gmtCalendar.dateComponents([.day], from: probeDay, to: entryDay).day ?? 0
+            return days > staleNotesDays
+        }
+        let ours = numericMajorMinor(entry)
+        let theirs = numericMajorMinor(probe)
+        return ours != theirs && VersionComparator.isNewer(ours, than: theirs)
+    }
+
+    /// major.minor with each component cut at its first non-digit: `157.0beta` and
+    /// `157.0b2` both become `157.0`, `140.16.0esr` becomes `140.16`, and brew's
+    /// `156.0,1` / `3.22.3+105` spellings lose the suffix their own comparison
+    /// would otherwise read as newer.
+    ///
+    /// Lossy on purpose, and only safe because every caller is asking whether a
+    /// WHOLE release separates two readings. A prerelease qualifier never is one.
+    static func numericMajorMinor(_ version: String) -> String {
+        version.split(separator: ".").prefix(2)
+            .map { $0.prefix(while: \.isNumber) }
+            .joined(separator: ".")
+    }
+
+    /// This sweep's probe readings for one app, grouped by the channel each was
+    /// read for.
+    ///
+    /// Only the registries that probe a VERSION — a changelog row is what we are
+    /// checking and the App Store and feed sweeps answer about other things. An
+    /// `infra` row is a network failure, not a reading, and carries no version
+    /// anyway; the nil check covers it.
+    static func probeVersionsByChannel(
+        forBundleID bundleID: String, among findings: [Finding]
+    ) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for finding in findings
+        where finding.bundleID == bundleID
+            && (finding.registry == .vendor || finding.registry == .github) {
+            guard let version = finding.version, finding.status != .infra else { continue }
+            out[finding.channel, default: []].append(version)
+        }
+        return out
     }
 
     // MARK: - shared plumbing

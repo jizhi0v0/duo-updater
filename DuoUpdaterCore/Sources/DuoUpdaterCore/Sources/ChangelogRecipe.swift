@@ -266,6 +266,28 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// meet exactly at 2.0.
     public let belowAppVersion: String?
 
+    /// This page lists releases from a train the probes do NOT track, mixed in
+    /// with the ones they do — so its newest entry legitimately reads ahead of
+    /// every probe row.
+    ///
+    /// Obsidian is the case in hand: `obsidian.md/changelog` carries the insider
+    /// builds alongside stable, so the page tops out at 1.14.2 while the desktop
+    /// manifest's stable `latestVersion` — and Homebrew — read 1.13.7. Nothing is
+    /// wrong with either side, and `duo verify`'s reverse cross-check
+    /// (`Verify.changelogLeadsProbeComplaint`, #743) would otherwise accuse the
+    /// probe of being frozen every sweep, forever.
+    ///
+    /// NOT the same thing as `minimumAppVersion`/`belowAppVersion`. A version
+    /// window says "this page is for one train and entries outside it are a bug"
+    /// — `Verify.changelogWindowComplaint` reports them. This says the opposite:
+    /// the extra entries belong on the page, there is no boundary to police, and
+    /// the only consequence is that the top entry cannot stand in for "what the
+    /// vendor shipped to this train".
+    ///
+    /// Set it only after checking that the leading entries really are another
+    /// train's, and record what you saw next to the recipe.
+    public let carriesOtherTrainEntries: Bool
+
     /// The newest entry this vendor's page is KNOWN to stop at, when the page is
     /// genuinely behind the builds the vendor is shipping.
     ///
@@ -583,6 +605,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         headingPattern: String? = nil,
         minimumAppVersion: String? = nil,
         belowAppVersion: String? = nil,
+        carriesOtherTrainEntries: Bool = false,
         structuredFormat: StructuredFormat? = nil,
         httpMethod: HTTPMethod = .get,
         requestBody: Data? = nil,
@@ -613,6 +636,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.headingPattern = headingPattern
         self.minimumAppVersion = minimumAppVersion
         self.belowAppVersion = belowAppVersion
+        self.carriesOtherTrainEntries = carriesOtherTrainEntries
         self.httpMethod = httpMethod
         self.requestBody = requestBody
         self.skipSections = skipSections
@@ -748,7 +772,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         case stripTags, decodeEntities, escapedMarkup, markdownSource, maxEntries
         case minItemLength, newestLast, indexLinkPattern, feedPagePattern, channel
         case includesPromotedStable, imagePattern, headingPattern, minimumAppVersion
-        case belowAppVersion, acknowledgedStaleEntry, structuredFormat, httpMethod
+        case belowAppVersion, carriesOtherTrainEntries, acknowledgedStaleEntry
+        case structuredFormat, httpMethod
         case requestBody, skipSections, tagPattern
     }
 
@@ -807,6 +832,9 @@ public struct ChangelogRecipe: Codable, Sendable {
                 String.self, forKey: .minimumAppVersion, default: d.minimumAppVersion),
             belowAppVersion: try c.decodeOptional(
                 String.self, forKey: .belowAppVersion, default: d.belowAppVersion),
+            carriesOtherTrainEntries: try c.decode(
+                Bool.self, forKey: .carriesOtherTrainEntries,
+                default: d.carriesOtherTrainEntries),
             structuredFormat: try c.decodeOptional(
                 StructuredFormat.self, forKey: .structuredFormat, default: d.structuredFormat),
             httpMethod: try c.decode(HTTPMethod.self, forKey: .httpMethod, default: d.httpMethod),
@@ -850,6 +878,7 @@ public struct ChangelogRecipe: Codable, Sendable {
             minimumAppVersion, forKey: .minimumAppVersion, defaultIsNil: d.minimumAppVersion == nil)
         try c.encodeOptional(
             belowAppVersion, forKey: .belowAppVersion, defaultIsNil: d.belowAppVersion == nil)
+        try c.encode(carriesOtherTrainEntries, forKey: .carriesOtherTrainEntries)
         try c.encodeOptional(
             acknowledgedStaleEntry, forKey: .acknowledgedStaleEntry,
             defaultIsNil: d.acknowledgedStaleEntry == nil)

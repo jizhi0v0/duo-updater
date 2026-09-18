@@ -72,6 +72,10 @@ public enum Backups {
         let bytes: Int64
         /// The disk this backup is on, or nil for this Mac.
         let disk: String?
+        /// Kept on this Mac by an explicit choice, rather than waiting to move.
+        /// Worth saying, because "still on this Mac" otherwise reads as a
+        /// transfer that has not happened yet — something to go and fix.
+        let held: Bool
     }
 
     static func list(json: Bool) async -> Int32 {
@@ -130,6 +134,7 @@ public enum Backups {
     static func rows(
         installed: [InstalledApp], backups: [String: BackupStore.Backup]
     ) -> [Row] {
+        let held = Set(BackupStore.heldOnThisMacKeys())
         var matchedKeys = Set<String>()
         var out: [Row] = []
         for app in installed {
@@ -141,13 +146,15 @@ public enum Backups {
             out.append(Row(
                 app: app.name, bundleID: app.bundleID, path: app.path.path,
                 key: key, version: backup.version, savedAt: backup.savedAt,
-                bytes: backupSize(backup), disk: backup.store.volumeName))
+                bytes: backupSize(backup), disk: backup.store.volumeName,
+                held: held.contains(key)))
         }
         for (key, backup) in backups where !matchedKeys.contains(key) {
             out.append(Row(
                 app: key, bundleID: nil, path: nil,
                 key: key, version: backup.version, savedAt: backup.savedAt,
-                bytes: backupSize(backup), disk: backup.store.volumeName))
+                bytes: backupSize(backup), disk: backup.store.volumeName,
+                held: held.contains(key)))
         }
         return out.sorted { $0.app.localizedCaseInsensitiveCompare($1.app) == .orderedAscending }
     }
@@ -204,7 +211,7 @@ public enum Backups {
             print("  \(name)  \(row.version ?? "?")"
                 + "  \(when.string(from: row.savedAt))"
                 + "  \(byteFormatter.string(fromByteCount: row.bytes))"
-                + "  (\(row.disk ?? "this Mac"))")
+                + "  (\(row.disk ?? (row.held ? "this Mac, staying" : "this Mac")))")
         }
         print("\n  \(rows.count) backup\(rows.count == 1 ? "" : "s"), "
             + "\(byteFormatter.string(fromByteCount: rows.reduce(0) { $0 + $1.bytes })) total.")
@@ -399,7 +406,15 @@ public enum Backups {
 
         let keys = BackupStore.pendingTransferKeys()
         let compression = Settings.backupCompression()
+        // Held backups are not owed and are not moved. Named rather than
+        // silently skipped: "nothing to move" beside a store that visibly still
+        // holds backups reads as this command having failed to notice them.
+        let held = BackupStore.heldOnThisMacKeys().count
         if json { NDJSON.begin("backups sync") }
+        if held > 0, !json {
+            print("  \(held) backup\(held == 1 ? " is" : "s are") set to stay on this Mac "
+                + "and will not move.")
+        }
         guard !keys.isEmpty else {
             if !json { print("Nothing to move — every backup is already on the disk.") }
             return 0

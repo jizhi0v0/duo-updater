@@ -140,10 +140,24 @@ enum com_qoder_ide {
         // attribute there today, so this changes nothing that can be measured — it
         // is the one place a docs generator adding a class would silently empty
         // every entry, and the cost of tolerating it is zero.
+        // `acknowledgedStaleEntry`: the VENDOR is the one behind, not the pattern.
+        // Read live 2026-09-18 — `docs.qoder.com/release-notes/desktop` yields 109
+        // label→version pairs, newest first, topping out at 1.29.0 (September 8,
+        // 2026), while the probe row `vendor:com.qoder.ide:stable` reads 1.30.1.
+        // The pattern is reading the top of the page correctly; Qoder shipped two
+        // releases it has not written notes for. Nothing to fix here, so the lag
+        // complaint can never clear on its own and re-files every sweep (#467,
+        // nine consecutive sweeps by the time it was read).
+        //
+        // Named at 1.29.0 rather than switched off, per the field's contract: the
+        // moment Qoder publishes 1.30.x notes the acknowledgement stops applying
+        // and the check speaks once so this can be re-read, and if the pattern
+        // ever slips to an older section it complains immediately.
         ChangelogRecipe(
             bundleID: "com.qoder.ide",
             source: URL(string: "https://docs.qoder.com/release-notes/desktop")!,
             entryPattern: ChangelogRecipeRegistry.qoderEntryPattern,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            acknowledgedStaleEntry: "1.29.0"),
         ])
 }

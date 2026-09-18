@@ -119,6 +119,13 @@
   `qoder-ide.oss-accelerate.aliyuncs.com` 是三个不同的域，任何一个换掉都会让 recipe
   失效（表现为 unknown，不会误报）。
 - 端点无 `beta`/`insider` 轨，将来厂商开了轨这条 recipe 不会自动跟上。
+- **厂商的 release notes 页落后于发布轨道**（2026-09-18 实测）：
+  `docs.qoder.com/release-notes/desktop` 共 109 组 label→version，最新一条是
+  1.29.0（September 8, 2026），而 probe 行 `vendor:com.qoder.ide:stable` 读到 1.30.1。
+  pattern 读的就是页面顶部，没有读错；是 Qoder 发了两版没写 notes。
+  recipe 因此设 `acknowledgedStaleEntry: "1.29.0"`——按该字段的约定写具体版本而不是开关：
+  Qoder 一旦补上 1.30.x 的 notes，豁免自动失效并提醒复核一次；pattern 若滑到更旧的段落，立刻报。
+  这是 #467 连报九轮的原因（滞后是厂商侧的，闸永远清不掉）。
 
 ## 如何复验
 ```

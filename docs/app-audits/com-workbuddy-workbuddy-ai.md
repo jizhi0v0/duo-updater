@@ -126,3 +126,28 @@ Changelog: each site's page is the one the app itself links (the build
 branches on `isOverseas()`); the intl page ran behind its own train at
 the time of writing (newest entry 5.2.7 against a 5.4.2 release) while
 the CN page was current.
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（`version=0.0.0` 会钉在升级链的第一跳；#737 / #738）
+
+2026-09-18 实测，起因是 `duo verify` 连报两轮 `installURLNotFound` + version 倒退。
+
+`/v2/update` 不是「最新是什么」，也不只是「要不要更新」——它回的是**升级链上的下一跳**。同一天同一个端点，只改 `version` 参数：
+
+| 请求 | `productVersion` |
+|---|---|
+| `?platform=workbuddy-darwin-arm64`（不带 version） | `5.5.2.37849279` |
+| `…&version=5.3.14` | `5.5.2.37849279` |
+| `…&version=5.5.0` | `5.5.2.37849279` |
+| `…&version=5.0.0` | `5.3.14.36279234` |
+| `…&version=1.0.0` | `5.3.14.36279234` |
+| `…&version=0.0.0` | `5.3.14.36279234` |
+
+即：比所有发布都旧的版本拿到的是中间跳 `5.3.14.36279234`，不是最新版。
+
+**为什么以前是对的、后来静默错了。** `version=0.0.0` 是当初为绕开 204 钉进去的，钉的时候这条链的第一跳恰好就是最新版。本审计 2026-09-14 那次复测还记着国际站回 `5.5.2.37849279`——那时链只有一跳。厂商后来在上面加了发布，四条 recipe（两站 × 两架构）全部冻在第一跳上。
+
+**只有国际站两条被发现，而且不是因为版本错。** 国际站那一跳的产物后来被 CDN 删了，`duo verify` 才看见 HTTP 404 + version 倒退（#737、#738）。国内站两条的那一跳产物还在，于是一路绿着停在 `5.3.14`，而同一个 app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行，`lastGoodVersion` 写着 `5.5.6`——两行没有任何东西去比对。这是这次最值得记的一条：**闸看的是「这次和上次比」，不是「probe 和 changelog 比」**。
+
+**改法**：URL 里不带 `version` 参数。四个 host×arch 组合当天实测都回 200（不是 204）：国际站两架构 `5.5.2.37849279`，国内站两架构 `5.5.6.38337834`，与 Homebrew cask `workbuddy-ai`（`5.5.2.37849279-910352f0`）一致；cask 的 livecheck 打的也正是这个不带 `version` 的 URL。产物存在性也核了：`…-5.3.14.36279234-825709d4.zip` 为 404，`…-5.5.2.37849279-910352f0.{zip,dmg}` 均为 200。
+
+顺带核过的同形写法：`app-chatwise.swift` 的 `releases?version=0.0.0&platform=osx` 不受影响——带不带 `version`、传 `0.8.0`，都回同一个 `26.9.0`，与 brew 一致，没有链式行为。`com-lemon-lvoverseas.swift` 钉的是 `9.99`（比所有发布都**高**），方向相反，钉不到跳上。

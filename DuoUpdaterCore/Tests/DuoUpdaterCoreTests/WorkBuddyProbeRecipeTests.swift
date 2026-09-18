@@ -94,16 +94,26 @@ struct WorkBuddyProbeRecipeTests {
         }
     }
 
-    /// The endpoint is a "should I update?" service: handing it the version you
-    /// already run answers 204 No Content. `version=0.0.0` is what makes it a
-    /// latest-version query, so its presence is pinned, as is the `platform` slug
-    /// agreeing with the recipe's own variant.
-    @Test func everyEndpointAsksAsAnImpossiblyOldClient() throws {
+    /// The endpoint is a "should I update?" service, and it answers three ways:
+    /// the version you already run gets 204 No Content, a version far below every
+    /// release gets a STEPPING STONE partway up the upgrade chain, and no
+    /// `version` at all gets the newest build. Only the third is a latest-version
+    /// query, so the ABSENCE of the parameter is what has to be pinned.
+    ///
+    /// Pinned as an absence because the bug it replaces was invisible. The recipes
+    /// carried `version=0.0.0` — the original fix for the 204 — and read correctly
+    /// until the vendor shipped above the chain's first hop, at which point all
+    /// four froze on 5.3.14.36279234 (measured 2026-09-18: `0.0.0`, `1.0.0` and
+    /// `5.0.0` all answer it, `5.3.14` answers 5.5.2.37849279, and no parameter
+    /// answers 5.5.2.37849279 on .ai / 5.5.6.38337834 on .cn). Only the two `.ai`
+    /// recipes ever complained, and only because that hop's artifact was deleted
+    /// from the CDN (#737, #738); the `.cn` pair sat green two releases behind.
+    @Test func everyEndpointAsksAsAVersionlessClient() throws {
         for recipe in Self.recipes {
             let slug = try #require(recipe.variant)
             let url = recipe.url.absoluteString
-            #expect(url.contains("version=0.0.0"),
-                    "\(recipe.recipeID) would get a 204 for an up-to-date install")
+            #expect(!url.contains("version="),
+                    "\(recipe.recipeID) would freeze on an upgrade-chain stepping stone")
             #expect(url.contains("platform=workbuddy-darwin-\(slug)"),
                     "\(recipe.recipeID) asks about the wrong architecture")
             #expect(url.hasPrefix("https://"))

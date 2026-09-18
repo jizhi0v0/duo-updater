@@ -1056,6 +1056,7 @@ public enum Verify {
                 version: newest.version, warnings: warnings,
                 endpointHost: host, pattern: recipe.entryPattern,
                 entryCount: changelog.entries.count,
+                entryVersions: changelog.entries.map(\.version),
                 // Against the page requested, not one re-derived from a version:
                 // a heading that resolves elsewhere is itself a slip, and must not
                 // make an older version look like another page.

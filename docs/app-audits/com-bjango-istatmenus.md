@@ -84,3 +84,16 @@
 - `verify/baseline.json` 里这条 recipe 的 `lastGoodVersion` 同步改成 `7.50`：`duo verify` 记的是 `shortVersion ?? version`，
   两版修法报出的都是包里的 `7.50`，而基线里存的是旧写法的 `7.50.1`，`Baseline.reconcile` 会把它报成「version went BACKWARDS」。
 
+
+#### 2026-09-18（#713 收尾）：基线里的 `7.50.1` 一直没改掉
+
+上一节最后一行写了「`verify/baseline.json` 里这条 recipe 的 `lastGoodVersion` 同步改成 `7.50`」，但实际没改进去。
+后果正是那一行预言的：`Baseline.reconcile` 拿基线里的 `7.50.1` 对这次读到的 `7.50`，报「version went BACKWARDS」。
+
+这个警报**自己永远清不掉**：倒退值按设计不写回基线（写回去下次就变成 7.50 比 7.50，静音在一条真坏了的 recipe 上），
+所以基线一直攥着 `7.50.1`，每轮扫描都再报一次，连报四轮开了 #713。
+
+改法：把 `vendor:com.bjango.istatmenus:stable` 的 `lastGoodVersion` 手工改成 `7.50`。
+`7.50` 是第二版修法**正确**的输出——`.redirectArchiveInfoPlist` 读包内 `Info.plist`，`iStatMenus7.50.1.zip` 里的
+`CFBundleShortVersionString` 就是 `7.50`（上表实测），而 `duo verify` 记的是 `shortVersion ?? version`。
+2026-09-18 复核重定向仍指向 `iStatMenus7.50.1.zip`，即线上状态没变，要改的只是基线。

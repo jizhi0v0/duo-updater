@@ -26,12 +26,37 @@ enum com_workbuddy_workbuddy_ai {
         // No auth: the `x-user-id` / `x-tenant-id` parameters the app appends are
         // optional and we send neither.
         //
-        // TRAP, and the reason `version=0.0.0` is pinned into the URL: this is a
-        // "should I update?" service, not a "what is the latest?" one. Passing the
-        // version you already run returns **204 No Content** (measured 2026-08-27
-        // on both hosts; History has the versions sent), which would
-        // make the probe go dark precisely when it should say "up to date". An
-        // impossibly old version is what turns it into a latest-version query.
+        // TRAP, and the reason the URL carries NO `version` parameter at all:
+        // this is a "should I update?" service, not a "what is the latest?" one,
+        // and it answers three different ways.
+        //
+        //   version=<what you run>  → **204 No Content** when you are current
+        //                             (measured 2026-08-27 on both hosts;
+        //                             History has the versions sent), which would
+        //                             make the probe go dark precisely when it
+        //                             should say "up to date".
+        //   version=<far too old>   → a STEPPING STONE, not the latest. Measured
+        //                             2026-09-18: `version=0.0.0`, `1.0.0` and
+        //                             `5.0.0` all answer 5.3.14.36279234 on
+        //                             www.workbuddy.ai, while `version=5.3.14`
+        //                             answers 5.5.2.37849279. The service walks
+        //                             an upgrade CHAIN; an impossibly old version
+        //                             lands on the first hop of it.
+        //   no `version` at all     → the newest build, on every host/arch
+        //                             (measured 2026-09-18: .ai 5.5.2.37849279,
+        //                             .cn 5.5.6.38337834). This is also what
+        //                             Homebrew's `workbuddy-ai` cask livechecks.
+        //
+        // Pinning `version=0.0.0` was the original fix for the 204 and it read
+        // correctly for three weeks, because the chain's first hop WAS the newest
+        // build. It failed silently once the vendor added releases above it: all
+        // four recipes froze on the stepping stone. Only the two `.ai` ones were
+        // caught, and only because that hop's artifact was later deleted from the
+        // CDN — `duo verify` saw the 404 plus a version going backwards (#737,
+        // #738). The `.cn` pair kept a live artifact for their hop and so stayed
+        // green at 5.3.14 while the CN train shipped 5.5.6 — the same app's
+        // changelog recipe had been reading 5.5.6 the whole time, one row away in
+        // the same baseline, and nothing compared the two.
         //
         // TRAP, version scheme: the endpoint reports a FOUR-segment string
         // (e.g. "5.4.2.36857725") whose last segment is a build counter that appears

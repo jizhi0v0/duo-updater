@@ -62,6 +62,13 @@
 ## 已知问题
 - 无。（Figma 自身也会 Squirrel 自更新；我们的一键安装是手动 fallback，同渠道、同签名，
   不会跨渠道混装。）
+- 记一笔判据问题（不是 Figma 的问题）：changelog recipe 的 `version` 组捕获的是**文章标题**，
+  因为 Figma 的 release notes 根本不编号。`duo verify` 的「version went BACKWARDS」拿
+  `VersionComparator` 比两句散文，结果是自信的胡话——2026-09-17 feed 新发了
+  "Create on-brand content with your Figma designs in Weave workflows"，压在
+  "Publish Weave tools to the Figma Community" 之上，就此开了 #736，而且之后每发一篇都会再开一个。
+  同样的豁免本来就写在 `Verify.changelogLagComplaint` 里（注释里点名的正是 Figma），
+  只是从没搬到 `Baseline` 的那一半。已补 `Baseline.eitherIsNumbered`。
 
 ## 建议下一步
 - 已完成。后续仅在端点结构或签名变化时复核 recipe。

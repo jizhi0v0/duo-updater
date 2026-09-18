@@ -2107,7 +2107,7 @@
       "issueNumber" : 713,
       "lastCommentedAt" : "2026-09-17T08:26:19Z",
       "lastGoodAt" : "2026-09-16T20:27:40Z",
-      "lastGoodVersion" : "7.50.1",
+      "lastGoodVersion" : "7.50",
       "lastSignature" : "version went BACKWARDS since the last sw",
       "previousSignature" : "version went BACKWARDS since the last sw",
       "sweepsSinceComment" : 2

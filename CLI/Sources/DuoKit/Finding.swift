@@ -122,6 +122,29 @@ public struct Finding: Codable, Sendable {
     /// nil means "not recorded", which is not the same claim as zero. Only the
     /// changelog sweep sets it; no other registry has entries to count.
     public let entryCount: Int?
+    /// The versions of the entries behind `entryCount`, in document order, when
+    /// this finding came from a changelog sweep.
+    ///
+    /// Recorded for one question `version` alone cannot answer: when the newest
+    /// entry reads OLDER than last sweep's, did the pattern slip to a stale
+    /// section, or did the vendor publish above it? A page that interleaves two
+    /// trains in date order answers the second way routinely — TypeWhisper lists
+    /// macOS stable and daily builds in one list, so shipping 1.6.1 on top of
+    /// 1.7.0-daily.20260916 moved the newest entry backwards with nothing wrong
+    /// (#698). The two cases part cleanly on whether last sweep's version is
+    /// still ON the page: published-above keeps it (one row down), a slipped
+    /// pattern drops it off the top. `Baseline.pageStillCarries` asks exactly
+    /// that.
+    ///
+    /// The versions only — not titles, dates or bodies. It is the narrowest thing
+    /// that answers the question, and it keeps this field out of the business
+    /// `bodySample` is in: arbitrary vendor prose, hence that field's cap and its
+    /// restriction to actionable findings.
+    ///
+    /// Optional so a `report.json` written before this existed still decodes — nil
+    /// means "not recorded", which is not the same claim as empty, and keeps the
+    /// check rather than silencing it.
+    public let entryVersions: [String]?
     /// For a version-templated changelog: whether the newest entry's version
     /// resolves, through the recipe's template, to the page this sweep actually
     /// requested. Only then is that version a reading of that page, and only then
@@ -156,7 +179,8 @@ public struct Finding: Codable, Sendable {
         failureKind: String? = nil, failureDetail: String? = nil,
         warnings: [String] = [], endpointHost: String, pattern: String? = nil,
         attempts: Int = 1, gatewayRetries: Int? = nil,
-        entryCount: Int? = nil, headingMatchesPage: Bool? = nil,
+        entryCount: Int? = nil, entryVersions: [String]? = nil,
+        headingMatchesPage: Bool? = nil,
         elapsedMs: Int = 0, bodySample: String? = nil
     ) {
         self.recipeID = recipeID
@@ -173,6 +197,11 @@ public struct Finding: Codable, Sendable {
         self.attempts = attempts
         self.gatewayRetries = gatewayRetries
         self.entryCount = entryCount
+        // Redacted like every other vendor-sourced string on this type — see the
+        // note above the initializer's other `Redactor` calls: scrubbing happens
+        // at construction so no path from a sweep to a report, an issue body or a
+        // model prompt can skip it.
+        self.entryVersions = entryVersions.map { $0.map { Redactor.text($0) } }
         self.headingMatchesPage = headingMatchesPage
         self.elapsedMs = elapsedMs
         // Condense before redacting: the changelog path hands over a whole raw

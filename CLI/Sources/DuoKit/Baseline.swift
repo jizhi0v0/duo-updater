@@ -282,6 +282,87 @@ public struct Baseline: Codable, Sendable {
         }
     }
 
+    /// Whether either reading carries a digit, so that asking which is newer
+    /// means anything at all.
+    ///
+    /// Plenty of changelog recipes deliberately capture a HEADLINE into the
+    /// `version` group, because the vendor simply doesn't number their release
+    /// notes: Figma's atom feed titles entries "Publish Weave tools to the Figma
+    /// Community", Notion's read the same way. `VersionComparator` still returns
+    /// an answer for two sentences, and that answer is confident nonsense — which
+    /// is how Figma filed #736 for a feed that had done nothing but publish a new
+    /// post, and would have filed one on every post after it.
+    ///
+    /// A near-identical guard already sits in `Verify.changelogLagComplaint`,
+    /// whose comment names Figma too — written for that check and never carried
+    /// across to this one.
+    ///
+    /// **CONTAINS a digit, not LEADS with one, and the difference is measured.**
+    /// The lag check can afford "leads with a digit" because it compares an entry
+    /// against a DETECTED version, which a probe always reads digit-first. Here
+    /// both sides are the same recipe's own readings, and plenty of those carry a
+    /// real, orderable version behind a prefix. Of the 394 rows in
+    /// `verify/baseline.json` on 2026-09-18, ten hold a `lastGoodVersion` that
+    /// does not lead with a digit, and only three are prose: Figma's post titles,
+    /// Cursor's `Sep 10, 2026`, and Kiro's empty string. The rest are versions —
+    /// `Build 4200` and `Build 2130` (Sublime Text, Sublime Merge),
+    /// `V16.6.0.32198` (SunLogin), `v2.0.11.1` (rpi-imager), `Xcode 27` — and a
+    /// slip from `Build 4200` to `Build 4100` is exactly what this check is for.
+    /// Leading-digit would have switched all six off silently.
+    ///
+    /// **EITHER, not BOTH, and that is what keeps it from silencing a real
+    /// break.** A recipe that doesn't number its notes is digitless on BOTH sides
+    /// every sweep — that is its normal state, and the one this exists for. A
+    /// recipe that reads versions and then produces a digitless string has
+    /// CHANGED shape, and the change is itself the signal: Blender's headings
+    /// resolve a page per version, and a sweep reading `LTS` where the last read
+    /// `5.1` is a pattern that has stopped finding versions
+    /// (`TemplatedChangelogVerifyTests.aVersionWithNoDigitKeepsTheCheck` pins it).
+    /// Requiring both sides to be numbered would have called that prose and gone
+    /// quiet.
+    ///
+    /// A digit-bearing headline ("3 new features") landing against another one is
+    /// still judged. That residue is deliberate: `pageStillCarries` covers the
+    /// same ground from the other side — a vendor publishing a new post keeps the
+    /// old one on the page — so the common case is caught twice, and a false
+    /// BACKWARDS is noise where a missed one is silence.
+    static func eitherIsNumbered(_ previous: String, _ current: String) -> Bool {
+        previous.contains(where: \.isNumber) || current.contains(where: \.isNumber)
+    }
+
+    /// Whether the page this sweep read still carries the version the baseline
+    /// holds — in which case the newest entry moving backwards is the vendor
+    /// publishing above it, not the pattern slipping below it.
+    ///
+    /// The check this guards assumes a page's newest entry never goes backwards
+    /// in version. That holds for a page listing one train, and fails for any
+    /// page ordered by DATE across two. TypeWhisper is the case in hand: macOS
+    /// stable and daily builds land in one list, so when 1.6.1 shipped it took
+    /// the top card from 1.7.0-daily.20260916 and the newest entry went from
+    /// 1.7.0-daily.20260912 to 1.6.1 (#698). Nothing was wrong — the recipe's own
+    /// comment already says a stable install sees daily entries above its
+    /// release. The complaint could never clear, because the page was right.
+    ///
+    /// **Still on the page is the whole discriminator, and it is not a weakening
+    /// of the check.** The failure this check exists for is a pattern that
+    /// started matching a different, older element; that pattern reads a section
+    /// BELOW the newest, so the version the baseline holds is exactly what falls
+    /// off the top and out of `entryVersions`. Published-above keeps it, one row
+    /// down. So the two cases part on presence, and a real slip still complains.
+    ///
+    /// Presence, not position: demanding the baseline's version sit at index 1
+    /// would re-break the same page, which took TWO new entries above it here.
+    /// `maxEntries` caps the list (20 for TypeWhisper), so a vendor publishing
+    /// more than a capful between sweeps pushes it off and the complaint comes
+    /// back — a false BACKWARDS is noise, a missed one is silence, the same trade
+    /// `readDifferentPages` makes.
+    ///
+    /// nil `entryVersions` — a probe row, or a `report.json` written before the
+    /// field existed — keeps the check, for the same reason.
+    static func pageStillCarries(_ finding: Finding, previous: String) -> Bool {
+        finding.entryVersions?.contains(previous) == true
+    }
+
     /// Whether a version-templated changelog's two versions were read off two
     /// different pages, so that an older one is not a regression.
     ///
@@ -363,7 +444,9 @@ public struct Baseline: Codable, Sendable {
             // (see `readDifferentPages`).
             if let previous = entry.lastGoodVersion, previous != version,
                !Self.ordersByLineage(finding),
+               Self.eitherIsNumbered(previous, version),
                !Self.readDifferentPages(finding, previous: previous, current: version),
+               !Self.pageStillCarries(finding, previous: previous),
                VersionComparator.isNewer(previous, than: version) {
                 complaints.append("version went BACKWARDS since the last sweep "
                     + "(\(previous) → \(version)) — the pattern may have started "

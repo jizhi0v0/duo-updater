@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import AppKit
+import CryptoKit
 import DuoUpdaterCore
 
 /// Load state for a recipe-backed changelog, driven by the model (not a view) so
@@ -16,6 +17,31 @@ enum ChangelogLoadState {
         if case .failed = self { return true }
         return false
     }
+}
+
+/// What kind of volume a backup disk sits on, measured rather than assumed —
+/// the backup destination picker used to draw every disk as an external drive,
+/// which was wrong the moment a network share or (in principle) the boot
+/// volume itself could be a destination.
+///
+/// `volumeIsRemovable` is not the test for `.external`: measured false for a
+/// real external USB SSD. `volumeIsInternal` is what actually separates the
+/// boot disk from one that was plugged in, and `volumeIsLocal` catches a
+/// network share, which is neither.
+enum BackupVolumeKind: Sendable {
+    case internalDisk, external, network
+}
+
+/// How to draw one disk in the destination picker: the real per-volume icon
+/// when one could be resolved (live or cached), and the volume kind for
+/// picking a sensible symbol when it could not.
+///
+/// Not `Sendable` — `NSImage` isn't (see `ImageMemoryCache`'s own doc comment)
+/// — so this is only ever built on the main actor, after the PNG bytes that
+/// back it have already crossed from the detached task that fetched them.
+struct BackupDiskAppearance {
+    let icon: NSImage?
+    let kind: BackupVolumeKind
 }
 
 /// Identity for one rendered changelog in the workbench. Some apps share a
@@ -6692,21 +6718,137 @@ final class AppListModel {
         await BackupStoreDiscovery.scanMountedVolumes()
     }
 
+    /// A disk's own appearance for the destination picker: the real, full-colour
+    /// icon macOS shows for that specific volume — a USB installer stick and a
+    /// Time Machine-branded SSD read as themselves, not as two identical grey
+    /// drive glyphs — plus the volume kind, for the one case a real icon can't
+    /// help: a disk that isn't plugged in right now has nothing to ask.
+    ///
+    /// `entries` pairs each row's cache key (a destination's `identity`, or a
+    /// discovered store's marker identity) with the path to probe when there is
+    /// a live volume to probe. The icon is cached to a small PNG under
+    /// `DuoStateDirectory.base`, keyed by that same identity rather than by
+    /// volume, so a disk keeps its face while it is unplugged — which is the
+    /// normal state for a disk in this list, not an edge case.
+    ///
+    /// Off the main thread: resolving a volume and reading/writing the icon
+    /// cache both touch the filesystem, and this page polls every second.
+    func backupDiskAppearances(
+        for entries: [(cacheKey: String, path: String?)]
+    ) async -> [String: BackupDiskAppearance] {
+        // Only `Data` crosses back from the detached task — `NSImage` isn't
+        // `Sendable` (see `BackupDiskAppearance`'s own doc comment), so it is
+        // decoded here, back on the main actor, from bytes that are.
+        let raw = await Task.detached(priority: .utility) {
+            () -> [String: (png: Data?, kind: BackupVolumeKind)] in
+            var out: [String: (png: Data?, kind: BackupVolumeKind)] = [:]
+            for entry in entries {
+                out[entry.cacheKey] = Self.diskAppearanceData(cacheKey: entry.cacheKey, path: entry.path)
+            }
+            return out
+        }.value
+        var appearances: [String: BackupDiskAppearance] = [:]
+        for (key, value) in raw {
+            let icon = value.png.flatMap(NSImage.init(data:))
+            icon?.size = NSSize(width: 32, height: 32)
+            appearances[key] = BackupDiskAppearance(icon: icon, kind: value.kind)
+        }
+        return appearances
+    }
+
+    private nonisolated static func diskAppearanceData(
+        cacheKey: String, path: String?
+    ) -> (png: Data?, kind: BackupVolumeKind) {
+        let cacheFile = iconCacheURL(for: cacheKey)
+        if let path {
+            let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [
+                .volumeURLKey, .volumeIsInternalKey, .volumeIsLocalKey,
+            ])
+            if let volume = values?.volume {
+                let png = pngData(for: NSWorkspace.shared.icon(forFile: volume.path))
+                cachePNGIfNeeded(png, at: cacheFile)
+                return (
+                    png,
+                    // `volumeIsRemovable` is not a usable test for "external" —
+                    // measured false for an external USB SSD. `volumeIsInternal`
+                    // is what actually distinguishes the boot disk from a plugged-in
+                    // one, and `volumeIsLocal` catches a network share that is
+                    // neither.
+                    values?.volumeIsInternal == true ? .internalDisk
+                        : values?.volumeIsLocal == false ? .network : .external)
+            }
+        }
+        // Not mounted right now: read back whatever was cached the last time it
+        // was, and guess "external" for the kind — the overwhelmingly likely
+        // answer, and unmeasurable for a disk that isn't there.
+        return ((try? Data(contentsOf: cacheFile)), .external)
+    }
+
+    private nonisolated static func pngData(for icon: NSImage) -> Data? {
+        guard let tiff = icon.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff)
+        else { return nil }
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    /// Write `png` to `cacheFile` only the first time it is seen. A stale icon
+    /// (the disk was reformatted, or renamed with a new custom icon) is not a
+    /// correctness problem worth chasing; fetching one from LaunchServices on
+    /// every row of every poll would be.
+    private nonisolated static func cachePNGIfNeeded(_ png: Data?, at cacheFile: URL) {
+        guard let png, !FileManager.default.fileExists(atPath: cacheFile.path) else { return }
+        try? FileManager.default.createDirectory(
+            at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? png.write(to: cacheFile, options: .atomic)
+    }
+
+    /// Hashed rather than the raw key: an `identity` is already filesystem-safe,
+    /// but the fallback key for a destination with none is a path, which is not.
+    private nonisolated static func iconCacheURL(for cacheKey: String) -> URL {
+        let digest = SHA256.hash(data: Data(cacheKey.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return DuoStateDirectory.base
+            .appendingPathComponent("DuoUpdater/BackupDiskIcons", isDirectory: true)
+            .appendingPathComponent("\(hex).png")
+    }
+
     /// How many backups are still waiting to move.
     func pendingBackupTransfers() async -> Int {
         await Task.detached(priority: .utility) { BackupStore.pendingTransferKeys().count }.value
     }
 
-    /// Adopt `url` as the backup disk: probe it, mark it, persist it, and start
-    /// moving anything already owed. Throws so the page can show why a folder
-    /// was refused rather than silently doing nothing.
+    /// What is owed to the destination right now, and how many bytes of it are
+    /// sitting in the outbox — the numbers a confirmation names before a
+    /// multi-gigabyte move starts.
+    ///
+    /// Meaningful only once the destination is already external:
+    /// `pendingTransferKeys()` reports nothing for a local one, by design. Every
+    /// caller here reads this right after `useBackupDisk`/`useBackupDisk(at:)`,
+    /// which switch the pointer but never drain — so the count already reflects
+    /// the disk about to receive these backups, and nothing has been queued yet.
+    func pendingOutboxSnapshot() async -> (keys: [String], bytes: Int64) {
+        await Task.detached(priority: .utility) {
+            let keys = BackupStore.pendingTransferKeys()
+            let bytes = BackupStore.sizesByStore()
+                .first { $0.store.location == .outbox }?.bytes ?? 0
+            return (keys, bytes)
+        }.value
+    }
+
+    /// Adopt `url` as the backup disk: probe it, mark it, persist it, and point
+    /// new backups there. Throws so the page can show why a folder was refused
+    /// rather than silently doing nothing.
+    ///
+    /// Does **not** drain — see ``beginDrainingBackups()``. It used to, and that
+    /// is exactly the bug this shape replaced: picking a folder started moving
+    /// every backup already on this Mac before anyone had said to. The caller
+    /// checks ``pendingOutboxSnapshot()`` and decides whether to drain, hold, or
+    /// (since only the pointer moved) revert.
     func useBackupDisk(at url: URL) async throws -> BackupDestinationProbe.Report {
         let (destination, report) = try await Task.detached(priority: .userInitiated) {
             try BackupDestinationProbe.adopt(directory: url)
         }.value
         prefs.backupDestination = destination
         await refreshBackupIndex()
-        startDrainingToTheDisk()
         return report
     }
 
@@ -6714,10 +6856,11 @@ final class AppListModel {
     /// it was verified when it was chosen, and re-verifying would mean failing
     /// here for a disk that is merely unplugged — which is a state this feature
     /// is built to sit in, not an error.
+    ///
+    /// Does not drain — see ``useBackupDisk(at:)``.
     func useBackupDisk(_ destination: BackupDestination) async {
         prefs.backupDestination = destination
         await refreshBackupIndex()
-        startDrainingToTheDisk()
     }
 
     /// Start moving what is owed, without waiting for it.
@@ -6729,8 +6872,48 @@ final class AppListModel {
     /// settings card for the whole transfer with nothing on screen saying why,
     /// and no way back to "on this Mac". The queue reports its own progress and
     /// survives the page being closed; the switch is finished when it returns.
-    private func startDrainingToTheDisk() {
+    ///
+    /// Public rather than folded into `useBackupDisk`/`useBackupDisk(at:)`
+    /// themselves: whether to call this at all is now a decision that belongs to
+    /// whoever just showed — or skipped — a confirmation about what is owed.
+    func beginDrainingBackups() {
         Task { await syncBackupsNow() }
+    }
+
+    /// Mark `keys` as staying here, so they stop being owed to whatever
+    /// destination is now configured.
+    ///
+    /// Used right after a disk switch when the "move backups?" confirmation said
+    /// to leave them: `keys` is the exact list the sheet was built with, captured
+    /// before the user could answer, not a fresh read at button-press time — a
+    /// backup saved while the sheet was open belongs to the new destination, not
+    /// to a decision made before it existed.
+    func holdBackupsOnThisMac(keys: [String]) async {
+        await Task.detached(priority: .utility) { BackupStore.holdOnThisMac(keys: keys) }.value
+        await refreshBackupIndex()
+    }
+
+    /// Undo a disk switch the user backed out of — "Cancel" on the move-backups
+    /// sheet. Nothing was queued or copied between the switch and this call
+    /// (see ``useBackupDisk(_:)``'s doc comment), so putting the preference back
+    /// is the whole of undoing it.
+    func revertBackupDestination(to previous: BackupDestination) async {
+        prefs.backupDestination = previous
+        await refreshBackupIndex()
+    }
+
+    /// How many backups are being kept here on purpose rather than owed to a
+    /// disk.
+    func heldBackupCount() async -> Int {
+        await Task.detached(priority: .utility) { BackupStore.heldOnThisMacKeys().count }.value
+    }
+
+    /// "Copy Now" on a store that is holding some backups back has to mean what
+    /// it says: release the hold before draining, or the button would silently
+    /// skip exactly the backups someone pressed it to move.
+    func releaseHeldBackupsAndSync() async {
+        await Task.detached(priority: .utility) { BackupStore.releaseHold() }.value
+        await syncBackupsNow()
     }
 
     /// Go back to keeping backups on this Mac. Copies already on the disk are

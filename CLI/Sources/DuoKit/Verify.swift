@@ -1086,9 +1086,10 @@ public enum Verify {
     /// Second opinion from Homebrew, for the vendor bundle ids the cask catalog
     /// can resolve (measured against the live catalog, not assumed — the
     /// bundle-id key is built from each cask's `uninstall: quit:` field, so
-    /// coverage is partial by construction: of the 138 vendor bundle ids in the
-    /// committed baseline on 2026-09-18, 60 resolve by that key and 17 more by
-    /// the `.app` fallback `liveCasks` adds — 43% to 55%).
+    /// coverage is partial by construction: of the 228 bundle ids the two
+    /// cross-checked registries held on 2026-09-18 — 138 vendor probes and 90
+    /// GitHub rules, no overlap — 88 resolve by that key and 39 more by the `.app`
+    /// fallback `liveCasks` adds, 39% to 55%).
     ///
     /// **Deliberately one-directional.** A cask *behind* our probe is the normal
     /// state of the world: brew lags, and `auto_updates true` casks lag
@@ -1143,16 +1144,16 @@ public enum Verify {
     /// including to a human writing an app audit: both audits for that family
     /// recorded `无 cask` for a source that was merely mis-keyed.
     ///
-    /// Measured over the 138 vendor bundle ids in the committed baseline on
-    /// 2026-09-18: 18 resolve no cask by id but do resolve one by filename, and
-    /// every one of the 18 is the right app (each cask's version agrees with ours
-    /// or trails it). One — Telegram — is ambiguous and `unambiguousCasks` drops
-    /// it: `Telegram.app` is installed by both `telegram` (12.10) and
+    /// Measured over all 228 cross-checked bundle ids against the live catalog on
+    /// 2026-09-18 — both registries, not just the vendor probes, since
+    /// `GitHubReleaseRule` is `BrewCrossChecked` too: 39 resolve no cask by id and
+    /// exactly one by filename. Ambiguous ones are already gone by then;
+    /// `Telegram.app` is installed by both `telegram` (12.10) and
     /// `telegram-desktop` (7.2.9), which are different apps on different
     /// numbering, and the wrong pick reads as a five-major lead. Running the real
-    /// `brewComplaint` over every baseline row against the live catalog, the 17
-    /// that remain raise exactly two complaints, and both are the WorkBuddy CN
-    /// rows this exists for.
+    /// `brewComplaint` over the 259 recipes and rules that have a baseline
+    /// version, the 39 raise exactly two complaints between them, and both are
+    /// the WorkBuddy CN rows this exists for.
     @Sendable static func liveCasks(bundleID: String) async -> [CaskFacts] {
         func facts(_ entries: [CaskEntry], byFilename: Bool) -> [CaskFacts] {
             entries.map {
@@ -1175,10 +1176,34 @@ public enum Verify {
     /// matching `WorkBuddy.app` because the catalog's filename index is
     /// case-folded. A guess, and treated as one — see `unambiguousCasks` and the
     /// note every complaint carries.
+    ///
+    /// Nil when that component is a QUALIFIER rather than a name. Plenty of ids
+    /// are `tld.vendor.name.channel` or `tld.vendor.name.platform`, and their last
+    /// component says nothing about which app it is: 35 of those 228 ids derive
+    /// `app.app`, `desktop.app`,
+    /// `beta.app`, `mac.app`, `client.app` or `dev.app` this way — `bot.cline.app`,
+    /// `com.google.Chrome.beta`, `dev.kiro.desktop`, `com.termius-beta.mac`. No
+    /// cask ships an artifact under any of those names today, which is the only
+    /// reason none of them resolves, and "no vendor has yet named a bundle
+    /// `App.app`" is not a property worth resting a filed issue on.
+    ///
+    /// The channel half of the list is `ReleaseChannel` itself rather than a
+    /// hand-copy, so a channel added there cannot quietly become a cask key.
     static func caskAppFilename(forBundleID bundleID: String) -> String? {
-        guard let last = bundleID.split(separator: ".").last, !last.isEmpty else { return nil }
+        guard let last = bundleID.split(separator: ".").last, !last.isEmpty,
+              !qualifierComponents.contains(last.lowercased())
+        else { return nil }
         return "\(last).app"
     }
+
+    /// Last components that qualify an app rather than name one: every release
+    /// channel, plus the platform and generic words vendors append.
+    /// Lowercased on both sides — `ReleaseChannel.guineaPig`'s raw value is
+    /// camel-cased, so a set built from the raw values verbatim would miss it
+    /// against a lowercased component and silently let one channel through.
+    static let qualifierComponents: Set<String> =
+        Set(ReleaseChannel.allCases.map { $0.rawValue.lowercased() })
+            .union(["app", "desktop", "mac", "macos", "osx", "ios", "client", "gui"])
 
     /// Casks found under a filename, kept only when they are ONE cask and its own
     /// channel siblings (`gimp` + `gimp@dev`, `emacs-app` + `@nightly` +
@@ -1196,8 +1221,15 @@ public enum Verify {
     /// that before acting on it — as well as see which cask to record in the
     /// app's audit, where "no cask" is what a key miss looks like.
     static func caskKeyNote(_ token: String, _ bundleID: String) -> String {
-        " (matched on the app filename, not on \(bundleID) — `\(token)` declares a "
-            + "different `uninstall quit:` id, so confirm the two are the same app)"
+        // NOT "declares a different id": the catalog's bundle-id index is built
+        // only from `uninstall: quit:`, and a cask with an `app` artifact and no
+        // `uninstall` stanza at all is the ordinary shape — 36 of the 39 casks the
+        // fallback reaches declare no quit id whatever, and only `mstystudio`,
+        // `headlamp` and `workbuddy-cn` declare a competing one. All this branch
+        // knows is that the cask does not claim OUR id.
+        " (matched on the app filename, not on \(bundleID) — `\(token)` does not "
+            + "declare that bundle id in its `uninstall quit:`, so confirm the two "
+            + "are the same app)"
     }
 
     /// Which of a bundle's casks speaks for this channel — by position in `tokens`.

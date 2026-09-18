@@ -41,10 +41,15 @@ cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我�
 
 **键已修（2026-09-18，#743）**：`Verify.liveCasks` 在 bundle id 查不到 cask 时，改用
 `<bundle id 最后一段>.app` 去查 cask 的 `app` stanza（`workbuddy.app` → `WorkBuddy.app`，
-目录索引是折叠大小写的），只在结果唯一时采信。对已提交 baseline 的 138 个 vendor bundle id
-实测：60 个按 id 命中，另有 17 个按文件名命中（55%），拿真 `brewComplaint` 跑一遍全部
-baseline 行只多出两条投诉，就是本 app 的 arm64/x64 两行。投诉句尾会注明「matched on the app
+目录索引是折叠大小写的），只在结果唯一时采信。对两个交叉检查注册表的全部 228 个 bundle id
+（138 个 vendor probe + 90 条 GitHub rule，无重叠）实测：88 个按 id 命中，另有 39 个按文件名
+命中（39% → 55%）；拿真 `brewComplaint` 跑一遍 259 条有 baseline 版本的 recipe/rule，
+只多出两条投诉，就是本 app 的 arm64/x64 两行。投诉句尾会注明「matched on the app
 filename」——这是**猜**出来的键，不是 cask 自己声明的。
+
+最后一段是**限定词**（`app` / `desktop` / `beta` / `mac` …）时不生成文件名：228 个里有 35 个
+长这样（`bot.cline.app` → `app.app`），今天没 cask 叫这名字纯属运气。渠道那半张表直接取
+`ReleaseChannel.allCases`，不手抄。
 
 ## Channel 详情
 

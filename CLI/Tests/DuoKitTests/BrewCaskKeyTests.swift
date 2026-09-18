@@ -23,6 +23,30 @@ import DuoUpdaterCore
         #expect(Verify.caskAppFilename(forBundleID: "") == nil)
     }
 
+    /// A last component that qualifies the app instead of naming it is no key at
+    /// all. 35 of the 228 cross-checked bundle ids end this way, and the only
+    /// reason none of them resolves today is that no cask happens to ship an
+    /// artifact called `App.app` — which is not a property to rest a filed issue
+    /// on.
+    @Test func aQualifierIsNotAName() {
+        for bundleID in ["bot.cline.app", "com.qoder.app", "dev.kiro.desktop",
+                         "app.yaak.desktop", "com.google.Chrome.beta",
+                         "com.google.Chrome.dev", "com.termius-beta.mac",
+                         "com.windscribe.client", "bot.cline.app.beta"] {
+            #expect(Verify.caskAppFilename(forBundleID: bundleID) == nil,
+                    "\(bundleID) derives a qualifier, not an app name")
+        }
+        // Every channel comes from `ReleaseChannel` rather than a hand-copy, so
+        // one added there cannot quietly become a cask key.
+        for channel in ReleaseChannel.allCases {
+            #expect(Verify.caskAppFilename(forBundleID: "com.example.app.\(channel.rawValue)") == nil)
+        }
+        // …and a real name still passes, including one that merely contains a
+        // qualifier.
+        #expect(Verify.caskAppFilename(forBundleID: "com.tinycast.tinycast") == "tinycast.app")
+        #expect(Verify.caskAppFilename(forBundleID: "com.foo.appflowy") == "appflowy.app")
+    }
+
     @Test func aFilenameTwoAppsShareIdentifiesNeither() {
         func facts(_ tokens: [String]) -> [CaskFacts] {
             tokens.map { CaskFacts(token: $0, version: "1.0", autoUpdates: false,
@@ -51,6 +75,15 @@ import DuoUpdaterCore
                                      autoUpdates: false, matchedByAppFilename: true)] }))
         #expect(complaint.contains("`workbuddy-cn`"))
         #expect(complaint.contains("matched on the app filename"))
+        // The note must not claim the cask declares a COMPETING id: the catalog's
+        // bundle-id index is built only from `uninstall: quit:`, and a cask with
+        // an `app` artifact and no `uninstall` stanza is the ordinary shape — 36
+        // of the 39 casks this fallback reaches declare no quit id at all. The
+        // branch knows only that the cask does not claim our id, and sending a
+        // reader to compare against a stanza that may not exist is a wrong
+        // instruction on a warning that reaches a filed issue.
+        #expect(!complaint.contains("declares a different"))
+        #expect(complaint.contains("does not declare that bundle id"))
         // A cask reached by the bundle id carries no such caveat.
         let declared = try #require(await Verify.brewComplaint(
             for: recipe, version: "5.3.14",

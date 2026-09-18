@@ -28646,13 +28646,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "There is 1 backup on this Mac, %@. New backups will be kept on the disk either way."
+                  "value": "There is 1 backup on this Mac, %2$@. New backups will be kept on the disk either way."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "There are %lld backups on this Mac, %@. New backups will be kept on the disk either way."
+                  "value": "There are %1$lld backups on this Mac, %2$@. New backups will be kept on the disk either way."
                 }
               }
             }
@@ -28664,13 +28664,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Auf diesem Mac befindet sich 1 Backup, %@. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                  "value": "Auf diesem Mac befindet sich 1 Backup, %2$@. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Auf diesem Mac befinden sich %lld Backups, %@. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                  "value": "Auf diesem Mac befinden sich %1$lld Backups, %2$@. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
                 }
               }
             }
@@ -28682,13 +28682,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Hay 1 copia de seguridad en este Mac, %@. Las copias nuevas se guardarán en el disco de todos modos."
+                  "value": "Hay 1 copia de seguridad en este Mac, %2$@. Las copias nuevas se guardarán en el disco de todos modos."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Hay %lld copias de seguridad en este Mac, %@. Las copias nuevas se guardarán en el disco de todos modos."
+                  "value": "Hay %1$lld copias de seguridad en este Mac, %2$@. Las copias nuevas se guardarán en el disco de todos modos."
                 }
               }
             }
@@ -28700,13 +28700,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Il y a 1 sauvegarde sur ce Mac, %@. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                  "value": "Il y a 1 sauvegarde sur ce Mac, %2$@. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Il y a %lld sauvegardes sur ce Mac, %@. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                  "value": "Il y a %1$lld sauvegardes sur ce Mac, %2$@. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
                 }
               }
             }
@@ -28718,7 +28718,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "この Mac には %lld 件のバックアップ（%@）があります。新しいバックアップはいずれにせよディスクに保存されます。"
+                  "value": "この Mac には %1$lld 件のバックアップ（%2$@）があります。新しいバックアップはいずれにせよディスクに保存されます。"
                 }
               }
             }
@@ -28730,25 +28730,25 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервная копия, %@. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервная копия, %2$@. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "few": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находятся %lld резервные копии, %@. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находятся %1$lld резервные копии, %2$@. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "many": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервных копий, %@. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервных копий, %2$@. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервных копий, %@. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервных копий, %2$@. Новые резервные копии в любом случае будут храниться на диске."
                 }
               }
             }
@@ -28760,7 +28760,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "此 Mac 上有 %lld 个备份，%@。无论如何，新备份都会保存在磁盘上。"
+                  "value": "此 Mac 上有 %1$lld 个备份，%2$@。无论如何，新备份都会保存在磁盘上。"
                 }
               }
             }
@@ -28777,13 +28777,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "There is 1 backup on this Mac, %@. The disk isn’t connected, so it would move as soon as it is. New backups will be kept on the disk either way."
+                  "value": "There is 1 backup on this Mac, %2$@. The disk isn’t connected, so it would move as soon as it is. New backups will be kept on the disk either way."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "There are %lld backups on this Mac, %@. The disk isn’t connected, so they would move as soon as it is. New backups will be kept on the disk either way."
+                  "value": "There are %1$lld backups on this Mac, %2$@. The disk isn’t connected, so they would move as soon as it is. New backups will be kept on the disk either way."
                 }
               }
             }
@@ -28795,13 +28795,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Auf diesem Mac befindet sich 1 Backup, %@. Die Festplatte ist nicht angeschlossen; das Backup wird verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                  "value": "Auf diesem Mac befindet sich 1 Backup, %2$@. Die Festplatte ist nicht angeschlossen; das Backup wird verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Auf diesem Mac befinden sich %lld Backups, %@. Die Festplatte ist nicht angeschlossen; sie werden verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                  "value": "Auf diesem Mac befinden sich %1$lld Backups, %2$@. Die Festplatte ist nicht angeschlossen; sie werden verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
                 }
               }
             }
@@ -28813,13 +28813,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Hay 1 copia de seguridad en este Mac, %@. El disco no está conectado, así que se moverá en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
+                  "value": "Hay 1 copia de seguridad en este Mac, %2$@. El disco no está conectado, así que se moverá en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Hay %lld copias de seguridad en este Mac, %@. El disco no está conectado, así que se moverán en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
+                  "value": "Hay %1$lld copias de seguridad en este Mac, %2$@. El disco no está conectado, así que se moverán en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
                 }
               }
             }
@@ -28831,13 +28831,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Il y a 1 sauvegarde sur ce Mac, %@. Le disque n’est pas connecté ; elle sera déplacée dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                  "value": "Il y a 1 sauvegarde sur ce Mac, %2$@. Le disque n’est pas connecté ; elle sera déplacée dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Il y a %lld sauvegardes sur ce Mac, %@. Le disque n’est pas connecté ; elles seront déplacées dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                  "value": "Il y a %1$lld sauvegardes sur ce Mac, %2$@. Le disque n’est pas connecté ; elles seront déplacées dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
                 }
               }
             }
@@ -28849,7 +28849,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "この Mac には %lld 件のバックアップ（%@）があります。ディスクが接続されていないため、接続され次第移動します。新しいバックアップはいずれにせよディスクに保存されます。"
+                  "value": "この Mac には %1$lld 件のバックアップ（%2$@）があります。ディスクが接続されていないため、接続され次第移動します。新しいバックアップはいずれにせよディスクに保存されます。"
                 }
               }
             }
@@ -28861,25 +28861,25 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервная копия, %@. Диск не подключён — она переместится, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервная копия, %2$@. Диск не подключён — она переместится, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "few": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находятся %lld резервные копии, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находятся %1$lld резервные копии, %2$@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "many": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервных копий, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервных копий, %2$@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "На этом Mac находится %lld резервных копий, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                  "value": "На этом Mac находится %1$lld резервных копий, %2$@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
                 }
               }
             }
@@ -28891,7 +28891,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "此 Mac 上有 %lld 个备份，%@。磁盘未连接，接上后会立即搬过去。无论如何，新备份都会保存在磁盘上。"
+                  "value": "此 Mac 上有 %1$lld 个备份，%2$@。磁盘未连接，接上后会立即搬过去。无论如何，新备份都会保存在磁盘上。"
                 }
               }
             }

@@ -1971,10 +1971,16 @@ final class AppListModel {
     /// notes for that version at all. CleanShot's 5.0 was offered by the appcast
     /// six minutes before the vendor published its notes, so the fetch stored the
     /// 4.8.10-and-older page under the key `5.0`, and from then on: prewarm hit the
-    /// disk, marked the state `.loaded`, and `ensureChangelogLoading` returned at
-    /// its first line every time the user opened the app. The pane showed "5.0" over
-    /// 4.8.10's notes, permanently, with nothing to re-read it. This set is what
-    /// makes a disk hit provisional until the network has confirmed it once.
+    /// disk and marked the state `.loaded`. The pane showed "5.0" over 4.8.10's
+    /// notes, permanently, with nothing to re-read it. This set is what makes a
+    /// disk hit provisional until the network has confirmed it once.
+    ///
+    /// It only works while somebody asks. `ensureChangelogLoading` is called from
+    /// the changelog pane's `.onAppear` in BOTH states it can be in — `.loaded` as
+    /// well as `.loading` (`WorkbenchWindowView`). It was `.loading` alone until
+    /// 2026-09-19, which is a state a prewarmed key never reaches: the debt was
+    /// recorded and never collected, and CleanShot 5.0.1 repeated 5.0's failure
+    /// three weeks later.
     @ObservationIgnored private var changelogRevalidated: Set<ChangelogCacheKey> = []
 
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
@@ -2133,13 +2139,20 @@ final class AppListModel {
     /// workbench renders the *in-memory* `changelogState`; the disk cache alone
     /// isn't enough, because the view still has to round-trip to disk on first
     /// appear (showing the spinner meanwhile). So this fills `changelogState`
-    /// directly — disk-first, fetching only when disk has nothing for this version.
+    /// directly — disk-first, going to the network when disk has nothing for this
+    /// version, or has an entry that asks to be read again.
     ///
-    /// Because a released version's notes are immutable, a disk hit needs no network
-    /// at all; steady-state this touches the wire only for genuinely new releases
-    /// (the periodic check thus doubles as a near-free changelog pre-warm). Runs for
-    /// every recipe-backed app, not just those with updates, since the user browses
-    /// notes for up-to-date apps too. On failure it leaves the key absent so the
+    /// Because a released version's notes are immutable, a disk hit that carries its
+    /// own version needs no network at all; steady-state this touches the wire for
+    /// genuinely new releases and for the entries `ChangelogDiskCache` hands back
+    /// with `needsReread` — a page that had not published the version it is filed
+    /// under, once it has had `provisionalWindow` to catch up. That second class is
+    /// a minority of the cache but not a rounding error (its own doc comment sizes
+    /// it), so the periodic check is a cheap changelog pre-warm rather than a free
+    /// one. A re-read is painted on top of the disk copy, never instead of it, so a
+    /// machine with no network still gets the notes it had. Runs for every
+    /// recipe-backed app, not just those with updates, since the user browses notes
+    /// for up-to-date apps too. On failure it leaves the key absent so the
     /// open path retries rather than getting stuck on a stale spinner / web fallback.
     /// Bounds how many changelog prewarms hit the network at once (a cold cache would
     /// otherwise fire one fetch per recipe-backed installed app simultaneously).

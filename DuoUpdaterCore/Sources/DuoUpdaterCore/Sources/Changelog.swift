@@ -149,10 +149,15 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// cost) and `AppListModel`'s revalidation debt is the other.
     ///
     /// Permissive by construction: true unless the page can be *shown* to be
-    /// behind. Versions that aren't version-shaped are not judged at all — Figma
-    /// and Notion title their entries "AI credit user limits…", not "3.2.1", and
-    /// Cursor's are dates — and neither is a page whose newest entry is at or
-    /// ahead of `version`. A vendor who writes a version with fewer components
+    /// behind. Versions that aren't version-shaped are not judged at all — Figma's
+    /// feed is product announcements with no per-entry app version, so the post
+    /// title fills `version` (`com-figma-Desktop.swift`), Cursor dates its entries
+    /// (`version` reads `Sep 10, 2026`, with the prose in `title`), and the version
+    /// an Xcode entry is filed under is `27.2 beta 1 (27B5019j)` — and neither is a
+    /// page whose newest entry is at or ahead of `version`. Notion is NOT such a
+    /// vendor, though its page recipe once was: the active `.notionPageChunk`
+    /// recipe produces `7.34.0`-shaped versions, and it is one of the apps that
+    /// does go provisional. A vendor who writes a version with fewer components
     /// than the build carries (`2.4` for `2.4.0.0`) still compares equal, since
     /// `VersionComparator` reads a missing trailing component as zero.
     ///

@@ -17,7 +17,9 @@ import Foundation
 /// page has to have *published* the version it is being filed under. A vendor's
 /// feed and their changelog page go out separately, and the feed goes first —
 /// CleanShot X twice, from one appcast (5.0 on 2026-09-01, the page 6 minutes
-/// behind our fetch; 5.0.1 on 2026-09-18, 9 minutes). Filed as immutable, such a
+/// behind our fetch; 5.0.1 on 2026-09-18, 9 minutes). Both timings are our
+/// request time against the page's own `last-modified`, and both are written
+/// down in docs/app-audits/pl-maketheweb-cleanshotx.md. Filed as immutable, such a
 /// snapshot is frozen for good: the key never changes again, so no later fetch is
 /// ever made for it, and the window shows the new version's number over the
 /// previous version's notes with nothing logged and nothing to retry. Entries like

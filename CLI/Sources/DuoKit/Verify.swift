@@ -1484,10 +1484,15 @@ public enum Verify {
         // `release.json` the probe reads went back to 5.24.2026081301 (Homebrew's
         // cask agrees with the probe). Naming only the frozen-probe reading would
         // send whoever picks that up looking for a pattern that is fine.
+        //
+        // "stopped offering", not "pulled": HBuilderX's 5.26 dmg is still on the
+        // CDN and still answers — only the config that points at it went back. A
+        // reader told the release was withdrawn would check the artifact, find it,
+        // and conclude the warning was wrong.
         return "newest changelog entry (\(entry)) reads AHEAD of every probe row "
             + "(\(listed)) — either the probe is stuck on a stale element, which no "
             + "history check can see because a consistently wrong reading never moves, "
-            + "or the vendor pulled a release its notes still carry"
+            + "or the vendor stopped offering a release its notes still carry"
     }
 
     /// Whether `entry` is a whole release ahead of `probe`, by the same two

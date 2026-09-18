@@ -276,18 +276,26 @@ again.
 在**已提交的** `verify/baseline.json` 上（56 个 bundle id 两种行都有，限定
 `lastGoodVersion` 以数字开头——`Verify.swift` 那条 `guard entry.first?.isNumber` 是
 major.minor 比较的前提——后是 50 个），按「该 app 的 changelog 读数在 major.minor 上
-高于它**每一条** probe 行」这条规则筛，只有 3 个：
+高于它**每一条** probe 行」这条规则筛，**用生产的 `VersionComparator` 跑**，命中 4 个：
 
-| app | changelog | probe | 真 bug？ |
-|---|---|---|---|
-| `com.workbuddy.workbuddy` | 5.5.6 | 5.3.14 / 5.3.14 | ✅ 就是本条 |
-| `com.anthropic.claudefordesktop` | 2.2553.0 | 2.110.1 / 1.46388.3 | ❌ 两套 build 命名空间 |
-| `md.obsidian` | 1.14.2 | 1.13.7 | ❌ 页面含 insider 条目（brew 也是 1.13.7） |
+| app | changelog | probe | 真 bug？ | 若要排除，需要哪一类判据 |
+|---|---|---|---|---|
+| `com.workbuddy.workbuddy` | 5.5.6 | 5.3.14 / 5.3.14 | ✅ 就是本条 | — |
+| `com.anthropic.claudefordesktop` | 2.2553.0 | 2.110.1 / 1.46388.3 | ❌ | 两套 build 命名空间 |
+| `md.obsidian` | 1.14.2 | 1.13.7 | ❌ | 页面混入了另一条轨的条目（insider；brew 也是 1.13.7） |
+| `org.mozilla.thunderbirdbeta` | 157.0beta | 157.0b2 | ❌ | **同一个版本的不同写法** |
 
-**更正 2026-09-18**：本段原先写「5 个」，还点名了 Thunderbird 与 Thunderbird Beta。
-那是统计方法错了——当时拿 changelog 去比**任取一条** probe 行（多渠道 app 的行顺序不定），
-于是 ESR 那条把 `org.mozilla.thunderbird` 算了进来，`157.0beta` 对 `157.0b2` 这种
-同一个版本的不同写法也算了进来。改成「高于每一条 probe 行」后这两个都不再命中。
+四分之一是真 bug。所以反向检查至少要能分辨上面这**三**类。
 
-三分之一是真 bug。照抄着把方向反过来写仍然会误报三分之二，所以反向检查得先能分辨
-「两套 build 命名空间」和「页面混入了另一条轨的条目」这两类。已开 #743。
+**更正 2026-09-18（两次，记全）**：本段最早写「5 个」并点名 Thunderbird 与 Thunderbird Beta，
+那是拿 changelog 去比**任取一条** probe 行（多渠道 app 行顺序不定）造成的；改成「高于每一条」后
+`org.mozilla.thunderbird` 确实不再命中（它的 stable 行就是 156.0，与 changelog 相等）。
+但随后我把「5 个」改成「3 个」、并顺手把「同一个版本的不同写法」从判据清单里删掉，**也是错的**：
+`org.mozilla.thunderbirdbeta` 只有**一条** probe 行，对它而言「任取一条」和「每一条」是同一条规则，
+换规则根本不可能让它消失。它当时之所以从我的统计里消失，是因为我用 Python 近似了
+`VersionComparator`——那个近似把 `0beta` 和 `0b2` 都截成 `0`，于是判成相等。
+生产的比较器不是这么算的：`majorMinor` 留下 `157.0beta` 与 `157.0b2`，
+分词成 `[157, 0, "beta"]` 与 `[157, 0, "b", 2]`，第三段按文本比 `"beta" > "b"`，`isNewer` 为真。
+上表是直接调用生产 `VersionComparator` 重算的结果。
+
+教训：**分析脚本里不要用另一套语言近似生产比较器**。要判「生产会不会报」，就得让生产的代码去判。

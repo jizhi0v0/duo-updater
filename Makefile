@@ -23,6 +23,7 @@ build:
 # package does not throw the cache away. That holds while all three packages
 # resolve the same dependency pins.
 test:
+	@scripts/sweep_test_prefs.sh
 	python3 scripts/test_appcast_edit.py
 	python3 scripts/test_publish_release.py
 	python3 scripts/test_site_floor.py
@@ -45,6 +46,7 @@ test:
 	python3 scripts/check_skill_docs.py
 	python3 scripts/check_prose_claims.py
 	python3 scripts/check_offpool.py
+	@scripts/sweep_test_prefs.sh
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

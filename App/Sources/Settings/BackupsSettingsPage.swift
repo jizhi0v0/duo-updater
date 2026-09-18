@@ -371,6 +371,18 @@ struct BackupsSettingsPage: View {
         case .local:
             return nil
         case .known(let destination):
+            // What the disk is doing beats what it is. Choosing a disk starts a
+            // transfer that can run for minutes, and a row that only ever said
+            // "Connected" gave the press no visible consequence at all — the one
+            // thing this page is not allowed to do.
+            if isSelected(option) {
+                if case .copying(let name, _, _) = transferState {
+                    return String(localized: "Copying \(name)…")
+                }
+                if pendingCount > 0 {
+                    return String(localized: "Waiting to be copied: \(pendingCount)")
+                }
+            }
             switch availability(for: destination) {
             case .ready:             return String(localized: "Connected")
             case .volumeNotMounted:  return String(localized: "Isn’t connected")

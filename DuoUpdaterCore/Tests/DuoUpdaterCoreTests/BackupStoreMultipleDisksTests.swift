@@ -275,6 +275,84 @@ import Testing
         }
     }
 
+    // MARK: - Holding backups on this Mac
+
+    /// Choosing a disk asks whether the backups already here should follow.
+    /// Saying no has to survive the next launch, the next disk plug and the next
+    /// install — all of which drain the queue — so it is recorded per backup
+    /// rather than held in memory.
+    @Test func aHeldBackupIsNotOwedToTheDisk() async throws {
+        try await withTwoDisks { outbox, _, _ in
+            let apps = try appsDirectory(beside: outbox)
+            for key in ["stays", "moves"] {
+                let app = try makeApp(named: "\(key).app", in: apps, marker: key)
+                try await BackupStore.save(
+                    appPath: app, key: key, version: "1.0", bundleID: "com.example.\(key)")
+            }
+
+            BackupStore.holdOnThisMac(keys: ["stays"])
+
+            #expect(BackupStore.pendingTransferKeys() == ["moves"])
+            #expect(BackupStore.heldOnThisMacKeys() == ["stays"])
+            // Still a backup in every other respect — held is about where it
+            // lives, not about whether it can roll anything back.
+            #expect(BackupStore.backup(forKey: "stays")?.location == .outbox)
+        }
+    }
+
+    /// The promise the sheet makes: "from now on, new backups go to the disk".
+    /// A hold that leaked onto later backups would quietly turn the disk off.
+    @Test func aBackupTakenAfterTheHoldIsStillOwed() async throws {
+        try await withTwoDisks { outbox, _, _ in
+            let apps = try appsDirectory(beside: outbox)
+            let first = try makeApp(named: "first.app", in: apps, marker: "1")
+            try await BackupStore.save(
+                appPath: first, key: "first", version: "1.0", bundleID: "com.example.first")
+            BackupStore.holdOnThisMac(keys: ["first"])
+
+            let later = try makeApp(named: "later.app", in: apps, marker: "2")
+            try await BackupStore.save(
+                appPath: later, key: "later", version: "1.0", bundleID: "com.example.later")
+
+            #expect(BackupStore.pendingTransferKeys() == ["later"])
+        }
+    }
+
+    @Test func releasingAHoldOwesItAgain() async throws {
+        try await withTwoDisks { outbox, _, _ in
+            let apps = try appsDirectory(beside: outbox)
+            let app = try makeApp(named: "held.app", in: apps, marker: "v1")
+            try await BackupStore.save(
+                appPath: app, key: "held", version: "1.0", bundleID: "com.example.held")
+
+            BackupStore.holdOnThisMac(keys: ["held"])
+            #expect(BackupStore.pendingTransferKeys().isEmpty)
+
+            BackupStore.releaseHold()
+            #expect(BackupStore.pendingTransferKeys() == ["held"])
+            #expect(BackupStore.heldOnThisMacKeys().isEmpty)
+        }
+    }
+
+    /// Holding rewrites the sidecar, which is also where the fingerprint that
+    /// guards a rollback lives. Losing it would turn a held backup into one that
+    /// cannot be restored — the exact opposite of keeping it.
+    @Test func holdingABackupPreservesWhatTheRestoreChecks() async throws {
+        try await withTwoDisks { outbox, _, _ in
+            let apps = try appsDirectory(beside: outbox)
+            let app = try makeApp(named: "held.app", in: apps, marker: "v1")
+            try await BackupStore.save(
+                appPath: app, key: "held", version: "1.0", bundleID: "com.example.held")
+
+            BackupStore.holdOnThisMac(keys: ["held"])
+
+            try makeApp(named: "held.app", in: apps, marker: "v2")
+            let version = try await BackupStore.restore(forKey: "held", over: app)
+            #expect(version == "1.0")
+            #expect(marker(of: app) == "v1")
+        }
+    }
+
     // MARK: - Sizes
 
     @Test func sizesAreReportedPerStore() async throws {

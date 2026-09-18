@@ -417,6 +417,16 @@ public enum BackupStore {
         /// moved to the destination. Absent means "not waiting", which is the
         /// right reading for every backup written before transfers existed.
         var pendingTransfer: Bool?
+        /// Set when the user chose a backup disk and said to leave this copy
+        /// where it is. Absent means "move it when there is somewhere to move
+        /// it to", which is what every backup means by default.
+        ///
+        /// Note what this is **not**: a flag written at save time recording
+        /// whether a destination existed then. That was tried and was wrong in
+        /// the case that matters — see ``pendingTransferKeys()``. This is
+        /// written only when someone is looking at a sheet naming these exact
+        /// backups and presses the button that says to leave them.
+        var keepOnThisMac: Bool?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -724,9 +734,47 @@ public enum BackupStore {
         guard destination.kind == .external else { return [] }
         return storedKeys(in: outboxRoot).filter { key in
             let dir = outboxRoot.appendingPathComponent(key, isDirectory: true)
-            guard let meta = readMeta(in: dir) else { return false }
+            guard let meta = readMeta(in: dir), meta.keepOnThisMac != true else { return false }
             return FileManager.default.fileExists(
                 atPath: dir.appendingPathComponent(meta.bundleName).path)
+        }
+    }
+
+    /// Backups held on this Mac by an explicit choice, rather than owed to a disk.
+    public static func heldOnThisMacKeys() -> [String] {
+        storedKeys(in: outboxRoot).filter { key in
+            readMeta(in: outboxRoot.appendingPathComponent(key, isDirectory: true))?
+                .keepOnThisMac == true
+        }
+    }
+
+    /// Mark the outbox copies of `keys` as staying here.
+    ///
+    /// Takes explicit keys rather than "everything in the outbox now" so the set
+    /// the user was shown is the set that is held: a backup written between the
+    /// sheet being drawn and the button being pressed belongs to the new
+    /// destination, not to a decision made before it existed.
+    public static func holdOnThisMac(keys: [String]) {
+        setHold(true, on: keys)
+    }
+
+    /// Undo ``holdOnThisMac(keys:)``, so the queue owes them again. Passing nil
+    /// releases every held backup, which is what "copy everything now" means.
+    public static func releaseHold(keys: [String]? = nil) {
+        setHold(false, on: keys ?? heldOnThisMacKeys())
+    }
+
+    private static func setHold(_ held: Bool, on keys: [String]) {
+        for key in keys {
+            let dir = outboxRoot.appendingPathComponent(key, isDirectory: true)
+            guard var meta = readMeta(in: dir) else { continue }
+            // Cleared rather than set to false: absent is already the default
+            // reading, and a sidecar that says nothing is one fewer field for a
+            // later reader to wonder about.
+            meta.keepOnThisMac = held ? true : nil
+            guard let data = try? JSONEncoder().encode(meta) else { continue }
+            try? data.write(
+                to: dir.appendingPathComponent("backup.json"), options: .atomic)
         }
     }
 

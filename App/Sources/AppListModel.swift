@@ -6705,8 +6705,8 @@ final class AppListModel {
             try BackupDestinationProbe.adopt(directory: url)
         }.value
         prefs.backupDestination = destination
-        await syncBackupsNow()
         await refreshBackupIndex()
+        startDrainingToTheDisk()
         return report
     }
 
@@ -6716,8 +6716,21 @@ final class AppListModel {
     /// is built to sit in, not an error.
     func useBackupDisk(_ destination: BackupDestination) async {
         prefs.backupDestination = destination
-        await syncBackupsNow()
         await refreshBackupIndex()
+        startDrainingToTheDisk()
+    }
+
+    /// Start moving what is owed, without waiting for it.
+    ///
+    /// Choosing a disk is instantaneous — a preference and a reconfigured store.
+    /// Draining what is already owed is not: it packs whole app bundles, so a
+    /// library with a few gigabytes in it takes minutes. Awaiting it here made
+    /// the caller's "busy" state cover both, which greyed out every row of the
+    /// settings card for the whole transfer with nothing on screen saying why,
+    /// and no way back to "on this Mac". The queue reports its own progress and
+    /// survives the page being closed; the switch is finished when it returns.
+    private func startDrainingToTheDisk() {
+        Task { await syncBackupsNow() }
     }
 
     /// Go back to keeping backups on this Mac. Copies already on the disk are

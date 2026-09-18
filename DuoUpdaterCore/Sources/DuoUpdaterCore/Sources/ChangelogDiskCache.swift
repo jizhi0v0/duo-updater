@@ -21,10 +21,13 @@ import Foundation
 /// snapshot is frozen for good: the key never changes again, so no later fetch is
 /// ever made for it, and the window shows the new version's number over the
 /// previous version's notes with nothing logged and nothing to retry. Entries like
-/// that are stored, but as PROVISIONAL — see ``provisionalWindow``.
+/// that are stored and served, but as PROVISIONAL: past ``provisionalWindow`` the
+/// hit carries `needsReread`, which is a request for a fetch and never a reason to
+/// withhold the notes — see ``Hit``.
 ///
-/// `fetchedAt` is read back for one thing only: ``provisionalWindow``, the age
-/// limit on an entry whose page did not carry its own key version. It is NOT a
+/// `fetchedAt` is read back for one thing only: ``provisionalWindow``, the age at
+/// which an entry whose page did not carry its own key version asks to be read
+/// again. It is NOT a
 /// freshness policy for the cache at large — an entry whose page does carry its
 /// version never expires, however old, and the invalidation problem an age policy
 /// would otherwise be reached for is `parserGeneration`'s job (below), which is
@@ -92,16 +95,22 @@ public actor ChangelogDiskCache {
         let parserGeneration: Int
     }
 
-    /// How long an entry whose page did NOT carry its own key version may be
-    /// served before it has to be re-read.
+    /// How long an entry whose page did NOT carry its own key version is taken at
+    /// face value before a hit starts asking for a re-read.
     ///
     /// Such an entry is a snapshot of a page that had not published this version
     /// yet (see the type's doc comment). It is still the best notes we have — the
     /// previous release's, which is what the vendor's page was showing at that
     /// moment — so it is stored and painted rather than thrown away; what it must
-    /// not do is outlive the vendor catching up. Past this window ``get`` answers
-    /// nil, the next pre-warm or open re-fetches, and the rewrite either carries
-    /// the version (immutable from then on) or renews the window.
+    /// not do is outlive the vendor catching up. Past this window the entry is
+    /// still returned and still painted, with ``Hit/needsReread`` set: the caller
+    /// fetches *as well*, and a fetch that fails changes nothing on screen. An
+    /// age that withheld the notes instead would make a cold offline launch
+    /// strictly worse than no window at all, for the ~quarter of entries this
+    /// applies to — most of which (a vendor who numbers notes coarsely) were never
+    /// behind in the first place. A fetch that lands rewrites the entry, which
+    /// either carries the version now (immutable from then on) or renews the
+    /// window.
     ///
     /// Six hours is picked against the cost of being wrong in each direction. Too
     /// long and the user reads the previous release's notes under the new
@@ -139,16 +148,32 @@ public actor ChangelogDiskCache {
 
     // MARK: - Public interface
 
+    /// What the cache holds for one key: the notes, and whether the page they came
+    /// from has anything left to prove.
+    public struct Hit: Sendable, Equatable {
+        public let changelog: Changelog
+        /// True when this entry is provisional — its page never carried
+        /// `key.version` — and older than ``provisionalWindow``.
+        ///
+        /// A request for a fetch, not a reason to hold the notes back. The caller
+        /// paints `changelog` either way and reads the page in addition; if that
+        /// read fails, what is on screen is what was already the best available.
+        public let needsReread: Bool
+    }
+
     /// The cached changelog for `key`, or nil if we've never stored this exact
-    /// version's notes UNDER THE RUNNING BUILD'S PARSER GENERATION — or if what we
-    /// stored is provisional and has aged past ``provisionalWindow``. Checks the
-    /// in-memory mirror first (which — see `set` and the generation check below —
-    /// can only ever hold current-generation entries, so it needs no check of its
-    /// own), then the file, where a generation mismatch is a miss: same treatment
-    /// as a missing or corrupt file, never written into `memory`. See
-    /// `Changelog.parserGeneration`'s doc comment for why this exists.
-    public func get(for key: Key) -> Changelog? {
-        if let hit = memory[key] { return hit }
+    /// version's notes UNDER THE RUNNING BUILD'S PARSER GENERATION. The age of a
+    /// provisional entry is reported through ``Hit/needsReread``, never by
+    /// withholding it — see ``provisionalWindow``.
+    ///
+    /// Checks the in-memory mirror first (which — see `set` and the generation
+    /// check below — can only ever hold current-generation entries that carry
+    /// their own version, so it needs no check of its own), then the file, where a
+    /// generation mismatch is a miss: same treatment as a missing or corrupt file,
+    /// never written into `memory`. See `Changelog.parserGeneration`'s doc comment
+    /// for why that exists.
+    public func hit(for key: Key) -> Hit? {
+        if let mirrored = memory[key] { return Hit(changelog: mirrored, needsReread: false) }
         guard let data = try? Data(contentsOf: fileURL(for: key)),
               let stored = try? JSONDecoder().decode(Stored.self, from: data),
               stored.parserGeneration == Changelog.parserGeneration
@@ -156,17 +181,19 @@ public actor ChangelogDiskCache {
         guard stored.changelog.carries(version: key.version) else {
             // Provisional, so it answers from the file every time and never enters
             // the mirror: the mirror has no age of its own, and this app is left
-            // running for days — mirrored, a provisional entry would be pinned for
-            // the rest of the session and the window would only ever expire across
-            // a relaunch. Decoding one small file per pre-warm or open is what that
-            // costs.
-            guard Date().timeIntervalSince(stored.fetchedAt) < Self.provisionalWindow
-            else { return nil }
-            return stored.changelog
+            // running for days — mirrored, a provisional entry would read as fresh
+            // for the rest of the session and the window would only ever pass
+            // across a relaunch. Decoding one small file per pre-warm or open is
+            // what that costs.
+            let aged = Date().timeIntervalSince(stored.fetchedAt) >= Self.provisionalWindow
+            return Hit(changelog: stored.changelog, needsReread: aged)
         }
         memory[key] = stored.changelog
-        return stored.changelog
+        return Hit(changelog: stored.changelog, needsReread: false)
     }
+
+    /// The notes alone, for a caller with nothing to do about a re-read.
+    public func get(for key: Key) -> Changelog? { hit(for: key)?.changelog }
 
     /// Persist `changelog` as the notes for `key`, stamped with the running build's
     /// `Changelog.parserGeneration`, and drop any older-version files for the same

@@ -151,35 +151,44 @@ struct ChangelogDiskCacheTests {
     }
 
     /// Inside the window it is still the best notes anyone has — the release the
-    /// vendor's page was actually showing — so it is served rather than dropped.
+    /// vendor's page was actually showing — so it is served, and asks for nothing.
     @Test func provisionalEntryIsServedWhileFresh() async {
         await withScratchDirectory { dir in
             let cache = ChangelogDiskCache(directory: dir)
             await cache.set(Self.provisional, for: Self.provisionalKey)
-            #expect(await cache.get(for: Self.provisionalKey) == Self.provisional)
+            let hit = await cache.hit(for: Self.provisionalKey)
+            #expect(hit?.changelog == Self.provisional)
+            #expect(hit?.needsReread == false)
         }
     }
 
-    /// Past the window it is a miss, so the next pre-warm or open re-reads the
-    /// page and the user gets 5.0.1's notes once the vendor publishes them.
-    /// Without this the entry is frozen for good: the key never changes again.
+    /// Past the window it asks to be read again, so the next pre-warm or open goes
+    /// to the page and the user gets 5.0.1's notes once the vendor publishes them.
+    /// Without that the entry is frozen for good: the key never changes again.
+    ///
+    /// It is still SERVED, which is the other half. A read that asks for a fetch
+    /// and withholds the notes until it lands makes an offline launch worse than
+    /// no window at all — for a quarter of the cache, most of which was never
+    /// stale, only numbered more coarsely than the build.
     ///
     /// Same cache object as the write, deliberately — an entry that never carried
-    /// its key version must not be pinned in the in-memory mirror either, or the
-    /// window would only expire across a relaunch and this app is left running for
-    /// days.
-    @Test func provisionalEntryAgesOutOfTheCache() async throws {
+    /// its key version must not be pinned in the in-memory mirror either, or it
+    /// would read as fresh for the rest of the session and the window would only
+    /// ever pass across a relaunch. This app is left running for days.
+    @Test func anAgedProvisionalEntryIsServedAndAsksForAReread() async throws {
         try await withScratchDirectory { dir in
             let cache = ChangelogDiskCache(directory: dir)
             await cache.set(Self.provisional, for: Self.provisionalKey)
             try backdate(try onDiskFileURL(in: dir), by: ChangelogDiskCache.provisionalWindow + 60)
-            #expect(await cache.get(for: Self.provisionalKey) == nil)
+            let hit = await cache.hit(for: Self.provisionalKey)
+            #expect(hit?.changelog == Self.provisional, "an aged entry is still the best notes we have")
+            #expect(hit?.needsReread == true)
         }
     }
 
     /// The window applies ONLY to a page that never carried the version. Notes
     /// that do carry it are immutable, which is the whole point of keying on the
-    /// version — no age makes them wrong.
+    /// version — no age makes them wrong, and none of them ever asks for a fetch.
     @Test func anEntryCarryingItsVersionNeverAgesOut() async throws {
         try await withScratchDirectory { dir in
             let cache = ChangelogDiskCache(directory: dir)
@@ -188,7 +197,9 @@ struct ChangelogDiskCacheTests {
             await cache.set(Self.provisional, for: key)
             try backdate(try onDiskFileURL(in: dir), by: 365 * 24 * 3600)
             let reopened = ChangelogDiskCache(directory: dir)
-            #expect(await reopened.get(for: key) == Self.provisional)
+            let hit = await reopened.hit(for: key)
+            #expect(hit?.changelog == Self.provisional)
+            #expect(hit?.needsReread == false)
         }
     }
 

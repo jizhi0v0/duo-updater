@@ -2155,20 +2155,30 @@ final class AppListModel {
             let feedPage = key.feedPage
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
-                var changelog = await ChangelogService.diskCached(
+                let hit = await ChangelogService.diskHit(
                     recipe, version: targetVersion, feedPage: feedPage)
+                var changelog = hit?.changelog
                 var fetched = false
-                if changelog == nil {
+                // Nothing on disk, or an entry whose page never carried this
+                // version and has had `provisionalWindow` to catch up. The second
+                // case still PAINTS what is on disk — the fetch is on top of it, so
+                // a machine that is offline keeps the notes it had rather than
+                // dropping to the web-view fallback.
+                if changelog == nil || hit?.needsReread == true {
                     // Cap concurrent network prewarms: a cold cache would otherwise
-                    // fan out one fetch per recipe-backed app at once. Disk hits above
-                    // skip the gate; only genuine network fetches queue through it.
+                    // fan out one fetch per recipe-backed app at once. Disk hits that
+                    // owe nothing skip the gate; only genuine network fetches queue
+                    // through it.
                     await Self.prewarmNetworkGate.wait()
-                    changelog = await RequestAttribution.withApp(result.app.id) {
+                    let fresh = await RequestAttribution.withApp(result.app.id) {
                         await ChangelogService.load(
                             recipe, version: targetVersion, feedPage: feedPage)
                     }
                     await Self.prewarmNetworkGate.signal()
-                    fetched = changelog != nil
+                    if let fresh {
+                        changelog = fresh
+                        fetched = true
+                    }
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }

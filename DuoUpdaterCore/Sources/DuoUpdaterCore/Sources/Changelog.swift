@@ -159,7 +159,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// What it does NOT distinguish is a page that publishes late from one that
     /// numbers its notes more coarsely than the builds it ships: Raycast's page
     /// says `2.4` where the build is `2.4.1.0`, and JetBrains Toolbox's says
-    /// `3.8.1` where the build is `3.8.1.88030` (both 2026-09-18) — neither vendor
+    /// `3.8.1` where the build is `3.8.1.88030` (both read off this app's own
+    /// cached entries against the version they are filed under, 2026-09-18) —
+    /// neither vendor
     /// is behind, and both read as behind here. That is the intended direction to
     /// be wrong in, since the answer to "behind" is to read the page again rather
     /// than to discard it, but it is why this must not be surfaced to a user or

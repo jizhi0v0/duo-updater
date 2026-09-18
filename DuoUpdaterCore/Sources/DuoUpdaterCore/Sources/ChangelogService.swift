@@ -290,9 +290,20 @@ public enum ChangelogService {
     public static func diskCached(
         _ recipe: ChangelogRecipe, version: String?, feedPage: URL?
     ) async -> Changelog? {
+        await diskHit(recipe, version: version, feedPage: feedPage)?.changelog
+    }
+
+    /// The same read, for the caller that decides whether to go to the network:
+    /// carries `needsReread` for a provisional entry the vendor has had long
+    /// enough to catch up on (``ChangelogDiskCache/provisionalWindow``). The notes
+    /// come back either way — a re-read is something to do IN ADDITION to painting
+    /// them, never instead.
+    public static func diskHit(
+        _ recipe: ChangelogRecipe, version: String?, feedPage: URL?
+    ) async -> ChangelogDiskCache.Hit? {
         guard let key = diskKey(for: recipe, version: version, feedPage: feedPage)
         else { return nil }
-        return await ChangelogDiskCache.shared.get(for: key)
+        return await ChangelogDiskCache.shared.hit(for: key)
     }
 
     /// The in-memory cache slot for a recipe and target version: the resolved page

@@ -23,10 +23,11 @@ their emoji/category prefixes (✨ 🔔 🎨) inline as the vendor wrote them.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `ChangelogRecipe.init` currently takes **28** parameters. Beyond the ones below it
+> `ChangelogRecipe.init` currently takes **29** parameters. Beyond the ones below it
 > also carries `channel`, `includesPromotedStable`, `sourceTemplate`,
 > `versionFromTemplate`, `newestLast`,
 > `imagePattern`, `headingPattern`, `minimumAppVersion`, `belowAppVersion`,
+> `carriesOtherTrainEntries`,
 > `structuredFormat`, `httpMethod`, `requestBody`, `skipSections`, `tagPattern`,
 > `acknowledgedStaleEntry` and `feedPagePattern`. Read
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` before

@@ -50,6 +50,13 @@ enum md_obsidian {
                 #"<a href="/changelog/[^"]*-desktop-v(?<version>[\d.]+)/?"\s+class="font-semibold[^"]*"[^>]*>\s*(?<date>[^<]+?)\s*</a>"#
                 + #".*?<div class="typeset break-words"[^>]*>(?<body>.*?)</div>\s*</div>\s*</div>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            maxEntries: 20),
+            maxEntries: 20,
+            // The page carries the INSIDER desktop releases too — they get the
+            // same `-desktop-v…` slug — so its top entry runs ahead of the
+            // stable `latestVersion` the probe above reads (1.14.2 against
+            // 1.13.7 on 2026-09-18, with Homebrew's `obsidian` cask agreeing at
+            // 1.13.7). Nothing to fix on either side; the flag keeps #743's
+            // reverse cross-check from reading the gap as a frozen probe.
+            carriesOtherTrainEntries: true),
         ])
 }

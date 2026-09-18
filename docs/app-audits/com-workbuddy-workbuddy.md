@@ -39,6 +39,13 @@ cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我�
 2026-08-27，以我们的为准）。`auto_updates` 未设（`formulae.brew.sh` 的 JSON 里为 null），
 所以 `Verify.brewComplaint` 的 `!cask.autoUpdates` 那一关不拦它——键修好这道闸就能用。见 #743。
 
+**键已修（2026-09-18，#743）**：`Verify.liveCasks` 在 bundle id 查不到 cask 时，改用
+`<bundle id 最后一段>.app` 去查 cask 的 `app` stanza（`workbuddy.app` → `WorkBuddy.app`，
+目录索引是折叠大小写的），只在结果唯一时采信。对已提交 baseline 的 138 个 vendor bundle id
+实测：60 个按 id 命中，另有 17 个按文件名命中（55%），拿真 `brewComplaint` 跑一遍全部
+baseline 行只多出两条投诉，就是本 app 的 arm64/x64 两行。投诉句尾会注明「matched on the app
+filename」——这是**猜**出来的键，不是 cask 自己声明的。
+
 ## Channel 详情
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
@@ -299,3 +306,21 @@ major.minor 比较的前提——后是 50 个），按「该 app 的 changelog 
 上表是直接调用生产 `VersionComparator` 重算的结果。
 
 教训：**分析脚本里不要用另一套语言近似生产比较器**。要判「生产会不会报」，就得让生产的代码去判。
+
+### 两道闸都修了（2026-09-18，#743）
+
+**方向**：`Verify.changelogLeadsProbeComplaint` 是反过来的那一半——changelog 读数高于该 app
+**每一条** probe 行时报「探针可能冻在某个旧元素上」。上面三类判据分别落在：
+
+- **两套 build 命名空间** → 同一个 channel 内部的 probe 行彼此在 major.minor 上不一致，
+  就整个 app 跳过（Claude 的 GA 与 Squirrel rollout 都是 `.stable`，一个 2.x 一个 1.x）。
+  跨 channel 的不一致是正常的，由「高于每一条」自己消化。
+- **另一条轨的条目** → `ChangelogRecipe.carriesOtherTrainEntries`，已给 `md.obsidian` 打上。
+- **同一版本的不同写法** → `Verify.numericMajorMinor`，每段在第一个非数字处截断，
+  `157.0beta` 与 `157.0b2` 都变成 `157.0`。
+
+把这个函数跑在**已提交的** baseline 上：命中恰好 1 个，就是 `com.workbuddy.workbuddy`；
+逐个关掉三条判据，各自恰好多出它对应的那一个（关掉命名空间那条要用 `2095a06c` 的 baseline，
+HEAD 上 Claude 的 GA 行已经追上 changelog，这个 case 已经不成立了）。
+
+**键**：见上「键已修」。两道闸现在各自都能单独抓住本 app 这一对。

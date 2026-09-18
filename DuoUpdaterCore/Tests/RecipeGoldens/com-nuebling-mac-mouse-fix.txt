@@ -31,6 +31,7 @@ changelogs[0].imagePattern = nil
 changelogs[0].headingPattern? = "<h[2-4][^>]*>(?<heading>.*?)</h[2-4]>"
 changelogs[0].minimumAppVersion = nil
 changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
 changelogs[0].acknowledgedStaleEntry = nil
 changelogs[0].structuredFormat = nil
 changelogs[0].httpMethod = .get

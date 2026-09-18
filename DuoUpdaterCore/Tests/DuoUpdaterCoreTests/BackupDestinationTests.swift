@@ -168,4 +168,56 @@ import Testing
             to: root.appendingPathComponent(BackupVolumeMarker.fileName))
         #expect(BackupVolumeMarker.read(at: root) == nil)
     }
+
+    // MARK: - The remembered disks
+
+    private func disk(_ name: String) -> BackupDestination {
+        BackupDestination(
+            kind: .external, path: "/Volumes/\(name)/DuoUpdater Backups",
+            identity: "id-\(name)", volumeName: name)
+    }
+
+    /// Load-bearing for the settings page: switching the card to "On another
+    /// disk" lands on the first entry, and that has to be the disk the user was
+    /// last using rather than whichever one happens to sort first.
+    @Test func theDiskUsedMostRecentlyComesFirst() throws {
+        try withDefaults { defaults in
+            disk("Archive").save(into: defaults)
+            disk("Spare").save(into: defaults)
+            disk("Archive").save(into: defaults)
+
+            #expect(BackupDestination.known(from: defaults).map(\.volumeName)
+                == ["Archive", "Spare"])
+        }
+    }
+
+    /// Going back to this Mac keeps the disks listed. They are where the user's
+    /// backups are; a list that forgot them would leave the only record of that
+    /// on the disk itself.
+    @Test func goingLocalKeepsTheDisksListed() throws {
+        try withDefaults { defaults in
+            disk("Archive").save(into: defaults)
+            BackupDestination.local.save(into: defaults)
+
+            #expect(BackupDestination.load(from: defaults).kind == .local)
+            #expect(BackupDestination.known(from: defaults).map(\.volumeName) == ["Archive"])
+        }
+    }
+
+    @Test func oneDiskIsListedOnceHoweverOftenItIsChosen() throws {
+        try withDefaults { defaults in
+            for _ in 0..<5 { disk("Archive").save(into: defaults) }
+            #expect(BackupDestination.known(from: defaults).count == 1)
+        }
+    }
+
+    @Test func forgettingADiskDropsItFromTheList() throws {
+        try withDefaults { defaults in
+            disk("Archive").save(into: defaults)
+            disk("Spare").save(into: defaults)
+            BackupDestination.forget(identity: "id-Archive", in: defaults)
+
+            #expect(BackupDestination.known(from: defaults).map(\.volumeName) == ["Spare"])
+        }
+    }
 }

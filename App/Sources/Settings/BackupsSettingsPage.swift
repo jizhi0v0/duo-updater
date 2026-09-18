@@ -606,6 +606,9 @@ struct BackupsSettingsPage: View {
     private struct PendingBackupMove {
         let previous: BackupDestination
         let diskLabel: String
+        /// Whether the disk is connected right now, which changes only what the
+        /// message says about *when* — never which answers are on offer.
+        let reachable: Bool
         let keys: [String]
         let bytes: Int64
     }
@@ -622,6 +625,9 @@ struct BackupsSettingsPage: View {
     private var moveDialogMessage: String {
         guard let pendingMove else { return "" }
         let size = ByteCountFormatter.string(fromByteCount: pendingMove.bytes, countStyle: .file)
+        if !pendingMove.reachable {
+            return String(localized: "There are \(pendingMove.keys.count) backups on this Mac, \(size). The disk isn’t connected, so they would move as soon as it is. New backups will be kept on the disk either way.")
+        }
         return String(localized: "There are \(pendingMove.keys.count) backups on this Mac, \(size). New backups will be kept on the disk either way.")
     }
 
@@ -675,17 +681,19 @@ struct BackupsSettingsPage: View {
     /// owed is just as uneventful. Only a reachable disk with backups actually
     /// sitting in the outbox is worth putting a decision in front of someone.
     private func afterSwitch(reachable: Bool, previous: BackupDestination, diskLabel: String) async {
-        guard reachable else {
-            model.beginDrainingBackups()
-            return
-        }
         let snapshot = await model.pendingOutboxSnapshot()
         guard !snapshot.keys.isEmpty else {
             model.beginDrainingBackups()
             return
         }
+        // Asked whether the disk is here or not. An unreachable disk does not
+        // make the question go away, it only defers the answer: the queue moves
+        // everything the moment the disk is plugged in, so skipping the
+        // confirmation here bought exactly the silent multi-gigabyte move it was
+        // added to prevent, with a delay in front of it. The counts come from
+        // this Mac, which can be read either way.
         pendingMove = PendingBackupMove(
-            previous: previous, diskLabel: diskLabel,
+            previous: previous, diskLabel: diskLabel, reachable: reachable,
             keys: snapshot.keys, bytes: snapshot.bytes)
     }
 
@@ -734,7 +742,27 @@ struct BackupsSettingsPage: View {
             get: { showsDiskList },
             set: { external in
                 showsDiskList = external
-                guard !external, prefs.backupDestination.kind == .external else { return }
+                if external {
+                    // Expanding the list is not a choice, and leaving it at
+                    // that put the card in a state it could not describe: the
+                    // radio says backups go to a disk while the destination is
+                    // still this Mac, for as long as nobody picks a row. With
+                    // several disks listed that is easy to walk away from.
+                    // Landing on the first makes the radio true the moment it
+                    // is set, and picking a different row afterwards is one
+                    // press. First is the disk used most recently, and by
+                    // construction rather than by luck: `BackupDestination.save`
+                    // re-inserts a disk at the head of the remembered list every
+                    // time it is chosen, and `known(from:)` reads that order.
+                    guard prefs.backupDestination.kind != .external else { return }
+                    if let first = destinationOptions.first {
+                        select(first)
+                    } else {
+                        chooseDisk()
+                    }
+                    return
+                }
+                guard prefs.backupDestination.kind == .external else { return }
                 // Choosing "On this Mac" is itself an action, not just
                 // collapsing the list: if backups were going to a disk, new
                 // ones come back here. Nothing to confirm going this

@@ -28768,6 +28768,137 @@
         }
       }
     },
+    "There are %lld backups on this Mac, %@. The disk isn’t connected, so they would move as soon as it is. New backups will be kept on the disk either way.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "There is 1 backup on this Mac, %@. The disk isn’t connected, so it would move as soon as it is. New backups will be kept on the disk either way."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "There are %lld backups on this Mac, %@. The disk isn’t connected, so they would move as soon as it is. New backups will be kept on the disk either way."
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Auf diesem Mac befindet sich 1 Backup, %@. Die Festplatte ist nicht angeschlossen; das Backup wird verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Auf diesem Mac befinden sich %lld Backups, %@. Die Festplatte ist nicht angeschlossen; sie werden verschoben, sobald sie es ist. Neue Backups werden in jedem Fall auf der Festplatte gespeichert."
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Hay 1 copia de seguridad en este Mac, %@. El disco no está conectado, así que se moverá en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Hay %lld copias de seguridad en este Mac, %@. El disco no está conectado, así que se moverán en cuanto lo esté. Las copias nuevas se guardarán en el disco de todos modos."
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Il y a 1 sauvegarde sur ce Mac, %@. Le disque n’est pas connecté ; elle sera déplacée dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Il y a %lld sauvegardes sur ce Mac, %@. Le disque n’est pas connecté ; elles seront déplacées dès qu’il le sera. Les nouvelles sauvegardes seront conservées sur le disque de toute façon."
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "この Mac には %lld 件のバックアップ（%@）があります。ディスクが接続されていないため、接続され次第移動します。新しいバックアップはいずれにせよディスクに保存されます。"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "На этом Mac находится %lld резервная копия, %@. Диск не подключён — она переместится, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "На этом Mac находятся %lld резервные копии, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "На этом Mac находится %lld резервных копий, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "На этом Mac находится %lld резервных копий, %@. Диск не подключён — они переместятся, как только он появится. Новые резервные копии в любом случае будут храниться на диске."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "此 Mac 上有 %lld 个备份，%@。磁盘未连接，接上后会立即搬过去。无论如何，新备份都会保存在磁盘上。"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Copy Them Over": {
       "extractionState": "manual",
       "localizations": {

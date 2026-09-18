@@ -170,12 +170,19 @@ import Testing
         #expect(fm.fileExists(atPath: target.appendingPathComponent("Contents/old").path))
     }
 
+    /// The incoming bundle arrives at 755, which is what a real vendor payload
+    /// is: QianwenIME's download measured 755 at every level on 2026-09-18. A
+    /// fixture built at 775 like the installed side would assert the group-write
+    /// carry against a tree that already had the bit, and pass with the `chmod`
+    /// deleted — the assertion below is only load-bearing because the two sides
+    /// differ here.
     @Test func anUnprivilegedRotationExchangesContentsInPlace() async throws {
         let fm = FileManager.default
         let root = try inputMethodsScratch()
         defer { try? fm.removeItem(at: root.top) }
         let target = try bundle(at: root.dir.appendingPathComponent("Fixture.app"), marker: "old")
-        let incoming = try bundle(at: root.top.appendingPathComponent("Incoming.app"), marker: "new")
+        let incoming = try bundle(
+            at: root.top.appendingPathComponent("Incoming.app"), marker: "new", mode: 0o755)
         let outerBefore = try #require(
             (try fm.attributesOfItem(atPath: target.path))[.systemFileNumber] as? NSNumber)
 
@@ -188,6 +195,9 @@ import Testing
         #expect(outerBefore == outerAfter, "the registered .app must survive the exchange")
         // The vendor's own updater has to be able to delete the Contents it
         // displaces next time, which needs write on every directory inside it.
+        // `Contents` itself comes back group-writable because `replaceItemAt`
+        // carries the replaced directory's mode; everything below it does only
+        // because `rotateContents` runs the `chmod` first.
         for level in ["Contents", "Contents/Resources"] {
             let attrs = try fm.attributesOfItem(atPath: target.appendingPathComponent(level).path)
             let mode = try #require(attrs[.posixPermissions] as? NSNumber).intValue
@@ -341,16 +351,18 @@ import Testing
     /// Structurally valid but unsigned, so the recovery sweep's signature check
     /// reports `errSecCSUnsigned` (allowed) rather than the bad-bundle-format a
     /// bare directory would give.
-    private func bundle(at url: URL, marker: String) throws -> URL {
+    private func bundle(at url: URL, marker: String, mode: Int = 0o775) throws -> URL {
         let fm = FileManager.default
         try fm.createDirectory(
             at: url.appendingPathComponent("Contents/Resources"), withIntermediateDirectories: true)
         try Data(marker.utf8).write(to: url.appendingPathComponent("Contents/\(marker)"))
-        // 775 at every level, like both real installs, so the group-write rules
-        // are exercised rather than assumed away by a permissive umask.
+        // 775 at every level by default, like both real installs, so the
+        // group-write rules are exercised rather than assumed away by a
+        // permissive umask. A caller passes 755 for the one thing that really
+        // arrives without the bit: a vendor's downloaded payload.
         for path in ["", "Contents", "Contents/Resources"] {
             try fm.setAttributes(
-                [.posixPermissions: 0o775],
+                [.posixPermissions: mode],
                 ofItemAtPath: path.isEmpty ? url.path : url.appendingPathComponent(path).path)
         }
         let info = """

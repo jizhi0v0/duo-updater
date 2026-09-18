@@ -146,7 +146,9 @@ the CN page was current.
 
 **为什么以前是对的、后来静默错了。** `version=0.0.0` 是当初为绕开 204 钉进去的，钉的时候这条链的第一跳恰好就是最新版。本审计 2026-09-14 那次复测还记着国际站回 `5.5.2.37849279`——那时链只有一跳。厂商后来在上面加了发布，四条 recipe（两站 × 两架构）全部冻在第一跳上。
 
-**只有国际站两条被发现，而且不是因为版本错。** 国际站那一跳的产物后来被 CDN 删了，`duo verify` 才看见 HTTP 404 + version 倒退（#737、#738）。国内站两条的那一跳产物还在，于是一路绿着停在 `5.3.14`，而同一个 app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行，`lastGoodVersion` 写着 `5.5.6`——两行没有任何东西去比对。这是这次最值得记的一条：**闸看的是「这次和上次比」，不是「probe 和 changelog 比」**。
+**只有国际站两条被发现，而且不是因为版本错。** 国际站那一跳的产物后来被 CDN 删了，`duo verify` 才看见 HTTP 404 + version 倒退（#737、#738）。国内站两条的那一跳产物还在，于是一路绿着停在 `5.3.14`，而同一个 app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行，`lastGoodVersion` 写着 `5.5.6`。
+
+这里**有**一条 probe↔changelog 的交叉检查，`Verify.changelogLagComplaint`，而且这两个数字当时就在它手上（两行的 `lastGoodAt` 同为 `2026-09-17T20:25:48Z`，同一轮扫描）。它没响是因为它**单向**：只在 changelog **落后于** probe 时报。这里是 changelog 5.5.6 **领先于** probe 5.3.14——而「changelog 跑在 probe 前面」正是探针冻住的样子，那个方向没人看。见 #743。
 
 **改法**：URL 里不带 `version` 参数。四个 host×arch 组合当天实测都回 200（不是 204）：国际站两架构 `5.5.2.37849279`，国内站两架构 `5.5.6.38337834`，与 Homebrew cask `workbuddy-ai`（`5.5.2.37849279-910352f0`）一致；cask 的 livecheck 打的也正是这个不带 `version` 的 URL。产物存在性也核了：`…-5.3.14.36279234-825709d4.zip` 为 404，`…-5.5.2.37849279-910352f0.{zip,dmg}` 均为 200。
 

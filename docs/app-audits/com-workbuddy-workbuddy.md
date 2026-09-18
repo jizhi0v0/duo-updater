@@ -79,7 +79,7 @@
 最新版，所以当初读对了；厂商在上面加了发布之后，两站 × 两架构四条 recipe 全部冻在
 第一跳上。国内站两条那一跳的产物还在 CDN 上，于是一路绿着停在 `5.3.14`，而同一个
 app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写着 `5.5.6`
-—— 闸看的是「这次和上次比」，没有任何东西去比对这两行。国际站两条被发现，只是因为
+——两行的交叉检查是单向的，只管 changelog 落后于 probe 的那一侧（详见本文末节与 #743）。国际站两条被发现，只是因为
 那一跳的产物后来被删了、报出 404，**不是因为版本错**。完整的实测表（六个 `version`
 取值 × `productVersion`）见 [com-workbuddy-workbuddy-ai.md](com-workbuddy-workbuddy-ai.md)
 的「历史与实测」，两站 recipe 同一个工厂出的，那一条对国内站同样成立：不带 `version`
@@ -243,6 +243,13 @@ again.
 `changelog:com.workbuddy.workbuddy:-` 的 `lastGoodVersion` 是 `5.5.6`，
 `vendor:com.workbuddy.workbuddy:stable:{arm64,x64}` 是 `5.3.14`，相隔几行。
 
-**教训（比这个 app 本身更值得记）**：`duo verify` 的历史检查全都是「这一轮和上一轮比」，
-没有任何一条是「同一个 app 的 probe 行和 changelog 行互相比」。一条 recipe 只要**稳定地**
-读错，就不会触发任何闸——这次是靠厂商删了个文件才撞出来的。
+**教训（比这个 app 本身更值得记）**：probe↔changelog 的交叉检查是**存在**的
+（`Verify.changelogLagComplaint`），这两个数字当时也确实同时在它手上——两行的 `lastGoodAt`
+同为 `2026-09-17T20:25:48Z`，同一轮扫描。它没响，是因为它**单向**：只在 changelog
+**落后于** probe 时报「notes 落后了」。这里方向反过来，changelog 5.5.6 领先 probe 5.3.14，
+而这恰恰是探针冻住时该有的样子——没人看那一侧。
+
+所以结论不是「没有交叉检查」，而是「交叉检查只看了一半」。另外半边不能照抄着反过来写：
+当天 50 个同时有 probe 行和 changelog 行的 app 里，5 个 changelog 在 major.minor 上领先 probe，
+只有本条是真 bug，其余四个（Claude for Desktop 的两套 build 命名空间、Obsidian 的 insider 条目、
+Thunderbird 的 ESR/beta 多渠道）都是合法的。反向检查得先能分辨这些。已开 #743。

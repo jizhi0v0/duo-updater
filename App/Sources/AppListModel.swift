@@ -6713,18 +6713,22 @@ final class AppListModel {
         await Task.detached(priority: .utility) { BackupStore.reachableStores() }.value
     }
 
-    /// What each of `stores` is holding, keyed by store id.
+    /// What one store is holding.
     ///
-    /// Split off from ``backupStores()`` because this walks every backup in
-    /// every store: measured at 5.4 seconds for a 49 GB store on a USB disk,
-    /// against 5 milliseconds for an empty one on the boot volume. A caller that
-    /// waits for this before drawing anything shows an empty card for those five
-    /// seconds, which is what the Backups page used to do.
-    func backupStoreBytes(for stores: [BackupStore.Store]) async -> [String: Int64] {
-        await Task.detached(priority: .utility) {
-            var out: [String: Int64] = [:]
-            for store in stores { out[store.id] = BackupStore.storeSize(of: store.root) }
-            return out
+    /// Split off from ``backupStores()`` because this walks every backup in it:
+    /// measured at 5.4 seconds for the 49 GB store on a USB disk, against 5
+    /// milliseconds for an empty one on the boot volume. A caller that waits for
+    /// this before drawing anything shows an empty card for those five seconds,
+    /// which is what the Backups page used to do.
+    ///
+    /// One store at a time, rather than a dictionary of all of them, for the
+    /// other half of the same point: answering them together means the 5
+    /// millisecond one is not shown until the 5 second one is done, and both
+    /// rows sit on "…" for as long as the slowest disk takes.
+    func backupStoreBytes(of store: BackupStore.Store) async -> Int64 {
+        let root = store.root
+        return await Task.detached(priority: .utility) {
+            BackupStore.storeSize(of: root)
         }.value
     }
 

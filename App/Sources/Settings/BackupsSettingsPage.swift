@@ -823,9 +823,14 @@ struct BackupsSettingsPage: View {
         sizeTask?.cancel()
         let wanted = stores
         sizeTask = Task {
-            let measured = await model.backupStoreBytes(for: wanted)
-            guard !Task.isCancelled else { return }
-            storeBytes = measured
+            // In the order `reachableStores()` gives them, which puts this Mac
+            // first — so the row that measures in milliseconds is filled in
+            // while a USB disk is still being walked, instead of after.
+            for store in wanted {
+                let bytes = await model.backupStoreBytes(of: store)
+                guard !Task.isCancelled else { return }
+                storeBytes[store.id] = bytes
+            }
         }
     }
 

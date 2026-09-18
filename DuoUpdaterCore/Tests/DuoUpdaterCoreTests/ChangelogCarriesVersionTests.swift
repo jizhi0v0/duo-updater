@@ -42,8 +42,11 @@ struct ChangelogCarriesVersionTests {
         #expect(Self.log("2.4").carries(version: "2.4.0.0"))
     }
 
-    /// Nothing version-shaped to compare against: Figma and Notion title their
-    /// entries, Cursor dates them. Not judged rather than judged wrongly.
+    /// Nothing version-shaped to compare against: Figma titles its entries (its
+    /// feed is product announcements with no per-entry app version) and Cursor
+    /// dates them. Not judged rather than judged wrongly. NOT Notion, whose active
+    /// `.notionPageChunk` recipe numbers its versions — see `carries`'s own doc
+    /// comment for why naming it here would point a reader at the wrong case.
     @Test func aPageWithNoVersionNumbersIsNeverBehind() {
         #expect(Self.log("AI credit user limits", "Sep 10, 2026").carries(version: "3.21.13"))
         #expect(Changelog(entries: []).carries(version: "3.21.13"))

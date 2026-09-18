@@ -2152,8 +2152,11 @@ final class AppListModel {
     /// one. A re-read is painted on top of the disk copy, never instead of it, so a
     /// machine with no network still gets the notes it had. Runs for every
     /// recipe-backed app, not just those with updates, since the user browses notes
-    /// for up-to-date apps too. On failure it leaves the key absent so the
-    /// open path retries rather than getting stuck on a stale spinner / web fallback.
+    /// for up-to-date apps too. A prewarm that has nothing to paint and cannot
+    /// fetch settles the key on `.failed`, not absent — the code below says why a
+    /// missing key would strand the pane on a spinner nobody re-triggers, and what
+    /// the only retry is. (The sentence here used to claim the opposite; it
+    /// predates this paragraph, which is the one place a reader looks first.)
     /// Bounds how many changelog prewarms hit the network at once (a cold cache would
     /// otherwise fire one fetch per recipe-backed installed app simultaneously).
     private static let prewarmNetworkGate = AsyncSemaphore(value: 4)

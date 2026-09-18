@@ -14,9 +14,10 @@ import Foundation
 /// cfprefsd, and it is the dirty flag, not the file, that decides.)
 ///
 /// So the only lever is how many *names* the suite ever asks for: one per label
-/// costs one file however often the suite runs. One per test had reached 10,093
-/// files — about 90% of that directory — before they were swept by hand on
-/// 2026-09-18. This suite alone opened seven of them per run, one per test.
+/// costs one file however often the suite runs. One per test had reached 9,976
+/// files by 2026-09-18, when they were swept by hand; with 117 more left by a
+/// since-deleted harness, the two together were about 90% of that directory.
+/// This suite alone opened seven of them per run, one per test.
 ///
 /// That also means the file count is bounded whether or not `clear()` runs.
 /// Cleanup still matters for a different reason: the domain outlives the
@@ -34,8 +35,9 @@ struct ScratchDefaults {
 
     init(_ label: String) {
         self.label = "com.duoupdater.tests.\(label)"
-        // `!` is safe: the initialiser only returns nil for a name the process
-        // cannot own, such as its own bundle identifier.
+        // `!` as at the call sites this replaces. The name is a fixed label —
+        // neither the global domain nor this process's own bundle identifier,
+        // which are the two Apple's documentation says not to pass.
         self.defaults = UserDefaults(suiteName: self.label)!
         clear()
     }

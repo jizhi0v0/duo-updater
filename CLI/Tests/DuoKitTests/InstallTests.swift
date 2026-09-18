@@ -998,13 +998,7 @@ import DuoUpdaterCore
     }
 }
 
-@Suite(.serialized) struct VisibilityWriteTests {
-
-    /// A scratch domain so these never touch the real preferences.
-    private func scratchDefaults() -> UserDefaults {
-        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
-        return UserDefaults(suiteName: suite)!
-    }
+@Suite(.serialized, .scratchPreferences) struct VisibilityWriteTests {
 
     private func app(_ path: String = "/Applications/Fixture.app") -> InstalledApp {
         InstalledApp(

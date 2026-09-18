@@ -9,7 +9,7 @@ import DuoUpdaterCore
 /// Every status is passed in; nothing here asks the host what it has granted. The
 /// live status (`Inventory.fullDiskAccess`) is only reached with detection on, and
 /// no case below builds settings with detection on.
-@Suite struct InventoryTestFlightReadTests {
+@Suite(.scratchPreferences) struct InventoryTestFlightReadTests {
 
     /// Spelled out because `TCCAuthStatus` is not `CaseIterable`; the exhaustive
     /// switch in `TCCPreflight.admitsOtherAppsData` is what makes a new case visible.
@@ -201,9 +201,7 @@ import DuoUpdaterCore
     ///
     /// Mutation: change the fallback in `testFlightDetection(from:)` from `.off`.
     @Test func theDetectionSettingReadsAloneAsItDoesInLoad() {
-        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = scratchDefaults()
 
         #expect(Settings.testFlightDetection(from: defaults) == .off)
         defaults.set("not-a-setting", forKey: UpdateSettings.testFlightDetectionKey)

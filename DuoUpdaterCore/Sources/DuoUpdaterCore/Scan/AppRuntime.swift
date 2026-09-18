@@ -638,9 +638,30 @@ public enum AppRuntimeDetector {
         return executable == "JavaAppLauncher" || executable == "JavaApplicationStub"
     }
 
-    private static func executableURL(bundleAt bundleURL: URL, infoPlist: [String: Any], fm: FileManager) -> URL? {
-        guard let name = infoPlist["CFBundleExecutable"] as? String, !name.isEmpty else { return nil }
-        let url = bundleURL.appendingPathComponent("Contents/MacOS").appendingPathComponent(name)
+    /// The bundle's main executable: `CFBundleExecutable` where the packager wrote
+    /// one, and the bundle's own base name where it did not.
+    ///
+    /// The key is documented as required and is normally there — Xcode writes it.
+    /// The fallback exists because shipping apps get away without it: Meta's
+    /// `Muse.app` (`com.meta.endo`, 2026-09-18) has no `CFBundleExecutable` at all,
+    /// launches fine, and `codesign -dv` names `Contents/MacOS/Muse`. Requiring the
+    /// key there cost the whole reading — no binary means no load commands, so the
+    /// runtime, the linked frameworks and the SDK all came back empty.
+    ///
+    /// The fallback is the *directory's* base name, not `CFBundleName`, which is
+    /// what CFBundle itself was measured doing: given `Dir.app` whose plist says
+    /// `CFBundleName = Named` and whose `MacOS` holds both files,
+    /// `Bundle.executableURL` answers `Dir`; delete `Dir` and leave `Named` and it
+    /// answers nil rather than switching. Apple documents the key as required and
+    /// documents no fallback, so that rule is an observation of this machine's
+    /// CFBundle, not a promise — which is why `fileExists` still has the last word
+    /// on both paths.
+    static func executableURL(bundleAt bundleURL: URL, infoPlist: [String: Any], fm: FileManager) -> URL? {
+        let macOS = bundleURL.appendingPathComponent("Contents/MacOS")
+        let declared = (infoPlist["CFBundleExecutable"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let name = declared ?? bundleURL.deletingPathExtension().lastPathComponent
+        guard !name.isEmpty else { return nil }
+        let url = macOS.appendingPathComponent(name)
         return fm.fileExists(atPath: url.path) ? url : nil
     }
 }

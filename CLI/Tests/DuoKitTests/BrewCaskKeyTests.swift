@@ -28,12 +28,15 @@ import DuoUpdaterCore
     /// and the only reason none of them resolves today is that no cask happens to
     /// ship an artifact called `App.app` — not a property to rest a filed issue on.
     ///
-    /// Every id below is a real one from the two registries, one per stem, and
-    /// that is the point: five of the ten stems (`app`, `desktop`, `mac`, `macos`,
-    /// `client`) are hand-written with no `ReleaseChannel` behind them, and two of
-    /// those — `macos` and `client` — are carried by a single id each, which is
-    /// the shape somebody trims as dead weight. Trimming one fails here, by name,
-    /// instead of quietly putting Raycast back on the `macos.app` key.
+    /// Every id below is a real one from the two registries, at least one per
+    /// stem, and that is the point: five of the ten stems (`app`, `desktop`,
+    /// `mac`, `macos`, `client`) are hand-written with no `ReleaseChannel` behind
+    /// them, and `macos` is carried by a single id — the shape somebody trims as
+    /// dead weight. Trimming a stem fails here, by name, instead of quietly
+    /// putting Raycast back on the `macos.app` key.
+    ///
+    /// `client`'s two ids are both listed rather than one standing for the stem,
+    /// because that is the entry whose count is easiest to misread.
     @Test func aQualifierIsNotAName() {
         for bundleID in ["bot.cline.app",                   // app      ×16
                          "ai.opencode.desktop",             // desktop  ×16
@@ -42,6 +45,7 @@ import DuoUpdaterCore
                          "org.mozilla.nightly",             // nightly  ×3
                          "com.google.Chrome.dev",           // dev      ×2
                          "com.spotify.client",              // client   ×2
+                         "com.windscribe.client",           //   …both listed
                          "com.google.Chrome.canary",        // canary   ×1
                          "com.raycast.macos",               // macos    ×1
                          "com.longbridge.app.desktop.preview"] {  // preview ×1
@@ -69,8 +73,8 @@ import DuoUpdaterCore
         for recipe in VendorProbeRegistry.recipes { ids.insert(recipe.bundleID) }
         for rule in GitHubReleaseRegistry.rules { ids.insert(rule.bundleID) }
         for bundleID in ["com.raycast.macos", "com.spotify.client",
-                         "com.microsoft.onenote.mac", "bot.cline.app",
-                         "ai.opencode.desktop"] {
+                         "com.windscribe.client", "com.microsoft.onenote.mac",
+                         "bot.cline.app", "ai.opencode.desktop"] {
             #expect(ids.contains(bundleID), Comment(rawValue:
                 "\(bundleID) is no longer in either cross-checked registry — re-pick "
                     + "a live id for its stem rather than dropping it"))

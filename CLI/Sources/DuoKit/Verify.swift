@@ -1191,11 +1191,17 @@ public enum Verify {
     ///
     /// `beta`, `nightly`, `dev`, `canary` and `preview` come from `ReleaseChannel`
     /// itself rather than a hand-copy, so a channel added there cannot quietly
-    /// become a cask key. **The other five do not**, and `macos` and `client` are
-    /// each carried by a single id — `com.raycast.macos` and `com.spotify.client`
-    /// — which is exactly the shape somebody trims as dead weight. Both are pinned
-    /// by name in `BrewCaskKeyTests.aQualifierIsNotAName`; trimming either fails
-    /// that test rather than quietly putting Raycast back on the `macos.app` key.
+    /// become a cask key. **The other five do not.** `macos` is the thin one —
+    /// `com.raycast.macos` is the only id carrying it, which is exactly the shape
+    /// somebody trims as dead weight. `client` is carried by two
+    /// (`com.spotify.client`, `com.windscribe.client`), so losing either still
+    /// leaves the stem earning its place.
+    ///
+    /// Every id above is pinned by name in
+    /// `BrewCaskKeyTests.aQualifierIsNotAName`, so trimming a hand-written stem
+    /// fails a test that names the app it would break rather than quietly putting
+    /// Raycast back on the `macos.app` key. Read the counts from the table, not
+    /// from this paragraph, when deciding whether a stem is still carried.
     static func caskAppFilename(forBundleID bundleID: String) -> String? {
         guard let last = bundleID.split(separator: ".").last, !last.isEmpty,
               !qualifierComponents.contains(last.lowercased())

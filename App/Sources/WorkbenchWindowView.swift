@@ -1716,7 +1716,20 @@ private struct ReleaseNotesPane: View {
             switch state {
             case .loaded(let changelog):
                 ChangelogEntriesView(changelog: changelog)
-                    .onAppear { Log.changelog.info("perf pane=recipe \(result.app.name, privacy: .public) (\(changelog.entries.count, privacy: .public) entries)") }
+                    .onAppear {
+                        Log.changelog.info("perf pane=recipe \(result.app.name, privacy: .public) (\(changelog.entries.count, privacy: .public) entries)")
+                        // The other half of `AppListModel.changelogRevalidated`:
+                        // notes painted from the cross-launch disk cache still owe
+                        // one network read, and THIS is the only place that can ask
+                        // for it. A prewarmed key arrives here already `.loaded`, so
+                        // it never reaches the `.loading` branch below — which was
+                        // the only caller, leaving the debt with nobody to collect
+                        // it and a page the vendor published late frozen for good.
+                        // `ensureChangelogLoading` returns at its first line once
+                        // the key has been confirmed, so the steady state is one
+                        // call per appearance and no request.
+                        model.ensureChangelogLoading(for: result)
+                    }
             case .failed:
                 fallback
             case .loading:

@@ -180,6 +180,16 @@ public struct UpdateSettings: Sendable {
     /// switch and not an erasure: the disk stays remembered, and turning it on
     /// again does not mean finding it in a file picker a second time.
     public static let backupDestinationEnabledKey = "BackupsGoToAnotherDisk"
+    /// Every disk that has ever been adopted as a destination, so the settings
+    /// page can offer them instead of sending the user back through a file
+    /// picker for a disk they already set up.
+    ///
+    /// A list rather than one remembered folder because switching between two
+    /// disks stopped being an odd thing to do the moment backups became
+    /// readable from all of them at once: without the list, the second disk is
+    /// reachable only by re-picking it, and the picker cannot name a disk it has
+    /// no record of while that disk is unplugged.
+    public static let backupDestinationHistoryKey = "BackupDestinationHistory"
     public static let backupCompressionKey = "BackupCompression"
 
     /// What the compression setting resolves to when its key is absent.

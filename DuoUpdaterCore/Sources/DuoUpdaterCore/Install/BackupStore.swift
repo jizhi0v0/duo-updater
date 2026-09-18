@@ -37,6 +37,11 @@ public enum BackupStore {
     /// ``configure(_:)``'s value instead.
     @TaskLocal public static var destinationOverride: BackupDestination?
 
+    /// Test seam for the readable-but-not-active disks, bound like the two
+    /// above. Production never binds it and reads ``configure(_:known:)``'s
+    /// value instead.
+    @TaskLocal public static var knownDisksOverride: [BackupDestination]?
+
     /// Where backups are written first, always on the boot volume.
     ///
     /// This is the store as it has always been — the name changed, the meaning
@@ -58,15 +63,27 @@ public enum BackupStore {
     // MARK: - Destination
 
     private nonisolated(unsafe) static var configuredDestination: BackupDestination = .local
+    private nonisolated(unsafe) static var configuredKnownDisks: [BackupDestination] = []
     private static let destinationLock = NSLock()
 
     /// Point the store at a destination. Called once per process — the app at
     /// launch, `duo` in `main` — so no command can forget and silently use a
     /// different store than the one the user configured.
-    public static func configure(_ destination: BackupDestination) {
+    ///
+    /// `known` is every disk the user has ever adopted, which is a wider set than
+    /// the one being written to: backups already sitting on a disk stay readable
+    /// whenever it is plugged in, whether or not it is the disk new backups go
+    /// to. Without that, switching disks would make a full set of rollback points
+    /// vanish from every list while remaining on disk forever — invisible to the
+    /// clean-up sheet that exists to reclaim them, and never superseded, because
+    /// retention only ever replaces a backup within the store it is in.
+    public static func configure(
+        _ destination: BackupDestination, known: [BackupDestination] = []
+    ) {
         destinationLock.lock()
         defer { destinationLock.unlock() }
         configuredDestination = destination
+        configuredKnownDisks = known
     }
 
     public static var destination: BackupDestination {
@@ -74,6 +91,27 @@ public enum BackupStore {
         destinationLock.lock()
         defer { destinationLock.unlock() }
         return configuredDestination
+    }
+
+    /// Every disk that may be read from, active or not.
+    public static var knownDisks: [BackupDestination] {
+        if let knownDisksOverride { return knownDisksOverride }
+        // Read through `destination`, not `configuredDestination`: a test that
+        // binds only the destination seam must still see that disk here, or its
+        // backups become unreadable while the test believes it configured one.
+        let active = destination
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        // The active destination is included even when nothing registered a list:
+        // that is the state of every installation configured before this existed,
+        // and reading it as "no disks" would hide their backups.
+        guard active.kind == .external, active.path?.isEmpty == false else {
+            return configuredKnownDisks
+        }
+        if configuredKnownDisks.contains(where: { $0.path == active.path }) {
+            return configuredKnownDisks
+        }
+        return [active] + configuredKnownDisks
     }
 
     /// Whether the configured destination can be written to right now.
@@ -185,12 +223,90 @@ public enum BackupStore {
         }
     }
 
-    /// The destination directory when it happens to be reachable, else nil.
-    /// For read paths, which must degrade to "show what is on this Mac" rather
-    /// than fail.
+    /// The **active** destination directory when it happens to be reachable,
+    /// else nil. For the write-side paths — a transfer, a sweep of the scratch a
+    /// transfer left, an automatic prune — which must act on the one store this
+    /// Mac owns and no other.
+    ///
+    /// Read paths use ``reachableStores()`` instead. The distinction is the
+    /// safety rule of this whole feature and is worth stating where it is
+    /// easiest to get wrong: a disk that is merely *readable* may be another
+    /// Mac's, holding backups for apps that were never installed here. Pruning
+    /// across it would delete them all, each one correctly identified as an
+    /// orphan and each one someone else's only rollback point.
     static var reachableDestinationRoot: URL? {
         if case .ready(let url) = availability() { return url }
         return nil
+    }
+
+    /// One store a backup can be read out of.
+    ///
+    /// Carries the disk's identity and name so a listing can say *which* disk a
+    /// backup is on. That question did not exist while there was one destination
+    /// and `Backup.Location` answered it by implication; with several readable at
+    /// once, "on the backup disk" names nothing.
+    public struct Store: Sendable, Equatable, Identifiable {
+        /// The directory holding one subdirectory per backed-up app.
+        public let root: URL
+        /// What a stored copy looks like here: a bundle in the outbox, an
+        /// archive on a disk. Not *which* store — that is ``identity``.
+        public let location: Backup.Location
+        /// The marker identity of the disk. Nil for the outbox.
+        public let identity: String?
+        /// The disk's name, for UI copy. Nil for the outbox, which every surface
+        /// names in its own words ("On this Mac").
+        public let volumeName: String?
+        /// Whether new backups are written here.
+        public let isActive: Bool
+
+        public var id: String { identity ?? root.path }
+    }
+
+    /// The store on this Mac. Always present, always readable, always written to
+    /// first.
+    public static var outboxStore: Store {
+        Store(root: outboxRoot, location: .outbox, identity: nil, volumeName: nil,
+              isActive: destination.kind != .external)
+    }
+
+    /// Every store readable right now: this Mac, then each known disk that is
+    /// mounted and carries the marker we recorded for it.
+    ///
+    /// The outbox comes first so a caller that stops at the first hit prefers the
+    /// local copy — it is the newer one by construction (a transfer clears it
+    /// only after the disk's copy is complete) and restoring from it does not go
+    /// over a cable.
+    public static func reachableStores() -> [Store] {
+        [outboxStore] + reachableDisks()
+    }
+
+    /// The active destination as a store, given the root ``destinationRoot()``
+    /// already resolved. Only the write paths have that root in hand.
+    private static func activeStore(root: URL) -> Store {
+        Store(root: root, location: .destination, identity: destination.identity,
+              volumeName: destination.volumeName, isActive: true)
+    }
+
+    /// The known disks that are reachable right now, the active one first.
+    ///
+    /// Each is checked with the same ``availability(_:)`` the active destination
+    /// goes through, so a path whose marker is missing or belongs to a different
+    /// disk is skipped here exactly as it is refused there. Nothing is created:
+    /// a disk that is not plugged in is simply absent from the list.
+    public static func reachableDisks() -> [Store] {
+        let active = destination
+        var out: [Store] = []
+        var seen = Set<String>()
+        for disk in knownDisks {
+            guard case .ready(let url) = availability(disk) else { continue }
+            guard seen.insert(disk.identity ?? url.standardizedFileURL.path).inserted
+            else { continue }
+            out.append(Store(
+                root: url, location: .destination,
+                identity: disk.identity, volumeName: disk.volumeName,
+                isActive: active.kind == .external && active.path == disk.path))
+        }
+        return out
     }
 
     /// A stored backup: what is on disk plus the metadata we show in the UI.
@@ -220,7 +336,12 @@ public enum BackupStore {
         /// before assuming which — a destination copy is a single file, so
         /// walking it as a directory yields nothing rather than failing.
         public let bundlePath: URL
-        public let location: Location
+        /// Which store this copy was read out of — this Mac, or a named disk.
+        public let store: Store
+        /// What the stored copy looks like. Derived rather than stored a second
+        /// time: a store has exactly one shape, and two fields that could
+        /// disagree is one more state than this type has.
+        public var location: Location { store.location }
         public let savedAt: Date
         /// Whether the update this backup was taken for was applied by a `.pkg`
         /// through the system installer.
@@ -574,7 +695,7 @@ public enum BackupStore {
         }
         return Backup(
             key: key, version: version, buildVersion: buildVersion,
-            bundlePath: dest, location: .outbox, savedAt: savedAt,
+            bundlePath: dest, store: outboxStore, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed)
     }
@@ -612,8 +733,8 @@ public enum BackupStore {
     /// The app's name for a key, for a progress line someone can read.
     /// `com.pais.handy-1551b69e…` is an identity, not a name.
     public static func displayName(forKey key: String) -> String? {
-        for root in [outboxRoot, reachableDestinationRoot].compactMap({ $0 }) {
-            if let meta = readMeta(in: root.appendingPathComponent(key, isDirectory: true)) {
+        for store in reachableStores() {
+            if let meta = readMeta(in: store.root.appendingPathComponent(key, isDirectory: true)) {
                 return (meta.bundleName as NSString).deletingPathExtension
             }
         }
@@ -687,7 +808,7 @@ public enum BackupStore {
             "backup: moved \(key, privacy: .public) to the backup disk (\(bytes ?? 0, privacy: .public) bytes)")
         return Backup(
             key: key, version: meta.version, buildVersion: meta.buildVersion,
-            bundlePath: archive, location: .destination, savedAt: meta.savedAt,
+            bundlePath: archive, store: activeStore(root: root), savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
             omittedFiles: meta.omittedFiles ?? [])
     }
@@ -777,14 +898,12 @@ public enum BackupStore {
         return try? JSONDecoder().decode(Meta.self, from: data)
     }
 
-    /// The backup for `key` held under a specific root.
-    private static func backup(
-        forKey key: String, in root: URL, location: Backup.Location
-    ) -> Backup? {
-        let dir = root.appendingPathComponent(key, isDirectory: true)
+    /// The backup for `key` held in a specific store.
+    private static func backup(forKey key: String, in store: Store) -> Backup? {
+        let dir = store.root.appendingPathComponent(key, isDirectory: true)
         guard let meta = readMeta(in: dir) else { return nil }
         let payload: URL
-        switch location {
+        switch store.location {
         case .outbox:
             payload = dir.appendingPathComponent(meta.bundleName)
         case .destination:
@@ -796,7 +915,7 @@ public enum BackupStore {
         guard FileManager.default.fileExists(atPath: payload.path) else { return nil }
         return Backup(
             key: key, version: meta.version, buildVersion: meta.buildVersion,
-            bundlePath: payload, location: location, savedAt: meta.savedAt,
+            bundlePath: payload, store: store, savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
             omittedFiles: meta.omittedFiles ?? [])
     }
@@ -808,9 +927,10 @@ public enum BackupStore {
     /// complete — and restoring from it is a local directory copy rather than
     /// unpacking an archive across a cable.
     public static func backup(forKey key: String) -> Backup? {
-        if let local = backup(forKey: key, in: outboxRoot, location: .outbox) { return local }
-        guard let destination = reachableDestinationRoot else { return nil }
-        return backup(forKey: key, in: destination, location: .destination)
+        for store in reachableStores() {
+            if let found = backup(forKey: key, in: store) { return found }
+        }
+        return nil
     }
 
     // MARK: - Restore
@@ -887,12 +1007,9 @@ public enum BackupStore {
         // Dispatch thread has no task-locals — read inside the hop, a test's
         // scratch store silently became the real one and the tamper check passed
         // a tampered copy (`tamperingWithTheStoredCopyIsRefused` went red).
-        // Whichever store this backup came out of: a destination copy's sidecar
-        // sits beside its archive, not in the outbox.
-        let metaRoot = backup.location == .outbox
-            ? outboxRoot
-            : backup.bundlePath.deletingLastPathComponent().deletingLastPathComponent()
-        let recorded = recordedManifest(for: key, in: metaRoot)
+        // Whichever store this backup came out of: a disk copy's sidecar sits
+        // beside its archive, not in the outbox.
+        let recorded = recordedManifest(for: key, in: backup.store.root)
         guard await offCooperativePool(qos: .userInitiated, {
             integrityHolds(for: key, recorded: recorded, staged: staged)
         }) else {
@@ -996,16 +1113,16 @@ public enum BackupStore {
     /// restore does, without the swap. It needs room for a full bundle and takes
     /// as long as a rollback would, which is why it is not the default.
     public static func verify(deep: Bool = false) async -> [VerifyOutcome] {
-        var out = await verify(in: outboxRoot, location: .outbox, deep: deep)
-        if let destination = reachableDestinationRoot {
-            out += await verify(in: destination, location: .destination, deep: deep)
+        var out: [VerifyOutcome] = []
+        for store in reachableStores() {
+            out += await verify(in: store, deep: deep)
         }
         return out
     }
 
-    private static func verify(
-        in root: URL, location: Backup.Location, deep: Bool
-    ) async -> [VerifyOutcome] {
+    private static func verify(in store: Store, deep: Bool) async -> [VerifyOutcome] {
+        let root = store.root
+        let location = store.location
         let fm = FileManager.default
 
         // A nested function rather than `compactMap`'s closure: a deep check
@@ -1173,31 +1290,31 @@ public enum BackupStore {
     /// while they were the only ones present.
     public static func allBackups() -> [String: Backup] {
         var out: [String: Backup] = [:]
-        if let destination = reachableDestinationRoot {
-            for key in storedKeys(in: destination) {
-                out[key] = backup(forKey: key, in: destination, location: .destination)
+        // Reverse order, so the outbox is applied last and wins a collision: it
+        // is the newer copy, and restoring from it does not go over the cable.
+        // Between two disks the first one listed wins, which is the active disk —
+        // the only one this Mac has been writing to.
+        for store in reachableStores().reversed() {
+            for key in storedKeys(in: store.root) {
+                if let found = backup(forKey: key, in: store) { out[key] = found }
             }
         }
-        // Outbox second so it wins a collision: it is the newer copy, and
-        // restoring from it does not go over the cable.
-        for key in storedKeys(in: outboxRoot) {
-            if let local = backup(forKey: key, in: outboxRoot, location: .outbox) {
-                out[key] = local
-            }
-        }
-        return out.compactMapValues { $0 }
+        return out
     }
 
     /// Drop the backup for `key` (e.g. the user dismissed it).
     ///
-    /// Removes it from both stores. Dropping only one would leave the other to
-    /// reappear at the next refresh, which reads as the deletion having silently
-    /// failed.
+    /// Removes it from every store that can be read, not just the one being
+    /// written to. Dropping only one copy would leave the others to reappear at
+    /// the next refresh, which reads as the deletion having silently failed.
+    ///
+    /// This is the one deletion that crosses onto a disk this Mac does not write
+    /// to, and it is safe for the reason an automatic prune is not: someone
+    /// pressed a button naming this backup. See ``reachableDestinationRoot``.
     public static func remove(forKey key: String) {
-        removeClearingImmutableFlags(at: outboxRoot.appendingPathComponent(key, isDirectory: true))
-        if let destination = reachableDestinationRoot {
+        for store in reachableStores() {
             removeClearingImmutableFlags(
-                at: destination.appendingPathComponent(key, isDirectory: true))
+                at: store.root.appendingPathComponent(key, isDirectory: true))
         }
     }
 
@@ -1228,13 +1345,14 @@ public enum BackupStore {
         /// grew to 272 MB unnoticed, counted in the total but impossible to remove.
         public let isRestorable: Bool
         /// Which store this row came out of, so a sheet about reclaiming space
-        /// can say *whose* space — the boot volume's or the backup disk's.
-        public let location: Backup.Location
+        /// can say *whose* space — this Mac's, or a named disk's.
+        public let store: Store
+        public var location: Backup.Location { store.location }
 
         public init(
             key: String, name: String, version: String?, currentVersion: String?,
             savedAt: Date?, sizeBytes: Int64, bundlePath: URL?, appStillInstalled: Bool,
-            isRestorable: Bool, location: Backup.Location = .outbox
+            isRestorable: Bool, store: Store
         ) {
             self.key = key
             self.name = name
@@ -1245,7 +1363,7 @@ public enum BackupStore {
             self.bundlePath = bundlePath
             self.appStillInstalled = appStillInstalled
             self.isRestorable = isRestorable
-            self.location = location
+            self.store = store
         }
     }
 
@@ -1268,17 +1386,16 @@ public enum BackupStore {
     /// space: a backup mid-transfer really is occupying both disks, and merging
     /// the rows would hide half of what deleting it would free.
     public static func listing() -> [Listing] {
-        var out = listing(in: outboxRoot, location: .outbox)
-        if let destination = reachableDestinationRoot {
-            out += listing(in: destination, location: .destination)
-        }
+        var out: [Listing] = []
+        for store in reachableStores() { out += listing(in: store) }
         // Undated (sidecar-less) entries sort last: they are the ones to clear out,
         // not the ones to reason about.
         return out.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
     }
 
-    private static func listing(in root: URL, location: Backup.Location) -> [Listing] {
+    private static func listing(in store: Store) -> [Listing] {
         let fm = FileManager.default
+        let (root, location) = (store.root, store.location)
         var out: [Listing] = []
         for key in storedKeys(in: root) {
             let dir = root.appendingPathComponent(key, isDirectory: true)
@@ -1300,7 +1417,7 @@ public enum BackupStore {
                 bundlePath: payload,
                 appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
                 isRestorable: meta != nil,
-                location: location))
+                store: store))
         }
         return out
     }
@@ -1322,6 +1439,13 @@ public enum BackupStore {
     /// return zero. Nothing distinguishes them today because nothing asks; the
     /// caller discards this value entirely. Give this a richer return type when
     /// a surface exists that would say something different about the two.
+    ///
+    /// Deliberately **not** extended to the other readable disks. "Orphan" here
+    /// means "no app at the recorded path *on this Mac*", which is a sound reading
+    /// only for a store this Mac owns and has been writing to. A disk that is
+    /// merely plugged in may carry another Mac's backups, and every one of them
+    /// would qualify — the prune would be correct about each and would empty the
+    /// disk. See ``reachableDestinationRoot``.
     @discardableResult
     public static func pruneOrphans() -> Int64 {
         var freed = pruneOrphans(in: outboxRoot)
@@ -1358,12 +1482,20 @@ public enum BackupStore {
         return sizes.outbox + sizes.destination
     }
 
-    /// On-disk size of each store separately. `destination` is zero when the
-    /// disk is not connected, which is indistinguishable from "empty" and should
-    /// be presented alongside ``availability()`` rather than on its own.
+    /// On-disk size of this Mac's store and of the **active** disk. `destination`
+    /// is zero when that disk is not connected, which is indistinguishable from
+    /// "empty" and should be presented alongside ``availability()`` rather than on
+    /// its own. Use ``sizesByStore()`` where several disks may be readable.
     public static func storeSizes() -> (outbox: Int64, destination: Int64) {
         (storeSize(of: outboxRoot),
          reachableDestinationRoot.map(storeSize(of:)) ?? 0)
+    }
+
+    /// What each readable store is holding, in the order ``reachableStores()``
+    /// lists them. Walks every backup in every store, so call it off the main
+    /// thread.
+    public static func sizesByStore() -> [(store: Store, bytes: Int64)] {
+        reachableStores().map { ($0, storeSize(of: $0.root)) }
     }
 
     private static func storeSize(of root: URL) -> Int64 {

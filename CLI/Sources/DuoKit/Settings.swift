@@ -42,7 +42,9 @@ public struct Settings: Sendable {
     /// external disk, which reads as data loss rather than as a missing call.
     public static func configureBackupStore() {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        BackupStore.configure(BackupDestination.load(from: defaults))
+        BackupStore.configure(
+            BackupDestination.load(from: defaults),
+            known: BackupDestination.known(from: defaults))
     }
 
     /// How hard to squeeze a bundle on its way to the backup disk, as the app

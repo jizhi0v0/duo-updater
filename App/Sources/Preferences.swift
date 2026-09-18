@@ -199,7 +199,8 @@ final class Preferences {
     var backupDestination: BackupDestination {
         didSet {
             backupDestination.save(into: defaults)
-            BackupStore.configure(backupDestination)
+            BackupStore.configure(
+                backupDestination, known: BackupDestination.known(from: defaults))
         }
     }
 
@@ -587,7 +588,8 @@ final class Preferences {
         // Same reason as the line above: `didSet` does not fire inside `init`,
         // so without this the store would stay pointed at the boot volume for
         // the whole session no matter what the user configured.
-        BackupStore.configure(self.backupDestination)
+        BackupStore.configure(
+            self.backupDestination, known: BackupDestination.known(from: defaults))
         resolveSpotlights()
     }
 

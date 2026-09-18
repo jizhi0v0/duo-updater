@@ -116,6 +116,73 @@ public struct BackupDestination: Sendable, Equatable {
         defaults.set(path, forKey: UpdateSettings.backupDestinationPathKey)
         defaults.set(identity, forKey: UpdateSettings.backupDestinationIdentityKey)
         defaults.set(volumeName, forKey: UpdateSettings.backupDestinationVolumeNameKey)
+        remember(into: defaults)
+    }
+
+    // MARK: - Known disks
+
+    /// Every disk adopted as a destination at some point, newest use first.
+    ///
+    /// The active destination is included and comes first even when it is not in
+    /// the stored list — which is the state every existing installation is in,
+    /// since the list did not exist when they chose their disk.
+    ///
+    /// Reachability is not consulted here. A disk that is unplugged is still one
+    /// of the user's backup disks, and the picker has to be able to name it in
+    /// order to say that it is unplugged; filtering to what is mounted would make
+    /// the current selection disappear from the menu the moment a cable came out.
+    public static func known(from defaults: UserDefaults) -> [BackupDestination] {
+        var out: [BackupDestination] = []
+        var seen = Set<String>()
+
+        func add(_ destination: BackupDestination) {
+            guard let path = destination.path, !path.isEmpty else { return }
+            // Keyed by identity where there is one: the same disk remounted at a
+            // different path (`/Volumes/Archive 1` after a decoy directory took
+            // the name) is the same disk, and listing it twice would offer the
+            // user a choice between two spellings of one thing.
+            guard seen.insert(destination.identity ?? path).inserted else { return }
+            out.append(destination)
+        }
+
+        remembered(from: defaults).map(add)
+        for entry in defaults.array(forKey: UpdateSettings.backupDestinationHistoryKey) as? [[String: String]] ?? [] {
+            guard let path = entry["path"], !path.isEmpty else { continue }
+            add(BackupDestination(
+                kind: .external, path: path,
+                identity: entry["identity"], volumeName: entry["volumeName"]))
+        }
+        return out
+    }
+
+    /// Add this destination to the remembered list, most recent first.
+    ///
+    /// Capped, because nothing ever removes an entry on its own: a disk that is
+    /// gone for good still has to be listed (that is how the user learns their
+    /// backups are on a disk they no longer have), so the only bound available
+    /// is how many we are willing to show.
+    func remember(into defaults: UserDefaults, limit: Int = 8) {
+        guard kind == .external, let path, !path.isEmpty else { return }
+        var entry = ["path": path]
+        entry["identity"] = identity
+        entry["volumeName"] = volumeName
+
+        var entries = defaults.array(forKey: UpdateSettings.backupDestinationHistoryKey)
+            as? [[String: String]] ?? []
+        entries.removeAll { $0["identity"] == identity && $0["path"] == path }
+        entries.insert(entry, at: 0)
+        defaults.set(
+            Array(entries.prefix(limit)),
+            forKey: UpdateSettings.backupDestinationHistoryKey)
+    }
+
+    /// Forget a disk, so the picker stops offering it. The backups on it are
+    /// untouched — this is a list of what to show, not a store.
+    public static func forget(identity: String, in defaults: UserDefaults) {
+        var entries = defaults.array(forKey: UpdateSettings.backupDestinationHistoryKey)
+            as? [[String: String]] ?? []
+        entries.removeAll { $0["identity"] == identity }
+        defaults.set(entries, forKey: UpdateSettings.backupDestinationHistoryKey)
     }
 }
 

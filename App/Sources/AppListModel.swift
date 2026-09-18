@@ -6816,6 +6816,23 @@ final class AppListModel {
         await Task.detached(priority: .utility) { BackupStore.pendingTransferKeys().count }.value
     }
 
+    /// A cheap number that changes whenever a backup appears or disappears in
+    /// any readable store — one directory listing per store, no sidecars read
+    /// and nothing walked for size.
+    ///
+    /// The settings page needs something to poll, and "how much is owed to the
+    /// disk" is not it: with backups kept on this Mac nothing is ever owed, so
+    /// that number sits at zero forever and the sizes beside it stay frozen at
+    /// whatever was true when the page opened. Installing an update with the
+    /// page open then left "On this Mac" reading Zero KB with a backup already
+    /// on disk — the exact symptom the polling was added to prevent, arrived at
+    /// from the other side.
+    func backupStoreChangeCount() async -> Int {
+        await Task.detached(priority: .utility) {
+            BackupStore.reachableStores().reduce(0) { $0 + BackupStore.storedKeyCount(in: $1) }
+        }.value
+    }
+
     /// What is owed to the destination right now, and how many bytes of it are
     /// sitting in the outbox — the numbers a confirmation names before a
     /// multi-gigabyte move starts.

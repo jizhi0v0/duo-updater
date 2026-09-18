@@ -70,21 +70,31 @@ struct BackupsSettingsPage: View {
             // The page would otherwise show whatever was true when it opened: a
             // transfer finishing in the background is exactly the thing someone
             // has this page open to watch, and it reported "Zero KB" for a
-            // backup that had already landed. Sizes walk both stores, so they
-            // are re-read only when the amount of owed work actually changes.
+            // backup that had already landed. Sizes walk every store, so they
+            // are re-read only when something has actually changed.
             var tick = 0
+            var storeCount = await model.backupStoreChangeCount()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 // Two cadences on purpose. The queue's state lives in memory and
-                // is free to read, so the progress line stays live; counting what
-                // is owed reads a sidecar per backup and re-measuring sizes walks
-                // both stores, so those happen half as often and only when the
-                // amount of owed work has actually moved.
+                // is free to read, so the progress line stays live; the change
+                // signal is a directory listing per store, so it runs half as
+                // often and only re-measures sizes when it moves.
                 transferState = await model.backupTransferState()
                 tick += 1
                 if tick % 2 == 0 {
+                    // Both signals, because neither covers the other. What is
+                    // owed moves during a transfer while the number of stored
+                    // backups does not; the count moves when a backup is taken
+                    // or deleted, including while backups are kept on this Mac,
+                    // where nothing is ever owed and the owed count is frozen
+                    // at zero.
                     let owed = await model.pendingBackupTransfers()
-                    if owed != pendingCount { await refresh() }
+                    let count = await model.backupStoreChangeCount()
+                    if owed != pendingCount || count != storeCount {
+                        storeCount = count
+                        await refresh()
+                    }
                 }
             }
         }
@@ -382,6 +392,10 @@ struct BackupsSettingsPage: View {
 
     private func select(_ option: DestinationOption) {
         guard !isWorking else { return }
+        // Pressing the disk already in use changes nothing, and running the
+        // switch anyway disabled every row for the round trip — a flash of grey
+        // that said something was happening when nothing was.
+        guard !isSelected(option) else { return }
         switch option {
         case .known(let destination):
             beginSwitch(to: destination, diskLabel: title(for: option))

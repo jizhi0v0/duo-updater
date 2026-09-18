@@ -740,6 +740,13 @@ public enum BackupStore {
         }
     }
 
+    /// How many key directories a store holds, without reading any of them.
+    /// A change signal for a UI that has to notice a backup appearing, at the
+    /// cost of one directory listing.
+    public static func storedKeyCount(in store: Store) -> Int {
+        storedKeys(in: store.root).count
+    }
+
     /// Backups held on this Mac by an explicit choice, rather than owed to a disk.
     public static func heldOnThisMacKeys() -> [String] {
         storedKeys(in: outboxRoot).filter { key in

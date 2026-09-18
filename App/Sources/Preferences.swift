@@ -210,6 +210,14 @@ final class Preferences {
         BackupDestination.remembered(from: defaults)
     }
 
+    /// Every disk ever adopted as a backup destination, most recently used
+    /// first — including ones not plugged in right now. The disk picker has to
+    /// name a disk in order to say it isn't connected, so this does not filter
+    /// to what is reachable.
+    var knownBackupDestinations: [BackupDestination] {
+        BackupDestination.known(from: defaults)
+    }
+
     /// How hard to compress a backup on its way to the external disk.
     ///
     /// Measured on an 802 MB Electron bundle: `.fast` (lzfse) took 1.8 s for

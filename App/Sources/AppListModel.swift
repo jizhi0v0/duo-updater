@@ -6671,9 +6671,25 @@ final class AppListModel {
     /// Whether the configured backup disk can be written to right now.
     func backupAvailability() -> BackupStore.Availability { BackupStore.availability() }
 
-    /// Sizes of the two stores, for the Settings page. Walks both, so off-main.
-    func backupStoreSizes() async -> (outbox: Int64, destination: Int64) {
-        await Task.detached(priority: .utility) { BackupStore.storeSizes() }.value
+    /// Whether a specific disk — not necessarily the active one — can be written
+    /// to right now. The disk picker uses this to show each known disk's own
+    /// state, independent of which one backups are currently going to.
+    func backupAvailability(for destination: BackupDestination) -> BackupStore.Availability {
+        BackupStore.availability(destination)
+    }
+
+    /// What each readable store is holding, named for display. Walks every
+    /// store, so off-main.
+    func backupSizesByStore() async -> [(store: BackupStore.Store, bytes: Int64)] {
+        await Task.detached(priority: .utility) { BackupStore.sizesByStore() }.value
+    }
+
+    /// Disks plugged in right now that already hold a backup store, whether or
+    /// not this Mac was ever configured to use them — for the disk picker to
+    /// offer alongside the known ones. Read-only: adopting one is a separate,
+    /// explicit step (`useBackupDisk(at:)`).
+    func discoverBackupStores() async -> [BackupStoreDiscovery.Found] {
+        await BackupStoreDiscovery.scanMountedVolumes()
     }
 
     /// How many backups are still waiting to move.

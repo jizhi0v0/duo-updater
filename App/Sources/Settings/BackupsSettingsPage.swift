@@ -12,11 +12,19 @@ struct BackupsSettingsPage: View {
     @Bindable var prefs: Preferences
     let model: AppListModel
 
-    @State private var outboxBytes: Int64?
-    @State private var destinationBytes: Int64?
+    @State private var storeSizes: [(store: BackupStore.Store, bytes: Int64)] = []
     @State private var pendingCount = 0
     @State private var transferState: BackupTransferQueue.State = .idle
     @State private var availability: BackupStore.Availability = .localOnly(BackupStore.outboxRoot)
+    /// Each known disk's own reachability, keyed by `destinationKey(_:)`.
+    /// Recomputed on every `refresh()`, not on every render — walking a marker
+    /// file on a network share is a filesystem call, and this can run it for up
+    /// to eight disks.
+    @State private var knownAvailability: [String: BackupStore.Availability] = [:]
+    /// Disks plugged in right now that already carry a store, whether or not
+    /// this Mac was ever configured for them. Populated once, off the main
+    /// thread — `BackupStoreDiscovery` reads mounted volumes.
+    @State private var discoveredStores: [BackupStoreDiscovery.Found] = []
     @State private var lastReport: BackupDestinationProbe.Report?
     @State private var pickError: String?
     @State private var isWorking = false
@@ -57,6 +65,12 @@ struct BackupsSettingsPage: View {
                 }
             }
         }
+        .task {
+            // A separate, one-shot task: this walks every mounted volume, which
+            // touches the filesystem and would block the render pass if it ran
+            // inline in `body`.
+            discoveredStores = await model.discoverBackupStores()
+        }
         .sheet(isPresented: $showingBackups) {
             BackupsSheet(backups: backupListing) { keys in
                 Task {
@@ -84,18 +98,12 @@ struct BackupsSettingsPage: View {
 
     private var locationCard: some View {
         SettingsCard(header: "Where backups are kept") {
-            Picker("Where backups are kept", selection: locationBinding) {
-                Text("On this Mac").tag(false)
-                Text("On another disk").tag(true)
+            ForEach(Array(destinationOptions.enumerated()), id: \.element.id) { index, option in
+                if index > 0 { SettingsDivider() }
+                destinationRow(option)
             }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
-            .settingsRow()
-
-            if prefs.backupDestination.kind == .external {
-                SettingsDivider()
-                diskRow.settingsRow()
-            }
+            SettingsDivider()
+            chooseAnotherRow
         } footer: {
             if let pickError {
                 // Named as the folder that was *rejected*, because the row above
@@ -113,45 +121,91 @@ struct BackupsSettingsPage: View {
         }
     }
 
-    private var diskRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: statusIcon)
-                .foregroundStyle(statusTint)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(statusTitle)
-                if let path = prefs.backupDestination.path {
-                    Text(path)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.head)
+    /// One row per disk the picker can write to: this Mac, then every disk ever
+    /// adopted, then any disk plugged in right now that already carries a store
+    /// this Mac was never configured for.
+    private var destinationOptions: [DestinationOption] {
+        let known = prefs.knownBackupDestinations
+        var out: [DestinationOption] = [.local] + known.map(DestinationOption.known)
+        let knownIdentities = Set(known.compactMap(\.identity))
+        for found in discoveredStores where !knownIdentities.contains(found.marker.identity) {
+            out.append(.discovered(found))
+        }
+        return out
+    }
+
+    private func destinationRow(_ option: DestinationOption) -> some View {
+        let selected = isSelected(option)
+        return Button {
+            select(option)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon(for: option))
+                    .foregroundStyle(tint(for: option))
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title(for: option))
+                    if let subtitle = subtitle(for: option) {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    // The exact folder, not just the disk, only for the one
+                    // currently in use — the other rows are a name and a state,
+                    // not a path to double-check.
+                    if selected, case .known(let destination) = option, let path = destination.path {
+                        Text(path)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
+                Spacer(minLength: 12)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                 }
             }
-            Spacer(minLength: 12)
-            Button("Change…") { chooseDisk() }
-                .controlSize(.small)
-                .disabled(isWorking)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .disabled(isWorking)
+        .settingsRow()
+    }
+
+    private var chooseAnotherRow: some View {
+        Button {
+            chooseDisk()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.badge.plus")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                Text("Choose another folder…")
+                Spacer(minLength: 12)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isWorking)
+        .settingsRow()
     }
 
     private var storageCard: some View {
         SettingsCard(header: "Storage") {
-            HStack {
-                Text("On this Mac")
-                Spacer()
-                Text(format(outboxBytes)).foregroundStyle(.secondary)
-            }
-            .settingsRow()
-
-            if prefs.backupDestination.kind == .external {
-                SettingsDivider()
+            ForEach(Array(storeSizes.enumerated()), id: \.element.store.id) { index, entry in
+                if index > 0 { SettingsDivider() }
                 HStack {
-                    Text(prefs.backupDestination.volumeName.map { "On “\($0)”" } ?? "On the backup disk")
+                    Text(storeSizeLabel(entry.store))
                     Spacer()
-                    Text(format(destinationBytes)).foregroundStyle(.secondary)
+                    Text(format(entry.bytes)).foregroundStyle(.secondary)
                 }
                 .settingsRow()
+            }
 
+            if prefs.backupDestination.kind == .external {
                 if case .copying(let name, let completed, let total) = transferState {
                     SettingsDivider()
                     // A bare count reads as stalled on a slow disk — a single
@@ -222,44 +276,132 @@ struct BackupsSettingsPage: View {
         }
     }
 
+    // MARK: - Destination rows
+
+    /// One entry the disk picker can show. `known` disks are offered whether or
+    /// not they are plugged in right now — the picker has to name a disk in
+    /// order to say it isn't connected — and `discovered` disks are ones found
+    /// on a volume that is mounted right now but was never adopted here.
+    private enum DestinationOption: Identifiable {
+        case local
+        case known(BackupDestination)
+        case discovered(BackupStoreDiscovery.Found)
+
+        var id: String {
+            switch self {
+            case .local: return "local"
+            case .known(let destination): return "known:\(destinationKey(destination))"
+            case .discovered(let found): return "discovered:\(found.marker.identity)"
+            }
+        }
+    }
+
+    private func isSelected(_ option: DestinationOption) -> Bool {
+        switch option {
+        case .local:
+            return prefs.backupDestination.kind == .local
+        case .known(let destination):
+            return prefs.backupDestination.kind == .external
+                && destinationKey(destination) == destinationKey(prefs.backupDestination)
+        case .discovered:
+            // Never the active choice: a discovered disk is, by construction,
+            // one whose identity isn't among the known destinations, and the
+            // active destination is always one of those.
+            return false
+        }
+    }
+
+    private func select(_ option: DestinationOption) {
+        guard !isWorking else { return }
+        switch option {
+        case .local:
+            Task { await work { await model.useLocalBackups() } }
+        case .known(let destination):
+            Task { await work { await model.useBackupDisk(destination) } }
+        case .discovered(let found):
+            adopt(at: found.root)
+        }
+    }
+
+    private func icon(for option: DestinationOption) -> String {
+        switch option {
+        case .local:
+            return "internaldrive.fill"
+        case .known(let destination):
+            switch availability(for: destination) {
+            case .ready:            return "externaldrive.fill.badge.checkmark"
+            case .volumeNotMounted: return "externaldrive.badge.xmark"
+            case .identityMismatch: return "externaldrive.badge.questionmark"
+            case .notWritable:      return "lock.fill"
+            case .localOnly:        return "externaldrive"
+            }
+        case .discovered:
+            return "externaldrive.badge.plus"
+        }
+    }
+
+    private func tint(for option: DestinationOption) -> Color {
+        switch option {
+        case .local:
+            return .secondary
+        case .known(let destination):
+            switch availability(for: destination) {
+            case .ready:     return .accentColor
+            case .localOnly: return .secondary
+            default:         return .orange
+            }
+        case .discovered:
+            return .blue
+        }
+    }
+
+    private func title(for option: DestinationOption) -> String {
+        switch option {
+        case .local:
+            return String(localized: "On this Mac")
+        case .known(let destination):
+            return destination.volumeName ?? String(localized: "Backup disk")
+        case .discovered(let found):
+            return found.volumeName ?? String(localized: "Backup disk")
+        }
+    }
+
+    private func subtitle(for option: DestinationOption) -> String? {
+        switch option {
+        case .local:
+            return nil
+        case .known(let destination):
+            switch availability(for: destination) {
+            case .ready:             return String(localized: "Connected")
+            case .volumeNotMounted:  return String(localized: "Isn’t connected")
+            case .identityMismatch:  return String(localized: "A different disk is mounted here")
+            case .notWritable:       return String(localized: "Can’t be written to")
+            case .localOnly:         return nil
+            }
+        case .discovered:
+            return String(localized: "Has a backup store, but isn’t set up on this Mac.")
+        }
+    }
+
+    /// A known disk's own reachability, from the cache `refresh()` fills. A disk
+    /// that has never been checked (should not happen — every known disk is
+    /// checked on every refresh) reads as not mounted rather than crashing on a
+    /// missing key.
+    private func availability(for destination: BackupDestination) -> BackupStore.Availability {
+        knownAvailability[destinationKey(destination)]
+            ?? .volumeNotMounted(volumeName: destination.volumeName, path: destination.path ?? "")
+    }
+
+    // MARK: - Storage wording
+
+    private func storeSizeLabel(_ store: BackupStore.Store) -> String {
+        if let name = store.volumeName { return String(localized: "On “\(name)”") }
+        return store.location == .outbox
+            ? String(localized: "On this Mac")
+            : String(localized: "On the backup disk")
+    }
+
     // MARK: - Status wording
-
-    private var statusIcon: String {
-        if isOnThisMacsDisk { return "internaldrive.fill" }
-        switch availability {
-        case .ready:             return "externaldrive.fill.badge.checkmark"
-        case .volumeNotMounted:  return "externaldrive.badge.xmark"
-        case .identityMismatch:  return "externaldrive.badge.questionmark"
-        case .notWritable:       return "lock.fill"
-        case .localOnly:         return "internaldrive.fill"
-        }
-    }
-
-    private var statusTint: Color {
-        if isOnThisMacsDisk { return .orange }
-        if case .ready = availability { return .accentColor }
-        if case .localOnly = availability { return .secondary }
-        return .orange
-    }
-
-    private var statusTitle: String {
-        let name = prefs.backupDestination.volumeName
-        switch availability {
-        case .ready:
-            if isOnThisMacsDisk { return String(localized: "This folder is on this Mac’s disk") }
-            return name.map { String(localized: "“\($0)” is connected") }
-                ?? String(localized: "Connected")
-        case .volumeNotMounted:
-            return name.map { String(localized: "“\($0)” isn’t connected") }
-                ?? String(localized: "The backup disk isn’t connected")
-        case .identityMismatch:
-            return String(localized: "A different disk is mounted here")
-        case .notWritable:
-            return String(localized: "This folder can’t be written to")
-        case .localOnly:
-            return String(localized: "Backups are kept on this Mac")
-        }
-    }
 
     private var destinationFooter: String {
         if isOnThisMacsDisk {
@@ -291,27 +433,6 @@ struct BackupsSettingsPage: View {
 
     // MARK: - Actions
 
-    private var locationBinding: Binding<Bool> {
-        Binding(
-            get: { prefs.backupDestination.kind == .external },
-            set: { wantsExternal in
-                guard wantsExternal else {
-                    Task { await work { await model.useLocalBackups() } }
-                    return
-                }
-                // Turning the disk back on is a switch, not a decision to make
-                // again. Only ask for a folder when there is none to return to —
-                // and note that "remembered but not plugged in right now" is not
-                // one of those cases: the status row says so, and backups wait on
-                // this Mac until it is back, which is the designed behaviour.
-                if let remembered = prefs.rememberedBackupDisk {
-                    Task { await work { await model.useBackupDisk(remembered) } }
-                } else {
-                    chooseDisk()
-                }
-            })
-    }
-
     private func chooseDisk() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -322,6 +443,12 @@ struct BackupsSettingsPage: View {
         panel.message = String(localized: "Choose a folder on an external disk or a network share. Backups are kept inside it, and moving them there is what frees space on this Mac.")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        adopt(at: url)
+    }
+
+    /// Probe and adopt `url`, whether it came from the folder panel or from
+    /// picking a disk the scan already found holding a store.
+    private func adopt(at url: URL) {
         Task {
             await work {
                 do {
@@ -346,20 +473,29 @@ struct BackupsSettingsPage: View {
 
     private func refresh() async {
         availability = model.backupAvailability()
-        let sizes = await model.backupStoreSizes()
-        outboxBytes = sizes.outbox
-        destinationBytes = sizes.destination
+        storeSizes = await model.backupSizesByStore()
         pendingCount = await model.pendingBackupTransfers()
         transferState = await model.backupTransferState()
         isOnThisMacsDisk = prefs.backupDestination.directory.map {
             BackupDestinationProbe.isOnSameVolume($0, as: BackupStore.outboxRoot)
         } ?? false
+        var avail: [String: BackupStore.Availability] = [:]
+        for destination in prefs.knownBackupDestinations {
+            avail[destinationKey(destination)] = model.backupAvailability(for: destination)
+        }
+        knownAvailability = avail
     }
 
     private func format(_ bytes: Int64?) -> String {
         guard let bytes else { return "…" }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
+}
+
+/// Groups a destination by identity where there is one, else by path — the same
+/// rule `BackupDestination.known(from:)` uses to dedupe the remembered list.
+private func destinationKey(_ destination: BackupDestination) -> String {
+    destination.identity ?? destination.path ?? ""
 }
 
 /// The compression choice, laid out the way the other settings pickers are.

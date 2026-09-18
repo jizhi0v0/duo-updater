@@ -492,6 +492,11 @@ struct WorkbenchWindowView: View {
                 }
                 brewListView(lists)
             case .rollback:
+                // Shown even with nothing restorable locally: that is precisely the
+                // case where the list would otherwise look empty rather than partial.
+                if let disk = model.offlineBackupDisk {
+                    offlineBackupNotice(disk, hasRollback: !lists.rollbackable.isEmpty)
+                }
                 rollbackListView(lists)
             }
         }
@@ -603,6 +608,22 @@ struct WorkbenchWindowView: View {
         }
         .buttonStyle(.plain)
         .help(title)
+    }
+
+    /// Says why this list is shorter than the store. Without it an unplugged disk
+    /// and an empty store look the same on screen — and the second reading is the
+    /// one that makes a user think their backups are gone.
+    private func offlineBackupNotice(_ disk: String, hasRollback: Bool) -> some View {
+        Label {
+            Text("Backups on “\(disk)” aren’t available right now — showing only what’s on this Mac.")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "externaldrive.badge.xmark")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.bottom, hasRollback ? 2 : 8)
     }
 
     /// Entering a tab sets which pane the detail opens on, and moves the selection

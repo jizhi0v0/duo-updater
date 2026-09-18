@@ -23,7 +23,8 @@ commands:
   restart       Quit and relaunch apps whose running copy is stale.
   ignore        Hide an app from update checks. unignore undoes it.
   skip          Hide the version currently offered. unskip undoes it.
-  backups       List the rollback points, or put one back.
+  backups       List the rollback points, put one back, move them to the
+                backup disk, or check that they are still intact.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
   requests      What DuoUpdater itself put on the network: which hosts, what
@@ -112,6 +113,15 @@ ignore / unignore / skip / unskip options:
 backups options:
   list                Every stored rollback point: app, version, when, size.
   restore <app>       Put a backed-up bundle back over the installed one.
+  sync                Move backups still on this Mac onto the backup disk.
+  verify              Re-check every stored backup against what was recorded
+                      for it. Exits 1 if any is damaged.
+  probe <path>        What a folder could do as a backup store — filesystem,
+                      free space, largest file it can hold, write speed.
+                      Writes nothing and changes no setting.
+  --deep              verify only: unpack each archive on the disk and compare
+                      the whole bundle, not just the archive's digest. As slow
+                      as a rollback, and needs room for one.
   --yes               Don't ask before overwriting.
   --json              Machine-readable form.
 
@@ -120,6 +130,9 @@ backups options:
   rollback, it does not refuse when the target is running; it restores and tells
   you to restart. A shared bundle id (Android Studio's channels, Thunderbird
   stable/esr) is ambiguous for a restore and is refused rather than guessed.
+
+  When the backup disk isn't connected, list and verify say so on stderr and
+  report what is on this Mac, rather than reporting nothing.
 
 doctor options:
   --json              Machine-readable form of the same report.
@@ -270,6 +283,10 @@ if CommandLine.arguments.dropFirst().contains(where: { $0 == "--help" || $0 == "
     exit(0)
 }
 
+// Before anything parses an argument: the backup store has to be pointed at the
+// disk the user chose in the app, and this is the one place no command can skip.
+Settings.configureBackupStore()
+
 guard let args = Args(CommandLine.arguments) else {
     print(usage)
     exit(2)
@@ -343,6 +360,9 @@ case "backups":
     let operands = args.operands
     let json = args.has("json")
     let assumeYes = args.has("yes")
+    // Read here and not inside the closure: `Args.unrecognised()` treats a flag
+    // it was never asked about as one this subcommand does not accept.
+    let deep = args.has("deep")
     run = {
         let operation: Backups.Options.Operation
         switch operands.first {
@@ -353,8 +373,18 @@ case "backups":
                 die("backups restore needs exactly one app\n\n\(usage)", code: 2)
             }
             operation = .restore(app: operands[1])
+        case "sync":
+            operation = .sync
+        case "verify":
+            operation = .verify(deep: deep)
+        case "probe":
+            guard operands.count == 2 else {
+                die("backups probe needs exactly one folder\n\n\(usage)", code: 2)
+            }
+            operation = .probe(path: operands[1])
         case let other?:
-            die("unknown backups operation '\(other)'; expected list or restore", code: 2)
+            die("unknown backups operation '\(other)'; expected "
+                + "list, restore, sync, verify or probe", code: 2)
         }
         var options = Backups.Options(operation: operation)
         options.json = json

@@ -1029,13 +1029,14 @@ struct BackupStoreTests {
         }
     }
 
-    /// The rollback scratch is named per key, not per attempt, so a leftover from
-    /// a crashed rollback is the *same* path the next one uses. One holding a copy
-    /// of a backup old enough to carry `uchg` could not be removed;
+    /// The rollback scratch used to be named per key, not per attempt, so a
+    /// leftover from a crashed rollback was the *same* path the next one used. One
+    /// holding a copy of a backup old enough to carry `uchg` could not be removed;
     /// `createDirectory(withIntermediateDirectories: true)` then reported success
     /// on the directory already there, and `ditto` copied into it and failed on the
     /// locked file — wedging every later rollback of that app, not just the one
-    /// that crashed.
+    /// that crashed. The name carries an attempt id now, so a restore can no longer
+    /// land in it; this pins that one of those leftovers is still reclaimed.
     @Test func aPoisonedRollbackScratchDoesNotWedgeTheNextRestore() async throws {
         try await withScratchRoot { root in
             let fm = FileManager.default

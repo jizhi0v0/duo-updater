@@ -153,7 +153,7 @@ public actor BackupTransferQueue {
         for attempt in 0..<maxAttempts {
             if Task.isCancelled { return .diskGone }
             do {
-                try BackupStore.transferToDestination(forKey: key)
+                try await BackupStore.transferToDestination(forKey: key)
                 return .done
             } catch {
                 // A destination that has gone away is not a transfer failure and

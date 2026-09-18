@@ -110,7 +110,7 @@ public enum BundleArchive {
     /// fails only at restore time.
     public static func archive(
         bundle: URL, to file: URL, compression: Compression = .fast
-    ) throws {
+    ) async throws {
         guard isAvailable else { throw ArchiveError.toolMissing }
         guard FileManager.default.fileExists(atPath: bundle.path) else {
             throw ArchiveError.unreadable(bundle.path)
@@ -124,7 +124,7 @@ public enum BundleArchive {
         // not recorded. That is deliberate — the app's name lives in the sidecar
         // (`Meta.bundleName`), which every read path already requires, and keeping
         // it out of the archive means renaming a backup can never disagree with it.
-        let result = run([
+        let result = await run([
             "archive",
             "-d", bundle.path,
             "-o", partial.path,
@@ -165,7 +165,7 @@ public enum BundleArchive {
     /// the stricter reading: the cost is that a bundle carrying files this user
     /// cannot chown (a `.pkg` install that left root-owned payload) now refuses to
     /// unpack rather than unpacking wrong.
-    public static func extract(archive: URL, into directory: URL) throws {
+    public static func extract(archive: URL, into directory: URL) async throws {
         guard isAvailable else { throw ArchiveError.toolMissing }
         guard FileManager.default.fileExists(atPath: archive.path) else {
             throw ArchiveError.unreadable(archive.path)
@@ -173,7 +173,7 @@ public enum BundleArchive {
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true)
 
-        let result = run([
+        let result = await run([
             "extract",
             "-i", archive.path,
             "-d", directory.path,
@@ -210,48 +210,45 @@ public enum BundleArchive {
 
     // MARK: - Process
 
-    /// The subprocess running right now, so a quitting app can stop it instead of
-    /// orphaning it.
+    /// The archive/extract running right now, so a quitting app can stop it
+    /// instead of orphaning it.
     ///
     /// `aa` is a child process, and macOS does not take it down when we exit — an
     /// orphan would keep writing, finish, and rename a complete archive into
     /// place that nothing then records in a sidecar. The bytes would be invisible
     /// to every read path and swept by none of them, because the sweeper looks
     /// for `.partial` and this is not one.
-    private nonisolated(unsafe) static var inFlight: Process?
+    ///
+    /// Held as the task rather than the pid: `ChildProcess` signals the child
+    /// through cancellation, and a pid kept past the child's exit names whatever
+    /// the kernel handed the number to next.
+    private nonisolated(unsafe) static var inFlight: Task<ChildProcess.Outcome, Error>?
     private static let inFlightLock = NSLock()
 
     /// Stop the running archive/extract, if any. Safe to call when nothing runs.
     public static func terminateInFlight() {
-        inFlightLock.lock()
-        let process = inFlight
-        inFlightLock.unlock()
-        process?.terminate()
+        inFlightLock.withLock { inFlight }?.cancel()
     }
 
-    private static func run(_ arguments: [String]) -> (status: Int32, message: String) {
-        let process = Process()
-        process.executableURL = tool
-        process.arguments = arguments
-        let errPipe = Pipe()
-        let outPipe = Pipe()
-        process.standardError = errPipe
-        process.standardOutput = outPipe
+    private static func run(_ arguments: [String]) async -> (status: Int32, message: String) {
+        // Wrapped in a task of its own so `terminateInFlight` has something to
+        // cancel from the main thread while this one is suspended on the child.
+        let task = Task {
+            try await ChildProcess.run(
+                tool.path, arguments,
+                standardOutput: .discard, standardError: .capture,
+                onCancel: .terminateChild)
+        }
+        inFlightLock.withLock { inFlight = task }
+        defer { inFlightLock.withLock { inFlight = nil } }
 
-        do { try process.run() } catch {
+        let outcome: ChildProcess.Outcome
+        do { outcome = try await task.value } catch {
             return (-1, error.localizedDescription)
         }
-        inFlightLock.lock(); inFlight = process; inFlightLock.unlock()
-        defer { inFlightLock.lock(); inFlight = nil; inFlightLock.unlock() }
-        // Drained before `waitUntilExit` so a verbose failure cannot fill the pipe
-        // buffer and deadlock the tool against a reader that never runs.
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        _ = outPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        let message = String(decoding: errData, as: UTF8.self)
+        let message = String(decoding: outcome.standardError, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(separator: "\n").last.map(String.init) ?? ""
-        return (process.terminationStatus, message)
+        return (outcome.terminationStatus, message)
     }
 }

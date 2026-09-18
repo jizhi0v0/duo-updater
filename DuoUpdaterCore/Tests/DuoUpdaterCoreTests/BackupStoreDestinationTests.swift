@@ -87,7 +87,7 @@ import Testing
     /// *read* side against a realistic on-disk shape.
     private func promoteToDestination(
         key: String, outbox: URL, destination: URL, dropOutboxCopy: Bool
-    ) throws {
+    ) async throws {
         let fm = FileManager.default
         let source = outbox.appendingPathComponent(key, isDirectory: true)
         let target = destination.appendingPathComponent(key, isDirectory: true)
@@ -97,7 +97,7 @@ import Testing
         let bundle = try #require(entries.first { $0.pathExtension == "app" })
         let archiveName = bundle.deletingPathExtension().lastPathComponent + ".aar"
         let archive = target.appendingPathComponent(archiveName)
-        try BundleArchive.archive(bundle: bundle, to: archive)
+        try await BundleArchive.archive(bundle: bundle, to: archive)
 
         let decoded = try JSONSerialization.jsonObject(
             with: Data(contentsOf: source.appendingPathComponent("backup.json")))
@@ -123,7 +123,7 @@ import Testing
         let moved = try makeApp(named: "Moved.app", in: apps, marker: "moved")
         try await BackupStore.save(
             appPath: moved, key: "moved", version: "2.0", bundleID: "com.example.moved")
-        try promoteToDestination(
+        try await promoteToDestination(
             key: "moved", outbox: outbox, destination: destination, dropOutboxCopy: true)
         return apps
     }
@@ -137,7 +137,7 @@ import Testing
     @Test func verifyPassesForUntouchedBackupsInBothStores() async throws {
         try await withStores { outbox, destination in
             _ = try await twoStores(outbox, destination)
-            let outcomes = BackupStore.verify()
+            let outcomes = await BackupStore.verify()
             #expect(outcomes.count == 2)
             #expect(try result(outcomes, "local") == .ok)
             #expect(try result(outcomes, "moved") == .ok)
@@ -155,7 +155,7 @@ import Testing
             bytes[bytes.count - 1] ^= 0xFF
             try bytes.write(to: archive)
 
-            let outcome = try result(BackupStore.verify(), "moved")
+            let outcome = try result(await BackupStore.verify(), "moved")
             #expect(outcome.isFailure)
             if case .mismatch = outcome {} else { Issue.record("expected a mismatch, got \(outcome)") }
         }
@@ -167,7 +167,7 @@ import Testing
             try Data("tampered".utf8).write(
                 to: outbox.appendingPathComponent("local/Local.app/Contents/marker.txt"))
 
-            let outcome = try result(BackupStore.verify(), "local")
+            let outcome = try result(await BackupStore.verify(), "local")
             #expect(outcome.isFailure)
         }
     }
@@ -185,7 +185,7 @@ import Testing
             decoded["manifest"] = nil
             try JSONSerialization.data(withJSONObject: decoded).write(to: sidecar)
 
-            let outcome = try result(BackupStore.verify(), "local")
+            let outcome = try result(await BackupStore.verify(), "local")
             #expect(!outcome.isFailure)
             if case .unverifiable = outcome {} else {
                 Issue.record("expected unverifiable, got \(outcome)")
@@ -202,7 +202,7 @@ import Testing
             let apps = try await twoStores(outbox, destination)
             let impostor = try makeApp(named: "Moved.app", in: apps, marker: "not the same app")
             let archive = destination.appendingPathComponent("moved/Moved.aar")
-            try BundleArchive.archive(bundle: impostor, to: archive)
+            try await BundleArchive.archive(bundle: impostor, to: archive)
 
             let sidecar = destination.appendingPathComponent("moved/backup.json")
             var decoded = try #require(try JSONSerialization.jsonObject(
@@ -210,9 +210,9 @@ import Testing
             decoded["archiveSHA256"] = try BundleArchive.sha256(of: archive)
             try JSONSerialization.data(withJSONObject: decoded).write(to: sidecar)
 
-            #expect(try result(BackupStore.verify(), "moved") == .ok,
+            #expect(try result(await BackupStore.verify(), "moved") == .ok,
                     "the digest agrees, because it was recomputed over the swap")
-            let deep = try result(BackupStore.verify(deep: true), "moved")
+            let deep = try result(await BackupStore.verify(deep: true), "moved")
             #expect(deep.isFailure, "unpacking it is what notices")
         }
     }
@@ -226,7 +226,7 @@ import Testing
             try FileManager.default.createDirectory(
                 at: outbox.appendingPathComponent("remnant", isDirectory: true),
                 withIntermediateDirectories: true)
-            #expect(BackupStore.verify().count == 2)
+            #expect(await BackupStore.verify().count == 2)
         }
     }
 
@@ -341,7 +341,7 @@ import Testing
             let app = try makeApp(named: "App.app", in: apps, marker: "v1")
             try await BackupStore.save(
                 appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
-            try promoteToDestination(
+            try await promoteToDestination(
                 key: "k", outbox: outbox, destination: destination, dropOutboxCopy: true)
 
             let found = try #require(BackupStore.backup(forKey: "k"))
@@ -361,7 +361,7 @@ import Testing
             let app = try makeApp(named: "App.app", in: apps, marker: "v1")
             try await BackupStore.save(
                 appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
-            try promoteToDestination(
+            try await promoteToDestination(
                 key: "k", outbox: outbox, destination: destination, dropOutboxCopy: false)
 
             #expect(BackupStore.backup(forKey: "k")?.location == .outbox)
@@ -382,7 +382,7 @@ import Testing
             let app = try makeApp(named: "App.app", in: apps, marker: "v1")
             try await BackupStore.save(
                 appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
-            try promoteToDestination(
+            try await promoteToDestination(
                 key: "k", outbox: outbox, destination: destination, dropOutboxCopy: false)
 
             BackupStore.remove(forKey: "k")
@@ -419,7 +419,7 @@ import Testing
             let app = try makeApp(named: "App.app", in: apps, marker: "v1")
             try await BackupStore.save(
                 appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
-            try promoteToDestination(
+            try await promoteToDestination(
                 key: "k", outbox: outbox, destination: destination, dropOutboxCopy: true)
 
             // The app moves on to v2, then rolls back.
@@ -442,7 +442,7 @@ import Testing
             let app = try makeApp(named: "App.app", in: apps, marker: "v1")
             try await BackupStore.save(
                 appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
-            try promoteToDestination(
+            try await promoteToDestination(
                 key: "k", outbox: outbox, destination: destination, dropOutboxCopy: true)
 
             let archive = destination.appendingPathComponent("k/App.aar")

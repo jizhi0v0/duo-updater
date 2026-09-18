@@ -641,7 +641,7 @@ public enum BackupStore {
     public static func transferToDestination(
         forKey key: String,
         compression: BundleArchive.Compression = UpdateSettings.backupCompressionDefault
-    ) throws -> Backup {
+    ) async throws -> Backup {
         guard let root = try destinationRoot() else {
             throw BackupError.destinationUnavailable(destination.volumeName ?? "backup disk")
         }
@@ -664,7 +664,7 @@ public enum BackupStore {
         // renames it, so the atomicity is the same, and streaming the compressed
         // output over means a transfer never needs a second bundle-sized hole on
         // the boot volume — which is usually the reason the store was moved.
-        try BundleArchive.archive(bundle: bundle, to: archive, compression: compression)
+        try await BundleArchive.archive(bundle: bundle, to: archive, compression: compression)
 
         let digest = try BundleArchive.sha256(of: archive)
         let bytes = (try? fm.attributesOfItem(atPath: archive.path)[.size] as? Int64) ?? nil
@@ -871,7 +871,7 @@ public enum BackupStore {
                 throw BackupError.copyFailed(backup.bundlePath.path)
             }
         case .destination:
-            staged = try unpackFromDestination(backup, key: key, into: scratch)
+            staged = try await unpackFromDestination(backup, key: key, into: scratch)
         }
         // Integrity gate before swapping a backup over the live app: a stored copy
         // that has changed since we wrote it has been corrupted or tampered with,
@@ -932,7 +932,7 @@ public enum BackupStore {
     /// has to explain a difference that a truncated transfer already accounts for.
     private static func unpackFromDestination(
         _ backup: Backup, key: String, into scratch: URL
-    ) throws -> URL {
+    ) async throws -> URL {
         let dir = backup.bundlePath.deletingLastPathComponent()
         guard let meta = readMeta(in: dir) else { throw BackupError.noBackup(key) }
 
@@ -946,7 +946,7 @@ public enum BackupStore {
         }
 
         let staged = scratch.appendingPathComponent(meta.bundleName)
-        try BundleArchive.extract(archive: backup.bundlePath, into: staged)
+        try await BundleArchive.extract(archive: backup.bundlePath, into: staged)
         return staged
     }
 
@@ -995,19 +995,22 @@ public enum BackupStore {
     /// archive to a scratch directory and comparing the manifest — exactly what a
     /// restore does, without the swap. It needs room for a full bundle and takes
     /// as long as a rollback would, which is why it is not the default.
-    public static func verify(deep: Bool = false) -> [VerifyOutcome] {
-        var out = verify(in: outboxRoot, location: .outbox, deep: deep)
+    public static func verify(deep: Bool = false) async -> [VerifyOutcome] {
+        var out = await verify(in: outboxRoot, location: .outbox, deep: deep)
         if let destination = reachableDestinationRoot {
-            out += verify(in: destination, location: .destination, deep: deep)
+            out += await verify(in: destination, location: .destination, deep: deep)
         }
         return out
     }
 
     private static func verify(
         in root: URL, location: Backup.Location, deep: Bool
-    ) -> [VerifyOutcome] {
+    ) async -> [VerifyOutcome] {
         let fm = FileManager.default
-        return storedKeys(in: root).compactMap { key -> VerifyOutcome? in
+
+        // A nested function rather than `compactMap`'s closure: a deep check
+        // unpacks an archive, which is a child process this has to await.
+        func check(_ key: String) async -> VerifyOutcome? {
             let dir = root.appendingPathComponent(key, isDirectory: true)
             // No sidecar is not a damaged backup, it is not a backup — the sweeper
             // deals with those, and reporting them here would put remnants in a
@@ -1055,12 +1058,18 @@ public enum BackupStore {
                     return outcome(.mismatch("the archive is not the one that was written"))
                 }
                 guard deep else { return outcome(.ok) }
-                return outcome(deepCheck(archive: archive, meta: meta))
+                return outcome(await deepCheck(archive: archive, meta: meta))
             }
         }
+
+        var results: [VerifyOutcome] = []
+        for key in storedKeys(in: root) {
+            if let result = await check(key) { results.append(result) }
+        }
+        return results
     }
 
-    private static func deepCheck(archive: URL, meta: Meta) -> VerifyOutcome.Result {
+    private static func deepCheck(archive: URL, meta: Meta) async -> VerifyOutcome.Result {
         guard let recorded = meta.manifest else {
             return .unverifiable("taken before fingerprints were recorded")
         }
@@ -1070,7 +1079,7 @@ public enum BackupStore {
         defer { forceRemove(scratch) }
         let staged = scratch.appendingPathComponent(meta.bundleName)
         do {
-            try BundleArchive.extract(archive: archive, into: staged)
+            try await BundleArchive.extract(archive: archive, into: staged)
         } catch {
             return .unreadable("the archive would not unpack — "
                 + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))

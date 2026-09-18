@@ -132,7 +132,7 @@ import Testing
     // MARK: - The two load-bearing assertions
 
     @Test(arguments: [BundleArchive.Compression.fast, .smallest])
-    func roundTripPreservesTheManifest(_ compression: BundleArchive.Compression) throws {
+    func roundTripPreservesTheManifest(_ compression: BundleArchive.Compression) async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -141,10 +141,10 @@ import Testing
         let before = try #require(BackupManifest.compute(for: app))
 
         let archive = root.appendingPathComponent("fixture.aar")
-        try BundleArchive.archive(bundle: app, to: archive, compression: compression)
+        try await BundleArchive.archive(bundle: app, to: archive, compression: compression)
 
         let restored = root.appendingPathComponent("Restored.app")
-        try BundleArchive.extract(archive: archive, into: restored)
+        try await BundleArchive.extract(archive: archive, into: restored)
 
         let after = try #require(BackupManifest.compute(for: restored))
         #expect(after == before, "\(compression) round trip changed the manifest")
@@ -153,16 +153,16 @@ import Testing
     /// The things `BackupManifest` does **not** hash, checked directly. Without
     /// this, a round trip that dropped every extended attribute would still pass
     /// the test above.
-    @Test func roundTripPreservesMetadataTheManifestIgnores() throws {
+    @Test func roundTripPreservesMetadataTheManifestIgnores() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let app = try makeNastyBundle(in: root)
         let archive = root.appendingPathComponent("fixture.aar")
-        try BundleArchive.archive(bundle: app, to: archive)
+        try await BundleArchive.archive(bundle: app, to: archive)
         let restored = root.appendingPathComponent("Restored.app")
-        try BundleArchive.extract(archive: archive, into: restored)
+        try await BundleArchive.extract(archive: archive, into: restored)
 
         let fm = FileManager.default
         let exec = "Contents/MacOS/App"
@@ -206,16 +206,16 @@ import Testing
     /// Manifest equality does not imply a valid seal, so this asks the question
     /// the manifest cannot.
     @Test(.enabled(if: BundleArchiveTests.signedApp != nil))
-    func roundTripPreservesTheCodeSignature() throws {
+    func roundTripPreservesTheCodeSignature() async throws {
         let app = try #require(Self.signedApp)
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let archive = root.appendingPathComponent("signed.aar")
-        try BundleArchive.archive(bundle: app, to: archive)
+        try await BundleArchive.archive(bundle: app, to: archive)
         let restored = root.appendingPathComponent(app.lastPathComponent)
-        try BundleArchive.extract(archive: archive, into: restored)
+        try await BundleArchive.extract(archive: archive, into: restored)
 
         // Throws on failure; reaching the next line is the assertion.
         try SignatureVerifier.verifyCodeSignature(appAt: restored)
@@ -223,27 +223,27 @@ import Testing
 
     // MARK: - Failure modes
 
-    @Test func archivingAMissingBundleFails() throws {
+    @Test func archivingAMissingBundleFails() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let archive = root.appendingPathComponent("out.aar")
-        #expect(throws: BundleArchive.ArchiveError.self) {
-            try BundleArchive.archive(
+        await #expect(throws: BundleArchive.ArchiveError.self) {
+            try await BundleArchive.archive(
                 bundle: root.appendingPathComponent("NoSuch.app"), to: archive)
         }
         #expect(!FileManager.default.fileExists(atPath: archive.path),
                 "a failed archive must not leave a file under the real name")
     }
 
-    @Test func extractingAMissingArchiveFails() throws {
+    @Test func extractingAMissingArchiveFails() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
-        #expect(throws: BundleArchive.ArchiveError.self) {
-            try BundleArchive.extract(
+        await #expect(throws: BundleArchive.ArchiveError.self) {
+            try await BundleArchive.extract(
                 archive: root.appendingPathComponent("nope.aar"),
                 into: root.appendingPathComponent("out"))
         }
@@ -252,14 +252,14 @@ import Testing
     /// A truncated or altered archive must be detectable without unpacking it —
     /// this digest is the integrity gate for the copy that lives on the
     /// destination, where a tree-walking comparison is exactly what we cannot do.
-    @Test func digestChangesWhenTheArchiveIsTampered() throws {
+    @Test func digestChangesWhenTheArchiveIsTampered() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let app = try makeNastyBundle(in: root)
         let archive = root.appendingPathComponent("fixture.aar")
-        try BundleArchive.archive(bundle: app, to: archive)
+        try await BundleArchive.archive(bundle: app, to: archive)
 
         let original = try BundleArchive.sha256(of: archive)
         #expect(original.count == 64)
@@ -274,7 +274,7 @@ import Testing
 
     /// A successful archive leaves the destination directory clean — no `.partial`
     /// beside it, which the destination sweeper would otherwise have to guess about.
-    @Test func aSuccessfulArchiveLeavesNoPartialBehind() throws {
+    @Test func aSuccessfulArchiveLeavesNoPartialBehind() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -282,13 +282,13 @@ import Testing
         let app = try makeNastyBundle(in: root)
         let out = root.appendingPathComponent("dest", isDirectory: true)
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-        try BundleArchive.archive(bundle: app, to: out.appendingPathComponent("fixture.aar"))
+        try await BundleArchive.archive(bundle: app, to: out.appendingPathComponent("fixture.aar"))
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path)
         #expect(leftovers == ["fixture.aar"], "unexpected leftovers: \(leftovers)")
     }
 
-    @Test func archivingReplacesAnExistingArchiveAtTheSamePath() throws {
+    @Test func archivingReplacesAnExistingArchiveAtTheSamePath() async throws {
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -297,9 +297,9 @@ import Testing
         let archive = root.appendingPathComponent("fixture.aar")
         try Data("stale".utf8).write(to: archive)
 
-        try BundleArchive.archive(bundle: app, to: archive)
+        try await BundleArchive.archive(bundle: app, to: archive)
         let restored = root.appendingPathComponent("Restored.app")
-        try BundleArchive.extract(archive: archive, into: restored)
+        try await BundleArchive.extract(archive: archive, into: restored)
         #expect(FileManager.default.fileExists(
             atPath: restored.appendingPathComponent("Contents/MacOS/App").path))
     }

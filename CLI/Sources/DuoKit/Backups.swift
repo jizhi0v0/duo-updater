@@ -46,9 +46,9 @@ public enum Backups {
         case .restore(let query):
             return await restore(query, assumeYes: options.assumeYes, json: options.json)
         case .sync:
-            return sync(json: options.json)
+            return await sync(json: options.json)
         case .verify(let deep):
-            return verify(deep: deep, json: options.json)
+            return await verify(deep: deep, json: options.json)
         case .probe(let path):
             return probe(path: path, json: options.json)
         }
@@ -357,7 +357,7 @@ public enum Backups {
     /// time. A key that disappears from the outbox mid-run is therefore reported
     /// as already moved rather than as a failure — the outcome is the one that
     /// was asked for, whoever produced it.
-    static func sync(json: Bool) -> Int32 {
+    static func sync(json: Bool) async -> Int32 {
         // Sweep before asking about the disk, so this is worth running even with
         // no disk configured: a save that was cut off leaves its scratch in the
         // outbox whether or not the store was ever moved, and this is the only
@@ -397,7 +397,7 @@ public enum Backups {
         for key in keys {
             let name = BackupStore.displayName(forKey: key) ?? key
             do {
-                let backup = try BackupStore.transferToDestination(
+                let backup = try await BackupStore.transferToDestination(
                     forKey: key, compression: compression)
                 let bytes = (try? FileManager.default.attributesOfItem(
                     atPath: backup.bundlePath.path)[.size] as? Int64).flatMap { $0 } ?? 0
@@ -441,9 +441,9 @@ public enum Backups {
     /// fingerprints is reported and does not fail the run: it is not evidence of
     /// a problem, and making it an error would train anyone scripting this to
     /// ignore the exit code.
-    static func verify(deep: Bool, json: Bool) -> Int32 {
+    static func verify(deep: Bool, json: Bool) async -> Int32 {
         note(unreachableDestination())
-        let outcomes = BackupStore.verify(deep: deep)
+        let outcomes = await BackupStore.verify(deep: deep)
         if json {
             NDJSON.begin("backups verify")
             for outcome in outcomes { NDJSON.emit(payload(outcome)) }

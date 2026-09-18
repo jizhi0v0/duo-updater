@@ -301,7 +301,7 @@ import Testing
                         appPath: app, key: "k", version: "1.0",
                         bundleID: "com.example.testapp")
 
-                    let moved = try BackupStore.transferToDestination(forKey: "k")
+                    let moved = try await BackupStore.transferToDestination(forKey: "k")
                     #expect(moved.location == .destination, "\(format): transfer did not land")
                     #expect(!fm.fileExists(atPath: outbox.appendingPathComponent("k").path),
                             "\(format): local copy should be gone")

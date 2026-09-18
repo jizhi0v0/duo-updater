@@ -97,7 +97,7 @@ import Testing
             try await saveBackup(stores, key: "k")
             #expect(BackupStore.pendingTransferKeys() == ["k"])
 
-            let moved = try BackupStore.transferToDestination(forKey: "k")
+            let moved = try await BackupStore.transferToDestination(forKey: "k")
             #expect(moved.location == .destination)
             #expect(moved.bundlePath.lastPathComponent == "App.aar")
 
@@ -117,7 +117,7 @@ import Testing
     @Test func aTransferredBackupStillRestores() async throws {
         try await withStores { stores in
             let app = try await saveBackup(stores, key: "k", marker: "v1")
-            try BackupStore.transferToDestination(forKey: "k")
+            try await BackupStore.transferToDestination(forKey: "k")
 
             try makeApp(named: "App.app", in: stores.apps, marker: "v2")
             #expect(marker(of: app) == "v2")
@@ -134,8 +134,8 @@ import Testing
         try await withStores(mountDisk: false) { stores in
             try await saveBackup(stores, key: "k")
 
-            #expect(throws: BackupStore.BackupError.self) {
-                try BackupStore.transferToDestination(forKey: "k")
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.transferToDestination(forKey: "k")
             }
             let fm = FileManager.default
             #expect(!fm.fileExists(atPath: stores.destination.path),
@@ -153,7 +153,7 @@ import Testing
     @Test func aCorruptedArchiveIsCaughtOnRestore() async throws {
         try await withStores { stores in
             let app = try await saveBackup(stores, key: "k", marker: "v1")
-            let moved = try BackupStore.transferToDestination(forKey: "k")
+            let moved = try await BackupStore.transferToDestination(forKey: "k")
 
             var bytes = try Data(contentsOf: moved.bundlePath)
             bytes[bytes.count - 1] ^= 0xFF
@@ -433,7 +433,7 @@ import Testing
     @Test func sweepingLeavesRealBackupsAlone() async throws {
         try await withStores { stores in
             try await saveBackup(stores, key: "k")
-            try BackupStore.transferToDestination(forKey: "k")
+            try await BackupStore.transferToDestination(forKey: "k")
 
             BackupStore.sweepStaleScratch(olderThan: 0)
 

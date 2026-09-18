@@ -1179,16 +1179,23 @@ public enum Verify {
     ///
     /// Nil when that component is a QUALIFIER rather than a name. Plenty of ids
     /// are `tld.vendor.name.channel` or `tld.vendor.name.platform`, and their last
-    /// component says nothing about which app it is: 35 of those 228 ids derive
-    /// `app.app`, `desktop.app`,
-    /// `beta.app`, `mac.app`, `client.app` or `dev.app` this way — `bot.cline.app`,
-    /// `com.google.Chrome.beta`, `dev.kiro.desktop`, `com.termius-beta.mac`. No
-    /// cask ships an artifact under any of those names today, which is the only
+    /// component says nothing about which app it is. Of those 228 ids, **52**
+    /// derive one, across ten stems:
+    ///
+    ///     desktop ×16   app ×16   beta ×5   mac ×5   nightly ×3
+    ///     dev ×2        client ×2  canary ×1  macos ×1  preview ×1
+    ///
+    /// No cask ships an artifact under any of those names today, which is the only
     /// reason none of them resolves, and "no vendor has yet named a bundle
     /// `App.app`" is not a property worth resting a filed issue on.
     ///
-    /// The channel half of the list is `ReleaseChannel` itself rather than a
-    /// hand-copy, so a channel added there cannot quietly become a cask key.
+    /// `beta`, `nightly`, `dev`, `canary` and `preview` come from `ReleaseChannel`
+    /// itself rather than a hand-copy, so a channel added there cannot quietly
+    /// become a cask key. **The other five do not**, and `macos` and `client` are
+    /// each carried by a single id — `com.raycast.macos` and `com.spotify.client`
+    /// — which is exactly the shape somebody trims as dead weight. Both are pinned
+    /// by name in `BrewCaskKeyTests.aQualifierIsNotAName`; trimming either fails
+    /// that test rather than quietly putting Raycast back on the `macos.app` key.
     static func caskAppFilename(forBundleID bundleID: String) -> String? {
         guard let last = bundleID.split(separator: ".").last, !last.isEmpty,
               !qualifierComponents.contains(last.lowercased())
@@ -1459,8 +1466,10 @@ public enum Verify {
     ///
     /// The first full live sweep with this check raised exactly one warning the
     /// baseline had not — HBuilderX, whose notes carry 5.26.2026091702 while its
-    /// `release.json` went back to 5.24.2026081301 — so the complaint names the
-    /// withdrawn-release reading as well as the frozen-probe one.
+    /// `release.json` went back to 5.24.2026081301 — so the complaint names that
+    /// reading as well as the frozen-probe one. Its 5.26 dmg is still on the CDN
+    /// and still answers, so the config was rolled back, not the release
+    /// withdrawn; the message says "stopped offering" for that reason.
     static func changelogLeadsProbeComplaint(
         entry: String, probeVersionsByChannel: [String: [String]],
         carriesOtherTrainEntries: Bool = false, ordersByLineage: Bool = false

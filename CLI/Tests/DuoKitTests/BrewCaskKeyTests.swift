@@ -24,20 +24,34 @@ import DuoUpdaterCore
     }
 
     /// A last component that qualifies the app instead of naming it is no key at
-    /// all. 35 of the 228 cross-checked bundle ids end this way, and the only
-    /// reason none of them resolves today is that no cask happens to ship an
-    /// artifact called `App.app` — which is not a property to rest a filed issue
-    /// on.
+    /// all. 52 of the 228 cross-checked bundle ids end this way, across ten stems,
+    /// and the only reason none of them resolves today is that no cask happens to
+    /// ship an artifact called `App.app` — not a property to rest a filed issue on.
+    ///
+    /// Every id below is a real one from the two registries, one per stem, and
+    /// that is the point: five of the ten stems (`app`, `desktop`, `mac`, `macos`,
+    /// `client`) are hand-written with no `ReleaseChannel` behind them, and two of
+    /// those — `macos` and `client` — are carried by a single id each, which is
+    /// the shape somebody trims as dead weight. Trimming one fails here, by name,
+    /// instead of quietly putting Raycast back on the `macos.app` key.
     @Test func aQualifierIsNotAName() {
-        for bundleID in ["bot.cline.app", "com.qoder.app", "dev.kiro.desktop",
-                         "app.yaak.desktop", "com.google.Chrome.beta",
-                         "com.google.Chrome.dev", "com.termius-beta.mac",
-                         "com.windscribe.client", "bot.cline.app.beta"] {
+        for bundleID in ["bot.cline.app",                   // app      ×16
+                         "ai.opencode.desktop",             // desktop  ×16
+                         "com.google.Chrome.beta",          // beta     ×5
+                         "com.microsoft.onenote.mac",       // mac      ×5
+                         "org.mozilla.nightly",             // nightly  ×3
+                         "com.google.Chrome.dev",           // dev      ×2
+                         "com.spotify.client",              // client   ×2
+                         "com.google.Chrome.canary",        // canary   ×1
+                         "com.raycast.macos",               // macos    ×1
+                         "com.longbridge.app.desktop.preview"] {  // preview ×1
             #expect(Verify.caskAppFilename(forBundleID: bundleID) == nil,
                     "\(bundleID) derives a qualifier, not an app name")
         }
         // Every channel comes from `ReleaseChannel` rather than a hand-copy, so
-        // one added there cannot quietly become a cask key.
+        // one added there cannot quietly become a cask key. Both sides are folded:
+        // `guineaPig`'s raw value is camel-cased and slipped through until they
+        // were.
         for channel in ReleaseChannel.allCases {
             #expect(Verify.caskAppFilename(forBundleID: "com.example.app.\(channel.rawValue)") == nil)
         }
@@ -45,6 +59,22 @@ import DuoUpdaterCore
         // qualifier.
         #expect(Verify.caskAppFilename(forBundleID: "com.tinycast.tinycast") == "tinycast.app")
         #expect(Verify.caskAppFilename(forBundleID: "com.foo.appflowy") == "appflowy.app")
+    }
+
+    /// The ids pinned above have to stay real, or the guard they protect can be
+    /// removed without the test noticing. Vacuity guard for the list, not a
+    /// second copy of it.
+    @Test func thePinnedQualifierIdsAreStillInTheRegistries() {
+        var ids: Set<String> = []
+        for recipe in VendorProbeRegistry.recipes { ids.insert(recipe.bundleID) }
+        for rule in GitHubReleaseRegistry.rules { ids.insert(rule.bundleID) }
+        for bundleID in ["com.raycast.macos", "com.spotify.client",
+                         "com.microsoft.onenote.mac", "bot.cline.app",
+                         "ai.opencode.desktop"] {
+            #expect(ids.contains(bundleID), Comment(rawValue:
+                "\(bundleID) is no longer in either cross-checked registry — re-pick "
+                    + "a live id for its stem rather than dropping it"))
+        }
     }
 
     @Test func aFilenameTwoAppsShareIdentifiesNeither() {

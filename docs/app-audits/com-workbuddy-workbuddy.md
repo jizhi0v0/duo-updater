@@ -47,9 +47,11 @@ cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我�
 只多出两条投诉，就是本 app 的 arm64/x64 两行。投诉句尾会注明「matched on the app
 filename」——这是**猜**出来的键，不是 cask 自己声明的。
 
-最后一段是**限定词**（`app` / `desktop` / `beta` / `mac` …）时不生成文件名：228 个里有 35 个
-长这样（`bot.cline.app` → `app.app`），今天没 cask 叫这名字纯属运气。渠道那半张表直接取
-`ReleaseChannel.allCases`，不手抄。
+最后一段是**限定词**时不生成文件名：228 个里有 52 个长这样（`bot.cline.app` → `app.app`），
+跨十种词尾——`desktop`×16、`app`×16、`beta`×5、`mac`×5、`nightly`×3、`dev`×2、`client`×2、
+`canary`/`macos`/`preview` 各 1。今天没 cask 叫这些名字纯属运气。渠道那五个直接取
+`ReleaseChannel.allCases`，不手抄；另外五个是手写的，其中 `macos` 和 `client` 各只有一个
+bundle id 撑着（`com.raycast.macos`、`com.spotify.client`），测试里按名字钉住，删了会红。
 
 ## Channel 详情
 

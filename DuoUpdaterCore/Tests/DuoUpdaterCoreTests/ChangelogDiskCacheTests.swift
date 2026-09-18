@@ -128,6 +128,70 @@ struct ChangelogDiskCacheTests {
         }
     }
 
+    // MARK: - A page that had not published the key version yet
+
+    /// The notes for CleanShot X 5.0.1 as the page read 9 minutes before the
+    /// vendor published them: a good parse of the previous release, filed under
+    /// the version the feed was already offering.
+    private static let provisional = Changelog(entries: [
+        Changelog.Entry(version: "5.0", date: "1 September, 2026", items: ["Studio Mode"]),
+        Changelog.Entry(version: "4.8.10", date: "21 July, 2026", items: ["Security update"]),
+    ])
+    private static let provisionalKey = ChangelogDiskCache.Key(
+        bundleID: "pl.maketheweb.cleanshotx", channel: "default", version: "5.0.1")
+
+    /// Backdate the entry's `fetchedAt` in place, which is the only way to reach
+    /// an aged entry — `set` always stamps now.
+    private func backdate(_ fileURL: URL, by seconds: TimeInterval) throws {
+        var json = try #require(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [String: Any])
+        let fetchedAt = try #require(json["fetchedAt"] as? Double)
+        json["fetchedAt"] = fetchedAt - seconds
+        try JSONSerialization.data(withJSONObject: json).write(to: fileURL)
+    }
+
+    /// Inside the window it is still the best notes anyone has — the release the
+    /// vendor's page was actually showing — so it is served rather than dropped.
+    @Test func provisionalEntryIsServedWhileFresh() async {
+        await withScratchDirectory { dir in
+            let cache = ChangelogDiskCache(directory: dir)
+            await cache.set(Self.provisional, for: Self.provisionalKey)
+            #expect(await cache.get(for: Self.provisionalKey) == Self.provisional)
+        }
+    }
+
+    /// Past the window it is a miss, so the next pre-warm or open re-reads the
+    /// page and the user gets 5.0.1's notes once the vendor publishes them.
+    /// Without this the entry is frozen for good: the key never changes again.
+    ///
+    /// Same cache object as the write, deliberately — an entry that never carried
+    /// its key version must not be pinned in the in-memory mirror either, or the
+    /// window would only expire across a relaunch and this app is left running for
+    /// days.
+    @Test func provisionalEntryAgesOutOfTheCache() async throws {
+        try await withScratchDirectory { dir in
+            let cache = ChangelogDiskCache(directory: dir)
+            await cache.set(Self.provisional, for: Self.provisionalKey)
+            try backdate(try onDiskFileURL(in: dir), by: ChangelogDiskCache.provisionalWindow + 60)
+            #expect(await cache.get(for: Self.provisionalKey) == nil)
+        }
+    }
+
+    /// The window applies ONLY to a page that never carried the version. Notes
+    /// that do carry it are immutable, which is the whole point of keying on the
+    /// version — no age makes them wrong.
+    @Test func anEntryCarryingItsVersionNeverAgesOut() async throws {
+        try await withScratchDirectory { dir in
+            let cache = ChangelogDiskCache(directory: dir)
+            let key = ChangelogDiskCache.Key(
+                bundleID: "pl.maketheweb.cleanshotx", channel: "default", version: "5.0")
+            await cache.set(Self.provisional, for: key)
+            try backdate(try onDiskFileURL(in: dir), by: 365 * 24 * 3600)
+            let reopened = ChangelogDiskCache(directory: dir)
+            #expect(await reopened.get(for: key) == Self.provisional)
+        }
+    }
+
     // MARK: - set() always stamps the current generation
 
     @Test func setStampsRunningGeneration() async throws {

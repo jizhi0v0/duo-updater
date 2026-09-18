@@ -13,15 +13,25 @@ import Foundation
 /// version ships the *key* changes, so the new notes are fetched fresh; the prior
 /// version's entry stays valid (and is pruned, since only the newest is shown).
 ///
-/// `fetchedAt` is recorded for diagnostics only — nothing in this type reads it
-/// back. It is NOT the seed of a future age-based policy: freshness of the "open
-/// window" stale-while-revalidate path is driven by the model + the in-memory
-/// cache, and the invalidation problem an age policy would otherwise be reached
-/// for is `parserGeneration`'s job (below), which is the exact-match answer
-/// rather than the approximate one — see its doc comment for why a TTL was
-/// rejected. Kept for the same reason a log line carries a timestamp: reading a
-/// support bundle's cache directory and seeing how old an entry is remains
-/// useful on its own, independent of any invalidation this cache performs.
+/// That immutability has a precondition the keying can't check for itself: the
+/// page has to have *published* the version it is being filed under. A vendor's
+/// feed and their changelog page go out separately, and the feed goes first —
+/// CleanShot X twice, from one appcast (5.0 on 2026-09-01, the page 6 minutes
+/// behind our fetch; 5.0.1 on 2026-09-18, 9 minutes). Filed as immutable, such a
+/// snapshot is frozen for good: the key never changes again, so no later fetch is
+/// ever made for it, and the window shows the new version's number over the
+/// previous version's notes with nothing logged and nothing to retry. Entries like
+/// that are stored, but as PROVISIONAL — see ``provisionalWindow``.
+///
+/// `fetchedAt` is read back for one thing only: ``provisionalWindow``, the age
+/// limit on an entry whose page did not carry its own key version. It is NOT a
+/// freshness policy for the cache at large — an entry whose page does carry its
+/// version never expires, however old, and the invalidation problem an age policy
+/// would otherwise be reached for is `parserGeneration`'s job (below), which is
+/// the exact-match answer rather than the approximate one; see its doc comment for
+/// why a TTL was rejected there. It also remains useful the way a log line's
+/// timestamp is: reading a support bundle's cache directory and seeing how old an
+/// entry is says something on its own.
 ///
 /// A released version's *notes* never change, but what THIS APP extracts from them
 /// can — a parser fix. `Stored.parserGeneration` (below) is what that side of
@@ -82,6 +92,35 @@ public actor ChangelogDiskCache {
         let parserGeneration: Int
     }
 
+    /// How long an entry whose page did NOT carry its own key version may be
+    /// served before it has to be re-read.
+    ///
+    /// Such an entry is a snapshot of a page that had not published this version
+    /// yet (see the type's doc comment). It is still the best notes we have — the
+    /// previous release's, which is what the vendor's page was showing at that
+    /// moment — so it is stored and painted rather than thrown away; what it must
+    /// not do is outlive the vendor catching up. Past this window ``get`` answers
+    /// nil, the next pre-warm or open re-fetches, and the rewrite either carries
+    /// the version (immutable from then on) or renews the window.
+    ///
+    /// Six hours is picked against the cost of being wrong in each direction. Too
+    /// long and the user reads the previous release's notes under the new
+    /// release's number, the failure this window exists to bound; too short and
+    /// every app whose vendor numbers or publishes more slowly than they ship
+    /// re-fetches on a loop. The second cost is the one that decided the number:
+    /// on the cache it was sized against, about a quarter of the entries were
+    /// provisional, which at four windows a day roughly doubles the app's daily
+    /// changelog traffic (`duo events --purpose changelog` counts today's). Pages
+    /// are tens of KB, and each of those reads is the one this layer was invented
+    /// to skip rather than an extra request on top.
+    ///
+    /// claim-lint:allow-machine-state — "about a quarter" is a ratio over one
+    /// machine's cached entries on 2026-09-18 (16 of 61 judgeable), reported as
+    /// the sizing measurement itself rather than as evidence about any app. What a
+    /// reader can re-derive is their own ratio, which is the point: the window is
+    /// a trade against how many of THEIR apps read as behind.
+    static let provisionalWindow: TimeInterval = 6 * 3600
+
     let directory: URL   // internal: asserted by DuoStateDirectoryTests
     /// In-memory mirror so repeated opens within a session don't re-read the file.
     private var memory: [Key: Changelog] = [:]
@@ -101,7 +140,8 @@ public actor ChangelogDiskCache {
     // MARK: - Public interface
 
     /// The cached changelog for `key`, or nil if we've never stored this exact
-    /// version's notes UNDER THE RUNNING BUILD'S PARSER GENERATION. Checks the
+    /// version's notes UNDER THE RUNNING BUILD'S PARSER GENERATION — or if what we
+    /// stored is provisional and has aged past ``provisionalWindow``. Checks the
     /// in-memory mirror first (which — see `set` and the generation check below —
     /// can only ever hold current-generation entries, so it needs no check of its
     /// own), then the file, where a generation mismatch is a miss: same treatment
@@ -113,6 +153,17 @@ public actor ChangelogDiskCache {
               let stored = try? JSONDecoder().decode(Stored.self, from: data),
               stored.parserGeneration == Changelog.parserGeneration
         else { return nil }
+        guard stored.changelog.carries(version: key.version) else {
+            // Provisional, so it answers from the file every time and never enters
+            // the mirror: the mirror has no age of its own, and this app is left
+            // running for days — mirrored, a provisional entry would be pinned for
+            // the rest of the session and the window would only ever expire across
+            // a relaunch. Decoding one small file per pre-warm or open is what that
+            // costs.
+            guard Date().timeIntervalSince(stored.fetchedAt) < Self.provisionalWindow
+            else { return nil }
+            return stored.changelog
+        }
         memory[key] = stored.changelog
         return stored.changelog
     }
@@ -125,7 +176,9 @@ public actor ChangelogDiskCache {
     /// comment). Best-effort; a write failure is logged and otherwise ignored — the
     /// network path still served the caller.
     public func set(_ changelog: Changelog, for key: Key) {
-        memory[key] = changelog
+        // Mirrored only when the page carried the version — see `get` for why a
+        // provisional entry must keep answering from the file.
+        if changelog.carries(version: key.version) { memory[key] = changelog }
         do {
             try FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)

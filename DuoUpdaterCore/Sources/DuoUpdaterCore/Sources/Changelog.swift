@@ -137,6 +137,48 @@ public struct Changelog: Codable, Sendable, Hashable {
         itemSyntax = try c.decodeIfPresent(ItemSyntax.self, forKey: .itemSyntax) ?? .plain
     }
 
+    /// Whether these notes say anything about `version` — i.e. whether the page
+    /// they were parsed from knows that version exists yet.
+    ///
+    /// A vendor's update feed and their changelog page are published separately,
+    /// and the feed routinely goes first. Fetched inside that window, a page is a
+    /// perfectly good parse that has nothing to do with the version we fetched it
+    /// for, and anything that files it *as* that version's notes is storing a
+    /// wrong answer that reads as a right one. `ChangelogDiskCache` is where that
+    /// matters most (see its doc comment for the two CleanShot X releases this
+    /// cost) and `AppListModel`'s revalidation debt is the other.
+    ///
+    /// Permissive by construction: true unless the page can be *shown* to be
+    /// behind. Versions that aren't version-shaped are not judged at all — Figma
+    /// and Notion title their entries "AI credit user limits…", not "3.2.1", and
+    /// Cursor's are dates — and neither is a page whose newest entry is at or
+    /// ahead of `version`. A vendor who writes a version with fewer components
+    /// than the build carries (`2.4` for `2.4.0.0`) still compares equal, since
+    /// `VersionComparator` reads a missing trailing component as zero.
+    ///
+    /// What it does NOT distinguish is a page that publishes late from one that
+    /// numbers its notes more coarsely than the builds it ships: Raycast's page
+    /// says `2.4` where the build is `2.4.1.0`, and JetBrains Toolbox's says
+    /// `3.8.1` where the build is `3.8.1.88030` (both 2026-09-18) — neither vendor
+    /// is behind, and both read as behind here. That is the intended direction to
+    /// be wrong in, since the answer to "behind" is to read the page again rather
+    /// than to discard it, but it is why this must not be surfaced to a user or
+    /// used to page a maintainer as "the notes are stale".
+    public func carries(version: String) -> Bool {
+        guard let target = VersionComparator.comparableMarketingVersion(version) else { return true }
+        // Judged against the newest version-shaped entry anywhere on the page
+        // rather than the first one: a page carrying two trains (Raycast's v1 and
+        // v2) is newest-first within a train, not across them, and being at or
+        // ahead of `version` anywhere is enough to show the page is not simply
+        // older than the version being filed under it. An entry that IS the
+        // version needs no separate arm — it compares equal, so it cannot be
+        // older than itself, whatever its spelling.
+        let versions = entries.compactMap { VersionComparator.comparableMarketingVersion($0.version) }
+        guard let newest = versions.max(by: { VersionComparator.isNewer($1, than: $0) })
+        else { return true }
+        return !VersionComparator.isNewer(target, than: newest)
+    }
+
     /// One released version's worth of notes.
     public struct Entry: Codable, Sendable, Hashable {
         /// Optional human-readable title for the release entry, when the vendor's

@@ -2068,7 +2068,19 @@ final class AppListModel {
                 // key on the attempt would pin whatever is on screen for the rest of
                 // the session the first time the network is down — which is this
                 // change's own bug, reintroduced for the offline case.
-                self.changelogRevalidated.insert(key)
+                //
+                // And only a fetch that came back with THIS version's notes on it.
+                // A vendor's feed can lead their changelog page by minutes (see
+                // `Changelog.carries(version:)`), and a fetch made inside that
+                // window discharges a debt it never paid: the page it brought back
+                // is the previous release's, so the key stays owing and the next
+                // open reads again — throttled to once per `ChangelogCache` TTL,
+                // which is where a repeated open lands anyway. With no target
+                // version there is nothing to owe: such a load is never disk-cached
+                // in the first place (`ChangelogService.diskKey`).
+                if targetVersion.map(fresh.carries(version:)) ?? true {
+                    self.changelogRevalidated.insert(key)
+                }
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
                 // Network revalidation failed but we already painted cached notes —
@@ -2161,10 +2173,15 @@ final class AppListModel {
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
-                // A disk hit is provisional; only a fetch that came back discharges
-                // the debt. A failed one leaves the key owing a read, and the open
-                // path will take it.
-                if fetched { self.changelogRevalidated.insert(key) }
+                // A disk hit is provisional; only a fetch that came back with this
+                // version's notes on it discharges the debt (as in
+                // `ensureChangelogLoading` above). A failed one — or one that came
+                // back from a page the vendor has not updated yet — leaves the key
+                // owing a read, and the open path will take it.
+                if fetched, let changelog,
+                   targetVersion.map(changelog.carries(version:)) ?? true {
+                    self.changelogRevalidated.insert(key)
+                }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
                     self.prewarmImages(in: changelog, for: result.app.id)

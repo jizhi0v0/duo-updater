@@ -201,9 +201,9 @@ import DuoUpdaterCore
     ///
     /// Mutation: change the fallback in `testFlightDetection(from:)` from `.off`.
     @Test func theDetectionSettingReadsAloneAsItDoesInLoad() {
-        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let scratch = ScratchDefaults("testflight-detection")
+        defer { scratch.clear() }
+        let defaults = scratch.defaults
 
         #expect(Settings.testFlightDetection(from: defaults) == .off)
         defaults.set("not-a-setting", forKey: UpdateSettings.testFlightDetectionKey)

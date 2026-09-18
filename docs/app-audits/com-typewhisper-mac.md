@@ -83,7 +83,15 @@ Sparkle feed 才是。
   `1091`，Team `2D8ALY3LCL`，notarized
 
 ## 已知问题
-- 无。
+- **changelog 页把 stable 和 daily 两条轨按日期混排在一个列表里**，所以「最新一条」在版本号上
+  会合法地倒退。2026-09-18 实测页面顶部的 macOS 卡片依次是
+  1.6.1 → 1.7.0-daily.20260916 → 1.7.0-daily.20260913 → 1.7.0-daily.20260912 → 1.7.0-daily.20260911：
+  stable 1.6.1 发布后压在了几条 daily 之上。recipe 取的就是第一张 macOS 卡片，行为符合设计
+  （recipe 注释本来就写着「stable 装机会看到自己版本之上的 daily 条目」）。
+  这触发过 `duo verify` 的「version went BACKWARDS」（#698，连报六轮）——**判据错，不是 recipe 错**：
+  该检查假设「最新条目的版本单调不降」，这对按日期混排两条轨的页面不成立。
+  已在 `Baseline.pageStillCarries` 修正：只有当基线那个版本**还在页面上**时才放行
+  （厂商在其上发了新条目 → 还在，往下挪一行；pattern 滑到更旧的段落 → 掉出顶部）。
 
 ## 如何复验
 ```

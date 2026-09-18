@@ -27,10 +27,17 @@
 
 | | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---|---|---|---|---|---|
-| **stable（国内站）** | — | — | — | — | ✓ 一键 |
+| **stable（国内站）** | — | ○ | — | — | ✓ 一键 |
 
-当前生效源：**VendorProbe**（前四条源全部不适用：无 `SUFeedURL`、无 cask、非 MAS、
-无公开 GitHub 发布）。
+当前生效源：**VendorProbe**（`SUFeedURL` 不存在、非 MAS、无公开 GitHub 发布）。
+
+**Homebrew 是 ○ 不是 —**（更正 2026-09-18）：本行原来写 `—` + 「无 cask」，是错的。
+cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我们该读到的那个数。
+它没有进 brew 交叉检查，是因为**键对不上**：`HomebrewCaskCatalog` 按 cask 的
+`uninstall quit:` 建 bundle id 索引，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
+而本 app 的 bundle id 是 `com.workbuddy.workbuddy`（对真实 bundle 跑 `channel-verify` 核过，
+2026-08-27，以我们的为准）。`auto_updates` 未设（`formulae.brew.sh` 的 JSON 里为 null），
+所以 `Verify.brewComplaint` 的 `!cask.autoUpdates` 那一关不拦它——键修好这道闸就能用。见 #743。
 
 ## Channel 详情
 
@@ -69,7 +76,21 @@
 
 把你**已经在跑的版本**传进去，端点回 **204 No Content**（实测：国内站传 5.3.14 →
 204，国际站传 5.4.2 → 204）。照搬会让探针恰好在"应该说已是最新"的时候变哑。
-所以 recipe 的 URL 里把 `version=0.0.0` 钉死，才把它变成一个 latest 查询。
+所以 recipe 的 URL 里**不带 `version` 参数**：不带就回 200 + 最新版，既绕开 204，
+也不会钉在升级链的某一跳上。
+
+更正 2026-09-18（#737、#738）：这一节原来写的是「把 `version=0.0.0` 钉死，才把它
+变成一个 latest 查询」。**钉 `0.0.0` 是错的**，而且国内站这两条 recipe 就是因此静默
+错了两个发布。`/v2/update` 回的不是最新版，是**升级链上的下一跳**：比所有发布都旧的
+版本（`0.0.0` / `1.0.0` / `5.0.0`）拿到的是中间跳，不是链尾。钉的时候第一跳恰好就是
+最新版，所以当初读对了；厂商在上面加了发布之后，两站 × 两架构四条 recipe 全部冻在
+第一跳上。国内站两条那一跳的产物还在 CDN 上，于是一路绿着停在 `5.3.14`，而同一个
+app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写着 `5.5.6`
+——两行的交叉检查是单向的，只管 changelog 落后于 probe 的那一侧（详见本文末节与 #743）。国际站两条被发现，只是因为
+那一跳的产物后来被删了、报出 404，**不是因为版本错**。完整的实测表（六个 `version`
+取值 × `productVersion`）见 [com-workbuddy-workbuddy-ai.md](com-workbuddy-workbuddy-ai.md)
+的「历史与实测」，两站 recipe 同一个工厂出的，那一条对国内站同样成立：不带 `version`
+时国内站两架构当天都回 `5.5.6.38337834`（200，非 204）。
 
 ### 陷阱二：版本方案（幻影更新）
 
@@ -218,3 +239,63 @@ older section — or the vendor finally publishes — the sweep speaks up
 again.
 
 复测 2026-09-14（11:03 UTC，只读 GET，按 `ChangelogRecipeRegistry.workBuddyEntryPattern` 在 Python 里用 DOTALL 复算）：`www.workbuddy.cn/docs/workbuddy/Changelog` 164,156 B，89 个版本标题，其中 19 个没有括号日期，解析出 72 条，最新 5.5.6（2026-09-10），最旧解析到 4.8.0；`www.workbuddy.ai/docs/workbuddy/Changelog` 33,162 B，解析出 2 条，最新 5.2.7（2026-07-17），另一条 5.2.3。同时 `/v2/update?platform=workbuddy-darwin-{arm64,x64}&version=0.0.0`：国际站两个架构都回 `5.5.2.37849279`，国内站两个架构都回 `5.3.14.36279234`。
+
+## 为什么国内站这一对没人发现（2026-09-18）
+
+机制和改法见上面「陷阱一」的更正块。这里只补一条**给下次用的**观察。
+
+证据本来就摆在这份文件里：上面 2026-09-14 那次复测，同一段话里同时记下了
+「国内站 changelog 最新 5.5.6」和「国内站 `/v2/update?…&version=0.0.0` 回 5.3.14」
+两个数字，没有人把它们放在一起看。`verify/baseline.json` 里也一样——
+`changelog:com.workbuddy.workbuddy:-` 的 `lastGoodVersion` 是 `5.5.6`，
+`vendor:com.workbuddy.workbuddy:stable:{arm64,x64}` 是 `5.3.14`，相隔几行。
+
+**教训（比这个 app 本身更值得记）**：probe↔changelog 的交叉检查是**存在**的
+（`Verify.changelogLagComplaint`），这两个数字当时也确实同时在它手上——两行的 `lastGoodAt`
+同为 `2026-09-17T20:25:48Z`，同一轮扫描。它没响，是因为它**单向**：只在 changelog
+**落后于** probe 时报「notes 落后了」。这里方向反过来，changelog 5.5.6 领先 probe 5.3.14，
+而这恰恰是探针冻住时该有的样子——没人看那一侧。
+
+**第二道闸也瞎了，而且是另一个原因。** `Verify.brewComplaint` 专门抓「cask 领先我们一个发布 =
+厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了。#737／#738 的 issue 正文里那一句是
+「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14
+— the probe may be stuck on a stale element」——**句子到 `5.3.14` 并没有结束**，
+`Verify.swift` 还会接上后半截（更正 2026-09-18：本节原先把前半截写成「完整的一句」，是错的）。
+`verify/baseline.json` 里只留被截断的 `Homebrew's cask \`workbuddy-ai\` is at 5.5`，
+因为 `lastSignature` 本来就是截断存的。
+国内站没报，**不是因为没有 cask**——`workbuddy-cn` 一直存在，而且 2026-09-18 查到的版本正是
+`5.5.6.38337834`，就是我们该读到的那个数。它没报是因为**键对不上**：brew 那张表的 bundle id
+取自 cask 的 `uninstall quit:`，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
+而本 recipe 的 bundle id 是 `com.workbuddy.workbuddy`（2026-08-27 对真实 bundle 跑
+`channel-verify` 核过，以我们的为准）。键不匹配 → 这条 app 在 brew 交叉检查里根本不存在。
+
+于是两边的差别是：国际站那一对**三个信号都响了**（404、版本倒退、brew 领先），
+国内站这一对**一个都没响**——方向不对的交叉检查 + 键对不上的 brew 检查。
+
+所以结论不是「没有交叉检查」，而是「两道闸各瞎了一半」。反向检查不能照抄着反过来写：
+在**已提交的** `verify/baseline.json` 上（56 个 bundle id 两种行都有，限定
+`lastGoodVersion` 以数字开头——`Verify.swift` 那条 `guard entry.first?.isNumber` 是
+major.minor 比较的前提——后是 50 个），按「该 app 的 changelog 读数在 major.minor 上
+高于它**每一条** probe 行」这条规则筛，**用生产的 `VersionComparator` 跑**，命中 4 个：
+
+| app | changelog | probe | 真 bug？ | 若要排除，需要哪一类判据 |
+|---|---|---|---|---|
+| `com.workbuddy.workbuddy` | 5.5.6 | 5.3.14 / 5.3.14 | ✅ 就是本条 | — |
+| `com.anthropic.claudefordesktop` | 2.2553.0 | 2.110.1 / 1.46388.3 | ❌ | 两套 build 命名空间 |
+| `md.obsidian` | 1.14.2 | 1.13.7 | ❌ | 页面混入了另一条轨的条目（insider；brew 也是 1.13.7） |
+| `org.mozilla.thunderbirdbeta` | 157.0beta | 157.0b2 | ❌ | **同一个版本的不同写法** |
+
+四分之一是真 bug。所以反向检查至少要能分辨上面这**三**类。
+
+**更正 2026-09-18（两次，记全）**：本段最早写「5 个」并点名 Thunderbird 与 Thunderbird Beta，
+那是拿 changelog 去比**任取一条** probe 行（多渠道 app 行顺序不定）造成的；改成「高于每一条」后
+`org.mozilla.thunderbird` 确实不再命中（它的 stable 行就是 156.0，与 changelog 相等）。
+但随后我把「5 个」改成「3 个」、并顺手把「同一个版本的不同写法」从判据清单里删掉，**也是错的**：
+`org.mozilla.thunderbirdbeta` 只有**一条** probe 行，对它而言「任取一条」和「每一条」是同一条规则，
+换规则根本不可能让它消失。它当时之所以从我的统计里消失，是因为我用 Python 近似了
+`VersionComparator`——那个近似把 `0beta` 和 `0b2` 都截成 `0`，于是判成相等。
+生产的比较器不是这么算的：`majorMinor` 留下 `157.0beta` 与 `157.0b2`，
+分词成 `[157, 0, "beta"]` 与 `[157, 0, "b", 2]`，第三段按文本比 `"beta" > "b"`，`isNewer` 为真。
+上表是直接调用生产 `VersionComparator` 重算的结果。
+
+教训：**分析脚本里不要用另一套语言近似生产比较器**。要判「生产会不会报」，就得让生产的代码去判。

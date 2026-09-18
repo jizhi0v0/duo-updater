@@ -655,4 +655,110 @@ import DuoUpdaterCore
                 "the captured value is evidence, not a new warning kind")
     }
 
+    /// A changelog finding, which is what both guards below are about — the
+    /// version-shape one fires on `version`, the page one on `entryVersions`.
+    private func changelogFinding(
+        _ id: String = "changelog:com.example.app:-",
+        version: String, entryVersions: [String]? = nil
+    ) -> Finding {
+        Finding(
+            recipeID: id, registry: .changelog, bundleID: "com.example.app", channel: "-",
+            status: .ok, version: version, endpointHost: "example.invalid",
+            entryVersions: entryVersions)
+    }
+
+    /// #736: plenty of recipes capture a HEADLINE into the `version` group,
+    /// because the vendor doesn't number their notes. `VersionComparator` still
+    /// answers for two sentences and the answer is nonsense — Figma's atom feed
+    /// filed an issue for having published a post, and would have filed one for
+    /// every post after it.
+    ///
+    /// The pair is the real one off `www.figma.com/release-notes/feed/atom.xml`:
+    /// "Publish Weave tools…" (2026-09-16) was the baseline when "Create on-brand
+    /// content…" (2026-09-17) landed above it. The first `#expect` pins that the
+    /// comparator really does call that a regression, so this test cannot pass by
+    /// the two titles happening to compare the harmless way.
+    @Test func aHeadlineTitledChangelogIsNeverReportedAsGoingBackwards() {
+        let older = "Publish Weave tools to the Figma Community"
+        let newer = "Create on-brand content with your Figma designs in Weave workflows"
+        #expect(VersionComparator.isNewer(older, than: newer),
+                "if this stops holding the test below proves nothing")
+
+        var baseline = Baseline()
+        _ = baseline.reconcile(changelogFinding(version: older))
+        #expect(!baseline.reconcile(changelogFinding(version: newer))
+            .contains { $0.contains("BACKWARDS") })
+
+        // Scoped, not switched off: one digit anywhere and the same recipe is
+        // judged again.
+        var numbered = Baseline()
+        _ = numbered.reconcile(changelogFinding(version: "2.0"))
+        #expect(numbered.reconcile(changelogFinding(version: "1.0"))
+            .contains { $0.contains("BACKWARDS") })
+    }
+
+    /// The guard above is "contains a digit", NOT "leads with one", because both
+    /// sides here are one recipe's own readings and six of them carry a real,
+    /// orderable version behind a prefix. Leading-digit would have switched the
+    /// check off for all six without saying so.
+    ///
+    /// The strings are the live `lastGoodVersion` values those rows held in
+    /// `verify/baseline.json` on 2026-09-18, and the regressions are the shape the
+    /// check exists to catch: a pattern slipping to an older section of the page.
+    @Test func aVersionBehindAWordPrefixIsStillJudged() {
+        let regressions = [
+            ("Build 4200", "Build 4100"),       // Sublime Text
+            ("Build 2130", "Build 2100"),       // Sublime Merge
+            ("V16.6.0.32198", "V16.5.0.30000"), // SunLogin
+            ("v2.0.11.1", "v2.0.10.1"),         // rpi-imager
+            ("Xcode 27", "Xcode 26"),
+        ]
+        for (older, newer) in regressions {
+            var baseline = Baseline()
+            _ = baseline.reconcile(changelogFinding(version: older))
+            #expect(baseline.reconcile(changelogFinding(version: newer))
+                .contains { $0.contains("BACKWARDS") },
+                "\(older) → \(newer) is a regression the prefix must not hide")
+        }
+    }
+
+    /// #698: a page ordered by DATE across two trains moves its newest entry
+    /// backwards in version with nothing wrong. TypeWhisper lists macOS stable and
+    /// daily builds in one list, so shipping 1.6.1 took the top card from
+    /// 1.7.0-daily.20260916 and the newest entry went 1.7.0-daily.20260912 → 1.6.1.
+    ///
+    /// The versions are the real ones read off `www.typewhisper.com/en/changelog/`
+    /// on 2026-09-18, in the page's own order. What parts the two cases is whether
+    /// the baseline's version is STILL on the page: the vendor publishing above it
+    /// keeps it, a pattern slipping to an older section drops it off the top.
+    @Test func aBackwardsEntryIsNotReportedWhileThePageStillCarriesTheOldOne() {
+        let onThePage = ["1.6.1", "1.7.0-daily.20260916", "1.7.0-daily.20260913",
+                         "1.7.0-daily.20260912", "1.7.0-daily.20260911"]
+        #expect(VersionComparator.isNewer("1.7.0-daily.20260912", than: "1.6.1"),
+                "if this stops holding the test below proves nothing")
+
+        var published = Baseline()
+        _ = published.reconcile(changelogFinding(
+            version: "1.7.0-daily.20260912", entryVersions: ["1.7.0-daily.20260912"]))
+        #expect(!published.reconcile(changelogFinding(
+            version: "1.6.1", entryVersions: onThePage))
+            .contains { $0.contains("BACKWARDS") })
+
+        // The failure the check exists for: the pattern slipped to an older
+        // section, so the version the baseline holds is exactly what fell off.
+        var slipped = Baseline()
+        _ = slipped.reconcile(changelogFinding(
+            version: "1.7.0-daily.20260912", entryVersions: ["1.7.0-daily.20260912"]))
+        #expect(slipped.reconcile(changelogFinding(
+            version: "1.6.1", entryVersions: onThePage.filter { !$0.hasPrefix("1.7.0") }))
+            .contains { $0.contains("BACKWARDS") })
+
+        // A report written before `entryVersions` existed, and every probe row,
+        // send nil — which must keep the check rather than silence it.
+        var unrecorded = Baseline()
+        _ = unrecorded.reconcile(changelogFinding(version: "1.7.0-daily.20260912"))
+        #expect(unrecorded.reconcile(changelogFinding(version: "1.6.1"))
+            .contains { $0.contains("BACKWARDS") })
+    }
+
 }

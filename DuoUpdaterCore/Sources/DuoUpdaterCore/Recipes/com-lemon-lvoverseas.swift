@@ -48,8 +48,14 @@ enum com_lemon_lvoverseas {
         // (when CapCut reaches 10.x, or if the vendor narrows the range) removes
         // the key and the pattern matches nothing, which `duo verify` reports.
         // Same "pin an impossible version to turn a should-I-update service into a
-        // what-is-latest one" move as WorkBuddy's `version=0.0.0` (`VendorProbeRegistry.workBuddyRecipe`), aimed the
-        // other way because CapCut's buckets run the other way.
+        // what-is-latest one" move WorkBuddy used to make
+        // (`VendorProbeRegistry.workBuddyRecipe`), aimed the other way because
+        // CapCut's buckets run the other way — and the direction is why this pin
+        // survives while WorkBuddy's did not. WorkBuddy pinned a version BELOW
+        // every release and its service answered with an upgrade chain, so the pin
+        // froze on the chain's first hop as the vendor shipped past it (#737,
+        // #738; that recipe now sends no version at all). A pin ABOVE every
+        // release cannot land on a hop — there is nothing above it to step to.
         //
         // What pinning `version_code` COSTS, stated because it is not obvious:
         // CapCut has a working binary-patch path (`UpdatingModel::startRunUpdateDiffPatch`,

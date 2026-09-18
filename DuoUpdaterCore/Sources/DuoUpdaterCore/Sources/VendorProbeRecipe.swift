@@ -1250,7 +1250,7 @@ public enum VendorProbeRegistry {
         return VendorProbeRecipe(
             bundleID: bundleID,
             url: URL(string:
-                "https://\(host)/v2/update?platform=workbuddy-darwin-\(slug)&version=0.0.0")!,
+                "https://\(host)/v2/update?platform=workbuddy-darwin-\(slug)")!,
             mode: .responseBody,
             versionPattern: #""productVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)(?:\.[0-9]+)?""#,
             downloadURL: downloadURL,

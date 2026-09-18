@@ -26,10 +26,16 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 
 | | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---|---|---|---|---|---|
-| **stable（国际站）** | — | — | — | — | ✓ 一键 |
+| **stable（国际站）** | — | ○ | — | — | ✓ 一键 |
 
-当前生效源：**VendorProbe**（前四条源全部不适用：无 `SUFeedURL`、无 cask、非 MAS、
-无公开 GitHub 发布）。
+当前生效源：**VendorProbe**（`SUFeedURL` 不存在、非 MAS、无公开 GitHub 发布）。
+
+**Homebrew 是 ○ 不是 —**（更正 2026-09-18）：本行原来写 `—` + 「无 cask」，是错的，
+而且这条在仓库内部就能证伪——`verify/baseline.json` 里这条 recipe 的 `lastSignature`
+开头就是 `Homebrew's cask \`workbuddy-ai\` is at 5.5`。cask `workbuddy-ai` 存在，
+`uninstall quit:` 是 `com.workbuddy.workbuddy-ai`，与本 recipe 的 bundle id 一致，
+所以 brew 交叉检查对国际站是**生效的**（#737／#738 的三个信号之一就是它）。
+国内站那条因为键对不上而失效，见 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md)。
 
 ## Channel 详情
 
@@ -126,3 +132,30 @@ Changelog: each site's page is the one the app itself links (the build
 branches on `isOverseas()`); the intl page ran behind its own train at
 the time of writing (newest entry 5.2.7 against a 5.4.2 release) while
 the CN page was current.
+
+### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（`version=0.0.0` 会钉在升级链的第一跳；#737 / #738）
+
+2026-09-18 实测，起因是 `duo verify` 连报两轮 `installURLNotFound` + version 倒退。
+
+`/v2/update` 不是「最新是什么」，也不只是「要不要更新」——它回的是**升级链上的下一跳**。同一天同一个端点，只改 `version` 参数：
+
+| 请求 | `productVersion` |
+|---|---|
+| `?platform=workbuddy-darwin-arm64`（不带 version） | `5.5.2.37849279` |
+| `…&version=5.3.14` | `5.5.2.37849279` |
+| `…&version=5.5.0` | `5.5.2.37849279` |
+| `…&version=5.0.0` | `5.3.14.36279234` |
+| `…&version=1.0.0` | `5.3.14.36279234` |
+| `…&version=0.0.0` | `5.3.14.36279234` |
+
+即：比所有发布都旧的版本拿到的是中间跳 `5.3.14.36279234`，不是最新版。
+
+**为什么以前是对的、后来静默错了。** `version=0.0.0` 是当初为绕开 204 钉进去的，钉的时候这条链的第一跳恰好就是最新版。本审计 2026-09-14 那次复测还记着国际站回 `5.5.2.37849279`——那时链只有一跳。厂商后来在上面加了发布，四条 recipe（两站 × 两架构）全部冻在第一跳上。
+
+**只有国际站两条被发现，而且不是因为版本错。** 国际站那一跳的产物后来被 CDN 删了，`duo verify` 才看见 HTTP 404 + version 倒退（#737、#738）。国内站两条的那一跳产物还在，于是一路绿着停在 `5.3.14`，而同一个 app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行，`lastGoodVersion` 写着 `5.5.6`。
+
+这里**有**一条 probe↔changelog 的交叉检查，`Verify.changelogLagComplaint`，而且这两个数字当时就在它手上（两行的 `lastGoodAt` 同为 `2026-09-17T20:25:48Z`，同一轮扫描）。它没响是因为它**单向**：只在 changelog **落后于** probe 时报。这里是 changelog 5.5.6 **领先于** probe 5.3.14——而「changelog 跑在 probe 前面」正是探针冻住的样子，那个方向没人看。见 #743。
+
+**改法**：URL 里不带 `version` 参数。四个 host×arch 组合当天实测都回 200（不是 204）：国际站两架构 `5.5.2.37849279`，国内站两架构 `5.5.6.38337834`，与 Homebrew cask `workbuddy-ai`（`5.5.2.37849279-910352f0`）一致；cask 的 livecheck 打的也正是这个不带 `version` 的 URL。产物存在性也核了：`…-5.3.14.36279234-825709d4.zip` 为 404，`…-5.5.2.37849279-910352f0.{zip,dmg}` 均为 200。
+
+顺带核过的同形写法：`app-chatwise.swift` 的 `releases?version=0.0.0&platform=osx` 不受影响——带不带 `version`、传 `0.8.0`，都回同一个 `26.9.0`，与 brew 一致，没有链式行为。`com-lemon-lvoverseas.swift` 钉的是 `9.99`（比所有发布都**高**），方向相反，钉不到跳上。

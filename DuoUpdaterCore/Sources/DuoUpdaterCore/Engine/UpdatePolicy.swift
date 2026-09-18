@@ -309,8 +309,9 @@ public enum UpdatePolicy {
         // second opinion about the same question `canAutoInstall` answers — it is
         // the way AROUND that question: every caller offers the row on
         // `canAutoInstall || requiresInstaller`, so a gate that lives only in the
-        // first is satisfied by the second being true. Today's two recipes are
-        // both `.zip`, so nothing reaches here; the point is that a vendor
+        // first is satisfied by the second being true. Today's three recipes are
+        // `.zip`, `.zip` and `.dmg` — none of them `.pkg` — so nothing reaches
+        // here; the point is that a vendor
         // switching artifact, or a one-word `kind:` edit, would otherwise turn a
         // Contents rotation into a root-run vendor package over a registered input
         // source with no code change and no gate firing. `PackageInstaller`'s

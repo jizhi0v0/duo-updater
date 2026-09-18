@@ -768,6 +768,83 @@ private func binary(_ name: String, in bundle: URL) throws -> URL {
     #expect(detect(headless, libraries: reader(appKit)) == nil)
 }
 
+// MARK: - Finding the executable
+
+/// Reads the binary the detector settled on, which is the thing these cases are
+/// about — a wrong or missing choice shows up as an empty reading downstream.
+private func binaryName(
+    _ bundle: URL,
+    plist: [String: Any],
+    libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] }
+) -> String? {
+    AppRuntimeDetector.read(
+        bundleAt: bundle, isiOSAppOnMac: false, infoPlist: plist,
+        linkedLibraries: libraries, carriesTauriCrate: { _ in false }
+    ).binary?.lastPathComponent
+}
+
+@Test func aBundleThatNeverDeclaredItsExecutableIsReadFromItsName() throws {
+    // Meta's Muse.app (`com.meta.endo`) ships no `CFBundleExecutable` at all and
+    // launches fine; `codesign -dv` names `Contents/MacOS/Muse`. Requiring the key
+    // cost the entire reading — no binary, so no runtime, no frameworks, no SDK.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Muse", executable: "Muse")
+    let libraries = reader(byPath: ["MacOS/Muse": [appKit]])
+    #expect(binaryName(bundle, plist: [:], libraries: libraries) == "Muse")
+    #expect(detect(bundle, plist: [:], libraries: libraries) == .native)
+}
+
+@Test func theNameFallbackDoesNotRescueADeclaredExecutableThatIsMissing() throws {
+    // The fallback is for a bundle that never named one, not for a bundle whose
+    // named one is gone: a plist that says `Missing` is answered by nothing, even
+    // though a file with the bundle's own name is sitting right there.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Stale", executable: "Stale")
+    #expect(binaryName(bundle, plist: ["CFBundleExecutable": "Missing"],
+                       libraries: reader(appKit)) == nil)
+    #expect(detect(bundle, plist: ["CFBundleExecutable": "Missing"],
+                   libraries: reader(appKit)) == nil)
+}
+
+@Test func theNameFallbackStillRequiresTheFileToBeThere() throws {
+    // `Ghost.app` holds only `Contents/MacOS/Other`. Nothing is named, nothing is
+    // there under the bundle's own name, and the answer is nothing — not a URL
+    // pointing at a file that does not exist, and not the one file that does.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Ghost", executable: "Other")
+    #expect(binaryName(bundle, plist: [:], libraries: reader(appKit)) == nil)
+    #expect(detect(bundle, plist: [:], libraries: reader(appKit)) == nil)
+}
+
+@Test func anEmptyExecutableKeyFallsBackLikeAMissingOne() throws {
+    // An empty string is not a name. Left alone it would build
+    // `Contents/MacOS/`, and `fileExists` says yes to that directory — so the
+    // reading would describe a folder.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Blank", executable: "Blank")
+    let libraries = reader(byPath: ["MacOS/Blank": [appKit]])
+    #expect(binaryName(bundle, plist: ["CFBundleExecutable": ""],
+                       libraries: libraries) == "Blank")
+    #expect(detect(bundle, plist: ["CFBundleExecutable": ""],
+                   libraries: libraries) == .native)
+}
+
+@Test func theNameFallbackUsesTheBundleNameNotCFBundleName() throws {
+    // Measured on CFBundle itself (macOS 27, 2026-09-18): given `Dir.app` whose
+    // plist says `CFBundleName = Named`, with both files present,
+    // `Bundle.executableURL` answers `Dir`; delete `Dir`, leave `Named`, and it
+    // answers nil rather than switching. Apple documents the key as required and
+    // documents no fallback, so this mirrors what CFBundle does rather than a
+    // promise — the two binaries here link different things so the choice is
+    // visible in the verdict, not just in the path.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Dir", executable: "Dir")
+    try Data().write(to: bundle.appendingPathComponent("Contents/MacOS/Named"))
+    let libraries = reader(byPath: ["MacOS/Dir": [appKit], "MacOS/Named": [catalystUIKit]])
+    #expect(binaryName(bundle, plist: ["CFBundleName": "Named"], libraries: libraries) == "Dir")
+    #expect(detect(bundle, plist: ["CFBundleName": "Named"], libraries: libraries) == .native)
+}
+
 // MARK: - Mach-O reader
 
 @Test func readsLoadCommandsFromARealBinary() throws {

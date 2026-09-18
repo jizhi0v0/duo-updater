@@ -340,12 +340,14 @@ public enum RuntimeVersion {
             || installName.range(of: #"/libQt[0-9]*Core\."#, options: .regularExpression) != nil
     }
 
-    /// The bundle's main executable, from its own Info.plist.
+    /// The bundle's main executable, from its own Info.plist — one rule, shared
+    /// with `AppRuntimeDetector`, including the fallback for a bundle that never
+    /// wrote `CFBundleExecutable`.
     private static func executableURL(bundleAt bundleURL: URL) -> URL? {
-        let info = NSDictionary(contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist"))
-        guard let name = info?["CFBundleExecutable"] as? String, !name.isEmpty else { return nil }
-        let url = bundleURL.appendingPathComponent("Contents/MacOS").appendingPathComponent(name)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        let info = NSDictionary(
+            contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
+        return AppRuntimeDetector.executableURL(
+            bundleAt: bundleURL, infoPlist: info ?? [:], fm: FileManager.default)
     }
 
     // MARK: - Java

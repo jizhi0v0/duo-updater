@@ -155,7 +155,16 @@ struct BackupsSettingsPage: View {
     private var locationCard: some View {
         SettingsCard(header: "Where backups are kept") {
             Picker("Where backups are kept", selection: locationBinding) {
-                Text("On this Mac").tag(false)
+                // The size rides on the option rather than in a card of its
+                // own: this page used to name every store twice, once to
+                // choose it and once to say how much it was holding.
+                HStack {
+                    Text("On this Mac")
+                    Spacer(minLength: 12)
+                    Text(format(storeBytes[BackupStore.outboxStore.id]))
+                        .foregroundStyle(.secondary)
+                }
+                .tag(false)
                 Text("On another disk").tag(true)
             }
             .pickerStyle(.radioGroup)
@@ -232,6 +241,11 @@ struct BackupsSettingsPage: View {
                     }
                 }
                 Spacer(minLength: 12)
+                if let size = diskSize(for: option) {
+                    Text(size)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
                 if selected {
                     Image(systemName: "checkmark")
                         .font(.body.weight(.semibold))
@@ -265,16 +279,6 @@ struct BackupsSettingsPage: View {
 
     private var storageCard: some View {
         SettingsCard(header: "Storage") {
-            ForEach(Array(stores.enumerated()), id: \.element.id) { index, store in
-                if index > 0 { SettingsDivider() }
-                HStack {
-                    Text(storeSizeLabel(store))
-                    Spacer()
-                    Text(format(storeBytes[store.id])).foregroundStyle(.secondary)
-                }
-                .settingsRow()
-            }
-
             if prefs.backupDestination.kind == .external {
                 if case .copying(let name, let completed, let total) = transferState {
                     SettingsDivider()
@@ -569,11 +573,20 @@ struct BackupsSettingsPage: View {
 
     // MARK: - Storage wording
 
-    private func storeSizeLabel(_ store: BackupStore.Store) -> String {
-        if let name = store.volumeName { return String(localized: "On “\(name)”") }
-        return store.location == .outbox
-            ? String(localized: "On this Mac")
-            : String(localized: "On the backup disk")
+    /// What to put at the trailing edge of a disk row: its size, "…" while it
+    /// is being walked, or nothing at all.
+    ///
+    /// Nothing, rather than "Zero KB", for a disk that is not connected. It is
+    /// holding whatever it is holding; this Mac simply cannot see it, and a
+    /// figure of zero would say the opposite of that.
+    private func diskSize(for option: DestinationOption) -> String? {
+        guard let store = stores.first(where: { store in
+            switch option {
+            case .known(let destination): return store.identity == destination.identity
+            case .discovered(let found):  return store.identity == found.marker.identity
+            }
+        }) else { return nil }
+        return format(storeBytes[store.id])
     }
 
     // MARK: - Status wording

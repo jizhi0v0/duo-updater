@@ -6,6 +6,8 @@
 #   PR_TITLE PR_BODY  from the event payload; written to a file for the reviewer
 #   COMMENTS_JSON  optional: read PR comments from this file instead of the API
 #                  (used to test this script locally)
+#   GH_TOKEN  required unless COMMENTS_JSON is set; the workflow sets it on this
+#             step alone, so a new `gh` call here needs it passed, not assumed
 # Outputs ($GITHUB_OUTPUT): mode=full|recheck|skip, round, prompt
 set -euo pipefail
 

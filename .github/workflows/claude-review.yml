@@ -8,7 +8,10 @@
 #   • no earlier review          → full review of the PR's own diff
 #   • earlier review, new commits → recheck: only the first-parent, non-merge
 #                                   commits since the reviewed SHA, plus the
-#                                   previous findings and the author's verdicts
+#                                   previous findings and the author's verdicts.
+#                                   Verdicts are read from the author's plain
+#                                   pull request comments posted after that
+#                                   review; a review body is not read back.
 #   • nothing new (re-run, ready_for_review on the same SHA, a base-branch
 #     merge only)                 → skip
 #
@@ -20,6 +23,10 @@
 #     workflows triggered by a fork, so even a mistake in the `if:` leaks nothing.
 #   • claude-code-action refuses actors without write access and all bots by
 #     default. `allowed_non_write_users` / `allowed_bots` are deliberately unset.
+#   • `GH_TOKEN` is set on the two steps that shell out to `gh`, not on the job,
+#     so it is absent from the reviewer step's environment. The action gets its
+#     own `github_token` input; nothing else here needs the token, and the
+#     checkout deliberately keeps no credential (`persist-credentials: false`).
 #
 # The reviewer reads REVIEW.md, the checkout and the PR description, runs
 # read-only git, and writes its review file. Posting is done by the last step,
@@ -54,7 +61,6 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_BODY: ${{ github.event.pull_request.body }}
       WORK: ${{ github.workspace }}/.claude-review
-      GH_TOKEN: ${{ github.token }}
     steps:
       # The default pull_request checkout is the synthetic merge commit; the
       # markers record head SHAs, so check out the head itself, with history.
@@ -67,6 +73,8 @@ jobs:
 
       - name: Decide full review, recheck or skip
         id: prep
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: .github/claude-review/prepare.sh
 
       - name: Review
@@ -89,6 +97,7 @@ jobs:
       - name: Post the review
         if: steps.prep.outputs.mode != 'skip'
         env:
+          GH_TOKEN: ${{ github.token }}
           MODE: ${{ steps.prep.outputs.mode }}
           ROUND: ${{ steps.prep.outputs.round }}
         run: |

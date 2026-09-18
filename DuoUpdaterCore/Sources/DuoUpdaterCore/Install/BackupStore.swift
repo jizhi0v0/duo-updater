@@ -369,7 +369,11 @@ public enum BackupStore {
         // of leaking a whole stale bundle per migrated app.
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
         if legacy != key {
-            await removeItemOffCooperativePool(at: root.appendingPathComponent(legacy, isDirectory: true))
+            // Flags cleared: an orphan under the legacy key is by definition an
+            // old backup, so it is exactly the generation that can still carry
+            // one, and nothing ever revisits that key to try again.
+            await removeClearingImmutableFlagsOffPool(
+                at: root.appendingPathComponent(legacy, isDirectory: true))
         }
         return Backup(
             key: key, version: version, buildVersion: buildVersion,
@@ -431,10 +435,15 @@ public enum BackupStore {
             .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
         // Both removals of `scratch` can be deleting a whole bundle copy (a
         // crashed earlier rollback's, or this one's when it stops short of the
-        // swap), so they go to Dispatch.
-        await removeItemOffCooperativePool(at: scratch)
+        // swap), so they go to Dispatch. Immutable flags cleared, because the
+        // name is fixed per key: a leftover copy of a backup old enough to still
+        // carry `uchg` cannot be deleted, `createDirectory` reports success on
+        // the directory that is already there, and `ditto` then writes into it
+        // and fails on the locked file — wedging every later rollback of that
+        // app, not just this one.
+        await removeClearingImmutableFlagsOffPool(at: scratch)
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
-        defer { await removeItemOffCooperativePool(at: scratch) }
+        defer { await removeClearingImmutableFlagsOffPool(at: scratch) }
         return try await restore(backup, key: key, stagingIn: scratch, over: target)
     }
 
@@ -569,8 +578,7 @@ public enum BackupStore {
 
     /// Drop the backup for `key` (e.g. the user dismissed it).
     public static func remove(forKey key: String) {
-        try? FileManager.default.removeItem(
-            at: root.appendingPathComponent(key, isDirectory: true))
+        removeClearingImmutableFlags(at: root.appendingPathComponent(key, isDirectory: true))
     }
 
     /// One stored backup, described for a UI that has to let someone choose which
@@ -666,8 +674,12 @@ public enum BackupStore {
                   let meta = try? JSONDecoder().decode(Meta.self, from: data)
             else { continue }
             guard !fm.fileExists(atPath: meta.originalPath) else { continue }
-            freed += directorySize(dir)
-            try? fm.removeItem(at: dir)
+            // Measured before the removal (there is nothing left to walk after
+            // it) but only counted once the removal actually happened: this
+            // number is shown to the user as space reclaimed, and a prune that
+            // could not delete reclaimed nothing.
+            let size = directorySize(dir)
+            if removeClearingImmutableFlags(at: dir) { freed += size }
         }
         return freed
     }
@@ -770,6 +782,80 @@ public enum BackupStore {
             standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
         else { return false }
         return outcome.succeeded
+    }
+
+    /// Delete something we own, clearing `uchg` off it and retrying if the first
+    /// attempt is refused.
+    ///
+    /// `save` strips the flag from every copy it stores, so nothing written since
+    /// carries one — but a backup taken before that did, and it is still sitting
+    /// in the store. Those are the copies the removal paths meet: a plain
+    /// `removeItem` fails EPERM on the one locked file, and spelled `try?` it
+    /// fails silently, which is worse than loudly. The removal is a partial one —
+    /// it unlinks what it can before the refusal — so it can take `backup.json`
+    /// with it and leave a bundle behind that `pruneOrphans` then skips for want
+    /// of a sidecar, while `totalSize` goes on counting it.
+    ///
+    /// Clearing is safe here because the target is always a copy this store made,
+    /// never the user's own file, and only the user-settable flags go: `schg`
+    /// needs root, and something wearing one is a genuine reason to stop rather
+    /// than something to work around. A restore is unaffected either way — it
+    /// copies its own bundle out with `ditto`, flags and all.
+    ///
+    /// In-process rather than the `chflags` of `clearUserImmutableFlags`, which
+    /// needs an async context: every caller here is already on a Dispatch thread
+    /// doing the deletion, and `lchflags` never follows a symlink, so a link
+    /// inside a bundle has its own flag cleared instead of reaching outside the
+    /// store.
+    @discardableResult
+    private static func removeClearingImmutableFlags(at url: URL) -> Bool {
+        let fm = FileManager.default
+        do {
+            try fm.removeItem(at: url)
+            return true
+        } catch {
+            // `lstat`, not `fileExists`: it answers for the link itself, and
+            // "already gone" is the one failure that is not one.
+            var probe = stat()
+            guard lstat(url.path, &probe) == 0 else { return true }
+        }
+        clearUserImmutableFlags(inProcessUnder: url)
+        do {
+            try fm.removeItem(at: url)
+            return true
+        } catch {
+            Log.install.error(
+                "backup: \(url.lastPathComponent, privacy: .public) would not delete even after clearing its immutable flags — \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// `removeClearingImmutableFlags` off the cooperative pool, for the callers
+    /// in an async context that can be deleting a whole bundle copy.
+    ///
+    /// Resolve `url` before calling, as `removeItemOffCooperativePool` says: a
+    /// Dispatch thread has no task-locals, so a path built from `root` inside the
+    /// hop would ignore a test's override.
+    private static func removeClearingImmutableFlagsOffPool(at url: URL) async {
+        await offCooperativePool(qos: .userInitiated) {
+            _ = removeClearingImmutableFlags(at: url)
+        }
+    }
+
+    /// Clear `uchg`/`uappnd` from `url` and everything under it, without a child
+    /// process. See `removeClearingImmutableFlags` for why the flags go at all.
+    private static func clearUserImmutableFlags(inProcessUnder url: URL) {
+        let clearable = UInt32(UF_IMMUTABLE) | UInt32(UF_APPEND)
+        func clear(_ path: String) {
+            var info = stat()
+            guard lstat(path, &info) == 0, info.st_flags & clearable != 0 else { return }
+            _ = lchflags(path, info.st_flags & ~clearable)
+        }
+        clear(url.path)
+        guard let walker = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: nil, options: [], errorHandler: nil)
+        else { return }
+        for case let child as URL in walker { clear(child.path) }
     }
 
     /// The prefix every staging directory for `key` shares — the bundle copy's own

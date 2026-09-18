@@ -922,4 +922,144 @@ struct BackupStoreTests {
             #expect(BackupStore.backup(forKey: key)?.version == "1.1")
         }
     }
+
+    // MARK: - Removing a backup that predates the flag stripping
+
+    /// Clear `uchg` from everything under `url`, so a scratch root holding a
+    /// deliberately locked fixture can still be torn down.
+    private func unlock(under url: URL) {
+        let fm = FileManager.default
+        try? fm.setAttributes([.immutable: false], ofItemAtPath: url.path)
+        for child in fm.enumerator(at: url, includingPropertiesForKeys: nil)?
+            .compactMap({ $0 as? URL }) ?? [] {
+            try? fm.setAttributes([.immutable: false], ofItemAtPath: child.path)
+        }
+    }
+
+    /// Deleting a backup the user ticked has to work on one written before `save`
+    /// started stripping `uchg` — those copies are still in the store, and nothing
+    /// else will ever clear them: `pruneOrphans` skips a directory without a
+    /// sidecar, and `save` only revisits a key while the app is still installed.
+    @Test func aPoisonedBackupIsDeletedWhenTheUserAsksForIt() async throws {
+        try await withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let app = try makeApp(named: "Locked.app", in: apps, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.locked", path: app)
+            defer { unlock(under: root) }
+
+            _ = try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.locked")
+            let dir = root.appendingPathComponent(key, isDirectory: true)
+            let stored = dir.appendingPathComponent("Locked.app/Contents/advInfo.json")
+            try Data("{}".utf8).write(to: stored)
+            try fm.setAttributes([.immutable: true], ofItemAtPath: stored.path)
+
+            BackupStore.remove(forKey: key)
+
+            // The directory on disk, not `backup(forKey:)`. A refused removal is a
+            // partial one — it unlinks its way to the locked file and takes
+            // `backup.json` with it — so the sidecar-based query answers "gone" for
+            // a bundle that is still sitting there, which is exactly how this
+            // failure stayed invisible.
+            #expect(!fm.fileExists(atPath: dir.path))
+        }
+    }
+
+    /// An orphan carrying the flag has to be reclaimed too, and "Clean Up Now"
+    /// reports what `pruneOrphans` returns: the bytes have to be counted for a
+    /// removal that happened, not one that was attempted.
+    @Test func pruningAPoisonedOrphanReclaimsItAndCountsOnlyWhatWentAway() async throws {
+        try await withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let kept = try makeApp(named: "Keep.app", in: apps, marker: "v1")
+            let uninstalled = try makeApp(named: "Locked.app", in: apps, marker: "v1")
+            defer { unlock(under: root) }
+
+            try await BackupStore.save(appPath: kept, key: "keep", version: "1.0", bundleID: nil)
+            try await BackupStore.save(appPath: uninstalled, key: "gone", version: "1.0", bundleID: nil)
+            let dir = root.appendingPathComponent("gone", isDirectory: true)
+            let stored = dir.appendingPathComponent("Locked.app/Contents/advInfo.json")
+            try Data("{}".utf8).write(to: stored)
+            try fm.setAttributes([.immutable: true], ofItemAtPath: stored.path)
+            try fm.removeItem(at: uninstalled)
+
+            let before = BackupStore.totalSize()
+            let freed = BackupStore.pruneOrphans()
+            let after = BackupStore.totalSize()
+
+            #expect(!fm.fileExists(atPath: dir.path))
+            #expect(BackupStore.backup(forKey: "keep") != nil)
+            // What it says it reclaimed is what the store actually lost. Counting
+            // the size before the removal and keeping it regardless reported a
+            // cleanup that freed nothing as having freed the whole bundle.
+            #expect(freed > 0)
+            #expect(before - after == freed)
+        }
+    }
+
+    /// And when it truly cannot delete — the flags are off but the removal is
+    /// still refused — it must not count the bundle as reclaimed. "Clean Up Now"
+    /// shows this number as space freed, so counting it before the removal and
+    /// keeping it regardless reported gigabytes that were still on disk.
+    ///
+    /// The refusal here is a read-only store root, which unlinking a child needs
+    /// write access to. `schg` would be the faithful reproduction of the real
+    /// case, but setting one needs root.
+    @Test func aPruneThatCannotDeleteReportsNothingFreed() async throws {
+        try await withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let uninstalled = try makeApp(named: "Gone.app", in: apps, marker: "v1")
+            try await BackupStore.save(appPath: uninstalled, key: "gone", version: "1.0", bundleID: nil)
+            try fm.removeItem(at: uninstalled)
+            // `apps` lives under the store root, so it goes before the root is
+            // sealed — afterwards nothing under it can be unlinked either.
+            try fm.removeItem(at: apps)
+
+            try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: root.path)
+            defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path) }
+
+            #expect(BackupStore.pruneOrphans() == 0)
+            #expect(fm.fileExists(atPath: root.appendingPathComponent("gone").path))
+        }
+    }
+
+    /// The rollback scratch is named per key, not per attempt, so a leftover from
+    /// a crashed rollback is the *same* path the next one uses. One holding a copy
+    /// of a backup old enough to carry `uchg` could not be removed;
+    /// `createDirectory(withIntermediateDirectories: true)` then reported success
+    /// on the directory already there, and `ditto` copied into it and failed on the
+    /// locked file — wedging every later rollback of that app, not just the one
+    /// that crashed.
+    @Test func aPoisonedRollbackScratchDoesNotWedgeTheNextRestore() async throws {
+        try await withScratchRoot { root in
+            let fm = FileManager.default
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let scratch = fm.temporaryDirectory
+                .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
+            defer {
+                unlock(under: scratch)
+                try? fm.removeItem(at: scratch)
+            }
+            try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            let leftover = scratch.appendingPathComponent("Fixture.app/Contents", isDirectory: true)
+            try fm.createDirectory(at: leftover, withIntermediateDirectories: true)
+            let locked = leftover.appendingPathComponent("advInfo.json")
+            try Data("{}".utf8).write(to: locked)
+            try fm.setAttributes([.immutable: true], ofItemAtPath: locked.path)
+
+            try makeApp(named: "Fixture.app", in: root, marker: "new")
+            #expect(try await BackupStore.restore(forKey: key, over: app) == "1.0")
+            #expect(marker(of: app) == "old")
+            #expect(!fm.fileExists(atPath: scratch.path))
+        }
+    }
 }

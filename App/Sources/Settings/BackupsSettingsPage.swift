@@ -205,10 +205,24 @@ struct BackupsSettingsPage: View {
                     // not there at all — and answers the two questions the
                     // word never did: how much is free, and how much of what
                     // is used is ours.
-                    if let space = volumeSpace[storeID(for: option) ?? ""] {
+                    if let id = storeID(for: option), let space = volumeSpace[id] {
                         CapacityBar(
-                            backups: storeBytes[storeID(for: option) ?? ""] ?? 0,
+                            backups: storeBytes[id] ?? 0,
                             used: space.used, total: space.total)
+                        // The two numbers worth comparing, at opposite ends of
+                        // the bar that shows their proportion. Run together on
+                        // one line they had to be read as a sentence before
+                        // they could be compared. The left one takes the bar's
+                        // own colour, which saves the bar needing a legend.
+                        HStack(spacing: 12) {
+                            Text("Backups: \(format(storeBytes[id]))")
+                                .foregroundStyle(Color.accentColor)
+                            Spacer(minLength: 8)
+                            Text("\(bytes(space.free)) free of \(bytes(space.total))")
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                        .monospacedDigit()
                     }
                     if let subtitle = subtitle(for: option) {
                         Text(subtitle)
@@ -483,10 +497,9 @@ struct BackupsSettingsPage: View {
     private func subtitle(for option: DestinationOption) -> String? {
         switch option {
         case .thisMac:
-            // The same slot the disks use, carrying the same facts. "Always
-            // connected" only when the volume cannot be measured at all, which
-            // for the startup disk means something is very wrong.
-            return capacityLine(for: option) ?? String(localized: "Always connected")
+            // Only when the startup disk cannot be measured at all, which means
+            // something is very wrong; otherwise its numbers say it better.
+            return showsCapacity(option) ? nil : String(localized: "Always connected")
         case .known(let destination):
             // What the disk is doing beats what it is. Choosing a disk starts a
             // transfer that can run for minutes, and a row that only ever said
@@ -501,7 +514,7 @@ struct BackupsSettingsPage: View {
                 }
             }
             switch availability(for: destination) {
-            case .ready:             return capacityLine(for: option) ?? String(localized: "Connected")
+            case .ready:             return showsCapacity(option) ? nil : String(localized: "Connected")
             case .volumeNotMounted:  return String(localized: "Isn’t connected")
             case .identityMismatch:  return String(localized: "A different disk is mounted here")
             case .notWritable:       return String(localized: "Can’t be written to")
@@ -602,16 +615,15 @@ struct BackupsSettingsPage: View {
         }?.id
     }
 
-    /// What the row says about itself when it is reachable: what the backups
-    /// take, and what is left. Nothing here is guessed — a store still being
-    /// walked says "…" rather than a number that would be wrong.
-    private func capacityLine(for option: DestinationOption) -> String? {
-        guard let id = storeID(for: option), let space = volumeSpace[id] else { return nil }
-        let free = ByteCountFormatter.string(fromByteCount: space.free, countStyle: .file)
-        let total = ByteCountFormatter.string(fromByteCount: space.total, countStyle: .file)
-        // Colon form rather than "%@ of backups": it needs no plural agreement
-        // and no preposition that four languages would disagree about.
-        return String(localized: "Backups: \(format(storeBytes[id])) · Free: \(free) of \(total)")
+    private func bytes(_ count: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
+    }
+
+    /// Whether the row is already saying its numbers, in which case the caption
+    /// beneath has nothing left to add.
+    private func showsCapacity(_ option: DestinationOption) -> Bool {
+        guard let id = storeID(for: option) else { return false }
+        return volumeSpace[id] != nil
     }
 
     // MARK: - Status wording

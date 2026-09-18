@@ -27899,43 +27899,84 @@
         }
       }
     },
-    "Backups: %@ · Free: %@ of %@": {
+    "Backups: %@": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backups: %1$@ · Frei: %2$@ von %3$@"
+            "value": "Backups: %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copias: %1$@ · Libre: %2$@ de %3$@"
+            "value": "Copias: %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sauvegardes : %1$@ · Libre : %2$@ sur %3$@"
+            "value": "Sauvegardes : %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "バックアップ: %1$@ · 空き: %2$@ / %3$@"
+            "value": "バックアップ: %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резервные копии: %1$@ · Свободно: %2$@ из %3$@"
+            "value": "Резервные копии: %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "备份：%1$@ · 可用 %2$@ / 共 %3$@"
+            "value": "备份：%@"
+          }
+        }
+      }
+    },
+    "%@ free of %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ frei von %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ libres de %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ libres sur %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 中 %1$@ が空き"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ свободно из %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用 %1$@ / 共 %2$@"
           }
         }
       }

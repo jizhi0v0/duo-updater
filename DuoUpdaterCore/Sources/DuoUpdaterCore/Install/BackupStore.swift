@@ -1557,7 +1557,7 @@ public enum BackupStore {
         reachableStores().map { ($0, storeSize(of: $0.root)) }
     }
 
-    private static func storeSize(of root: URL) -> Int64 {
+    public static func storeSize(of root: URL) -> Int64 {
         guard let dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return 0 }

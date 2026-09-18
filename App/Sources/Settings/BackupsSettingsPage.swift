@@ -12,7 +12,14 @@ struct BackupsSettingsPage: View {
     @Bindable var prefs: Preferences
     let model: AppListModel
 
-    @State private var storeSizes: [(store: BackupStore.Store, bytes: Int64)] = []
+    /// Which stores to draw a row for. Answered in milliseconds, and kept
+    /// apart from `storeBytes` on purpose: a row's existence is not a
+    /// measurement, and deriving the rows from the measurement left the whole
+    /// card empty for the five seconds it takes to walk a 49 GB store on USB.
+    @State private var stores: [BackupStore.Store] = []
+    /// Bytes per store id, filled in as the walk finishes. A store missing from
+    /// here renders "…", not a missing row.
+    @State private var storeBytes: [String: Int64] = [:]
     @State private var pendingCount = 0
     @State private var heldCount = 0
     @State private var transferState: BackupTransferQueue.State = .idle
@@ -52,6 +59,8 @@ struct BackupsSettingsPage: View {
     @State private var showingBackups = false
     @State private var backupListing: [BackupStore.Listing] = []
     @State private var isCleaningBackups = false
+    /// The size walk in flight, so a refresh can replace it rather than race it.
+    @State private var sizeTask: Task<Void, Never>?
 
     init(prefs: Preferences, model: AppListModel) {
         _prefs = Bindable(wrappedValue: prefs)
@@ -256,12 +265,12 @@ struct BackupsSettingsPage: View {
 
     private var storageCard: some View {
         SettingsCard(header: "Storage") {
-            ForEach(Array(storeSizes.enumerated()), id: \.element.store.id) { index, entry in
+            ForEach(Array(stores.enumerated()), id: \.element.id) { index, store in
                 if index > 0 { SettingsDivider() }
                 HStack {
-                    Text(storeSizeLabel(entry.store))
+                    Text(storeSizeLabel(store))
                     Spacer()
-                    Text(format(entry.bytes)).foregroundStyle(.secondary)
+                    Text(format(storeBytes[store.id])).foregroundStyle(.secondary)
                 }
                 .settingsRow()
             }
@@ -789,7 +798,11 @@ struct BackupsSettingsPage: View {
 
     private func refresh() async {
         availability = model.backupAvailability()
-        storeSizes = await model.backupSizesByStore()
+        stores = await model.backupStores()
+        // Not awaited. Everything above is a stat or two; this walks every
+        // backup in every store, and holding the card's other numbers back for
+        // it is what made opening the page look broken.
+        measureStores()
         pendingCount = await model.pendingBackupTransfers()
         heldCount = await model.heldBackupCount()
         transferState = await model.backupTransferState()
@@ -801,6 +814,19 @@ struct BackupsSettingsPage: View {
             avail[destinationKey(destination)] = model.backupAvailability(for: destination)
         }
         knownAvailability = avail
+    }
+
+    /// Walk the stores for their sizes, replacing any walk still in flight —
+    /// a refresh that lands mid-walk wants the newer answer, and two walks of
+    /// the same USB disk at once are slower than one.
+    private func measureStores() {
+        sizeTask?.cancel()
+        let wanted = stores
+        sizeTask = Task {
+            let measured = await model.backupStoreBytes(for: wanted)
+            guard !Task.isCancelled else { return }
+            storeBytes = measured
+        }
     }
 
     private func format(_ bytes: Int64?) -> String {

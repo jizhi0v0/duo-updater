@@ -6706,8 +6706,26 @@ final class AppListModel {
 
     /// What each readable store is holding, named for display. Walks every
     /// store, so off-main.
-    func backupSizesByStore() async -> [(store: BackupStore.Store, bytes: Int64)] {
-        await Task.detached(priority: .utility) { BackupStore.sizesByStore() }.value
+    /// Which stores can be read right now. Existence and a marker read per
+    /// disk, so it answers immediately — deliberately separate from measuring
+    /// them, which does not.
+    func backupStores() async -> [BackupStore.Store] {
+        await Task.detached(priority: .utility) { BackupStore.reachableStores() }.value
+    }
+
+    /// What each of `stores` is holding, keyed by store id.
+    ///
+    /// Split off from ``backupStores()`` because this walks every backup in
+    /// every store: measured at 5.4 seconds for a 49 GB store on a USB disk,
+    /// against 5 milliseconds for an empty one on the boot volume. A caller that
+    /// waits for this before drawing anything shows an empty card for those five
+    /// seconds, which is what the Backups page used to do.
+    func backupStoreBytes(for stores: [BackupStore.Store]) async -> [String: Int64] {
+        await Task.detached(priority: .utility) {
+            var out: [String: Int64] = [:]
+            for store in stores { out[store.id] = BackupStore.storeSize(of: store.root) }
+            return out
+        }.value
     }
 
     /// Disks plugged in right now that already hold a backup store, whether or

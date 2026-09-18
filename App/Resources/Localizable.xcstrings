@@ -27899,6 +27899,47 @@
         }
       }
     },
+    "Backups: %@ · Free: %@ of %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups: %1$@ · Frei: %2$@ von %3$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copias: %1$@ · Libre: %2$@ de %3$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sauvegardes : %1$@ · Libre : %2$@ sur %3$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップ: %1$@ · 空き: %2$@ / %3$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии: %1$@ · Свободно: %2$@ из %3$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份：%1$@ · 可用 %2$@ / 共 %3$@"
+          }
+        }
+      }
+    },
     "Rollback points": {
       "extractionState": "manual",
       "localizations": {

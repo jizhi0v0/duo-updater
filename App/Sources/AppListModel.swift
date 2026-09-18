@@ -6725,6 +6725,16 @@ final class AppListModel {
     /// other half of the same point: answering them together means the 5
     /// millisecond one is not shown until the 5 second one is done, and both
     /// rows sit on "…" for as long as the slowest disk takes.
+    /// Free and total bytes of the volume a store sits on, or nil when that
+    /// volume cannot be asked — a disk that is away, most often.
+    func backupVolumeSpace(of store: BackupStore.Store) async -> BackupVolumeSpace? {
+        let root = store.root
+        return await Task.detached(priority: .utility) {
+            BackupDestinationProbe.volumeSpace(at: root)
+                .map { BackupVolumeSpace(free: $0.free, total: $0.total) }
+        }.value
+    }
+
     func backupStoreBytes(of store: BackupStore.Store) async -> Int64 {
         let root = store.root
         return await Task.detached(priority: .utility) {
@@ -8697,4 +8707,11 @@ private actor RaceGate {
         claimed = true
         return true
     }
+}
+
+/// How much room a store's volume has, as the Backups page draws it.
+struct BackupVolumeSpace: Equatable, Sendable {
+    let free: Int64
+    let total: Int64
+    var used: Int64 { max(total - free, 0) }
 }

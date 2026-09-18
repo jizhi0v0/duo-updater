@@ -20,6 +20,9 @@ struct BackupsSettingsPage: View {
     /// Bytes per store id, filled in as the walk finishes. A store missing from
     /// here renders "…", not a missing row.
     @State private var storeBytes: [String: Int64] = [:]
+    /// Room on each store's volume, by store id. A stat rather than a walk, so
+    /// it lands with the rows rather than behind them.
+    @State private var volumeSpace: [String: BackupVolumeSpace] = [:]
     @State private var pendingCount = 0
     @State private var heldCount = 0
     @State private var transferState: BackupTransferQueue.State = .idle
@@ -195,8 +198,18 @@ struct BackupsSettingsPage: View {
         } label: {
             HStack(spacing: 10) {
                 diskIconView(for: option)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title(for: option))
+                    // The bar carries "is this disk here" better than a word
+                    // does — it is either drawn against real numbers or it is
+                    // not there at all — and answers the two questions the
+                    // word never did: how much is free, and how much of what
+                    // is used is ours.
+                    if let space = volumeSpace[storeID(for: option) ?? ""] {
+                        CapacityBar(
+                            backups: storeBytes[storeID(for: option) ?? ""] ?? 0,
+                            used: space.used, total: space.total)
+                    }
                     if let subtitle = subtitle(for: option) {
                         Text(subtitle)
                             .font(.caption)
@@ -219,11 +232,6 @@ struct BackupsSettingsPage: View {
                     }
                 }
                 Spacer(minLength: 12)
-                if let size = diskSize(for: option) {
-                    Text(size)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
                 if selected {
                     Image(systemName: "checkmark")
                         .font(.body.weight(.semibold))
@@ -475,9 +483,10 @@ struct BackupsSettingsPage: View {
     private func subtitle(for option: DestinationOption) -> String? {
         switch option {
         case .thisMac:
-            // The same slot the disks use for whether they are reachable, so
-            // the rows line up — and the honest answer for this one.
-            return String(localized: "Always connected")
+            // The same slot the disks use, carrying the same facts. "Always
+            // connected" only when the volume cannot be measured at all, which
+            // for the startup disk means something is very wrong.
+            return capacityLine(for: option) ?? String(localized: "Always connected")
         case .known(let destination):
             // What the disk is doing beats what it is. Choosing a disk starts a
             // transfer that can run for minutes, and a row that only ever said
@@ -492,7 +501,7 @@ struct BackupsSettingsPage: View {
                 }
             }
             switch availability(for: destination) {
-            case .ready:             return String(localized: "Connected")
+            case .ready:             return capacityLine(for: option) ?? String(localized: "Connected")
             case .volumeNotMounted:  return String(localized: "Isn’t connected")
             case .identityMismatch:  return String(localized: "A different disk is mounted here")
             case .notWritable:       return String(localized: "Can’t be written to")
@@ -581,21 +590,28 @@ struct BackupsSettingsPage: View {
 
     // MARK: - Storage wording
 
-    /// What to put at the trailing edge of a disk row: its size, "…" while it
-    /// is being walked, or nothing at all.
-    ///
-    /// Nothing, rather than "Zero KB", for a disk that is not connected. It is
-    /// holding whatever it is holding; this Mac simply cannot see it, and a
-    /// figure of zero would say the opposite of that.
-    private func diskSize(for option: DestinationOption) -> String? {
-        guard let store = stores.first(where: { store in
+    /// The reachable store this row stands for, or nil when there is none —
+    /// which is what a disk that is not plugged in looks like from here.
+    private func storeID(for option: DestinationOption) -> String? {
+        stores.first { store in
             switch option {
             case .thisMac:                return store.location == .outbox
             case .known(let destination): return store.identity == destination.identity
             case .discovered(let found):  return store.identity == found.marker.identity
             }
-        }) else { return nil }
-        return format(storeBytes[store.id])
+        }?.id
+    }
+
+    /// What the row says about itself when it is reachable: what the backups
+    /// take, and what is left. Nothing here is guessed — a store still being
+    /// walked says "…" rather than a number that would be wrong.
+    private func capacityLine(for option: DestinationOption) -> String? {
+        guard let id = storeID(for: option), let space = volumeSpace[id] else { return nil }
+        let free = ByteCountFormatter.string(fromByteCount: space.free, countStyle: .file)
+        let total = ByteCountFormatter.string(fromByteCount: space.total, countStyle: .file)
+        // Colon form rather than "%@ of backups": it needs no plural agreement
+        // and no preposition that four languages would disagree about.
+        return String(localized: "Backups: \(format(storeBytes[id])) · Free: \(free) of \(total)")
     }
 
     // MARK: - Status wording
@@ -786,6 +802,9 @@ struct BackupsSettingsPage: View {
     private func refresh() async {
         availability = model.backupAvailability()
         stores = await model.backupStores()
+        var space: [String: BackupVolumeSpace] = [:]
+        for store in stores { space[store.id] = await model.backupVolumeSpace(of: store) }
+        volumeSpace = space
         // Not awaited. Everything above is a stat or two; this walks every
         // backup in every store, and holding the card's other numbers back for
         // it is what made opening the page look broken.
@@ -834,6 +853,47 @@ private func destinationKey(_ destination: BackupDestination) -> String {
 }
 
 /// The compression choice, laid out the way the other settings pickers are.
+/// How full the volume a store sits on is, and how much of that is ours.
+///
+/// Three segments rather than one: "49.58 GB of backups" means something
+/// different on a disk with 60 GB free than on one with 600 MB, and deciding
+/// whether to keep going is the reason someone opens this page. The backups'
+/// share is drawn in the accent colour because it is the only part this app
+/// can do anything about.
+///
+/// Hidden from accessibility: the line beneath it says the same thing in
+/// words, and a bar read aloud as three unnamed rectangles says nothing.
+private struct CapacityBar: View {
+    let backups: Int64
+    let used: Int64
+    let total: Int64
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            // Clamped against each other: the store walk and the volume's own
+            // accounting are taken moments apart and need not agree, and a
+            // segment wider than the bar draws outside it.
+            let ours = min(max(backups, 0), used)
+            HStack(spacing: 0) {
+                Rectangle().fill(Color.accentColor)
+                    .frame(width: width * fraction(ours))
+                Rectangle().fill(Color.secondary.opacity(0.55))
+                    .frame(width: width * fraction(used - ours))
+                Rectangle().fill(Color.secondary.opacity(0.18))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 2.5, style: .continuous))
+        }
+        .frame(height: 5)
+        .accessibilityHidden(true)
+    }
+
+    private func fraction(_ bytes: Int64) -> Double {
+        guard total > 0 else { return 0 }
+        return min(max(Double(bytes) / Double(total), 0), 1)
+    }
+}
+
 private struct AdaptiveCompressionRow: View {
     @Binding var selection: BundleArchive.Compression
 

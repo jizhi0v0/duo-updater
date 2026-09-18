@@ -165,6 +165,28 @@ public enum BackupDestinationProbe {
         )
     }
 
+    /// Free and total bytes of the volume holding `directory`.
+    ///
+    /// Nil when the volume cannot be asked, which is the ordinary answer for a
+    /// disk that is not plugged in rather than an error — a caller showing this
+    /// should say nothing there, not zero.
+    ///
+    /// "Free" is `volumeAvailableCapacityForImportantUsage`, the figure Finder
+    /// shows: it counts space macOS would reclaim from purgeable caches if
+    /// something needed it, which is the number that decides whether a backup
+    /// will actually fit. The raw `volumeAvailableCapacity` reads lower and
+    /// would refuse writes that succeed.
+    public static func volumeSpace(at directory: URL) -> (free: Int64, total: Int64)? {
+        let keys: Set<URLResourceKey> = [
+            .volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey,
+        ]
+        guard let values = try? directory.resourceValues(forKeys: keys),
+              let free = values.volumeAvailableCapacityForImportantUsage,
+              let total = values.volumeTotalCapacity, total > 0
+        else { return nil }
+        return (Int64(free), Int64(total))
+    }
+
     /// Whether two paths sit on the same mounted volume right now.
     ///
     /// The point of moving the store is to get the bytes off this Mac's disk,

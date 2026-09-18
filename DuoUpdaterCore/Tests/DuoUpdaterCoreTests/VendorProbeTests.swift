@@ -2003,8 +2003,9 @@ private let doubaoImeDownloadURLFixture = #"""
     #expect(VersionComparator.isNewer("657", than: "643"))
 }
 
-/// One-click, through the one recipe in the registry whose download is NOT the
-/// app: `DoubaoImeInstaller_v<code>_release.zip` unpacks to an installer stub
+/// One-click, through one of the two recipes in the registry whose download is
+/// NOT the app (QianwenIME is the other, a `.dmg` with the same shape):
+/// `DoubaoImeInstaller_v<code>_release.zip` unpacks to an installer stub
 /// carrying `DoubaoIme.zip` inside it. `nestedArchivePath` is what makes that
 /// installable at all — without it the bundle-id gate refuses the stub's
 /// `…doubaoime.installer` over the app's `…doubaoime`, which is the correct

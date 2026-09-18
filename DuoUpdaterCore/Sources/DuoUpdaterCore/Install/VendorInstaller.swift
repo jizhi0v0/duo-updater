@@ -223,8 +223,8 @@ public actor VendorInstaller {
         var newApp: URL
         // The delta branch below reconstructs the app from the installed copy and
         // never sees an archive, so `nestedArchivePath` does not apply to it and is
-        // not consulted there. Unreachable today — the one recipe that declares a
-        // nested payload publishes no patches — but if a stub-shipping vendor ever
+        // not consulted there. Unreachable today — neither recipe that declares a
+        // nested payload publishes patches — but if a stub-shipping vendor ever
         // also served an appcast, the symptom would be a bundle-id refusal rather
         // than anything unsafe.
         if let patch = download.appliedPatch {

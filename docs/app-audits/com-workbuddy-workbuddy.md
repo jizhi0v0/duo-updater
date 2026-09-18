@@ -257,10 +257,12 @@ again.
 而这恰恰是探针冻住时该有的样子——没人看那一侧。
 
 **第二道闸也瞎了，而且是另一个原因。** `Verify.brewComplaint` 专门抓「cask 领先我们一个发布 =
-厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了（#737／#738 的 issue 正文里是完整的一句
-「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14」；
+厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了。#737／#738 的 issue 正文里那一句是
+「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14
+— the probe may be stuck on a stale element」——**句子到 `5.3.14` 并没有结束**，
+`Verify.swift` 还会接上后半截（更正 2026-09-18：本节原先把前半截写成「完整的一句」，是错的）。
 `verify/baseline.json` 里只留被截断的 `Homebrew's cask \`workbuddy-ai\` is at 5.5`，
-因为 `lastSignature` 本来就是截断存的）。
+因为 `lastSignature` 本来就是截断存的。
 国内站没报，**不是因为没有 cask**——`workbuddy-cn` 一直存在，而且 2026-09-18 查到的版本正是
 `5.5.6.38337834`，就是我们该读到的那个数。它没报是因为**键对不上**：brew 那张表的 bundle id
 取自 cask 的 `uninstall quit:`，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
@@ -271,8 +273,21 @@ again.
 国内站这一对**一个都没响**——方向不对的交叉检查 + 键对不上的 brew 检查。
 
 所以结论不是「没有交叉检查」，而是「两道闸各瞎了一半」。反向检查不能照抄着反过来写：
-当天 50 个同时有 probe 行和 changelog 行的 app 里（`verify/baseline.json`：56 个 bundle id
-两种行都有，限定 `lastGoodVersion` 以数字开头——major.minor 比较的前提——后是 50 个），
-5 个 changelog 在 major.minor 上领先 probe，
-只有本条是真 bug，其余四个（Claude for Desktop 的两套 build 命名空间、Obsidian 的 insider 条目、
-Thunderbird 的 ESR/beta 多渠道）都是合法的。反向检查得先能分辨这些。已开 #743。
+在**已提交的** `verify/baseline.json` 上（56 个 bundle id 两种行都有，限定
+`lastGoodVersion` 以数字开头——`Verify.swift` 那条 `guard entry.first?.isNumber` 是
+major.minor 比较的前提——后是 50 个），按「该 app 的 changelog 读数在 major.minor 上
+高于它**每一条** probe 行」这条规则筛，只有 3 个：
+
+| app | changelog | probe | 真 bug？ |
+|---|---|---|---|
+| `com.workbuddy.workbuddy` | 5.5.6 | 5.3.14 / 5.3.14 | ✅ 就是本条 |
+| `com.anthropic.claudefordesktop` | 2.2553.0 | 2.110.1 / 1.46388.3 | ❌ 两套 build 命名空间 |
+| `md.obsidian` | 1.14.2 | 1.13.7 | ❌ 页面含 insider 条目（brew 也是 1.13.7） |
+
+**更正 2026-09-18**：本段原先写「5 个」，还点名了 Thunderbird 与 Thunderbird Beta。
+那是统计方法错了——当时拿 changelog 去比**任取一条** probe 行（多渠道 app 的行顺序不定），
+于是 ESR 那条把 `org.mozilla.thunderbird` 算了进来，`157.0beta` 对 `157.0b2` 这种
+同一个版本的不同写法也算了进来。改成「高于每一条 probe 行」后这两个都不再命中。
+
+三分之一是真 bug。照抄着把方向反过来写仍然会误报三分之二，所以反向检查得先能分辨
+「两套 build 命名空间」和「页面混入了另一条轨的条目」这两类。已开 #743。

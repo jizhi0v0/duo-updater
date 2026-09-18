@@ -303,12 +303,17 @@ public struct Baseline: Codable, Sendable {
     /// both sides are the same recipe's own readings, and plenty of those carry a
     /// real, orderable version behind a prefix. Of the 394 rows in
     /// `verify/baseline.json` on 2026-09-18, ten hold a `lastGoodVersion` that
-    /// does not lead with a digit, and only three are prose: Figma's post titles,
-    /// Cursor's `Sep 10, 2026`, and Kiro's empty string. The rest are versions —
-    /// `Build 4200` and `Build 2130` (Sublime Text, Sublime Merge),
+    /// does not lead with a digit. Three are prose: Figma's post titles, Cursor's
+    /// `Sep 10, 2026`, and Kiro's empty string. Five are real versions behind a
+    /// prefix — `Build 4200` and `Build 2130` (Sublime Text, Sublime Merge),
     /// `V16.6.0.32198` (SunLogin), `v2.0.11.1` (rpi-imager), `Xcode 27` — and a
     /// slip from `Build 4200` to `Build 4100` is exactly what this check is for.
-    /// Leading-digit would have switched all six off silently.
+    /// Leading-digit would have switched those five off silently
+    /// (`BaselineTests.aVersionBehindAWordPrefixIsStillJudged` pins the five).
+    /// The last two are Superconductor's `bca46eb1`, twice — commit hashes, not
+    /// versions, and neither prose nor a case this guard decides: they never reach
+    /// it, because `ordersByLineage` is checked first at the call site and takes
+    /// that whole recipe out.
     ///
     /// **EITHER, not BOTH, and that is what keeps it from silencing a real
     /// break.** A recipe that doesn't number its notes is digitless on BOTH sides

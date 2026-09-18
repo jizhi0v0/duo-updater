@@ -1492,7 +1492,8 @@ extension Finding {
             // `entryCount`, so a finding that picked up a machine note lost
             // "entries parsed" from `report.json`. Silently: every argument here
             // has a default.
-            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            entryCount: entryCount, entryVersions: entryVersions,
+            headingMatchesPage: headingMatchesPage,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
@@ -1509,7 +1510,8 @@ extension Finding {
             // rebuild that drops one silently deletes it from `report.json` for
             // exactly the findings that carry a complaint — the ones most worth
             // reading.
-            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            entryCount: entryCount, entryVersions: entryVersions,
+            headingMatchesPage: headingMatchesPage,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

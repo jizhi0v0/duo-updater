@@ -67,6 +67,12 @@
 
 ### 陷阱一：这是「我该更新吗」而不是「最新是多少」
 
+> ⚠️ **本节最后一句已于 2026-09-18 作废**：`version=0.0.0` 不是解，它本身就是 bug。
+> 端点回的是**升级链的下一跳**，比所有发布都旧的版本拿到的是中间跳而不是最新版，
+> 这条 recipe 因此静默冻在 5.3.14 上（而同期国内轨已是 5.5.6）。
+> 现在 URL 不带 `version` 参数。见下面「`version=0.0.0` 会钉在升级链的第一跳」一节。
+> 204 那半句仍然成立。
+
 把你**已经在跑的版本**传进去，端点回 **204 No Content**（实测：国内站传 5.3.14 →
 204，国际站传 5.4.2 → 204）。照搬会让探针恰好在"应该说已是最新"的时候变哑。
 所以 recipe 的 URL 里把 `version=0.0.0` 钉死，才把它变成一个 latest 查询。
@@ -218,3 +224,24 @@ older section — or the vendor finally publishes — the sweep speaks up
 again.
 
 复测 2026-09-14（11:03 UTC，只读 GET，按 `ChangelogRecipeRegistry.workBuddyEntryPattern` 在 Python 里用 DOTALL 复算）：`www.workbuddy.cn/docs/workbuddy/Changelog` 164,156 B，89 个版本标题，其中 19 个没有括号日期，解析出 72 条，最新 5.5.6（2026-09-10），最旧解析到 4.8.0；`www.workbuddy.ai/docs/workbuddy/Changelog` 33,162 B，解析出 2 条，最新 5.2.7（2026-07-17），另一条 5.2.3。同时 `/v2/update?platform=workbuddy-darwin-{arm64,x64}&version=0.0.0`：国际站两个架构都回 `5.5.2.37849279`，国内站两个架构都回 `5.3.14.36279234`。
+
+## `version=0.0.0` 会钉在升级链的第一跳（2026-09-18）
+
+与国际站同因、同一个 `VendorProbeRegistry.workBuddyRecipe` 工厂，完整实测表和改法记在
+`com-workbuddy-workbuddy-ai.md` 的同名小节。这里只记国内站这一对**为什么一直没人发现**。
+
+国际站那两条是因为中间跳的产物被 CDN 删了、报 HTTP 404 才暴露的（#737、#738）——
+**不是因为版本读错了**。国内站这两条的那一跳产物还在，于是 `duo verify` 一路绿着停在
+`5.3.14`，而同期国内轨实际已经发到 `5.5.6`。
+
+证据本来就摆在这份文件里：上面 2026-09-14 那次复测同时记下了「国内站 changelog 最新 5.5.6」
+和「国内站 `/v2/update?…&version=0.0.0` 回 5.3.14」**两个数字**，写在同一段话里，没有人把它们放在一起看。
+`verify/baseline.json` 里也一样——`changelog:com.workbuddy.workbuddy:-` 的 `lastGoodVersion` 是 `5.5.6`，
+`vendor:com.workbuddy.workbuddy:stable:{arm64,x64}` 是 `5.3.14`，相隔几行。
+
+**教训（比这个 app 本身更值得记）**：`duo verify` 的历史检查全都是「这一轮和上一轮比」，
+没有任何一条是「同一个 app 的 probe 行和 changelog 行互相比」。一条 recipe 只要**稳定地**读错，
+就永远不会触发任何闸。这次是靠厂商删了个文件才撞出来的。
+
+2026-09-18 改后实测（不带 `version`）：国内站两个架构都回 `5.5.6.38337834`，国际站两个架构都回 `5.5.2.37849279`，
+四条 recipe 跑 `duo verify --vendor --only com.workbuddy` 全绿、零 warning。

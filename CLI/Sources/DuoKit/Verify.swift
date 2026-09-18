@@ -1491,8 +1491,13 @@ extension Finding {
             // `adding(warning:)` below — and this one shipped without
             // `entryCount`, so a finding that picked up a machine note lost
             // "entries parsed" from `report.json`. Silently: every argument here
-            // has a default.
-            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            // has a default. It happened a second time with `entryVersions`,
+            // added by the very change that reads it to judge a BACKWARDS
+            // complaint, so the field was dropped from exactly the complaining
+            // rows it exists to explain. `findingRebuildsForwardEveryField`
+            // pins the whole list now instead of trusting this comment.
+            entryCount: entryCount, entryVersions: entryVersions,
+            headingMatchesPage: headingMatchesPage,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
@@ -1509,7 +1514,8 @@ extension Finding {
             // rebuild that drops one silently deletes it from `report.json` for
             // exactly the findings that carry a complaint — the ones most worth
             // reading.
-            entryCount: entryCount, headingMatchesPage: headingMatchesPage,
+            entryCount: entryCount, entryVersions: entryVersions,
+            headingMatchesPage: headingMatchesPage,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

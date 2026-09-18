@@ -116,6 +116,7 @@ public enum AppRecipeIndex {
         com_philandro_anydesk.set,
         com_postmanlabs_mac.set,
         com_puremac_app.set,
+        com_qianwen_inputmethod_desktopime.set,
         com_qoder_app.set,
         com_qoder_ide.set,
         com_raspberrypi_rpi_imager.set,

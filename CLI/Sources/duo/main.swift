@@ -111,11 +111,15 @@ ignore / unignore / skip / unskip options:
   soon as they change, so there is nothing to restart.
 
 backups options:
-  list                Every stored rollback point: app, version, when, size.
+  list                Every stored rollback point: app, version, when, size,
+                      and which disk it's on.
   restore <app>       Put a backed-up bundle back over the installed one.
   sync                Move backups still on this Mac onto the backup disk.
   verify              Re-check every stored backup against what was recorded
                       for it. Exits 1 if any is damaged.
+  disks               Every place a backup could be: this Mac, every disk ever
+                      adopted as a backup destination (connected or not), and
+                      any disk found holding our marker that was never adopted.
   probe <path>        What a folder could do as a backup store — filesystem,
                       free space, largest file it can hold, write speed.
                       Writes nothing and changes no setting.
@@ -131,8 +135,11 @@ backups options:
   you to restart. A shared bundle id (Android Studio's channels, Thunderbird
   stable/esr) is ambiguous for a restore and is refused rather than guessed.
 
-  When the backup disk isn't connected, list and verify say so on stderr and
-  report what is on this Mac, rather than reporting nothing.
+  Backups are readable from every disk that is currently connected and carries
+  our marker, not only the one new backups are written to. When the disk being
+  written to isn't connected, list and verify say so on stderr and report what
+  is on this Mac and any other backup disk that's connected, rather than
+  reporting nothing.
 
 doctor options:
   --json              Machine-readable form of the same report.
@@ -377,6 +384,8 @@ case "backups":
             operation = .sync
         case "verify":
             operation = .verify(deep: deep)
+        case "disks":
+            operation = .disks
         case "probe":
             guard operands.count == 2 else {
                 die("backups probe needs exactly one folder\n\n\(usage)", code: 2)
@@ -384,7 +393,7 @@ case "backups":
             operation = .probe(path: operands[1])
         case let other?:
             die("unknown backups operation '\(other)'; expected "
-                + "list, restore, sync, verify or probe", code: 2)
+                + "list, restore, sync, verify, disks or probe", code: 2)
         }
         var options = Backups.Options(operation: operation)
         options.json = json

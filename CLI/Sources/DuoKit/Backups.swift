@@ -32,6 +32,10 @@ public enum Backups {
             case verify(deep: Bool)
             /// Ask whether a folder could hold the store, without adopting it.
             case probe(path: String)
+            /// Every place a backup could be: this Mac, every disk ever
+            /// adopted, and any disk found holding our marker that was never
+            /// adopted.
+            case disks
         }
         public var operation: Operation
         public var json = false
@@ -51,6 +55,8 @@ public enum Backups {
             return await verify(deep: deep, json: options.json)
         case .probe(let path):
             return probe(path: path, json: options.json)
+        case .disks:
+            return await disks(json: options.json)
         }
     }
 
@@ -64,6 +70,8 @@ public enum Backups {
         let version: String?
         let savedAt: Date
         let bytes: Int64
+        /// The disk this backup is on, or nil for this Mac.
+        let disk: String?
     }
 
     static func list(json: Bool) async -> Int32 {
@@ -84,19 +92,26 @@ public enum Backups {
     }
 
     /// A line explaining why the listing may be short, or nil when it is whole.
+    ///
+    /// Only the *active* destination is checked here — the one this line names
+    /// when it is unreachable. Any other disk the user has ever adopted is a
+    /// separate question `reachableStores()` answers for itself, so the tail of
+    /// each message says only that this Mac is not the whole picture, not that
+    /// it is the only thing being shown: a retired disk that is still plugged
+    /// in surfaces in the listing right alongside it.
     static func unreachableDestination() -> String? {
         switch BackupStore.availability() {
         case .localOnly, .ready:
             return nil
         case .volumeNotMounted(let name, _):
             return "the backup disk \u{201C}\(name ?? "?")\u{201D} isn't connected — "
-                + "showing only what is on this Mac"
+                + "showing only what is on this Mac and any other backup disk that's connected"
         case .identityMismatch(_, _, let path):
             return "a different disk is mounted at \u{201C}\(path)\u{201D} — "
-                + "showing only what is on this Mac"
+                + "showing only what is on this Mac and any other backup disk that's connected"
         case .notWritable(let path):
             return "\u{201C}\(path)\u{201D} can't be written to — "
-                + "showing only what is on this Mac"
+                + "showing only what is on this Mac and any other backup disk that's connected"
         }
     }
 
@@ -126,13 +141,13 @@ public enum Backups {
             out.append(Row(
                 app: app.name, bundleID: app.bundleID, path: app.path.path,
                 key: key, version: backup.version, savedAt: backup.savedAt,
-                bytes: backupSize(backup)))
+                bytes: backupSize(backup), disk: backup.store.volumeName))
         }
         for (key, backup) in backups where !matchedKeys.contains(key) {
             out.append(Row(
                 app: key, bundleID: nil, path: nil,
                 key: key, version: backup.version, savedAt: backup.savedAt,
-                bytes: backupSize(backup)))
+                bytes: backupSize(backup), disk: backup.store.volumeName))
         }
         return out.sorted { $0.app.localizedCaseInsensitiveCompare($1.app) == .orderedAscending }
     }
@@ -188,7 +203,8 @@ public enum Backups {
                 : row.app.padding(toLength: nameWidth, withPad: " ", startingAt: 0)
             print("  \(name)  \(row.version ?? "?")"
                 + "  \(when.string(from: row.savedAt))"
-                + "  \(byteFormatter.string(fromByteCount: row.bytes))")
+                + "  \(byteFormatter.string(fromByteCount: row.bytes))"
+                + "  (\(row.disk ?? "this Mac"))")
         }
         print("\n  \(rows.count) backup\(rows.count == 1 ? "" : "s"), "
             + "\(byteFormatter.string(fromByteCount: rows.reduce(0) { $0 + $1.bytes })) total.")
@@ -457,7 +473,7 @@ public enum Backups {
         var row: [String: Any] = [
             "app": outcome.name,
             "key": outcome.key,
-            "where": outcome.location == .outbox ? "this Mac" : "backup disk",
+            "where": outcome.store.volumeName ?? "this Mac",
             "status": status(outcome.result),
         ]
         if let version = outcome.version { row["version"] = version }
@@ -500,7 +516,7 @@ public enum Backups {
             case .unverifiable: mark = "not checkable"
             case .unreadable:   mark = "UNREADABLE"
             }
-            let place = outcome.location == .outbox ? "this Mac" : "backup disk"
+            let place = outcome.store.volumeName ?? "this Mac"
             print("  \(name)  \(mark)  (\(place))"
                 + (detail(outcome.result).map { " — \($0)" } ?? ""))
         }
@@ -566,6 +582,119 @@ public enum Backups {
                 .map { "\(formatter.string(fromByteCount: Int64($0)))/s" }
                ?? "too fast to measure"))
         return 0
+    }
+
+    // MARK: - Disks
+
+    struct DiskRow: Encodable {
+        let name: String
+        let path: String?
+        let isThisMac: Bool
+        /// Whether new backups are written here right now.
+        let isActive: Bool
+        /// "connected", "notMounted", "identityMismatch", "notWritable", or
+        /// "notConfigured" — a disk found holding our marker that nothing in
+        /// Settings ever adopted.
+        let status: String
+        /// Nil when the store cannot be measured right now: not connected, or
+        /// (for a `notConfigured` disk) never opened as a store at all.
+        let bytes: Int64?
+    }
+
+    static func disks(json: Bool) async -> Int32 {
+        let rows = await diskRows()
+        if json {
+            NDJSON.begin("backups disks")
+            for row in rows { NDJSON.row(row) }
+        } else {
+            emitDisksText(rows)
+        }
+        return 0
+    }
+
+    /// Every place a backup could be, not just the ones `list` can actually
+    /// read from: this Mac, every disk `BackupDestination.known(from:)` has
+    /// ever pointed at (plugged in or not), and any disk that carries our
+    /// marker but was never adopted through Settings — the case a picker
+    /// starting from an empty known-disks list still needs to surface.
+    ///
+    /// `discovered` defaults to a real scan; a test passes canned `Found`
+    /// values instead, the same reason `BackupStoreDiscovery` itself splits
+    /// `scanMountedVolumes()` from the pure `stores(among:)` — a test cannot
+    /// mount a volume, and must not go looking at whatever is actually
+    /// plugged into the machine it runs on.
+    static func diskRows(
+        discovered: [BackupStoreDiscovery.Found]? = nil
+    ) async -> [DiskRow] {
+        let sizes = BackupStore.sizesByStore()
+        // Only the outbox has a nil identity, so this also picks it out
+        // uniquely among `sizes`.
+        func bytes(identity: String?) -> Int64? {
+            sizes.first { $0.store.identity == identity }?.bytes
+        }
+
+        var rows: [DiskRow] = [DiskRow(
+            name: "This Mac", path: BackupStore.outboxRoot.path, isThisMac: true,
+            isActive: BackupStore.destination.kind != .external, status: "connected",
+            bytes: bytes(identity: nil))]
+
+        let active = BackupStore.destination
+        for disk in BackupStore.knownDisks {
+            let status: String
+            switch BackupStore.availability(disk) {
+            case .localOnly, .ready: status = "connected"
+            case .volumeNotMounted:  status = "notMounted"
+            case .identityMismatch:  status = "identityMismatch"
+            case .notWritable:       status = "notWritable"
+            }
+            rows.append(DiskRow(
+                name: disk.volumeName ?? "?", path: disk.path, isThisMac: false,
+                isActive: active.kind == .external && active.path == disk.path,
+                status: status, bytes: bytes(identity: disk.identity)))
+        }
+
+        // Matched by identity, the same key `BackupDestination.known(from:)`
+        // de-dupes on, so a disk already listed above is never listed twice
+        // just because it is also sitting there mounted.
+        let knownIdentities = Set(BackupStore.knownDisks.compactMap(\.identity))
+        let found: [BackupStoreDiscovery.Found]
+        if let discovered {
+            found = discovered
+        } else {
+            found = await BackupStoreDiscovery.scanMountedVolumes()
+        }
+        for disk in found where !knownIdentities.contains(disk.marker.identity) {
+            rows.append(DiskRow(
+                name: disk.volumeName ?? "?", path: disk.root.path, isThisMac: false,
+                isActive: false, status: "notConfigured", bytes: nil))
+        }
+
+        return rows
+    }
+
+    static func emitDisksText(_ rows: [DiskRow], print: (String) -> Void = { Swift.print($0) }) {
+        let byteFormatter = ByteCountFormatter()
+        byteFormatter.countStyle = .file
+        let width = min(38, rows.map(\.name.count).max() ?? 10)
+        for row in rows {
+            let name = row.name.count > width
+                ? String(row.name.prefix(width - 1)) + "\u{2026}"
+                : row.name.padding(toLength: width, withPad: " ", startingAt: 0)
+            if row.isThisMac {
+                print("  \(name)  \(byteFormatter.string(fromByteCount: row.bytes ?? 0))")
+                continue
+            }
+            let state: String
+            switch row.status {
+            case "connected":        state = row.isActive ? "connected, active" : "connected"
+            case "notMounted":       state = "not connected"
+            case "identityMismatch": state = "a different disk is mounted here"
+            case "notWritable":      state = "connected, can't be written to"
+            default:                 state = "found here, not set up as a backup disk"
+            }
+            print("  \(name)  \(state)"
+                + (row.bytes.map { "  \(byteFormatter.string(fromByteCount: $0))" } ?? ""))
+        }
     }
 
     /// Ask before overwriting the installed bundle. Mirrors `Install.confirm`:

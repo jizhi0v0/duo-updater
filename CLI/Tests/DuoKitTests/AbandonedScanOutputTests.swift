@@ -123,7 +123,7 @@ import DuoUpdaterCore
     @Test func backupsListSaysWhyEveryBackupIsListedByKey() {
         let row = Backups.Row(
             app: "com.zzfixture.keyed", bundleID: nil, path: nil, key: "com.zzfixture.keyed",
-            version: "1.0", savedAt: Date(timeIntervalSince1970: 0), bytes: 1)
+            version: "1.0", savedAt: Date(timeIntervalSince1970: 0), bytes: 1, disk: nil)
         func lines(_ rows: [Backups.Row], abandoned: Bool) -> [String] {
             var out: [String] = []
             Backups.emitText(rows, scanAbandoned: abandoned, print: { out.append($0) })

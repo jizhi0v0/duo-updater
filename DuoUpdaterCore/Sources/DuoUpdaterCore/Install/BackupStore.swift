@@ -1094,7 +1094,11 @@ public enum BackupStore {
         public let key: String
         public let name: String
         public let version: String?
-        public let location: Backup.Location
+        /// Which store the checked copy is in, so a report can name the disk. A
+        /// run covers several at once, and "on the backup disk" identifies none
+        /// of them.
+        public let store: Store
+        public var location: Backup.Location { store.location }
         public let result: Result
     }
 
@@ -1136,7 +1140,7 @@ public enum BackupStore {
             func outcome(_ result: VerifyOutcome.Result) -> VerifyOutcome {
                 VerifyOutcome(
                     key: key, name: (meta.bundleName as NSString).deletingPathExtension,
-                    version: meta.version, location: location, result: result)
+                    version: meta.version, store: store, result: result)
             }
 
             switch location {

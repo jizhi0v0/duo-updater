@@ -27,10 +27,17 @@
 
 | | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---|---|---|---|---|---|
-| **stable（国内站）** | — | — | — | — | ✓ 一键 |
+| **stable（国内站）** | — | ○ | — | — | ✓ 一键 |
 
-当前生效源：**VendorProbe**（前四条源全部不适用：无 `SUFeedURL`、无 cask、非 MAS、
-无公开 GitHub 发布）。
+当前生效源：**VendorProbe**（`SUFeedURL` 不存在、非 MAS、无公开 GitHub 发布）。
+
+**Homebrew 是 ○ 不是 —**（更正 2026-09-18）：本行原来写 `—` + 「无 cask」，是错的。
+cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我们该读到的那个数。
+它没有进 brew 交叉检查，是因为**键对不上**：`HomebrewCaskCatalog` 按 cask 的
+`uninstall quit:` 建 bundle id 索引，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
+而本 app 的 bundle id 是 `com.workbuddy.workbuddy`（对真实 bundle 跑 `channel-verify` 核过，
+2026-08-27，以我们的为准）。`auto_updates` 未设（`formulae.brew.sh` 的 JSON 里为 null），
+所以 `Verify.brewComplaint` 的 `!cask.autoUpdates` 那一关不拦它——键修好这道闸就能用。见 #743。
 
 ## Channel 详情
 
@@ -250,8 +257,10 @@ again.
 而这恰恰是探针冻住时该有的样子——没人看那一侧。
 
 **第二道闸也瞎了，而且是另一个原因。** `Verify.brewComplaint` 专门抓「cask 领先我们一个发布 =
-厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了（#737／#738 的正文里就有
-「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14」）。
+厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了（#737／#738 的 issue 正文里是完整的一句
+「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14」；
+`verify/baseline.json` 里只留被截断的 `Homebrew's cask \`workbuddy-ai\` is at 5.5`，
+因为 `lastSignature` 本来就是截断存的）。
 国内站没报，**不是因为没有 cask**——`workbuddy-cn` 一直存在，而且 2026-09-18 查到的版本正是
 `5.5.6.38337834`，就是我们该读到的那个数。它没报是因为**键对不上**：brew 那张表的 bundle id
 取自 cask 的 `uninstall quit:`，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
@@ -262,6 +271,8 @@ again.
 国内站这一对**一个都没响**——方向不对的交叉检查 + 键对不上的 brew 检查。
 
 所以结论不是「没有交叉检查」，而是「两道闸各瞎了一半」。反向检查不能照抄着反过来写：
-当天 50 个同时有 probe 行和 changelog 行的 app 里，5 个 changelog 在 major.minor 上领先 probe，
+当天 50 个同时有 probe 行和 changelog 行的 app 里（`verify/baseline.json`：56 个 bundle id
+两种行都有，限定 `lastGoodVersion` 以数字开头——major.minor 比较的前提——后是 50 个），
+5 个 changelog 在 major.minor 上领先 probe，
 只有本条是真 bug，其余四个（Claude for Desktop 的两套 build 命名空间、Obsidian 的 insider 条目、
 Thunderbird 的 ESR/beta 多渠道）都是合法的。反向检查得先能分辨这些。已开 #743。

@@ -26,10 +26,16 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 
 | | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---|---|---|---|---|---|
-| **stable（国际站）** | — | — | — | — | ✓ 一键 |
+| **stable（国际站）** | — | ○ | — | — | ✓ 一键 |
 
-当前生效源：**VendorProbe**（前四条源全部不适用：无 `SUFeedURL`、无 cask、非 MAS、
-无公开 GitHub 发布）。
+当前生效源：**VendorProbe**（`SUFeedURL` 不存在、非 MAS、无公开 GitHub 发布）。
+
+**Homebrew 是 ○ 不是 —**（更正 2026-09-18）：本行原来写 `—` + 「无 cask」，是错的，
+而且这条在仓库内部就能证伪——`verify/baseline.json` 里这条 recipe 的 `lastSignature`
+开头就是 `Homebrew's cask \`workbuddy-ai\` is at 5.5`。cask `workbuddy-ai` 存在，
+`uninstall quit:` 是 `com.workbuddy.workbuddy-ai`，与本 recipe 的 bundle id 一致，
+所以 brew 交叉检查对国际站是**生效的**（#737／#738 的三个信号之一就是它）。
+国内站那条因为键对不上而失效，见 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md)。
 
 ## Channel 详情
 

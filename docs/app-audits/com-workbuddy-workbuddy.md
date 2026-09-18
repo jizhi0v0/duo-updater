@@ -249,7 +249,19 @@ again.
 **落后于** probe 时报「notes 落后了」。这里方向反过来，changelog 5.5.6 领先 probe 5.3.14，
 而这恰恰是探针冻住时该有的样子——没人看那一侧。
 
-所以结论不是「没有交叉检查」，而是「交叉检查只看了一半」。另外半边不能照抄着反过来写：
+**第二道闸也瞎了，而且是另一个原因。** `Verify.brewComplaint` 专门抓「cask 领先我们一个发布 =
+厂商发了、我们的 recipe 没看见」，国际站那两条它确实报了（#737／#738 的正文里就有
+「Homebrew's cask `workbuddy-ai` is at 5.5.2.37849279-910352f0 while this recipe reads 5.3.14」）。
+国内站没报，**不是因为没有 cask**——`workbuddy-cn` 一直存在，而且 2026-09-18 查到的版本正是
+`5.5.6.38337834`，就是我们该读到的那个数。它没报是因为**键对不上**：brew 那张表的 bundle id
+取自 cask 的 `uninstall quit:`，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
+而本 recipe 的 bundle id 是 `com.workbuddy.workbuddy`（2026-08-27 对真实 bundle 跑
+`channel-verify` 核过，以我们的为准）。键不匹配 → 这条 app 在 brew 交叉检查里根本不存在。
+
+于是两边的差别是：国际站那一对**三个信号都响了**（404、版本倒退、brew 领先），
+国内站这一对**一个都没响**——方向不对的交叉检查 + 键对不上的 brew 检查。
+
+所以结论不是「没有交叉检查」，而是「两道闸各瞎了一半」。反向检查不能照抄着反过来写：
 当天 50 个同时有 probe 行和 changelog 行的 app 里，5 个 changelog 在 major.minor 上领先 probe，
 只有本条是真 bug，其余四个（Claude for Desktop 的两套 build 命名空间、Obsidian 的 insider 条目、
 Thunderbird 的 ESR/beta 多渠道）都是合法的。反向检查得先能分辨这些。已开 #743。

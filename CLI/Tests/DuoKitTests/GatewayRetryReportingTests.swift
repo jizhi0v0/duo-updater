@@ -50,6 +50,30 @@ struct GatewayRetryReportingTests {
         #expect(counted.adding(warning: "w").entryCount == 17)
     }
 
+    /// …and the same again for `entryVersions`, which arrived with the
+    /// published-above guard (`Baseline.pageStillCarries`) and shipped dropped
+    /// from both rebuilds. It is the field that distinguishes "the pattern
+    /// slipped" from "the vendor published above the baseline", so losing it hits
+    /// exactly the findings a human opens `report.json` to read: a BACKWARDS or
+    /// lag complaint, which `Verify.foldingBaselineComplaints` rebuilds through
+    /// `adding(warning:)`. nil there does not read as "the page was empty", it
+    /// reads as "not recorded" — see `Finding.entryVersions`.
+    ///
+    /// Mutation: drop `entryVersions:` from either initializer call. It compiles,
+    /// because every argument there has a default.
+    @Test func annotatingAFindingKeepsThePageItRead() {
+        let onThePage = ["1.7.0-daily.20260916", "1.6.1", "1.7.0-daily.20260912"]
+        let read = Finding(
+            recipeID: "changelog:com.typewhisper.typewhisper:-", registry: .changelog,
+            bundleID: "com.typewhisper.typewhisper", channel: "-", status: .ok,
+            endpointHost: "www.typewhisper.com", entryVersions: onThePage)
+        #expect(read.observing("\(Finding.machineNotePrefix)note").entryVersions == onThePage)
+        #expect(read.adding(warning: "w").entryVersions == onThePage)
+        // The distinction the field carries: a rebuild must not turn "these three
+        // versions are on the page" into "not recorded".
+        #expect(read.adding(warning: "w").entryVersions != nil)
+    }
+
     /// `report.json` files written before this field existed are still read by
     /// `Reconcile` and `Triage`. Decoding must not start failing on them, and a
     /// missing key must not be reported as a confident zero.

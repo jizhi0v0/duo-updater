@@ -300,23 +300,20 @@ public struct Baseline: Codable, Sendable {
     /// **CONTAINS a digit, not LEADS with one, and the difference is measured.**
     /// The lag check can afford "leads with a digit" because it compares an entry
     /// against a DETECTED version, which a probe always reads digit-first. Here
-    /// both sides are the same recipe's own readings, and several of those carry a
+    /// both sides are the same recipe's own readings, and plenty of those carry a
     /// real, orderable version behind a prefix. Of the 394 rows in
     /// `verify/baseline.json` on 2026-09-18, ten hold a `lastGoodVersion` that
-    /// does not lead with a digit, and they split three ways:
-    ///
-    /// - three prose or empty — Figma's post titles, Cursor's `Sep 10, 2026`,
-    ///   Kiro's empty string — which is what this guard is for;
-    /// - **five versions** behind a prefix: `Build 4200` and `Build 2130`
-    ///   (Sublime Text, Sublime Merge), `V16.6.0.32198` (SunLogin),
-    ///   `v2.0.11.1` (rpi-imager), `Xcode 27`. A slip from `Build 4200` to
-    ///   `Build 4100` is exactly what this check exists for, and leading-digit
-    ///   would have switched all five off silently;
-    /// - two commit hashes (`bca46eb1`, super.engineering's two rows), which
-    ///   `ordersByLineage` has already exempted several lines above, so neither
-    ///   spelling of this guard reaches them.
-    ///
-    /// `aVersionBehindAWordPrefixIsStillJudged` pins the five.
+    /// does not lead with a digit. Three are prose: Figma's post titles, Cursor's
+    /// `Sep 10, 2026`, and Kiro's empty string. Five are real versions behind a
+    /// prefix — `Build 4200` and `Build 2130` (Sublime Text, Sublime Merge),
+    /// `V16.6.0.32198` (SunLogin), `v2.0.11.1` (rpi-imager), `Xcode 27` — and a
+    /// slip from `Build 4200` to `Build 4100` is exactly what this check is for.
+    /// Leading-digit would have switched those five off silently
+    /// (`BaselineTests.aVersionBehindAWordPrefixIsStillJudged` pins the five).
+    /// The last two are Superconductor's `bca46eb1`, twice — commit hashes, not
+    /// versions, and neither prose nor a case this guard decides: they never reach
+    /// it, because `ordersByLineage` is checked first at the call site and takes
+    /// that whole recipe out.
     ///
     /// **EITHER, not BOTH, and that is what keeps it from silencing a real
     /// break.** A recipe that doesn't number its notes is digitless on BOTH sides

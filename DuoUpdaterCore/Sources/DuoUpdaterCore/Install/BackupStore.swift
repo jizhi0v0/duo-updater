@@ -1554,9 +1554,16 @@ public enum BackupStore {
     private static func listing(in store: Store) -> [Listing] {
         let fm = FileManager.default
         let (root, location) = (store.root, store.location)
+        let keys = storedKeys(in: root)
+        let dirs = keys.map { root.appendingPathComponent($0, isDirectory: true) }
+        // Every size in one pass, so a store whose backups have not changed since
+        // the last look is read rather than walked — the difference between the
+        // sheet opening at once and it opening after every file of every backup
+        // has been visited. See ``BackupSizeIndex``.
+        let sizes = BackupSizeIndex.shared.sizes(of: dirs, measuring: directorySize)
         var out: [Listing] = []
-        for key in storedKeys(in: root) {
-            let dir = root.appendingPathComponent(key, isDirectory: true)
+        for (index, key) in keys.enumerated() {
+            let dir = dirs[index]
             let meta = readMeta(in: dir)
             // The payload is a directory in the outbox and a single file on the
             // destination, so what stands in for "the bundle" differs; on the
@@ -1571,7 +1578,7 @@ public enum BackupStore {
                 version: meta?.version,
                 currentVersion: meta.flatMap { installedShortVersion(atPath: $0.originalPath) },
                 savedAt: meta?.savedAt,
-                sizeBytes: directorySize(dir),
+                sizeBytes: sizes[index],
                 bundlePath: payload,
                 appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
                 isRestorable: meta != nil,
@@ -1663,7 +1670,10 @@ public enum BackupStore {
         guard let dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return 0 }
-        return dirs.reduce(into: 0) { $0 += directorySize($1) }
+        // Through the same index the listing reads, which is what makes the two
+        // agree and what lets the settings page's own measurement pay for the
+        // sheet's: by the time "Clean Up…" is pressed, this has already been asked.
+        return BackupSizeIndex.shared.sizes(of: dirs, measuring: directorySize).reduce(0, +)
     }
 
     private static func directorySize(_ url: URL) -> Int64 {

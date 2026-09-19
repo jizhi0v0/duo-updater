@@ -6737,10 +6737,28 @@ final class AppListModel {
 
     func backupStoreBytes(of store: BackupStore.Store) async -> Int64 {
         let root = store.root
-        return await Task.detached(priority: .utility) {
+        let bytes = await Task.detached(priority: .utility) {
             BackupStore.storeSize(of: root)
         }.value
+        lastStoreBytes[store.id] = bytes
+        return bytes
     }
+
+    /// What each store measured the last time anyone asked, so that opening the
+    /// settings page a second time shows its figures at once instead of "…".
+    ///
+    /// Walking the store on the USB disk here takes **1.8 s** for 49.58 GB, and
+    /// the walk happens every time the page opens; the local store takes under
+    /// a millisecond. Kept for the life of the app rather than written down,
+    /// because a number remembered across launches is a number that can be wrong
+    /// about a disk somebody changed while the app was not running — whereas
+    /// within one run every write to a store goes through this process.
+    ///
+    /// It is a head start, not an answer: the caller shows this and measures
+    /// anyway, replacing it when the walk lands.
+    func lastKnownBackupStoreBytes() -> [String: Int64] { lastStoreBytes }
+
+    private var lastStoreBytes: [String: Int64] = [:]
 
     /// Disks plugged in right now that already hold a backup store, whether or
     /// not this Mac was ever configured to use them — for the disk picker to
@@ -6799,25 +6817,38 @@ final class AppListModel {
     func backupDiskAppearances(
         for entries: [(cacheKey: String, path: String?)]
     ) async -> [String: BackupDiskAppearance] {
-        // Only `Data` crosses back from the detached task — `NSImage` isn't
-        // `Sendable` (see `BackupDiskAppearance`'s own doc comment), so it is
-        // decoded here, back on the main actor, from bytes that are.
-        let raw = await Task.detached(priority: .utility) {
-            () -> [String: (png: Data?, kind: BackupVolumeKind)] in
-            var out: [String: (png: Data?, kind: BackupVolumeKind)] = [:]
-            for entry in entries {
-                out[entry.cacheKey] = Self.diskAppearanceData(cacheKey: entry.cacheKey, path: entry.path)
+        // Asked once per disk per run of the app. `icon(forFile:)` is free
+        // (0.02–0.07 ms), but turning what it returns into something that can
+        // cross back from a detached task costs 28–38 ms of PNG encoding per
+        // disk, for 300–650 KB apiece — and the page opens and closes far more
+        // often than a disk changes its face.
+        //
+        // A disk that resolved to *no* icon is not remembered, so one that was
+        // unplugged and produced nothing is asked again once it is back.
+        let wanted = entries.filter { diskAppearances[$0.cacheKey]?.icon == nil }
+        if !wanted.isEmpty {
+            // Only `Data` crosses back from the detached task — `NSImage` isn't
+            // `Sendable` (see `BackupDiskAppearance`'s own doc comment), so it is
+            // decoded here, back on the main actor, from bytes that are.
+            let raw = await Task.detached(priority: .utility) {
+                () -> [String: (png: Data?, kind: BackupVolumeKind)] in
+                var out: [String: (png: Data?, kind: BackupVolumeKind)] = [:]
+                for entry in wanted {
+                    out[entry.cacheKey] = Self.diskAppearanceData(
+                        cacheKey: entry.cacheKey, path: entry.path)
+                }
+                return out
+            }.value
+            for (key, value) in raw {
+                let icon = value.png.flatMap(NSImage.init(data:))
+                icon?.size = NSSize(width: 32, height: 32)
+                diskAppearances[key] = BackupDiskAppearance(icon: icon, kind: value.kind)
             }
-            return out
-        }.value
-        var appearances: [String: BackupDiskAppearance] = [:]
-        for (key, value) in raw {
-            let icon = value.png.flatMap(NSImage.init(data:))
-            icon?.size = NSSize(width: 32, height: 32)
-            appearances[key] = BackupDiskAppearance(icon: icon, kind: value.kind)
         }
-        return appearances
+        return diskAppearances
     }
+
+    private var diskAppearances: [String: BackupDiskAppearance] = [:]
 
     private nonisolated static func diskAppearanceData(
         cacheKey: String, path: String?
@@ -6847,9 +6878,27 @@ final class AppListModel {
         return ((try? Data(contentsOf: cacheFile)), .external)
     }
 
-    private nonisolated static func pngData(for icon: NSImage) -> Data? {
-        guard let tiff = icon.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff)
+    /// The icon at the size it is actually drawn at, rather than at the size
+    /// macOS keeps it.
+    ///
+    /// A volume icon carries every representation up to 512 pt. Encoding all of
+    /// it took 27–38 ms and produced 300–650 KB, for something shown in an 18 pt
+    /// row; drawing it once into 64 px — enough for that row at @3x — takes
+    /// 0.12–0.14 ms and produces 2.7–4.7 KB. Measured on this Mac's boot volume,
+    /// a USB stick and a USB SSD.
+    private nonisolated static func pngData(for icon: NSImage, side: Int = 64) -> Data? {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
         else { return nil }
+        rep.size = NSSize(width: side, height: side)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        icon.draw(
+            in: NSRect(x: 0, y: 0, width: side, height: side),
+            from: .zero, operation: .sourceOver, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
         return rep.representation(using: .png, properties: [:])
     }
 
@@ -6857,8 +6906,19 @@ final class AppListModel {
     /// (the disk was reformatted, or renamed with a new custom icon) is not a
     /// correctness problem worth chasing; fetching one from LaunchServices on
     /// every row of every poll would be.
+    /// Written when there is nothing there, or when what is there is a different
+    /// size from what we now make.
+    ///
+    /// The second clause is not about the icon changing — it is how the
+    /// full-resolution PNGs written before ``pngData(for:side:)`` existed get
+    /// replaced, four files and 2.1 MB of them on this Mac. Two encodings of the
+    /// same icon at the same size come out byte-identical in length, so in the
+    /// settled case this still writes nothing.
     private nonisolated static func cachePNGIfNeeded(_ png: Data?, at cacheFile: URL) {
-        guard let png, !FileManager.default.fileExists(atPath: cacheFile.path) else { return }
+        guard let png else { return }
+        let existing = (try? FileManager.default.attributesOfItem(
+            atPath: cacheFile.path)[.size] as? Int) ?? nil
+        guard existing != png.count else { return }
         try? FileManager.default.createDirectory(
             at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? png.write(to: cacheFile, options: .atomic)

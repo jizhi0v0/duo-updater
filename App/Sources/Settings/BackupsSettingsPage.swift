@@ -1052,6 +1052,10 @@ struct BackupsSettingsPage: View {
     private func refresh() async {
         availability = model.backupAvailability()
         stores = await model.backupStores()
+        // Whatever these stores measured earlier in this run of the app, shown
+        // at once. Existing values win: they are from this page's own walk,
+        // which is never older than the model's copy.
+        storeBytes.merge(model.lastKnownBackupStoreBytes()) { mine, _ in mine }
         var space: [String: BackupVolumeSpace] = [:]
         for store in stores { space[store.id] = await model.backupVolumeSpace(of: store) }
         volumeSpace = space

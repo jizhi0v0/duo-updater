@@ -112,6 +112,37 @@ import Testing
         }
     }
 
+    /// Review of #763: the queue performs every transfer the app makes and passes
+    /// no compression, so the Settings control only ever moved a value that
+    /// nothing read — the archives it wrote were `lzfse` whatever it said, while
+    /// `duo backups sync` honoured it, leaving one store written two ways.
+    /// Asserted on the call the queue makes, with no compression argument, which
+    /// is the one that was wrong.
+    ///
+    /// The algorithm is read off the archive's own container magic rather than
+    /// from its size, because size is a comparison and this is an identity.
+    /// Measured with `aa archive -a lzfse|lzma` on macOS 27: `pbze` and `pbzx`.
+    /// If a future `aa` spells them differently this fails and someone measures
+    /// again, which is the right way for it to break.
+    @Test func aTransferUsesTheCompressionTheUserChose() async throws {
+        func magicOfArchive(under compression: BundleArchive.Compression) async throws -> String {
+            var magic = ""
+            try await withStores { stores in
+                try await BackupStore.$compressionOverride.withValue(compression) {
+                    let app = try makeApp(named: "App.app", in: stores.apps, marker: "v1")
+                    try await BackupStore.save(
+                        appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
+                    let moved = try await BackupStore.transferToDestination(forKey: "k")
+                    let head = try Data(contentsOf: moved.bundlePath).prefix(4)
+                    magic = String(decoding: head, as: UTF8.self)
+                }
+            }
+            return magic
+        }
+        #expect(try await magicOfArchive(under: .fast) == "pbze")
+        #expect(try await magicOfArchive(under: .smallest) == "pbzx")
+    }
+
     /// Why the record is written here and nowhere else: once the transfer is done
     /// the backup is one archive, and comparing an app with it would otherwise
     /// unpack a whole bundle back onto this Mac first. Also the lifecycle — a

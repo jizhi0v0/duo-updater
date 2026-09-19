@@ -224,8 +224,15 @@ final class Preferences {
     /// 330 MB, `.smallest` (lzma) 22 s for 242 MB. Fast is the default because
     /// twelve times the CPU for a further 27% is a trade only worth making
     /// deliberately, on a small or slow disk.
+    ///
+    /// Told to the store on change, for the same reason ``backupDestination``
+    /// is: the queue that performs the app's transfers passes no compression and
+    /// takes the store's, so without this the control moved a value nothing read.
     var backupCompression: BundleArchive.Compression {
-        didSet { defaults.set(backupCompression.rawValue, forKey: Key.backupCompression) }
+        didSet {
+            defaults.set(backupCompression.rawValue, forKey: Key.backupCompression)
+            BackupStore.configure(compression: backupCompression)
+        }
     }
 
     /// Post a notification when a background check finds updates.
@@ -598,6 +605,7 @@ final class Preferences {
         // the whole session no matter what the user configured.
         BackupStore.configure(
             self.backupDestination, known: BackupDestination.known(from: defaults))
+        BackupStore.configure(compression: self.backupCompression)
         resolveSpotlights()
     }
 

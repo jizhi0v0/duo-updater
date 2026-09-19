@@ -218,8 +218,8 @@ public enum BundleArchive {
 
     // MARK: - Process
 
-    /// The archive/extract running right now, so a quitting app can stop it
-    /// instead of orphaning it.
+    /// Every archive/extract running right now, so a quitting app can stop them
+    /// instead of orphaning them.
     ///
     /// `aa` is a child process, and macOS does not take it down when we exit — an
     /// orphan would keep writing, finish, and rename a complete archive into
@@ -227,15 +227,23 @@ public enum BundleArchive {
     /// to every read path and swept by none of them, because the sweeper looks
     /// for `.partial` and this is not one.
     ///
-    /// Held as the task rather than the pid: `ChildProcess` signals the child
-    /// through cancellation, and a pid kept past the child's exit names whatever
-    /// the kernel handed the number to next.
-    private nonisolated(unsafe) static var inFlight: Task<ChildProcess.Outcome, Error>?
-    private static let inFlightLock = NSLock()
+    /// **All of them, not the latest one.** This was a single slot, on the
+    /// reading that the app runs one `aa` at a time — which it does not: the
+    /// transfer queue archives in the background while the workbench extracts a
+    /// backup to compare it with. The second call overwrote the first, whose
+    /// `defer` then cleared the second's entry, and `terminateInFlight` on quit
+    /// cancelled whichever was left — orphaning exactly the archive this exists
+    /// to kill.
+    ///
+    /// Held as tasks rather than pids: `ChildProcess` signals the child through
+    /// cancellation, and a pid kept past the child's exit names whatever the
+    /// kernel handed the number to next. Each run takes a token out and gives it
+    /// back, so a finishing run can only ever remove its own.
+    static let running = RunningChildren()
 
-    /// Stop the running archive/extract, if any. Safe to call when nothing runs.
+    /// Stop every running archive/extract. Safe to call when none run.
     public static func terminateInFlight() {
-        inFlightLock.withLock { inFlight }?.cancel()
+        running.cancelAll()
     }
 
     private static func run(_ arguments: [String]) async -> (status: Int32, message: String) {
@@ -247,8 +255,8 @@ public enum BundleArchive {
                 standardOutput: .discard, standardError: .capture,
                 onCancel: .terminateChild)
         }
-        inFlightLock.withLock { inFlight = task }
-        defer { inFlightLock.withLock { inFlight = nil } }
+        let token = running.add(task)
+        defer { running.remove(token) }
 
         let outcome: ChildProcess.Outcome
         do { outcome = try await task.value } catch {
@@ -258,5 +266,40 @@ public enum BundleArchive {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(separator: "\n").last.map(String.init) ?? ""
         return (outcome.terminationStatus, message)
+    }
+}
+
+/// The `aa` children this process has running, by token.
+///
+/// Its own type so the bookkeeping can be tested without starting a process:
+/// what went wrong in the single-slot version was not the cancelling but the
+/// registration, and a test that has to race two real archives to see that is a
+/// test that will not see it reliably.
+final class RunningChildren: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tasks: [Int: Task<ChildProcess.Outcome, Error>] = [:]
+    private var nextToken = 0
+
+    var count: Int { lock.withLock { tasks.count } }
+
+    func add(_ task: Task<ChildProcess.Outcome, Error>) -> Int {
+        lock.withLock {
+            nextToken += 1
+            tasks[nextToken] = task
+            return nextToken
+        }
+    }
+
+    /// Remove one run's entry. A token is used once, so a run that has finished
+    /// cannot remove a later one that happens to be running.
+    func remove(_ token: Int) {
+        lock.withLock { _ = tasks.removeValue(forKey: token) }
+    }
+
+    /// Cancelled outside the lock: cancelling runs the tasks' handlers, and
+    /// holding a lock across them invites the finishing task's `remove` to
+    /// deadlock against us.
+    func cancelAll() {
+        for task in lock.withLock({ Array(tasks.values) }) { task.cancel() }
     }
 }

@@ -42,6 +42,10 @@ public enum BackupStore {
     /// value instead.
     @TaskLocal public static var knownDisksOverride: [BackupDestination]?
 
+    /// Test seam for the compression setting, bound like the three above.
+    /// Production never binds it and reads ``configure(compression:)``'s value.
+    @TaskLocal public static var compressionOverride: BundleArchive.Compression?
+
     /// Where backups are written first, always on the boot volume.
     ///
     /// This is the store as it has always been — the name changed, the meaning
@@ -64,6 +68,7 @@ public enum BackupStore {
 
     private nonisolated(unsafe) static var configuredDestination: BackupDestination = .local
     private nonisolated(unsafe) static var configuredKnownDisks: [BackupDestination] = []
+    private nonisolated(unsafe) static var configuredCompression = UpdateSettings.backupCompressionDefault
     private static let destinationLock = NSLock()
 
     /// Point the store at a destination. Called once per process — the app at
@@ -84,6 +89,26 @@ public enum BackupStore {
         defer { destinationLock.unlock() }
         configuredDestination = destination
         configuredKnownDisks = known
+    }
+
+    /// How hard to squeeze a bundle on its way to the disk, as the user has it
+    /// set. Told to the store the same way the destination is — on change and at
+    /// launch — because the queue that does the app's transfers asks nobody:
+    /// it takes ``transferToDestination(forKey:compression:)``'s default, and
+    /// while that default was a constant the Settings control changed nothing
+    /// the app did. `duo backups sync` passes its own and always did, so the two
+    /// wrote the same store two different ways.
+    public static func configure(compression: BundleArchive.Compression) {
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        configuredCompression = compression
+    }
+
+    public static var compression: BundleArchive.Compression {
+        if let compressionOverride { return compressionOverride }
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        return configuredCompression
     }
 
     public static var destination: BackupDestination {
@@ -853,9 +878,11 @@ public enum BackupStore {
     /// store, which is the same mistake `save` explicitly avoids.
     @discardableResult
     public static func transferToDestination(
-        forKey key: String,
-        compression: BundleArchive.Compression = UpdateSettings.backupCompressionDefault
+        forKey key: String, compression: BundleArchive.Compression? = nil
     ) async throws -> Backup {
+        // Resolved per call, not captured once: the setting can change between
+        // one transfer and the next, and the queue never passes one.
+        let compression = compression ?? Self.compression
         guard let root = try destinationRoot() else {
             throw BackupError.destinationUnavailable(destination.volumeName ?? "backup disk")
         }

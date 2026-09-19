@@ -131,7 +131,7 @@ import Foundation
             let report = try await BundleDiff.report(
                 old: app.path, new: app.path, oldLabel: "backup", newLabel: "installed",
                 recordedOld: reference("zz-second")).get()
-            #expect(!report.contains("read what the backup holds, recorded when it was made"))
+            #expect(!report.contains("read the recorded facts"))
             #expect(report.contains("\nTRUST SURFACE\n"))
         }
     }

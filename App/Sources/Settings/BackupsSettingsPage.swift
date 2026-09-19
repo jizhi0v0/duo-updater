@@ -49,6 +49,11 @@ struct BackupsSettingsPage: View {
     /// icon is — changes only when a disk is plugged in or pulled out, and this
     /// is how that is noticed without asking the disks themselves.
     @State private var mountedVolumes: [String] = []
+    /// Whether the disks that cannot take a backup are shown. Folded away by
+    /// default: a Mac can have a dozen things mounted — installer images,
+    /// shares, a Time Machine disk — and a list mostly made of disks you cannot
+    /// choose is harder to read than one that names them and steps aside.
+    @State private var showsUnusableDisks = false
     /// Each disk's real icon (or, absent that, the measured volume kind for a
     /// symbol fallback), keyed the same way a row identifies itself. See
     /// `AppListModel.backupDiskAppearances(for:)` for why this is fetched off
@@ -181,9 +186,19 @@ struct BackupsSettingsPage: View {
 
     private var locationCard: some View {
         SettingsCard(header: "Where backups are kept") {
-            ForEach(Array(destinationOptions.enumerated()), id: \.element.id) { index, option in
+            ForEach(Array(usableOptions.enumerated()), id: \.element.id) { index, option in
                 if index > 0 { SettingsDivider() }
                 destinationRow(option)
+            }
+            if !unusableOptions.isEmpty {
+                SettingsDivider()
+                unusableGroupRow
+                if showsUnusableDisks {
+                    ForEach(unusableOptions, id: \.id) { option in
+                        SettingsDivider()
+                        destinationRow(option)
+                    }
+                }
             }
             SettingsDivider()
             chooseAnotherRow
@@ -216,6 +231,48 @@ struct BackupsSettingsPage: View {
         }
         out.append(contentsOf: candidateVolumes.map(DestinationOption.candidate))
         return out
+    }
+
+    /// The disks worth putting first: everywhere backups are or could go.
+    private var usableOptions: [DestinationOption] {
+        destinationOptions.filter { !isUnusable($0) }
+    }
+
+    /// Attached, named, and not a choice — a Time Machine volume, or a share that
+    /// will not take a file. They stay in the list rather than disappearing from
+    /// it, because a disk you can see on your desk and not in this list reads as
+    /// a list that is broken; they are just folded.
+    ///
+    /// Not everything mounted lands here. A read-only disk image never becomes a
+    /// candidate at all (`BackupStoreDiscovery.isWorthOffering`), so the two
+    /// installer images mounted on the Mac this was written on appear in neither
+    /// list — they are not disks anyone is choosing between.
+    private var unusableOptions: [DestinationOption] {
+        destinationOptions.filter { isUnusable($0) }
+    }
+
+    private var unusableGroupRow: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { showsUnusableDisks.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(showsUnusableDisks ? 90 : 0))
+                    .frame(width: 18)
+                // Colon form rather than "%lld disks can't", for the reason the
+                // storage rows give: no plural agreement to get wrong in any
+                // language, in a row that is only ever a count.
+                Text("Attached, but can’t take backups: \(unusableOptions.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .settingsRow()
     }
 
     private func destinationRow(_ option: DestinationOption) -> some View {
@@ -308,9 +365,18 @@ struct BackupsSettingsPage: View {
         return candidate.isReservedForTimeMachine || candidateWritable[candidate.id] == false
     }
 
-    /// Somewhere that is not a whole disk: a folder inside one, or a share this
-    /// Mac has mounted somewhere other than `/Volumes`. Every disk that is
-    /// attached already has a row of its own above.
+    /// The places the rows above cannot reach. Every attached disk and share now
+    /// has a row of its own, and pressing one opens this same panel on that disk
+    /// — so what is left for this row is narrower than it was, and still real:
+    ///
+    ///   * a second *internal* volume, which is deliberately never offered as a
+    ///     row (on most Macs it shares the boot container's free space, so moving
+    ///     backups there frees nothing) but is a genuine choice on a Mac that has
+    ///     a real second drive;
+    ///   * a folder on this Mac's own disk, which frees no space and says so, but
+    ///     is the only option on a Mac with nothing attached;
+    ///   * a volume mounted `nobrowse`, which the scan skips along with every
+    ///     system volume.
     private var chooseAnotherRow: some View {
         Button { chooseDisk() } label: {
             HStack(spacing: 10) {

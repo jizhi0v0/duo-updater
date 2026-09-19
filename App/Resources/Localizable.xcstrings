@@ -29185,6 +29185,47 @@
           }
         }
       }
+    },
+    "Attached, but can’t take backups: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angeschlossen, nimmt aber keine Backups: %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectados, pero no admiten copias: %lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectés, mais ne peuvent rien recevoir : %lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続済みだがバックアップ不可: %lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключено, но не принимает копии: %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接但无法存放备份：%lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

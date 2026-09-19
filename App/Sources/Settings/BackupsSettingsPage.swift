@@ -142,7 +142,21 @@ struct BackupsSettingsPage: View {
                 // is free to read, so the progress line stays live; the change
                 // signal is a directory listing per store, so it runs half as
                 // often and only re-measures sizes when it moves.
-                transferState = await model.backupTransferState()
+                let latest = await model.backupTransferState()
+                // A run that has just finished leaves `pendingCount` a second
+                // out of date, and the card falls back to it the instant the
+                // progress row goes — which is why "Waiting to be copied: 1"
+                // flashed up between the last copy and "Everything is on the
+                // backup disk". Refreshed *instead of* assigning, not after, so
+                // the new state and the counts that go with it land together and
+                // there is no frame holding one of each. Only on leaving
+                // `.copying`, so this is once a run rather than once an item:
+                // `refresh()` starts a size walk.
+                if transferState.isCopying, !latest.isCopying {
+                    await refresh()
+                } else {
+                    transferState = latest
+                }
                 tick += 1
                 if tick % 2 == 0 {
                     // Both signals, because neither covers the other. What is
@@ -528,9 +542,20 @@ struct BackupsSettingsPage: View {
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         }
-                        ProgressView(
-                            value: Double(completed),
-                            total: Double(max(total, completed + 1)))
+                        // The bar counts backups, not bytes — see
+                        // `BackupTransferQueue.State.copying`, which says why
+                        // bytes are not known. With several to move that is a
+                        // real measure. With one it is a bar pinned at zero for
+                        // as long as the copy takes, which is what a stalled bar
+                        // looks like; there is nothing to count there, so it says
+                        // so instead of implying no progress.
+                        if total > 1 {
+                            ProgressView(
+                                value: Double(completed),
+                                total: Double(max(total, completed + 1)))
+                        } else {
+                            ProgressView().progressViewStyle(.linear)
+                        }
                     }
                     .settingsRow()
                 } else {

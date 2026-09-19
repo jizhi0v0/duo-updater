@@ -34,6 +34,14 @@ public actor BackupTransferQueue {
         /// Work is owed but the destination is not reachable.
         case waitingForDisk(pending: Int)
         case failed(name: String, message: String, pending: Int)
+
+        /// Whether a copy is running right now. Spelled once here because the
+        /// interesting moment is the *edge* — what a caller wants to know is
+        /// that a run has just ended, and `if case` cannot be negated inline.
+        public var isCopying: Bool {
+            if case .copying = self { return true }
+            return false
+        }
     }
 
     public private(set) var state: State = .idle

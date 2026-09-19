@@ -2007,10 +2007,16 @@ final class AppListModel {
     /// notes for that version at all. CleanShot's 5.0 was offered by the appcast
     /// six minutes before the vendor published its notes, so the fetch stored the
     /// 4.8.10-and-older page under the key `5.0`, and from then on: prewarm hit the
-    /// disk, marked the state `.loaded`, and `ensureChangelogLoading` returned at
-    /// its first line every time the user opened the app. The pane showed "5.0" over
-    /// 4.8.10's notes, permanently, with nothing to re-read it. This set is what
-    /// makes a disk hit provisional until the network has confirmed it once.
+    /// disk and marked the state `.loaded`. The pane showed "5.0" over 4.8.10's
+    /// notes, permanently, with nothing to re-read it. This set is what makes a
+    /// disk hit provisional until the network has confirmed it once.
+    ///
+    /// It only works while somebody asks. `ensureChangelogLoading` is called from
+    /// the changelog pane's `.onAppear` in BOTH states it can be in — `.loaded` as
+    /// well as `.loading` (`WorkbenchWindowView`). It was `.loading` alone until
+    /// 2026-09-19, which is a state a prewarmed key never reaches: the debt was
+    /// recorded and never collected, and CleanShot 5.0.1 repeated 5.0's failure
+    /// three weeks later.
     @ObservationIgnored private var changelogRevalidated: Set<ChangelogCacheKey> = []
 
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
@@ -2104,7 +2110,19 @@ final class AppListModel {
                 // key on the attempt would pin whatever is on screen for the rest of
                 // the session the first time the network is down — which is this
                 // change's own bug, reintroduced for the offline case.
-                self.changelogRevalidated.insert(key)
+                //
+                // And only a fetch that came back with THIS version's notes on it.
+                // A vendor's feed can lead their changelog page by minutes (see
+                // `Changelog.carries(version:)`), and a fetch made inside that
+                // window discharges a debt it never paid: the page it brought back
+                // is the previous release's, so the key stays owing and the next
+                // open reads again — throttled to once per `ChangelogCache` TTL,
+                // which is where a repeated open lands anyway. With no target
+                // version there is nothing to owe: such a load is never disk-cached
+                // in the first place (`ChangelogService.diskKey`).
+                if targetVersion.map(fresh.carries(version:)) ?? true {
+                    self.changelogRevalidated.insert(key)
+                }
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
                 // Network revalidation failed but we already painted cached notes —
@@ -2157,14 +2175,24 @@ final class AppListModel {
     /// workbench renders the *in-memory* `changelogState`; the disk cache alone
     /// isn't enough, because the view still has to round-trip to disk on first
     /// appear (showing the spinner meanwhile). So this fills `changelogState`
-    /// directly — disk-first, fetching only when disk has nothing for this version.
+    /// directly — disk-first, going to the network when disk has nothing for this
+    /// version, or has an entry that asks to be read again.
     ///
-    /// Because a released version's notes are immutable, a disk hit needs no network
-    /// at all; steady-state this touches the wire only for genuinely new releases
-    /// (the periodic check thus doubles as a near-free changelog pre-warm). Runs for
-    /// every recipe-backed app, not just those with updates, since the user browses
-    /// notes for up-to-date apps too. On failure it leaves the key absent so the
-    /// open path retries rather than getting stuck on a stale spinner / web fallback.
+    /// Because a released version's notes are immutable, a disk hit that carries its
+    /// own version needs no network at all; steady-state this touches the wire for
+    /// genuinely new releases and for the entries `ChangelogDiskCache` hands back
+    /// with `needsReread` — a page that had not published the version it is filed
+    /// under, once it has had `provisionalWindow` to catch up. That second class is
+    /// a minority of the cache but not a rounding error (its own doc comment sizes
+    /// it), so the periodic check is a cheap changelog pre-warm rather than a free
+    /// one. A re-read is painted on top of the disk copy, never instead of it, so a
+    /// machine with no network still gets the notes it had. Runs for every
+    /// recipe-backed app, not just those with updates, since the user browses notes
+    /// for up-to-date apps too. A prewarm that has nothing to paint and cannot
+    /// fetch settles the key on `.failed`, not absent — the code below says why a
+    /// missing key would strand the pane on a spinner nobody re-triggers, and what
+    /// the only retry is. (The sentence here used to claim the opposite; it
+    /// predates this paragraph, which is the one place a reader looks first.)
     /// Bounds how many changelog prewarms hit the network at once (a cold cache would
     /// otherwise fire one fetch per recipe-backed installed app simultaneously).
     private static let prewarmNetworkGate = AsyncSemaphore(value: 4)
@@ -2179,28 +2207,43 @@ final class AppListModel {
             let feedPage = key.feedPage
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
-                var changelog = await ChangelogService.diskCached(
+                let hit = await ChangelogService.diskHit(
                     recipe, version: targetVersion, feedPage: feedPage)
+                var changelog = hit?.changelog
                 var fetched = false
-                if changelog == nil {
+                // Nothing on disk, or an entry whose page never carried this
+                // version and has had `provisionalWindow` to catch up. The second
+                // case still PAINTS what is on disk — the fetch is on top of it, so
+                // a machine that is offline keeps the notes it had rather than
+                // dropping to the web-view fallback.
+                if changelog == nil || hit?.needsReread == true {
                     // Cap concurrent network prewarms: a cold cache would otherwise
-                    // fan out one fetch per recipe-backed app at once. Disk hits above
-                    // skip the gate; only genuine network fetches queue through it.
+                    // fan out one fetch per recipe-backed app at once. Disk hits that
+                    // owe nothing skip the gate; only genuine network fetches queue
+                    // through it.
                     await Self.prewarmNetworkGate.wait()
-                    changelog = await RequestAttribution.withApp(result.app.id) {
+                    let fresh = await RequestAttribution.withApp(result.app.id) {
                         await ChangelogService.load(
                             recipe, version: targetVersion, feedPage: feedPage)
                     }
                     await Self.prewarmNetworkGate.signal()
-                    fetched = changelog != nil
+                    if let fresh {
+                        changelog = fresh
+                        fetched = true
+                    }
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
-                // A disk hit is provisional; only a fetch that came back discharges
-                // the debt. A failed one leaves the key owing a read, and the open
-                // path will take it.
-                if fetched { self.changelogRevalidated.insert(key) }
+                // A disk hit is provisional; only a fetch that came back with this
+                // version's notes on it discharges the debt (as in
+                // `ensureChangelogLoading` above). A failed one — or one that came
+                // back from a page the vendor has not updated yet — leaves the key
+                // owing a read, and the open path will take it.
+                if fetched, let changelog,
+                   targetVersion.map(changelog.carries(version:)) ?? true {
+                    self.changelogRevalidated.insert(key)
+                }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
                     self.prewarmImages(in: changelog, for: result.app.id)

@@ -998,13 +998,16 @@ import DuoUpdaterCore
     }
 }
 
-@Suite(.serialized) struct VisibilityWriteTests {
+@Suite(.serialized) final class VisibilityWriteTests {
 
-    /// A scratch domain so these never touch the real preferences.
-    private func scratchDefaults() -> UserDefaults {
-        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
-        return UserDefaults(suiteName: suite)!
-    }
+    /// A scratch domain so these never touch the real preferences. Swift Testing
+    /// makes one instance per test, so each test gets it freshly cleared, and
+    /// `deinit` clears it again whether the test passed, failed or was cancelled.
+    /// A class, not a struct, only so that `deinit` exists to hang that on.
+    private let scratch = ScratchDefaults("visibility")
+    deinit { scratch.clear() }
+
+    private func scratchDefaults() -> UserDefaults { scratch.defaults }
 
     private func app(_ path: String = "/Applications/Fixture.app") -> InstalledApp {
         InstalledApp(

@@ -141,6 +141,26 @@ public enum BundleDiff {
             }
             root = expanded
             package = url
+        case "aar":
+            // A backup kept on another disk. It is stored as one Apple Archive
+            // — that is what lets a disk formatted for Windows, or a share,
+            // hold an app bundle at all — and comparing an app against its
+            // backup is precisely what this is asked to do, so refusing the
+            // format the backup is in meant the comparison worked only while
+            // the backups happened to be on this Mac.
+            //
+            // Named after the archive, so the report says "ChatGPT.app" rather
+            // than the name of a scratch directory. `extract` writes the
+            // bundle's *contents* into the directory it is given, so this
+            // directory is the bundle.
+            let unpacked = scratch.appendingPathComponent(
+                url.deletingPathExtension().lastPathComponent + ".app", isDirectory: true)
+            do {
+                try await BundleArchive.extract(archive: url, into: unpacked)
+            } catch {
+                return .failure(Failure(description: "\(input): \(error.localizedDescription)"))
+            }
+            root = unpacked
         case "zip", "dmg", "tar", "gz", "tgz", "bz2", "tbz", "xz":
             do {
                 root = try await ArchiveExtractor.extractApp(from: url, workDir: scratch)
@@ -148,7 +168,8 @@ public enum BundleDiff {
                 return .failure(Failure(description: "\(input): \(error.localizedDescription)"))
             }
         default:
-            return .failure(Failure(description: "\(input): expected an .app, .zip, .dmg or .pkg"))
+            return .failure(Failure(
+                description: "\(input): expected an .app, .zip, .dmg, .pkg or .aar"))
         }
         let unpackElapsed = ContinuousClock.now - unpackStart
 

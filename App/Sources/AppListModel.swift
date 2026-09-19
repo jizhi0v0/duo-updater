@@ -6744,6 +6744,14 @@ final class AppListModel {
         return bytes
     }
 
+    /// The backups settings card as it last stood, so that reopening it does not
+    /// start from nothing. See ``BackupCardSnapshot``.
+    var lastBackupCardSnapshot: BackupCardSnapshot?
+
+    /// Every disk icon resolved so far this run, for a page being built — which
+    /// cannot await anything.
+    func knownBackupDiskAppearances() -> [String: BackupDiskAppearance] { diskAppearances }
+
     /// What each store measured the last time anyone asked, so that opening the
     /// settings page a second time shows its figures at once instead of "…".
     ///

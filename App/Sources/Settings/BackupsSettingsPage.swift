@@ -54,6 +54,11 @@ struct BackupsSettingsPage: View {
     /// shares, a Time Machine disk — and a list mostly made of disks you cannot
     /// choose is harder to read than one that names them and steps aside.
     @State private var showsUnusableDisks = false
+    /// Whether anything has been read yet. False only on the first visit of a
+    /// run of the app, and it is that visit the placeholder below is for: a row
+    /// whose height depends on whether we have looked yet is a row that moves
+    /// once we have.
+    @State private var hasGathered = false
     /// Each disk's real icon (or, absent that, the measured volume kind for a
     /// symbol fallback), keyed the same way a row identifies itself. See
     /// `AppListModel.backupDiskAppearances(for:)` for why this is fetched off
@@ -85,6 +90,27 @@ struct BackupsSettingsPage: View {
     init(prefs: Preferences, model: AppListModel) {
         _prefs = Bindable(wrappedValue: prefs)
         self.model = model
+        // The shape this card had when it was last open, so the first frame is
+        // the settled one. Every value here is replaced by a fresh reading a
+        // moment later; what it buys is that none of them *arrive*, which is
+        // what was being seen as the card assembling itself on every visit.
+        guard let last = model.lastBackupCardSnapshot else { return }
+        _availability = State(initialValue: last.availability)
+        _stores = State(initialValue: last.stores)
+        _volumeSpace = State(initialValue: last.volumeSpace)
+        _knownAvailability = State(initialValue: last.knownAvailability)
+        _pendingCount = State(initialValue: last.pendingCount)
+        _heldCount = State(initialValue: last.heldCount)
+        _transferState = State(initialValue: last.transferState)
+        _isOnThisMacsDisk = State(initialValue: last.isOnThisMacsDisk)
+        _discoveredStores = State(initialValue: last.discoveredStores)
+        _candidateVolumes = State(initialValue: last.candidateVolumes)
+        _candidateWritable = State(initialValue: last.candidateWritable)
+        // Sizes too, or the row that says "49.58 GB" a moment later starts at
+        // "…" on every visit while a 1.8 s walk repeats itself.
+        _storeBytes = State(initialValue: model.lastKnownBackupStoreBytes())
+        _diskAppearances = State(initialValue: model.knownBackupDiskAppearances())
+        _hasGathered = State(initialValue: true)
     }
 
     var body: some View {
@@ -305,6 +331,19 @@ struct BackupsSettingsPage: View {
                     // not there at all — and answers the two questions the
                     // word never did: how much is free, and how much of what
                     // is used is ours.
+                    if space(for: option) == nil, !hasGathered {
+                        // Nothing read yet. The bar and its figures are drawn as
+                        // the space they will occupy rather than left out, so
+                        // that the first frame of the first visit is the same
+                        // height as every frame after it.
+                        CapacityBar(backups: 0, used: 0, total: 1).hidden()
+                        HStack(spacing: 12) {
+                            Text(verbatim: "…").foregroundStyle(.secondary)
+                            Spacer(minLength: 8)
+                        }
+                        .font(.caption)
+                        .monospacedDigit()
+                    }
                     if let space = space(for: option) {
                         let id = storeID(for: option)
                         CapacityBar(
@@ -461,6 +500,9 @@ struct BackupsSettingsPage: View {
         if found != discoveredStores { discoveredStores = found }
         if candidates != candidateVolumes { candidateVolumes = candidates }
         if writable != candidateWritable { candidateWritable = writable }
+        model.lastBackupCardSnapshot?.discoveredStores = found
+        model.lastBackupCardSnapshot?.candidateVolumes = candidates
+        model.lastBackupCardSnapshot?.candidateWritable = writable
         // Merged, not replaced: a disk that just went offline keeps whatever it
         // last looked like rather than losing its icon the moment it can no
         // longer be asked for one.
@@ -865,7 +907,10 @@ struct BackupsSettingsPage: View {
     /// Whether the row is already saying its numbers, in which case the caption
     /// beneath has nothing left to add.
     private func showsCapacity(_ option: DestinationOption) -> Bool {
-        space(for: option) != nil
+        // Before anything has been read, the placeholder is standing in for the
+        // figures — so the caption beneath has nothing to add then either, and
+        // "Always connected" does not appear for one frame and leave.
+        space(for: option) != nil || !hasGathered
     }
 
     /// Room on the volume this row stands for. A store's measurement where there
@@ -1084,18 +1129,7 @@ struct BackupsSettingsPage: View {
     /// USB disk, against milliseconds for everything above. It fills in behind a
     /// "…" that occupies the space its number will — a value arriving late is
     /// fine, a line arriving late is not.
-    private struct Snapshot {
-        var availability: BackupStore.Availability
-        var stores: [BackupStore.Store]
-        var volumeSpace: [String: BackupVolumeSpace]
-        var knownAvailability: [String: BackupStore.Availability]
-        var pendingCount: Int
-        var heldCount: Int
-        var transferState: BackupTransferQueue.State
-        var isOnThisMacsDisk: Bool
-    }
-
-    private func gather() async -> Snapshot {
+    private func gather() async -> BackupCardSnapshot {
         let stores = await model.backupStores()
         var space: [String: BackupVolumeSpace] = [:]
         for store in stores { space[store.id] = await model.backupVolumeSpace(of: store) }
@@ -1103,7 +1137,7 @@ struct BackupsSettingsPage: View {
         for destination in prefs.knownBackupDestinations {
             avail[destinationKey(destination)] = model.backupAvailability(for: destination)
         }
-        return Snapshot(
+        return BackupCardSnapshot(
             availability: model.backupAvailability(),
             stores: stores,
             volumeSpace: space,
@@ -1113,10 +1147,19 @@ struct BackupsSettingsPage: View {
             transferState: await model.backupTransferState(),
             isOnThisMacsDisk: prefs.backupDestination.directory.map {
                 BackupDestinationProbe.isOnSameVolume($0, as: BackupStore.outboxRoot)
-            } ?? false)
+            } ?? false,
+            discoveredStores: discoveredStores,
+            candidateVolumes: candidateVolumes,
+            candidateWritable: candidateWritable)
     }
 
-    private func apply(_ snapshot: Snapshot) {
+    private func apply(_ snapshot: BackupCardSnapshot) {
+        // Kept for the next time this page is built. `.task` cannot run before
+        // the first frame — SwiftUI draws the body, *then* starts it — so a page
+        // that begins empty is a page that visibly assembles itself on every
+        // visit, however atomically the result is assigned afterwards.
+        model.lastBackupCardSnapshot = snapshot
+        hasGathered = true
         availability = snapshot.availability
         stores = snapshot.stores
         volumeSpace = snapshot.volumeSpace
@@ -1161,6 +1204,25 @@ struct BackupsSettingsPage: View {
         guard let bytes else { return "…" }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
+}
+
+/// The shape of the backups card, kept by the model between visits.
+///
+/// Not a cache of *answers* — every field is re-read as soon as the page opens.
+/// It exists so the page has something to draw on its very first frame, which
+/// `.task` is always too late for.
+struct BackupCardSnapshot {
+    var availability: BackupStore.Availability
+    var stores: [BackupStore.Store]
+    var volumeSpace: [String: BackupVolumeSpace]
+    var knownAvailability: [String: BackupStore.Availability]
+    var pendingCount: Int
+    var heldCount: Int
+    var transferState: BackupTransferQueue.State
+    var isOnThisMacsDisk: Bool
+    var discoveredStores: [BackupStoreDiscovery.Found]
+    var candidateVolumes: [BackupStoreDiscovery.Candidate]
+    var candidateWritable: [String: Bool]
 }
 
 /// Groups a destination by identity where there is one, else by path — the same

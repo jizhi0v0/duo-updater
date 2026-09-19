@@ -761,18 +761,12 @@ struct BackupsSettingsPage: View {
             // something is very wrong; otherwise its numbers say it better.
             return showsCapacity(option) ? nil : String(localized: "Always connected")
         case .known(let destination):
-            // What the disk is doing beats what it is. Choosing a disk starts a
-            // transfer that can run for minutes, and a row that only ever said
-            // "Connected" gave the press no visible consequence at all — the one
-            // thing this page is not allowed to do.
-            if isSelected(option) {
-                if case .copying(let name, _, _) = transferState {
-                    return String(localized: "Copying \(name)…")
-                }
-                if pendingCount > 0 {
-                    return String(localized: "Waiting to be copied: \(pendingCount)")
-                }
-            }
+            // Not what the disk is *doing*. This row used to say "Copying X…"
+            // and "Waiting to be copied: n", which the Storage card immediately
+            // below says too — with a progress bar and a button, which this row
+            // has neither of. Saying it twice cost a line that came and went on
+            // every transfer, moving the card each time, to repeat something the
+            // eye was already being drawn to.
             switch availability(for: destination) {
             case .ready:             return showsCapacity(option) ? nil : String(localized: "Connected")
             case .volumeNotMounted:  return String(localized: "Isn’t connected")

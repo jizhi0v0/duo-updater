@@ -127,11 +127,7 @@ struct BackupsSettingsPage: View {
                     // that costs a round trip to answer — polling one every two
                     // seconds for an answer that changes when a cable moves is
                     // not a price this page should make anyone pay.
-                    let mounted = await model.mountedVolumePaths()
-                    if mounted != mountedVolumes {
-                        mountedVolumes = mounted
-                        await refreshAttachedDisks()
-                    }
+                    await syncAttachedDisksIfMountsMoved()
                     if owed != pendingCount || count != storeCount {
                         storeCount = count
                         await refresh()
@@ -146,6 +142,25 @@ struct BackupsSettingsPage: View {
             mountedVolumes = await model.mountedVolumePaths()
             await refreshAttachedDisks()
         }
+        // macOS says when a disk arrives or leaves, so a row appears as the disk
+        // does rather than up to two seconds later. `NSWorkspace` posts
+        // `DidMount`, `DidUnmount` and `DidRenameVolume` — the last because a
+        // rename moves the mount path, which is where a store is recorded.
+        //
+        // All three were watched arriving, against disk images attached and
+        // detached for the purpose: at `/Volumes`, mounted `nobrowse`, and at a
+        // path inside a home directory. A first attempt saw none of them and
+        // blamed `nobrowse`; the actual cause was a harness with no run loop,
+        // which is the same trap `NSWorkspace.runningApplications` sets.
+        //
+        // Still the early word rather than the only word. What could not be
+        // tested here is a *network* mount — no NFS or SMB server to mount from
+        // — and that is exactly the kind this page has to show. So the tick
+        // above goes on comparing the mount table, at 0.037 ms a time, and these
+        // three only make it arrive sooner.
+        .task { await watchMounts(NSWorkspace.didMountNotification) }
+        .task { await watchMounts(NSWorkspace.didUnmountNotification) }
+        .task { await watchMounts(NSWorkspace.didRenameVolumeNotification) }
         .sheet(isPresented: $showingBackups) {
             BackupsSheet(backups: backupListing) { keys in
                 Task {
@@ -393,6 +408,23 @@ struct BackupsSettingsPage: View {
         .settingsRow()
     }
 
+    private func watchMounts(_ name: Notification.Name) async {
+        for await _ in NSWorkspace.shared.notificationCenter.notifications(named: name) {
+            await syncAttachedDisksIfMountsMoved()
+        }
+    }
+
+    /// The one place that decides a disk has come or gone, whether the news
+    /// arrived from `NSWorkspace` or from the tick noticing for itself. Both
+    /// routes end here so that a notification cannot come to mean something
+    /// different from a poll, and so two arriving together do one scan.
+    private func syncAttachedDisksIfMountsMoved() async {
+        let mounted = await model.mountedVolumePaths()
+        guard mounted != mountedVolumes else { return }
+        mountedVolumes = mounted
+        await refreshAttachedDisks()
+    }
+
     /// Everything that depends on which disks are attached. Run when the page
     /// opens and when the mount table moves, never on the plain tick.
     private func refreshAttachedDisks() async {
@@ -602,7 +634,9 @@ struct BackupsSettingsPage: View {
             case .volumeNotMounted: return "externaldrive.badge.xmark"
             case .identityMismatch: return "externaldrive.badge.questionmark"
             case .notWritable:      return "lock.fill"
-            case .localOnly:        return baseSymbol(for: volumeKind(for: option))
+            // Not looked at yet: the plain drive, which says only what the disk
+            // is. Every other symbol here is a verdict.
+            case .localOnly, nil:   return baseSymbol(for: volumeKind(for: option))
             case .ready:
                 switch volumeKind(for: option) {
                 case .internalDisk: return "internaldrive.fill"
@@ -634,9 +668,9 @@ struct BackupsSettingsPage: View {
             return isSelected(option) ? .accentColor : .secondary
         case .known(let destination):
             switch availability(for: destination) {
-            case .ready:     return .accentColor
-            case .localOnly: return .secondary
-            default:         return .orange
+            case .ready:           return .accentColor
+            case .localOnly, nil:  return .secondary
+            default:               return .orange
             }
         case .discovered:
             return .blue
@@ -682,7 +716,7 @@ struct BackupsSettingsPage: View {
             case .volumeNotMounted:  return String(localized: "Isn’t connected")
             case .identityMismatch:  return String(localized: "A different disk is mounted here")
             case .notWritable:       return String(localized: "Can’t be written to")
-            case .localOnly:         return nil
+            case .localOnly, nil:    return nil
             }
         case .discovered:
             return String(localized: "Has a backup store, but isn’t set up on this Mac.")
@@ -699,13 +733,17 @@ struct BackupsSettingsPage: View {
         }
     }
 
-    /// A known disk's own reachability, from the cache `refresh()` fills. A disk
-    /// that has never been checked (should not happen — every known disk is
-    /// checked on every refresh) reads as not mounted rather than crashing on a
-    /// missing key.
-    private func availability(for destination: BackupDestination) -> BackupStore.Availability {
+    /// A known disk's own reachability, from the cache `refresh()` fills — and
+    /// **nil until that first refresh lands**, which is not the same as a disk
+    /// that is not there.
+    ///
+    /// It used to answer "isn't connected" for a disk it had not yet looked at.
+    /// For the fraction of a second before the first refresh, every row said the
+    /// disk was unplugged, in orange, beside its own capacity figures — which
+    /// could only have been read from a disk that was plugged in. Callers here
+    /// treat nil as "say nothing yet".
+    private func availability(for destination: BackupDestination) -> BackupStore.Availability? {
         knownAvailability[destinationKey(destination)]
-            ?? .volumeNotMounted(volumeName: destination.volumeName, path: destination.path ?? "")
     }
 
     // MARK: - Disk icons
@@ -749,8 +787,10 @@ struct BackupsSettingsPage: View {
         case .thisMac:
             return false
         case .known(let destination):
-            if case .ready = availability(for: destination) { return false }
-            return true
+            switch availability(for: destination) {
+            case .ready, nil: return false   // nil: not looked at yet, so no verdict to show
+            default:          return true
+            }
         case .discovered:
             // Discovered rows are, by construction, on a volume mounted right
             // now — there is nothing to dim.

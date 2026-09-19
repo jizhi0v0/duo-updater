@@ -112,6 +112,50 @@ import Testing
         }
     }
 
+    /// Why the record is written here and nowhere else: once the transfer is done
+    /// the backup is one archive, and comparing an app with it would otherwise
+    /// unpack a whole bundle back onto this Mac first. Also the lifecycle — a
+    /// deleted backup has to forget what it held, or the next backup under that key
+    /// would be compared against the bytes of the one before it.
+    @Test func aTransferRecordsWhatTheBackupHoldsSoComparingItNeedNotUnpackIt() async throws {
+        try await withStores { stores in
+            let library = stores.base.appendingPathComponent("facts", isDirectory: true)
+            try await BackupFactsLibrary.$rootOverride.withValue(library) {
+                let app = try await saveBackup(stores, key: "k")
+                let moved = try await BackupStore.transferToDestination(forKey: "k")
+                #expect(moved.bundlePath.pathExtension == "aar")
+
+                let reference = try #require(BackupFactsLibrary.Reference(moved))
+                let recorded = try #require(
+                    BackupFactsLibrary.facts(at: BackupFactsLibrary.entry(for: reference)))
+                #expect(recorded.rootName == "App.app")
+                #expect(recorded.files["Contents/marker.txt"]?.size == 2)
+
+                // Read the way the comparison reads it, and say the same things the
+                // comparison that unpacks the archive says.
+                let fromRecord = try await BundleDiff.report(
+                    old: moved.bundlePath.path, new: app.path,
+                    oldLabel: "backup", newLabel: "installed", recordedOld: reference).get()
+                #expect(fromRecord.contains("read the recorded facts"))
+                #expect(fromRecord.contains("  old: backup  App.app"))
+
+                let byUnpacking = try await BundleDiff.report(
+                    old: moved.bundlePath.path, new: app.path,
+                    oldLabel: "backup", newLabel: "installed").get()
+                // Vacuity guard on the line above: without the record this is what
+                // the comparison does, and it is the work the record removes.
+                #expect(!byUnpacking.contains("read the recorded facts"))
+                #expect(byUnpacking.contains("unpack"))
+                #expect(byUnpacking.contains("  old: backup  App.app"))
+                #expect(byUnpacking.contains("0 added, 0 removed, 0 changed"))
+                #expect(fromRecord.contains("0 added, 0 removed, 0 changed"))
+
+                BackupStore.remove(forKey: "k")
+                #expect(BackupFactsLibrary.facts(at: BackupFactsLibrary.entry(for: reference)) == nil)
+            }
+        }
+    }
+
     /// The end-to-end claim the whole design rests on: a backup that has been
     /// through compression, a foreign filesystem and back still restores.
     @Test func aTransferredBackupStillRestores() async throws {

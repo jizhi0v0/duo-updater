@@ -1970,7 +1970,13 @@ private struct BundleDiffPane: View {
         let outcome = await BundleDiff.report(
             old: backup.bundlePath.path, new: app.path.path,
             oldLabel: "backup (\(backup.version ?? "?"))", newLabel: "installed",
-            omittedFromOld: backup.omittedFiles)
+            omittedFromOld: backup.omittedFiles,
+            // What this backup holds was recorded when it was written, so on a
+            // backup that has moved to a disk this is the difference between
+            // reading one file and unpacking the whole bundle back over a cable.
+            // Nil for a backup taken before that was recorded, which reads the
+            // backup itself exactly as it always did.
+            recordedOld: BackupFactsLibrary.Reference(backup))
         guard !Task.isCancelled else { return }
         switch outcome {
         case .success(let report):

@@ -8,7 +8,7 @@ import Foundation
 /// a pure function of two values and can be tested without a bundle on disk.
 /// Paths are relative to the root the release was unpacked to: the `.app` itself
 /// for an app, zip or dmg, and the `pkgutil --expand-full` directory for a pkg.
-struct BundleFacts: Sendable {
+struct BundleFacts: Sendable, Codable {
     var rootName = ""
     /// Read from a `.pkg`, whose paths start at the expanded package rather than at
     /// an app. `BundleDiff.aligned` rewrites them before anything is compared.
@@ -36,17 +36,45 @@ struct BundleFacts: Sendable {
     var stringsBlob = Data()
     /// Mach-O files too large to index into `stringsBlob`.
     var unindexedMachO: [String] = []
+    /// Whether `stringsBlob` was filled at all, i.e. whether the absence of a key
+    /// from it means anything.
+    ///
+    /// Default false, set true by ``BundleFactsReader/scan(root:stop:)`` alone, so
+    /// facts that came from anywhere else say so rather than presenting an empty
+    /// index as a search that found nothing. ``BackupFactsLibrary`` does not keep
+    /// the blob — it is 20–300× everything else in these facts put together — and a
+    /// stored side therefore cannot answer "was this key already in the old
+    /// binaries", only "is it in the new ones".
+    var stringsIndexed = false
     var timings = PhaseTimings()
     var bytesHashed: Int64 = 0
+
+    /// What ``BackupFactsLibrary`` keeps, which is everything the report compares
+    /// except the three fields below.
+    ///
+    /// - `stringsBlob` is left out on size: 16.7–64.9 MB per app against 344 KB–19 MB
+    ///   for all of the above, and 2.3–13.9 MiB against 53 KB–3.4 MB once both are
+    ///   compressed (measured 2026-09-19 on Claude, ChatGPT, Excel and DuoUpdater).
+    ///   `stringsIndexed` is left out with it so a decoded value is honest by
+    ///   construction rather than by remembering to clear a flag.
+    /// - `omittedByBackup` belongs to the caller, not to the bundle: the comparison
+    ///   re-applies it from the backup's own sidecar every time.
+    /// - `timings` describes the run that produced the value, and a stored one is
+    ///   replaced by the time it took to read it back.
+    enum CodingKeys: String, CodingKey {
+        case rootName, isPackage, packageSignature, packageComponents, scripts
+        case files, bundles, machO, strings, launchdPlists, asars
+        case unindexedMachO, bytesHashed
+    }
 }
 
-struct FileFact: Sendable, Equatable {
+struct FileFact: Sendable, Equatable, Codable {
     var size: Int64
     /// SHA-256 of the contents, or `symlink:<destination>`.
     var digest: String
 }
 
-struct BundleFact: Sendable, Equatable {
+struct BundleFact: Sendable, Equatable, Codable {
     var identifier: String?
     var shortVersion: String?
     var buildVersion: String?
@@ -60,7 +88,7 @@ struct BundleFact: Sendable, Equatable {
     var signature: SignatureVerifier.SigningSummary?
 }
 
-struct MachOFact: Sendable, Equatable {
+struct MachOFact: Sendable, Equatable, Codable {
     var size: Int64
     var architectures: [String]
     /// Install name -> the `current_version` the linker recorded.
@@ -69,7 +97,7 @@ struct MachOFact: Sendable, Equatable {
     var sourcePaths: [String]
 }
 
-struct AsarFact: Sendable, Equatable {
+struct AsarFact: Sendable, Equatable, Codable {
     /// Path inside the archive -> integrity hash, or `size:<n>` when there is none.
     var files: [String: String] = [:]
     /// `node_modules/<name>` -> version, from each package's own package.json.
@@ -212,6 +240,7 @@ enum BundleFactsReader {
             }
         }
         facts.stringsBlob = blob
+        facts.stringsIndexed = true
         facts.timings = timings
         return facts
     }

@@ -368,6 +368,15 @@ public enum BackupStore {
         /// omitted or the backup predates recording it. A bundle diff against
         /// this backup needs it, or those files read as added by the update.
         public let omittedFiles: [String]
+        /// What the stored copy hashed to when it was written — the manifest
+        /// digest, surfaced so callers can name *this* copy rather than the key,
+        /// which outlives every generation ever stored under it.
+        ///
+        /// Nil for a backup written before manifests existed, and for one whose
+        /// bundle held a file we could not read: `BackupManifest.compute` answers
+        /// nil for the whole copy in that case, and a copy we never fingerprinted
+        /// is one nothing may be cached against. See ``BackupFactsLibrary``.
+        public let fingerprint: String?
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -707,7 +716,7 @@ public enum BackupStore {
             key: key, version: version, buildVersion: buildVersion,
             bundlePath: dest, store: outboxStore, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
-            omittedFiles: unreadable.unsealed)
+            omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest)
     }
 
     // MARK: - Transfer
@@ -887,6 +896,37 @@ public enum BackupStore {
             throw BackupError.copyFailed(archive.path)
         }
 
+        // Record what comparing this backup would otherwise have to unpack the whole
+        // archive for. Here rather than in `save` for three reasons that all point
+        // the same way: this is the only route a copy ever reaches a disk by, so the
+        // cost is paid exactly where it is repaid; the bundle is still sitting on the
+        // boot volume and has just been read end to end to compress it, so the walk
+        // is local and warm; and a transfer runs on `BackupTransferQueue`, not on the
+        // update the user is waiting for. A backup that stays on this Mac gets no
+        // entry, which is the case where there was nothing to unpack anyway.
+        //
+        // Keyed by the manifest digest, which the sidecar above carries over
+        // unchanged — so the entry written here is the one the comparison looks up
+        // through the copy on the disk. Nil for a backup we never fingerprinted; see
+        // `BackupFactsLibrary.Reference`.
+        if let digest = meta.manifest?.digest {
+            // Resolved here, not inside the hop — see `BackupFactsLibrary.entry(for:)`.
+            let entry = BackupFactsLibrary.entry(
+                for: BackupFactsLibrary.Reference(key: key, fingerprint: digest))
+            let start = ContinuousClock.now
+            let recorded = await offCooperativePool(qos: .utility) {
+                guard let facts = try? BundleFactsReader.scan(root: bundle) else { return false }
+                return BackupFactsLibrary.store(facts, at: entry)
+            }
+            if recorded {
+                Log.install.info(
+                    "backup: recorded what \(key, privacy: .public) holds, so comparing it will not unpack the archive — \(String(describing: ContinuousClock.now - start), privacy: .public)")
+            } else {
+                Log.install.error(
+                    "backup: could not record what \(key, privacy: .public) holds — comparing it with the installed app will unpack the archive")
+            }
+        }
+
         forceRemove(outboxDir)
         Log.install.info(
             "backup: moved \(key, privacy: .public) to the backup disk (\(bytes ?? 0, privacy: .public) bytes)")
@@ -894,7 +934,7 @@ public enum BackupStore {
             key: key, version: meta.version, buildVersion: meta.buildVersion,
             bundlePath: archive, store: activeStore(root: root), savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
-            omittedFiles: meta.omittedFiles ?? [])
+            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest)
     }
 
     // MARK: - Cleanup of interrupted work
@@ -1001,7 +1041,7 @@ public enum BackupStore {
             key: key, version: meta.version, buildVersion: meta.buildVersion,
             bundlePath: payload, store: store, savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
-            omittedFiles: meta.omittedFiles ?? [])
+            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest)
     }
 
     /// The current backup for `key`, or nil if none exists.
@@ -1404,6 +1444,9 @@ public enum BackupStore {
             removeClearingImmutableFlags(
                 at: store.root.appendingPathComponent(key, isDirectory: true))
         }
+        // The recorded facts describe bytes that are now gone, and they are held
+        // outside the store, so nothing above would ever reach them.
+        BackupFactsLibrary.drop(forKey: key)
     }
 
     /// One stored backup, described for a UI that has to let someone choose which
@@ -1555,7 +1598,10 @@ public enum BackupStore {
             // number is shown to the user as space reclaimed, and a prune that
             // could not delete reclaimed nothing.
             let size = directorySize(dir)
-            if removeClearingImmutableFlags(at: dir) { freed += size }
+            if removeClearingImmutableFlags(at: dir) {
+                freed += size
+                BackupFactsLibrary.drop(forKey: key)
+            }
         }
         return freed
     }

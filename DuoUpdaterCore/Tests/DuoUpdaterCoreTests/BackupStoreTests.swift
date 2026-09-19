@@ -271,6 +271,34 @@ struct BackupStoreTests {
         }
     }
 
+    /// Saving a backup does not record what it holds — only moving it to a disk
+    /// does, which is where reading it back is expensive. Asserted so that moving
+    /// the recording into `save` (a second walk of every bundle on the update path,
+    /// for a comparison that reads both sides concurrently anyway) is a decision
+    /// somebody has to make rather than a drift nothing notices.
+    @Test func savingABackupDoesNotRecordWhatItHolds() async throws {
+        try await withScratchRoot { _ in
+            let library = FileManager.default.temporaryDirectory
+                .appendingPathComponent("facts-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: library) }
+            try await BackupFactsLibrary.$rootOverride.withValue(library) {
+                let apps = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("apps-\(UUID().uuidString)")
+                try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: apps) }
+                let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
+                let backup = try await BackupStore.save(
+                    appPath: app, key: "k", version: "1.0", bundleID: nil)
+
+                // The backup is fingerprinted, which is what an entry would be named
+                // by — so this is "nothing was recorded", not "nothing could be".
+                let reference = try #require(BackupFactsLibrary.Reference(backup))
+                #expect(reference.fingerprint == backup.fingerprint)
+                #expect(BackupFactsLibrary.facts(at: BackupFactsLibrary.entry(for: reference)) == nil)
+            }
+        }
+    }
+
     // MARK: - Orphan cleanup
 
     /// A backup whose original app path no longer exists on disk (uninstalled,

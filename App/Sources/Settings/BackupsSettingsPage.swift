@@ -44,6 +44,11 @@ struct BackupsSettingsPage: View {
     /// in behind the rows the way `storeBytes` is: the answer costs a write, and
     /// a row that waited for it would be a row that was not there yet.
     @State private var candidateWritable: [String: Bool] = [:]
+    /// What was mounted when the disks were last looked at. Everything about a
+    /// disk — whether it holds a store, whether it can be written to, what its
+    /// icon is — changes only when a disk is plugged in or pulled out, and this
+    /// is how that is noticed without asking the disks themselves.
+    @State private var mountedVolumes: [String] = []
     /// Each disk's real icon (or, absent that, the measured volume kind for a
     /// symbol fallback), keyed the same way a row identifies itself. See
     /// `AppListModel.backupDiskAppearances(for:)` for why this is fetched off
@@ -111,7 +116,17 @@ struct BackupsSettingsPage: View {
                     let count = await model.backupStoreChangeCount()
                     // Plugging a disk in changes neither of those, and it is the
                     // one thing someone with this page open is most likely to do.
-                    await refreshCandidateVolumes()
+                    // Gated on the mount table rather than run each time: the
+                    // scan behind it opens marker files and reads attributes on
+                    // every attached volume, and a network share is somewhere
+                    // that costs a round trip to answer — polling one every two
+                    // seconds for an answer that changes when a cable moves is
+                    // not a price this page should make anyone pay.
+                    let mounted = await model.mountedVolumePaths()
+                    if mounted != mountedVolumes {
+                        mountedVolumes = mounted
+                        await refreshAttachedDisks()
+                    }
                     if owed != pendingCount || count != storeCount {
                         storeCount = count
                         await refresh()
@@ -123,9 +138,8 @@ struct BackupsSettingsPage: View {
             // A separate, one-shot task: this walks every mounted volume, which
             // touches the filesystem and would block the render pass if it ran
             // inline in `body`.
-            discoveredStores = await model.discoverBackupStores()
-            await refreshCandidateVolumes()
-            await refreshDiskAppearances()
+            mountedVolumes = await model.mountedVolumePaths()
+            await refreshAttachedDisks()
         }
         .sheet(isPresented: $showingBackups) {
             BackupsSheet(backups: backupListing) { keys in
@@ -311,6 +325,14 @@ struct BackupsSettingsPage: View {
         .buttonStyle(.plain)
         .disabled(isWorking)
         .settingsRow()
+    }
+
+    /// Everything that depends on which disks are attached. Run when the page
+    /// opens and when the mount table moves, never on the plain tick.
+    private func refreshAttachedDisks() async {
+        discoveredStores = await model.discoverBackupStores()
+        await refreshCandidateVolumes()
+        await refreshDiskAppearances()
     }
 
     private func refreshCandidateVolumes() async {

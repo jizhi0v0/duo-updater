@@ -76,6 +76,7 @@ final class Preferences {
         static let maxConcurrency = "MaxConcurrency"
         static let keepBackups = "KeepBackups"
         static let pruneOrphanBackups = "PruneOrphanBackups"
+        static let backupCompression = UpdateSettings.backupCompressionKey
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
         static let hideDockIcon = "HideDockIcon"
@@ -188,6 +189,50 @@ final class Preferences {
     /// left behind by an uninstall or move are the only unbounded growth.
     var pruneOrphanBackups: Bool {
         didSet { defaults.set(pruneOrphanBackups, forKey: Key.pruneOrphanBackups) }
+    }
+
+    /// Where backups are kept. `.local` means the boot volume, as it always has.
+    ///
+    /// Setting this reconfigures the store immediately rather than at the next
+    /// launch: the alternative is a window where the settings window says one
+    /// thing and the next install does another.
+    var backupDestination: BackupDestination {
+        didSet {
+            backupDestination.save(into: defaults)
+            BackupStore.configure(
+                backupDestination, known: BackupDestination.known(from: defaults))
+        }
+    }
+
+    /// The disk last chosen, even while backups are being kept on this Mac.
+    /// Lets the switch go back on without a second trip through a file picker.
+    var rememberedBackupDisk: BackupDestination? {
+        BackupDestination.remembered(from: defaults)
+    }
+
+    /// Every disk ever adopted as a backup destination, most recently used
+    /// first — including ones not plugged in right now. The disk picker has to
+    /// name a disk in order to say it isn't connected, so this does not filter
+    /// to what is reachable.
+    var knownBackupDestinations: [BackupDestination] {
+        BackupDestination.known(from: defaults)
+    }
+
+    /// How hard to compress a backup on its way to the external disk.
+    ///
+    /// Measured on an 802 MB Electron bundle: `.fast` (lzfse) took 1.8 s for
+    /// 330 MB, `.smallest` (lzma) 22 s for 242 MB. Fast is the default because
+    /// twelve times the CPU for a further 27% is a trade only worth making
+    /// deliberately, on a small or slow disk.
+    ///
+    /// Told to the store on change, for the same reason ``backupDestination``
+    /// is: the queue that performs the app's transfers passes no compression and
+    /// takes the store's, so without this the control moved a value nothing read.
+    var backupCompression: BundleArchive.Compression {
+        didSet {
+            defaults.set(backupCompression.rawValue, forKey: Key.backupCompression)
+            BackupStore.configure(compression: backupCompression)
+        }
     }
 
     /// Post a notification when a background check finds updates.
@@ -478,6 +523,10 @@ final class Preferences {
         // Default ON for these — all opt-out conveniences.
         self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
         self.pruneOrphanBackups = defaults.object(forKey: Key.pruneOrphanBackups) as? Bool ?? true
+        self.backupDestination = BackupDestination.load(from: defaults)
+        self.backupCompression = BundleArchive.Compression(
+            rawValue: defaults.string(forKey: Key.backupCompression) ?? "")
+            ?? UpdateSettings.backupCompressionDefault
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
@@ -551,6 +600,12 @@ final class Preferences {
         // package — the launch path is precisely the one that has no environment
         // and no `gh` to fall back on.
         ChangelogService.setExplicitGitHubToken(self.githubToken)
+        // Same reason as the line above: `didSet` does not fire inside `init`,
+        // so without this the store would stay pointed at the boot volume for
+        // the whole session no matter what the user configured.
+        BackupStore.configure(
+            self.backupDestination, known: BackupDestination.known(from: defaults))
+        BackupStore.configure(compression: self.backupCompression)
         resolveSpotlights()
     }
 

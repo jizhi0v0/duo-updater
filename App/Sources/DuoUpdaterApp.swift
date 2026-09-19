@@ -90,6 +90,9 @@ struct DuoUpdaterApp: App {
 /// gets: the label View renders as soon as the status item appears (before any popover
 /// opens), so its `.task` is where we trigger first-run onboarding.
 private struct MenuBarLabel: View {
+    /// Held here so the notification observers outlive the `.task` that starts them.
+    @State private var backupVolumeWatcher = BackupVolumeWatcher()
+
     @Bindable var model: AppListModel
     @Environment(\.openWindow) private var openWindow
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -112,6 +115,14 @@ private struct MenuBarLabel: View {
             // badge, and `sync` checks the policy this sets.
             DockIcon.apply(hidden: model.prefs.hideDockIcon)
             AppDockBadge.syncSoon(count: model.badgeCount)
+            // Start moving backups when the backup disk shows up, and get out of
+            // the way when it is about to leave. Also drains anything a previous
+            // run left owed — the common case being backups taken while the disk
+            // was elsewhere.
+            backupVolumeWatcher.start()
+            if model.prefs.backupDestination.kind == .external {
+                Task { await model.syncBackupsNow() }
+            }
             if let front = SilentSelfUpdateRelaunch.consume() { handTheFrontBack(to: front) }
             // What "a safe moment to replace ourselves" means, for the silent
             // self-update path.

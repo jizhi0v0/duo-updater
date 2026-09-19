@@ -45,7 +45,7 @@ enum SettingsAnchor: String, Hashable, Sendable {
         switch self {
         case .testFlightDetection: .general
         case .githubToken: .github
-        case .backups: .general
+        case .backups: .backups
         }
     }
 }

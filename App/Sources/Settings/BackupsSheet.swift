@@ -89,7 +89,13 @@ struct BackupsSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack(spacing: 6) {
+                    // Which disk this copy is on: the same key can list twice
+                    // (mid-transfer, once per store), and without this the two
+                    // rows are indistinguishable.
+                    Text(storeLabel(backup.store))
+                        .foregroundStyle(.secondary)
                     if let version = backup.version {
+                        Text("·").foregroundStyle(.secondary)
                         if let current = backup.currentVersion, current != version {
                             // Same grammar as every other version pair in the app
                             // (see `MenuContentView.toVersion`): the older one
@@ -144,6 +150,15 @@ struct BackupsSheet: View {
                 }
             }
         }
+    }
+
+    /// Which disk a row's copy is on, in the same words the Backups page uses
+    /// for a nameless external destination.
+    private func storeLabel(_ store: BackupStore.Store) -> String {
+        if let name = store.volumeName { return name }
+        return store.location == .outbox
+            ? String(localized: "On this Mac")
+            : String(localized: "On the backup disk")
     }
 
     private func binding(for backup: BackupStore.Listing) -> Binding<Bool> {

@@ -32,11 +32,13 @@ test:
 	python3 scripts/test_check_swift_backdeploy.py
 	python3 scripts/test_claude_lag_probe.py
 	python3 scripts/test_app_test_coverage.py
+	python3 scripts/test_check_localizable_specifiers.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
 	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
 	@scripts/app-tests.sh
 	python3 scripts/check_localizable_keys.py
+	python3 scripts/check_localizable_specifiers.py
 	python3 scripts/check_staged_version_use.py
 	python3 scripts/test_check_staged_version_use.py
 	python3 scripts/check_app_audits.py

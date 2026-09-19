@@ -32,14 +32,20 @@ public enum BundleDiff {
     ///
     /// `omittedFromOld` names files the old side lacks on purpose — a backup's
     /// skipped runtime state — so they are not reported as added by the update.
+    ///
+    /// `recordedOld` names a backup whose facts may already be in
+    /// ``BackupFactsLibrary``, in which case the old side is read from there
+    /// instead of off disk. An entry that is absent or does not match changes
+    /// nothing: the old path is read exactly as it would have been.
     public static func report(
         old oldPath: String, new newPath: String, oldLabel: String? = nil, newLabel: String? = nil,
-        omittedFromOld: [String] = []
+        omittedFromOld: [String] = [], recordedOld: BackupFactsLibrary.Reference? = nil
     ) async -> Result<String, Failure> {
         let stop = StopFlag()
         return await withTaskCancellationHandler {
             await compare(old: oldPath, new: newPath, oldLabel: oldLabel ?? oldPath,
-                          newLabel: newLabel ?? newPath, omittedFromOld: omittedFromOld, stop: stop)
+                          newLabel: newLabel ?? newPath, omittedFromOld: omittedFromOld,
+                          recordedOld: recordedOld, stop: stop)
         } onCancel: {
             stop.set()
         }
@@ -47,7 +53,7 @@ public enum BundleDiff {
 
     private static func compare(
         old oldPath: String, new newPath: String, oldLabel: String, newLabel: String,
-        omittedFromOld: [String], stop: StopFlag
+        omittedFromOld: [String], recordedOld: BackupFactsLibrary.Reference?, stop: StopFlag
     ) async -> Result<String, Failure> {
         let totalStart = ContinuousClock.now
         let scratch = FileManager.default.temporaryDirectory
@@ -57,7 +63,8 @@ public enum BundleDiff {
 
         // Both sides at once: unpacking and hashing are independent, and on a pair
         // of large releases each side is most of the run.
-        async let oldSide = read(oldPath, scratch: scratch.appendingPathComponent("old"), stop: stop)
+        async let oldSide = read(
+            oldPath, scratch: scratch.appendingPathComponent("old"), stop: stop, recorded: recordedOld)
         async let newSide = read(newPath, scratch: scratch.appendingPathComponent("new"), stop: stop)
         let sides = await (oldSide, newSide)
 
@@ -107,7 +114,28 @@ public enum BundleDiff {
 
     // MARK: - Reading one side
 
-    static func read(_ input: String, scratch: URL, stop: StopFlag = StopFlag()) async -> Result<BundleFacts, Failure> {
+    static func read(
+        _ input: String, scratch: URL, stop: StopFlag = StopFlag(),
+        recorded: BackupFactsLibrary.Reference? = nil
+    ) async -> Result<BundleFacts, Failure> {
+        // Before anything is unpacked or walked: a backup is bytes that cannot
+        // change, so if what it holds was recorded when it was written, that is
+        // the same answer this function would spend the rest of its time
+        // producing. On a backup that lives on a disk it is also the difference
+        // between reading one file and unpacking a whole app bundle over a cable.
+        if let recorded {
+            let start = ContinuousClock.now
+            // Resolved here, not inside the hop — see `BackupFactsLibrary.entry(for:)`.
+            let entry = BackupFactsLibrary.entry(for: recorded)
+            if var facts = await offCooperativePool({ BackupFactsLibrary.facts(at: entry) }) {
+                var timings = PhaseTimings()
+                // Kept under the 28 characters `timingSection` pads a phase name to,
+                // which truncates rather than wraps.
+                timings.add("read the recorded facts", ContinuousClock.now - start)
+                facts.timings = timings
+                return .success(facts)
+            }
+        }
         let url = URL(fileURLWithPath: (input as NSString).expandingTildeInPath)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -141,6 +169,26 @@ public enum BundleDiff {
             }
             root = expanded
             package = url
+        case "aar":
+            // A backup kept on another disk. It is stored as one Apple Archive
+            // — that is what lets a disk formatted for Windows, or a share,
+            // hold an app bundle at all — and comparing an app against its
+            // backup is precisely what this is asked to do, so refusing the
+            // format the backup is in meant the comparison worked only while
+            // the backups happened to be on this Mac.
+            //
+            // Named after the archive, so the report says "ChatGPT.app" rather
+            // than the name of a scratch directory. `extract` writes the
+            // bundle's *contents* into the directory it is given, so this
+            // directory is the bundle.
+            let unpacked = scratch.appendingPathComponent(
+                url.deletingPathExtension().lastPathComponent + ".app", isDirectory: true)
+            do {
+                try await BundleArchive.extract(archive: url, into: unpacked)
+            } catch {
+                return .failure(Failure(description: "\(input): \(error.localizedDescription)"))
+            }
+            root = unpacked
         case "zip", "dmg", "tar", "gz", "tgz", "bz2", "tbz", "xz":
             do {
                 root = try await ArchiveExtractor.extractApp(from: url, workDir: scratch)
@@ -148,7 +196,8 @@ public enum BundleDiff {
                 return .failure(Failure(description: "\(input): \(error.localizedDescription)"))
             }
         default:
-            return .failure(Failure(description: "\(input): expected an .app, .zip, .dmg or .pkg"))
+            return .failure(Failure(
+                description: "\(input): expected an .app, .zip, .dmg, .pkg or .aar"))
         }
         let unpackElapsed = ContinuousClock.now - unpackStart
 
@@ -641,6 +690,19 @@ public enum BundleDiff {
         case referencedByNewBinaries = "in new binaries only"
         case referencedByBoth = "in old and new binaries"
         case notFound = "not found (proves nothing)"
+        /// The key is in the new binaries, and whether the old ones carried it
+        /// is unknown: that side's facts came from ``BackupFactsLibrary``, which
+        /// does not keep the strings index.
+        ///
+        /// Its own case rather than `referencedByNewBinaries`, which is a claim
+        /// *about the old binaries* — "only" — that an unindexed side cannot
+        /// support. Folding the two would leave the report saying a key is new
+        /// for every key it finds, in exactly the reading a reader would act on.
+        case oldNotIndexed = "in new binaries; old side not indexed"
+        /// Neither side can be searched, because the new side was not indexed
+        /// either. Unreachable while the new side is always a live scan; here so
+        /// that an unindexed value is never read as a search that came up empty.
+        case notIndexed = "binaries not indexed"
     }
 
     /// Where each key occurs, answered for every key at once.
@@ -662,7 +724,16 @@ public enum BundleDiff {
     static func evidence(for keys: Set<String>, old: BundleFacts, new: BundleFacts) -> [String: KeyEvidence] {
         let ordered = Array(keys)
         guard !ordered.isEmpty else { return [:] }
-        let oldRuns = PrintableRuns.wholeRuns(old.stringsBlob)
+        guard new.stringsIndexed else {
+            return Dictionary(uniqueKeysWithValues: ordered.map { ($0, KeyEvidence.notIndexed) })
+        }
+        // An empty index and no index are the same bytes and opposite meanings, so
+        // the old side is searched only when it has one. Without this the searches
+        // below both fail — `wholeRuns` is empty and `containsDelimited` cannot fit
+        // the key into a shorter blob — and every key found in the new binaries
+        // would be reported as being in the new binaries *only*.
+        let searchOld = old.stringsIndexed
+        let oldRuns = searchOld ? PrintableRuns.wholeRuns(old.stringsBlob) : []
         let newRuns = PrintableRuns.wholeRuns(new.stringsBlob)
         let results = UnsafeMutableBufferPointer<KeyEvidence>.allocate(capacity: ordered.count)
         defer { results.deallocate() }
@@ -670,9 +741,12 @@ public enum BundleDiff {
             let key = ordered[index]
             let searchable = key.utf8.count >= minimumSubstringKeyBytes
             let inNew = newRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(new.stringsBlob, key))
-            let inOld = inNew && (oldRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(old.stringsBlob, key)))
+            let inOld = searchOld && inNew
+                && (oldRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(old.stringsBlob, key)))
             (results.baseAddress! + index).initialize(
-                to: !inNew ? .notFound : inOld ? .referencedByBoth : .referencedByNewBinaries)
+                to: !inNew ? .notFound
+                    : inOld ? .referencedByBoth
+                    : searchOld ? .referencedByNewBinaries : .oldNotIndexed)
         }
         return Dictionary(uniqueKeysWithValues: zip(ordered, results))
     }
@@ -681,6 +755,13 @@ public enum BundleDiff {
         var out = ["", "LOCALIZATION (en, Base, zh-Hans)"]
         out.append("  note: a key is looked for in the binaries' strings. \"not found\" proves nothing: Swift")
         out.append("  inlines literals of up to 15 UTF-8 bytes, and keys built at runtime never appear whole.")
+        if !new.stringsIndexed {
+            out.append("  note: neither side's binaries were indexed, so no key below was looked for at all.")
+        } else if !old.stringsIndexed {
+            out.append("  note: the old side was read from what was recorded when the backup was made, which")
+            out.append("  does not keep the strings index. A key can be found in the new binaries; whether the")
+            out.append("  old ones carried it is not known here.")
+        }
         var changes: [(path: String, change: LocalizationChange)] = []
         for path in Set(old.strings.keys).union(new.strings.keys).sorted() {
             changes.append((path, localizationChange(old.strings[path] ?? [:], new.strings[path] ?? [:])))

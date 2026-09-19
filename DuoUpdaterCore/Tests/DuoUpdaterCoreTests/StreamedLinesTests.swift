@@ -76,6 +76,18 @@ import Foundation
     // the suite instead of failing it. The watchdog abandons the stuck task and
     // fails. Its bounds only decide how long a broken run takes to report; they
     // are not performance assertions, so they are generous.
+    //
+    // Raised from 10 and 30 on 2026-09-19: `theCapReleasesAWaitThatNeverEnds`
+    // failed twice on CI (#763) while the suite was running two ~60 s cases
+    // beside it. Both the cap under test and this watchdog arm on
+    // `DispatchQueue.global()`, so for the 30 s timer to beat a 0.05 s one that
+    // queue has to be starved for thirty seconds — which says nothing about
+    // `StreamedLines` and everything about the machine. The bound was not
+    // generous enough to be the watchdog it says it is.
+
+    /// How long a hung wait takes to be reported. Long, deliberately: the only
+    /// thing it may not do is fire on a machine that is merely busy.
+    private static let watchdogSeconds: Double = 120
 
     private final class Once<T: Sendable>: @unchecked Sendable {
         private let lock = NSLock()
@@ -105,7 +117,7 @@ import Foundation
     @Test func anEndBeforeTheWaitReturnsAtOnce() async throws {
         let s = StreamedLines()
         s.end()
-        let done = try await Self.finishing(within: 10) { await s.waitForEnd(atMost: 3600) }
+        let done = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 3600) }
         #expect(done != nil)
     }
 
@@ -113,7 +125,7 @@ import Foundation
     /// exercises the resume, not the early return above.
     @Test func anEndDuringTheWaitResumesIt() async throws {
         let s = StreamedLines()
-        let done = try await Self.finishing(within: 10) {
+        let done = try await Self.finishing(within: Self.watchdogSeconds) {
             let waiting = Task { await s.waitForEnd(atMost: 3600) }
             while !s.hasWaiter { await Task.yield() }
             s.end()
@@ -126,7 +138,7 @@ import Foundation
     /// No EOF ever (a child kept the pipe open): the cap releases the wait.
     @Test func theCapReleasesAWaitThatNeverEnds() async throws {
         let s = StreamedLines()
-        let done = try await Self.finishing(within: 30) { await s.waitForEnd(atMost: 0.05) }
+        let done = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 0.05) }
         #expect(done != nil)
         #expect(!s.hasWaiter)
     }

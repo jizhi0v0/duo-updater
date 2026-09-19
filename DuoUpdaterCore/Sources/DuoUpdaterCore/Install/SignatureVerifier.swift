@@ -273,7 +273,7 @@ public enum SignatureVerifier {
     ///
     /// Not a validity check: a tampered bundle still reports what its signature
     /// claims. Blocking Security call, so callers stay off the cooperative pool.
-    public struct SigningSummary: Sendable, Equatable {
+    public struct SigningSummary: Sendable, Equatable, Codable {
         public let identifier: String?
         public let teamIdentifier: String?
         /// Certificate subject summaries, leaf first — codesign's `Authority=` lines.

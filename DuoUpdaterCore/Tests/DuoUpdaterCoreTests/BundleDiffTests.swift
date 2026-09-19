@@ -106,6 +106,10 @@ import Foundation
     private func facts(runs: [String]) -> BundleFacts {
         var facts = BundleFacts()
         facts.stringsBlob = Data(runs.map { $0 + "\n" }.joined().utf8)
+        // Set here for the same reason it is false by default: only a scan indexes
+        // the binaries, and a value that has not been through one may not be read
+        // as a search that came up empty.
+        facts.stringsIndexed = true
         return facts
     }
 
@@ -120,6 +124,35 @@ import Foundation
         #expect(found["ZZFixture.New.title"] == .referencedByNewBinaries)
         #expect(found["ZZFixture.Shared.title"] == .referencedByBoth)
         #expect(found["ZZFixture.Missing.title"] == .notFound)
+    }
+
+    /// A backup read from ``BackupFactsLibrary`` has no strings index, and both
+    /// searches against it fail for that reason alone — `wholeRuns` is empty, and
+    /// `containsDelimited` cannot fit the key into a shorter blob. Left to run, the
+    /// old side then reads as not carrying a single key, and every key found in the
+    /// new binaries is reported as being in the new binaries *only*: a claim about
+    /// the old ones, made from no evidence at all, in the exact reading a reader
+    /// would act on.
+    @Test func anUnindexedOldSideDoesNotSayAKeyIsNewToTheNewBinaries() {
+        var old = facts(runs: ["ZZFixture.Shared.title"])
+        old.stringsBlob = Data()
+        old.stringsIndexed = false
+        let new = facts(runs: ["ZZFixture.New.title", "ZZFixture.Shared.title"])
+        let found = BundleDiff.evidence(
+            for: ["ZZFixture.New.title", "ZZFixture.Shared.title", "ZZFixture.Missing.title"], old: old, new: new)
+        #expect(found["ZZFixture.New.title"] == .oldNotIndexed)
+        #expect(found["ZZFixture.Shared.title"] == .oldNotIndexed)
+        // Absence from the NEW binaries is still a finding: it depends on that side
+        // alone, and that side was indexed.
+        #expect(found["ZZFixture.Missing.title"] == .notFound)
+    }
+
+    /// The symmetric hole: with no index on the new side either, "not found" would
+    /// be a search that never ran.
+    @Test func neitherSideIndexedIsNotTheSameAsNotFound() {
+        let found = BundleDiff.evidence(
+            for: ["ZZFixture.New.title"], old: BundleFacts(), new: BundleFacts())
+        #expect(found["ZZFixture.New.title"] == .notIndexed)
     }
 
     /// Review of #705: an app that uses English text as keys adds `OK`, and a
@@ -467,5 +500,68 @@ import Foundation
         #expect(facts.strings["Contents/Resources/en.lproj/Localizable.strings"] == ["ZZ.greeting": "Hello"])
         #expect(facts.machO["Contents/MacOS/zzfixture"]?.architectures == ["arm64"])
         #expect(facts.machO["Contents/MacOS/zzfixture"]?.sourcePaths == ["/ZZBuild/zzfixture/App/Main.swift"])
+    }
+
+    // MARK: A backup that lives on another disk
+
+    /// Comparing an app with its backup is what this is for, and a backup on
+    /// another disk is one Apple Archive rather than a bundle. Refusing `.aar`
+    /// meant the comparison worked only while the backups happened to be on
+    /// this Mac — the shape of the failure a user hit:
+    ///
+    ///     …/com.openai.codex-…/ChatGPT.aar: expected an .app, .zip, .dmg or .pkg
+    ///
+    /// Mutation: remove the `case "aar"` branch.
+    @Test func aBackupStoredAsAnArchiveIsRead() async throws {
+        // No skip-if-missing escape here: `/usr/bin/aa` ships with macOS, the
+        // rest of this suite's archive tests assume it, and a guard that returns
+        // early is how a test passes without running.
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let bundle = directory.appendingPathComponent("ZZFixture.app", isDirectory: true)
+        try write(Data(#"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+          <key>CFBundleIdentifier</key><string>com.zzfixture.archived</string>
+          <key>CFBundleShortVersionString</key><string>4.2.0</string>
+        </dict></plist>
+        """#.utf8), to: bundle.appendingPathComponent("Contents/Info.plist"))
+
+        let archive = directory.appendingPathComponent("ZZFixture.aar")
+        try await BundleArchive.archive(bundle: bundle, to: archive)
+
+        let unpackInto = directory.appendingPathComponent("scratch", isDirectory: true)
+        let outcome = await BundleDiff.read(archive.path, scratch: unpackInto)
+        guard case .success(let facts) = outcome else {
+            Issue.record("reading the archive failed: \(outcome)")
+            return
+        }
+        // Read through the unpacked bundle, which is what the comparison walks.
+        let read = try #require(facts.bundles.values.first)
+        #expect(read.shortVersion == "4.2.0")
+        #expect(read.identifier == "com.zzfixture.archived")
+        #expect(facts.rootName == "ZZFixture.app", "the report names the app, not a scratch directory")
+        // The archive really was unpacked, rather than this passing on an empty
+        // read: the Info.plist written above is in there, by path.
+        #expect(facts.files.keys.contains("Contents/Info.plist"), "\(facts.files.keys.sorted())")
+    }
+
+    /// And anything else still says what it can read — now including the format
+    /// every backup on another disk is in.
+    @Test func anUnreadableFormatNamesWhatIsAccepted() async throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("notes.txt")
+        try write(Data("hello".utf8), to: file)
+
+        let outcome = await BundleDiff.read(
+            file.path, scratch: directory.appendingPathComponent("scratch", isDirectory: true))
+        guard case .failure(let failure) = outcome else {
+            Issue.record("a text file was accepted")
+            return
+        }
+        #expect(failure.description.hasSuffix("expected an .app, .zip, .dmg, .pkg or .aar"))
     }
 }

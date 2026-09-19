@@ -147,4 +147,159 @@ import Testing
             #expect(before == after, "a read-only scan must not create or modify anything")
         }
     }
+
+    // MARK: - Volumes worth offering as a destination
+
+    /// The USB SSD on the machine this was written on reports `removable` as
+    /// **false**, so the external test has to be `isInternal == false`. Asking
+    /// `isRemovable` instead is a mistake that hides the disk most likely to be
+    /// chosen — see ``BackupStoreDiscovery/isWorthOffering(_:)`` for the
+    /// measured table.
+    ///
+    /// Mutation: drop the `isInternal == false` clause.
+    @Test func anExternalSSDIsOfferedEvenThoughItSaysItIsNotRemovable() {
+        #expect(BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: false,
+            isInternal: false, isLocal: true)))
+    }
+
+    /// A mounted installer image — two were attached while this was written.
+    /// What keeps it out is that it answers nil to `isInternal`, not that it is
+    /// read-only: deleting the read-only clause does not let it through. Stated
+    /// here so the next person does not read that clause as this one's guard.
+    @Test func aMountedDiskImageIsNotOffered() {
+        let image = BackupStoreDiscovery.VolumeFacts(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: true,
+            isInternal: nil, isLocal: true)
+        #expect(!BackupStoreDiscovery.isWorthOffering(image))
+        #expect(image.isInternal != false, "it is the nil, not the read-only flag, that excludes this")
+    }
+
+    /// The read-only clause's own case: a share mounted read-only, or a disk
+    /// with its write-protect switch on. Both answer the external or network
+    /// question with a yes, so nothing else here keeps them out — and offering
+    /// one means a probe that fails the moment it tries to write a marker.
+    ///
+    /// Mutation: drop the `isReadOnly` clause.
+    @Test func aReadOnlyDiskOrShareIsNotOffered() {
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: true,
+            isInternal: nil, isLocal: false)))
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: true,
+            isInternal: false, isLocal: true)))
+    }
+
+    /// A share reports `isInternal` as nil rather than false, so the external
+    /// clause alone never matches it.
+    ///
+    /// Mutation: drop the `isLocal == false` clause.
+    @Test func aNetworkShareIsOffered() {
+        let share = BackupStoreDiscovery.VolumeFacts(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: false,
+            isInternal: nil, isLocal: false)
+        #expect(BackupStoreDiscovery.isWorthOffering(share))
+        #expect(share.isInternal != false, "the external clause must not be what passes this")
+    }
+
+    /// The volume this Mac booted from is already a row of its own, and moving
+    /// backups there frees nothing.
+    ///
+    /// Stated for a Mac booted from an *external* disk, because that is the only
+    /// shape in which the clause is load-bearing: an internally booted Mac is
+    /// excluded by being internal, so a version of this test written that way
+    /// would pass with the clause deleted.
+    ///
+    /// Mutation: drop the `isRootFileSystem` clause.
+    @Test func theVolumeThisMacBootedFromIsNotOffered() {
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: true, isBrowsable: true, isReadOnly: false,
+            isInternal: false, isLocal: true)))
+        // And the ordinary internal case, which the clause below also covers.
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: true, isBrowsable: true, isReadOnly: false,
+            isInternal: true, isLocal: true)))
+    }
+
+    /// Preboot, VM, Recovery and the cryptex mounts. They are volumes, they are
+    /// writable, and the user has never seen any of them. Stated as an external
+    /// one so that the browsable clause is what excludes it.
+    ///
+    /// Mutation: drop the `isBrowsable` clause.
+    @Test func aVolumeTheUserCannotSeeIsNotOffered() {
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: false, isBrowsable: false, isReadOnly: false,
+            isInternal: false, isLocal: true)))
+    }
+
+    /// A second internal volume is left out on purpose: on most Macs it is
+    /// another APFS volume in the boot container, sharing the same free space.
+    ///
+    /// Mutation: `isInternal == false` → `isInternal != true`.
+    @Test func aSecondInternalVolumeIsNotOffered() {
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init(
+            isRootFileSystem: false, isBrowsable: true, isReadOnly: false,
+            isInternal: true, isLocal: true)))
+    }
+
+    /// Nothing is known about a volume that will not answer. Offering it would
+    /// mean offering every hidden system mount the moment `skipHiddenVolumes`
+    /// stopped filtering them.
+    ///
+    /// Mutation: either `== false` → `!= true`.
+    @Test func aVolumeThatSaysNothingIsNotOffered() {
+        #expect(!BackupStoreDiscovery.isWorthOffering(.init()))
+    }
+
+    /// A directory on the boot volume answers with the boot volume's own facts,
+    /// which is why a temporary directory is never a candidate — and why the
+    /// clause above is worth having against something other than a fixture.
+    @Test func aFolderOnTheBootVolumeIsNotACandidate() throws {
+        try withScratch { dir in
+            #expect(BackupStoreDiscovery.candidates(among: [dir]).isEmpty)
+        }
+    }
+
+    /// A volume already carrying a store has a row of its own; offering its root
+    /// as somewhere new would start a second store beside the first.
+    ///
+    /// Mutation: drop the `store(at:)` check in `isSpokenFor`.
+    @Test func aVolumeThatAlreadyCarriesAStoreIsSpokenFor() throws {
+        try withScratch { volume in
+            #expect(!BackupStoreDiscovery.isSpokenFor(volume, configuredPaths: []))
+            let sub = volume.appendingPathComponent(
+                BackupDestination.storeFolderName, isDirectory: true)
+            try write(marker: BackupVolumeMarker(volumeName: "Archive"), to: sub)
+            #expect(BackupStoreDiscovery.isSpokenFor(volume, configuredPaths: []))
+        }
+    }
+
+    /// The destination in use may sit deeper than the two places the marker
+    /// check looks — `/Volumes/T7/Archive/Backups` carries the marker, the
+    /// volume root carries nothing — and the disk would then be offered as new
+    /// while it is the one already in use.
+    ///
+    /// Mutation: drop the `configuredPaths` check in `isSpokenFor`.
+    @Test func aDiskConfiguredDeeperThanTheMarkerCheckLooksIsSpokenFor() throws {
+        try withScratch { volume in
+            let nested = volume
+                .appendingPathComponent("Archive", isDirectory: true)
+                .appendingPathComponent(BackupDestination.storeFolderName, isDirectory: true)
+            try write(marker: BackupVolumeMarker(volumeName: "Archive"), to: nested)
+            #expect(BackupStoreDiscovery.isSpokenFor(volume, configuredPaths: []) == false,
+                    "fixture must be invisible to the marker check for this to prove anything")
+            #expect(BackupStoreDiscovery.isSpokenFor(volume, configuredPaths: [nested.path]))
+        }
+    }
+
+    /// A path that merely starts with the same characters is a different disk:
+    /// `/Volumes/Archive 2` is not inside `/Volumes/Archive`.
+    @Test func aDiskWhoseNameIsAPrefixOfAnotherIsNotSpokenFor() throws {
+        try withScratch { volume in
+            let sibling = volume.deletingLastPathComponent()
+                .appendingPathComponent(volume.lastPathComponent + " 2", isDirectory: true)
+            #expect(!BackupStoreDiscovery.isSpokenFor(
+                volume, configuredPaths: [sibling.appendingPathComponent("x").path]))
+        }
+    }
 }

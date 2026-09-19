@@ -6750,6 +6750,18 @@ final class AppListModel {
         await BackupStoreDiscovery.scanMountedVolumes()
     }
 
+    /// Disks and shares plugged in right now that could take a store but do not
+    /// carry one — what the picker offers when someone is choosing somewhere new,
+    /// so that naming a disk does not mean finding its folder in a file panel.
+    ///
+    /// `configuredPaths` are the destinations this Mac already has rows for; a
+    /// disk holding one of them is not somewhere new.
+    func candidateBackupVolumes(
+        excluding configuredPaths: [String]
+    ) async -> [BackupStoreDiscovery.Candidate] {
+        await BackupStoreDiscovery.scanCandidateVolumes(excludingStoresAt: configuredPaths)
+    }
+
     /// A disk's own appearance for the destination picker: the real, full-colour
     /// icon macOS shows for that specific volume — a USB installer stick and a
     /// Time Machine-branded SSD read as themselves, not as two identical grey

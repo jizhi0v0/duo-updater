@@ -36,6 +36,10 @@ struct BackupsSettingsPage: View {
     /// this Mac was ever configured for them. Populated once, off the main
     /// thread — `BackupStoreDiscovery` reads mounted volumes.
     @State private var discoveredStores: [BackupStoreDiscovery.Found] = []
+    /// Disks and shares plugged in right now that could take a store but carry
+    /// none. Offered inside the "somewhere else" row rather than as rows of
+    /// their own — see `chooseAnotherRow`.
+    @State private var candidateVolumes: [BackupStoreDiscovery.Candidate] = []
     /// Each disk's real icon (or, absent that, the measured volume kind for a
     /// symbol fallback), keyed the same way a row identifies itself. See
     /// `AppListModel.backupDiskAppearances(for:)` for why this is fetched off
@@ -101,6 +105,9 @@ struct BackupsSettingsPage: View {
                     // at zero.
                     let owed = await model.pendingBackupTransfers()
                     let count = await model.backupStoreChangeCount()
+                    // Plugging a disk in changes neither of those, and it is the
+                    // one thing someone with this page open is most likely to do.
+                    await refreshCandidateVolumes()
                     if owed != pendingCount || count != storeCount {
                         storeCount = count
                         await refresh()
@@ -113,6 +120,7 @@ struct BackupsSettingsPage: View {
             // touches the filesystem and would block the render pass if it ran
             // inline in `body`.
             discoveredStores = await model.discoverBackupStores()
+            await refreshCandidateVolumes()
             await refreshDiskAppearances()
         }
         .sheet(isPresented: $showingBackups) {
@@ -265,22 +273,71 @@ struct BackupsSettingsPage: View {
         .settingsRow()
     }
 
-    private var chooseAnotherRow: some View {
-        Button {
-            chooseDisk()
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "folder.badge.plus")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text("Choose another folder…")
-                Spacer(minLength: 12)
+    /// The way to a destination the list does not already offer.
+    ///
+    /// When something is plugged in that could hold backups, this names it: a
+    /// disk is what someone is choosing, and making them find a folder on it to
+    /// say so is a detour. They are offered *here*, at the moment of choosing,
+    /// rather than as rows above — a disk with no backups on it is not a place
+    /// backups are kept, and a row of its own would claim that it was.
+    ///
+    /// With nothing plugged in there is nothing to recommend, so the row stays
+    /// the plain button it was rather than becoming a menu with one item in it.
+    @ViewBuilder private var chooseAnotherRow: some View {
+        if candidateVolumes.isEmpty {
+            Button { chooseDisk() } label: { chooseAnotherLabel }
+                .buttonStyle(.plain)
+                .disabled(isWorking)
+                .settingsRow()
+        } else {
+            Menu {
+                ForEach(candidateVolumes) { candidate in
+                    Button(candidateTitle(candidate)) { adopt(at: candidate.volume) }
+                }
+                Divider()
+                Button("Another Folder…") { chooseDisk() }
+            } label: {
+                chooseAnotherLabel
             }
-            .contentShape(Rectangle())
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .disabled(isWorking)
+            .settingsRow()
         }
-        .buttonStyle(.plain)
-        .disabled(isWorking)
-        .settingsRow()
+    }
+
+    private var chooseAnotherLabel: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "folder.badge.plus")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            if candidateVolumes.isEmpty {
+                Text("Choose another folder…")
+            } else {
+                Text("Use another disk…")
+            }
+            Spacer(minLength: 12)
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// A disk names itself and says how much room it has, because free space is
+    /// the whole reason someone is moving backups off this Mac. A share says so
+    /// too: it is the difference between a cable coming loose and a server
+    /// disappearing mid-copy.
+    private func candidateTitle(_ candidate: BackupStoreDiscovery.Candidate) -> String {
+        let volume = candidate.name ?? candidate.volume.lastPathComponent
+        let name = candidate.isNetwork ? String(localized: "\(volume) (share)") : volume
+        guard let free = candidate.freeBytes else { return name }
+        return String(localized: "\(name) — \(bytes(free)) free")
+    }
+
+    private func refreshCandidateVolumes() async {
+        let configured = prefs.knownBackupDestinations.compactMap(\.path)
+        let fresh = await model.candidateBackupVolumes(excluding: configured)
+        // Assigning an equal array still invalidates the view, and this runs on
+        // a timer.
+        if fresh != candidateVolumes { candidateVolumes = fresh }
     }
 
     private var storageCard: some View {

@@ -87,6 +87,158 @@ public enum BackupStoreDiscovery {
         }
     }
 
+    // MARK: - Volumes that could hold a store, but do not yet
+
+    /// A mounted volume worth offering as a place to keep backups.
+    ///
+    /// Offered at the moment of choosing rather than listed alongside the disks
+    /// that hold backups: an empty disk is not a place backups are kept, and a
+    /// row of its own would say that it was.
+    public struct Candidate: Sendable, Equatable, Identifiable {
+        /// The volume root. The store itself goes in a `DuoUpdater Backups`
+        /// folder inside it — see ``BackupDestination/storeFolderName`` for why
+        /// the picked folder is never the store.
+        public let volume: URL
+        public let name: String?
+        /// A share rather than a disk. Worth carrying because it changes the
+        /// failures to expect, the same distinction ``BackupDestinationProbe``
+        /// reports as `isLocal`.
+        public let isNetwork: Bool
+        public let freeBytes: Int64?
+
+        public var id: String { volume.path }
+
+        public init(volume: URL, name: String?, isNetwork: Bool, freeBytes: Int64?) {
+            self.volume = volume
+            self.name = name
+            self.isNetwork = isNetwork
+            self.freeBytes = freeBytes
+        }
+    }
+
+    /// What a volume says about itself, as far as choosing a backup disk cares.
+    ///
+    /// A plain value because the rule below has to be testable and no test can
+    /// mount a disk. Every field is optional because macOS leaves them so: a
+    /// network mount on this Mac reports `isInternal` as nil, and answering nil
+    /// as `false` is what would put the boot volume in the list.
+    public struct VolumeFacts: Sendable, Equatable {
+        public var isRootFileSystem: Bool?
+        public var isBrowsable: Bool?
+        public var isReadOnly: Bool?
+        public var isInternal: Bool?
+        public var isLocal: Bool?
+
+        public init(
+            isRootFileSystem: Bool? = nil, isBrowsable: Bool? = nil, isReadOnly: Bool? = nil,
+            isInternal: Bool? = nil, isLocal: Bool? = nil
+        ) {
+            self.isRootFileSystem = isRootFileSystem
+            self.isBrowsable = isBrowsable
+            self.isReadOnly = isReadOnly
+            self.isInternal = isInternal
+            self.isLocal = isLocal
+        }
+    }
+
+    /// Whether a mounted volume is worth offering as a backup destination.
+    ///
+    /// Each clause is one thing this Mac actually mounts. Measured here, with
+    /// two external disks and two disk images attached:
+    ///
+    ///     int  local rm ej br ro   path
+    ///     Y    Y     n  n  Y  n    /
+    ///     ?    n     n  n  Y  n    /Users/bobby/OrbStack       (NFS share)
+    ///     ?    Y     Y  Y  Y  Y    /Volumes/SuperCmd           (mounted .dmg)
+    ///     n    Y     Y  Y  Y  n    /Volumes/Install macOS…     (USB stick)
+    ///     n    Y     n  n  Y  n    /Volumes/Samsung T7         (USB SSD)
+    ///
+    /// `removable` is the trap: it is **false** for the T7, so "is this an
+    /// external disk" has to be asked as `isInternal == false`. Note also what
+    /// keeps the two disk images out — they answer `isInternal` with nil, not
+    /// with false, so the external clause never matches them. The read-only
+    /// clause is not what excludes them; it is there for the disk or share that
+    /// answers yes to one of those questions *and* cannot be written to.
+    ///
+    /// Deliberately not offered: a second *internal* volume. It would be a
+    /// legitimate choice on a Mac that has one, but on the far more common
+    /// Mac it is another APFS volume in the boot container, which shares its
+    /// free space — moving backups there frees nothing while looking like it
+    /// freed everything. The folder panel still reaches it.
+    static func isWorthOffering(_ facts: VolumeFacts) -> Bool {
+        if facts.isRootFileSystem == true { return false }
+        if facts.isBrowsable == false { return false }
+        if facts.isReadOnly == true { return false }
+        return facts.isInternal == false || facts.isLocal == false
+    }
+
+    /// Every mounted volume worth offering, minus those already carrying a
+    /// store and those under `configuredPaths` (a destination nested deeper
+    /// than the marker check below can see).
+    ///
+    /// Run through `offCooperativePool` for the same reason as
+    /// ``scanMountedVolumes()``: one unresponsive share would otherwise stop the
+    /// app scheduling anything at all.
+    public static func scanCandidateVolumes(
+        excludingStoresAt configuredPaths: [String] = []
+    ) async -> [Candidate] {
+        await offCooperativePool {
+            let volumes = FileManager.default.mountedVolumeURLs(
+                includingResourceValuesForKeys: candidateKeys,
+                options: [.skipHiddenVolumes]) ?? []
+            return candidates(among: volumes, excludingStoresAt: configuredPaths)
+        }
+    }
+
+    private static let candidateKeys: [URLResourceKey] = [
+        .volumeNameKey, .volumeIsRootFileSystemKey, .volumeIsBrowsableKey,
+        .volumeIsReadOnlyKey, .volumeIsInternalKey, .volumeIsLocalKey,
+        .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
+    ]
+
+    /// The pure half, for the same reason ``stores(among:)`` has one.
+    static func candidates(
+        among volumes: [URL], excludingStoresAt configuredPaths: [String] = []
+    ) -> [Candidate] {
+        let configured = Set(configuredPaths.map { URL(fileURLWithPath: $0).standardized.path })
+        var out: [Candidate] = []
+        for volume in volumes {
+            guard let values = try? volume.resourceValues(forKeys: Set(candidateKeys)) else {
+                continue
+            }
+            guard isWorthOffering(VolumeFacts(
+                isRootFileSystem: values.volumeIsRootFileSystem,
+                isBrowsable: values.volumeIsBrowsable,
+                isReadOnly: values.volumeIsReadOnly,
+                isInternal: values.volumeIsInternal,
+                isLocal: values.volumeIsLocal))
+            else { continue }
+            guard !isSpokenFor(volume, configuredPaths: configured) else { continue }
+            out.append(Candidate(
+                volume: volume,
+                name: values.volumeName,
+                isNetwork: values.volumeIsLocal == false,
+                freeBytes: BackupDestinationProbe.preferredFree(
+                    important: values.volumeAvailableCapacityForImportantUsage,
+                    plain: values.volumeAvailableCapacity.map(Int64.init))))
+        }
+        // Same reason as `stores(among:)`: a picker whose order shuffles between
+        // openings is a picker you have to re-read every time.
+        return out.sorted { ($0.name ?? $0.volume.path) < ($1.name ?? $1.volume.path) }
+    }
+
+    /// Whether this volume is already accounted for by a row of its own.
+    ///
+    /// Two ways it can be. It carries a store, in which case adopting its root
+    /// would start a second store beside the first; or a configured destination
+    /// lives somewhere on it, which the marker check above cannot see because
+    /// that destination may be nested deeper than the two places it looks.
+    static func isSpokenFor(_ volume: URL, configuredPaths: Set<String>) -> Bool {
+        if store(at: volume) != nil { return true }
+        let root = volume.standardized.path
+        return configuredPaths.contains { $0 == root || $0.hasPrefix(root + "/") }
+    }
+
     /// The store at this volume root, preferring the `DuoUpdater Backups`
     /// subdirectory over the volume root itself carrying the marker directly.
     ///

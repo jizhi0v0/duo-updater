@@ -5695,7 +5695,14 @@ final class AppListModel {
         relaunching.insert(result.id)
         relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
-        defer { relaunching.remove(result.id); releaseRowOrder() }
+        defer {
+            relaunching.remove(result.id)
+            releaseRowOrder()
+            // Whatever the outcome, the installer's window is over by now, so
+            // this is the first safe moment to move anything owed to the backup
+            // disk. Held back at the `backupCurrent` call above.
+            startOwedBackupTransfer()
+        }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
         // it. Besides this line, only a fresh `restart` (which drops the marker
@@ -6588,8 +6595,31 @@ final class AppListModel {
         return false
     }
 
+    /// Kick the transfer queue for anything owed to the backup disk.
+    ///
+    /// Split out of `backupCurrent` because a staged relaunch must not run it
+    /// yet: the seconds right after that quit belong to the app's own installer,
+    /// and on macOS 27 they are the only seconds it gets (see
+    /// `relaunchStagedUpdate`). Moving a few hundred MB to an external disk in
+    /// that window is work we would be adding to the busiest moment of someone
+    /// else's install. Measured 2026-09-19: the transfer's `recorded`/`moved`
+    /// steps landed 8-9 s after ShipIt had already been killed, i.e. squarely
+    /// across its window.
+    private func startOwedBackupTransfer() {
+        guard prefs.backupDestination.kind == .external else { return }
+        Task.detached(priority: .utility) {
+            await BackupTransferQueue.shared.resumePending()
+            await BackupTransferQueue.shared.drain()
+        }
+    }
+
+    /// - Parameter transferNow: whether to start moving what is owed to the
+    ///   backup disk before returning. False holds it back for the caller to
+    ///   start later; see `startOwedBackupTransfer`.
     @discardableResult
-    private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async -> InstallCoordinator.BackupOutcome {
+    private func backupCurrent(
+        _ result: UpdateResult, route: InstallCoordinator.Route, transferNow: Bool = true
+    ) async -> InstallCoordinator.BackupOutcome {
         // With the store pointed at a disk that is not here, a backup still gets
         // taken — it just waits locally for the disk to come back. That is the
         // agreed degradation, and it is the right one until the boot volume is
@@ -6609,11 +6639,8 @@ final class AppListModel {
         // Anything that landed is owed to the disk. Draining reads what is owed
         // from the sidecars rather than from this call, so a backup taken while
         // the disk was away is picked up here too.
-        if outcome != .failed, prefs.backupDestination.kind == .external {
-            Task.detached(priority: .utility) {
-                await BackupTransferQueue.shared.resumePending()
-                await BackupTransferQueue.shared.drain()
-            }
+        if transferNow, outcome != .failed {
+            startOwedBackupTransfer()
         }
         if case .savedWithoutRuntimeState(let omitted) = outcome {
             Log.install.notice("backup: \(result.app.name, privacy: .public) stored without \(omitted, privacy: .public) runtime file(s)")
@@ -6693,7 +6720,7 @@ final class AppListModel {
             return running
         }
         let before = Set(running.map(\.processIdentifier))
-        let outcome = await backupCurrent(result, route: .sparkle)
+        let outcome = await backupCurrent(result, route: .sparkle, transferNow: false)
         let after = AppRestarter.runningInstances(of: result.app)
         let intact = StagedRelaunchBackup.isIntact(
             runningBefore: before, runningAfter: Set(after.map(\.processIdentifier)),

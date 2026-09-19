@@ -128,11 +128,12 @@ import Testing
         }
     }
 
-    /// The same swap, inside the same second. Modification date is a one-second
-    /// field on HFS+ — which is what an external backup disk generally is — so on
-    /// that filesystem a fast supersede is invisible to the date alone. The inode
-    /// is what catches it, and this test is what says so: both copies are stamped
-    /// with the same date on purpose, leaving nothing else to tell them apart.
+    /// The same swap, inside the same second. On HFS+ — which an external backup
+    /// disk routinely is — the modification date is a whole-second field, so a
+    /// fast supersede is invisible to the date alone; the inode is what catches
+    /// it. This runs on whatever filesystem `TMPDIR` is, so it stamps both copies
+    /// with the same date rather than relying on that, leaving nothing but the
+    /// inode to tell them apart.
     @Test func aBackupReplacedWithinTheSameSecondIsMeasuredAgain() throws {
         try withScratch { store, index, walk in
             let dir = try makeBackup("one", in: store, bytes: 4096)

@@ -47,10 +47,12 @@ final class BackupSizeIndex: @unchecked Sendable {
 
     /// `identity` is the key directory's inode and modification date. Inode
     /// alone would miss a sidecar rewritten in place
-    /// (``BackupStore/holdOnThisMac(keys:)``); modification date alone is a
-    /// one-second field on HFS+, which is what an external backup disk
-    /// generally is, so a directory replaced inside the same second would read
-    /// as unchanged. See ``identity(of:)``.
+    /// (``BackupStore/holdOnThisMac(keys:)``); date alone would miss a
+    /// replacement inside the same second, because the date is a whole-second
+    /// field on HFS+ — measured 2026-09-19 on an HFS+ volume, where three
+    /// directories created in one second all reported the identical
+    /// `1789817168.000000000`, against nanosecond values on APFS. An external
+    /// backup disk is routinely HFS+. See ``identity(of:)``.
     struct Entry: Codable, Equatable {
         var identity: String
         var bytes: Int64
@@ -98,7 +100,17 @@ final class BackupSizeIndex: @unchecked Sendable {
     /// Callers pass **every** directory of a store in one call. That is what
     /// lets this prune: an entry under a parent that was scanned and was not
     /// asked about is a backup that has been deleted, and dropping it here is
-    /// the only thing that keeps the file from growing forever.
+    /// what keeps the file from growing with every backup ever taken.
+    ///
+    /// With one gap, left deliberately: a call with nothing in it returns before
+    /// the prune, having been told about no parent to prune under, so emptying a
+    /// store entirely strands that store's last entries until something is stored
+    /// there again. They are a few dozen bytes each and they cannot be read back
+    /// as a size — the paths are gone, and a directory later created at one of
+    /// them arrives with a new inode. Closing it would mean passing the root
+    /// separately and deciding, for a store that reads as empty, whether it is
+    /// empty or unreadable; getting that wrong retires a whole disk's entries
+    /// every time it is unplugged at the wrong moment.
     func sizes(of directories: [URL], measuring walk: @Sendable (URL) -> Int64) -> [Int64] {
         guard !directories.isEmpty else { return [] }
         let asked = directories.map { (url: $0, identity: Self.identity(of: $0)) }

@@ -69,6 +69,13 @@ public actor BackupTransferQueue {
     /// Keys the sweeper must leave alone.
     public var protectedKeys: Set<String> { inFlight.map { [$0] } ?? [] }
 
+    /// How much of the copy running right now has landed on the disk, or nil
+    /// when nothing is being copied. One `stat`, so it is cheap enough to ask
+    /// once a second while somebody is watching.
+    public var inFlightBytes: Int64? {
+        inFlight.flatMap(BackupStore.transferBytesLanded(forKey:))
+    }
+
     /// How much is still owed, from the queue's own memory. The settings page
     /// polls this rather than rescanning the store every second.
     public var pendingCount: Int { pending.count + (inFlight == nil ? 0 : 1) }

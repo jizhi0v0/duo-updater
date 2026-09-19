@@ -712,6 +712,35 @@ public enum BackupStore {
 
     // MARK: - Transfer
 
+    /// What the archive of `bundleName` is called on the disk.
+    static func archiveName(forBundle bundleName: String) -> String {
+        (bundleName as NSString).deletingPathExtension + ".aar"
+    }
+
+    /// How much of the copy in flight for `key` has landed on the disk.
+    ///
+    /// Read from the size of the file `BundleArchive` is streaming into, which
+    /// is the only thing here that knows. Returns nil when nothing is being
+    /// written for that key — the copy has not started, has just finished and
+    /// been renamed, or there is no disk.
+    ///
+    /// **Bytes on the disk, not bytes read from the app.** The archive is
+    /// compressed as it is written, so this number ends well below the size of
+    /// the bundle it came from — which is why it is offered as a figure and
+    /// never as a fraction of one. A percentage would need a denominator nobody
+    /// has: the compressed size is not known until it is reached.
+    public static func transferBytesLanded(forKey key: String) -> Int64? {
+        guard let root = try? destinationRoot(),
+              let meta = readMeta(in: outboxRoot.appendingPathComponent(key, isDirectory: true))
+        else { return nil }
+        let archive = root
+            .appendingPathComponent(key, isDirectory: true)
+            .appendingPathComponent(archiveName(forBundle: meta.bundleName))
+        let partial = BundleArchive.partialURL(for: archive)
+        return (try? FileManager.default.attributesOfItem(atPath: partial.path)[.size] as? Int64)
+            ?? nil
+    }
+
     /// Keys whose backup is still sitting in the outbox owing a copy to the
     /// destination — what a drain works through.
     ///
@@ -833,7 +862,7 @@ public enum BackupStore {
         let targetDir = root.appendingPathComponent(key, isDirectory: true)
         try fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
 
-        let archiveName = (meta.bundleName as NSString).deletingPathExtension + ".aar"
+        let archiveName = archiveName(forBundle: meta.bundleName)
         let archive = targetDir.appendingPathComponent(archiveName)
         // Straight to the destination rather than via a local staging file:
         // `BundleArchive` already writes a `.partial` beside the target and

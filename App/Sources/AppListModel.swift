@@ -7078,6 +7078,12 @@ final class AppListModel {
         await BackupTransferQueue.shared.state
     }
 
+    /// How much of the copy in flight has reached the disk. One `stat` behind a
+    /// `readMeta`, asked once a second while the settings page is watching.
+    func backupTransferBytes() async -> Int64? {
+        await BackupTransferQueue.shared.inFlightBytes
+    }
+
     /// Move everything that is owed, now. Also the launch path, which is why it
     /// sweeps: a run that was killed mid-transfer left its scratch behind, and
     /// the next launch is the first moment anything can be sure that work is not

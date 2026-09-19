@@ -368,4 +368,46 @@ import Testing
             #expect(BackupStore.storeSizes().destination == 0)
         }
     }
+
+    // MARK: - Watching a transfer in flight
+
+    /// What the settings page shows while a copy is running: the bytes that have
+    /// reached the disk. Read from the file `BundleArchive` streams into, whose
+    /// name is built here by hand — literally, not through the production
+    /// helpers — so that a change to either half of that name fails this rather
+    /// than silently reporting "nothing is happening" for the whole transfer.
+    ///
+    /// Mutation: drop the `.aar` from `archiveName(forBundle:)`, or the leading
+    /// dot from `BundleArchive.partialURL(for:)`.
+    @Test func aTransferInFlightReportsWhatHasLandedOnTheDisk() async throws {
+        try await withTwoDisks { outbox, active, _ in
+            let apps = try appsDirectory(beside: outbox)
+            let app = try makeApp(named: "Watched.app", in: apps, marker: "v1")
+            try await BackupStore.save(
+                appPath: app, key: "watched", version: "1.0", bundleID: "com.example.watched")
+
+            // Nothing being written yet.
+            #expect(BackupStore.transferBytesLanded(forKey: "watched") == nil)
+
+            let target = active.appendingPathComponent("watched", isDirectory: true)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+            let partial = target.appendingPathComponent(".Watched.aar.partial")
+            try Data(count: 4096).write(to: partial)
+            #expect(BackupStore.transferBytesLanded(forKey: "watched") == 4096)
+
+            // And once it is renamed into place there is nothing in flight: the
+            // figure must not keep standing after the copy it described.
+            try FileManager.default.moveItem(
+                at: partial, to: target.appendingPathComponent("Watched.aar"))
+            #expect(BackupStore.transferBytesLanded(forKey: "watched") == nil)
+        }
+    }
+
+    /// A key with no backup at all, which is what the queue asks about for a
+    /// moment either side of a run.
+    @Test func aKeyWithNothingInTheOutboxReportsNothingInFlight() async throws {
+        try await withTwoDisks { _, _, _ in
+            #expect(BackupStore.transferBytesLanded(forKey: "com.example.absent") == nil)
+        }
+    }
 }

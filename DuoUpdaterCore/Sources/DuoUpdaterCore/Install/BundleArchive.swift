@@ -108,7 +108,16 @@ public enum BundleArchive {
     /// behind but never a truncated file under the real name. The caller sweeps
     /// those; a half-written archive that looked complete would be a backup that
     /// fails only at restore time.
-    public static func archive(
+     /// Where the archive is written before it is named. Spelled once so that
+    /// anything watching a transfer in flight watches the file this actually
+    /// writes — a second copy of this rule would be a progress reading that goes
+    /// quietly wrong the day either changes.
+    public static func partialURL(for file: URL) -> URL {
+        file.deletingLastPathComponent()
+            .appendingPathComponent(".\(file.lastPathComponent).partial")
+    }
+
+   public static func archive(
         bundle: URL, to file: URL, compression: Compression = .fast
     ) async throws {
         guard isAvailable else { throw ArchiveError.toolMissing }
@@ -116,8 +125,7 @@ public enum BundleArchive {
             throw ArchiveError.unreadable(bundle.path)
         }
 
-        let partial = file.deletingLastPathComponent()
-            .appendingPathComponent(".\(file.lastPathComponent).partial")
+        let partial = partialURL(for: file)
         try? FileManager.default.removeItem(at: partial)
 
         // `-d bundle` archives the bundle's *contents*; the directory's own name is

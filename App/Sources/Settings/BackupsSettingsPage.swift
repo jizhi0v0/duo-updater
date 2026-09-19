@@ -26,6 +26,10 @@ struct BackupsSettingsPage: View {
     @State private var pendingCount = 0
     @State private var heldCount = 0
     @State private var transferState: BackupTransferQueue.State = .idle
+    /// Bytes of the copy in flight that have landed on the disk. Read every
+    /// second while one is running — the number a bar cannot give, because the
+    /// size the archive will end at is not known until it is reached.
+    @State private var transferBytes: Int64?
     @State private var availability: BackupStore.Availability = .localOnly(BackupStore.outboxRoot)
     /// Each known disk's own reachability, keyed by `destinationKey(_:)`.
     /// Recomputed on every `refresh()`, not on every render — walking a marker
@@ -153,9 +157,11 @@ struct BackupsSettingsPage: View {
                 // `.copying`, so this is once a run rather than once an item:
                 // `refresh()` starts a size walk.
                 if transferState.isCopying, !latest.isCopying {
+                    transferBytes = nil
                     await refresh()
                 } else {
                     transferState = latest
+                    transferBytes = latest.isCopying ? await model.backupTransferBytes() : nil
                 }
                 tick += 1
                 if tick % 2 == 0 {
@@ -535,12 +541,20 @@ struct BackupsSettingsPage: View {
                     // what is moving, and how far along the run is, is the
                     // difference between "working" and "stuck".
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack {
+                        HStack(spacing: 8) {
                             Text("Copying \(name)…")
-                            Spacer()
+                            Spacer(minLength: 8)
                             Text("\(completed + 1)/\(max(total, completed + 1))")
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
+                            // What has actually reached the disk. On a big app
+                            // over USB this is the only thing on the row that
+                            // moves for minutes at a time.
+                            if let transferBytes {
+                                Text(bytes(transferBytes))
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
                         // The bar counts backups, not bytes — see
                         // `BackupTransferQueue.State.copying`, which says why

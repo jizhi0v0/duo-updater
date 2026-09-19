@@ -5695,13 +5695,16 @@ final class AppListModel {
         relaunching.insert(result.id)
         relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
+        // Set on the one way out where the app's own updater is starting as we
+        // leave, so the transfer held back below must keep waiting.
+        var updaterTookOver = false
         defer {
             relaunching.remove(result.id)
             releaseRowOrder()
-            // Whatever the outcome, the installer's window is over by now, so
-            // this is the first safe moment to move anything owed to the backup
-            // disk. Held back at the `backupCurrent` call above.
-            startOwedBackupTransfer()
+            // Anything owed to the backup disk was held back at the
+            // `backupCurrent` call below; start it only once nothing is using
+            // an installer window. See `startOwedBackupTransferIfIdle`.
+            if !updaterTookOver { startOwedBackupTransferIfIdle() }
         }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
@@ -5741,6 +5744,9 @@ final class AppListModel {
         // clicks stay out for the whole copy. `running` is re-read after it; nil
         // means the user quit the app during the copy and has taken over.
         guard let afterBackup = await takeRollbackPointBeforeStagedRelaunch(result, running: running) else {
+            // The app quit during the copy, so its own updater is starting now —
+            // the worst possible moment to begin moving hundreds of MB.
+            updaterTookOver = true
             await refreshRow(result)
             return
         }
@@ -6116,6 +6122,9 @@ final class AppListModel {
             let version = await Self.readShortVersionOffMain(app.path)
             UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
         }
+        // This hand-off is settled — the window it was holding open has closed,
+        // so whatever `relaunchStagedUpdate` held back can finally move.
+        startOwedBackupTransferIfIdle()
     }
 
     /// Wait until no rollback or install holds this row's `bundleChanges` claim.
@@ -6611,6 +6620,29 @@ final class AppListModel {
             await BackupTransferQueue.shared.resumePending()
             await BackupTransferQueue.shared.drain()
         }
+    }
+
+    /// Start that transfer only once no installer window is open or pending.
+    ///
+    /// "The relaunch returned" is not the same as "the window has passed", and
+    /// two of the three ways out of `relaunchStagedUpdate` prove it:
+    ///
+    ///  • **Another relaunch still in flight.** The Update All loop moves
+    ///    straight from one row to the next, and `drain()` is global —
+    ///    `resumePending()` reads every owed key from the sidecars, so it is
+    ///    not scoped to the app whose window just closed. App A's transfer
+    ///    would land inside app B's window.
+    ///  • **A quit hand-off still armed.** The `.wontQuit` path ends the wait
+    ///    *before* the app has quit (a save prompt is up). Its installer's
+    ///    window is in the future, not the past; `relayQuitHandoff` starts the
+    ///    transfer once that hand-off settles.
+    ///
+    /// The third — standing down because the app quit on its own mid-backup,
+    /// i.e. its updater is starting right now — only the caller can know, so
+    /// it is checked there.
+    private func startOwedBackupTransferIfIdle() {
+        guard relaunching.isEmpty, quitHandoffs.isEmpty else { return }
+        startOwedBackupTransfer()
     }
 
     /// - Parameter transferNow: whether to start moving what is owed to the

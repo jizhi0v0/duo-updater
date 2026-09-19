@@ -47,9 +47,15 @@ concurrency:
 
 jobs:
   review:
+    # The recipe sweep on the mini opens one of these every few hours from a
+    # `verify/baseline-<stamp>` branch, under the maintainer's own account, and
+    # the whole diff is verify/baseline.json — machine state, regenerated, with
+    # nothing for a reviewer to say. Skipped at the job level so no runner and
+    # no model time is spent on them at all.
     if: >-
       github.event.pull_request.user.login == 'jizhi0v0' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.event.pull_request.head.ref, 'verify/baseline-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

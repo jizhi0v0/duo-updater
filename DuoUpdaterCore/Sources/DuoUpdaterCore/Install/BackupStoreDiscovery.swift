@@ -105,14 +105,24 @@ public enum BackupStoreDiscovery {
         /// reports as `isLocal`.
         public let isNetwork: Bool
         public let freeBytes: Int64?
+        /// A Time Machine volume, which macOS reserves whole. Listed rather than
+        /// dropped: someone who has just plugged this disk in is owed the reason
+        /// it cannot be chosen, and a disk that silently fails to appear reads as
+        /// a bug in the list. Nothing may be written to it — see
+        /// ``BackupDestinationProbe/timeMachineVolumeName(holding:)``.
+        public let isReservedForTimeMachine: Bool
 
         public var id: String { volume.path }
 
-        public init(volume: URL, name: String?, isNetwork: Bool, freeBytes: Int64?) {
+        public init(
+            volume: URL, name: String?, isNetwork: Bool, freeBytes: Int64?,
+            isReservedForTimeMachine: Bool = false
+        ) {
             self.volume = volume
             self.name = name
             self.isNetwork = isNetwork
             self.freeBytes = freeBytes
+            self.isReservedForTimeMachine = isReservedForTimeMachine
         }
     }
 
@@ -220,11 +230,19 @@ public enum BackupStoreDiscovery {
                 isNetwork: values.volumeIsLocal == false,
                 freeBytes: BackupDestinationProbe.preferredFree(
                     important: values.volumeAvailableCapacityForImportantUsage,
-                    plain: values.volumeAvailableCapacity.map(Int64.init))))
+                    plain: values.volumeAvailableCapacity.map(Int64.init)),
+                isReservedForTimeMachine: BackupDestinationProbe
+                    .carriesTimeMachineMarkers(at: volume)))
         }
         // Same reason as `stores(among:)`: a picker whose order shuffles between
-        // openings is a picker you have to re-read every time.
-        return out.sorted { ($0.name ?? $0.volume.path) < ($1.name ?? $1.volume.path) }
+        // openings is a picker you have to re-read every time. Disks that cannot
+        // be chosen sort last, where a list is read least.
+        return out.sorted { a, b in
+            if a.isReservedForTimeMachine != b.isReservedForTimeMachine {
+                return !a.isReservedForTimeMachine
+            }
+            return (a.name ?? a.volume.path) < (b.name ?? b.volume.path)
+        }
     }
 
     /// Whether this volume is already accounted for by a row of its own.

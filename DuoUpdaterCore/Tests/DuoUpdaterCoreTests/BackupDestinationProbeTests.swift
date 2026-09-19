@@ -425,4 +425,49 @@ import Testing
         #expect(space.free > 0)
         #expect(space.total > space.free)
     }
+
+    // MARK: - Time Machine volumes
+
+    /// A disk `backupd` owns is refused before anything is written to it, and the
+    /// refusal names the remedy Apple gives: a second APFS volume on the same
+    /// disk. The marker check runs against a directory of this test's own, since
+    /// no test can make a Time Machine volume.
+    ///
+    /// Mutation: drop either name from `timeMachineMarkers`.
+    @Test func aTimeMachineDiskIsRecognisedByWhatBackupdLeavesOnIt() throws {
+        for marker in [
+            "com.apple.timemachine.private.structure.metadata",
+            "com.apple.backupd.HostUUID",
+        ] {
+            try withScratch { dir in
+                #expect(!BackupDestinationProbe.carriesTimeMachineMarkers(at: dir))
+                let value = Data("x".utf8)
+                let set = value.withUnsafeBytes {
+                    setxattr(dir.path, marker, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW)
+                }
+                try #require(set == 0, "could not set \(marker)")
+                #expect(BackupDestinationProbe.carriesTimeMachineMarkers(at: dir))
+            }
+        }
+    }
+
+    /// An ordinary folder carries none of them, which is what keeps every other
+    /// disk out of this branch.
+    @Test func anOrdinaryFolderIsNotATimeMachineVolume() throws {
+        try withScratch { dir in
+            #expect(!BackupDestinationProbe.carriesTimeMachineMarkers(at: dir))
+            #expect(BackupDestinationProbe.timeMachineVolumeName(holding: dir) == nil)
+        }
+    }
+
+    /// The wording is load-bearing: "can't be written to" sends someone looking at
+    /// permissions, which are not the problem — the disk this came from is
+    /// `drwxrwxr-x` and owned by the user.
+    @Test func theRefusalSaysWhatToDoAboutIt() {
+        let message = BackupDestinationProbe.ProbeFailure
+            .reservedForTimeMachine("Samsung T7").errorDescription ?? ""
+        #expect(message.contains("Samsung T7"))
+        #expect(message.contains("Time Machine"))
+        #expect(message.contains("Disk Utility"))
+    }
 }

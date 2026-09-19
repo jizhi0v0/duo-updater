@@ -293,6 +293,7 @@ struct BackupsSettingsPage: View {
             Menu {
                 ForEach(candidateVolumes) { candidate in
                     Button(candidateTitle(candidate)) { adopt(at: candidate.volume) }
+                        .disabled(candidate.isReservedForTimeMachine)
                 }
                 Divider()
                 Button("Another Folder…") { chooseDisk() }
@@ -327,6 +328,12 @@ struct BackupsSettingsPage: View {
     /// disappearing mid-copy.
     private func candidateTitle(_ candidate: BackupStoreDiscovery.Candidate) -> String {
         let volume = candidate.name ?? candidate.volume.lastPathComponent
+        // Said instead of the free space, not beside it: how much room a disk has
+        // is beside the point when none of it can be used, and the one thing the
+        // person plugging it in needs to know is why it is greyed out.
+        if candidate.isReservedForTimeMachine {
+            return String(localized: "\(volume) — reserved for Time Machine")
+        }
         let name = candidate.isNetwork ? String(localized: "\(volume) (share)") : volume
         guard let free = candidate.freeBytes else { return name }
         return String(localized: "\(name) — \(bytes(free)) free")

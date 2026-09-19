@@ -55,6 +55,7 @@ public enum BackupDestinationProbe {
     public enum ProbeFailure: LocalizedError {
         case notADirectory(String)
         case notWritable(String)
+        case reservedForTimeMachine(String)
         case tooSmall(needBytes: Int64, freeBytes: Int64)
 
         public var errorDescription: String? {
@@ -63,6 +64,10 @@ public enum BackupDestinationProbe {
                 return "“\(path)” isn’t a folder."
             case .notWritable(let path):
                 return "“\(path)” can’t be written to."
+            case .reservedForTimeMachine(let name):
+                return "“\(name)” is a Time Machine disk, and macOS reserves the whole "
+                    + "volume for Time Machine’s own backups. To keep other files on this "
+                    + "disk, add a second APFS volume to it in Disk Utility and choose that."
             case .tooSmall(let need, let free):
                 let f = ByteCountFormatter()
                 f.countStyle = .file
@@ -82,6 +87,12 @@ public enum BackupDestinationProbe {
         guard fm.fileExists(atPath: directory.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             throw ProbeFailure.notADirectory(directory.path)
+        }
+
+        if let reserved = timeMachineVolumeName(holding: directory) {
+            // Before anything is written, because nothing can be: this is the one
+            // refusal that is known in advance rather than discovered by trying.
+            throw ProbeFailure.reservedForTimeMachine(reserved)
         }
 
         let values = try? directory.resourceValues(forKeys: [
@@ -231,6 +242,46 @@ public enum BackupDestinationProbe {
         if let important, important > 0 { return important }
         return plain ?? important
     }
+
+    /// The name of the Time Machine volume holding `directory`, or nil when it is
+    /// not on one.
+    ///
+    /// Apple reserves such a volume whole: "If you set up Time Machine to use
+    /// this storage device for Time Machine backups, then you can use it only for
+    /// Time Machine backups, not for other files" — the remedy being a second
+    /// APFS volume on the same disk, which shares its space.
+    ///
+    /// Enforced below the permission bits, so nothing cheaper sees it coming.
+    /// Measured on an external T7 whose root is `drwxrwxr-x bobby staff` with
+    /// ownership ignored and `Volume Read-Only: No`: `mkdir` at the root and
+    /// `touch` inside an existing folder both return EPERM, and
+    /// `volumeIsReadOnly` reports false throughout.
+    ///
+    /// Read-only itself — `getxattr` asks for a length and reads no value.
+    public static func timeMachineVolumeName(holding directory: URL) -> String? {
+        guard let values = try? directory.resourceValues(
+                forKeys: [.volumeURLKey, .volumeNameKey]),
+              let volume = values.volume,
+              carriesTimeMachineMarkers(at: volume)
+        else { return nil }
+        return values.volumeName ?? volume.lastPathComponent
+    }
+
+    /// The marker half, which a test can set on a directory of its own — no test
+    /// can make a Time Machine volume.
+    static func carriesTimeMachineMarkers(at directory: URL) -> Bool {
+        let path = directory.path
+        return timeMachineMarkers.contains { getxattr(path, $0, nil, 0, 0, XATTR_NOFOLLOW) >= 0 }
+    }
+
+    /// What `backupd` leaves on the root of a volume it owns. Both were present
+    /// on the disk this was written against, along with `backup_manifest.plist`
+    /// and the `com.apple.backupd.*` family; two are taken rather than one so a
+    /// single renamed attribute does not silently switch this check off.
+    private static let timeMachineMarkers = [
+        "com.apple.timemachine.private.structure.metadata",
+        "com.apple.backupd.HostUUID",
+    ]
 
     /// Whether two paths sit on the same mounted volume right now.
     ///

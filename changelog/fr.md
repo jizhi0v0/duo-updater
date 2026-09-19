@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.99
+
+**Les sauvegardes de restauration peuvent désormais vivre sur un autre disque.** Une sauvegarde est une copie entière d'une app, et sur le volume de démarrage elles s'accumulent. Réglages → Sauvegardes liste les disques connectés avec l'espace libre de chacun, déplace les sauvegardes que vous avez déjà et écrit les nouvelles là-bas en arrière-plan : débranchez le disque et vous aurez un délai, pas un point de restauration manquant. `duo backups` gagne `disks`, `sync`, `verify` et `probe`.
+
+**千问输入法 est désormais pris en charge.** DuoUpdater vous signale la sortie d'une nouvelle version et met à jour la méthode de saisie comme elle se met à jour elle-même.
+
+**Les notes de version ne restent plus bloquées sur la version précédente.** Quand un développeur publie une mise à jour quelques minutes avant que sa page de changements n'en parle, les anciennes notes étaient classées sous la nouvelle version et conservées indéfiniment. CleanShot X affichait les notes de 5.0 sous 5.0.1 depuis le jour de sa sortie.
+
+**Supprimer une sauvegarde libère maintenant l'espace annoncé.** Les sauvegardes prises par d'anciennes versions de DuoUpdater étaient écrites dans une forme que macOS refuse de supprimer : Nettoyer laissait l'essentiel de la copie sur le disque tout en la comptant comme récupérée.
+
+**Nettoyer s'ouvre immédiatement.** Auparavant, chaque sauvegarde enregistrée était remesurée de zéro à chaque clic.
+
+**WorkBuddy affiche de nouveau sa version la plus récente.** Son service de mise à jour répond par l'étape suivante d'une chaîne de mises à jour plutôt que par la build la plus récente, si bien que les quatre éditions de WorkBuddy avaient deux versions de retard.
+
+**Sous le capot.** Une app qui n'a jamais déclaré quel binaire elle exécute — Muse, de Meta, en fait partie — livre désormais quand même ses frameworks et son SDK.
+
 ## 0.3.98
 
 **Les mises à jour terminées avec Relancer peuvent désormais être annulées.** Quand une app a déjà téléchargé sa propre mise à jour et que vous cliquez sur Relancer, DuoUpdater enregistre d'abord la version actuelle : la mise à jour apparaît alors dans Restauration comme les autres. Auparavant, seules les mises à jour installées par DuoUpdater lui-même pouvaient être annulées.

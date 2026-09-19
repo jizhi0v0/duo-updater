@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.99
+
+**Backups zum Zurücksetzen können jetzt auf einem anderen Volume liegen.** Ein Backup ist eine vollständige Kopie einer App, und auf dem Startvolume summiert sich das. Unter Einstellungen → Backups stehen die angeschlossenen Volumes mit ihrem jeweils freien Speicher; bereits vorhandene Backups lassen sich dorthin verschieben, neue werden im Hintergrund dorthin geschrieben – ist das Volume abgezogen, bedeutet das eine Verzögerung und keinen fehlenden Rücksetzpunkt. `duo backups` hat `disks`, `sync`, `verify` und `probe` dazubekommen.
+
+**千问输入法 wird jetzt unterstützt.** DuoUpdater meldet, wenn eine neue Version erschienen ist, und aktualisiert die Eingabemethode so, wie sie sich selbst aktualisiert.
+
+**Versionshinweise bleiben nicht mehr bei der vorherigen Version hängen.** Veröffentlicht ein Entwickler ein Update ein paar Minuten, bevor seine Changelog-Seite es erwähnt, wurden die älteren Hinweise unter der neuen Version abgelegt und dort für immer behalten. CleanShot X zeigte seit dem Erscheinen von 5.0.1 die Hinweise zu 5.0.
+
+**Ein gelöschtes Backup gibt jetzt wirklich den Speicher frei, den es meldet.** Backups aus älteren DuoUpdater-Versionen wurden in einer Form geschrieben, die macOS nicht löscht – „Aufräumen“ ließ den größten Teil der Kopie auf dem Volume und zählte sie trotzdem als freigegeben.
+
+**„Aufräumen“ öffnet sich sofort.** Bisher wurde bei jedem Klick jedes gespeicherte Backup neu vermessen.
+
+**WorkBuddy zeigt wieder seine neueste Version.** Der Update-Dienst antwortet mit dem nächsten Schritt einer Upgrade-Kette statt mit dem neuesten Build, weshalb alle vier WorkBuddy-Ausgaben zwei Releases zurücklagen.
+
+**Unter der Haube.** Eine App, die nie angegeben hat, welche Binärdatei sie ausführt – darunter Metas Muse –, gibt ihre Frameworks und ihr SDK jetzt trotzdem preis.
+
 ## 0.3.98
 
 **Updates, die über „Neu starten“ abgeschlossen werden, lassen sich jetzt zurücksetzen.** Hat eine App ihr Update schon selbst geladen und du klickst auf „Neu starten“, sichert DuoUpdater jetzt zuerst die aktuelle Version – das Update erscheint dann wie jedes andere unter „Zurücksetzen“. Bisher ließen sich nur Updates rückgängig machen, die DuoUpdater selbst installiert hatte.

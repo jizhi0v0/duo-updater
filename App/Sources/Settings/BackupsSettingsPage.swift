@@ -40,6 +40,10 @@ struct BackupsSettingsPage: View {
     /// none. Offered inside the "somewhere else" row rather than as rows of
     /// their own — see `chooseAnotherRow`.
     @State private var candidateVolumes: [BackupStoreDiscovery.Candidate] = []
+    /// Whether each candidate will actually take a file, by candidate id. Filled
+    /// in behind the rows the way `storeBytes` is: the answer costs a write, and
+    /// a row that waited for it would be a row that was not there yet.
+    @State private var candidateWritable: [String: Bool] = [:]
     /// Each disk's real icon (or, absent that, the measured volume kind for a
     /// symbol fallback), keyed the same way a row identifies itself. See
     /// `AppListModel.backupDiskAppearances(for:)` for why this is fetched off
@@ -196,6 +200,7 @@ struct BackupsSettingsPage: View {
         for found in discoveredStores where !knownIdentities.contains(found.marker.identity) {
             out.append(.discovered(found))
         }
+        out.append(contentsOf: candidateVolumes.map(DestinationOption.candidate))
         return out
     }
 
@@ -213,9 +218,10 @@ struct BackupsSettingsPage: View {
                     // not there at all — and answers the two questions the
                     // word never did: how much is free, and how much of what
                     // is used is ours.
-                    if let id = storeID(for: option), let space = volumeSpace[id] {
+                    if let space = space(for: option) {
+                        let id = storeID(for: option)
                         CapacityBar(
-                            backups: storeBytes[id] ?? 0,
+                            backups: id.flatMap { storeBytes[$0] } ?? 0,
                             used: space.used, total: space.total)
                         // The two numbers worth comparing, at opposite ends of
                         // the bar that shows their proportion. Run together on
@@ -223,8 +229,13 @@ struct BackupsSettingsPage: View {
                         // they could be compared. The left one takes the bar's
                         // own colour, which saves the bar needing a legend.
                         HStack(spacing: 12) {
-                            Text("Backups: \(format(storeBytes[id]))")
-                                .foregroundStyle(Color.accentColor)
+                            // Left blank on a disk with no store: "Backups: Zero
+                            // KB" would be a measurement of something that does
+                            // not exist, and "…" would promise one is coming.
+                            if let id {
+                                Text("Backups: \(format(storeBytes[id]))")
+                                    .foregroundStyle(Color.accentColor)
+                            }
                             Spacer(minLength: 8)
                             Text("\(bytes(space.free)) free of \(bytes(space.total))")
                                 .foregroundStyle(.secondary)
@@ -269,74 +280,37 @@ struct BackupsSettingsPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isWorking)
+        .disabled(isWorking || isUnusable(option))
         .settingsRow()
     }
 
-    /// The way to a destination the list does not already offer.
-    ///
-    /// When something is plugged in that could hold backups, this names it: a
-    /// disk is what someone is choosing, and making them find a folder on it to
-    /// say so is a detour. They are offered *here*, at the moment of choosing,
-    /// rather than as rows above — a disk with no backups on it is not a place
-    /// backups are kept, and a row of its own would claim that it was.
-    ///
-    /// With nothing plugged in there is nothing to recommend, so the row stays
-    /// the plain button it was rather than becoming a menu with one item in it.
-    @ViewBuilder private var chooseAnotherRow: some View {
-        if candidateVolumes.isEmpty {
-            Button { chooseDisk() } label: { chooseAnotherLabel }
-                .buttonStyle(.plain)
-                .disabled(isWorking)
-                .settingsRow()
-        } else {
-            Menu {
-                ForEach(candidateVolumes) { candidate in
-                    Button(candidateTitle(candidate)) { adopt(at: candidate.volume) }
-                        .disabled(candidate.isReservedForTimeMachine)
-                }
-                Divider()
-                Button("Another Folder…") { chooseDisk() }
-            } label: {
-                chooseAnotherLabel
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .disabled(isWorking)
-            .settingsRow()
-        }
+    /// A row that cannot be pressed because the disk behind it will not take a
+    /// backup whatever folder is chosen on it.
+    private func isUnusable(_ option: DestinationOption) -> Bool {
+        guard case .candidate(let candidate) = option else { return false }
+        // Until the write test lands the row is pressable: an unanswered question
+        // is not a no, and the panel it opens costs nothing if the answer turns
+        // out to be no.
+        return candidate.isReservedForTimeMachine || candidateWritable[candidate.id] == false
     }
 
-    private var chooseAnotherLabel: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "folder.badge.plus")
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            if candidateVolumes.isEmpty {
+    /// Somewhere that is not a whole disk: a folder inside one, or a share this
+    /// Mac has mounted somewhere other than `/Volumes`. Every disk that is
+    /// attached already has a row of its own above.
+    private var chooseAnotherRow: some View {
+        Button { chooseDisk() } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.badge.plus")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
                 Text("Choose another folder…")
-            } else {
-                Text("Use another disk…")
+                Spacer(minLength: 12)
             }
-            Spacer(minLength: 12)
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-    }
-
-    /// A disk names itself and says how much room it has, because free space is
-    /// the whole reason someone is moving backups off this Mac. A share says so
-    /// too: it is the difference between a cable coming loose and a server
-    /// disappearing mid-copy.
-    private func candidateTitle(_ candidate: BackupStoreDiscovery.Candidate) -> String {
-        let volume = candidate.name ?? candidate.volume.lastPathComponent
-        // Said instead of the free space, not beside it: how much room a disk has
-        // is beside the point when none of it can be used, and the one thing the
-        // person plugging it in needs to know is why it is greyed out.
-        if candidate.isReservedForTimeMachine {
-            return String(localized: "\(volume) — reserved for Time Machine")
-        }
-        let name = candidate.isNetwork ? String(localized: "\(volume) (share)") : volume
-        guard let free = candidate.freeBytes else { return name }
-        return String(localized: "\(name) — \(bytes(free)) free")
+        .buttonStyle(.plain)
+        .disabled(isWorking)
+        .settingsRow()
     }
 
     private func refreshCandidateVolumes() async {
@@ -344,7 +318,15 @@ struct BackupsSettingsPage: View {
         let fresh = await model.candidateBackupVolumes(excluding: configured)
         // Assigning an equal array still invalidates the view, and this runs on
         // a timer.
-        if fresh != candidateVolumes { candidateVolumes = fresh }
+        guard fresh != candidateVolumes else { return }
+        candidateVolumes = fresh
+        // Only for disks whose answer is not already known, so replugging one
+        // disk does not re-test the rest — and never for a Time Machine disk,
+        // which `canWrite` refuses without touching it.
+        for candidate in fresh where candidateWritable[candidate.id] == nil {
+            candidateWritable[candidate.id] =
+                await model.backupVolumeIsWritable(candidate.volume)
+        }
     }
 
     private var storageCard: some View {
@@ -456,12 +438,18 @@ struct BackupsSettingsPage: View {
         case thisMac
         case known(BackupDestination)
         case discovered(BackupStoreDiscovery.Found)
+        /// A disk or share plugged in right now with no backups on it. A row
+        /// like the rest, rather than something to be found inside a menu: a
+        /// disk someone can see attached to their Mac and cannot see in this
+        /// list reads as a list that is broken.
+        case candidate(BackupStoreDiscovery.Candidate)
 
         var id: String {
             switch self {
             case .thisMac: return "this-mac"
             case .known(let destination): return "known:\(destinationKey(destination))"
             case .discovered(let found): return "discovered:\(found.marker.identity)"
+            case .candidate(let candidate): return "candidate:\(candidate.id)"
             }
         }
     }
@@ -473,10 +461,11 @@ struct BackupsSettingsPage: View {
         case .known(let destination):
             return prefs.backupDestination.kind == .external
                 && destinationKey(destination) == destinationKey(prefs.backupDestination)
-        case .discovered:
+        case .discovered, .candidate:
             // Never the active choice: a discovered disk is, by construction,
             // one whose identity isn't among the known destinations, and the
-            // active destination is always one of those.
+            // active destination is always one of those. A candidate has no
+            // store at all yet.
             return false
         }
     }
@@ -497,6 +486,13 @@ struct BackupsSettingsPage: View {
             beginSwitch(to: destination, diskLabel: title(for: option))
         case .discovered(let found):
             adopt(at: found.root)
+        case .candidate(let candidate):
+            // The one row that asks something back. A disk with no store on it
+            // has no folder yet, and which folder is not ours to assume: some
+            // disks are only writable in part, and a share is usually somebody's
+            // whole filing system. The panel opens *on* the disk, so saying "the
+            // top of it" is one press.
+            chooseDisk(startingAt: candidate.volume)
         }
     }
 
@@ -505,6 +501,7 @@ struct BackupsSettingsPage: View {
         case .thisMac: return (BackupStore.outboxRoot.path as NSString).abbreviatingWithTildeInPath
         case .known(let destination): return destination.path
         case .discovered(let found): return found.root.path
+        case .candidate(let candidate): return candidate.volume.path
         }
     }
 
@@ -527,6 +524,11 @@ struct BackupsSettingsPage: View {
             }
         case .discovered:
             return "externaldrive.badge.plus"
+        case .candidate(let candidate):
+            if isUnusable(option) { return "lock.fill" }
+            return candidate.isNetwork
+                ? "externaldrive.connected.to.line.below"
+                : "externaldrive.badge.plus"
         }
     }
 
@@ -550,6 +552,8 @@ struct BackupsSettingsPage: View {
             }
         case .discovered:
             return .blue
+        case .candidate:
+            return isUnusable(option) ? .secondary : .blue
         }
     }
 
@@ -561,6 +565,8 @@ struct BackupsSettingsPage: View {
             return destination.volumeName ?? String(localized: "Backup disk")
         case .discovered(let found):
             return found.volumeName ?? String(localized: "Backup disk")
+        case .candidate(let candidate):
+            return candidate.name ?? candidate.volume.lastPathComponent
         }
     }
 
@@ -592,6 +598,16 @@ struct BackupsSettingsPage: View {
             }
         case .discovered:
             return String(localized: "Has a backup store, but isn’t set up on this Mac.")
+        case .candidate(let candidate):
+            // Says what pressing it will do, because this is the only row whose
+            // press opens something rather than deciding something.
+            if candidate.isReservedForTimeMachine {
+                return String(localized: "Reserved for Time Machine — nothing else can be written here")
+            }
+            if candidateWritable[candidate.id] == false {
+                return String(localized: "Can’t be written to")
+            }
+            return String(localized: "No backups here yet — choose a folder on it")
         }
     }
 
@@ -632,6 +648,7 @@ struct BackupsSettingsPage: View {
         case .thisMac: return DestinationOption.thisMac.id
         case .known(let destination): return destination.identity ?? destination.path ?? "unknown"
         case .discovered(let found): return found.marker.identity
+        case .candidate(let candidate): return candidate.id
         }
     }
 
@@ -650,6 +667,10 @@ struct BackupsSettingsPage: View {
             // Discovered rows are, by construction, on a volume mounted right
             // now — there is nothing to dim.
             return false
+        case .candidate:
+            // The disk is attached and healthy; what is dimmed is the fact that
+            // nothing here can put anything on it.
+            return isUnusable(option)
         }
     }
 
@@ -663,6 +684,9 @@ struct BackupsSettingsPage: View {
         }
         for found in discoveredStores {
             entries.append((found.marker.identity, found.root.path))
+        }
+        for candidate in candidateVolumes {
+            entries.append((candidate.id, candidate.volume.path))
         }
         let appearances = await model.backupDiskAppearances(for: entries)
         // Merged, not replaced: a disk that just went offline keeps whatever
@@ -681,6 +705,9 @@ struct BackupsSettingsPage: View {
             case .thisMac:                return store.location == .outbox
             case .known(let destination): return store.identity == destination.identity
             case .discovered(let found):  return store.identity == found.marker.identity
+            // A candidate is a volume with no store on it — that is what makes
+            // it a candidate rather than a discovered disk.
+            case .candidate:              return false
             }
         }?.id
     }
@@ -692,8 +719,18 @@ struct BackupsSettingsPage: View {
     /// Whether the row is already saying its numbers, in which case the caption
     /// beneath has nothing left to add.
     private func showsCapacity(_ option: DestinationOption) -> Bool {
-        guard let id = storeID(for: option) else { return false }
-        return volumeSpace[id] != nil
+        space(for: option) != nil
+    }
+
+    /// Room on the volume this row stands for. A store's measurement where there
+    /// is a store, and the volume's own figures where there is not — a disk with
+    /// nothing on it still has to say how big it is, or choosing it is a guess.
+    private func space(for option: DestinationOption) -> BackupVolumeSpace? {
+        if let id = storeID(for: option) { return volumeSpace[id] }
+        guard case .candidate(let candidate) = option,
+              let free = candidate.freeBytes, let total = candidate.totalBytes, total > 0
+        else { return nil }
+        return BackupVolumeSpace(free: free, total: total)
     }
 
     // MARK: - Status wording
@@ -828,8 +865,11 @@ struct BackupsSettingsPage: View {
 
     // MARK: - Actions
 
-    private func chooseDisk() {
+    private func chooseDisk(startingAt volume: URL? = nil) {
         let panel = NSOpenPanel()
+        // Opening on the disk that was pressed, so choosing its top level is one
+        // press rather than a navigation.
+        panel.directoryURL = volume
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false

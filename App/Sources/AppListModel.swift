@@ -6756,6 +6756,13 @@ final class AppListModel {
     ///
     /// `configuredPaths` are the destinations this Mac already has rows for; a
     /// disk holding one of them is not somewhere new.
+    /// Whether a disk offered in the picker would actually take a backup. A
+    /// create-and-remove, off the cooperative pool because a share that has gone
+    /// away blocks the thread that asks.
+    func backupVolumeIsWritable(_ volume: URL) async -> Bool {
+        await offCooperativePool(qos: .userInitiated) { BackupDestinationProbe.canWrite(at: volume) }
+    }
+
     func candidateBackupVolumes(
         excluding configuredPaths: [String]
     ) async -> [BackupStoreDiscovery.Candidate] {

@@ -105,6 +105,9 @@ public enum BackupStoreDiscovery {
         /// reports as `isLocal`.
         public let isNetwork: Bool
         public let freeBytes: Int64?
+        /// The volume's size. Carried with `freeBytes` because a row showing one
+        /// without the other says nothing: "360 GB free" has no scale.
+        public let totalBytes: Int64?
         /// A Time Machine volume, which macOS reserves whole. Listed rather than
         /// dropped: someone who has just plugged this disk in is owed the reason
         /// it cannot be chosen, and a disk that silently fails to appear reads as
@@ -116,12 +119,13 @@ public enum BackupStoreDiscovery {
 
         public init(
             volume: URL, name: String?, isNetwork: Bool, freeBytes: Int64?,
-            isReservedForTimeMachine: Bool = false
+            totalBytes: Int64? = nil, isReservedForTimeMachine: Bool = false
         ) {
             self.volume = volume
             self.name = name
             self.isNetwork = isNetwork
             self.freeBytes = freeBytes
+            self.totalBytes = totalBytes
             self.isReservedForTimeMachine = isReservedForTimeMachine
         }
     }
@@ -204,6 +208,7 @@ public enum BackupStoreDiscovery {
         .volumeNameKey, .volumeIsRootFileSystemKey, .volumeIsBrowsableKey,
         .volumeIsReadOnlyKey, .volumeIsInternalKey, .volumeIsLocalKey,
         .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
+        .volumeTotalCapacityKey,
     ]
 
     /// The pure half, for the same reason ``stores(among:)`` has one.
@@ -231,6 +236,7 @@ public enum BackupStoreDiscovery {
                 freeBytes: BackupDestinationProbe.preferredFree(
                     important: values.volumeAvailableCapacityForImportantUsage,
                     plain: values.volumeAvailableCapacity.map(Int64.init)),
+                totalBytes: values.volumeTotalCapacity.map(Int64.init),
                 isReservedForTimeMachine: BackupDestinationProbe
                     .carriesTimeMachineMarkers(at: volume)))
         }

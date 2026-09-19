@@ -470,4 +470,51 @@ import Testing
         #expect(message.contains("Time Machine"))
         #expect(message.contains("Disk Utility"))
     }
+
+    // MARK: - May a file be created here at all
+
+    /// The question the picker asks of every disk someone has plugged in. It has
+    /// to be asked by writing: the two volumes that prompted it both say yes
+    /// through their permission bits and then refuse every write.
+    ///
+    /// Mutation: `return true` from `canWrite`.
+    @Test func aFolderThatRefusesWritesIsNotWritable() throws {
+        try withScratch { dir in
+            #expect(BackupDestinationProbe.canWrite(at: dir))
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+            defer { try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path) }
+            #expect(!BackupDestinationProbe.canWrite(at: dir))
+        }
+    }
+
+    /// And it leaves nothing behind on a disk the user has merely attached.
+    ///
+    /// Mutation: drop the `removeItem` in `canWrite`.
+    @Test func askingWhetherAFolderTakesFilesLeavesNoneInIt() throws {
+        try withScratch { dir in
+            #expect(BackupDestinationProbe.canWrite(at: dir))
+            let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            #expect(left.isEmpty, "left behind: \(left)")
+        }
+    }
+
+    /// A reserved disk is refused without being touched. The one thing not to do
+    /// to somebody's Time Machine disk is write to it to find out.
+    ///
+    /// The fixture is writable — the assertion above it says so — so the refusal
+    /// can only come from that branch, and the empty directory afterwards is the
+    /// "without being touched" half.
+    ///
+    /// Mutation: drop the `if reserved` line.
+    @Test func aReservedFolderIsRefusedWithoutBeingWrittenTo() throws {
+        try withScratch { dir in
+            #expect(BackupDestinationProbe.canWrite(at: dir, reserved: false),
+                    "fixture must be writable for this to prove anything")
+            #expect(!BackupDestinationProbe.canWrite(at: dir, reserved: true))
+            let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            #expect(left.isEmpty, "left behind: \(left)")
+        }
+    }
 }

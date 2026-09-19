@@ -29104,207 +29104,84 @@
         }
       }
     },
-    "Use another disk…": {
+    "No backups here yet — choose a folder on it": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Andere Festplatte verwenden …"
+            "value": "Noch keine Backups hier – wähle einen Ordner darauf"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar otro disco…"
+            "value": "Aún no hay copias aquí: elige una carpeta en él"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utiliser un autre disque…"
+            "value": "Aucune sauvegarde ici — choisissez-y un dossier"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "別のディスクを使用…"
+            "value": "まだバックアップはありません — 中のフォルダを選択"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Использовать другой диск…"
+            "value": "Здесь ещё нет резервных копий — выберите папку на нём"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用其他磁盘…"
+            "value": "这里还没有备份 — 点击选择其中的文件夹"
           }
         }
       }
     },
-    "Another Folder…": {
+    "Reserved for Time Machine — nothing else can be written here": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anderer Ordner …"
+            "value": "Für Time Machine reserviert – hier kann nichts anderes geschrieben werden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otra carpeta…"
+            "value": "Reservado para Time Machine: no se puede escribir nada más aquí"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autre dossier…"
+            "value": "Réservé à Time Machine — rien d’autre ne peut y être écrit"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "別のフォルダ…"
+            "value": "Time Machine 専用 — ほかには何も書き込めません"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Другая папка…"
+            "value": "Занят Time Machine — записать сюда что-либо ещё нельзя"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "其他文件夹…"
-          }
-        }
-      }
-    },
-    "%@ (share)": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (Netzwerk)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (red)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (réseau)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@（共有）"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (сетевой)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@（网络共享）"
-          }
-        }
-      }
-    },
-    "%@ — %@ free": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ – %2$@ frei"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@: %2$@ libres"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ — %2$@ libres"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ — 空き %2$@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ — свободно %2$@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ — 剩余 %2$@"
-          }
-        }
-      }
-    },
-    "%@ — reserved for Time Machine": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ – für Time Machine reserviert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@: reservado para Time Machine"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ — réservé à Time Machine"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ — Time Machine 専用"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ — занят Time Machine"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ — Time Machine 专用"
+            "value": "Time Machine 专用 — 无法写入其他内容"
           }
         }
       }

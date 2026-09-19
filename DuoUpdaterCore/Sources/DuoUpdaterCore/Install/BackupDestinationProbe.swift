@@ -243,6 +243,35 @@ public enum BackupDestinationProbe {
         return plain ?? important
     }
 
+    /// Whether a file can be created in `directory` right now.
+    ///
+    /// Asked by creating an empty file and removing it, because nothing cheaper
+    /// is true. The permission bits say yes on two volumes attached to the Mac
+    /// this was written on that both refuse every write: a Time Machine disk
+    /// (`drwxrwxr-x`, owned by the user) and an OrbStack NFS mount
+    /// (`drwx------`, owned by the user), and `volumeIsReadOnly` is false on
+    /// both. `access(W_OK)` reads the same bits and would agree with them.
+    ///
+    /// Zero bytes, not the 4 MB ``run(at:minimumFreeBytes:)`` writes: this
+    /// answers "may I", not "how fast", and it runs against disks the user has
+    /// merely plugged in rather than chosen.
+    public static func canWrite(at directory: URL) -> Bool {
+        canWrite(at: directory, reserved: timeMachineVolumeName(holding: directory) != nil)
+    }
+
+    /// The half a test can drive. `reserved` is separated out because no test can
+    /// make a Time Machine volume, and a branch that refuses to write is worth
+    /// proving refuses to write.
+    static func canWrite(at directory: URL, reserved: Bool) -> Bool {
+        if reserved { return false }
+        let probe = directory.appendingPathComponent(".duo-write-check-\(UUID().uuidString)")
+        guard FileManager.default.createFile(atPath: probe.path, contents: nil) else {
+            return false
+        }
+        try? FileManager.default.removeItem(at: probe)
+        return true
+    }
+
     /// The name of the Time Machine volume holding `directory`, or nil when it is
     /// not on one.
     ///

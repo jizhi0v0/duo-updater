@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.99
+
+**Rollback backups can now live on another disk.** A backup is a whole copy of an app, and on the boot volume they add up. Settings → Backups lists the connected disks with the space each one has, moves the backups you already have, and writes new ones there in the background — unplug the disk and you get a delay, not a missing rollback point. `duo backups` gained `disks`, `sync`, `verify` and `probe`.
+
+**千问输入法 is now supported.** DuoUpdater tells you when a new version is out, and updates it the way the input method updates itself.
+
+**Release notes no longer stay stuck on the previous version.** When a developer publishes an update a few minutes before their changelog page mentions it, the older notes were filed under the new version and kept forever. CleanShot X had been showing 5.0's notes under 5.0.1 since the day it shipped.
+
+**Deleting a backup now frees the space it says it freed.** Backups taken by older versions of DuoUpdater were written in a form macOS refuses to delete, so Clean Up left most of the copy on disk while counting it as reclaimed.
+
+**Clean Up opens right away.** It used to measure every stored backup from scratch each time you pressed it.
+
+**WorkBuddy shows its newest version again.** Its update service answers with the next step of an upgrade chain rather than the newest build, so all four WorkBuddy editions sat two releases behind.
+
+**Under the hood.** An app that never declared which binary it runs — Meta's Muse among them — now has its frameworks and SDK read anyway.
+
 ## 0.3.98
 
 **Updates finished by Relaunch can now be rolled back.** When an app has already downloaded its own update and you press Relaunch, DuoUpdater now saves the current version first, so the update shows up under Rollback like any other. Before, only updates DuoUpdater installed itself could be undone.

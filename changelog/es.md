@@ -2,6 +2,22 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.99
+
+**Las copias de seguridad para revertir ya pueden vivir en otro disco.** Una copia de seguridad es una copia entera de una app, y en el disco de arranque se acumulan. Ajustes → Copias de seguridad muestra los discos conectados con el espacio libre de cada uno, traslada las copias que ya tienes y escribe las nuevas ahí en segundo plano: si el disco no está conectado, tendrás una espera, no un punto de reversión que falta. `duo backups` ha ganado `disks`, `sync`, `verify` y `probe`.
+
+**千问输入法 ya es compatible.** DuoUpdater te avisa cuando sale una nueva versión y actualiza el método de entrada igual que él se actualiza a sí mismo.
+
+**Las notas de la versión ya no se quedan ancladas en la versión anterior.** Cuando un desarrollador publica una actualización unos minutos antes de que su página de cambios la mencione, las notas antiguas quedaban archivadas bajo la versión nueva y ahí se quedaban para siempre. CleanShot X llevaba desde el primer día mostrando las notas de 5.0 bajo 5.0.1.
+
+**Borrar una copia de seguridad ahora libera el espacio que dice liberar.** Las copias tomadas por versiones anteriores de DuoUpdater se escribían de una forma que macOS se niega a borrar, así que Limpiar dejaba casi toda la copia en el disco y aun así la contaba como recuperada.
+
+**Limpiar se abre al instante.** Antes volvía a medir desde cero cada copia de seguridad guardada cada vez que lo pulsabas.
+
+**WorkBuddy vuelve a mostrar su versión más reciente.** Su servicio de actualización responde con el siguiente paso de una cadena de actualizaciones en lugar de con la compilación más reciente, así que las cuatro ediciones de WorkBuddy se quedaron dos versiones atrás.
+
+**Por dentro.** Una app que nunca declaró qué binario ejecuta —Muse, de Meta, entre ellas— ahora muestra igualmente sus frameworks y su SDK.
+
 ## 0.3.98
 
 **Las actualizaciones que termina Reabrir ahora se pueden revertir.** Cuando una app ya ha descargado su propia actualización y pulsas Reabrir, DuoUpdater guarda primero la versión actual, así que la actualización aparece en Reversión como cualquier otra. Antes solo se podían deshacer las actualizaciones que instalaba el propio DuoUpdater.

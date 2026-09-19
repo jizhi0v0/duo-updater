@@ -246,11 +246,17 @@ struct BackupsSettingsPage: View {
                     }
                 }
                 Spacer(minLength: 12)
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                }
+                // The slot is kept whether this row is chosen or not, for the
+                // same reason the path is on every row: when the checkmark
+                // existed only on the chosen one, everything to its left — the
+                // bar, and the figure pinned to the bar's right end — slid
+                // sideways each time the choice moved.
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 14)
+                    .opacity(selected ? 1 : 0)
+                    .accessibilityHidden(!selected)
             }
             .contentShape(Rectangle())
         }

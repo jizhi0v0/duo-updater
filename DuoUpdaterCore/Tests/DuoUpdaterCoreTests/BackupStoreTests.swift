@@ -831,6 +831,36 @@ struct BackupStoreTests {
         }
     }
 
+    /// Sizes come out of ``BackupSizeIndex`` rather than a fresh walk per call, so
+    /// the listing has to keep saying what is on disk *now*. Superseding a backup
+    /// with a much larger one is the case that would show a remembered figure: the
+    /// key directory keeps its path and everything inside it changes.
+    @Test func listingReportsTheNewSizeAfterABackupIsSuperseded() async throws {
+        try await withScratchRoot { root in
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("DuoUpdaterBackupApps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+
+            let app = try makeApp(named: "Grows.app", in: dir, marker: "small")
+            let key = BackupStore.key(bundleID: "com.example.grows", path: app)
+            _ = try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.grows")
+            let first = try #require(BackupStore.listing().first { $0.key == key })
+
+            try makeApp(named: "Grows.app", in: dir, marker: String(repeating: "x", count: 512 * 1024))
+            _ = try await BackupStore.save(
+                appPath: app, key: key, version: "2.0", bundleID: "com.example.grows")
+            let second = try #require(BackupStore.listing().first { $0.key == key })
+
+            #expect(second.version == "2.0")
+            #expect(second.sizeBytes >= 512 * 1024)
+            #expect(second.sizeBytes > first.sizeBytes)
+            // And the store's own total moved with it, since both read the same index.
+            #expect(BackupStore.storeSize(of: root) >= second.sizeBytes)
+        }
+    }
+
     /// A staging directory left by a crashed attempt must not be able to disable
     /// backups for that app for good.
     ///

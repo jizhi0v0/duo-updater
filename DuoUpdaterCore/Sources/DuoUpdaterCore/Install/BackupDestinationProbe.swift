@@ -85,11 +85,13 @@ public enum BackupDestinationProbe {
         }
 
         let values = try? directory.resourceValues(forKeys: [
-            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
             .volumeIsRemovableKey, .volumeIsLocalKey,
         ])
-        // Already `Int64?`; the outer optional is `resourceValues` having failed.
-        let free = values?.volumeAvailableCapacityForImportantUsage ?? nil
+        // Already `Int64?`/`Int?`; the outer optional is `resourceValues` failing.
+        let free = preferredFree(
+            important: values?.volumeAvailableCapacityForImportantUsage ?? nil,
+            plain: (values?.volumeAvailableCapacity ?? nil).map(Int64.init))
         if minimumFreeBytes > 0, let free, free < minimumFreeBytes {
             throw ProbeFailure.tooSmall(needBytes: minimumFreeBytes, freeBytes: free)
         }
@@ -171,20 +173,63 @@ public enum BackupDestinationProbe {
     /// disk that is not plugged in rather than an error — a caller showing this
     /// should say nothing there, not zero.
     ///
-    /// "Free" is `volumeAvailableCapacityForImportantUsage`, the figure Finder
-    /// shows: it counts space macOS would reclaim from purgeable caches if
-    /// something needed it, which is the number that decides whether a backup
-    /// will actually fit. The raw `volumeAvailableCapacity` reads lower and
-    /// would refuse writes that succeed.
+    /// "Free" is ``freeBytes(at:)``.
     public static func volumeSpace(at directory: URL) -> (free: Int64, total: Int64)? {
         let keys: Set<URLResourceKey> = [
-            .volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey,
+            .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
+            .volumeTotalCapacityKey,
         ]
         guard let values = try? directory.resourceValues(forKeys: keys),
-              let free = values.volumeAvailableCapacityForImportantUsage,
+              let free = preferredFree(
+                  important: values.volumeAvailableCapacityForImportantUsage,
+                  plain: values.volumeAvailableCapacity.map(Int64.init)),
               let total = values.volumeTotalCapacity, total > 0
         else { return nil }
-        return (Int64(free), Int64(total))
+        return (free, Int64(total))
+    }
+
+    /// Free bytes on the volume holding `directory`, or nil when it will not say.
+    ///
+    /// Prefers `volumeAvailableCapacityForImportantUsage`, the figure Finder
+    /// shows: it counts space macOS would reclaim from purgeable caches, and on
+    /// a boot volume it reads *higher* than the raw figure — 52 GB against
+    /// 39 GB here — so taking the raw one would refuse writes that succeed.
+    ///
+    /// It falls back to `volumeAvailableCapacity` when that key answers zero,
+    /// and the fallback is not defensive. Measured on this Mac, with four
+    /// volumes mounted:
+    ///
+    ///     volume                          important       plain
+    ///     /                    (APFS int)    52.4 GB     39.7 GB
+    ///     Install macOS…       (HFS+ USB)    59.9 GB     59.9 GB
+    ///     Samsung T7           (APFS USB)          0    359.9 GB
+    ///     OrbStack             (NFS)               0     37.4 GB
+    ///
+    /// So the key goes quiet on exactly the disks this feature exists for. Apple
+    /// documents what it means — "including space expected to be cleared by
+    /// purging non-essential and cached resources" — but not when it declines to
+    /// answer, so the rule here is behavioural rather than quoted: a zero from a
+    /// volume whose raw figure is 360 GB is a refusal to answer, not a full disk.
+    /// Both zero still means zero, which is what a genuinely full disk reports.
+    ///
+    /// Without this, the T7 rendered as "Zero KB free of 999.99 GB" with the
+    /// capacity bar drawn full, and `run(at:minimumFreeBytes:)` would refuse it
+    /// as too small for any floor above zero.
+    public static func freeBytes(at directory: URL) -> Int64? {
+        let values = try? directory.resourceValues(forKeys: [
+            .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
+        ])
+        return preferredFree(
+            important: values?.volumeAvailableCapacityForImportantUsage ?? nil,
+            plain: (values?.volumeAvailableCapacity ?? nil).map(Int64.init))
+    }
+
+    /// Which of the two figures to believe. Split out so the rule can be tested
+    /// without a disk that reproduces it — the behaviour above belongs to a
+    /// particular volume, not to anything a test can mount.
+    static func preferredFree(important: Int64?, plain: Int64?) -> Int64? {
+        if let important, important > 0 { return important }
+        return plain ?? important
     }
 
     /// Whether two paths sit on the same mounted volume right now.

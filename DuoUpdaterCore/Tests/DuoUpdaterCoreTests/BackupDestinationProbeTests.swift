@@ -373,4 +373,56 @@ import Testing
             #expect(report.writeBytesPerSecond ?? 0 > 0)
         }
     }
+
+    // MARK: - Which free-space figure to believe
+
+    /// The case that sent this looking: an external APFS disk with 360 GB free
+    /// reports zero for important usage. Answering zero there draws the disk as
+    /// full and, with any floor above zero, refuses it as too small.
+    ///
+    /// Mutation: `if let important, important > 0` → `if let important`.
+    @Test func aVolumeThatWillNotNameItsImportantSpaceFallsBackToTheRawFigure() {
+        #expect(BackupDestinationProbe.preferredFree(important: 0, plain: 359_929_303_040)
+            == 359_929_303_040)
+    }
+
+    /// The boot volume, where the important figure is the *larger* one because it
+    /// counts what macOS would purge. Preferring the raw figure would report 12 GB
+    /// less than Finder does and refuse writes that succeed.
+    ///
+    /// Mutation: return `plain ?? important` unconditionally.
+    @Test func theImportantFigureWinsWhenItIsOfferedAtAll() {
+        #expect(BackupDestinationProbe.preferredFree(
+            important: 52_396_931_094, plain: 39_707_287_552) == 52_396_931_094)
+    }
+
+    /// A full disk answers zero to both, and zero is then the true answer — the
+    /// fallback must not turn "no room" into "would not say".
+    @Test func aFullDiskStillReportsNothingFree() {
+        #expect(BackupDestinationProbe.preferredFree(important: 0, plain: 0) == 0)
+        #expect(BackupDestinationProbe.preferredFree(important: 0, plain: nil) == 0)
+    }
+
+    /// Nothing known stays nothing known: a disk that is not plugged in must read
+    /// as "no figure", which is what callers draw as blank rather than as empty.
+    @Test func aVolumeThatCannotBeAskedHasNoFigure() {
+        #expect(BackupDestinationProbe.preferredFree(important: nil, plain: nil) == nil)
+        #expect(BackupDestinationProbe.preferredFree(important: nil, plain: 42) == 42)
+    }
+
+    /// And through the real API, on the volume this test is running from. Not a
+    /// number this can assert — it is whatever the machine has — but it pins that
+    /// the boot volume answers at all, which is the one volume every machine
+    /// running this has.
+    ///
+    /// The two readings are deliberately **not** compared for equality. They were
+    /// at first, and it failed by 11 MB: free space moves between two live reads
+    /// while the rest of the suite is writing temporary directories.
+    @Test func theBootVolumeReportsSomeFreeSpace() throws {
+        let scratch = FileManager.default.temporaryDirectory
+        #expect(try #require(BackupDestinationProbe.freeBytes(at: scratch)) > 0)
+        let space = try #require(BackupDestinationProbe.volumeSpace(at: scratch))
+        #expect(space.free > 0)
+        #expect(space.total > space.free)
+    }
 }

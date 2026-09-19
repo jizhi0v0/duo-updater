@@ -314,17 +314,27 @@ struct BackupsSettingsPage: View {
                         // one line they had to be read as a sentence before
                         // they could be compared. The left one takes the bar's
                         // own colour, which saves the bar needing a legend.
+                        // Already localized, so the `Text(_:)` below is the
+                        // verbatim one on purpose — the key lives here.
+                        let room = String(
+                            localized: "\(bytes(space.free)) free of \(bytes(space.total))")
                         HStack(spacing: 12) {
-                            // Left blank on a disk with no store: "Backups: Zero
-                            // KB" would be a measurement of something that does
-                            // not exist, and "…" would promise one is coming.
                             if let id {
                                 Text("Backups: \(format(storeBytes[id]))")
                                     .foregroundStyle(Color.accentColor)
+                                Spacer(minLength: 8)
+                                Text(room).foregroundStyle(.secondary)
+                            } else {
+                                // A disk with no store has no second figure to
+                                // put at the far end — "Backups: Zero KB" would
+                                // measure something that does not exist, and "…"
+                                // would promise one was coming. Left alone at the
+                                // right it reads as a blank line with a number
+                                // adrift in it, so the one figure there is starts
+                                // where the eye already is.
+                                Text(room).foregroundStyle(.secondary)
+                                Spacer(minLength: 8)
                             }
-                            Spacer(minLength: 8)
-                            Text("\(bytes(space.free)) free of \(bytes(space.total))")
-                                .foregroundStyle(.secondary)
                         }
                         .font(.caption)
                         .monospacedDigit()

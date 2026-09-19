@@ -152,7 +152,8 @@ final class BackupSizeIndex: @unchecked Sendable {
         var merged = Self.load(from: resolvedFileURL)
         // Everything under a root this call has just scanned in full is now known
         // exactly: dropping it first is what retires the entries of backups that
-        // have been deleted, which is the only thing keeping this file bounded.
+        // have been deleted. See this function's doc comment for the one store
+        // state this does not reach.
         let scanned = Set(directories.map { $0.deletingLastPathComponent().path })
         merged = merged.filter {
             !scanned.contains(URL(fileURLWithPath: $0.key).deletingLastPathComponent().path)

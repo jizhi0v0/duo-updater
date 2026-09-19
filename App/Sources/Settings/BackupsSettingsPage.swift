@@ -94,6 +94,14 @@ struct BackupsSettingsPage: View {
             storageCard
         }
         .task {
+            // The disks first, and *before* anything is assigned: which disks
+            // exist decides how many rows there are, and a row appearing after
+            // the card is already on screen is the same flicker by another
+            // route. All of it is stat-level work — the scan is 0.3 ms here —
+            // and the one slow thing, the size of each store, is left to land
+            // late on purpose.
+            mountedVolumes = await model.mountedVolumePaths()
+            await refreshAttachedDisks()
             await refresh()
             // The page would otherwise show whatever was true when it opened: a
             // transfer finishing in the background is exactly the thing someone
@@ -134,13 +142,6 @@ struct BackupsSettingsPage: View {
                     }
                 }
             }
-        }
-        .task {
-            // A separate, one-shot task: this walks every mounted volume, which
-            // touches the filesystem and would block the render pass if it ran
-            // inline in `body`.
-            mountedVolumes = await model.mountedVolumePaths()
-            await refreshAttachedDisks()
         }
         // macOS says when a disk arrives or leaves, so a row appears as the disk
         // does rather than up to two seconds later. `NSWorkspace` posts
@@ -438,26 +439,35 @@ struct BackupsSettingsPage: View {
     /// Everything that depends on which disks are attached. Run when the page
     /// opens and when the mount table moves, never on the plain tick.
     private func refreshAttachedDisks() async {
-        discoveredStores = await model.discoverBackupStores()
-        await refreshCandidateVolumes()
-        await refreshDiskAppearances()
+        let found = await model.discoverBackupStores()
+        let configured = prefs.knownBackupDestinations.compactMap(\.path)
+        let candidates = await model.candidateBackupVolumes(excluding: configured)
+        // Asked before any of this is shown, for the same reason `gather()`
+        // exists: the answer decides whether a disk is a row of its own or one
+        // of the folded ones, and finding out afterwards means watching it move.
+        // Only disks whose answer is not already known, so replugging one does
+        // not re-test the rest — and never a Time Machine disk, which
+        // `canWrite` refuses without touching it.
+        var writable = candidateWritable
+        for candidate in candidates where writable[candidate.id] == nil {
+            writable[candidate.id] = await model.backupVolumeIsWritable(candidate.volume)
+        }
+        let appearances = await model.backupDiskAppearances(
+            for: appearanceEntries(found: found, candidates: candidates))
+
+        // One assignment, one layout. Assigning an equal value still invalidates
+        // the view, so the unchanged case — which is most of them, since this
+        // runs whenever a disk is plugged in or out — is skipped.
+        if found != discoveredStores { discoveredStores = found }
+        if candidates != candidateVolumes { candidateVolumes = candidates }
+        if writable != candidateWritable { candidateWritable = writable }
+        // Merged, not replaced: a disk that just went offline keeps whatever it
+        // last looked like rather than losing its icon the moment it can no
+        // longer be asked for one.
+        diskAppearances.merge(appearances) { _, new in new }
     }
 
-    private func refreshCandidateVolumes() async {
-        let configured = prefs.knownBackupDestinations.compactMap(\.path)
-        let fresh = await model.candidateBackupVolumes(excluding: configured)
-        // Assigning an equal array still invalidates the view, and this runs on
-        // a timer.
-        guard fresh != candidateVolumes else { return }
-        candidateVolumes = fresh
-        // Only for disks whose answer is not already known, so replugging one
-        // disk does not re-test the rest — and never for a Time Machine disk,
-        // which `canWrite` refuses without touching it.
-        for candidate in fresh where candidateWritable[candidate.id] == nil {
-            candidateWritable[candidate.id] =
-                await model.backupVolumeIsWritable(candidate.volume)
-        }
-    }
+
 
     private var storageCard: some View {
         SettingsCard(header: "Storage") {
@@ -812,7 +822,13 @@ struct BackupsSettingsPage: View {
         }
     }
 
-    private func refreshDiskAppearances() async {
+    /// Which disk to ask for an icon, and under what key to remember it.
+    ///
+    /// Takes the disks as arguments rather than reading the state, because it is
+    /// called while assembling a refresh — before any of it has been assigned.
+    private func appearanceEntries(
+        found: [BackupStoreDiscovery.Found], candidates: [BackupStoreDiscovery.Candidate]
+    ) -> [(cacheKey: String, path: String?)] {
         // The startup disk first, and asked for by the volume rather than by
         // the store inside it — `icon(forFile:)` on a folder answers with a
         // folder.
@@ -820,17 +836,9 @@ struct BackupsSettingsPage: View {
         for destination in prefs.knownBackupDestinations {
             entries.append((destination.identity ?? destination.path ?? "unknown", destination.path))
         }
-        for found in discoveredStores {
-            entries.append((found.marker.identity, found.root.path))
-        }
-        for candidate in candidateVolumes {
-            entries.append((candidate.id, candidate.volume.path))
-        }
-        let appearances = await model.backupDiskAppearances(for: entries)
-        // Merged, not replaced: a disk that just went offline keeps whatever
-        // it last looked like rather than losing its icon the moment it can no
-        // longer be asked for one.
-        diskAppearances.merge(appearances) { _, new in new }
+        entries.append(contentsOf: found.map { ($0.marker.identity, $0.root.path) })
+        entries.append(contentsOf: candidates.map { ($0.id, $0.volume.path) })
+        return entries
     }
 
     // MARK: - Storage wording
@@ -1034,7 +1042,10 @@ struct BackupsSettingsPage: View {
                     lastReport = report
                     pickError = sizeCeilingWarning
                     let diskLabel = prefs.backupDestination.volumeName ?? String(localized: "Backup disk")
-                    await refreshDiskAppearances()
+                    // A folder just adopted is a disk this list did not have a
+                    // row for a moment ago: it needs its icon, and it is no
+                    // longer a candidate.
+                    await refreshAttachedDisks()
                     await afterSwitch(reachable: true, previous: previous, diskLabel: diskLabel)
                 } catch {
                     pickError = String(
@@ -1059,31 +1070,73 @@ struct BackupsSettingsPage: View {
         await refresh()
     }
 
-    private func refresh() async {
-        availability = model.backupAvailability()
-        stores = await model.backupStores()
-        // Whatever these stores measured earlier in this run of the app, shown
-        // at once. Existing values win: they are from this page's own walk,
-        // which is never older than the model's copy.
-        storeBytes.merge(model.lastKnownBackupStoreBytes()) { mine, _ in mine }
+    /// Everything the card's *shape* depends on, read before any of it is shown.
+    ///
+    /// The point of gathering it into one value is that it is then assigned in
+    /// one statement. Written the obvious way — a `@State` set after each
+    /// `await` — the card was redrawn at every step, and each step added or
+    /// removed a line: rows arrived without their capacity bars and grew one a
+    /// moment later, "Always connected" appeared and then went as the figures
+    /// that replaced it landed, and the folded row of unusable disks turned up
+    /// last of all. Every visit to the page flickered through four layouts.
+    ///
+    /// What is deliberately *not* here is the size of each store: 1.8 s for the
+    /// USB disk, against milliseconds for everything above. It fills in behind a
+    /// "…" that occupies the space its number will — a value arriving late is
+    /// fine, a line arriving late is not.
+    private struct Snapshot {
+        var availability: BackupStore.Availability
+        var stores: [BackupStore.Store]
+        var volumeSpace: [String: BackupVolumeSpace]
+        var knownAvailability: [String: BackupStore.Availability]
+        var pendingCount: Int
+        var heldCount: Int
+        var transferState: BackupTransferQueue.State
+        var isOnThisMacsDisk: Bool
+    }
+
+    private func gather() async -> Snapshot {
+        let stores = await model.backupStores()
         var space: [String: BackupVolumeSpace] = [:]
         for store in stores { space[store.id] = await model.backupVolumeSpace(of: store) }
-        volumeSpace = space
-        // Not awaited. Everything above is a stat or two; this walks every
-        // backup in every store, and holding the card's other numbers back for
-        // it is what made opening the page look broken.
-        measureStores()
-        pendingCount = await model.pendingBackupTransfers()
-        heldCount = await model.heldBackupCount()
-        transferState = await model.backupTransferState()
-        isOnThisMacsDisk = prefs.backupDestination.directory.map {
-            BackupDestinationProbe.isOnSameVolume($0, as: BackupStore.outboxRoot)
-        } ?? false
         var avail: [String: BackupStore.Availability] = [:]
         for destination in prefs.knownBackupDestinations {
             avail[destinationKey(destination)] = model.backupAvailability(for: destination)
         }
-        knownAvailability = avail
+        return Snapshot(
+            availability: model.backupAvailability(),
+            stores: stores,
+            volumeSpace: space,
+            knownAvailability: avail,
+            pendingCount: await model.pendingBackupTransfers(),
+            heldCount: await model.heldBackupCount(),
+            transferState: await model.backupTransferState(),
+            isOnThisMacsDisk: prefs.backupDestination.directory.map {
+                BackupDestinationProbe.isOnSameVolume($0, as: BackupStore.outboxRoot)
+            } ?? false)
+    }
+
+    private func apply(_ snapshot: Snapshot) {
+        availability = snapshot.availability
+        stores = snapshot.stores
+        volumeSpace = snapshot.volumeSpace
+        knownAvailability = snapshot.knownAvailability
+        pendingCount = snapshot.pendingCount
+        heldCount = snapshot.heldCount
+        transferState = snapshot.transferState
+        isOnThisMacsDisk = snapshot.isOnThisMacsDisk
+        // Whatever these stores measured earlier in this run of the app, shown
+        // at once. Existing values win: they are from this page's own walk,
+        // which is never older than the model's copy.
+        storeBytes.merge(model.lastKnownBackupStoreBytes()) { mine, _ in mine }
+    }
+
+    private func refresh() async {
+        apply(await gather())
+        // Not awaited. Everything above is a stat or two; this walks every
+        // backup in every store, and holding the card's other numbers back for
+        // it is what made opening the page look broken.
+        measureStores()
     }
 
     /// Walk the stores for their sizes, replacing any walk still in flight —

@@ -325,7 +325,13 @@ import Testing
     /// ceiling at all (HFS+, exFAT) or one — APFS's ~36 PB — that no backup can
     /// reach; both are fine, and neither is worth hard-coding, so they are
     /// asserted as "not a limit anything could hit".
+    /// Serialized across formats: each case creates, attaches and mounts its own
+    /// 256 MB sparse image, and parameterized cases otherwise run at once — four
+    /// images being minted together is enough for `hdiutil` to refuse one on a
+    /// hosted runner's disk, which is how this failed on #763 (APFS only, while
+    /// the other three succeeded). Every case still runs and still asserts.
     @Test(
+        .serialized,
         .enabled(if: BackupDestinationProbeTests.hdiutilAvailable),
         arguments: ["MS-DOS", "ExFAT", "HFS+", "APFS"]
     )

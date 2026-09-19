@@ -225,6 +225,15 @@ final class AppListModel {
     /// sees "nothing in flight" a moment before the next row quits its app.
     /// Only a flag that spans the gap can hold a transfer back across it.
     @ObservationIgnored private var batchRelaunchInFlight = false
+
+    /// Rows that left an installer window open, or due to open at a moment we
+    /// cannot see coming.
+    ///
+    /// Has to outlive `relaunchStagedUpdate`: under Update All the batch's own
+    /// release runs *after* every row's `defer` has gone, so a local could not
+    /// hold anything back across it. Cleared when that row is tried again — a
+    /// fresh attempt supersedes the hold its predecessor left.
+    @ObservationIgnored private var installerWindowPendingIds: Set<String> = []
     /// A quit we asked for that the app hasn't come back from yet.
     ///
     /// Every path that arms one of these has the same shape: DuoUpdater quits a
@@ -5702,17 +5711,16 @@ final class AppListModel {
         if refuseWhileBundleChanges(result, logPrefix: "relaunch-staged") { return }
         relaunching.insert(result.id)
         relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
+        // This attempt supersedes whatever window the last one left pending.
+        installerWindowPendingIds.remove(result.id)
         pinRowOrder()
-        // Set on any way out that leaves an installer window open now, or due to
-        // open at a moment we cannot see coming.
-        var installerWindowPending = false
         defer {
             relaunching.remove(result.id)
             releaseRowOrder()
             // Anything owed to the backup disk was held back at the
             // `backupCurrent` call below; start it only once nothing is using
             // an installer window. See `startOwedBackupTransferIfIdle`.
-            if !installerWindowPending { startOwedBackupTransferIfIdle() }
+            if !installerWindowPendingIds.contains(result.id) { startOwedBackupTransferIfIdle() }
         }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
@@ -5755,7 +5763,7 @@ final class AppListModel {
             // The app quit during the copy (or the bundle moved past the copied
             // version), so its own updater is starting now — the worst possible
             // moment to begin moving hundreds of MB.
-            installerWindowPending = true
+            installerWindowPendingIds.insert(result.id)
             await refreshRow(result)
             return
         }
@@ -5856,7 +5864,7 @@ final class AppListModel {
                     // Nothing will tell us when that quit happens, so there is no
                     // later moment we can call safe. Leave what is owed for the
                     // next relaunch or install to drain.
-                    installerWindowPending = true
+                    installerWindowPendingIds.insert(result.id)
                 }
                 break
             }
@@ -6653,11 +6661,16 @@ final class AppListModel {
     ///    window is in the future, not the past; `relayQuitHandoff` starts the
     ///    transfer once that hand-off settles.
     ///
-    /// The third — standing down because the app quit on its own mid-backup,
-    /// i.e. its updater is starting right now — only the caller can know, so
-    /// it is checked there.
+    ///  • **A window pending from an earlier row.** `installerWindowPendingIds`
+    ///    — standing down because the app quit on its own mid-backup (its
+    ///    updater is starting right now), or ending the wait on an app that
+    ///    never quit and whose staging we could not read, so nothing will ever
+    ///    tell us when its quit comes. Both outlive the call that set them,
+    ///    which a local could not.
     private func startOwedBackupTransferIfIdle() {
-        guard !batchRelaunchInFlight, relaunching.isEmpty, quitHandoffs.isEmpty else { return }
+        guard !batchRelaunchInFlight, relaunching.isEmpty, quitHandoffs.isEmpty,
+              installerWindowPendingIds.isEmpty
+        else { return }
         startOwedBackupTransfer()
     }
 

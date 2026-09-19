@@ -217,6 +217,14 @@ final class AppListModel {
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
     /// the Relaunch button must not fire a second quit.
     private(set) var relaunching: Set<String> = []
+
+    /// True for the whole of the Update All staged-relaunch loop.
+    ///
+    /// `relaunching` cannot stand in for this. The loop awaits one row at a
+    /// time, so between two rows the set is empty — a finished row's `defer`
+    /// sees "nothing in flight" a moment before the next row quits its app.
+    /// Only a flag that spans the gap can hold a transfer back across it.
+    @ObservationIgnored private var batchRelaunchInFlight = false
     /// A quit we asked for that the app hasn't come back from yet.
     ///
     /// Every path that arms one of these has the same shape: DuoUpdater quits a
@@ -5695,16 +5703,16 @@ final class AppListModel {
         relaunching.insert(result.id)
         relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
-        // Set on the one way out where the app's own updater is starting as we
-        // leave, so the transfer held back below must keep waiting.
-        var updaterTookOver = false
+        // Set on any way out that leaves an installer window open now, or due to
+        // open at a moment we cannot see coming.
+        var installerWindowPending = false
         defer {
             relaunching.remove(result.id)
             releaseRowOrder()
             // Anything owed to the backup disk was held back at the
             // `backupCurrent` call below; start it only once nothing is using
             // an installer window. See `startOwedBackupTransferIfIdle`.
-            if !updaterTookOver { startOwedBackupTransferIfIdle() }
+            if !installerWindowPending { startOwedBackupTransferIfIdle() }
         }
         // A fresh attempt supersedes whatever a previous bail left armed — and the
         // note that bail wrote, which has to go with the marker rather than after
@@ -5744,9 +5752,10 @@ final class AppListModel {
         // clicks stay out for the whole copy. `running` is re-read after it; nil
         // means the user quit the app during the copy and has taken over.
         guard let afterBackup = await takeRollbackPointBeforeStagedRelaunch(result, running: running) else {
-            // The app quit during the copy, so its own updater is starting now —
-            // the worst possible moment to begin moving hundreds of MB.
-            updaterTookOver = true
+            // The app quit during the copy (or the bundle moved past the copied
+            // version), so its own updater is starting now — the worst possible
+            // moment to begin moving hundreds of MB.
+            installerWindowPending = true
             await refreshRow(result)
             return
         }
@@ -5844,6 +5853,10 @@ final class AppListModel {
                     // staging we cannot read gives none. Its own quit still applies
                     // the update; nobody reopens the app afterwards.
                     Log.app.notice("relaunch-handoff: not armed for \(result.app.name, privacy: .public) — staged version unknown")
+                    // Nothing will tell us when that quit happens, so there is no
+                    // later moment we can call safe. Leave what is owed for the
+                    // next relaunch or install to drain.
+                    installerWindowPending = true
                 }
                 break
             }
@@ -6035,6 +6048,10 @@ final class AppListModel {
         defer {
             if relayRelaunchHolds.remove(id) != nil { relaunching.remove(id) }
             releaseRowOrder()
+            // Here rather than at the end of the body: every early return would
+            // skip that, and the body runs while this id is still in
+            // `relaunching`, so the idle check could never pass from there.
+            startOwedBackupTransferIfIdle()
         }
         // `.applied` has nothing to wait for; `.stagedOnLaunch` waits after the launch.
         var landed = !handoff.landing.waitsForDisk && !handoff.landing.landsAfterLaunch
@@ -6122,9 +6139,6 @@ final class AppListModel {
             let version = await Self.readShortVersionOffMain(app.path)
             UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
         }
-        // This hand-off is settled — the window it was holding open has closed,
-        // so whatever `relaunchStagedUpdate` held back can finally move.
-        startOwedBackupTransferIfIdle()
     }
 
     /// Wait until no rollback or install holds this row's `bundleChanges` claim.
@@ -6627,11 +6641,13 @@ final class AppListModel {
     /// "The relaunch returned" is not the same as "the window has passed", and
     /// two of the three ways out of `relaunchStagedUpdate` prove it:
     ///
-    ///  • **Another relaunch still in flight.** The Update All loop moves
-    ///    straight from one row to the next, and `drain()` is global —
+    ///  • **A batch still walking rows.** `batchRelaunchInFlight`, not
+    ///    `relaunching`: the Update All loop awaits one row at a time, so a
+    ///    finished row's `defer` runs while the set is momentarily empty and
+    ///    the next row has yet to be inserted. And `drain()` is global —
     ///    `resumePending()` reads every owed key from the sidecars, so it is
-    ///    not scoped to the app whose window just closed. App A's transfer
-    ///    would land inside app B's window.
+    ///    not scoped to the app whose window just closed. Without the flag,
+    ///    app A's transfer lands inside app B's window.
     ///  • **A quit hand-off still armed.** The `.wontQuit` path ends the wait
     ///    *before* the app has quit (a save prompt is up). Its installer's
     ///    window is in the future, not the past; `relayQuitHandoff` starts the
@@ -6641,7 +6657,7 @@ final class AppListModel {
     /// i.e. its updater is starting right now — only the caller can know, so
     /// it is checked there.
     private func startOwedBackupTransferIfIdle() {
-        guard relaunching.isEmpty, quitHandoffs.isEmpty else { return }
+        guard !batchRelaunchInFlight, relaunching.isEmpty, quitHandoffs.isEmpty else { return }
         startOwedBackupTransfer()
     }
 
@@ -7666,6 +7682,8 @@ final class AppListModel {
             // is iterated as it stood when this loop began, so each `result` is
             // that snapshot even after earlier relaunches rescan their rows; only
             // `pendingSelfUpdate` and the prefs are read live per row.
+            // Held for the whole walk: see `batchRelaunchInFlight`.
+            batchRelaunchInFlight = true
             for result in results where UpdatePolicy.batchRelaunchesStaged(
                 result,
                 staged: pendingSelfUpdate[result.id],
@@ -7674,6 +7692,8 @@ final class AppListModel {
                 if Task.isCancelled { break }
                 await relaunchStagedUpdate(result)
             }
+            batchRelaunchInFlight = false
+            startOwedBackupTransferIfIdle()
         }
         if prefs.notifyOnUpdates && installed > 0 {
             UpdateNotifier.batchUpdated(count: installed)

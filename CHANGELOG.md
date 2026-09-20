@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.0
+
+**Relaunch no longer competes with an app's own installer.** When an app has downloaded its own update and its rollback backup belongs on an external disk, that copy now waits until the installer is finished. Before, it ran during the few seconds macOS gives the installer to do its work.
+
 ## 0.3.99
 
 **Rollback backups can now live on another disk.** A backup is a whole copy of an app, and on the boot volume they add up. Settings → Backups lists the connected disks with the space each one has, moves the backups you already have, and writes new ones there in the background — unplug the disk and you get a delay, not a missing rollback point. `duo backups` gained `disks`, `sync`, `verify` and `probe`.

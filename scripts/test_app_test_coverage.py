@@ -615,7 +615,9 @@ class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
         the regressed/improved/unknown block would leave every other test green
         (round 3 of review named this residual). `--selftest-inventory` injects
         one ordering's regression into an otherwise healthy run, so this
-        asserts end to end that the sweep reports it and exits non-zero.
+        asserts end to end that the sweep reports it and exits non-zero. The
+        injected ordering is one that currently recovers fully — not the
+        2026-09-20 tear, which lands in an ordering already known to miss.
 
         Mutation: delete the `regressed` branch from `main()` → exit 0 and this
         fails. Mutation: drop the `failed = True` from that branch → the

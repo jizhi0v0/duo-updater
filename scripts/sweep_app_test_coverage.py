@@ -346,8 +346,17 @@ def main() -> int:
     print("RECALL by interleaving order (both writers torn in two)")
     table, totals = recall_by_shape(args.verbose)
     if args.selftest_inventory:
-        # Flip an ordering that must be fully recovered into a miss. This is
-        # the exact shape of the 2026-09-20 false red, and the run must fail.
+        # Flip an ordering that must be fully recovered into a miss, so the run
+        # must fail.
+        #
+        # NOT the 2026-09-20 false red's own shape, and an earlier draft of this
+        # comment claimed it was: that incident was a tear in an ordering the
+        # parser is already KNOWN to miss, which is why it is in
+        # EXPECTED_WITH_MISSES and why the sweep stays green on it. What this
+        # injects is the thing the inventory exists to catch — a genuine pass
+        # record stopping being recovered in an ordering that used to recover
+        # it. Same consequence (a case that passed reported as never run),
+        # different cause.
         table[sorted(EXPECTED_FULLY_RECOVERED)[0]] = 1
     for label in sorted(totals):
         miss = table[label]

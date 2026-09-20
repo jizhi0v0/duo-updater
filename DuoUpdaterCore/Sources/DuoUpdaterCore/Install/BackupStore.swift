@@ -448,7 +448,14 @@ public enum BackupStore {
         /// Size of the archive on disk, so the UI can show what the move bought.
         var archiveBytes: Int64?
         /// Name of the archive holding this generation's input-method user-data
-        /// snapshot at the destination, e.g. `UserData.aar`.
+        /// snapshot at the destination, e.g. `WeType.UserData.aar` — the bundle's
+        /// own stem with `.UserData` inserted, never a bare `UserData.aar`.
+        ///
+        /// Worth spelling out because the obvious-looking name is the wrong one:
+        /// `UserData.aar` is what ``archiveName(forBundle:)`` produces for an app
+        /// called `UserData.app`, so anything that recognised snapshots by that
+        /// string would be reading a bundle archive. See
+        /// ``userDataArchiveName(forBundle:)`` for the collision that cost.
         ///
         /// A second archive rather than a directory copied beside the bundle's,
         /// for the reason the bundle is archived at all: the destination is a

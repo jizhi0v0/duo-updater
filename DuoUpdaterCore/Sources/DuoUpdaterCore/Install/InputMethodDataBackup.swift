@@ -223,9 +223,7 @@ public enum InputMethodDataBackup {
     @discardableResult
     public static func save(bundleName: String, bundleID: String?, key: String) async -> [Location] {
         let fm = FileManager.default
-        let dir = BackupStore.root
-            .appendingPathComponent(key, isDirectory: true)
-            .appendingPathComponent(directoryName, isDirectory: true)
+        let dir = snapshotDirectory(forKey: key)
         // Only ever written beside a bundle backup that already landed. Without
         // that directory there is no generation to attach this to, and a snapshot
         // in a directory `BackupStore` does not know about would never be pruned.
@@ -326,6 +324,29 @@ public enum InputMethodDataBackup {
 
     // MARK: - Restore
 
+    /// Where the snapshot for `key` lives in the outbox — the store on this Mac.
+    ///
+    /// Spelled once and used by both `save` and the default `restore`, because a
+    /// second copy of this path is how a snapshot gets written somewhere nothing
+    /// reads it back from.
+    static func snapshotDirectory(forKey key: String) -> URL {
+        BackupStore.root
+            .appendingPathComponent(key, isDirectory: true)
+            .appendingPathComponent(directoryName, isDirectory: true)
+    }
+
+    /// Whether a directory holds a snapshot this module can restore from.
+    ///
+    /// The manifest is the discriminator, not the directory: `restore` reads
+    /// `userdata.json` and gives up without it, so a `UserData` directory that
+    /// has one is a snapshot and one that does not is debris. Asking the same
+    /// question the restore asks is what keeps "there is a snapshot" from
+    /// meaning something weaker than "a rollback would put the data back".
+    public static func snapshotExists(in directory: URL) -> Bool {
+        FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("userdata.json").path)
+    }
+
     /// Put the snapshot stored for `key` back over the live locations it came
     /// from. Returns the locations restored; throws only when the caller asked for
     /// a restore and there is no snapshot to give.
@@ -334,10 +355,20 @@ public enum InputMethodDataBackup {
     /// a rollback must not consume the only copy of what it rolled back to.
     @discardableResult
     public static func restore(forKey key: String) async throws -> [Location] {
+        try await restore(forKey: key, from: snapshotDirectory(forKey: key))
+    }
+
+    /// `restore(forKey:)` against a snapshot directory the caller names.
+    ///
+    /// The overload exists for the copy that lives on a backup disk: there the
+    /// snapshot is an archive beside the bundle's, so `BackupStore` unpacks it
+    /// into its rollback scratch and hands the unpacked directory here. Same
+    /// manifest, same exchange — only the source differs, and taking it as a
+    /// parameter is what keeps a destination rollback from silently reading the
+    /// outbox path, which by then holds nothing at all.
+    @discardableResult
+    public static func restore(forKey key: String, from dir: URL) async throws -> [Location] {
         let fm = FileManager.default
-        let dir = BackupStore.root
-            .appendingPathComponent(key, isDirectory: true)
-            .appendingPathComponent(directoryName, isDirectory: true)
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("userdata.json")),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
         else { throw BackupStore.BackupError.noBackup(key) }

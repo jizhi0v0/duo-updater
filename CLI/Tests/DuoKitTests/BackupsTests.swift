@@ -165,6 +165,50 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
         }
     }
 
+    /// A generation on a backup disk is two archives once the app is an input
+    /// method — the bundle and its user-data snapshot — and the snapshot is the
+    /// bigger of the two for DoubaoIme. Sizing the bundle's archive alone would
+    /// report a fraction of what the disk is actually holding.
+    @Test func aDestinationBackupCountsTheUserDataSnapshotToo() async throws {
+        let fm = FileManager.default
+        let base = fm.temporaryDirectory.appendingPathComponent("dest-size-\(UUID().uuidString)")
+        let outbox = base.appendingPathComponent("outbox", isDirectory: true)
+        let disk = base.appendingPathComponent("disk", isDirectory: true)
+        defer { try? fm.removeItem(at: base) }
+        try fm.createDirectory(at: outbox, withIntermediateDirectories: true)
+        let dir = disk.appendingPathComponent("k", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let identity = UUID().uuidString
+        try BackupVolumeMarker(identity: identity, volumeName: "TestDisk").write(to: disk)
+
+        // Stand-ins for the two archives — `backupSize` measures files, and what
+        // is inside them is the archiver's business, not this function's.
+        try Data(repeating: 0x41, count: 1_000).write(to: dir.appendingPathComponent("Foo.aar"))
+        try Data(repeating: 0x42, count: 4_000)
+            .write(to: dir.appendingPathComponent("Foo.UserData.aar"))
+        // A transfer that was cut off leaves one of these; it is not stored bytes.
+        try Data(repeating: 0x43, count: 9_000)
+            .write(to: dir.appendingPathComponent(".Foo.aar.partial"))
+        try Data("""
+        {"version":"1.0","bundleID":null,"originalPath":"/Library/Input Methods/Foo.app",
+         "bundleName":"Foo.app","savedAt":0,"archiveName":"Foo.aar",
+         "userDataArchiveName":"Foo.UserData.aar"}
+        """.utf8).write(to: dir.appendingPathComponent("backup.json"))
+
+        let destination = BackupDestination(
+            kind: .external, path: disk.path, identity: identity, volumeName: "TestDisk")
+        try await BackupStore.$rootOverride.withValue(outbox) {
+            try await BackupStore.$destinationOverride.withValue(destination) {
+                let backup = try #require(BackupStore.backup(forKey: "k"))
+                #expect(backup.location == .destination)
+                // Both archives and the sidecar, and not the abandoned `.partial`.
+                let size = Backups.backupSize(backup)
+                #expect(size > 5_000)
+                #expect(size < 9_000)
+            }
+        }
+    }
+
     // MARK: - resolveKey
 
     @Test func resolvesToTheCanonicalKeyWhenABackupExists() async throws {
@@ -208,5 +252,50 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
             let target = app("Nope", "com.example.nope", "/Applications/Nope.app")
             #expect(Backups.resolveKey(for: target) == nil)
         }
+    }
+}
+
+/// What `duo backups restore` says when the bundle went back and the input
+/// method's user data did not.
+///
+/// A rollback that printed "restored" and nothing else is how the loss stayed
+/// invisible: the data is gone from the user's point of view, and the only
+/// record was a log line nobody reads. So the warning is asserted here as
+/// output, not as a return value — and the silence is asserted too, because a
+/// warning on every ordinary rollback would be its own bug.
+@Suite struct BackupsUserDataWarningTests {
+
+    @Test func anOrdinaryRollbackSaysNothingAboutUserData() {
+        #expect(Backups.userDataWarning(app: "Slack", .notApplicable) == nil)
+        #expect(Backups.userDataWarning(app: "WeType", .restored(3)) == nil)
+    }
+
+    @Test func aBundleOnlyRollbackNamesWhatWasNotRestored() throws {
+        let missing = try #require(Backups.userDataWarning(app: "WeType", .noSnapshot))
+        #expect(missing.contains("WeType"))
+        #expect(missing.contains("NOT restored"))
+
+        let failed = try #require(
+            Backups.userDataWarning(app: "WeType", .failed("the disk went away")))
+        #expect(failed.contains("NOT restored"))
+        // The reason is carried through rather than flattened: "it failed" and
+        // "it failed because the disk went away" need different things from
+        // whoever is reading it.
+        #expect(failed.contains("the disk went away"))
+    }
+
+    /// The machine-readable side has to be able to tell a bundle-only rollback
+    /// from a complete one — a script rolling back an input method cannot read
+    /// the prose line.
+    @Test func theJSONSideDistinguishesBundleOnlyFromComplete() {
+        func payload(_ outcome: BackupStore.UserDataOutcome) -> [String: Any] {
+            Backups.restorePayload(
+                app: "WeType", key: "k", restoredVersion: "1.0", userData: outcome)
+        }
+        #expect(payload(.restored(2))["userDataRestored"] as? Int == 2)
+        #expect(payload(.noSnapshot)["userDataMissing"] as? Bool == true)
+        #expect(payload(.noSnapshot)["userDataRestored"] as? Int == 0)
+        #expect(payload(.notApplicable)["userDataRestored"] == nil)
+        #expect(payload(.failed("nope"))["userDataError"] as? String == "nope")
     }
 }

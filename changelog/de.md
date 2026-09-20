@@ -4,6 +4,8 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.4.0
 
+**搜狗输入法 lässt sich jetzt mit einem Klick aktualisieren.** DuoUpdater spielt das Update so ein, wie die Eingabemethode sich selbst aktualisiert – das installierte Bundle bleibt dabei an seinem Platz – und sichert vorher dein Wörterbuch und deine Einstellungen, damit ein Rücksetzen auch die zurückbringt.
+
 **„Neu starten“ kommt dem eigenen Installationsprogramm einer App nicht mehr in die Quere.** Hat eine App ihr Update selbst geladen und gehört ihr Rücksetz-Backup auf ein externes Volume, wartet diese Kopie jetzt, bis das Installationsprogramm fertig ist. Bisher lief sie in genau den wenigen Sekunden, die macOS ihm dafür gibt.
 
 ## 0.3.99

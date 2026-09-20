@@ -2042,6 +2042,30 @@ private let doubaoImeDownloadURLFixture = #"""
     }
 }
 
+/// The two unwraps are alternatives, not layers: `nestedArchivePath` takes a
+/// `.app` out of a signed stub, `contentsArchivePattern` assembles a bundle out
+/// of a bare `Contents` directory. A recipe declaring both would describe two
+/// different shapes for one download, and only the second would run.
+@Test func aRecipeDeclaresOneKindOfNestedPayload() {
+    for recipe in VendorProbeRegistry.recipes {
+        guard let install = recipe.install else { continue }
+        #expect(
+            install.nestedArchivePath == nil || install.contentsArchivePattern == nil,
+            "\(recipe.bundleID) declares both")
+    }
+}
+
+/// A `contentsArchivePattern` selects a member of an archive by name, so it must
+/// be anchored at both ends — an unanchored pattern would match a longer name
+/// that merely contains it, and the member it picks becomes the app's interior.
+@Test func contentsArchivePatternsAreAnchored() {
+    for recipe in VendorProbeRegistry.recipes {
+        guard let pattern = recipe.install?.contentsArchivePattern else { continue }
+        #expect(pattern.hasPrefix("^"), "\(recipe.bundleID): \(pattern)")
+        #expect(pattern.hasSuffix("$"), "\(recipe.bundleID): \(pattern)")
+    }
+}
+
 // Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the
 // no-credential probe now reads download.tryalcove.com/latest. Real 2026-07-29
 // response below (verbatim, 210 bytes). Two things this locks down:

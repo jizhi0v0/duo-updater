@@ -1,8 +1,10 @@
 # 搜狗输入法 (SogouInput)
 
-> 审计于 2026-08-28。搜狗的输入法，官网 `shurufa.sogou.com` / `pinyin.sogou.com` 下载。
-> 结论：**接入检测，版本读厂商自己的更新接口**（不是官网更新日志）；payload 已确认，
-> 但一键安装仍需专用适配，不能交给通用整包替换。
+> 审计于 2026-08-28，一键于 2026-09-20 接入。搜狗的输入法，官网 `shurufa.sogou.com` / `pinyin.sogou.com` 下载。
+> 结论：**检测读厂商自己的条件更新接口**（不是官网更新日志）；**一键走 Contents 轮换**，
+> 包由 `ContentsPayload` 从双层 zip 里装配出来，厂商的三个脚本一个都不跑。
+>
+> **⚠️ 本文 2026-08-28 版的 detection-only 结论有一条理由是错的**，见「一键安装」一节的更正。
 
 ## 头条：自更新接口不是“latest API”，但它没有坏
 
@@ -49,7 +51,7 @@ update_notice=0
 
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | —        | —   | —      | ✓ ★         |
+| **stable** | —       | —        | —   | —      | ✓ ★ 一键     |
 
 **接入前的状态**：`AppScanner` 扫 `/Library/Input Methods`，所以 `duo list` 能看到
 `SogouInput 6.24.1.11676`，但优先链里没有源应答 → 常驻 `unknown`。和豆包接入前一样，
@@ -75,7 +77,13 @@ update_notice=0
 
 - 源: `VendorProbe`（`mode: .responseBody`）
 - 端点: `https://macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`
-- `versionPattern`: `\nversion=([0-9]+(?:\.[0-9]+)+)[\s\S]*?\nupdate_pack_url=`
+- `versionPattern`: `\npid=0\n(?:[^\[]*?\n)?version=([0-9]+(?:\.[0-9]+)+)[^\[]*?\nupdate_pack_url=`
+
+  > 本文一度把它记成 `\nversion=(…)[\s\S]*?\nupdate_pack_url=`（2026-09-20 review round 2
+  > 在一键那节抓到同一类错误时顺手复核出来的，**这条是更早就有的**）。两者不等价：
+  > `[\s\S]*?` 能跨过 `[end]` / `[product1]` 的方括号，`[^\[]*?` 不能。拿哨兵块 + 更新块
+  > 拼接实测，旧写法读出哨兵 `1.0.0.1`，现写法读出真实版本。**照着旧记录重建 recipe 就会
+  > 把跨块配对放回来。**
 - 无 `publishedAtPattern`（接口不带日期）；notes 仍指向更新日志页
 
 **做法就是"装成一个很旧的客户端去问"。** 接口是条件式的，pin `v=0.0.0.1`——比厂商能发的任何
@@ -182,7 +190,123 @@ HTTPS 可用（抓包里客户端走的是 http）。同一 URL 连打五次**�
 
 ## 一键安装
 
-- 状态: **暂不做**；已经拿到厂商自更新 payload，但需要搜狗专用适配，不能复用通用整包替换。
+- 状态: **已接入**（2026-09-20）。源 `VendorProbe` 的 `install`，`kind: .zip`，
+  `contentsArchivePattern: ^Contents[0-9.]+\.zip$`，
+  `urlSource: .bodyPattern`，模式与 `versionPattern` **同样锁在 `pid=0` 块里**：
+
+  ```
+  \npid=0\n(?:[^\[]*?\n)?version=[0-9]+(?:\.[0-9]+)+[^\[]*?\nupdate_pack_url=(https?://[^\s]+\.zip)
+  ```
+
+  > ⚠️ **不要退回不分块的 `\nupdate_pack_url=(https?://[^\s]+\.zip)`。** 那个写法取的是
+  > 整个 body 里第一个 `update_pack_url=`，多块响应下可以和 `versionPattern` 读到不同的块 ——
+  > 版本来自一个发布、字节来自另一个。没人见过这个服务端发两个带 payload 的块，所以这是
+  > 由构造保证而不是靠服务端的习惯；`aVersionIsNeverPairedWithAnotherBlocksPayload` 钉着它，
+  > 退回去那条测试就红。（本条 2026-09-20 review round 2 修正：这里一度还写着旧模式，
+  > 而 audit 是重建 recipe 时的权威记录，照抄就会把跨块配对放回来。）
+- 路线：`ContentsPayload` 从双层 zip 里装配出 `<装机名>.app` → 走 Gate 2–6 →
+  `InPlaceSwap.rotateContents`（和 WeType / 豆包同一条轮换）。
+- 厂商的 `pre.sh` / `post.sh` / `switch.sh` **一个都不跑**，逐条理由见下。
+
+### ⚠️ 更正：2026-08-28 版「不做一键」的主要理由读错了对象
+
+初版写「Contents 轮换会漏掉两个 LaunchAgent、QuickLook 注册和用户目录迁移」。
+**那些是官网安装器做的事，自更新包里一样都没有。** 这两个包是不同的东西，
+而一次普通发版走的是后者。把安装器的动作算到更新头上，等于给「不做」找了一条
+它撑不住的理由——这就是本文头部那条警告指的错误。
+
+2026-09-20 拿真包（6.25.1.11973，183,534,090 bytes，MD5 `a171cf3d5cb42ef1d33a701555d5051c`
+与接口声明一致）逐个脚本读完：
+
+| 脚本 | 真实内容 | 为什么不跑 |
+|------|----------|------------|
+| `pre.sh` | 仅当 `! -w "/Library/Input Methods/SogouInput.app"` 时弹授权并 `chown -R root:staff` + `chmod -R 775` | 可写时是 no-op；不可写那一支 `InPlaceSwap.stageRotation` 本来就先拒，且给的是一句话而不是密码框。**行为等价** |
+| `post.sh` | 整段包在 `if [ $SOGOU_INPUT_VERSION == "3.2.0.68597" ]` | 2019 年那一版的皮肤目录修复，现代安装上是死代码 |
+| `switch.sh` | 见下 | 唯一有破坏性的，而且是参数门控的 |
+
+`switch.sh` 的全部内容归纳：
+
+- `killAll -9 SogouTaskManager` / `killAll -9 SogouServices` / `killAll SogouPreference`
+  —— ⚠️ 写的是 `killAll`（大写 A），但 macOS 默认卷不区分大小写，PATH 查找**照样命中**
+  `/usr/bin/killall`。**别把它当成拼错所以不执行**；
+- 用户目录那段是 `$1` 门控的：`switch.sh 1` 会
+  `rm -rf ~/Library/Application Support/Sogou/InputMethod`（学习词库，本机 17MB）
+  再把 `~/Library/Input Methods/Sogou` 移过去；不传参只 `rm -rf ~/Library/Input Methods/Sogou`
+  （本机该目录不存在）；
+- 重启 `SogouCharacterViewer`；
+- 结尾 `killall -KILL SystemUIServer`。
+
+所以正确处置是**根本不调用它**，而不是「因为它带迁移分支所以不能做一键」。
+
+### 装配后的包是真包（这决定了没有一道闸被放宽）
+
+把内层 `Contents6.25.1.11973/` 改名 `Contents`、套进 `SogouInput.app/`：
+
+```
+codesign -dv    → TeamIdentifier=DFD88F82SU   Identifier=com.sogou.inputmethod.sogou
+codesign --verify --deep --strict → valid on disk / satisfies its Designated Requirement
+spctl -a -t install               → accepted, source=Notarized Developer ID
+```
+
+Gate 2/3/4 原样通过。与豆包那条 `nestedArchivePath` 的**区别要写清楚**：豆包在拆包前
+先验了 stub 的签名，搜狗外层是裸 zip，**没有 stub 可验**——信任完全落在装配后的
+Gate 2–6 上（豆包最终也落在那里，stub 那一次是额外的一道）。`ContentsPayload` 补的是
+形状守卫：内层必须恰好一个 `^Contents[0-9.]*$` 目录、不能是符号链接或文件、
+外层匹配必须唯一。
+
+### `SGQuDao` 不保留（初版的开放问题，已闭环）
+
+装机副本 `Info.plist` 有 `SGQuDao = 1111`，**payload 的没有**，
+`pre/post/switch.sh` 三个脚本也**没有任何一处重新注入**。
+2026-09-20 真机验证：更新后该键消失；`launchctl kickstart -k gui/<uid>/com.sogou.SogouServices`
+重启厂商服务后再读，**仍然没有**，`Info.plist` 的 sha1 一字未变。
+结论：**厂商自己更新一次同样会丢**，这是行为对齐，不是我们弄坏的。
+反过来注入才是错的——`Info.plist` 被 code directory 封签，写它会当场作废刚验过的签名。
+（回滚会把带 `SGQuDao` 的旧 `Contents` 原样放回，已验。）
+
+### 用户数据：一般规则在搜狗身上几乎全空（必须先修的那一项）
+
+> **数法**：一个「位置」= 一次捕获，支持目录是整个抓走的，所以
+> `Application Support/Sogou` 下面那四个子目录算 **1** 条不是 4 条。
+> 全量是 **7** 条（1 个支持目录 + 6 个 plist），快照实测也是 7 条。
+> 写下来是因为 `InputMethodDataBackup` 的注释、recipe 注释和测试文档里一度写成「8」
+> ——**本文档没有**，各版本一直是 `1/7`；2026-09-20 review round 2 纠正过这一点，
+> 当时这段还错写成「本文早前有几处写成 8」。
+
+`InputMethodDataBackup` 的两条通用规则在这里只命中 **1/7**——
+`Application Support/SogouInput` 根本不存在，名字规则 `contains("SogouInput")`
+也够不到 `com.sogou.SogouPreference`（设置面板，和 WeType 的 `com.tencent.WeTypeSettings`
+同一形状）。所以加了 `declaredDataNames["com.sogou.inputmethod.sogou"] = ["Sogou"]`，
+两条规则共用这个名字。
+
+被否决的做法是**从 bundle id 推厂商 token**（`com.sogou.…` → `Sogou`）：
+同一条规则会把 WeType 读成 `Tencent`，从而把 `~/Library/Application Support/Tencent`
+（多个腾讯 app 共用）整个快照进去。
+
+真机快照实测 7 条全中：`Application Support/Sogou` +
+`SogouServices.plist`、`com.sogou.{SGInputStatPanel,SogouInstaller,SogouPreference,SogouTaskManager}.plist`、
+`com.sogou.inputmethod.sogou.plist`。
+
+### 仍然不做的事
+
+- 不跑厂商脚本（上表）；
+- 不重启 `SogouServices` / `SogouTaskManager`——旧进程继续跑在被换掉的二进制上，
+  实测输入法可用、输入源注册未掉；真需要时正确做法是 `launchctl kickstart -k`
+  那两个 agent（有界、可解释），不是把 `switch.sh` 请回来；
+- 不做 `killall -KILL SystemUIServer`；
+- `update_pack_md5` 是 MD5 而 `checksumPattern` 是 SHA-512/base64，**故意不接**而不是错声明
+  （和 WeType 的 `zip_download_md5` 同一处置）。
+
+### 下载 URL 用的是 pin 了 `v=0.0.0.1` 的那次响应
+
+这与初版「建议下一步 4」相反（那条说要带真实版本号另发一次动态请求）。改判据是两条实测：
+接口**不做分段升级**（所以 pin 的那次拿到的就是最新包），而 `sv` **做 OS 门控**
+（macOS 28 上带真实 OS 去问会拿到 2023 年的旧包）。
+用同一次响应还顺带消掉「比较的版本」与「下载的包」指向不同发布的漂移面。
+
+### 旧记录（2026-08-28 写的，保留）
+
+它的 `install.sh` 在**已安装**分支上确实是 Contents 轮换（第三家同形）：
 
 它的 `install.sh` 在**已安装**分支上确实是 Contents 轮换（第三家同形）：
 
@@ -230,6 +354,51 @@ autosetup6.24.1.11676_....zip
 
 所以未来的一键路径应当是专用的“候选接口 → 校验 MD5 → 解双层 ZIP → 保留渠道和权限 → 原子切换
 Contents”，并为迁移脚本建立明确版本门控；不是把官网安装器或自更新 ZIP 当普通 `.app` 覆盖。
+
+> **以上三段已被 2026-09-20 取代**，两处结论改了：`SGQuDao` 不保留（厂商自己也不保留，已实测），
+> 而 MD5 故意不接。上面那段「未来的一键路径」里唯一照做的是双层解包 + 切换 Contents。
+> 真正落地的样子见本文「一键安装」一节。
+
+## 验证记录（2026-09-20，一键）
+
+装机 `6.24.1.11676` → 线上 `6.25.1.11973`，这是 2026-08-28 那次欠下的真机红→绿。
+
+| 检查 | 命令 / 做法 | 结果 |
+|------|-------------|------|
+| 单元测试 | `swift test --filter SogouInputTests` | 7/7 ✓ |
+| 装配器 | `swift test --filter ContentsPayloadTests` | 9/9 ✓ |
+| 数据快照 | `swift test --filter InputMethodDataBackupTests` | 11/11 ✓ |
+| 变异测试（数据快照） | 声明表置空 / 名字只驱动支持目录 / 只驱动 preferences | 3/3 **都变红** ✓ |
+| 变异测试（装配器） | 去锚点 / 去唯一性 / 去多匹配拒绝 / 去符号链接拒绝 / 去类型检查 / 用归档名命名 bundle | 6/6 **都变红** ✓（去 containment 那条**空过**，已在代码里写明它是 backstop） |
+| 全量 | `make test` | Core 3531 / CLI 378 / App 51 全绿（1 条既有 known issue） |
+| payload 完整性 | `md5 -q autosetup6.25.1.11973...zip` | `a171cf3d5cb42ef1d33a701555d5051c`，与接口声明一致 ✓ |
+| 装配后签名 | `codesign --verify --deep --strict` / `spctl -a -t install` | valid / `accepted, source=Notarized Developer ID` ✓ |
+| 计划 | `duo install SogouInput --dry-run` | `SogouInput 6.24.1.11676 → 6.25.1.11973 [vendor]` |
+| **真机红→绿** | `duo install SogouInput --yes --json` | `outcome=installed, applied=true`，183,534,090 B，**12.7s** ✓ |
+| 外层 bundle 身份 | `ls -id` 前后对比 | `213390184` **不变**；`Contents` 由 `213390185` → `256854106` ✓ 正是轮换 |
+| 属主 / 权限 | `stat` | 外层仍 `root:staff` 775；`Contents` 变 `bobby:staff` 775 —— 不提权的已知代价 |
+| 签名（更新后） | `codesign --verify --deep --strict` | **exit 0**（更新前是 `a sealed resource is missing or invalid`，app 自己运行时往 bundle 里写出来的）|
+| `SGQuDao` | 更新后读 / `kickstart` 重启 SogouServices 后再读 | 两次都没有，`Info.plist` sha1 未变 ✓ |
+| 输入源注册 | `defaults read com.apple.HIToolbox` | `com.sogou.inputmethod.sogou` 仍在 ✓ |
+| 用户数据快照 | 看 `Backups/<key>/UserData/userdata.json` | **7 条全中**（通用规则只会命中 1 条）✓ |
+| 回滚 | 先在词库目录里放一个 marker，再 `duo backups restore SogouInput --yes` | 回到 `6.24.1.11676`、`SGQuDao=1111` 回来了、marker 消失（快照早于它）、外层 inode 不变、输入源仍在 ✓ |
+| 复装 | 再 `duo install` 一次 | 再次 `applied=true`，`duo check` → `up-to-date` ✓ |
+| CDN 的 HTTPS | `curl -r 0-15` 打两个轮询主机 | `pro.cdn` / `pro.cdn2` **都** 206 + `application/zip` + `PK\x03\x04` ✓ —— 接口给的是 `http`，`VendorProbeSource.preferHTTPS` 会无条件改写成 `https`，所以这条必须真打过才算数 |
+
+**人工复核（同日，用户在键盘前）**：更新 → 回滚 → 再更新走了一整圈，中文输入正常、
+**账号登录态保住了**、关于面板读数正确。两条只有人能看见的现象：
+
+- **关于面板会显示陈旧版本**，因为轮换只换磁盘上的代码、不打断已映射的进程
+  （`SogouPreference` 那个进程比回滚早一小时起的）。重选一次输入源、面板重开就对了。
+  `duo backups restore` 结尾那句 `SogouInput is running — restart it to use the restored version`
+  说的就是这件事。**这不是 bug，是这个 app 从不强杀换来的**。
+- 面板上的「已是最新」也会缓存：回到 6.24 之后它仍写「已是最新」，而同一时刻厂商接口对
+  `v=6.24.1.11676` 明确返回 6.25.1.11973。
+
+**外层 bundle 的 inode `213390184` 在三次安装 + 两次回滚里一次都没变。** 这是输入源注册
+不掉的根据，也是「是谁换的」最好用的判据：我们留下 `Contents` 属主 `bobby:staff`，
+厂商那条路径结尾是 `chown -R root:staff`，而 `switch.sh` 只要跑过就会写
+`~/Library/Caches/com.sogou.installType`（全程不存在 → 厂商自己一次都没装成）。
 
 ## 验证记录（2026-08-28）
 

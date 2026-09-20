@@ -264,33 +264,54 @@ public actor VendorInstaller {
             onStage(.extracting)
             // Awaited in place: see `extractApp` for why it needs no hop and runs
             // to completion.
-            newApp = try await ArchiveExtractor.extractApp(
-                from: download.archiveURL, workDir: download.workDir)
-            // 3b. Some vendors ship an installer stub with the app inside it —
-            // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
-            // first proven the stub is the vendor's: the nested archive sits under
-            // `Contents/Resources`, which the stub's own signature seals, so a
-            // valid signature from the installed app's Team is a statement about
-            // the payload we are about to take out of it. Bundle id is NOT pinned
-            // here — a stub's id is a sibling of the app's by construction
-            // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
-            // including the id pin, then runs against the payload itself.
-            //
-            // Also skipped for a local stash, and for the same reason as the
-            // checksum above: this path describes where a payload sits inside one
-            // particular stub installer the vendor publishes. A zip of the app is
-            // not that stub, so the lookup would fail as `nestedPayloadMissing` —
-            // naming a file the archive was never supposed to hold. ⚠️ No test
-            // pins this one; `LocalStashInstallWiringTests` says why.
-            if let nested = remote.nestedArchivePath, download.localStash == nil {
-                let outer = newApp
-                let installed = result.app.path
-                try await offCooperativePool {
-                    try SignatureVerifier.verifyCodeSignature(appAt: outer)
-                    try SignatureVerifier.verifyTeamIdentifierMatch(
-                        installedApp: installed, downloadedApp: outer)
+            if let pattern = remote.contentsArchivePattern, download.localStash == nil {
+                // A package that carries the app's INSIDE rather than the app —
+                // see `ContentsPayload`, which unpacks both levels and assembles a
+                // bundle for the gates below to read. It replaces `extractApp`
+                // rather than following it: there is no `.app` at either level, so
+                // extraction would answer `noAppFound` before this could run.
+                //
+                // Skipped for a local stash, and for the same reason as the
+                // checksum and `nestedArchivePath` above: this describes one
+                // vendor's own update package, and a stash is by definition some
+                // other updater's container. The consequence if one ever appears
+                // for an app of this shape is a loud `noAppFound` from the line
+                // below, not a wrong install.
+                newApp = try await ContentsPayload.assemble(
+                    outerArchive: download.archiveURL,
+                    innerArchivePattern: pattern,
+                    // The installed copy names the bundle, not the archive.
+                    bundleName: result.app.path.deletingPathExtension().lastPathComponent,
+                    workDir: download.workDir)
+            } else {
+                newApp = try await ArchiveExtractor.extractApp(
+                    from: download.archiveURL, workDir: download.workDir)
+                // 3b. Some vendors ship an installer stub with the app inside it —
+                // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
+                // first proven the stub is the vendor's: the nested archive sits under
+                // `Contents/Resources`, which the stub's own signature seals, so a
+                // valid signature from the installed app's Team is a statement about
+                // the payload we are about to take out of it. Bundle id is NOT pinned
+                // here — a stub's id is a sibling of the app's by construction
+                // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
+                // including the id pin, then runs against the payload itself.
+                //
+                // Also skipped for a local stash, and for the same reason as the
+                // checksum above: this path describes where a payload sits inside one
+                // particular stub installer the vendor publishes. A zip of the app is
+                // not that stub, so the lookup would fail as `nestedPayloadMissing` —
+                // naming a file the archive was never supposed to hold. ⚠️ No test
+                // pins this one; `LocalStashInstallWiringTests` says why.
+                if let nested = remote.nestedArchivePath, download.localStash == nil {
+                    let outer = newApp
+                    let installed = result.app.path
+                    try await offCooperativePool {
+                        try SignatureVerifier.verifyCodeSignature(appAt: outer)
+                        try SignatureVerifier.verifyTeamIdentifierMatch(
+                            installedApp: installed, downloadedApp: outer)
+                    }
+                    newApp = try await unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
                 }
-                newApp = try await unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
             }
         }
 

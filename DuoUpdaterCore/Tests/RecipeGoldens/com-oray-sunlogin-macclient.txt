@@ -38,6 +38,7 @@ probes[0].install?.checksumPattern = nil
 probes[0].install?.requestHeaders = Dictionary(count: 1)
 probes[0].install?.requestHeaders["Referer"] = "https://sunlogin.oray.com/"
 probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
 probes[0].requestBody = nil
 probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)

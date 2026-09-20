@@ -102,6 +102,19 @@ private func sogouRecipe() throws -> VendorProbeRecipe {
         """.replacingOccurrences(of: "        ", with: "") + sogouUpdateFixture
         #expect(VendorProbeRecipe.extractVersion(
             from: otherProductFirst, pattern: recipe.versionPattern) == "6.24.1.11676")
+
+        // The INSTALL pattern has to read the same block, or the version and the
+        // bytes would name different releases. It is scoped the same way for that
+        // reason; an unscoped `\nupdate_pack_url=(…)` takes the first match in the
+        // body and answers `something-else.zip` here.
+        guard case .bodyPattern(let install) = try #require(recipe.install).urlSource else {
+            Issue.record("the payload URL must come from this response's body")
+            return
+        }
+        #expect(VendorProbeRecipe.extractVersion(from: otherProductFirst, pattern: install)
+            == "http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip")
+        #expect(VendorProbeRecipe.extractVersion(from: twoBlocks, pattern: install)
+            == "http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip")
     }
 
     /// The probe's request IS the recipe. Drop `sv`, or send `s=1`/`s=2`, and the
@@ -148,16 +161,62 @@ private func sogouRecipe() throws -> VendorProbeRecipe {
         #expect(changelog.host != recipe.url.host)
     }
 
-    /// Detection only. The full installer owns two LaunchAgents, a QuickLook
-    /// generator and a user-data migration, none of which a `Contents` rotation
-    /// touches. The narrower self-update payload is a nested `Contents` archive
-    /// plus `pre`/`post`/`switch` scripts, and its `Info.plist` omits the installed
-    /// copy's `SGQuDao` channel with reinjection behaviour still unverified. Either
-    /// way it needs a dedicated installer, not the generic archive path.
-    @Test func sogouStaysDetectionOnly() throws {
+    /// The install takes its payload out of the SAME response the version came
+    /// from, which is what keeps the two from naming different releases: the
+    /// endpoint is conditional, and a second request asking as a different client
+    /// can be answered differently (it is answered with a 2023 build above
+    /// `sv=27.6`).
+    ///
+    /// `update_pack_md5` is deliberately not wired to `checksumPattern`, which is
+    /// SHA-512 in base64 — an MD5 declared there could only fail, and would fail
+    /// as "corrupt or tampered" for a file that is neither.
+    @Test func theInstallPayloadComesOutOfTheSameResponseAsTheVersion() throws {
         let recipe = try sogouRecipe()
-        #expect(recipe.install == nil)
+        let install = try #require(recipe.install)
+        #expect(install.kind == .zip)
+        #expect(install.checksumPattern == nil)
+
+        guard case .bodyPattern(let pattern) = install.urlSource else {
+            Issue.record("the payload URL must come from this response's body")
+            return
+        }
+        #expect(VendorProbeRecipe.extractVersion(from: sogouUpdateFixture, pattern: pattern)
+            == "http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip")
+        // The sentinel response carries `pkg_url`, not `update_pack_url`: the
+        // same asymmetry the version pattern leans on. An install URL recovered
+        // from it would point at the vendor's `.ins` first-run installer.
+        #expect(VendorProbeRecipe.extractVersion(from: sogouNoUpdateFixture, pattern: pattern) == nil)
+    }
+
+    /// One-click, and it runs as a `Contents` rotation like the other two input
+    /// methods — which is what `isInputMethod` decides, from the install location
+    /// rather than from anything declared here.
+    ///
+    /// What makes it possible is the shape of the payload: a bare
+    /// `Contents<version>` directory inside a second zip, with no `.app` at
+    /// either level, assembled by `ContentsPayload`. The case against it used to
+    /// rest on the website installer's LaunchAgents, QuickLook generator and
+    /// user-data migration; the self-update package performs none of those.
+    @Test func sogouInstallsByRotatingContents() throws {
+        let recipe = try sogouRecipe()
+        let install = try #require(recipe.install)
+        let pattern = try #require(install.contentsArchivePattern)
+        #expect(install.nestedArchivePath == nil, "the two unwraps are alternatives")
+
+        // The name the vendor actually ships, and the ones it must not accept.
+        #expect(matchesWholeName("Contents6.25.1.11973.zip", pattern))
+        #expect(matchesWholeName("Contents6.24.1.11676.zip", pattern))
+        #expect(!matchesWholeName("Contents6.25.1.11973.zip.attacker", pattern))
+        #expect(!matchesWholeName("pre.sh", pattern))
+
         #expect(UpdatePolicy.isInputMethod(
             URL(fileURLWithPath: "/Library/Input Methods/SogouInput.app")))
+        #expect(InPlaceSwap.usesContentsRotation(
+            target: URL(fileURLWithPath: "/Library/Input Methods/SogouInput.app")))
+    }
+
+    private func matchesWholeName(_ name: String, _ pattern: String) -> Bool {
+        (try? NSRegularExpression(pattern: pattern))?
+            .firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) != nil
     }
 }

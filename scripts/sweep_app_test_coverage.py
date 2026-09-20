@@ -171,6 +171,36 @@ EXPECTED_WITH_MISSES = {
 }
 
 
+def inventory_problems(table, totals):
+    """Compare a by-shape RECALL table against the pinned inventory.
+
+    Split out of `main()` so the comparison can be tested on synthetic tables
+    rather than only through a live sweep. Review of 9f54148f made the point:
+    the sweep's success line is printed unconditionally, so a test that only
+    asserts the line still passes if the comparison is deleted. A test that
+    calls this directly does not.
+
+    Returns (regressed, improved, unknown), each a sorted list of ordering
+    labels; all three empty means the inventory is unchanged.
+    """
+    known = EXPECTED_FULLY_RECOVERED | EXPECTED_WITH_MISSES
+    # Reported once each. An ordering the inventory does not name is `unknown`
+    # and nothing else: without this it would ALSO land in `regressed` or
+    # `improved`, and print advice about updating percentages that do not
+    # mention it. (Found by the unit test below, not by reading.)
+    unknown = set(totals) - known
+    seen_with_misses = {label for label in totals if table[label]} - unknown
+    seen_clean = {label for label in totals if not table[label]} - unknown
+    return (
+        # Was fully recovered, now misses: a new false-red shape.
+        sorted(seen_with_misses - EXPECTED_WITH_MISSES),
+        # Was known to miss, now clean: good, but it falsifies the quoted
+        # percentages, so it has to be a deliberate edit.
+        sorted(seen_clean - EXPECTED_FULLY_RECOVERED),
+        sorted(unknown),
+    )
+
+
 def shape_of(order):
     """A readable label for an interleaving, e.g. `record|log|record|log`."""
     return "|".join("record" if i == 0 else f"log{i}" for i in order)
@@ -316,11 +346,7 @@ def main() -> int:
     # The docstring promises this check; without it the table above is
     # decoration, and an ordering that regressed from fully-recovered to
     # missing would exit 0 with `make test` still green.
-    seen_with_misses = {label for label in totals if table[label]}
-    seen_clean = {label for label in totals if not table[label]}
-    regressed = sorted(seen_with_misses - EXPECTED_WITH_MISSES)
-    improved = sorted(seen_clean - EXPECTED_FULLY_RECOVERED)
-    unknown = sorted(set(totals) - EXPECTED_WITH_MISSES - EXPECTED_FULLY_RECOVERED)
+    regressed, improved, unknown = inventory_problems(table, totals)
     if regressed:
         failed = True
         print()

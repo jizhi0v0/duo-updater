@@ -543,6 +543,67 @@ class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
         self.assertIn("RECALL inventory is unchanged", out.stdout)
         self.assertNotIn("RECALL inventory changed", out.stdout)
 
+    def test_the_inventory_comparison_catches_each_kind_of_change(self):
+        """The comparison itself, on synthetic tables.
+
+        Round 2 of review made the point that the sweep's success line is
+        printed unconditionally, so the two tests above stay green if the
+        `regressed`/`improved`/`unknown` block is deleted — they only fail for
+        a real parser regression, which is a slower signal. This calls the
+        comparison directly, so deleting or inverting it fails here at once.
+
+        Mutation: return three empty lists from `inventory_problems` → all four
+        change cases below fail.
+        Mutation: drop the `improved` term → the second case fails.
+        Mutation: drop the `unknown` term → the third case fails.
+        """
+        import importlib
+        sweep = importlib.import_module("sweep_app_test_coverage")
+        clean = dict.fromkeys(sweep.EXPECTED_FULLY_RECOVERED, 0)
+        missing = dict.fromkeys(sweep.EXPECTED_WITH_MISSES, 7)
+        totals = {label: 149200 for label in (clean | missing)}
+
+        # Unchanged: the inventory as pinned.
+        self.assertEqual(sweep.inventory_problems(clean | missing, totals),
+                         ([], [], []))
+
+        # An ordering that was fully recovered starts missing — the shape the
+        # 2026-09-20 false red would have taken.
+        regressed_label = sorted(sweep.EXPECTED_FULLY_RECOVERED)[0]
+        table = (clean | missing)
+        table[regressed_label] = 62278
+        self.assertEqual(sweep.inventory_problems(table, totals),
+                         ([regressed_label], [], []))
+
+        # A known-missing ordering stops missing: good news, still a change.
+        improved_label = sorted(sweep.EXPECTED_WITH_MISSES)[0]
+        table = (clean | missing)
+        table[improved_label] = 0
+        self.assertEqual(sweep.inventory_problems(table, totals),
+                         ([], [improved_label], []))
+
+        # An ordering the inventory does not name at all.
+        table = (clean | missing) | {"record|record|record|log1": 0}
+        extra_totals = totals | {"record|record|record|log1": 1}
+        self.assertEqual(sweep.inventory_problems(table, extra_totals),
+                         ([], [], ["record|record|record|log1"]))
+
+    def test_the_pinned_inventory_names_every_ordering_once(self):
+        """The two pinned sets must partition the six orderings `recall_by_shape`
+        produces. Mutation: drop a label from either set → it lands in `unknown`
+        on every live run, which is a red the author must resolve deliberately
+        rather than a silent hole."""
+        import importlib
+        import itertools
+        sweep = importlib.import_module("sweep_app_test_coverage")
+        produced = {sweep.shape_of(order)
+                    for order in set(itertools.permutations([0, 0, 1, 1]))}
+        self.assertEqual(len(produced), 6)
+        self.assertEqual(sweep.EXPECTED_FULLY_RECOVERED | sweep.EXPECTED_WITH_MISSES,
+                         produced)
+        self.assertEqual(sweep.EXPECTED_FULLY_RECOVERED & sweep.EXPECTED_WITH_MISSES,
+                         set())
+
     def test_the_sweep_actually_visited_texts(self):
         """The sweep is itself a gate, so it must not pass vacuously: an
         enumeration that produced nothing would print `0 texts, 0 false passes

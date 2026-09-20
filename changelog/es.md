@@ -2,6 +2,10 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.0
+
+**Reabrir ya no compite con el instalador de la propia app.** Cuando una app ha descargado su propia actualización y su copia de reversión va en un disco externo, ese traslado ahora espera a que el instalador termine. Antes se hacía durante los pocos segundos que macOS le da para trabajar.
+
 ## 0.3.99
 
 **Las copias de seguridad para revertir ya pueden vivir en otro disco.** Una copia de seguridad es una copia entera de una app, y en el disco de arranque se acumulan. Ajustes → Copias de seguridad muestra los discos conectados con el espacio libre de cada uno, traslada las copias que ya tienes y escribe las nuevas ahí en segundo plano: si el disco no está conectado, tendrás una espera, no un punto de reversión que falta. `duo backups` ha ganado `disks`, `sync`, `verify` y `probe`.

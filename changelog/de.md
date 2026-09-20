@@ -2,6 +2,10 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.0
+
+**„Neu starten“ kommt dem eigenen Installationsprogramm einer App nicht mehr in die Quere.** Hat eine App ihr Update selbst geladen und gehört ihr Rücksetz-Backup auf ein externes Volume, wartet diese Kopie jetzt, bis das Installationsprogramm fertig ist. Bisher lief sie in genau den wenigen Sekunden, die macOS ihm dafür gibt.
+
 ## 0.3.99
 
 **Backups zum Zurücksetzen können jetzt auf einem anderen Volume liegen.** Ein Backup ist eine vollständige Kopie einer App, und auf dem Startvolume summiert sich das. Unter Einstellungen → Backups stehen die angeschlossenen Volumes mit ihrem jeweils freien Speicher; bereits vorhandene Backups lassen sich dorthin verschieben, neue werden im Hintergrund dorthin geschrieben – ist das Volume abgezogen, bedeutet das eine Verzögerung und keinen fehlenden Rücksetzpunkt. `duo backups` hat `disks`, `sync`, `verify` und `probe` dazubekommen.

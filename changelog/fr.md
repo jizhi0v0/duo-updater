@@ -2,6 +2,10 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.4.0
+
+**Relancer n'entre plus en concurrence avec l'installeur de l'app.** Quand une app a téléchargé sa propre mise à jour et que sa sauvegarde de restauration doit aller sur un disque externe, cette copie attend désormais la fin de l'installeur. Auparavant, elle se faisait pendant les quelques secondes que macOS lui laisse pour travailler.
+
 ## 0.3.99
 
 **Les sauvegardes de restauration peuvent désormais vivre sur un autre disque.** Une sauvegarde est une copie entière d'une app, et sur le volume de démarrage elles s'accumulent. Réglages → Sauvegardes liste les disques connectés avec l'espace libre de chacun, déplace les sauvegardes que vous avez déjà et écrit les nouvelles là-bas en arrière-plan : débranchez le disque et vous aurez un délai, pas un point de restauration manquant. `duo backups` gagne `disks`, `sync`, `verify` et `probe`.

@@ -6,12 +6,14 @@ import Testing
 /// The input-method user-data snapshot on the way to a backup disk and back.
 ///
 /// The snapshot is the reason the input-method one-click was reinstated at all
-/// (see `InputMethodDataBackup`), and until 0.4.1 it did not survive the move to
+/// (see `InputMethodDataBackup`), and before this change it did not survive the move to
 /// an external destination: the transfer packed the bundle, wrote a sidecar that
 /// looked complete, and deleted the outbox directory the snapshot was living in.
-/// Measured on a real machine on 2026-09-20 — every generation on the backup disk
-/// held `<App>.aar` + `backup.json` and nothing else, including two input methods
-/// that definitely had one. A rollback from that disk then restored the bundle
+/// Measured on this Mac on 2026-09-20, by listing the backup disk directly: of
+/// 46 generations under `/Volumes/…/DuoUpdater Backups`, NONE held a `UserData`
+/// directory — every one was `<App>.aar` + `backup.json` — and that included
+/// `com.sogou.inputmethod.sogou-…` and `com.qianwen.inputmethod.desktopime-…`,
+/// both of which get a snapshot when they are installed. A rollback from that disk then restored the bundle
 /// alone, silently, which is the exact downgrade-onto-newer-data case the
 /// snapshot exists to prevent.
 ///
@@ -149,7 +151,8 @@ import Testing
             // nothing below can be quietly reading it instead.
             #expect(!FileManager.default.fileExists(
                 atPath: fixture.outbox.appendingPathComponent(fixture.key).path))
-            #expect(fixture.diskEntries() == ["Fixture.aar", "UserData.aar", "backup.json"])
+            #expect(fixture.diskEntries()
+                == ["Fixture.UserData.aar", "Fixture.aar", "backup.json"])
             #expect(BackupStore.backup(forKey: fixture.key)?.location == .destination)
 
             // The update lands, and the new version rewrites the dictionary.
@@ -203,7 +206,7 @@ import Testing
             try await fixture.backUp(version: "1.0")
             try await BackupStore.transferToDestination(forKey: fixture.key)
             try FileManager.default.removeItem(
-                at: fixture.disk.appendingPathComponent("\(fixture.key)/UserData.aar"))
+                at: fixture.disk.appendingPathComponent("\(fixture.key)/Fixture.UserData.aar"))
 
             try fixture.writeApp(marker: "v2")
             try fixture.writeDictionary("newer data")
@@ -231,7 +234,8 @@ import Testing
             try await fixture.backUp(version: "1.0")
             try await BackupStore.transferToDestination(forKey: fixture.key)
 
-            let archive = fixture.disk.appendingPathComponent("\(fixture.key)/UserData.aar")
+            let archive = fixture.disk
+                .appendingPathComponent("\(fixture.key)/Fixture.UserData.aar")
             var bytes = try Data(contentsOf: archive)
             bytes[bytes.count - 1] ^= 0xFF
             try bytes.write(to: archive)
@@ -270,9 +274,62 @@ import Testing
         }
     }
 
+    /// An input method whose bundle is literally called `UserData.app`.
+    ///
+    /// Caught in review on the first round, and the failure it would have been
+    /// is worth the fixture: the snapshot archive was a fixed `UserData.aar`,
+    /// which is byte for byte what `archiveName(forBundle: "UserData.app")`
+    /// produces. `BundleArchive.archive` deletes whatever sits at its target
+    /// before renaming the new file in, so the snapshot would have overwritten
+    /// the bundle archive whose digest had just been recorded — and the next
+    /// line of the transfer deletes the outbox copy. The rollback point would be
+    /// destroyed by taking a backup of it, and would say so only as a digest
+    /// mismatch the next time someone needed it.
+    ///
+    /// Asserted as a round trip rather than as two file names, because the names
+    /// are not the property that matters: what matters is that both halves are
+    /// still restorable afterwards.
+    @Test func anAppCalledUserDataDoesNotOverwriteItsOwnSnapshot() async throws {
+        try await withInputMethodStores { fixture in
+            let fm = FileManager.default
+            let app = fixture.installed.appendingPathComponent("UserData.app")
+            let contents = app.appendingPathComponent("Contents", isDirectory: true)
+            try fm.createDirectory(at: contents, withIntermediateDirectories: true)
+            try Data("v1".utf8).write(to: contents.appendingPathComponent("marker.txt"))
+            let support = fixture.home
+                .appendingPathComponent("Library/Application Support/UserData", isDirectory: true)
+            try fm.createDirectory(at: support, withIntermediateDirectories: true)
+            let dictionary = support.appendingPathComponent("words.db")
+            try Data("original".utf8).write(to: dictionary)
+
+            let key = BackupStore.key(bundleID: "com.example.userdata", path: app)
+            try await BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.userdata")
+            #expect(await !InputMethodDataBackup.save(
+                bundleName: "UserData", bundleID: "com.example.userdata", key: key).isEmpty)
+            try await BackupStore.transferToDestination(forKey: key)
+
+            // Two archives, not one written twice.
+            let entries = try fm.contentsOfDirectory(
+                atPath: fixture.disk.appendingPathComponent(key).path).sorted()
+            #expect(entries == ["UserData.UserData.aar", "UserData.aar", "backup.json"])
+
+            try Data("v2".utf8).write(to: contents.appendingPathComponent("marker.txt"))
+            try Data("newer".utf8).write(to: dictionary)
+            let outcome = try await BackupStore.restoreReportingUserData(forKey: key, over: app)
+            // The bundle's digest gate still passes — nothing overwrote it — and
+            // the snapshot is there to put back.
+            #expect(outcome.version == "1.0")
+            #expect(outcome.userData == .restored(1))
+            #expect(try String(
+                contentsOf: contents.appendingPathComponent("marker.txt"), encoding: .utf8) == "v1")
+            #expect(try String(contentsOf: dictionary, encoding: .utf8) == "original")
+        }
+    }
+
     // MARK: - Finding the generations already affected
 
-    /// What can be said about the generations a pre-0.4.1 build already moved.
+    /// What can be said about the generations an earlier build already moved.
     /// They are recognised by the install path in their sidecar, in whichever
     /// store they are in, and an ordinary app is never one of them.
     @Test func generationsWithNoSnapshotAreFoundOnTheDisk() async throws {
@@ -285,11 +342,12 @@ import Testing
             // Nothing to report while the snapshot is where it belongs.
             #expect(BackupStore.generationsMissingUserDataSnapshot().isEmpty)
 
-            // Now the state a pre-0.4.1 transfer left: bundle and sidecar, no
+            // Now the state an earlier transfer left: bundle and sidecar, no
             // snapshot. Both halves are removed, because a sidecar naming an
             // archive that is not there is its own kind of missing.
             let dir = fixture.disk.appendingPathComponent(fixture.key, isDirectory: true)
-            try FileManager.default.removeItem(at: dir.appendingPathComponent("UserData.aar"))
+            try FileManager.default.removeItem(
+                at: dir.appendingPathComponent("Fixture.UserData.aar"))
             let sidecar = dir.appendingPathComponent("backup.json")
             var decoded = try #require(try JSONSerialization.jsonObject(
                 with: Data(contentsOf: sidecar)) as? [String: Any])

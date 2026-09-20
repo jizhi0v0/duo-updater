@@ -168,10 +168,11 @@ public enum Backups {
     /// looks like an empty backup rather than a compressed one.
     ///
     /// The destination branch measures the generation's whole directory rather
-    /// than only the bundle's archive: since 0.4.1 an input method's user-data
-    /// snapshot travels there as a second archive beside it, and DoubaoIme's is
-    /// larger than most apps. Reading one file would report a 600 MB rollback
-    /// point as the 40 MB half of it. Hidden entries are skipped so a `.partial`
+    /// than only the bundle's archive: an input method's user-data snapshot now
+    /// travels there as a second archive beside it, and it is not a rounding
+    /// error next to the bundle — `InputMethodDataBackup` records DoubaoIme's
+    /// support directory at 578 MB. Sizing the bundle's archive alone would
+    /// leave that out of the number. Hidden entries are skipped so a `.partial`
     /// left by a transfer that was cut off is not counted as stored.
     static func backupSize(_ backup: BackupStore.Backup) -> Int64 {
         if backup.location == .destination {

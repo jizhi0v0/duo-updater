@@ -185,14 +185,14 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
         // is inside them is the archiver's business, not this function's.
         try Data(repeating: 0x41, count: 1_000).write(to: dir.appendingPathComponent("Foo.aar"))
         try Data(repeating: 0x42, count: 4_000)
-            .write(to: dir.appendingPathComponent("UserData.aar"))
+            .write(to: dir.appendingPathComponent("Foo.UserData.aar"))
         // A transfer that was cut off leaves one of these; it is not stored bytes.
         try Data(repeating: 0x43, count: 9_000)
             .write(to: dir.appendingPathComponent(".Foo.aar.partial"))
         try Data("""
         {"version":"1.0","bundleID":null,"originalPath":"/Library/Input Methods/Foo.app",
          "bundleName":"Foo.app","savedAt":0,"archiveName":"Foo.aar",
-         "userDataArchiveName":"UserData.aar"}
+         "userDataArchiveName":"Foo.UserData.aar"}
         """.utf8).write(to: dir.appendingPathComponent("backup.json"))
 
         let destination = BackupDestination(

@@ -768,11 +768,27 @@ public enum BackupStore {
         (bundleName as NSString).deletingPathExtension + ".aar"
     }
 
-    /// What the user-data snapshot's archive is called on the disk. A fixed name
-    /// rather than one derived from the app: there is exactly one snapshot per
-    /// generation, the sidecar records the name anyway, and an app called
-    /// `UserData.app` would otherwise collide with it.
-    static let userDataArchiveName = "UserData.aar"
+    /// What the user-data snapshot's archive is called on the disk.
+    ///
+    /// Derived from the bundle name, and specifically built so it can never
+    /// equal ``archiveName(forBundle:)`` for that same bundle: the two archives
+    /// share one directory, and `BundleArchive.archive` removes whatever is at
+    /// its target before renaming the new file in, so two names that coincide is
+    /// not a clash anyone would see — it is the snapshot silently overwriting
+    /// the bundle archive whose digest was already recorded, followed by
+    /// `forceRemove(outboxDir)` deleting the only other copy. The rollback point
+    /// would be gone and would announce itself only as a digest mismatch at
+    /// restore time.
+    ///
+    /// This read `UserData.aar` first, with a comment claiming a fixed name
+    /// avoided exactly that collision. It caused it: an input method installed
+    /// as `/Library/Input Methods/UserData.app` archives to `UserData.aar`, byte
+    /// for byte. Inserting the marker before the extension instead makes the two
+    /// differ by construction — `Foo.aar` against `Foo.UserData.aar` — for every
+    /// bundle name there is, rather than for every one somebody thought of.
+    static func userDataArchiveName(forBundle bundleName: String) -> String {
+        (bundleName as NSString).deletingPathExtension + ".UserData.aar"
+    }
 
     /// How much of the copy in flight for `key` has landed on the disk.
     ///
@@ -935,7 +951,7 @@ public enum BackupStore {
 
         // The generation's input-method user-data snapshot travels with it.
         //
-        // It did not, until 0.4.1, and the shape of that bug is worth keeping
+        // It did not, before this change, and the shape of that bug is worth keeping
         // written down: the transfer packed `meta.bundleName` and nothing else,
         // then removed the whole outbox directory — so `UserData/` was dropped at
         // pack time and destroyed one line later, leaving a generation on the disk
@@ -955,7 +971,7 @@ public enum BackupStore {
         var userDataArchiveName: String?
         var userDataDigest: String?
         if InputMethodDataBackup.snapshotExists(in: userData) {
-            let name = Self.userDataArchiveName
+            let name = Self.userDataArchiveName(forBundle: meta.bundleName)
             let userDataArchive = targetDir.appendingPathComponent(name)
             try await BundleArchive.archive(
                 bundle: userData, to: userDataArchive, compression: compression)
@@ -1179,8 +1195,8 @@ public enum BackupStore {
         /// An input method whose generation carries no snapshot: the bundle is
         /// back and its dictionary, settings and account state are not. The
         /// reason is usually that the backup predates the snapshot, or — for a
-        /// generation transferred by a build before 0.4.1 — that the snapshot was
-        /// dropped on the way to the backup disk.
+        /// generation transferred by a build from before the snapshot travelled
+        /// — that it was dropped on the way to the backup disk.
         case noSnapshot
         /// There was a snapshot and putting it back failed.
         case failed(String)
@@ -1411,7 +1427,8 @@ public enum BackupStore {
 
     /// Every stored generation of an input method with no user-data snapshot.
     ///
-    /// Why this is worth asking at all: builds before 0.4.1 dropped the snapshot
+    /// Why this is worth asking at all: builds from before this change dropped
+    /// the snapshot
     /// when they moved a generation to a backup disk (see the comment in
     /// ``transferToDestination(forKey:compression:)``), so a user who adopted a
     /// backup disk has input-method rollback points on it that silently restore

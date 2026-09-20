@@ -17,6 +17,25 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.4.0</title>
+            <pubDate>Sun, 20 Sep 2026 10:43:12 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.4.0</link>
+            <sparkle:version>109</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Relaunch no longer competes with an app's own installer.** When an app has downloaded its own update and its rollback backup belongs on an external disk, that copy now waits until the installer is finished. Before, it ran during the few seconds macOS gives the installer to do its work.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater-0.4.0-macos.zip" length="14493593" type="application/octet-stream" sparkle:edSignature="IDZzC21ra2V4Fw0rwFFLmaiPQMqxLm+DKKuza+0s+oMRdaOMMo/c7WCHe2adrp16hKpVB74vKW25E4cio2CzDA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater109-108.delta" sparkle:deltaFrom="108" length="485266" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FkkCQeNpN1dxfF4YJy1lft6MLJ581PFmIwMfztT4OXq4lUJJRFAcRb6wTtBswt9C3FBk1F4NcReFqM62/IlUBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater109-107.delta" sparkle:deltaFrom="107" length="1489522" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="IRBtxUO4Ed2uT6sSbtvZgo+XexHmSEZi3TMK8EVr4+G1oBex3O3EHjCcuI08Mnty3m630oBxLIT6Q+nps4S2Dg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater109-106.delta" sparkle:deltaFrom="106" length="1805982" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UYBjTpW3GkgKlSSaM41RaQGSGfIZD+txOJVnpmdYAnZHX6NjqLMoczNP2FsofdocQ/iXuHfvje5PjK76ybb2CA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater109-105.delta" sparkle:deltaFrom="105" length="1899166" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="nX3SQjxAa+s6FiR/YFSX9fVXsF/PSt1f4PJmLjsts2Zns0INtWbhlGo6145ZMwEwyrlgVT8F05LwsUxKLb0mAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.4.0/DuoUpdater109-104.delta" sparkle:deltaFrom="104" length="2223426" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="hrG7wgz+OREQAiiHjnn9ucOHabBA+v7LuuVq8oOyxOd4fDqeVtJZfpls7URPHnKfbHjowzPYlUrTRaXS9VfZBA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.99</title>
             <pubDate>Sat, 19 Sep 2026 20:32:45 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.99</link>
@@ -24,20 +43,6 @@
             <sparkle:shortVersionString>0.3.99</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Rollback backups can now live on another disk.** A backup is a whole copy of an app, and on the boot volume they add up. Settings → Backups lists the connected disks with the space each one has, moves the backups you already have, and writes new ones there in the background — unplug the disk and you get a delay, not a missing rollback point. `duo backups` gained `disks`, `sync`, `verify` and `probe`.
-
-**千问输入法 is now supported.** DuoUpdater tells you when a new version is out, and updates it the way the input method updates itself.
-
-**Release notes no longer stay stuck on the previous version.** When a developer publishes an update a few minutes before their changelog page mentions it, the older notes were filed under the new version and kept forever. CleanShot X had been showing 5.0's notes under 5.0.1 since the day it shipped.
-
-**Deleting a backup now frees the space it says it freed.** Backups taken by older versions of DuoUpdater were written in a form macOS refuses to delete, so Clean Up left most of the copy on disk while counting it as reclaimed.
-
-**Clean Up opens right away.** It used to measure every stored backup from scratch each time you pressed it.
-
-**WorkBuddy shows its newest version again.** Its update service answers with the next step of an upgrade chain rather than the newest build, so all four WorkBuddy editions sat two releases behind.
-
-**Under the hood.** An app that never declared which binary it runs — Meta's Muse among them — now has its frameworks and SDK read anyway.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.99/DuoUpdater-0.3.99-macos.zip" length="14493224" type="application/octet-stream" sparkle:edSignature="lbWeVgoVnJ5lAGMFGAB+YgASu3Wt25vS9vihOiE3Fa1oAs7rVxIL/HyI5tRs/wAZ5Uhze/w2hHl7KYcYzYr4Bw=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.99/DuoUpdater108-107.delta" sparkle:deltaFrom="107" length="1471950" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="47yaiKf/9fqcn2khhViIrWQ2yeh1WJ6GgWSBkChJotFHOeaGClLcOcsokNkNxH76R9qEbPHJnXfTB7GAdqJUCw=="/>

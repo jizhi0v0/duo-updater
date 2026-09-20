@@ -21,6 +21,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.4.0
 
+**搜狗输入法 now updates with one click.** DuoUpdater applies it the way the input method updates itself — keeping the installed bundle in place — and takes a copy of your dictionary and settings first, so a rollback brings them back too.
+
 **Relaunch no longer competes with an app's own installer.** When an app has downloaded its own update and its rollback backup belongs on an external disk, that copy now waits until the installer is finished. Before, it ran during the few seconds macOS gives the installer to do its work.
 
 ## 0.3.99

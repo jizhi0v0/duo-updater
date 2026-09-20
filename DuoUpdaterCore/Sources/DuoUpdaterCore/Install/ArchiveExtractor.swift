@@ -69,6 +69,35 @@ public enum ArchiveExtractor {
         }
     }
 
+    /// Unpack `archive` into `dest` and return nothing — no search for a bundle.
+    ///
+    /// For a package that does not carry a `.app` at all, so `extractApp`'s
+    /// `noAppFound` would be the wrong answer rather than a failure:
+    /// `ContentsPayload` uses this on both levels of a vendor update whose
+    /// payload is a bare `Contents` directory, and does its own, stricter, look
+    /// at what came out.
+    ///
+    /// Archives only. A dmg is rejected rather than mounted: mounting is what
+    /// `fromDMG` exists for, it needs a `defer`ed detach to be safe, and no
+    /// vendor ships this shape in one — an unsupported extension here is a
+    /// recipe bug, and should read as one.
+    ///
+    /// Runs to completion once started, for the same reason `extractApp` does.
+    public static func unpack(_ archive: URL, into dest: URL) async throws {
+        switch archive.pathExtension.lowercased() {
+        case "zip":
+            let r = try await run("/usr/bin/ditto", ["-x", "-k", archive.path, dest.path])
+            guard r.code == 0 else {
+                throw ExtractError.toolFailed("ditto -x -k", r.code, r.err)
+            }
+        case "gz", "bz2", "xz", "tar", "tbz", "tgz":
+            let r = try await run("/usr/bin/tar", ["-xf", archive.path, "-C", dest.path])
+            guard r.code == 0 else { throw ExtractError.toolFailed("tar", r.code, r.err) }
+        case let ext:
+            throw ExtractError.unsupported(ext)
+        }
+    }
+
     // MARK: dmg
 
     private static func fromDMG(_ dmg: URL, workDir: URL) async throws -> URL {

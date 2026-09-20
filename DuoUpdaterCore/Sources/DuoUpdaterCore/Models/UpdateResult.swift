@@ -270,6 +270,11 @@ public struct RemoteVersion: Sendable, Hashable {
     /// `VendorInstallSpec.nestedArchivePath`. Nil for every ordinary download.
     public let nestedArchivePath: String?
 
+    /// Pattern of the inner archive carrying a bare `Contents` directory, for a
+    /// vendor update shaped like an input method's own. See
+    /// `VendorInstallSpec.contentsArchivePattern`. Nil for every ordinary download.
+    public let contentsArchivePattern: String?
+
     /// Extra HTTP headers to send when downloading `downloadURL`. Empty for most
     /// sources; set by vendor recipes whose CDN sits behind a WAF that only
     /// serves the binary to browser-like requests (e.g. Oray's `dw.oray.com`
@@ -371,6 +376,7 @@ public struct RemoteVersion: Sendable, Hashable {
         vendorInstallerKind: VendorInstallerKind? = nil,
         expectedSHA512: String? = nil,
         nestedArchivePath: String? = nil,
+        contentsArchivePattern: String? = nil,
         downloadHeaders: [String: String] = [:],
         releaseNotesHTML: String? = nil,
         structuredChangelog: Changelog? = nil,
@@ -400,6 +406,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.vendorInstallerKind = vendorInstallerKind
         self.expectedSHA512 = expectedSHA512
         self.nestedArchivePath = nestedArchivePath
+        self.contentsArchivePattern = contentsArchivePattern
         self.downloadHeaders = downloadHeaders
         self.releaseNotesHTML = releaseNotesHTML
         self.structuredChangelog = structuredChangelog

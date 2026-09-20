@@ -104,31 +104,65 @@ enum com_sogou_inputmethod_sogou {
         // release notes exist, and the two agreed when this was written (2026-08-28)
         // and on recheck 2026-09-14 (History has the versions and dates).
         //
-        // DETECTION ONLY, and here that is not conservatism. Its `install.sh` does
-        // rotate `Contents` on the already-installed branch, like WeType's and
-        // DoubaoIme's updaters — but that rotation is `rm -rf` then `mv`, not an
-        // atomic exchange, and around it the script lays down two
-        // `/Library/LaunchAgents` plists it then boots out, bootstraps and
-        // kickstarts, re-registers a QuickLook generator (`qlmanage -r`), MIGRATES
-        // `~/Library/Input Methods/Sogou` into
-        // `~/Library/Application Support/Sogou/InputMethod`, and ends with
-        // `killall -9 SogouInput` and `killall -KILL SystemUIServer` — force-kills
-        // this app does not perform on anybody. A Contents rotation leaves every
-        // one of those undone.
+        // ONE-CLICK, added 2026-09-20 — and the reason it took until then is that
+        // the case against it was read off the WEBSITE INSTALLER, which does lay
+        // down `/Library/LaunchAgents` plists, register a QuickLook generator,
+        // migrate the user's directory and `killall -9` its way out. The
+        // SELF-UPDATE package — the one this endpoint hands out, and the one an
+        // ordinary release travels in — does none of that. Measured on
+        // 6.25.1.11973 (History has all three scripts):
         //
-        // Neither script installs a per-user LaunchAgent: both only `bootout` and
-        // `rm -rf` `~/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`
-        // (History has the earlier note that said otherwise). The self-update
-        // payload above is a narrower shape again (a double zip carrying
-        // `Contents<version>.zip` plus `pre.sh`/`post.sh`/`switch.sh`, whose
-        // switch script has its own migration branches), so a one-click here needs
-        // a Sogou-specific path, not the generic archive install.
+        //   * `pre.sh` acts only when the bundle is NOT writable, and
+        //     `InPlaceSwap.stageRotation` refuses that same case up front.
+        //   * `post.sh` is wrapped entirely in a test for the 2019 build
+        //     `3.2.0.68597`.
+        //   * `switch.sh` holds the only teeth, and they are argument-gated:
+        //     `switch.sh 1` deletes `~/Library/Application Support/Sogou/InputMethod`
+        //     — the learned dictionary — before moving an older location over it.
+        //     It also ends in `killall -KILL SystemUIServer`.
+        //
+        // None of the three is run. What is run is the half that IS the update:
+        // `Contents` rotation, the same exchange the other two input methods get,
+        // via `ContentsPayload` — because unlike theirs this package carries a
+        // bare `Contents<version>` directory and no `.app` at either level.
+        //
+        // Assembled into a bundle it verifies: `codesign --verify --deep --strict`
+        // valid, `spctl` `Notarized Developer ID`, Team `DFD88F82SU` matching the
+        // installed copy, id `com.sogou.inputmethod.sogou`. Gates 2–6 are untouched.
+        //
+        // `SGQuDao`, the channel code the installed `Info.plist` carries, is NOT in
+        // the payload and no script puts it back — so the vendor's own update drops
+        // it too. Re-injecting it would break a signature that just passed.
+        //
+        // `update_pack_md5` is MD5 and `checksumPattern` is SHA-512/base64, so it
+        // is deliberately NOT wired rather than mis-declared — the same call
+        // WeType's `zip_download_md5` got.
+        //
+        // The install URL comes from THIS response, the one pinned at
+        // `v=0.0.0.1`, and that is deliberate against the audit's first
+        // suggestion of re-asking with the real installed version. Two measured
+        // facts make the pin the safer of the two: the endpoint does not stage
+        // (so the pinned request's payload is the newest one), and `sv` gates by
+        // OS (so a request carrying a macOS 28 host's real version would be
+        // answered with the frozen 2023 build — below every real install). The
+        // version that was compared and the bytes that get installed come out of
+        // one response either way.
+        //
+        // The user's dictionary and settings live in
+        // `~/Library/Application Support/Sogou/` and `~/Library/Preferences/`, none
+        // of it in the bundle. `InputMethodDataBackup.declaredDataNames` is what
+        // reaches them — the general rules find one plist of the eight, because
+        // nothing on disk is called `SogouInput`.
         VendorProbeRecipe(
             bundleID: "com.sogou.inputmethod.sogou",
             url: URL(string: "https://macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0")!,
             mode: .responseBody,
             versionPattern: #"\npid=0\n(?:[^\[]*?\n)?version=([0-9]+(?:\.[0-9]+)+)[^\[]*?\nupdate_pack_url="#,
             downloadURL: URL(string: "https://shurufa.sogou.com/mac"),
-            changelogURL: URL(string: "https://pinyin.sogou.com/mac/update_log.php")),
+            changelogURL: URL(string: "https://pinyin.sogou.com/mac/update_log.php"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#"\nupdate_pack_url=(https?://[^\s]+\.zip)"#),
+                kind: .zip,
+                contentsArchivePattern: #"^Contents[0-9.]+\.zip$"#)),
         ])
 }

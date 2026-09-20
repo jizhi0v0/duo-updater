@@ -4,6 +4,8 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.4.0
 
+**搜狗输入法 ya se actualiza con un clic.** DuoUpdater lo aplica igual que el propio método de entrada se actualiza —el paquete instalado se queda donde está— y antes copia tu diccionario y tus ajustes, así una reversión también los recupera.
+
 **Reabrir ya no compite con el instalador de la propia app.** Cuando una app ha descargado su propia actualización y su copia de reversión va en un disco externo, ese traslado ahora espera a que el instalador termine. Antes se hacía durante los pocos segundos que macOS le da para trabajar.
 
 ## 0.3.99

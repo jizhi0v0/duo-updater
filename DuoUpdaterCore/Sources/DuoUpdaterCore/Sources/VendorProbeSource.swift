@@ -1426,6 +1426,7 @@ public struct VendorProbeSource: UpdateSource {
                 vendorInstallerKind: spec.kind,
                 expectedSHA512: plan.checksum,
                 nestedArchivePath: spec.nestedArchivePath,
+                contentsArchivePattern: spec.contentsArchivePattern,
                 downloadHeaders: spec.requestHeaders,
                 changelogURL: recipe.changelogURL,
                 publishedAt: publishedAt,

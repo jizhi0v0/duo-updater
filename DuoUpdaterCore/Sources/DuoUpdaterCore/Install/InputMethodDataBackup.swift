@@ -121,6 +121,11 @@ public enum InputMethodDataBackup {
     /// Both rules are needed — either alone misses real settings on one of the two
     /// apps. Sandbox containers are included for whatever comes next; neither of
     /// these two has one.
+    ///
+    /// SogouInput is the app that showed the bundle name is not always the name on
+    /// disk, so a third input is `declaredDataNames` — see there for what it is
+    /// for and why it is declared rather than guessed. Every name in play, the
+    /// bundle's own included, drives BOTH rules.
     public static func locations(bundleName: String, bundleID: String?) -> [Location] {
         let fm = FileManager.default
         let library = home.appendingPathComponent("Library", isDirectory: true)
@@ -133,7 +138,10 @@ public enum InputMethodDataBackup {
             found.append(Location(original: url, storedName: name))
         }
 
-        add(library.appendingPathComponent("Application Support/\(bundleName)", isDirectory: true))
+        let names = [bundleName] + (bundleID.flatMap { declaredDataNames[$0] } ?? [])
+        for name in names {
+            add(library.appendingPathComponent("Application Support/\(name)", isDirectory: true))
+        }
         if let bundleID {
             add(library.appendingPathComponent("Containers/\(bundleID)", isDirectory: true))
         }
@@ -143,12 +151,48 @@ public enum InputMethodDataBackup {
         for entry in entries where entry.hasSuffix(".plist") {
             let stem = String(entry.dropLast(".plist".count))
             let matchesID = bundleID.map { stem == $0 || stem.hasPrefix($0 + ".") } ?? false
-            let matchesName = stem.localizedCaseInsensitiveContains(bundleName)
+            let matchesName = names.contains { stem.localizedCaseInsensitiveContains($0) }
             guard matchesID || matchesName else { continue }
             add(prefs.appendingPathComponent(entry))
         }
         return found
     }
+
+    /// Extra names an input method's user data is filed under, for an app where
+    /// the bundle name is not that name. Keyed by bundle id, and declared here
+    /// rather than derived, for the same reason the vendor rotation names in
+    /// `InPlaceSwap` are: a rule wide enough to *infer* these would take other
+    /// apps' data with it.
+    ///
+    /// SogouInput (measured 2026-09-20, the machine this was written on) is why it
+    /// exists. Its bundle is `SogouInput.app`, but nothing on disk is called that:
+    ///
+    ///     ~/Library/Application Support/Sogou/{InputMethod,PicFaceTool,ResHub,SkinShop}
+    ///     ~/Library/Preferences/SogouServices.plist
+    ///     ~/Library/Preferences/com.sogou.{SGInputStatPanel,SogouInstaller,
+    ///                                      SogouPreference,SogouTaskManager}.plist
+    ///     ~/Library/Preferences/com.sogou.inputmethod.sogou.plist
+    ///
+    /// Of those, the rules above found exactly ONE — the last plist, by bundle id.
+    /// `Application Support/SogouInput` does not exist, so the support rule
+    /// captured nothing at all, and `com.sogou.SogouPreference` is the settings
+    /// pane: the same shape as WeType's `com.tencent.WeTypeSettings`, which the
+    /// name rule was added for and which the name `SogouInput` cannot reach.
+    /// Declaring `Sogou` reaches all eight, the 17 MB learned dictionary included.
+    ///
+    /// The inference that was rejected: take the vendor token out of the bundle id
+    /// (`com.sogou.…` → `Sogou`). It works here and misfires next door — the same
+    /// rule reads `com.tencent.inputmethod.wetype` as `Tencent` and would snapshot
+    /// `~/Library/Application Support/Tencent`, which WeType shares with every
+    /// other Tencent app on the Mac.
+    ///
+    /// A name here widens BOTH rules, so it must be specific to this app's data.
+    /// `Sogou` over `Preferences` is a substring match, and it is meant to be: the
+    /// helpers that carry the user's state are named for the vendor, not for the
+    /// bundle.
+    static let declaredDataNames: [String: [String]] = [
+        "com.sogou.inputmethod.sogou": ["Sogou"],
+    ]
 
     /// A flat, filesystem-safe name for one captured location. Keeps the leaf
     /// readable and prefixes the library subdirectory it came from, so

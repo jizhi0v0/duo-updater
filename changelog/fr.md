@@ -4,6 +4,8 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.4.0
 
+**搜狗输入法 se met à jour en un clic.** DuoUpdater applique la mise à jour comme la méthode de saisie le fait elle-même — le bundle installé reste en place — et copie d'abord votre dictionnaire et vos réglages, pour qu'une restauration les rende aussi.
+
 **Relancer n'entre plus en concurrence avec l'installeur de l'app.** Quand une app a téléchargé sa propre mise à jour et que sa sauvegarde de restauration doit aller sur un disque externe, cette copie attend désormais la fin de l'installeur. Auparavant, elle se faisait pendant les quelques secondes que macOS lui laisse pour travailler.
 
 ## 0.3.99

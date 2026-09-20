@@ -121,18 +121,35 @@ public struct VendorInstallSpec: Sendable {
     /// on the payload itself, bundle id included.
     public let nestedArchivePath: String?
 
+    /// Regex (anchored by the author) matching the name of a second archive
+    /// inside the download that carries a bare `Contents` directory instead of a
+    /// bundle — for an input method whose vendor ships the INSIDE of the app,
+    /// because its own updater rotates `Contents` rather than replacing the
+    /// bundle. See `ContentsPayload`, which this selects.
+    ///
+    /// Distinct from `nestedArchivePath`, and not a variant of it. That one names
+    /// a fixed path inside a signed installer stub and yields a `.app`; this one
+    /// matches a member of an unsigned archive by pattern (the vendor puts the
+    /// version in the filename) and yields a directory that has to be assembled
+    /// into a bundle before any gate can read it. Declaring both on one recipe
+    /// would mean two different unwraps of the same download, so the registry
+    /// sweep `aRecipeDeclaresOneKindOfNestedPayload` refuses it.
+    public let contentsArchivePattern: String?
+
     public init(
         urlSource: URLSource,
         kind: VendorInstallerKind,
         checksumPattern: String? = nil,
         requestHeaders: [String: String] = [:],
-        nestedArchivePath: String? = nil
+        nestedArchivePath: String? = nil,
+        contentsArchivePattern: String? = nil
     ) {
         self.urlSource = urlSource
         self.kind = kind
         self.checksumPattern = checksumPattern
         self.requestHeaders = requestHeaders
         self.nestedArchivePath = nestedArchivePath
+        self.contentsArchivePattern = contentsArchivePattern
     }
 }
 

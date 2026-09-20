@@ -28,7 +28,14 @@ probes[0].publishedAtPattern = nil
 probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
-probes[0].install = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\\nupdate_pack_url=(https?://[^\\s]+\\.zip)"
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern = nil
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern? = "^Contents[0-9.]+\\.zip$"
 probes[0].requestBody = nil
 probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)

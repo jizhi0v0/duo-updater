@@ -52,6 +52,74 @@ import Testing
         }
     }
 
+    /// SogouInput, whose data is filed under the VENDOR name and not the bundle
+    /// name — the case `declaredDataNames` exists for. The layout here is the one
+    /// measured on a real install (2026-09-20).
+    ///
+    /// Of these eight locations the two general rules find exactly one, the plist
+    /// that happens to be the bundle id. Everything else — the 17 MB learned
+    /// dictionary included — is reachable only through the declared name, and
+    /// through BOTH rules: `Application Support/Sogou` needs it on the support
+    /// rule, `SogouServices.plist` needs it on the preferences rule. Wire it into
+    /// one of the two and this test still fails.
+    @Test func discoveryFindsSogouDataFiledUnderTheVendorName() async throws {
+        try await withScratchHome { home in
+            let library = home.appendingPathComponent("Library")
+            let support = library.appendingPathComponent("Application Support")
+            for leaf in ["InputMethod", "PicFaceTool", "ResHub", "SkinShop"] {
+                try makeDirectory(support.appendingPathComponent("Sogou/\(leaf)"))
+            }
+            // The name the bundle would suggest, which is not on disk.
+            #expect(!FileManager.default.fileExists(
+                atPath: support.appendingPathComponent("SogouInput").path))
+            try makeDirectory(support.appendingPathComponent("Unrelated"))
+            let prefs = library.appendingPathComponent("Preferences")
+            try makeDirectory(prefs)
+            for name in [
+                "com.sogou.inputmethod.sogou.plist",   // the bundle id itself
+                "SogouServices.plist",                 // no vendor prefix at all
+                "com.sogou.SGInputStatPanel.plist",
+                "com.sogou.SogouInstaller.plist",
+                "com.sogou.SogouPreference.plist",     // the settings pane
+                "com.sogou.SogouTaskManager.plist",
+                "com.baidu.inputmethod.plist",         // another vendor's IME
+                "com.example.other.plist",
+            ] {
+                try Data("x".utf8).write(to: prefs.appendingPathComponent(name))
+            }
+
+            let found = InputMethodDataBackup.locations(
+                bundleName: "SogouInput", bundleID: "com.sogou.inputmethod.sogou")
+            let leaves = Set(found.map(\.original.lastPathComponent))
+            #expect(leaves == [
+                "Sogou",
+                "com.sogou.inputmethod.sogou.plist",
+                "SogouServices.plist",
+                "com.sogou.SGInputStatPanel.plist",
+                "com.sogou.SogouInstaller.plist",
+                "com.sogou.SogouPreference.plist",
+                "com.sogou.SogouTaskManager.plist",
+            ])
+        }
+    }
+
+    /// A declared name belongs to the app that declared it. The rejected
+    /// alternative — deriving the vendor token from the bundle id — would have
+    /// made this pass for every app of that vendor, so WeType's snapshot would
+    /// take `Application Support/Tencent` with it.
+    @Test func aDeclaredNameDoesNotLeakToAnotherAppOfTheSameVendor() async throws {
+        try await withScratchHome { home in
+            let library = home.appendingPathComponent("Library")
+            try makeDirectory(library.appendingPathComponent("Application Support/Tencent"))
+            try makeDirectory(library.appendingPathComponent("Application Support/WeType"))
+            try makeDirectory(library.appendingPathComponent("Preferences"))
+
+            let found = InputMethodDataBackup.locations(
+                bundleName: "WeType", bundleID: "com.tencent.inputmethod.wetype")
+            #expect(Set(found.map(\.original.lastPathComponent)) == ["WeType"])
+        }
+    }
+
     /// Discovery reports only what exists — an app with no data yet must produce
     /// an empty snapshot rather than a set of paths that cannot be copied.
     @Test func discoverySkipsWhatIsNotThere() async throws {

@@ -38,6 +38,7 @@ probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
 probes[0].requestBody? = struct VendorProbeRecipe.RequestBody
 probes[0].requestBody?.contentType = "application/json"
 probes[0].requestBody?.json = "{\"request\":{\"protocol\":\"3.0\",\"os\":{\"platform\":\"mac\",\"arch\":\"arm64\"},\"app\":[{\"appid\":\"com.google.GeminiMacOS\",\"tag\":\"m1-prod\",\"version\":\"0.0.0.0\",\"updatecheck\":{}}]}}"

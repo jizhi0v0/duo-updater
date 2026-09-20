@@ -552,8 +552,11 @@ class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
         a real parser regression, which is a slower signal. This calls the
         comparison directly, so deleting or inverting it fails here at once.
 
-        Mutation: return three empty lists from `inventory_problems` → all four
-        change cases below fail.
+        Mutation: return three empty lists from `inventory_problems` → the
+        test fails at the first CHANGE case. The opening assertion is the
+        unchanged control and still passes under that mutation, which is the
+        point of having it: it separates "the comparison reports nothing" from
+        "the comparison reports the wrong thing".
         Mutation: drop the `improved` term → the second case fails.
         Mutation: drop the `unknown` term → the third case fails.
         """
@@ -603,6 +606,31 @@ class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
                          produced)
         self.assertEqual(sweep.EXPECTED_FULLY_RECOVERED & sweep.EXPECTED_WITH_MISSES,
                          set())
+
+    def test_main_still_fails_the_run_on_an_inventory_change(self):
+        """The call site, not just the comparison.
+
+        `inventory_problems` is unit-tested directly above, which pins the
+        comparison but not the fact that `main()` still acts on it: deleting
+        the regressed/improved/unknown block would leave every other test green
+        (round 3 of review named this residual). `--selftest-inventory` injects
+        one ordering's regression into an otherwise healthy run, so this
+        asserts end to end that the sweep reports it and exits non-zero.
+
+        Mutation: delete the `regressed` branch from `main()` → exit 0 and this
+        fails. Mutation: drop the `failed = True` from that branch → the
+        message still prints but the sweep returns 0, and this fails on the
+        return code alone.
+        """
+        import subprocess
+        sweep = pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"
+        out = subprocess.run(
+            [sys.executable, str(sweep), "--quick", "--selftest-inventory"],
+            capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("RECALL inventory changed", out.stdout)
+        self.assertIn("were fully recovered and now miss", out.stdout)
+        self.assertIn("sweep failed", out.stdout)
 
     def test_the_sweep_actually_visited_texts(self):
         """The sweep is itself a gate, so it must not pass vacuously: an

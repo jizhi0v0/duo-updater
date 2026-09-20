@@ -287,6 +287,14 @@ def main() -> int:
     ap.add_argument("--quick", action="store_true",
                     help="tear each writer at a coarse subset of positions")
     ap.add_argument("--verbose", action="store_true", help="print example texts")
+    # Test-only. `inventory_problems` is unit-tested directly, which pins the
+    # comparison but NOT the fact that main() still acts on it — deleting the
+    # regressed/improved/unknown block below would leave those tests green
+    # (round 3 of review named this residual). This flag injects an inventory
+    # change into an otherwise healthy run so a caller can assert that main()
+    # reports it and exits non-zero. It only ever makes the sweep stricter.
+    ap.add_argument("--selftest-inventory", action="store_true",
+                    help="inject an inventory regression; the run must then fail")
     args = ap.parse_args()
 
     # The quick mode trims the corpus, not the enumeration: every ordering is
@@ -337,6 +345,10 @@ def main() -> int:
     print()
     print("RECALL by interleaving order (both writers torn in two)")
     table, totals = recall_by_shape(args.verbose)
+    if args.selftest_inventory:
+        # Flip an ordering that must be fully recovered into a miss. This is
+        # the exact shape of the 2026-09-20 false red, and the run must fail.
+        table[sorted(EXPECTED_FULLY_RECOVERED)[0]] = 1
     for label in sorted(totals):
         miss = table[label]
         tot = totals[label]

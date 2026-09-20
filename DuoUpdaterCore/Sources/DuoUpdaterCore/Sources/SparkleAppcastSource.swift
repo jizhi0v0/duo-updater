@@ -771,6 +771,25 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// elements that would overwrite this mid-read.
     private var currentLanguage: String?
 
+    /// `<description sparkle:format="…">` — Sparkle 2.4 added `"plain-text"` and
+    /// 2.9 `"markdown"`, both selecting how the SAME `<description>` body is meant
+    /// to be read (https://sparkle-project.org/documentation/publishing/). Absent
+    /// means HTML, which is what the overwhelming majority of feeds ship.
+    ///
+    /// Assigned UNCONDITIONALLY when a `<description>` opens — to nil when the
+    /// element carries no `format` — and read at the matching end tag. That is
+    /// what keeps one item's format off the next item's plain `<description>`,
+    /// and it is why there is no separate reset beside `currentLanguage`'s: a
+    /// reset there would be dead code, which a mutation run confirmed by deleting
+    /// it and watching every test stay green. Sound because `<description>` is a
+    /// leaf, so nothing reassigns this between the open and the close.
+    ///
+    /// Only `"markdown"` is acted on. `"plain-text"` deliberately keeps today's
+    /// path: the markdown parser would strip `**`/`` ` `` and read `- ` as a
+    /// bullet, and a vendor asking for plain text is asking for exactly those
+    /// characters to survive.
+    private var currentDescriptionFormat: String?
+
     /// Record one language variant of a localizable `<item>` child.
     ///
     /// Guarded on `current` for the same reason `<description>` always was: a feed
@@ -1008,6 +1027,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         let sortedAttributeKeys = attributeDict.keys.sorted()
 
         switch rssLocalName(elementName, qName) {
+        case "description":
+            // Namespaced-attribute lookup, not `attributeDict["sparkle:format"]`:
+            // the prefix is the feed's to choose, exactly as for `sparkle:version`
+            // on `<enclosure>`. Lowercased because the values are spelled by hand.
+            currentDescriptionFormat = sparkleAttribute(
+                "format", attributeDict, sortedAttributeKeys)?.lowercased()
         case "item":
             current = SparkleAppcastItem()
             // Whatever is still in the table belongs to an item that is over. See
@@ -1141,6 +1166,21 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             // child at all — Mac Mouse Fix's and Mole's, both fetchable by anyone —
             // tag every duplicate with xml:lang, so neither takes this branch.
             recordLocalized("description", text)
+            // `<description sparkle:format="markdown">` is the OTHER official way
+            // to inline Markdown notes, and the one a feed reaches for when it
+            // ships no `<sparkle:markdownDescription>` at all (ShiftBar). Recorded
+            // ADDITIVELY — the body stays in `description` too — because the two
+            // keys feed different consumers: `structuredChangelog` reads the
+            // markdown one and renders native entries, while `releaseNotesHTML`
+            // keeps the raw body as the fallback shown when nothing parses. Moving
+            // it instead would trade a fallback away for nothing.
+            //
+            // The language of this variant is `currentLanguage`, the same one the
+            // line above just used, so a feed localizing its notes resolves both
+            // keys to the SAME variant rather than crossing languages.
+            if currentDescriptionFormat == "markdown" {
+                recordLocalized("markdownDescription", text)
+            }
         case "markdownDescription":
             // The bare spelling; Sparkle's own is handled above and shares this
             // same key.

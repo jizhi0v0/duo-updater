@@ -432,9 +432,18 @@ public enum BackupStore {
         /// about a copy we never fingerprinted.
         var manifest: BackupManifest?
         /// Name of the archive holding this backup at the destination, e.g.
-        /// `Slack-4.35.121.aar`. Optional for the same reason as the fields
+        /// `Slack.aar` — the bundle's own name with its extension swapped, and
+        /// **no version in it**. Optional for the same reason as the fields
         /// above — an outbox-only backup has none, and neither does one written
         /// before there were destinations.
+        ///
+        /// This read `Slack-4.35.121.aar`, which ``archiveName(forBundle:)`` has
+        /// never produced: retention is one, so a key directory holds exactly one
+        /// generation and the name has nothing to disambiguate. The version is in
+        /// `version` beside it. Corrected because a reader who believed the
+        /// example would look for the version here and build a name nothing
+        /// answers to; on the disk this was measured against, the two input
+        /// methods' archives are `SogouInput.aar` and `QianwenIME.aar`.
         var archiveName: String?
         /// SHA-256 of that archive as written.
         ///

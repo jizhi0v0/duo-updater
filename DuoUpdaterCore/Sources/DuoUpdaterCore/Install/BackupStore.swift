@@ -946,7 +946,7 @@ public enum BackupStore {
                 return BackupFactsLibrary.store(facts, at: entry)
             }
             if recorded {
-                Log.install.info(
+                Log.install.notice(
                     "backup: recorded what \(key, privacy: .public) holds, so comparing it will not unpack the archive — \(String(describing: ContinuousClock.now - start), privacy: .public)")
             } else {
                 Log.install.error(
@@ -955,7 +955,7 @@ public enum BackupStore {
         }
 
         forceRemove(outboxDir)
-        Log.install.info(
+        Log.install.notice(
             "backup: moved \(key, privacy: .public) to the backup disk (\(bytes ?? 0, privacy: .public) bytes)")
         return Backup(
             key: key, version: meta.version, buildVersion: meta.buildVersion,

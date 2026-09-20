@@ -75,14 +75,15 @@ update_notice=0
 
 ## 更新检测：读厂商自己的更新接口
 
-> **数法**：一个「位置」= 一次捕获，支持目录是整个抓走的，所以
-> `Application Support/Sogou` 下面那四个子目录算 **1** 条不是 4 条。
-> 全量是 **7** 条（1 个支持目录 + 6 个 plist），快照实测也是 7 条。
-> 本文早前有几处写成「8」，那是把子目录混进来数的，已统一成 7。
-
 - 源: `VendorProbe`（`mode: .responseBody`）
 - 端点: `https://macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`
-- `versionPattern`: `\nversion=([0-9]+(?:\.[0-9]+)+)[\s\S]*?\nupdate_pack_url=`
+- `versionPattern`: `\npid=0\n(?:[^\[]*?\n)?version=([0-9]+(?:\.[0-9]+)+)[^\[]*?\nupdate_pack_url=`
+
+  > 本文一度把它记成 `\nversion=(…)[\s\S]*?\nupdate_pack_url=`（2026-09-20 review round 2
+  > 在一键那节抓到同一类错误时顺手复核出来的，**这条是更早就有的**）。两者不等价：
+  > `[\s\S]*?` 能跨过 `[end]` / `[product1]` 的方括号，`[^\[]*?` 不能。拿哨兵块 + 更新块
+  > 拼接实测，旧写法读出哨兵 `1.0.0.1`，现写法读出真实版本。**照着旧记录重建 recipe 就会
+  > 把跨块配对放回来。**
 - 无 `publishedAtPattern`（接口不带日期）；notes 仍指向更新日志页
 
 **做法就是"装成一个很旧的客户端去问"。** 接口是条件式的，pin `v=0.0.0.1`——比厂商能发的任何
@@ -190,8 +191,19 @@ HTTPS 可用（抓包里客户端走的是 http）。同一 URL 连打五次**�
 ## 一键安装
 
 - 状态: **已接入**（2026-09-20）。源 `VendorProbe` 的 `install`，`kind: .zip`，
-  `urlSource: .bodyPattern(\nupdate_pack_url=(https?://[^\s]+\.zip))`，
-  `contentsArchivePattern: ^Contents[0-9.]+\.zip$`。
+  `contentsArchivePattern: ^Contents[0-9.]+\.zip$`，
+  `urlSource: .bodyPattern`，模式与 `versionPattern` **同样锁在 `pid=0` 块里**：
+
+  ```
+  \npid=0\n(?:[^\[]*?\n)?version=[0-9]+(?:\.[0-9]+)+[^\[]*?\nupdate_pack_url=(https?://[^\s]+\.zip)
+  ```
+
+  > ⚠️ **不要退回不分块的 `\nupdate_pack_url=(https?://[^\s]+\.zip)`。** 那个写法取的是
+  > 整个 body 里第一个 `update_pack_url=`，多块响应下可以和 `versionPattern` 读到不同的块 ——
+  > 版本来自一个发布、字节来自另一个。没人见过这个服务端发两个带 payload 的块，所以这是
+  > 由构造保证而不是靠服务端的习惯；`aVersionIsNeverPairedWithAnotherBlocksPayload` 钉着它，
+  > 退回去那条测试就红。（本条 2026-09-20 review round 2 修正：这里一度还写着旧模式，
+  > 而 audit 是重建 recipe 时的权威记录，照抄就会把跨块配对放回来。）
 - 路线：`ContentsPayload` 从双层 zip 里装配出 `<装机名>.app` → 走 Gate 2–6 →
   `InPlaceSwap.rotateContents`（和 WeType / 豆包同一条轮换）。
 - 厂商的 `pre.sh` / `post.sh` / `switch.sh` **一个都不跑**，逐条理由见下。
@@ -253,6 +265,13 @@ Gate 2–6 上（豆包最终也落在那里，stub 那一次是额外的一道�
 （回滚会把带 `SGQuDao` 的旧 `Contents` 原样放回，已验。）
 
 ### 用户数据：一般规则在搜狗身上几乎全空（必须先修的那一项）
+
+> **数法**：一个「位置」= 一次捕获，支持目录是整个抓走的，所以
+> `Application Support/Sogou` 下面那四个子目录算 **1** 条不是 4 条。
+> 全量是 **7** 条（1 个支持目录 + 6 个 plist），快照实测也是 7 条。
+> 写下来是因为 `InputMethodDataBackup` 的注释、recipe 注释和测试文档里一度写成「8」
+> ——**本文档没有**，各版本一直是 `1/7`；2026-09-20 review round 2 纠正过这一点，
+> 当时这段还错写成「本文早前有几处写成 8」。
 
 `InputMethodDataBackup` 的两条通用规则在这里只命中 **1/7**——
 `Application Support/SogouInput` 根本不存在，名字规则 `contains("SogouInput")`

@@ -500,26 +500,62 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(lines[2], "console-log")
 
 
-class TheSweepStillFindsNoFalseGreen(unittest.TestCase):
+class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
     """`scripts/sweep_app_test_coverage.py` is the console parser's own
     evidence: it tears a record and a log line at every position, interleaves
-    them every way, and asserts that no ordering makes a non-passing case look
-    like it ran. Running its quick mode here keeps that claim from rotting the
-    way the uncommitted 2026-09-17 sweep did.
+    them every way, and checks two things — that no ordering makes a
+    non-passing case look like it ran (SAFETY), and that the set of orderings
+    whose pass records are recovered has not changed (the RECALL inventory).
+    Running its quick mode here keeps both claims from rotting the way the
+    uncommitted 2026-09-17 sweep did.
 
-    Mutation: remove the `[✔━…]` marker class from `RAN` → the sweep reports
-    false greens and exits non-zero.
+    Both halves are asserted, because the sweep shipped in 97c692c with the
+    RECALL half promised in its docstring and never implemented: the table was
+    printed and compared to nothing, so an ordering regressing from fully
+    recovered to missing exited 0 and `make test` stayed green.
+
+    Mutation: remove the `[✔━…]` marker class from `RAN` → SAFETY reports false
+    greens and the sweep exits non-zero.
+    Mutation: tighten `SPLICED_LOG_LINE` so a whole log line no longer matches
+    (e.g. insert a literal that never occurs before `[^\n]*\n`) → SAFETY is
+    still clean, but `record|log1|log1|record` drops from 149200/149200 to
+    86922/149200 and the RECALL inventory check fails. Verified 2026-09-20.
+    Mutation: delete the `regressed`/`improved`/`unknown` block from the
+    sweep's `main()` → that second mutation stops being caught.
     """
 
-    def test_the_quick_sweep_reports_no_false_green(self):
+    def run_sweep(self):
         import subprocess
-        out = subprocess.run(
+        return subprocess.run(
             [sys.executable,
              str(pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"),
              "--quick"],
             capture_output=True, text=True, encoding="utf-8")
+
+    def test_the_quick_sweep_reports_no_false_green(self):
+        out = self.run_sweep()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("no false green", out.stdout)
+
+    def test_the_quick_sweep_finds_the_recall_inventory_unchanged(self):
+        out = self.run_sweep()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("RECALL inventory is unchanged", out.stdout)
+        self.assertNotIn("RECALL inventory changed", out.stdout)
+
+    def test_the_sweep_actually_visited_texts(self):
+        """The sweep is itself a gate, so it must not pass vacuously: an
+        enumeration that produced nothing would print `0 texts, 0 false passes
+        [ok]` for every section. Mutation: make `tears` return `[]` → the sweep
+        exits non-zero naming the empty sections, and this fails."""
+        import re
+        out = self.run_sweep()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("visited NO texts", out.stdout)
+        # Anchored on the whole field: a bare `"0 texts,"` substring also
+        # matches `20000 texts,`, which is how this assertion first went green
+        # against a healthy run and red against nothing.
+        self.assertIsNone(re.search(r":\s+0 texts,", out.stdout), out.stdout)
 
 
 class KnownConsoleMisses(unittest.TestCase):

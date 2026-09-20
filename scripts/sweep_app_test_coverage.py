@@ -50,8 +50,11 @@ texts to attribute them, so it is not added in.) The quick mode trims the
 record and log corpora, never the enumeration, so every interleaving ORDERING
 is still visited and a SAFETY regression cannot hide behind it.
 
-Exits non-zero if any SAFETY hit is found, or if the RECALL miss inventory has
-changed shape (a previously-recovered ordering stopped being recovered).
+Exits non-zero if any SAFETY hit is found; if the RECALL miss inventory has
+changed shape in EITHER direction (an ordering that was fully recovered started
+missing, or a known-missing one stopped missing — both make the numbers quoted
+in `app_test_coverage.py` and `test_app_test_coverage.py` wrong); or if any
+section visited no texts at all, which would make the whole sweep vacuous.
 """
 
 import argparse
@@ -137,6 +140,35 @@ def interleavings(*streams):
             out.append(streams[which][cursors[which]])
             cursors[which] += 1
         yield "".join(out)
+
+
+# The RECALL inventory, pinned so the docstring's promise is enforced rather
+# than asserted. These are the interleaving ORDERINGS of a torn pass record and
+# a torn log line, and they do not depend on --quick: `recall_by_shape` always
+# walks the full record and log corpora.
+#
+# The two that miss are the ones where the log line's own newline arrives after
+# a piece of the record, so cutting the line out takes record text with it.
+# Recovering them means allowing text between `)` and `passed` that the log line
+# could have written, which is how a torn non-passing record borrows a verdict —
+# see `app_test_coverage.py`. They are expected to stay missing.
+#
+# Checked in BOTH directions on purpose. An ordering that starts missing is a
+# regression that would otherwise ship as a mystery false red — the exact cost
+# this script was committed to remove. An ordering that stops missing is good
+# news, but it silently falsifies the recovery percentages quoted in
+# `app_test_coverage.py` and in `test_app_test_coverage.py`'s `KnownConsoleMisses`,
+# so it has to be a deliberate edit, not a drift.
+EXPECTED_FULLY_RECOVERED = {
+    "log1|log1|record|record",
+    "log1|record|record|log1",
+    "record|log1|log1|record",
+    "record|record|log1|log1",
+}
+EXPECTED_WITH_MISSES = {
+    "log1|record|log1|record",
+    "record|log1|record|log1",
+}
 
 
 def shape_of(order):
@@ -235,9 +267,17 @@ def main() -> int:
     three_budget = 20000 if args.quick else 500000
 
     failed = False
+    # Every section's text count, checked at the end. A sweep whose enumeration
+    # silently produced nothing would otherwise print `0 texts, 0 false passes
+    # [ok]` for each section and exit 0 — a gate against vacuous test runs,
+    # passing vacuously. This is the same failure `app-tests.sh` guards against
+    # with its `DECLARED = 0` branch.
+    visited: dict[str, int] = {}
+
     print("SAFETY — a non-pass record must never be counted, however it is torn")
     for rp, lp in ((1, 1), (2, 1), (1, 2), (2, 2)):
         total, hits, examples = sweep_two(nonpass_recs, logs, rp, lp, False, args.verbose)
+        visited[f"safety r{rp}/l{lp}"] = total
         status = "ok" if hits == 0 else "FALSE GREEN"
         print(f"  record in {rp}, log in {lp}: {total:>8} texts, {hits} false passes  [{status}]")
         if hits:
@@ -246,6 +286,7 @@ def main() -> int:
                 print(f"      {e!r}")
 
     total, hits, examples = sweep_three(nonpass_recs, logs, False, args.verbose, three_budget)
+    visited["safety three-writer"] = total
     status = "ok" if hits == 0 else "FALSE GREEN"
     print(f"  + a donor pass record, all three torn: {total:>8} texts, {hits} false passes  [{status}]")
     if hits:
@@ -257,6 +298,7 @@ def main() -> int:
     print("RECALL — a genuine pass record; misses are false reds, not unsoundness")
     for rp, lp in ((1, 1), (2, 1), (1, 2), (2, 2)):
         total, misses, examples = sweep_two(pass_recs, logs, rp, lp, True, args.verbose)
+        visited[f"recall r{rp}/l{lp}"] = total
         pct = 100.0 * (total - misses) / total if total else 0.0
         print(f"  record in {rp}, log in {lp}: {total:>8} texts, {misses} missed  ({pct:.1f}% recovered)")
         for e in examples:
@@ -271,11 +313,55 @@ def main() -> int:
         print(f"  {label:<32} {tot - miss:>6}/{tot:<6} recovered"
               + ("" if miss == 0 else f"   ({miss} missed)"))
 
+    # The docstring promises this check; without it the table above is
+    # decoration, and an ordering that regressed from fully-recovered to
+    # missing would exit 0 with `make test` still green.
+    seen_with_misses = {label for label in totals if table[label]}
+    seen_clean = {label for label in totals if not table[label]}
+    regressed = sorted(seen_with_misses - EXPECTED_WITH_MISSES)
+    improved = sorted(seen_clean - EXPECTED_FULLY_RECOVERED)
+    unknown = sorted(set(totals) - EXPECTED_WITH_MISSES - EXPECTED_FULLY_RECOVERED)
+    if regressed:
+        failed = True
+        print()
+        print("✗ RECALL inventory changed: these orderings were fully recovered"
+              " and now miss:")
+        for label in regressed:
+            print(f"    {label}  ({table[label]} of {totals[label]} missed)")
+        print("  That is a new false-red shape. Do not widen the inventory to"
+              " silence it.")
+    if improved:
+        failed = True
+        print()
+        print("✗ RECALL inventory changed: these orderings were expected to miss"
+              " and no longer do:")
+        for label in improved:
+            print(f"    {label}")
+        print("  Good news, but it falsifies the recovery figures quoted in"
+              " app_test_coverage.py")
+        print("  and in test_app_test_coverage.py's KnownConsoleMisses. Update"
+              " both, then the")
+        print("  inventory above — and say how a verdict still cannot be"
+              " borrowed.")
+    if unknown:
+        failed = True
+        print()
+        print(f"✗ RECALL inventory does not name these orderings: {unknown}")
+
+    visited["recall by-shape"] = sum(totals.values())
+    empty = sorted(name for name, count in visited.items() if count == 0)
+    if empty:
+        failed = True
+        print()
+        print("✗ these sections visited NO texts, so they proved nothing:")
+        for name in empty:
+            print(f"    {name}")
+
     print()
     if failed:
-        print("✗ sweep found a FALSE GREEN — the gate would stop catching a skipped case")
+        print("✗ sweep failed — see the sections above")
         return 1
-    print("✓ sweep found no false green")
+    print("✓ sweep found no false green, and the RECALL inventory is unchanged")
     return 0
 
 

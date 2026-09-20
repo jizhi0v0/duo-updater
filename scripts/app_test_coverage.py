@@ -17,10 +17,40 @@ sources — not two totals. Totals were wrong three times:
 Names are immune to all three: a case that stops running stops appearing,
 however it is declared and however many times it runs.
 
-Prints "<declared> <ran>" then a space-separated list of names never seen.
+TWO SOURCES FOR "WHICH NAMES RAN", IN ORDER OF PREFERENCE
+=========================================================
+1. The .xcresult bundle xcodebuild writes (`--result-bundle`). Structured, one
+   node per case, and NOT subject to the console interleaving described at
+   length below. This is the source whenever the bundle is readable.
+2. The console log. Kept because the bundle depends on `xcrun xcresulttool`
+   and on a schema Apple versions independently of this repo; if that breaks,
+   a working gate on torn text beats no gate.
+
+Why 1 was added on 2026-09-20: CI run 35492361595 failed this gate with
+`theClientRequirementIsPinnedForATeam` reported as never run, on a commit
+touching nothing under App/. xcodebuild exited 0; only this gate objected, and
+the next run on the same branch passed. That case is a pure string comparison —
+it cannot "not run" for a real reason. It was the console interleaving.
+`scripts/sweep_app_test_coverage.py` enumerates the tear shapes: the console
+parser recovers 85.8% of 895200 torn texts, with every miss in the two
+interleaving orderings named under SPLICED_LOG_LINE. It cannot be pushed much
+higher — measured 2026-09-20, three candidate repairs (stop the log-line cut at
+a marker; cut only the timestamp header; both) moved recall from 86.2% to 86.3%
+on 179040 torn texts built from one pass record against all ten log fixtures.
+Closing the rest means allowing text between `)` and `passed` that a log line
+could have written, which is how a torn non-passing record borrows a verdict it
+never earned, so it was not done. The bundle sidesteps the whole question.
+
+Prints three lines:
+    "<declared> <ran>"
+    "<space-separated names never seen>"
+    "<source>"   — `result-bundle` or `console-log`
 """
+import json
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 
 # Two shapes, both measured from real logs rather than assumed:
@@ -148,10 +178,26 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] {1,2}Test ([A-Za-z0-9_]+)\([^)]*
 # the parens stay `[^)]*`. A single-line grep of App/ and DuoUpdaterCore/Sources
 # finds no log or print call that writes `✔` or `━`.
 #
-# Swept by brute force on 2026-09-17 with a script that is not committed, so
-# the numbers can't be re-run from this repo. Re-run on the final pattern (SF
-# markers, one or two spaces), it gave the same numbers. Each writer was torn
-# at every point into at most two pieces and interleaved every way:
+# Swept by brute force. The original sweep (2026-09-17) was not committed, "so
+# the numbers can't be re-run from this repo" — and that is exactly what made
+# the 2026-09-20 false red expensive to classify. It is now
+# `scripts/sweep_app_test_coverage.py`, run in quick mode by
+# `scripts/test_app_test_coverage.py` on every `make test`.
+#
+# Re-run 2026-09-20 on the committed sweep, which tears each writer at every
+# point into at most two pieces and interleaves every way:
+#
+#   * SAFETY, the property that matters: 1286322 torn texts over 5 non-pass
+#     records x 10 log lines (including messages ending `) passed`, `_:) passed`,
+#     `a() passed`, and whole `✔ Test ` / `━ Test foo(` fragments), plus 500000
+#     three-writer texts that put a REAL `✔` from another case's pass record on
+#     hand. Zero false passes in every configuration.
+#   * RECALL: 85.8% of 895200 torn texts recovered, and every miss falls in one
+#     of two interleaving orderings — `log|record|log|record` and
+#     `record|log|record|log`, i.e. the ones where the log line's own newline
+#     arrives after a piece of the record. The other four orderings are 100%.
+#
+# The 2026-09-17 sweep's own findings, on its own corpus:
 #
 #   * one non-pass record (started / failed / cancelled / parameterized) and
 #     one log line whose message is `probe (ok) passed`, `check(x) passed`,
@@ -207,6 +253,84 @@ RAN = re.compile(r"[✔━\U0010105B\U00100882] {1,2}Test ([A-Za-z0-9_]+)\([^)]*
 SPLICED_LOG_LINE = re.compile(
     r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+[+-]\d{4} [^\s\[]+\[\d+:[0-9a-fA-F]+\] [^\n]*\n"
 )
+# swift-testing writes one node per case into xcodebuild's .xcresult, which is a
+# database rather than a byte stream, so no amount of concurrent logging can tear
+# a record in it. `xcrun xcresulttool get test-results tests` renders it as JSON.
+#
+# Measured 2026-09-20, Xcode 27.0 (27A266a), xcresulttool 25115 / schema 0.4.0,
+# on this repo's DuoUpdaterAppTests: 51 `Test Case` nodes for 51 declared cases,
+# all `"result": "Passed"`. A parameterized case is ONE node carrying the same
+# `foo(_:)` spelling the console prints, with its inputs as child `Arguments`
+# nodes — so the same "strip the parens" rule recovers the declared name.
+#
+# `Skipped` MUST be excluded, and this is the whole trap. Measured the same day
+# by putting `.disabled("mutation probe")` on `theClientRequirementIsPinnedForATeam`
+# and rerunning: the bundle still held 51 `Test Case` nodes — 50 `Passed`, 1
+# `Skipped`, the disabled one present by name. Counting nodes, or counting any
+# node regardless of result, would pass a run in which that case did not execute.
+# That is verbatim the first of the three ways a count already got this wrong
+# (see the module docstring), reintroduced through a new door.
+#
+# Everything else — `Passed`, `Failed`, `Expected Failure` — did execute, so it
+# counts. A `Failed` case fails xcodebuild and `app-tests.sh` exits before it
+# ever reaches this gate, so admitting it here changes nothing in practice.
+DID_NOT_RUN = {"Skipped"}
+
+
+def ran_cases_from_result_bundle(bundle: pathlib.Path) -> set[str] | None:
+    """Names that executed, per the .xcresult, or None if it can't be read.
+
+    None means "ask the console log instead" — never "nothing ran". A missing
+    xcresulttool, an unreadable bundle, a schema this doesn't understand and a
+    bundle holding zero cases all return None, because none of them is evidence
+    about the tests: they are evidence about the tooling. A genuinely empty run
+    still fails the gate, because the console fallback also finds nothing.
+    """
+    if not bundle.is_dir() or shutil.which("xcrun") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "test-results", "tests",
+             "--path", str(bundle), "--compact"],
+            capture_output=True, text=True, encoding="utf-8", timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        report = json.loads(proc.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    return names_from_test_report(report) or None
+
+
+def names_from_test_report(report: object) -> set[str]:
+    """Case names that executed, from a parsed `get test-results tests` report.
+
+    Split out from the subprocess call so the Skipped rule — the one that keeps
+    this from reintroducing the `.disabled()` blind spot — can be tested without
+    an Xcode toolchain.
+    """
+    names: set[str] = set()
+
+    def walk(node: object) -> None:
+        if not isinstance(node, dict):
+            return
+        if node.get("nodeType") == "Test Case":
+            # `aCase()` / `aCase(_:)` -> `aCase`. Same shape as the console.
+            match = re.match(r"([A-Za-z0-9_]+)\(", str(node.get("name", "")))
+            if match and node.get("result") not in DID_NOT_RUN:
+                names.add(match.group(1))
+        for child in node.get("children", []) or []:
+            walk(child)
+
+    if isinstance(report, dict):
+        for node in report.get("testNodes", []) or []:
+            walk(node)
+    return names
+
+
 FUNC = re.compile(r"\bfunc\s+([A-Za-z0-9_]+)\s*\(")
 
 
@@ -237,18 +361,32 @@ def declared_cases(root: pathlib.Path) -> set[str]:
 
 
 def main() -> int:
-    log, tests = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+    args = sys.argv[1:]
+    bundle: pathlib.Path | None = None
+    if "--result-bundle" in args:
+        i = args.index("--result-bundle")
+        bundle = pathlib.Path(args[i + 1])
+        del args[i:i + 2]
+    log, tests = pathlib.Path(args[0]), pathlib.Path(args[1])
     if not log.is_file() or not tests.is_dir():
         print("0 0")
         print("")
+        print("none")
         return 1
-    # UTF-8 explicitly: every marker is non-ASCII, and the locale's encoding
-    # (ISO8859-1, or US-ASCII under LC_ALL=C with PYTHONUTF8=0) either stops
-    # them matching or fails on the Swift sources.
-    ran = ran_cases(log.read_text(encoding="utf-8", errors="replace"))
+
+    source = "result-bundle"
+    ran = ran_cases_from_result_bundle(bundle) if bundle is not None else None
+    if ran is None:
+        source = "console-log"
+        # UTF-8 explicitly: every marker is non-ASCII, and the locale's encoding
+        # (ISO8859-1, or US-ASCII under LC_ALL=C with PYTHONUTF8=0) either stops
+        # them matching or fails on the Swift sources.
+        ran = ran_cases(log.read_text(encoding="utf-8", errors="replace"))
+
     declared = declared_cases(tests)
     print(f"{len(declared)} {len(ran & declared)}")
     print(" ".join(sorted(declared - ran)))
+    print(source)
     return 0
 
 

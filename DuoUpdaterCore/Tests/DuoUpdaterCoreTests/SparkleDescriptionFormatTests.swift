@@ -107,12 +107,20 @@ import Foundation
     #expect(items.first?.descriptionHTML?.contains("修复") == true)
 }
 
-/// The format is per-element state, cleared at every `didStartElement`. Without
-/// the reset it would persist from the item that set it into the next item's
-/// plain `<description>`.
+/// The format does not carry from one item to the next. What makes that hold is
+/// that `didStartElement` assigns `currentDescriptionFormat` UNCONDITIONALLY when
+/// a `<description>` opens — to nil when the element names no `format` — so the
+/// second item's plain `<description>` clears what the first one set. There is no
+/// separate reset beside `currentLanguage`'s, and adding one would be dead code.
 ///
-/// Mutation: delete `currentDescriptionFormat = nil` from `didStartElement` —
-/// the second item inherits `markdown` and this fails.
+/// The flag is therefore only meaningful when read at `</description>`, which is
+/// its one reader. Between two `<description>` elements it holds the previous
+/// one's value rather than nil, so a future end-tag handler must not read it.
+///
+/// Mutation: make that assignment conditional —
+/// `if let f = sparkleAttribute("format", attributeDict, sortedAttributeKeys) {
+/// currentDescriptionFormat = f.lowercased() }` — the second item inherits
+/// `markdown` and this fails.
 @Test func formatDoesNotLeakIntoTheNextItem() {
     let items = SparkleAppcastParser.parse(Data(twoItemMixedFormatFeed.utf8),
                                            preferredLanguages: ["en-US"])

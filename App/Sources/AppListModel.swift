@@ -7317,7 +7317,15 @@ final class AppListModel {
             // Awaited, off this actor: `BackupStore.restore` is nonisolated, its
             // `ditto` and swap go through `ChildProcess`, and it hops its own
             // `SecStaticCode…` check. See `BackupStore.restore`.
-            let restored = try await BackupStore.restore(forKey: key, over: target)
+            // The reporting variant, not the plain one: an input method's
+            // dictionary and settings live outside its bundle, so a rollback can
+            // succeed at the only thing it returns (a version) and still have
+            // left the user with a downgraded input method reading data the newer
+            // version wrote. That used to be a log line. See
+            // `BackupStore.UserDataOutcome`.
+            let outcome = try await BackupStore.restoreReportingUserData(
+                forKey: key, over: target)
+            let restored = outcome.version
             // The swap has landed; everything below is bookkeeping and needs no
             // exclusion, so hand the claim back rather than holding it through a
             // rescan (same reasoning as the apply permit in `performInstall`).
@@ -7354,9 +7362,23 @@ final class AppListModel {
             // stay. Not registered in `inFlightNotes`: like `backupCurrent`'s
             // warning it describes what just finished, so a settled row is exactly
             // when it starts to matter.
-            if wasFromAppStore {
+            // The user-data note wins over the App Store one where both could
+            // apply. They cannot in practice — an input method is not a Mac App
+            // Store app — but the ordering says which matters more if that ever
+            // changes: one describes an update that may come back, the other
+            // describes data that did not.
+            switch outcome.userData {
+            case .noSnapshot:
                 installNotes[id] = String(
-                    localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this rollback point has no copy of them.")
+            case .failed:
+                installNotes[id] = String(
+                    localized: "\(updated.app.name) is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.")
+            case .notApplicable, .restored:
+                if wasFromAppStore {
+                    installNotes[id] = String(
+                        localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+                }
             }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
             if needsRestart.contains(updated.id) {

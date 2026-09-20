@@ -447,6 +447,23 @@ public enum BackupStore {
         var archiveSHA256: String?
         /// Size of the archive on disk, so the UI can show what the move bought.
         var archiveBytes: Int64?
+        /// Name of the archive holding this generation's input-method user-data
+        /// snapshot at the destination, e.g. `UserData.aar`.
+        ///
+        /// A second archive rather than a directory copied beside the bundle's,
+        /// for the reason the bundle is archived at all: the destination is a
+        /// disk we deliberately assume nothing about, and a snapshot restored
+        /// without its xattrs and ACLs is a snapshot that quietly gives the user
+        /// back something other than what was taken. Absent on every generation
+        /// that has no snapshot — which is every non-input-method app, and every
+        /// input-method generation transferred before this field existed. See
+        /// ``generationsMissingUserDataSnapshot()`` for what that second group
+        /// means.
+        var userDataArchiveName: String?
+        /// SHA-256 of that archive as written, read back off the destination.
+        /// The same integrity gate `archiveSHA256` is, for the same reason, and
+        /// checked before the snapshot is unpacked over anyone's live data.
+        var userDataArchiveSHA256: String?
         /// True while a copy still exists only in the outbox and is waiting to be
         /// moved to the destination. Absent means "not waiting", which is the
         /// right reading for every backup written before transfers existed.
@@ -751,6 +768,12 @@ public enum BackupStore {
         (bundleName as NSString).deletingPathExtension + ".aar"
     }
 
+    /// What the user-data snapshot's archive is called on the disk. A fixed name
+    /// rather than one derived from the app: there is exactly one snapshot per
+    /// generation, the sidecar records the name anyway, and an app called
+    /// `UserData.app` would otherwise collide with it.
+    static let userDataArchiveName = "UserData.aar"
+
     /// How much of the copy in flight for `key` has landed on the disk.
     ///
     /// Read from the size of the file `BundleArchive` is streaming into, which
@@ -910,10 +933,42 @@ public enum BackupStore {
         let digest = try BundleArchive.sha256(of: archive)
         let bytes = (try? fm.attributesOfItem(atPath: archive.path)[.size] as? Int64) ?? nil
 
+        // The generation's input-method user-data snapshot travels with it.
+        //
+        // It did not, until 0.4.1, and the shape of that bug is worth keeping
+        // written down: the transfer packed `meta.bundleName` and nothing else,
+        // then removed the whole outbox directory — so `UserData/` was dropped at
+        // pack time and destroyed one line later, leaving a generation on the disk
+        // that looked complete and could only ever restore the bundle. That is
+        // precisely the downgrade-onto-newer-data case `InputMethodDataBackup`
+        // exists to prevent, and nothing on screen said so.
+        //
+        // Packed BEFORE the sidecar is written, like the bundle archive above and
+        // for the same reason: the sidecar is what makes this directory a readable
+        // backup, so a transfer cut off anywhere before it leaves the outbox copy —
+        // snapshot and all — as the one complete generation. A failure here is
+        // therefore fatal to the transfer rather than best-effort: carrying on
+        // would write a sidecar claiming a generation we know is incomplete, and
+        // the local copy that still had the snapshot would then be deleted.
+        let userData = outboxDir.appendingPathComponent(InputMethodDataBackup.directoryName,
+                                                        isDirectory: true)
+        var userDataArchiveName: String?
+        var userDataDigest: String?
+        if InputMethodDataBackup.snapshotExists(in: userData) {
+            let name = Self.userDataArchiveName
+            let userDataArchive = targetDir.appendingPathComponent(name)
+            try await BundleArchive.archive(
+                bundle: userData, to: userDataArchive, compression: compression)
+            userDataArchiveName = name
+            userDataDigest = try BundleArchive.sha256(of: userDataArchive)
+        }
+
         var moved = meta
         moved.archiveName = archiveName
         moved.archiveSHA256 = digest
         moved.archiveBytes = bytes
+        moved.userDataArchiveName = userDataArchiveName
+        moved.userDataArchiveSHA256 = userDataDigest
         moved.pendingTransfer = false
         guard let data = try? JSONEncoder().encode(moved),
               (try? data.write(to: targetDir.appendingPathComponent("backup.json"),
@@ -1096,6 +1151,59 @@ public enum BackupStore {
     /// in it is `.runToCompletion`, and `InPlaceSwap.replace` is too.
     @discardableResult
     public static func restore(forKey key: String, over target: URL) async throws -> String? {
+        try await restoreReportingUserData(forKey: key, over: target).version
+    }
+
+    /// What a rollback did, beyond the version it put back.
+    ///
+    /// The bundle half of a rollback has always been able to report itself — it
+    /// either threw or it returned a version. The user-data half could not: it was
+    /// best-effort and logged, so an input-method rollback that restored the code
+    /// and left the data at whatever the newer version made of it looked, on
+    /// screen, exactly like one that restored both. That is the one outcome the
+    /// snapshot exists to prevent, so it is carried out of here as a value the
+    /// caller has to look at rather than a line in the log.
+    public struct RestoreOutcome: Sendable, Equatable {
+        /// The version the bundle was rolled back to, when the sidecar named one.
+        public let version: String?
+        public let userData: UserDataOutcome
+    }
+
+    /// The user-data half of a rollback.
+    public enum UserDataOutcome: Sendable, Equatable {
+        /// Not an input method — its state is inside the bundle that was just
+        /// restored, so there is nothing else to say.
+        case notApplicable
+        /// The snapshot went back over the live data, at this many locations.
+        case restored(Int)
+        /// An input method whose generation carries no snapshot: the bundle is
+        /// back and its dictionary, settings and account state are not. The
+        /// reason is usually that the backup predates the snapshot, or — for a
+        /// generation transferred by a build before 0.4.1 — that the snapshot was
+        /// dropped on the way to the backup disk.
+        case noSnapshot
+        /// There was a snapshot and putting it back failed.
+        case failed(String)
+
+        /// Whether the user has to be told. Both of the non-nominal cases mean
+        /// the same thing where it matters: the app went back and its data did
+        /// not, so it is now a downgraded input method reading data a newer
+        /// version wrote.
+        public var isBundleOnly: Bool {
+            switch self {
+            case .notApplicable, .restored: return false
+            case .noSnapshot, .failed: return true
+            }
+        }
+    }
+
+    /// ``restore(forKey:over:)``, reporting what became of the input-method user
+    /// data as well as the version. The plain `restore` is this, minus the half a
+    /// caller with nowhere to show it cannot use.
+    @discardableResult
+    public static func restoreReportingUserData(
+        forKey key: String, over target: URL
+    ) async throws -> RestoreOutcome {
         guard let backup = backup(forKey: key) else {
             throw BackupError.noBackup(key)
         }
@@ -1127,11 +1235,18 @@ public enum BackupStore {
     /// `restore(forKey:over:)` from the point its scratch directory exists.
     private static func restore(
         _ backup: Backup, key: String, stagingIn scratch: URL, over target: URL
-    ) async throws -> String? {
+    ) async throws -> RestoreOutcome {
         // A destination copy is a single archive, not a directory, so it is
         // unpacked rather than copied — and unpacking is what puts the bundle's
         // metadata back after a filesystem that could not hold it.
         let staged: URL
+        /// Where the snapshot for this generation can be read from, once the
+        /// bundle is back. For an outbox backup that is the store itself; for a
+        /// destination one it has to be unpacked first, and it is unpacked HERE,
+        /// before the swap, so a rollback either has both halves in hand or knows
+        /// it does not — rather than discovering after the bundle is already live
+        /// that the archive it was counting on will not extract.
+        var snapshotDirectory: URL?
         switch backup.location {
         case .outbox:
             staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
@@ -1143,6 +1258,16 @@ public enum BackupStore {
             }
         case .destination:
             staged = try await unpackFromDestination(backup, key: key, into: scratch)
+        }
+        if InPlaceSwap.usesContentsRotation(target: target) {
+            switch backup.location {
+            case .outbox:
+                let dir = InputMethodDataBackup.snapshotDirectory(forKey: key)
+                snapshotDirectory = InputMethodDataBackup.snapshotExists(in: dir) ? dir : nil
+            case .destination:
+                snapshotDirectory = try await unpackUserDataFromDestination(
+                    backup, key: key, into: scratch)
+            }
         }
         // Integrity gate before swapping a backup over the live app: a stored copy
         // that has changed since we wrote it has been corrupted or tampered with,
@@ -1173,9 +1298,20 @@ public enum BackupStore {
         // this backup, if there is one. Best-effort and reported: the bundle is
         // already back, and failing the rollback now would be a worse answer than
         // an incomplete one that says so.
+        var userData: UserDataOutcome = .notApplicable
         if InPlaceSwap.usesContentsRotation(target: target) {
+            guard let snapshotDirectory else {
+                // Reported, not merely logged. A bundle-only rollback of an input
+                // method leaves a downgraded app reading data a newer version
+                // wrote — the exact case the snapshot exists to prevent — and the
+                // user is the only one who can decide what to do about it.
+                Log.install.error(
+                    "rollback: \(target.lastPathComponent, privacy: .public) is back, but this generation carries no user-data snapshot — its dictionary and settings are whatever the newer version left")
+                return RestoreOutcome(version: backup.version, userData: .noSnapshot)
+            }
             do {
-                let restored = try await InputMethodDataBackup.restore(forKey: key)
+                let restored = try await InputMethodDataBackup.restore(
+                    forKey: key, from: snapshotDirectory)
                 // Said plainly because the files on disk are only half of it: a
                 // running input method holds its preferences and its mmkv/dictionary
                 // files open, so what it is using is not what was just restored
@@ -1183,12 +1319,54 @@ public enum BackupStore {
                 // — stated as the caveat it is rather than implied to be handled.
                 Log.install.notice(
                     "rollback: restored \(restored.count, privacy: .public) user-data location(s) with \(target.lastPathComponent, privacy: .public) — a running input method keeps using what it already loaded until it restarts")
+                userData = .restored(restored.count)
             } catch {
                 Log.install.error(
                     "rollback: \(target.lastPathComponent, privacy: .public) is back, but its user data was not restored — \(error.localizedDescription, privacy: .public)")
+                userData = .failed(error.localizedDescription)
             }
         }
-        return backup.version
+        return RestoreOutcome(version: backup.version, userData: userData)
+    }
+
+    /// Unpack this generation's user-data snapshot out of the destination into
+    /// `scratch`, or nil when it carries none.
+    ///
+    /// The digest is checked before unpacking for the same reason the bundle
+    /// archive's is — it is the only question bytes on a foreign filesystem can
+    /// answer — but the consequence of failing it is different, and deliberately
+    /// so: a corrupt snapshot does not fail the rollback, it degrades it to
+    /// bundle-only, which the caller then has to say out loud. The bundle is the
+    /// thing that must be right or absent; the snapshot is the thing the user
+    /// needs to know the truth about.
+    private static func unpackUserDataFromDestination(
+        _ backup: Backup, key: String, into scratch: URL
+    ) async throws -> URL? {
+        let dir = backup.bundlePath.deletingLastPathComponent()
+        guard let meta = readMeta(in: dir), let name = meta.userDataArchiveName else { return nil }
+        let archive = dir.appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: archive.path) else {
+            Log.install.error(
+                "rollback: the sidecar for \(key, privacy: .public) names a user-data snapshot that is not on the disk")
+            return nil
+        }
+        if let expected = meta.userDataArchiveSHA256 {
+            guard (try? BundleArchive.sha256(of: archive)) == expected else {
+                Log.install.error(
+                    "rollback: the user-data snapshot for \(key, privacy: .public) on the backup disk does not match what was written — not restoring it")
+                return nil
+            }
+        }
+        let staged = scratch.appendingPathComponent(
+            InputMethodDataBackup.directoryName, isDirectory: true)
+        do {
+            try await BundleArchive.extract(archive: archive, into: staged)
+        } catch {
+            Log.install.error(
+                "rollback: the user-data snapshot for \(key, privacy: .public) would not unpack — \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        return InputMethodDataBackup.snapshotExists(in: staged) ? staged : nil
     }
 
     /// Unpack a destination archive into `scratch`, returning the bundle.
@@ -1216,6 +1394,89 @@ public enum BackupStore {
         let staged = scratch.appendingPathComponent(meta.bundleName)
         try await BundleArchive.extract(archive: backup.bundlePath, into: staged)
         return staged
+    }
+
+    // MARK: - Generations with no user-data snapshot
+
+    /// One stored generation of an input method that cannot restore its user
+    /// data — the bundle is there, the snapshot beside it is not.
+    public struct MissingUserDataSnapshot: Sendable, Equatable {
+        public let key: String
+        /// The app's name without `.app`, for a line someone can read.
+        public let name: String
+        public let version: String?
+        /// Which store the generation is in, so a report can name the disk.
+        public let store: Store
+    }
+
+    /// Every stored generation of an input method with no user-data snapshot.
+    ///
+    /// Why this is worth asking at all: builds before 0.4.1 dropped the snapshot
+    /// when they moved a generation to a backup disk (see the comment in
+    /// ``transferToDestination(forKey:compression:)``), so a user who adopted a
+    /// backup disk has input-method rollback points on it that silently restore
+    /// the bundle alone. They are indistinguishable from a generation that never
+    /// had a snapshot — an older backup, or one taken while rollback points were
+    /// off — and that is fine, because **the answer is the same either way**.
+    ///
+    /// What is deliberately *not* offered is a repair. The obvious one — snapshot
+    /// the live data now and attach it to the old generation — would attach the
+    /// data written by the NEWER version to the rollback point for the OLDER one,
+    /// so a later rollback would restore the bundle and then put back exactly the
+    /// data the rollback was trying to get away from, while reporting success.
+    /// That is worse than the gap it papers over. The data that belonged with
+    /// these generations was deleted on the machines it happened on and is not
+    /// recoverable; the honest handling is to know which generations are affected
+    /// and to say so at the moment it matters, which
+    /// ``UserDataOutcome/noSnapshot`` does at rollback time.
+    ///
+    /// Recognised by the install path recorded in the sidecar rather than by
+    /// anything about the copy, matching `UpdatePolicy.isInputMethod` — the same
+    /// rule that decided a snapshot was owed in the first place.
+    public static func generationsMissingUserDataSnapshot() -> [MissingUserDataSnapshot] {
+        var out: [MissingUserDataSnapshot] = []
+        var seen = Set<String>()
+        for store in reachableStores() {
+            for key in storedKeys(in: store.root) {
+                let dir = store.root.appendingPathComponent(key, isDirectory: true)
+                guard let meta = readMeta(in: dir) else { continue }
+                guard UpdatePolicy.isInputMethod(URL(fileURLWithPath: meta.originalPath))
+                else { continue }
+                // The outbox wins over a disk copy of the same key, the way
+                // `backup(forKey:)` reads them — a rollback would use that one,
+                // so it is the one whose snapshot decides the answer.
+                guard seen.insert(key).inserted else { continue }
+                guard !hasUserDataSnapshot(key: key, meta: meta, in: store) else { continue }
+                out.append(MissingUserDataSnapshot(
+                    key: key,
+                    name: (meta.bundleName as NSString).deletingPathExtension,
+                    version: meta.version, store: store))
+            }
+        }
+        return out
+    }
+
+    /// Whether the generation for `key` in `store` can restore user data.
+    ///
+    /// Asks the store the question its own rollback would ask: the outbox keeps
+    /// the snapshot as a directory with a manifest, the destination keeps it as
+    /// an archive the sidecar names. A sidecar that names one is not enough —
+    /// the file has to be there, since the whole failure being detected here is
+    /// a generation whose record and contents disagree.
+    private static func hasUserDataSnapshot(key: String, meta: Meta, in store: Store) -> Bool {
+        switch store.location {
+        case .outbox:
+            return InputMethodDataBackup.snapshotExists(
+                in: store.root
+                    .appendingPathComponent(key, isDirectory: true)
+                    .appendingPathComponent(InputMethodDataBackup.directoryName, isDirectory: true))
+        case .destination:
+            guard let name = meta.userDataArchiveName else { return false }
+            return FileManager.default.fileExists(
+                atPath: store.root
+                    .appendingPathComponent(key, isDirectory: true)
+                    .appendingPathComponent(name).path)
+        }
     }
 
     // MARK: - Verification

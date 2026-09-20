@@ -29226,6 +29226,88 @@
           }
         }
       }
+    },
+    "%@ is back at the earlier version, but its dictionary and settings are not — this rollback point has no copy of them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist wieder auf der früheren Version, sein Wörterbuch und seine Einstellungen jedoch nicht – dieser Wiederherstellungspunkt enthält keine Kopie davon."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ volvió a la versión anterior, pero su diccionario y su configuración no: este punto de restauración no tiene una copia de ellos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est revenu à la version précédente, mais pas son dictionnaire ni ses réglages : ce point de restauration n’en contient aucune copie."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は以前のバージョンに戻りましたが、辞書と設定は戻っていません。このロールバックポイントにはそれらのコピーがありません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ вернулся к прежней версии, а его словарь и настройки — нет: в этой точке отката их копии нет."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已回退到旧版本，但词库和设置没有——这个回退点里没有它们的副本。"
+          }
+        }
+      }
+    },
+    "%@ is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist wieder auf der früheren Version, aber das Wiederherstellen von Wörterbuch und Einstellungen ist fehlgeschlagen – sie sind weiterhin das, was die neuere Version hinterlassen hat."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ volvió a la versión anterior, pero no se pudieron restaurar su diccionario y su configuración: siguen siendo los que dejó la versión más reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est revenu à la version précédente, mais la restauration de son dictionnaire et de ses réglages a échoué : ils restent ceux laissés par la version plus récente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は以前のバージョンに戻りましたが、辞書と設定の復元に失敗しました。新しいバージョンが残したままの状態です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ вернулся к прежней версии, но восстановить его словарь и настройки не удалось — они остались такими, какими их оставила новая версия."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已回退到旧版本，但词库和设置恢复失败——它们仍是新版本留下的内容。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

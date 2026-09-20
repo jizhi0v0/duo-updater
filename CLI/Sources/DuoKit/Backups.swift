@@ -166,11 +166,22 @@ public enum Backups {
     /// directory, and a directory enumerator over a file yields nothing — so
     /// without the branch every such backup would be reported as 0 bytes, which
     /// looks like an empty backup rather than a compressed one.
+    ///
+    /// The destination branch measures the generation's whole directory rather
+    /// than only the bundle's archive: since 0.4.1 an input method's user-data
+    /// snapshot travels there as a second archive beside it, and DoubaoIme's is
+    /// larger than most apps. Reading one file would report a 600 MB rollback
+    /// point as the 40 MB half of it. Hidden entries are skipped so a `.partial`
+    /// left by a transfer that was cut off is not counted as stored.
     static func backupSize(_ backup: BackupStore.Backup) -> Int64 {
         if backup.location == .destination {
-            let size = try? FileManager.default.attributesOfItem(
-                atPath: backup.bundlePath.path)[.size] as? Int64
-            return size.flatMap { $0 } ?? 0
+            guard let entries = try? FileManager.default.contentsOfDirectory(
+                at: backup.bundlePath.deletingLastPathComponent(),
+                includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles])
+            else { return 0 }
+            return entries.reduce(into: Int64(0)) { total, file in
+                total += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+            }
         }
         guard let enumerator = FileManager.default.enumerator(
             at: backup.bundlePath, includingPropertiesForKeys: [.fileSizeKey],
@@ -305,11 +316,22 @@ public enum Backups {
             // Awaited in place: the restore's `ditto` and swap go through
             // `ChildProcess`, and it hops its own `SecStaticCode…` check. See
             // `BackupStore.restore`.
-            let restored = try await BackupStore.restore(forKey: key, over: app.path)
+            // The reporting variant, for the same reason the app uses it: an
+            // input method's dictionary and settings are not in its bundle, so a
+            // rollback that put the bundle back can still have left them behind.
+            // A log line is not an answer for a command that printed "restored".
+            let outcome = try await BackupStore.restoreReportingUserData(
+                forKey: key, over: app.path)
+            let restored = outcome.version
             if json {
-                emitRestoreJSON(app: app.name, key: key, restoredVersion: restored)
+                emitRestoreJSON(
+                    app: app.name, key: key, restoredVersion: restored,
+                    userData: outcome.userData)
             } else {
                 print("   restored\(restored.map { " → \($0)" } ?? "").")
+                if let warning = userDataWarning(app: app.name, outcome.userData) {
+                    print("   \(warning)")
+                }
                 if Check.runningBundlePaths().contains(UpdatePolicy.runtimeBundlePath(app.path)) {
                     print("   \(app.name) is running — restart it to use the restored version.")
                 }
@@ -322,14 +344,59 @@ public enum Backups {
         }
     }
 
-    static func emitRestoreJSON(app: String, key: String, restoredVersion: String?) {
+    /// The one line a bundle-only rollback of an input method owes the user.
+    /// Nil for every rollback that has nothing to warn about — an ordinary app,
+    /// or an input method whose snapshot went back.
+    static func userDataWarning(app: String, _ outcome: BackupStore.UserDataOutcome) -> String? {
+        switch outcome {
+        case .notApplicable, .restored:
+            return nil
+        case .noSnapshot:
+            return "\(app)'s dictionary and settings were NOT restored — "
+                + "this rollback point has no copy of them."
+        case .failed(let reason):
+            return "\(app)'s dictionary and settings were NOT restored — \(reason)"
+        }
+    }
+
+    static func emitRestoreJSON(
+        app: String, key: String, restoredVersion: String?,
+        userData: BackupStore.UserDataOutcome = .notApplicable
+    ) {
         NDJSON.begin("backups restore")
+        NDJSON.emit(restorePayload(
+            app: app, key: key, restoredVersion: restoredVersion, userData: userData))
+    }
+
+    /// The row `emitRestoreJSON` writes, built separately from the writing of
+    /// it. A test can then assert what a script would read without capturing
+    /// stdout, which in a suite that runs in parallel is not a thing one test
+    /// can own.
+    static func restorePayload(
+        app: String, key: String, restoredVersion: String?,
+        userData: BackupStore.UserDataOutcome
+    ) -> [String: Any] {
         var payload: [String: Any] = ["app": app, "key": key]
         // Omitted rather than null: the store cannot always name the version it
         // put back, and `NSNull` in a stream of otherwise-typed values trips
         // naive readers.
         if let restoredVersion { payload["restoredVersion"] = restoredVersion }
-        NDJSON.emit(payload)
+        // Emitted only when there is something to say, for the same reason: a
+        // consumer scripting rollbacks needs to be able to notice a bundle-only
+        // one, and an ordinary app has no user-data question to answer.
+        switch userData {
+        case .notApplicable:
+            break
+        case .restored(let count):
+            payload["userDataRestored"] = count
+        case .noSnapshot:
+            payload["userDataRestored"] = 0
+            payload["userDataMissing"] = true
+        case .failed(let reason):
+            payload["userDataRestored"] = 0
+            payload["userDataError"] = reason
+        }
+        return payload
     }
 
     /// Narrow `query` to exactly the one install a restore can target.
@@ -475,11 +542,24 @@ public enum Backups {
     static func verify(deep: Bool, json: Bool) async -> Int32 {
         note(unreachableDestination())
         let outcomes = await BackupStore.verify(deep: deep)
+        // An input-method generation with no user-data snapshot is intact as a
+        // bundle and diminished as a rollback point — `verify` is the one command
+        // whose question is "what would these do if they were needed", so it is
+        // where that belongs. Reported beside the integrity result rather than as
+        // one, and it does NOT fail the run: the bytes are fine, and a non-zero
+        // exit here would tell a script something is broken that nothing can fix.
+        // See `BackupStore.generationsMissingUserDataSnapshot()` for why there is
+        // no repair to offer.
+        let bundleOnly = Set(BackupStore.generationsMissingUserDataSnapshot().map(\.key))
         if json {
             NDJSON.begin("backups verify")
-            for outcome in outcomes { NDJSON.emit(payload(outcome)) }
+            for outcome in outcomes {
+                var row = payload(outcome)
+                if bundleOnly.contains(outcome.key) { row["userDataSnapshot"] = "missing" }
+                NDJSON.emit(row)
+            }
         } else {
-            emitVerifyText(outcomes)
+            emitVerifyText(outcomes, bundleOnly: bundleOnly)
         }
         return outcomes.contains { $0.result.isFailure } ? 1 : 0
     }
@@ -512,7 +592,9 @@ public enum Backups {
         }
     }
 
-    static func emitVerifyText(_ outcomes: [BackupStore.VerifyOutcome]) {
+    static func emitVerifyText(
+        _ outcomes: [BackupStore.VerifyOutcome], bundleOnly: Set<String> = []
+    ) {
         guard !outcomes.isEmpty else {
             print("No backups stored.")
             return
@@ -533,7 +615,8 @@ public enum Backups {
             }
             let place = outcome.store.volumeName ?? "this Mac"
             print("  \(name)  \(mark)  (\(place))"
-                + (detail(outcome.result).map { " — \($0)" } ?? ""))
+                + (detail(outcome.result).map { " — \($0)" } ?? "")
+                + (bundleOnly.contains(outcome.key) ? "  [bundle only]" : ""))
         }
         let damaged = outcomes.filter { $0.result.isFailure }.count
         let unchecked = outcomes.filter {
@@ -542,6 +625,13 @@ public enum Backups {
         }.count
         print("\n  \(outcomes.count) checked, \(damaged) damaged"
             + (unchecked == 0 ? "." : ", \(unchecked) with nothing to check against."))
+        if !bundleOnly.isEmpty {
+            print("\n  \(bundleOnly.count) input-method rollback point(s) marked [bundle only]:"
+                + " they can restore the app but not its dictionary and settings."
+                + "\n  There is nothing to repair — a snapshot taken now would hold the data the"
+                + "\n  NEWER version wrote, which is what a rollback is trying to get away from."
+                + "\n  The next update of each app takes a snapshot that does travel.")
+        }
     }
 
     // MARK: - Probe

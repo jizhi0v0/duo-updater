@@ -114,8 +114,8 @@ jobs:
         timeout-minutes: 5
         run: |
           shopt -s nullglob
-          for bundle in /tmp/duo-app-tests-*/Logs/Test/*.xcresult; do
-            out="${bundle%/Logs/Test/*}/ci-xcresult/$(basename "$bundle" .xcresult)"
+          for bundle in /tmp/duo-app-tests-*/app-tests-*.xcresult; do
+            out="$(dirname "$bundle")/ci-xcresult/$(basename "$bundle" .xcresult)"
             mkdir -p "$out"
             xcrun xcresulttool get test-results tests --path "$bundle" > "$out/tests.json" \
               || echo "::warning::xcresulttool could not read test results from $bundle"

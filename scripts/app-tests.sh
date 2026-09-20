@@ -41,10 +41,28 @@ fi
 # false "ran nothing" because the other run truncated it mid-grep.
 mkdir -p "$DD"
 LOG="$DD/app-tests-$$.log"
+
+# The same per-process naming, and for the same reason: the coverage gate reads
+# this bundle, so two runs in one checkout must not answer for each other.
+#
+# Named explicitly rather than globbing $DD/Logs/Test/*.xcresult, which is where
+# xcodebuild files it otherwise. That directory accumulates one bundle per run
+# and is never pruned, so "the newest bundle" is a guess about wall-clock order
+# between concurrent runs — exactly the ambiguity the per-process log avoids.
+#
+# xcodebuild refuses to overwrite an existing bundle, and $$ can be reused after
+# a crash left one behind, so it is removed first. Measured 2026-09-20 (Xcode
+# 27.0, 27A266a) by pointing -resultBundlePath at an existing directory:
+#   xcodebuild: error: Existing file at -resultBundlePath "…/existing.xcresult"
+# and the build stops before running a single test.
+RESULT_BUNDLE="$DD/app-tests-$$.xcresult"
+rm -rf "$RESULT_BUNDLE"
+
 set +e
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
            -derivedDataPath "$DD" \
+           -resultBundlePath "$RESULT_BUNDLE" \
            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
            test > "$LOG" 2>&1
 STATUS=$?
@@ -72,9 +90,14 @@ fi
 # the repo's "计时测试要防空过" rule both exist to catch.
 # Which declared cases actually ran, by NAME. The reasoning — and the three
 # ways a count got this wrong — is in the script.
-GATE="$(python3 scripts/app_test_coverage.py "$LOG" App/Tests || true)"
+# The .xcresult is the preferred source: one node per case, immune to the
+# console interleaving that produced a false red on 2026-09-20 (CI run
+# 35492361595). The log stays the argument because the gate falls back to it
+# whenever xcresulttool or its schema can't be read — see the script.
+GATE="$(python3 scripts/app_test_coverage.py --result-bundle "$RESULT_BUNDLE" "$LOG" App/Tests || true)"
 COUNTS="$(printf '%s\n' "$GATE" | sed -n 1p)"
 MISSING="$(printf '%s\n' "$GATE" | sed -n 2p)"
+SOURCE="$(printf '%s\n' "$GATE" | sed -n 3p)"
 DECLARED="${COUNTS%% *}"
 RAN="${COUNTS##* }"
 
@@ -87,7 +110,12 @@ fi
 if [ -n "$MISSING" ]; then
   echo "✗ App tests: $RAN of $DECLARED declared cases ran. Never executed:"
   for m in $MISSING; do echo "    $m"; done
-  echo "  A case that stops running is a case that stops guarding. Log: $LOG"
+  echo "  A case that stops running is a case that stops guarding."
+  echo "  Source: $SOURCE. Log: $LOG  Result bundle: $RESULT_BUNDLE"
+  # Worth knowing which source said so. `console-log` means the structured
+  # bundle was unreadable and this is the interleaving-prone parser talking, so
+  # a single red there is worth rerunning before believing; `result-bundle`
+  # means a case genuinely did not execute.
   exit 1
 fi
-echo "✓ App tests — $RAN of $DECLARED cases executed"
+echo "✓ App tests — $RAN of $DECLARED cases executed (source: $SOURCE)"

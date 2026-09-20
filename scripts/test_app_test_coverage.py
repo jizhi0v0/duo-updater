@@ -207,5 +207,485 @@ class ReadsUTF8WhateverTheLocale(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[0], "1 1")
 
 
+# A `get test-results tests` report, trimmed to the fields this reads. Copied in
+# shape from the real bundle of a 2026-09-20 run (Xcode 27.0 27A266a,
+# xcresulttool 25115, schema 0.4.0): cases nest under Test Plan -> bundle ->
+# Test Suite, a parameterized case is one node spelled `foo(_:)` with child
+# `Arguments` nodes, and `result` is a sibling of `name`.
+def report(*cases):
+    return {
+        "testNodes": [{
+            "nodeType": "Test Plan", "name": "DuoUpdater",
+            "children": [{
+                "nodeType": "Unit test bundle", "name": "DuoUpdaterAppTests",
+                "children": [{
+                    "nodeType": "Test Suite", "name": "HelperPeerGateTests",
+                    "children": [
+                        {"nodeType": "Test Case", "name": n, "result": r}
+                        for n, r in cases
+                    ],
+                }],
+            }],
+        }],
+    }
+
+
+class ResultBundleIsTheVacuityGate(unittest.TestCase):
+    """The structured source must still catch a case that did not execute.
+
+    This is the property the whole gate exists for, and the .xcresult is the
+    door through which it is easiest to lose: unlike the console, which simply
+    has no record for a case that never ran, the bundle lists a disabled case
+    by name anyway.
+
+    MEASURED, not assumed. On 2026-09-20 `.disabled("mutation probe")` was put
+    on `theClientRequirementIsPinnedForATeam` and `scripts/app-tests.sh` rerun.
+    The bundle held 51 `Test Case` nodes for 51 declared cases — 50 `Passed`
+    and that one `Skipped`, the disabled case present by name. A reader that
+    counted nodes, or that ignored `result`, would have called the run complete
+    while that case never executed. That is verbatim the first of the three
+    counting bugs in the module docstring, walking back in through a new door.
+
+    Mutation: drop `Skipped` from `DID_NOT_RUN` (or delete the
+    `node.get("result") not in DID_NOT_RUN` test) → the first two cases here
+    fail, and so does `test_a_disabled_case_is_reported_missing_end_to_end`.
+    """
+
+    def test_a_skipped_case_did_not_run(self):
+        names = atc.names_from_test_report(
+            report(("aRealCase()", "Passed"), ("aDisabledCase()", "Skipped")))
+        self.assertEqual(names, {"aRealCase"})
+
+    def test_a_whole_suite_of_skips_runs_nothing(self):
+        names = atc.names_from_test_report(
+            report(("one()", "Skipped"), ("two()", "Skipped")))
+        self.assertEqual(names, set())
+
+    def test_a_case_that_ran_and_failed_still_ran(self):
+        # A failure already fails xcodebuild, and app-tests.sh exits before the
+        # gate, so counting it here keeps "ran" meaning "executed", not "passed".
+        names = atc.names_from_test_report(
+            report(("aFailingCase()", "Failed"), ("anExpected()", "Expected Failure")))
+        self.assertEqual(names, {"aFailingCase", "anExpected"})
+
+    def test_a_parameterized_case_gives_its_declared_name(self):
+        r"""Mutation: anchor the name match to empty parens (`([A-Za-z0-9_]+)\(\)`)
+        → the parameterized case vanishes and is reported as never run, which is
+        the third counting bug in the module docstring."""
+        names = atc.names_from_test_report(
+            report(("aMalformedTeamYieldsNoRequirement(_:)", "Passed")))
+        self.assertEqual(names, {"aMalformedTeamYieldsNoRequirement"})
+
+    def test_an_arguments_node_is_not_a_case_that_ran(self):
+        """Only `Test Case` nodes answer "did it run", and the `Arguments`
+        children of a parameterized case are the trap.
+
+        Measured in the 2026-09-20 bundle: an `Arguments` node's `name` is the
+        rendered argument (`"ZZFIXTURE"`, `"zzfixture0"`), and — unlike every
+        container node — it carries NO `result` key at all. So the `Skipped`
+        rule cannot reject it; only the `nodeType` test can. A suite
+        parameterized over strings that look like Swift calls is all it takes
+        for such a node to be spelled exactly like a case name, and a bogus
+        name that collides with a declared one masks that case's absence.
+
+        Mutation: drop the `nodeType == "Test Case"` test → `requirement` is
+        counted as a case that ran, on a run where the only case was skipped.
+        """
+        parameterized = {
+            "nodeType": "Test Case", "name": "aCaseOverCallSpellings(_:)",
+            "result": "Skipped",
+            "children": [
+                # No `result` key, exactly as the real bundle writes them.
+                {"nodeType": "Arguments", "name": "requirement(team:)"},
+                {"nodeType": "Arguments", "name": "\"ZZFIXTURE\""},
+            ],
+        }
+        report_with_args = {"testNodes": [{
+            "nodeType": "Test Plan", "name": "DuoUpdaterAppTests",
+            "result": "Passed", "children": [parameterized]}]}
+        self.assertEqual(atc.names_from_test_report(report_with_args), set())
+
+    def test_container_nodes_are_not_names(self):
+        """The plan, the bundle and each suite carry `name` and `result` too.
+        They cannot match the name pattern today — none of them has a `(` — so
+        this pins the intent rather than a live failure."""
+        names = atc.names_from_test_report(report(("only()", "Passed")))
+        self.assertEqual(names, {"only"})
+
+
+class ResultBundleFallsBackRatherThanLying(unittest.TestCase):
+    """An unreadable bundle is evidence about the toolchain, not about the
+    tests, so it must hand over to the console parser rather than report an
+    empty run. A bundle that yields no cases is treated the same way: a
+    genuinely empty run still fails the gate, because the console finds nothing
+    either, but a schema change does not manufacture 51 false reds.
+
+    Mutation: return `names` instead of `names or None` from
+    `ran_cases_from_result_bundle` → an empty report stops falling back.
+    """
+
+    def test_a_missing_bundle_reads_as_unreadable(self):
+        self.assertIsNone(
+            atc.ran_cases_from_result_bundle(pathlib.Path("/nonexistent.xcresult")))
+
+    def test_a_report_with_no_cases_yields_no_names(self):
+        self.assertEqual(atc.names_from_test_report({"testNodes": []}), set())
+        self.assertEqual(atc.names_from_test_report({}), set())
+
+
+class EndToEnd(unittest.TestCase):
+    """`main()` over a temp tree, driving the two sources against each other.
+
+    `xcrun` is stubbed on PATH so this needs no Xcode: the stub prints a report
+    we choose, which is the only way to exercise the subprocess path and the
+    `--result-bundle` argument parsing on a machine without a toolchain.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = pathlib.Path(self.tmp.name)
+        (self.root / "Tests").mkdir()
+        (self.root / "Tests" / "ZZFixtureTests.swift").write_text(
+            "@Test func caseOne() {}\n@Test func caseTwo() {}\n", encoding="utf-8")
+        self.log = self.root / "app-tests.log"
+        self.bundle = self.root / "app-tests.xcresult"
+        self.bundle.mkdir()
+
+    def write_log(self, *names):
+        self.log.write_text(
+            "".join("✔ Test %s() passed after 0.001 seconds.\n" % n for n in names),
+            encoding="utf-8")
+
+    def stub_xcrun(self, payload):
+        """A `xcrun` on PATH that prints `payload`, or exits 1 when it is None."""
+        import json
+        import os
+        import stat
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        script = bin_dir / "xcrun"
+        if payload is None:
+            body = "#!/bin/sh\nexit 1\n"
+        else:
+            blob = self.root / "report.json"
+            blob.write_text(json.dumps(payload), encoding="utf-8")
+            body = "#!/bin/sh\ncat %s\n" % blob
+        script.write_text(body, encoding="utf-8")
+        script.chmod(script.stat().st_mode | stat.S_IEXEC)
+        return os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])
+
+    def run_gate(self, path_override=None, with_bundle=True):
+        import os
+        import subprocess
+        env = dict(os.environ)
+        if path_override:
+            env["PATH"] = path_override
+        argv = [sys.executable, str(pathlib.Path(atc.__file__))]
+        if with_bundle:
+            argv += ["--result-bundle", str(self.bundle)]
+        argv += [str(self.log), str(self.root / "Tests")]
+        out = subprocess.run(argv, capture_output=True, text=True,
+                             encoding="utf-8", env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.splitlines()
+
+    def test_the_bundle_is_preferred_over_the_console(self):
+        # The log is deliberately WRONG — it shows both cases passing — while
+        # the bundle says one was skipped. If the bundle is preferred, the gate
+        # reports the skip. Mutation: swap the preference in `main()` so the
+        # console wins → this reports `2 2` with nothing missing.
+        self.write_log("caseOne", "caseTwo")
+        path = self.stub_xcrun(report(("caseOne()", "Passed"), ("caseTwo()", "Skipped")))
+        lines = self.run_gate(path)
+        self.assertEqual(lines[0], "2 1")
+        self.assertEqual(lines[1], "caseTwo")
+        self.assertEqual(lines[2], "result-bundle")
+
+    def test_a_disabled_case_is_reported_missing_end_to_end(self):
+        """The vacuity guard, whole: this is the failure the gate exists to
+        catch. Mutation: drop `Skipped` from `DID_NOT_RUN` → nothing is
+        reported missing, and `app-tests.sh` goes green on a run in which
+        `caseTwo` never executed."""
+        self.write_log("caseOne")
+        path = self.stub_xcrun(report(("caseOne()", "Passed"), ("caseTwo()", "Skipped")))
+        lines = self.run_gate(path)
+        self.assertEqual(lines[0], "2 1")
+        self.assertEqual(lines[1], "caseTwo")
+
+    def test_an_empty_run_still_fails_the_gate(self):
+        """Nothing ran at all: the bundle yields no cases, the gate falls back
+        to a console log that is also empty, and BOTH declared cases come back
+        missing. The fallback must not turn an empty run green.
+
+        The source line is asserted too, because it is the only thing that
+        distinguishes "no cases, so ask the log" from "no cases, so nothing
+        ran": both give `2 0` here. Mutation: return `names` instead of
+        `names or None` from `ran_cases_from_result_bundle` → the source reads
+        `result-bundle` and an Xcode schema change would be indistinguishable
+        from a suite that stopped running."""
+        self.write_log()
+        path = self.stub_xcrun(report())
+        lines = self.run_gate(path)
+        self.assertEqual(lines[0], "2 0")
+        self.assertEqual(sorted(lines[1].split()), ["caseOne", "caseTwo"])
+        self.assertEqual(lines[2], "console-log")
+
+    def test_an_unreadable_bundle_falls_back_to_the_console(self):
+        """xcresulttool exits non-zero — a broken, absent or restricted
+        toolchain. The console log is complete, so the gate must go green on it
+        rather than report both cases missing.
+
+        Mutation: make `main()` treat a `None` from the bundle as an empty set
+        instead of falling back → this reports `2 0` and CI reds on every run
+        of a machine without xcresulttool."""
+        self.write_log("caseOne", "caseTwo")
+        path = self.stub_xcrun(None)
+        lines = self.run_gate(path)
+        self.assertEqual(lines[0], "2 2")
+        self.assertEqual(lines[1], "")
+        self.assertEqual(lines[2], "console-log")
+
+    def test_garbage_from_xcresulttool_falls_back(self):
+        """A schema this doesn't understand must not read as an empty run.
+        Mutation: drop the `json.JSONDecodeError` guard → the gate crashes, and
+        `app-tests.sh`'s `|| true` turns that into an empty `DECLARED`, which
+        its own "found no @Test cases" branch reports as a broken gate."""
+        import os
+        import stat
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        script = bin_dir / "xcrun"
+        script.write_text("#!/bin/sh\necho 'not json at all'\n", encoding="utf-8")
+        script.chmod(script.stat().st_mode | stat.S_IEXEC)
+        self.write_log("caseOne", "caseTwo")
+        lines = self.run_gate(
+            os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")]))
+        self.assertEqual(lines[0], "2 2")
+        self.assertEqual(lines[2], "console-log")
+
+    def test_a_partial_report_from_a_failing_xcresulttool_is_not_trusted(self):
+        """xcresulttool can print a well-formed but INCOMPLETE report and still
+        exit non-zero — a half-written bundle after a crashed or killed run.
+        The JSON parses, so the exit code is the only thing that rejects it.
+
+        Here the report holds one of the two cases. Trusting it would report
+        `caseTwo` as never run, which is a false red on a run whose console log
+        shows both passing.
+
+        Mutation: drop the `proc.returncode != 0` test → the gate reads the
+        partial report, answers `2 1`, and fails the build on a green run.
+        """
+        import json
+        import os
+        import stat
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        blob = self.root / "partial.json"
+        blob.write_text(json.dumps(report(("caseOne()", "Passed"))), encoding="utf-8")
+        script = bin_dir / "xcrun"
+        script.write_text("#!/bin/sh\ncat %s\nexit 1\n" % blob, encoding="utf-8")
+        script.chmod(script.stat().st_mode | stat.S_IEXEC)
+        self.write_log("caseOne", "caseTwo")
+        lines = self.run_gate(
+            os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")]))
+        self.assertEqual(lines[0], "2 2")
+        self.assertEqual(lines[2], "console-log")
+
+    def test_no_bundle_argument_is_the_old_console_behaviour(self):
+        self.write_log("caseOne", "caseTwo")
+        lines = self.run_gate(with_bundle=False)
+        self.assertEqual(lines[0], "2 2")
+        self.assertEqual(lines[2], "console-log")
+
+
+class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
+    """`scripts/sweep_app_test_coverage.py` is the console parser's own
+    evidence: it tears a record and a log line at every position, interleaves
+    them every way, and checks two things — that no ordering makes a
+    non-passing case look like it ran (SAFETY), and that the set of orderings
+    whose pass records are recovered has not changed (the RECALL inventory).
+    Running its quick mode here keeps both claims from rotting the way the
+    uncommitted 2026-09-17 sweep did.
+
+    Both halves are asserted, because the sweep shipped in 97c692c with the
+    RECALL half promised in its docstring and never implemented: the table was
+    printed and compared to nothing, so an ordering regressing from fully
+    recovered to missing exited 0 and `make test` stayed green.
+
+    Mutation: remove the `[✔━…]` marker class from `RAN` → SAFETY reports false
+    greens and the sweep exits non-zero.
+    Mutation: tighten `SPLICED_LOG_LINE` so a whole log line no longer matches
+    (e.g. insert a literal that never occurs before `[^\n]*\n`) → SAFETY is
+    still clean, but `record|log1|log1|record` drops from 149200/149200 to
+    86922/149200 and the RECALL inventory check fails. Verified 2026-09-20.
+    Mutation: delete the `regressed`/`improved`/`unknown` block from the
+    sweep's `main()` → that second mutation stops being caught.
+    """
+
+    def run_sweep(self):
+        import subprocess
+        return subprocess.run(
+            [sys.executable,
+             str(pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"),
+             "--quick"],
+            capture_output=True, text=True, encoding="utf-8")
+
+    def test_the_quick_sweep_reports_no_false_green(self):
+        out = self.run_sweep()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("no false green", out.stdout)
+
+    def test_the_quick_sweep_finds_the_recall_inventory_unchanged(self):
+        out = self.run_sweep()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("RECALL inventory is unchanged", out.stdout)
+        self.assertNotIn("RECALL inventory changed", out.stdout)
+
+    def test_the_inventory_comparison_catches_each_kind_of_change(self):
+        """The comparison itself, on synthetic tables.
+
+        Round 2 of review made the point that the sweep's success line is
+        printed unconditionally, so the two tests above stay green if the
+        `regressed`/`improved`/`unknown` block is deleted — they only fail for
+        a real parser regression, which is a slower signal. This calls the
+        comparison directly, so deleting or inverting it fails here at once.
+
+        Mutation: return three empty lists from `inventory_problems` → the
+        test fails at the first CHANGE case. The opening assertion is the
+        unchanged control and still passes under that mutation, which is the
+        point of having it: it separates "the comparison reports nothing" from
+        "the comparison reports the wrong thing".
+        Mutation: drop the `improved` term → the second case fails.
+        Mutation: drop the `unknown` term → the third case fails.
+        """
+        import importlib
+        sweep = importlib.import_module("sweep_app_test_coverage")
+        clean = dict.fromkeys(sweep.EXPECTED_FULLY_RECOVERED, 0)
+        missing = dict.fromkeys(sweep.EXPECTED_WITH_MISSES, 7)
+        totals = {label: 149200 for label in (clean | missing)}
+
+        # Unchanged: the inventory as pinned.
+        self.assertEqual(sweep.inventory_problems(clean | missing, totals),
+                         ([], [], []))
+
+        # An ordering that was fully recovered starts missing — the shape the
+        # 2026-09-20 false red would have taken.
+        regressed_label = sorted(sweep.EXPECTED_FULLY_RECOVERED)[0]
+        table = (clean | missing)
+        table[regressed_label] = 62278
+        self.assertEqual(sweep.inventory_problems(table, totals),
+                         ([regressed_label], [], []))
+
+        # A known-missing ordering stops missing: good news, still a change.
+        improved_label = sorted(sweep.EXPECTED_WITH_MISSES)[0]
+        table = (clean | missing)
+        table[improved_label] = 0
+        self.assertEqual(sweep.inventory_problems(table, totals),
+                         ([], [improved_label], []))
+
+        # An ordering the inventory does not name at all.
+        table = (clean | missing) | {"record|record|record|log1": 0}
+        extra_totals = totals | {"record|record|record|log1": 1}
+        self.assertEqual(sweep.inventory_problems(table, extra_totals),
+                         ([], [], ["record|record|record|log1"]))
+
+    def test_the_pinned_inventory_names_every_ordering_once(self):
+        """The two pinned sets must partition the six orderings `recall_by_shape`
+        produces. Mutation: drop a label from either set → it lands in `unknown`
+        on every live run, which is a red the author must resolve deliberately
+        rather than a silent hole."""
+        import importlib
+        import itertools
+        sweep = importlib.import_module("sweep_app_test_coverage")
+        produced = {sweep.shape_of(order)
+                    for order in set(itertools.permutations([0, 0, 1, 1]))}
+        self.assertEqual(len(produced), 6)
+        self.assertEqual(sweep.EXPECTED_FULLY_RECOVERED | sweep.EXPECTED_WITH_MISSES,
+                         produced)
+        self.assertEqual(sweep.EXPECTED_FULLY_RECOVERED & sweep.EXPECTED_WITH_MISSES,
+                         set())
+
+    def test_main_still_fails_the_run_on_an_inventory_change(self):
+        """The call site, not just the comparison.
+
+        `inventory_problems` is unit-tested directly above, which pins the
+        comparison but not the fact that `main()` still acts on it: deleting
+        the regressed/improved/unknown block would leave every other test green
+        (round 3 of review named this residual). `--selftest-inventory` injects
+        one ordering's regression into an otherwise healthy run, so this
+        asserts end to end that the sweep reports it and exits non-zero. The
+        injected ordering is one that currently recovers fully — not the
+        2026-09-20 tear, which lands in an ordering already known to miss.
+
+        Mutation: delete the `regressed` branch from `main()` → exit 0 and this
+        fails. Mutation: drop the `failed = True` from that branch → the
+        message still prints but the sweep returns 0, and this fails on the
+        return code alone.
+        """
+        import subprocess
+        sweep = pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"
+        out = subprocess.run(
+            [sys.executable, str(sweep), "--quick", "--selftest-inventory"],
+            capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("RECALL inventory changed", out.stdout)
+        self.assertIn("were fully recovered and now miss", out.stdout)
+        self.assertIn("sweep failed", out.stdout)
+
+    def test_the_sweep_actually_visited_texts(self):
+        """The sweep is itself a gate, so it must not pass vacuously: an
+        enumeration that produced nothing would print `0 texts, 0 false passes
+        [ok]` for every section. Mutation: make `tears` return `[]` → the sweep
+        exits non-zero naming the empty sections, and this fails."""
+        import re
+        out = self.run_sweep()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("visited NO texts", out.stdout)
+        # Anchored on the whole field: a bare `"0 texts,"` substring also
+        # matches `20000 texts,`, which is how this assertion first went green
+        # against a healthy run and red against nothing.
+        self.assertIsNone(re.search(r":\s+0 texts,", out.stdout), out.stdout)
+
+
+class KnownConsoleMisses(unittest.TestCase):
+    """The two interleaving orderings the console parser cannot recover.
+
+    Pinned deliberately as MISSES, not as bugs awaiting a fix. Both are a pass
+    record and a log line each torn in two, ordered so that the log line's own
+    newline arrives after a piece of the record:
+
+      log | record | log | record   — cutting the log line out takes the
+                                      record's head with it
+      record | log | record | log   — cutting it out takes the record's tail
+
+    This is the shape behind the 2026-09-20 false red (CI run 35492361595).
+    Recovering either one means allowing text between `)` and `passed` that the
+    log line could have written, which is exactly how a torn non-passing record
+    would borrow a verdict it never earned — so the marker/`Test `/name
+    adjacency is not loosened to make them pass.
+
+    Measured 2026-09-20 with `sweep_app_test_coverage.py`: three candidate
+    repairs (stop the log-line cut at a marker; cut only the timestamp header;
+    both) moved recall from 86.2% to 86.3% across 179040 torn texts built from
+    one pass record against all ten log fixtures — nothing to buy here at any
+    price. The full sweep puts the parser at 85.8% of 895200 torn texts with
+    every miss in these two orderings. That is why the .xcresult is now the
+    preferred source: it is not subject to any of this.
+
+    If someone later makes these pass, they owe an argument for how the verdict
+    still cannot be borrowed.
+    """
+
+    def test_a_record_whose_head_lands_in_an_unfinished_log_line_is_missed(self):
+        text = TS + "msgA✔ Test foo() pasmsgB\nsed after 0.004 seconds.\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+    def test_a_record_torn_by_an_unfinished_log_line_is_missed(self):
+        text = "✔ Test foo() p" + TS + "msgAassed after 0.004 seconds.\nmsgB\n"
+        self.assertEqual(atc.ran_cases(text), set())
+
+
 if __name__ == "__main__":
     unittest.main()

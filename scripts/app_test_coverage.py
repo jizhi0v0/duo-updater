@@ -290,8 +290,13 @@ def ran_cases_from_result_bundle(bundle: pathlib.Path) -> set[str] | None:
         return None
     try:
         proc = subprocess.run(
+            # No --compact: this output is parsed, never read, so the flag
+            # buys nothing and is one more thing a future toolchain could
+            # reject — and a rejection here demotes the run to the console
+            # parser this gate exists to stop depending on. `.github/workflows/
+            # ci.yml` invokes the same subcommand without it.
             ["xcrun", "xcresulttool", "get", "test-results", "tests",
-             "--path", str(bundle), "--compact"],
+             "--path", str(bundle)],
             capture_output=True, text=True, encoding="utf-8", timeout=300)
     except (OSError, subprocess.SubprocessError):
         return None

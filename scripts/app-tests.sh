@@ -51,7 +51,10 @@ LOG="$DD/app-tests-$$.log"
 # between concurrent runs — exactly the ambiguity the per-process log avoids.
 #
 # xcodebuild refuses to overwrite an existing bundle, and $$ can be reused after
-# a crash left one behind, so it is removed first.
+# a crash left one behind, so it is removed first. Measured 2026-09-20 (Xcode
+# 27.0, 27A266a) by pointing -resultBundlePath at an existing directory:
+#   xcodebuild: error: Existing file at -resultBundlePath "…/existing.xcresult"
+# and the build stops before running a single test.
 RESULT_BUNDLE="$DD/app-tests-$$.xcresult"
 rm -rf "$RESULT_BUNDLE"
 

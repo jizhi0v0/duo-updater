@@ -151,7 +151,7 @@ enum com_sogou_inputmethod_sogou {
         // The user's dictionary and settings live in
         // `~/Library/Application Support/Sogou/` and `~/Library/Preferences/`, none
         // of it in the bundle. `InputMethodDataBackup.declaredDataNames` is what
-        // reaches them — the general rules find one plist of the eight, because
+        // reaches them — the general rules find one plist of the seven, because
         // nothing on disk is called `SogouInput`.
         VendorProbeRecipe(
             bundleID: "com.sogou.inputmethod.sogou",
@@ -161,7 +161,17 @@ enum com_sogou_inputmethod_sogou {
             downloadURL: URL(string: "https://shurufa.sogou.com/mac"),
             changelogURL: URL(string: "https://pinyin.sogou.com/mac/update_log.php"),
             install: VendorInstallSpec(
-                urlSource: .bodyPattern(#"\nupdate_pack_url=(https?://[^\s]+\.zip)"#),
+                // Block-scoped exactly like `versionPattern` above, and for the
+                // same reason: an unscoped `update_pack_url=` takes the FIRST one
+                // in the body, which in a multi-block response need not belong to
+                // the block the version was read from. Nobody has seen this server
+                // send two blocks with payloads — the guard is that the two
+                // patterns cannot disagree about which release is being installed,
+                // which is a property worth having by construction rather than by
+                // the server's habit. `aVersionIsNeverPairedWithAnotherBlocksPayload`
+                // builds the body where the unscoped spelling reads the wrong one.
+                urlSource: .bodyPattern(
+                    #"\npid=0\n(?:[^\[]*?\n)?version=[0-9]+(?:\.[0-9]+)+[^\[]*?\nupdate_pack_url=(https?://[^\s]+\.zip)"#),
                 kind: .zip,
                 contentsArchivePattern: #"^Contents[0-9.]+\.zip$"#)),
         ])

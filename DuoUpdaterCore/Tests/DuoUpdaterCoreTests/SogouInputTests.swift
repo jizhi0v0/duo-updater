@@ -102,6 +102,19 @@ private func sogouRecipe() throws -> VendorProbeRecipe {
         """.replacingOccurrences(of: "        ", with: "") + sogouUpdateFixture
         #expect(VendorProbeRecipe.extractVersion(
             from: otherProductFirst, pattern: recipe.versionPattern) == "6.24.1.11676")
+
+        // The INSTALL pattern has to read the same block, or the version and the
+        // bytes would name different releases. It is scoped the same way for that
+        // reason; an unscoped `\nupdate_pack_url=(…)` takes the first match in the
+        // body and answers `something-else.zip` here.
+        guard case .bodyPattern(let install) = try #require(recipe.install).urlSource else {
+            Issue.record("the payload URL must come from this response's body")
+            return
+        }
+        #expect(VendorProbeRecipe.extractVersion(from: otherProductFirst, pattern: install)
+            == "http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip")
+        #expect(VendorProbeRecipe.extractVersion(from: twoBlocks, pattern: install)
+            == "http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip")
     }
 
     /// The probe's request IS the recipe. Drop `sv`, or send `s=1`/`s=2`, and the

@@ -56,7 +56,7 @@ import Testing
     /// name — the case `declaredDataNames` exists for. The layout here is the one
     /// measured on a real install (2026-09-20).
     ///
-    /// Of these eight locations the two general rules find exactly one, the plist
+    /// Of these seven locations the two general rules find exactly one, the plist
     /// that happens to be the bundle id. Everything else — the 17 MB learned
     /// dictionary included — is reachable only through the declared name, and
     /// through BOTH rules: `Application Support/Sogou` needs it on the support

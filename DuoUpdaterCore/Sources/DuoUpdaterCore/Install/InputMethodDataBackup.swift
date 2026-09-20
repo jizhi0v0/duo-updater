@@ -173,12 +173,15 @@ public enum InputMethodDataBackup {
     ///                                      SogouPreference,SogouTaskManager}.plist
     ///     ~/Library/Preferences/com.sogou.inputmethod.sogou.plist
     ///
-    /// Of those, the rules above found exactly ONE — the last plist, by bundle id.
+    /// That is SEVEN locations as this module counts them — a location is what
+    /// gets captured, and the support directory is captured whole, so its four
+    /// children above are one, not four. Of the seven, the rules above found
+    /// exactly ONE: the last plist, by bundle id.
     /// `Application Support/SogouInput` does not exist, so the support rule
     /// captured nothing at all, and `com.sogou.SogouPreference` is the settings
     /// pane: the same shape as WeType's `com.tencent.WeTypeSettings`, which the
     /// name rule was added for and which the name `SogouInput` cannot reach.
-    /// Declaring `Sogou` reaches all eight, the 17 MB learned dictionary included.
+    /// Declaring `Sogou` reaches all seven, the 17 MB learned dictionary included.
     ///
     /// The inference that was rejected: take the vendor token out of the bundle id
     /// (`com.sogou.…` → `Sogou`). It works here and misfires next door — the same

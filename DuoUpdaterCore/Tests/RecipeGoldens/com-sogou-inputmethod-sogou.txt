@@ -30,7 +30,7 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "\\nupdate_pack_url=(https?://[^\\s]+\\.zip)"
+probes[0].install?.urlSource.0 = "\\npid=0\\n(?:[^\\[]*?\\n)?version=[0-9]+(?:\\.[0-9]+)+[^\\[]*?\\nupdate_pack_url=(https?://[^\\s]+\\.zip)"
 probes[0].install?.kind = .zip
 probes[0].install?.checksumPattern = nil
 probes[0].install?.requestHeaders = Dictionary(count: 0)

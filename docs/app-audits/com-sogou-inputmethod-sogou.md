@@ -75,6 +75,11 @@ update_notice=0
 
 ## 更新检测：读厂商自己的更新接口
 
+> **数法**：一个「位置」= 一次捕获，支持目录是整个抓走的，所以
+> `Application Support/Sogou` 下面那四个子目录算 **1** 条不是 4 条。
+> 全量是 **7** 条（1 个支持目录 + 6 个 plist），快照实测也是 7 条。
+> 本文早前有几处写成「8」，那是把子目录混进来数的，已统一成 7。
+
 - 源: `VendorProbe`（`mode: .responseBody`）
 - 端点: `https://macime.sogou.com/macversion.txt?v=0.0.0.1&sv=27.0&s=0`
 - `versionPattern`: `\nversion=([0-9]+(?:\.[0-9]+)+)[\s\S]*?\nupdate_pack_url=`
@@ -359,6 +364,7 @@ Contents”，并为迁移脚本建立明确版本门控；不是把官网安装
 | 用户数据快照 | 看 `Backups/<key>/UserData/userdata.json` | **7 条全中**（通用规则只会命中 1 条）✓ |
 | 回滚 | 先在词库目录里放一个 marker，再 `duo backups restore SogouInput --yes` | 回到 `6.24.1.11676`、`SGQuDao=1111` 回来了、marker 消失（快照早于它）、外层 inode 不变、输入源仍在 ✓ |
 | 复装 | 再 `duo install` 一次 | 再次 `applied=true`，`duo check` → `up-to-date` ✓ |
+| CDN 的 HTTPS | `curl -r 0-15` 打两个轮询主机 | `pro.cdn` / `pro.cdn2` **都** 206 + `application/zip` + `PK\x03\x04` ✓ —— 接口给的是 `http`，`VendorProbeSource.preferHTTPS` 会无条件改写成 `https`，所以这条必须真打过才算数 |
 
 **人工复核（同日，用户在键盘前）**：更新 → 回滚 → 再更新走了一整圈，中文输入正常、
 **账号登录态保住了**、关于面板读数正确。两条只有人能看见的现象：

@@ -19,9 +19,17 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
-## 0.4.0
+## 0.4.1
 
 **搜狗输入法 now updates with one click.** DuoUpdater applies it the way the input method updates itself — keeping the installed bundle in place — and takes a copy of your dictionary and settings first, so a rollback brings them back too.
+
+**Backups on another disk now keep an input method's dictionary and settings.** Before, only the app itself was moved to the backup disk, so rolling an input method back from there left the newer version's data behind.
+
+**No more updates that can never be installed.** JetBrains Air now shows the build Toolbox actually offers. An App Store app left behind under its old name, after its developer renamed it, now tells you which copy the App Store updates, instead of offering an update that only reinstalls the other copy.
+
+**More apps' release notes show up formatted.** Apps that publish their notes as Markdown now get the same native list as everyone else. Before, the notes showed up as plain text.
+
+## 0.4.0
 
 **Relaunch no longer competes with an app's own installer.** When an app has downloaded its own update and its rollback backup belongs on an external disk, that copy now waits until the installer is finished. Before, it ran during the few seconds macOS gives the installer to do its work.
 

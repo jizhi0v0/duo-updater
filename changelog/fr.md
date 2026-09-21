@@ -2,9 +2,17 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
-## 0.4.0
+## 0.4.1
 
 **搜狗输入法 se met à jour en un clic.** DuoUpdater applique la mise à jour comme la méthode de saisie le fait elle-même — le bundle installé reste en place — et copie d'abord votre dictionnaire et vos réglages, pour qu'une restauration les rende aussi.
+
+**Les sauvegardes sur un autre disque gardent désormais le dictionnaire et les réglages d'une méthode de saisie.** Auparavant, seule l'app elle-même était déplacée sur le disque de sauvegarde, si bien qu'une restauration depuis ce disque laissait en place les données de la version plus récente.
+
+**Fini les mises à jour qui ne peuvent jamais s'installer.** JetBrains Air affiche désormais la version que Toolbox propose réellement. Une app de l'App Store restée sous son ancien nom après que son développeur l'a renommée indique maintenant quelle copie l'App Store met à jour, au lieu de proposer une mise à jour qui ne fait que réinstaller l'autre copie.
+
+**Les notes de version de davantage d'apps s'affichent mises en forme.** Les apps qui publient leurs notes en Markdown ont désormais la même liste native que les autres. Auparavant, elles s'affichaient en texte brut.
+
+## 0.4.0
 
 **Relancer n'entre plus en concurrence avec l'installeur de l'app.** Quand une app a téléchargé sa propre mise à jour et que sa sauvegarde de restauration doit aller sur un disque externe, cette copie attend désormais la fin de l'installeur. Auparavant, elle se faisait pendant les quelques secondes que macOS lui laisse pour travailler.
 

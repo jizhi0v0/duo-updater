@@ -2,9 +2,17 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
-## 0.4.0
+## 0.4.1
 
 **搜狗输入法 lässt sich jetzt mit einem Klick aktualisieren.** DuoUpdater spielt das Update so ein, wie die Eingabemethode sich selbst aktualisiert – das installierte Bundle bleibt dabei an seinem Platz – und sichert vorher dein Wörterbuch und deine Einstellungen, damit ein Rücksetzen auch die zurückbringt.
+
+**Backups auf einem anderen Volume behalten jetzt Wörterbuch und Einstellungen einer Eingabemethode.** Bisher wurde nur die App selbst auf das Backup-Volume verschoben, sodass ein Zurücksetzen von dort die Daten der neueren Version zurückließ.
+
+**Keine Updates mehr, die sich nie installieren lassen.** JetBrains Air zeigt jetzt den Build, den die Toolbox tatsächlich anbietet. Eine App-Store-App, die nach einer Umbenennung durch den Entwickler unter ihrem alten Namen zurückgeblieben ist, sagt jetzt, welche Kopie der App Store aktualisiert – statt ein Update anzubieten, das nur die andere Kopie neu installiert.
+
+**Die Versionshinweise weiterer Apps erscheinen jetzt formatiert.** Apps, die ihre Hinweise als Markdown veröffentlichen, bekommen jetzt dieselbe native Liste wie alle anderen. Bisher erschienen die Hinweise als reiner Text.
+
+## 0.4.0
 
 **„Neu starten“ kommt dem eigenen Installationsprogramm einer App nicht mehr in die Quere.** Hat eine App ihr Update selbst geladen und gehört ihr Rücksetz-Backup auf ein externes Volume, wartet diese Kopie jetzt, bis das Installationsprogramm fertig ist. Bisher lief sie in genau den wenigen Sekunden, die macOS ihm dafür gibt.
 

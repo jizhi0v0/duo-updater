@@ -91,6 +91,12 @@ public enum RowActionState: Sendable, Equatable {
     /// source did cover the app) and not `.checkFailed` (nothing to retry). Carries
     /// the refusal so both surfaces word it from the same facts (#634).
     case notForThisMacOS(OSWindowRefusal)
+    /// An App Store copy another copy of the same product has replaced — typically
+    /// a bundle the vendor renamed (AndroMeld: `AndDrive.app` stayed at 1.9.0 while
+    /// the store updated `AndroMeld.app`). Its Update could only ever land on the
+    /// other copy, so it offers none. Carries the copy that does get the updates
+    /// and its version (`AppStoreLeftoverCopy`).
+    case orphanedStoreCopy(updatedCopy: String, version: String)
     /// Something else owns this app's updates.
     case managedElsewhere(Manager)
     /// Checked, current, nothing pending. Carries which channel to keep naming —
@@ -126,7 +132,8 @@ public enum RowActionState: Sendable, Equatable {
     /// none of them may render as blank.
     public var needsExplanation: Bool {
         switch self {
-        case .checkFailed, .noSourceCovers, .notForThisMacOS, .ignored, .versionSkipped:
+        case .checkFailed, .noSourceCovers, .notForThisMacOS, .orphanedStoreCopy, .ignored,
+             .versionSkipped:
             return true
         case .updateAvailable(let route):
             return !route.isInstallable
@@ -460,6 +467,10 @@ public struct RowActionFacts {
     /// `app.sparkleFeedURL != nil` — read by the `.unknown` rung, second after
     /// `isMASApp`.
     public var hasSparkleFeed: Bool
+    /// The copy that gets this row's store updates instead, when this row is an
+    /// orphan (`AppStoreLeftoverCopy.orphans`): its file name and version. Read
+    /// only by the `.updateAvailable` rung.
+    public var orphanedStoreSibling: (copy: String, version: String)?
     /// Deferred on purpose. Only the `.updateAvailable` rung reads it, and the
     /// caller's route resolution is the expensive part of assembling these facts —
     /// it rebuilds an install environment several times and can stat the disk. As a
@@ -484,6 +495,7 @@ public struct RowActionFacts {
         isMASApp: Bool = false,
         isTestFlightApp: Bool = false,
         hasSparkleFeed: Bool = false,
+        orphanedStoreSibling: (copy: String, version: String)? = nil,
         route: @autoclosure @escaping () -> UpdateRoute = .autoInstall
     ) {
         self.status = status
@@ -500,6 +512,7 @@ public struct RowActionFacts {
         self.isMASApp = isMASApp
         self.isTestFlightApp = isTestFlightApp
         self.hasSparkleFeed = hasSparkleFeed
+        self.orphanedStoreSibling = orphanedStoreSibling
         self.route = route
     }
 
@@ -535,7 +548,13 @@ public enum RowAction {
         if facts.needsRestart && !facts.hasUpdate { return .restartToApply }
 
         switch facts.status {
-        case .updateAvailable: return .updateAvailable(facts.route())
+        case .updateAvailable:
+            // Before the route: an orphan has no route worth resolving, and the
+            // store route it would resolve to is the one that cannot reach it.
+            if let sibling = facts.orphanedStoreSibling {
+                return .orphanedStoreCopy(updatedCopy: sibling.copy, version: sibling.version)
+            }
+            return .updateAvailable(facts.route())
         case .error(let message):
             return .checkFailed(message: message, rateLimited: facts.status.isRateLimitError)
         case .unknown:
@@ -576,6 +595,7 @@ extension RowActionFacts {
         tables: RowStateTables,
         isIgnored: Bool,
         isVersionSkipped: Bool,
+        orphanedStoreSibling: InstalledApp? = nil,
         route: @escaping @autoclosure () -> UpdateRoute
     ) -> RowActionFacts {
         let staged = UpdatePolicy.actionableStaged(
@@ -595,6 +615,9 @@ extension RowActionFacts {
             isMASApp: result.app.isMASApp,
             isTestFlightApp: result.app.isTestFlightApp,
             hasSparkleFeed: result.app.sparkleFeedURL != nil,
+            orphanedStoreSibling: orphanedStoreSibling.map {
+                ($0.path.lastPathComponent, $0.shortVersion ?? "?")
+            },
             route: route())
     }
 }

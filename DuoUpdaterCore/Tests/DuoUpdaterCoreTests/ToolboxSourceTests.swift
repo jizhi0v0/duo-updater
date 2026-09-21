@@ -172,3 +172,62 @@ private func airApp(toolboxInstalledBuild: String?) -> InstalledApp {
     // No dotted run → keep the raw string rather than inventing one.
     #expect(ToolboxInventory.numericVersion(from: "Nightly") == "Nightly")
 }
+
+/// 2026-09-21, as the endpoints answered that day: Air's Sparkle feed
+/// (`fleet-feed/AIR/eap`) offered 262.991.1 while the releases API — and
+/// Toolbox's own catalog, and the website's download link — stopped at
+/// 262.834.44, which Toolbox had just installed. The row read "262.834.44 →
+/// 262.991.1 [Toolbox]" and Toolbox had nothing to give. The API is the answer
+/// Toolbox agrees with, so an Air row asks it and is up to date.
+@Suite(.serialized)
+struct ToolboxAirReleasesAPITests {
+    private final class Endpoints: URLProtocol, @unchecked Sendable {
+        nonisolated(unsafe) static var requested: [URL] = []
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            let url = request.url!
+            Self.requested.append(url)
+            let body = url.host == "data.services.jetbrains.com"
+                ? #"{"AIR":[{"date":"2026-09-16","type":"preview","version":"262.834","build":"262.834.44","notesLink":"https://youtrack.jetbrains.com/issues?q=AIR"}]}"#
+                : "<rss><channel><item><sparkle:version>262.991.1</sparkle:version></item></channel></rss>"
+            let response = HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        override func stopLoading() {}
+    }
+
+    @Test func airIsCheckedAgainstTheReleasesAPINotItsSparkleFeed() async throws {
+        Endpoints.requested = []
+        let path = "/Users/x/Applications/Air.app"
+        let tool = ToolboxInventory.Tool(
+            productCode: nil, channelType: "eap", installedBuild: "262.834.44",
+            displayVersion: "262.834", pinnedLine: nil)
+        let air = InstalledApp(
+            name: "Air", bundleID: "com.jetbrains.air",
+            shortVersion: "262.834.44", buildVersion: "262.834.44",
+            path: URL(fileURLWithPath: path), isMASApp: false, isToolboxManaged: true,
+            sparkleFeedURL: URL(string:
+                "https://plugins.jetbrains.com/fleet-parts/fleet-feed/AIR/eap/macos_aarch64/feed.xml"))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [Endpoints.self]
+        let source = ToolboxSource(
+            inventory: ToolboxInventory(managedPaths: [path], tools: [path: tool]),
+            session: URLSession(configuration: configuration))
+
+        let verdict = try #require(await source.verdict(for: air))
+        #expect(verdict.hasUpdate == false)
+        #expect(verdict.latestBuild == "262.834.44")
+        let asked = try #require(Endpoints.requested.first)
+        #expect(Endpoints.requested.count == 1)
+        #expect(asked.query?.contains("code=AIR") == true)
+        // Air's Public Preview is API type "preview"; `type=eap` alone returns `{}`.
+        #expect(asked.query?.contains("preview") == true)
+    }
+}

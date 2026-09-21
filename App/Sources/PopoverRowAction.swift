@@ -46,6 +46,7 @@ struct PopoverRowAction: View {
     @State private var showMacCompatHint = false
     @State private var showNeedsNewerMacOSHint = false
     @State private var showOSWindowHint = false
+    @State private var showOrphanHint = false
     @State private var showTestFlightTip = false
 
     @ViewBuilder
@@ -121,6 +122,19 @@ struct PopoverRowAction: View {
             .help(OSWindowWording.help(refusal))
             .popover(isPresented: $showOSWindowHint, arrowEdge: .bottom) {
                 osWindowHintPopover(refusal)
+            }
+
+        case .orphanedStoreCopy(let updatedCopy, let version):
+            // Where Update used to be: this copy's update only ever lands on the
+            // other one. The badge opens what happened and a way to the file.
+            Button { showOrphanHint = true } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help(OrphanedCopyWording.help(updatedCopy: updatedCopy))
+            .popover(isPresented: $showOrphanHint, arrowEdge: .bottom) {
+                orphanHintPopover(updatedCopy: updatedCopy, version: version)
             }
 
         case .managedElsewhere(.appStore):
@@ -718,6 +732,29 @@ struct PopoverRowAction: View {
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func orphanHintPopover(updatedCopy: String, version: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text(OrphanedCopyWording.explanation(
+                leftover: result.app.path.lastPathComponent,
+                installed: result.app.shortVersion ?? "?",
+                updatedCopy: updatedCopy, version: version))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            // Reveal, not delete: removing an app is the user's call, and Finder
+            // is where they can see both copies side by side before making it.
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+                showOrphanHint = false
+            }
+            .controlSize(.small)
         }
         .padding(12)
         .frame(width: 290)

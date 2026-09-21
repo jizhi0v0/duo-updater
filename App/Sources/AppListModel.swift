@@ -4174,7 +4174,7 @@ final class AppListModel {
         // to touch is 98 MB per click for AndroMeld. See `AppStoreLeftoverCopy`.
         if backupRoute == .appStore, let sibling = await appStoreSiblingAtTarget(result) {
             Log.install.error("install skipped: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public) — the App Store copy at \(sibling.path.path, privacy: .public) is already \(sibling.shortVersion ?? "?", privacy: .public)")
-            installErrors[id] = appStoreLeftoverMessage(sibling)
+            installErrors[id] = appStoreLeftoverMessage(result.app, sibling: sibling)
             installing[id] = nil
             return .notInstalled
         }
@@ -4568,7 +4568,7 @@ final class AppListModel {
                isActionableUpdate(updated),
                let sibling = await appStoreSiblingAtTarget(result) {
                 Log.install.error("install landed elsewhere: \(updated.app.name, privacy: .public) still \(updated.app.shortVersion ?? "?", privacy: .public) at \(updated.app.path.path, privacy: .public); the App Store updated \(sibling.path.path, privacy: .public) to \(sibling.shortVersion ?? "?", privacy: .public)")
-                installErrors[id] = appStoreLeftoverMessage(sibling)
+                installErrors[id] = appStoreLeftoverMessage(result.app, sibling: sibling)
                 installing[id] = nil
                 relaunching.remove(id)
                 return .notInstalled
@@ -6656,12 +6656,15 @@ final class AppListModel {
         return AppStoreLeftoverCopy.sibling(of: result.app, target: target, among: others)
     }
 
-    /// Bundle name, not full path, and the fix first: the popover clamps this to
-    /// one line (see the `.unreadable` note in `performInstall`).
-    private func appStoreLeftoverMessage(_ sibling: InstalledApp) -> String {
-        let name = sibling.path.lastPathComponent
-        let version = sibling.shortVersion ?? "?"
-        return String(localized: "The App Store updates \(name) (already \(version)), not this copy — this one is left over and can be moved to the Trash.")
+    /// Leads with THIS copy's file name. Both copies show the same app name
+    /// (AndDrive.app's Info.plist already says "AndroMeld"), so the file name is
+    /// the only thing that tells the user which one to trash — and the popover
+    /// clamps this to one line (see the `.unreadable` note in `performInstall`),
+    /// so it has to come first. File names, not paths, for the same clamp.
+    private func appStoreLeftoverMessage(_ app: InstalledApp, sibling: InstalledApp) -> String {
+        let leftover = app.path.lastPathComponent
+        let updated = sibling.path.lastPathComponent
+        return String(localized: "\(leftover) is left over; the App Store updates \(updated). Move this one to the Trash.")
     }
 
     private func appStoreRouteWillNotInstall(_ result: UpdateResult) -> Bool {

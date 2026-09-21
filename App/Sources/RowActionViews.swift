@@ -38,6 +38,37 @@ enum OrphanedCopyWording {
     }
 }
 
+/// The panel an `.orphanedStoreCopy` badge opens — one view for both windows, so
+/// clicking the warning explains the same thing wherever it is clicked.
+struct OrphanedCopyPanel: View {
+    let result: UpdateResult
+    let updatedCopy: String
+    let version: String
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text(OrphanedCopyWording.explanation(
+                leftover: result.app.path.lastPathComponent,
+                installed: result.app.shortVersion ?? "?",
+                updatedCopy: updatedCopy, version: version))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            // Reveal, not delete: removing an app is the user's call, and Finder
+            // is where they can see both copies side by side before making it.
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+                dismiss()
+            }
+            .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+}
+
 /// The words for a `.notForThisMacOS` row, shared by both surfaces so the popover
 /// badge, its panel and the workbench label cannot describe one row two ways.
 ///
@@ -185,6 +216,7 @@ struct WorkbenchRowAction: View {
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
 
     @State private var showTestFlightTip = false
+    @State private var showOrphanHint = false
 
     var body: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
@@ -280,15 +312,21 @@ struct WorkbenchRowAction: View {
                 .lineLimit(1)
 
         case .orphanedStoreCopy(let updatedCopy, let version):
-            // Same shape as `.notForThisMacOS` below: name the condition, and put
-            // the explanation on hover.
-            Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .help(OrphanedCopyWording.explanation(
-                    leftover: result.app.path.lastPathComponent,
-                    installed: result.app.shortVersion ?? "?",
-                    updatedCopy: updatedCopy, version: version))
+            // Names the condition in words like `.notForThisMacOS` below, but is a
+            // button: the popover's badge opens the explanation and Show in Finder,
+            // and this window has to offer the same — the fix is in that panel.
+            Button { showOrphanHint = true } label: {
+                Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .buttonStyle(.plain)
+            .help(OrphanedCopyWording.help(updatedCopy: updatedCopy))
+            .popover(isPresented: $showOrphanHint, arrowEdge: .bottom) {
+                OrphanedCopyPanel(
+                    result: result, updatedCopy: updatedCopy, version: version,
+                    dismiss: { showOrphanHint = false })
+            }
 
         case .notForThisMacOS(let refusal):
             // The popover's badge opens the explanation; this window names the

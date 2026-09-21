@@ -29349,6 +29349,170 @@
           }
         }
       }
+    },
+    "Left-over copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übrig gebliebene Kopie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia sobrante"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copie restante"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "残された古いコピー"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставшаяся копия"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遗留副本"
+          }
+        }
+      }
+    },
+    "Show in Finder": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Finder zeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar en el Finder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher dans le Finder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finderに表示"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать в Finder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "The App Store updates %@ instead — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der App Store aktualisiert stattdessen %@ – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El App Store actualiza %@ en su lugar; haz clic para ver detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'App Store met à jour %@ à la place — cliquez pour en savoir plus"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store は代わりに %@ を更新します — クリックで詳細"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store обновляет вместо неё %@ — нажмите, чтобы узнать подробнее"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store 更新的是 %@ — 点击查看详情"
+          }
+        }
+      }
+    },
+    "The App Store now updates %@ (%@), usually because the app was renamed. %@ will stay at %@ — it can’t be updated, and you can move it to the Trash.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der App Store aktualisiert jetzt %@ (%@), meist weil die App umbenannt wurde. %@ bleibt auf %@ – diese Kopie kann nicht aktualisiert werden und kann in den Papierkorb."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El App Store ahora actualiza %@ (%@), normalmente porque la app cambió de nombre. %@ se quedará en %@: no se puede actualizar y puedes moverla a la Papelera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'App Store met désormais à jour %@ (%@), généralement parce que l'app a été renommée. %@ restera en %@ — elle ne peut pas être mise à jour et peut être placée dans la Corbeille."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store は現在 %@（%@）を更新しています。多くの場合、アプリ名が変更されたためです。%@ は %@ のままで更新できません。ゴミ箱に移動してかまいません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store теперь обновляет %@ (%@) — обычно потому, что приложение переименовали. %@ останется на версии %@: её нельзя обновить, и её можно переместить в Корзину."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store 现在更新的是 %@（%@），通常是因为 app 改了名。%@ 会一直停在 %@ — 它无法更新，可以移到废纸篓。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

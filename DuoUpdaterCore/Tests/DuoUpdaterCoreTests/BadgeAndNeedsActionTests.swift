@@ -42,17 +42,28 @@ struct NeedsActionTests {
         _ result: UpdateResult,
         ignored: Bool = false,
         skipped: Bool = false,
+        orphaned: Bool = false,
         needsRestart: Bool = false,
         batchRestart: Bool = false,
         staged: StagedSelfUpdate? = nil
     ) -> Bool {
         UpdatePolicy.needsAction(
             result, isIgnored: ignored, isVersionSkipped: { _ in skipped },
+            isOrphanedStoreCopy: orphaned,
             needsRestart: needsRestart, hasPendingBatchRestart: batchRestart,
             staged: staged)
     }
 
     // MARK: what counts
+
+    /// An App Store copy whose update lands on another copy (`AppStoreLeftoverCopy`)
+    /// is not an update: counting it put AndroMeld in the badge and Update All with
+    /// a button that could only ever reinstall the other copy.
+    ///
+    /// Mutation: `if isOrphanedStoreCopy { return false }` deleted.
+    @Test func anOrphanedStoreCopyDoesNotCount() {
+        #expect(!needsAction(row(), orphaned: true))
+    }
 
     /// Mutation: `guard result.hasUpdate else { return false }` deleted from
     /// `isActionableUpdate`.
@@ -143,7 +154,7 @@ struct NeedsActionTests {
         var seen: [VersionSide?] = []
         _ = UpdatePolicy.isActionableUpdate(
             row(installed: "1.0", latest: "2.0"), isIgnored: false,
-            isVersionSkipped: { seen.append($0); return false })
+            isVersionSkipped: { seen.append($0); return false }, isOrphanedStoreCopy: false)
 
         #expect(seen.count == 1)
         #expect(seen.first??.marketing == "2.0")

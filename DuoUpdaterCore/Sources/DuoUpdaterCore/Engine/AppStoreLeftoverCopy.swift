@@ -33,4 +33,23 @@ public enum AppStoreLeftoverCopy {
             return !VersionComparator.isNewer(target, than: version)
         }
     }
+
+    /// Every row offering a store update that a sibling row already holds, keyed
+    /// by row id, with that sibling. Such a row is an orphan: its Update can only
+    /// ever land on the other copy, so it is not an update to offer or count.
+    ///
+    /// Answered from the rows as last scanned, not a fresh disk read — this runs
+    /// whenever the list changes. The install path re-reads the disk itself
+    /// (`AppListModel.appStoreSiblingAtTarget`) for the copy a click creates.
+    public static func orphans(in results: [UpdateResult]) -> [String: InstalledApp] {
+        let apps = results.map(\.app)
+        var found: [String: InstalledApp] = [:]
+        for result in results where result.hasUpdate && result.app.isMASApp {
+            guard let target = result.remote?.shortVersion,
+                  let sibling = sibling(of: result.app, target: target, among: apps)
+            else { continue }
+            found[result.id] = sibling
+        }
+        return found
+    }
 }

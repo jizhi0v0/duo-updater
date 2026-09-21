@@ -20,6 +20,24 @@ func sourceHint(for hint: SourceHint) -> String {
     }
 }
 
+/// The words for an `.orphanedStoreCopy` row, shared by both surfaces for the
+/// same reason as `OSWindowWording` below. Names both copies by FILE name: the
+/// two show the same app name (the leftover's Info.plist already carries the new
+/// one), so the file name is the only thing that tells them apart.
+enum OrphanedCopyWording {
+    static var title: String { String(localized: "Left-over copy") }
+
+    static func help(updatedCopy: String) -> String {
+        String(localized: "The App Store updates \(updatedCopy) instead — click for details")
+    }
+
+    static func explanation(
+        leftover: String, installed: String, updatedCopy: String, version: String
+    ) -> String {
+        String(localized: "The App Store now updates \(updatedCopy) (\(version)), usually because the app was renamed. \(leftover) will stay at \(installed) — it can’t be updated, and you can move it to the Trash.")
+    }
+}
+
 /// The words for a `.notForThisMacOS` row, shared by both surfaces so the popover
 /// badge, its panel and the workbench label cannot describe one row two ways.
 ///
@@ -260,6 +278,17 @@ struct WorkbenchRowAction: View {
         case .noSourceCovers(let hint):
             Text(sourceHint(for: hint)).font(.callout).foregroundStyle(.tertiary)
                 .lineLimit(1)
+
+        case .orphanedStoreCopy(let updatedCopy, let version):
+            // Same shape as `.notForThisMacOS` below: name the condition, and put
+            // the explanation on hover.
+            Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help(OrphanedCopyWording.explanation(
+                    leftover: result.app.path.lastPathComponent,
+                    installed: result.app.shortVersion ?? "?",
+                    updatedCopy: updatedCopy, version: version))
 
         case .notForThisMacOS(let refusal):
             // The popover's badge opens the explanation; this window names the

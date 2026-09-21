@@ -71,6 +71,7 @@ final class AppListModel {
         didSet {
             elevationPathsCache = nil
             runtimeKeysCache = nil
+            orphanedStoreCopiesCache = nil
             pruneSettledInstallErrors()
             pruneRetractedNotes()
         }
@@ -809,6 +810,7 @@ final class AppListModel {
             isIgnored: prefs.isIgnored(result.app),
             isVersionSkipped: prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
+            orphanedStoreSibling: orphanedStoreCopies[result.id],
             route: self.rowRoute(for: result)))
     }
 
@@ -876,8 +878,21 @@ final class AppListModel {
         UpdatePolicy.isActionableUpdate(
             result,
             isIgnored: prefs.isIgnored(result.app),
-            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
+            isOrphanedStoreCopy: orphanedStoreCopies[result.id] != nil)
     }
+
+    /// Rows whose store update lands on another copy, with that copy — see
+    /// `AppStoreLeftoverCopy.orphans`. Memoized like `elevationPaths`: counting
+    /// asks this once per row per render, and only a write to `results` can
+    /// change the answer.
+    private var orphanedStoreCopies: [String: InstalledApp] {
+        if let cache = orphanedStoreCopiesCache { return cache }
+        let value = AppStoreLeftoverCopy.orphans(in: results)
+        orphanedStoreCopiesCache = value
+        return value
+    }
+    @ObservationIgnored private var orphanedStoreCopiesCache: [String: InstalledApp]?
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
 
@@ -914,6 +929,7 @@ final class AppListModel {
             result,
             isIgnored: prefs.isIgnored(result.app),
             isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
+            isOrphanedStoreCopy: orphanedStoreCopies[result.id] != nil,
             needsRestart: needsRestart.contains(result.id),
             hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
             staged: pendingSelfUpdate[result.id])
@@ -4565,7 +4581,10 @@ final class AppListModel {
             if route == .appStore,
                updated.app.shortVersion == result.app.shortVersion,
                updated.app.buildVersion == result.app.buildVersion,
-               isActionableUpdate(updated),
+               // Not `isActionableUpdate`: `replaceRow` above already put
+               // `updated` in `results`, where the sibling makes it an orphan,
+               // which that check excludes — the very case this arm is for.
+               updated.hasUpdate,
                let sibling = await appStoreSiblingAtTarget(result) {
                 Log.install.error("install landed elsewhere: \(updated.app.name, privacy: .public) still \(updated.app.shortVersion ?? "?", privacy: .public) at \(updated.app.path.path, privacy: .public); the App Store updated \(sibling.path.path, privacy: .public) to \(sibling.shortVersion ?? "?", privacy: .public)")
                 installErrors[id] = appStoreLeftoverMessage(result.app, sibling: sibling)

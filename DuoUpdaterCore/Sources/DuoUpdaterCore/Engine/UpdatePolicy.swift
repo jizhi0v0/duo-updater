@@ -754,10 +754,14 @@ public enum UpdatePolicy {
     public static func isActionableUpdate(
         _ result: UpdateResult,
         isIgnored: Bool,
-        isVersionSkipped: (VersionSide?) -> Bool
+        isVersionSkipped: (VersionSide?) -> Bool,
+        isOrphanedStoreCopy: Bool
     ) -> Bool {
         guard result.hasUpdate else { return false }
         if isIgnored { return false }
+        // Its update lands on another copy (`AppStoreLeftoverCopy`): nothing a
+        // click here can install, so nothing to count or batch.
+        if isOrphanedStoreCopy { return false }
         if isVersionSkipped(result.remote?.versionSide) { return false }
         return true
     }
@@ -801,11 +805,14 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         isIgnored: Bool,
         isVersionSkipped: (VersionSide?) -> Bool,
+        isOrphanedStoreCopy: Bool,
         needsRestart: Bool,
         hasPendingBatchRestart: Bool,
         staged: StagedSelfUpdate?
     ) -> Bool {
-        if isActionableUpdate(result, isIgnored: isIgnored, isVersionSkipped: isVersionSkipped) {
+        if isActionableUpdate(
+            result, isIgnored: isIgnored, isVersionSkipped: isVersionSkipped,
+            isOrphanedStoreCopy: isOrphanedStoreCopy) {
             return true
         }
         guard !isIgnored else { return false }

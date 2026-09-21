@@ -739,25 +739,9 @@ struct PopoverRowAction: View {
 
     // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
     func orphanHintPopover(updatedCopy: String, version: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(OrphanedCopyWording.title, systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-            Text(OrphanedCopyWording.explanation(
-                leftover: result.app.path.lastPathComponent,
-                installed: result.app.shortVersion ?? "?",
-                updatedCopy: updatedCopy, version: version))
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            // Reveal, not delete: removing an app is the user's call, and Finder
-            // is where they can see both copies side by side before making it.
-            Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
-                showOrphanHint = false
-            }
-            .controlSize(.small)
-        }
-        .padding(12)
-        .frame(width: 290)
+        OrphanedCopyPanel(
+            result: result, updatedCopy: updatedCopy, version: version,
+            dismiss: { showOrphanHint = false })
     }
 
     private static func regionName(_ code: String) -> String {

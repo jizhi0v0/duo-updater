@@ -330,8 +330,8 @@ enum RowStateGalleryCases {
         "workbench/30-up-to-date",
         // The workbench has no view for "the popover's explanation panel" — see
         // `workbenchTile` above. Each one's badge for the same state is already
-        // drawn at 18/21/22 and, for the later three, 43/46/47; these six names
-        // exist only to exercise the popover half.
+        // drawn at 18/21/22 and, for the later four, 43/46/47/50; these seven
+        // names exist only to exercise the popover half.
         "workbench/38-major-upgrade-explanation",
         "workbench/39-region-hint-explanation",
         "workbench/40-mac-compat-hint-explanation",

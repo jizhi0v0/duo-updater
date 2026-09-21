@@ -136,14 +136,23 @@ enum RowStateGalleryCases {
     static let tileWidth: CGFloat = 320
     static let tileHeight: CGFloat = 44
 
-    /// The workbench has no equivalent of "open the popover's explanation panel" —
-    /// it points at the popover for that (see the file-level doc comment on
-    /// `PopoverRowAction`) — so it draws `EmptyView` for those three names rather
-    /// than silently repeating case 18/21/22's tile under a new name. That EmptyView
-    /// is registered in `mayBeBlank`, the same way `.upToDate`'s three workbench
-    /// tiles already are.
+    /// For most explanation panels the workbench has no equivalent — it points at
+    /// the popover for those (see the file-level doc comment on
+    /// `PopoverRowAction`) — so it draws `EmptyView` for those names rather than
+    /// silently repeating case 18/21/22's tile under a new name. That EmptyView is
+    /// registered in `mayBeBlank`, the same way `.upToDate`'s workbench tile is.
+    ///
+    /// The exception is 51: the workbench's "Left-over copy" label opens the SAME
+    /// `OrphanedCopyPanel` the popover badge does, so its workbench tile draws that
+    /// panel rather than claiming there is none.
     @MainActor
     private static func workbenchTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
+        if name == "51-orphaned-store-copy-explanation" {
+            guard case .orphanedStoreCopy(let copy, let version) = state else { return AnyView(EmptyView()) }
+            return AnyView(
+                OrphanedCopyPanel(result: result, updatedCopy: copy, version: version, dismiss: {})
+                    .fixedSize())
+        }
         if explanationCaseNames.contains(name) {
             return AnyView(EmptyView())
         }
@@ -309,7 +318,8 @@ enum RowStateGalleryCases {
     /// Names whose popover tile is a popover's CONTENT rather than a row — see the
     /// comment on cases 38–40 above. Shared between `popoverTile` (which switches
     /// on it) and `workbenchTile` (which uses it to draw `EmptyView` instead of
-    /// repeating an existing tile under a new name).
+    /// repeating an existing tile under a new name — except 51, whose panel the
+    /// workbench opens too).
     static let explanationCaseNames: Set<String> = [
         "38-major-upgrade-explanation",
         "39-region-hint-explanation",
@@ -328,17 +338,17 @@ enum RowStateGalleryCases {
     /// to catch.
     static let mayBeBlank: Set<String> = [
         "workbench/30-up-to-date",
-        // The workbench has no view for "the popover's explanation panel" — see
+        // The workbench has no view for these explanation panels — see
         // `workbenchTile` above. Each one's badge for the same state is already
-        // drawn at 18/21/22 and, for the later four, 43/46/47/50; these seven
-        // names exist only to exercise the popover half.
+        // drawn at 18/21/22 and, for the later three, 43/46/47; these six names
+        // exist only to exercise the popover half. 51 is not here: the workbench
+        // opens the same panel as the popover, so its tile is drawn.
         "workbench/38-major-upgrade-explanation",
         "workbench/39-region-hint-explanation",
         "workbench/40-mac-compat-hint-explanation",
         "workbench/44-needs-newer-macos-hint-explanation",
         "workbench/48-not-for-this-macos-ceiling-explanation",
         "workbench/49-not-for-this-macos-floor-explanation",
-        "workbench/51-orphaned-store-copy-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed

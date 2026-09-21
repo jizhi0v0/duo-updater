@@ -29308,6 +29308,47 @@
           }
         }
       }
+    },
+    "The App Store updates %@ (already %@), not this copy — this one is left over and can be moved to the Trash.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der App Store aktualisiert %@ (bereits %@), nicht diese Kopie – diese ist übrig geblieben und kann in den Papierkorb."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El App Store actualiza %@ (ya en %@), no esta copia; esta quedó sobrante y se puede mover a la Papelera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'App Store met à jour %@ (déjà en %@), pas cette copie — celle-ci est un reste et peut être placée dans la Corbeille."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store が更新するのは %@（すでに %@）で、このコピーではありません — これは残された古いコピーなので、ゴミ箱に移動できます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store обновляет %@ (уже %@), а не эту копию — она осталась от прежней версии, её можно переместить в Корзину."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store 更新的是 %@（已是 %@），不是这一份 — 这是遗留的旧副本，可以移到废纸篓。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

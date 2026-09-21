@@ -11,7 +11,10 @@ import Foundation
 ///   2. Android Studio (Google, code "AI"): Google's live stable feed. Only the
 ///      NEWEST install of the product follows it; a retained older copy abstains
 ///      so it can't nag about a cross-major jump.
-///   3. Air/Fleet (NO product code): the Sparkle feed, but RETARGETED to the
+///   3. Air (no product code in `state.json`): the same releases API as 1, under
+///      the code "AIR" — see `apiCodeWithoutToolboxCode` for why not its Sparkle
+///      feed.
+///   4. Fleet (NO product code): the Sparkle feed, but RETARGETED to the
 ///      channel Toolbox actually tracks. The app's baked-in SUFeedURL points at
 ///      'nightly' (262.x) even on a Public Preview install — wrong channel — so we
 ///      swap the channel segment to Toolbox's quality ("eap") to reach the Public
@@ -81,7 +84,21 @@ public struct ToolboxSource: Sendable {
             return Self.verdict(latestBuild: latest.build, display: latest.version, tool: tool)
         }
 
-        // Air/Fleet have no JetBrains product code; their update lives in a
+        // Air: `state.json` records no product code, but the releases API knows
+        // it as "AIR" — the same answer Toolbox's own catalog and the website's
+        // download link give. Its Sparkle feed is NOT that answer: on 2026-09-21
+        // `fleet-feed/AIR/eap` offered 262.991.1 (published 09-18) while the API,
+        // Toolbox's `eap`/`public-feed-arm` catalogs and the download link all
+        // stopped at 262.834.44, so the row sent the user to Toolbox for a build
+        // Toolbox does not offer.
+        if tool.productCode == nil, let code = Self.apiCodeWithoutToolboxCode[app.bundleID ?? ""] {
+            guard let latest = try? await apiLatest(code: code, type: Self.apiTypes(forProductWithoutToolboxCode: tool.channelType))
+            else { return nil }
+            return Self.verdict(latestBuild: latest.build, display: latest.version,
+                                tool: tool, changelogURL: latest.notesLink)
+        }
+
+        // Fleet has no JetBrains product code; its update lives in a
         // channel-correct Sparkle feed, which reports a bare build id — so compare
         // it against the build Toolbox records as installed, the one value that
         // shares the feed's 3-part namespace (and the one the row displays).
@@ -101,6 +118,19 @@ public struct ToolboxSource: Sendable {
         }
         return Self.verdict(latestBuild: latest.build, display: latest.version,
                             tool: tool, changelogURL: latest.notesLink)
+    }
+
+    /// Releases-API codes for tools whose `state.json` entry carries no
+    /// `productCode`. Fleet is deliberately absent: the API does list it ("FL"),
+    /// but it was discontinued and no install was at hand to verify its build ids
+    /// against Toolbox's, so it stays on the Sparkle path below.
+    static let apiCodeWithoutToolboxCode: [String: String] = ["com.jetbrains.air": "AIR"]
+
+    /// The API's release types for Toolbox's channel. Air's Public Preview is
+    /// Toolbox quality "eap" but API type "preview" (`type=eap` returns `{}` for
+    /// AIR), so the non-release channel asks for both.
+    static func apiTypes(forProductWithoutToolboxCode channelType: String) -> String {
+        channelType == "release" ? "release" : "eap,preview"
     }
 
     /// Rewrite a Fleet/Air Sparkle feed URL to a different channel: the path is

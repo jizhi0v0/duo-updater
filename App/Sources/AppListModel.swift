@@ -4168,6 +4168,16 @@ final class AppListModel {
         // backup timestamp hadn't moved.
         let backupRoute = InstallCoordinator.route(
             for: result, requiresInstaller: requiresInstaller(result))
+        // Another store copy of this product is already at the target: the store
+        // has nothing to install, and would write whatever it does install there,
+        // not here. Before the backup, because backing up a copy nothing is about
+        // to touch is 98 MB per click for AndroMeld. See `AppStoreLeftoverCopy`.
+        if backupRoute == .appStore, let sibling = await appStoreSiblingAtTarget(result) {
+            Log.install.error("install skipped: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public) — the App Store copy at \(sibling.path.path, privacy: .public) is already \(sibling.shortVersion ?? "?", privacy: .public)")
+            installErrors[id] = appStoreLeftoverMessage(sibling)
+            installing[id] = nil
+            return .notInstalled
+        }
         if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute),
            !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             await backupCurrent(result, route: backupRoute)
@@ -4545,6 +4555,20 @@ final class AppListModel {
                 Log.install.error("install applied nothing: \(updated.app.name, privacy: .public) still \(onDisk, privacy: .public) on disk after installing \(target, privacy: .public)")
                 installErrors[id] = String(localized: "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target).")
                 reopenIfQuitForUpdate(result, installSucceeded: false)
+                installing[id] = nil
+                relaunching.remove(id)
+                return .notInstalled
+            }
+            // The App Store half of the check above, which cannot use it: this
+            // route may land late, so an unchanged row alone proves nothing. A
+            // sibling store copy now at the target does — that is where it landed.
+            if route == .appStore,
+               updated.app.shortVersion == result.app.shortVersion,
+               updated.app.buildVersion == result.app.buildVersion,
+               isActionableUpdate(updated),
+               let sibling = await appStoreSiblingAtTarget(result) {
+                Log.install.error("install landed elsewhere: \(updated.app.name, privacy: .public) still \(updated.app.shortVersion ?? "?", privacy: .public) at \(updated.app.path.path, privacy: .public); the App Store updated \(sibling.path.path, privacy: .public) to \(sibling.shortVersion ?? "?", privacy: .public)")
+                installErrors[id] = appStoreLeftoverMessage(sibling)
                 installing[id] = nil
                 relaunching.remove(id)
                 return .notInstalled
@@ -6611,6 +6635,35 @@ final class AppListModel {
     /// the cost is a wasted backup, never a wrong install. The `mas outdated`
     /// pre-flight is not mirrored here — it costs a subprocess, which is the
     /// thing this is trying to avoid spending.
+    /// Another App Store copy of `result`'s product already at its target, read
+    /// fresh from disk — see `AppStoreLeftoverCopy`. Candidates are the rows that
+    /// share the bundle id plus whatever Launch Services knows, since a copy the
+    /// store created during this click is not a row yet.
+    private func appStoreSiblingAtTarget(_ result: UpdateResult) async -> InstalledApp? {
+        guard result.app.isMASApp, let bundleID = result.app.bundleID,
+              let target = result.remote?.shortVersion else { return nil }
+        let own = result.app.path.resolvingSymlinksInPath().path
+        var seen: Set<String> = [own]
+        let candidates = (results.filter { $0.app.bundleID == bundleID }.map(\.app.path)
+            + NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID))
+            .filter { seen.insert($0.resolvingSymlinksInPath().path).inserted }
+        guard !candidates.isEmpty else { return nil }
+        let others = await Task.detached(priority: .userInitiated) {
+            AppScanner(toolbox: ToolboxInventory(managedPaths: []),
+                       testflight: TestFlightInventory(macRows: [], accessible: false))
+                .scan(bundlesAt: candidates)
+        }.value
+        return AppStoreLeftoverCopy.sibling(of: result.app, target: target, among: others)
+    }
+
+    /// Bundle name, not full path, and the fix first: the popover clamps this to
+    /// one line (see the `.unreadable` note in `performInstall`).
+    private func appStoreLeftoverMessage(_ sibling: InstalledApp) -> String {
+        let name = sibling.path.lastPathComponent
+        let version = sibling.shortVersion ?? "?"
+        return String(localized: "The App Store updates \(name) (already \(version)), not this copy — this one is left over and can be moved to the Trash.")
+    }
+
     private func appStoreRouteWillNotInstall(_ result: UpdateResult) -> Bool {
         // On the mas route these are store-managed by the App Store app itself and
         // we only open a deep link, so there is nothing to roll back from. The AX

@@ -101,6 +101,12 @@ enum RowStateGalleryCases {
                 }
                 return AnyView(popover.needsNewerMacOSHintPopover(info, minimum: minimum).fixedSize())
             }
+        case "51-orphaned-store-copy-explanation":
+            // The copy and version come off the STATE, as the real badge reads them.
+            guard case .orphanedStoreCopy(let copy, let version) = state else { return AnyView(EmptyView()) }
+            return AnyView(
+                PopoverRowAction(state: state, result: result)
+                    .orphanHintPopover(updatedCopy: copy, version: version).fixedSize())
         case "48-not-for-this-macos-ceiling-explanation", "49-not-for-this-macos-floor-explanation":
             // The refusal comes off the STATE, as the real badge reads it.
             guard case .notForThisMacOS(let refusal) = state else { return AnyView(EmptyView()) }
@@ -264,6 +270,10 @@ enum RowStateGalleryCases {
         ("47-not-for-this-macos-floor", .notForThisMacOS(osFloorRefusal), app),
         ("48-not-for-this-macos-ceiling-explanation", .notForThisMacOS(osCeilingRefusal), app),
         ("49-not-for-this-macos-floor-explanation", .notForThisMacOS(osFloorRefusal), app),
+        // A store copy another copy of the same product has replaced (a renamed
+        // bundle left behind): the badge where Update used to be, and its panel.
+        ("50-orphaned-store-copy", .orphanedStoreCopy(updatedCopy: "Example Renamed.app", version: "1.3.0"), app),
+        ("51-orphaned-store-copy-explanation", .orphanedStoreCopy(updatedCopy: "Example Renamed.app", version: "1.3.0"), app),
     ]
 
     /// Hosts written out, never read: the gallery must draw the same picture on any
@@ -307,6 +317,7 @@ enum RowStateGalleryCases {
         "44-needs-newer-macos-hint-explanation",
         "48-not-for-this-macos-ceiling-explanation",
         "49-not-for-this-macos-floor-explanation",
+        "51-orphaned-store-copy-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -327,6 +338,7 @@ enum RowStateGalleryCases {
         "workbench/44-needs-newer-macos-hint-explanation",
         "workbench/48-not-for-this-macos-ceiling-explanation",
         "workbench/49-not-for-this-macos-floor-explanation",
+        "workbench/51-orphaned-store-copy-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed
@@ -412,6 +424,16 @@ enum RowStateGalleryCases {
         // to…" vs "Requires macOS…"), and that claim IS checked — see
         // `tooltipDifferentiatedPairs`.
         ["popover/46-not-for-this-macos-ceiling", "popover/47-not-for-this-macos-floor"],
+        // An orphaned store copy takes the same amber triangle, for the same
+        // reason: the row's news is "this can't be updated here", and the panel
+        // says why. Popover only; the workbench names it in words. Not claimed as
+        // tooltip-differentiated — the badge is not the place that tells them
+        // apart, the panel is.
+        ["popover/18-update-major-upgrade", "popover/50-orphaned-store-copy"],
+        ["popover/22-update-app-store-mac-incompatible", "popover/50-orphaned-store-copy"],
+        ["popover/43-update-app-store-needs-newer-macos", "popover/50-orphaned-store-copy"],
+        ["popover/46-not-for-this-macos-ceiling", "popover/50-orphaned-store-copy"],
+        ["popover/47-not-for-this-macos-floor", "popover/50-orphaned-store-copy"],
         // Workbench, and on purpose: a vendor's floor reached through a probe or a
         // feed is the same condition as the App Store's floor, so it takes the same
         // words ("Needs a newer macOS") rather than a synonym (`OSWindowWording`).
@@ -454,7 +476,7 @@ enum RowStateGalleryCases {
         // Cause 1: an SF Symbol inside a `.buttonStyle(.borderless)` button —
         // verified with a three-way probe: a bare `Image(systemName:)` renders
         // correctly, the same image wrapped in a borderless Button does not, and
-        // `.popover` has no bearing on it. These six are the popover's
+        // `.popover` has no bearing on it. These seven are the popover's
         // amber/globe badges; the workbench draws the same STATES correctly (it
         // uses `Label`, not a borderless button) — so for this cause, the other
         // surface IS a faithful twin. Read that tile instead.
@@ -464,6 +486,7 @@ enum RowStateGalleryCases {
         "popover/43-update-app-store-needs-newer-macos",
         "popover/46-not-for-this-macos-ceiling",
         "popover/47-not-for-this-macos-floor",
+        "popover/50-orphaned-store-copy",
 
         // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
         // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the

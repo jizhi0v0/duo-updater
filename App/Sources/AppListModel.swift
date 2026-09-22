@@ -4150,8 +4150,20 @@ final class AppListModel {
             case .cleared:
                 Log.install.notice("cleared stale staged self-update: \(result.app.name, privacy: .public) had \(staged.version, privacy: .public) staged, installing \(result.remote?.displayVersion ?? "?", privacy: .public)")
                 blockingStaged = nil
-            case .notCleared(let reason):
+            case .notCleared(let reason, touchedInstaller: false):
                 Log.install.error("could not clear staged self-update: \(result.app.name, privacy: .public) — \(reason, privacy: .public); yielding")
+            case .notCleared(let reason, touchedInstaller: true):
+                // Part of the installer is gone, so the yield note below ("will
+                // apply it when you quit it") may no longer be true. What is true
+                // either way: a quit and reopen leaves no installer armed, and the
+                // next Update goes through.
+                Log.install.error("partly cleared staged self-update: \(result.app.name, privacy: .public) — \(reason, privacy: .public)")
+                let note = String(localized: "Couldn’t fully stop \(result.app.name)’s own updater — quit and reopen it, then update.")
+                installNotes[id] = note
+                inFlightNotes[id] = note
+                if !deferBookkeeping { await computeSelfUpdateStaging() }
+                installing[id] = nil
+                return .notInstalled
             }
         }
         if let staged = blockingStaged {

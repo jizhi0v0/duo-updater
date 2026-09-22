@@ -8525,6 +8525,47 @@
         }
       }
     },
+    "Couldn’t fully stop %@’s own updater — quit and reopen it, then update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der eigene Updater von %@ ließ sich nicht vollständig beenden – App beenden, erneut öffnen und dann aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo detener del todo el actualizador propio de %@: ciérralo, vuelve a abrirlo y luego actualiza."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’arrêter complètement le système de mise à jour de %@ — quittez-le, rouvrez-le, puis mettez à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 自身のアップデータを完全には停止できませんでした。終了して開き直してから、アップデートしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось полностью остановить встроенный модуль обновлений %@ — закройте приложение, откройте снова и обновите."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能完全停掉 %@ 自带的更新程序 —— 退出并重新打开它，然后再更新。"
+          }
+        }
+      }
+    },
     "Couldn’t reach Alcove: %@": {
       "extractionState": "manual",
       "localizations": {

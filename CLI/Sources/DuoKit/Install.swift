@@ -216,21 +216,11 @@ public enum Install {
     }
 
 
-    /// The staged self-updates the policy needs, keyed the way it looks them up.
-    ///
-    /// Built rather than left empty: `canAutoInstall` and `requiresInstaller` both
-    /// read `environment.stagedSelfUpdates[result.id]` to suppress a one-click when
-    /// the app has already staged the latest. Handing them an empty map made the CLI
-    /// offer installs the menu-bar app renders as Relaunch — the two hosts differing
-    /// by construction rather than by design, which is the thing `UpdatePolicy`
-    /// exists to prevent.
-    ///
-    /// One LaunchServices query for the whole sweep, mirroring
-    /// `computeSelfUpdateStaging` in the app; the rest is a plist read per candidate.
     enum StagingClearance: Equatable {
         case none
         case cleared(String)
-        case failed(String, String)
+        /// Staged version, reason, and whether part of the installer was removed.
+        case failed(String, String, touchedInstaller: Bool)
     }
 
     /// Clear a stale Sparkle staging in the way of `result`'s install — the
@@ -245,10 +235,21 @@ public enum Install {
         let version = result.stagedRelaunchLine(staged).to
         switch SparkleStagingClearance.clear(for: result.app, staged: staged) {
         case .cleared: return .cleared(version)
-        case .notCleared(let reason): return .failed(version, reason)
+        case .notCleared(let reason, let touched): return .failed(version, reason, touchedInstaller: touched)
         }
     }
 
+    /// The staged self-updates the policy needs, keyed the way it looks them up.
+    ///
+    /// Built rather than left empty: `canAutoInstall` and `requiresInstaller` both
+    /// read `environment.stagedSelfUpdates[result.id]` to suppress a one-click when
+    /// the app has already staged the latest. Handing them an empty map made the CLI
+    /// offer installs the menu-bar app renders as Relaunch — the two hosts differing
+    /// by construction rather than by design, which is the thing `UpdatePolicy`
+    /// exists to prevent.
+    ///
+    /// One LaunchServices query for the whole sweep, mirroring
+    /// `computeSelfUpdateStaging` in the app; the rest is a plist read per candidate.
     static func stagedSelfUpdates(for results: [UpdateResult]) -> [String: StagedSelfUpdate] {
         let candidates = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
         guard !candidates.isEmpty else { return [:] }
@@ -787,9 +788,12 @@ public enum Install {
                 break
             case .cleared(let version):
                 if !json { print("   cleared \(version), staged by its own updater") }
-            case .failed(let version, let why):
-                let reason = "its own updater has \(version) staged for the next quit and it "
-                    + "could not be cleared (\(why)) — installing now would be undone"
+            case .failed(let version, let why, let touched):
+                let reason = touched
+                    ? "its own updater could only be partly stopped (\(why)) — "
+                        + "quit and reopen it, then run this again"
+                    : "its own updater has \(version) staged for the next quit and it "
+                        + "could not be cleared (\(why)) — installing now would be undone"
                 if !json { print("   \(reason)") }
                 emitSkipped(name: name, route: route, reason: reason, outcome: .skipped, json: json)
                 tally.record(.skipped)

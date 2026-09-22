@@ -21,15 +21,22 @@ import Foundation
 /// the build we then installed survived the next quit.
 ///
 /// **Fails closed.** Every step is checked, and anything unexpected — no job
-/// found, a job that will not go, a process that survives, staging that is still
-/// there — answers `.notCleared`, and the caller goes back to yielding. The jobs
-/// are found by what their processes run, not by label: a label Sparkle renames
-/// is then a job this cannot find, which is the safe outcome.
+/// found, a process that survives removal, staging that is still there — answers
+/// `.notCleared` and nothing is deleted. The jobs are found by what their
+/// processes run, not by label: a label Sparkle renames is then a job this cannot
+/// find, which is the safe outcome.
+///
+/// One failure cannot be undone: removal is per job, so a survivor can be left
+/// beside a job already removed. `.notCleared(touchedInstaller: true)` says so —
+/// the installer is then no longer the intact thing a "will apply when you quit"
+/// note describes, and the caller must not say that.
 public enum SparkleStagingClearance {
 
     public enum Outcome: Equatable, Sendable {
         case cleared
-        case notCleared(reason: String)
+        /// `touchedInstaller`: at least one of the installer's jobs was removed
+        /// before the failure, so it may no longer apply anything on quit.
+        case notCleared(reason: String, touchedInstaller: Bool)
     }
 
     /// One row of `launchctl list`: a job in this user's domain with a live pid.
@@ -97,7 +104,7 @@ public enum SparkleStagingClearance {
         let outcome = attempt(
             for: app, staged: staged, cachesDirectory: cachesDirectory,
             system: system, fileManager: fileManager)
-        if case .notCleared(let reason) = outcome {
+        if case .notCleared(let reason, _) = outcome {
             Log.install.error("sparkle staging not cleared: \(app.name, privacy: .public) \(staged.version, privacy: .public) — \(reason, privacy: .public)")
         }
         return outcome
@@ -113,16 +120,16 @@ public enum SparkleStagingClearance {
         guard staged.updater == .sparkle, let bundleID = app.bundleID,
               let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-        else { return .notCleared(reason: "not a Sparkle staging this can locate") }
+        else { return .notCleared(reason: "not a Sparkle staging this can locate", touchedInstaller: false) }
         let sparkleRoot = caches
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
         let installation = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
         guard let stagingDirectory = topLevelEntry(of: staged.stagedBundlePath, under: installation)
-        else { return .notCleared(reason: "staged bundle is outside this app's Sparkle cache") }
+        else { return .notCleared(reason: "staged bundle is outside this app's Sparkle cache", touchedInstaller: false) }
 
         guard let jobs = system.listJobs()
-        else { return .notCleared(reason: "could not list launchd jobs") }
+        else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
         // Where Sparkle runs its installer pieces from: the progress agent is
         // copied into the cache's `Launcher/` up to 2.9.6 and runs from the host's
         // framework after it; `Autoupdate` runs from the framework (observed:
@@ -136,13 +143,15 @@ public enum SparkleStagingClearance {
             return homes.contains { AppRestarter.isExecutable(path, insideBundlePath: $0) }
         }
         guard !installerJobs.isEmpty
-        else { return .notCleared(reason: "no installer job found for \(bundleID)") }
+        else { return .notCleared(reason: "no installer job found for \(bundleID)", touchedInstaller: false) }
 
         let described = installerJobs.map { "\($0.label) [\($0.pid)]" }.joined(separator: ", ")
         Log.install.notice("sparkle staging: removing \(app.name, privacy: .public)'s installer jobs \(described, privacy: .public) (staged \(staged.version, privacy: .public))")
-        for job in installerJobs where !system.removeJob(job.label) {
-            return .notCleared(reason: "launchd refused to remove \(job.label)")
-        }
+        // Every job, whatever each answers: what decides is whether the processes
+        // are gone afterwards, not the exit status — a job that exited by itself
+        // between the list and the removal fails `remove` and is exactly as gone.
+        let refused = installerJobs.filter { !system.removeJob($0.label) }
+        let touched = refused.count < installerJobs.count
         // `launchctl remove` sends SIGTERM; the measured exits took under 10 ms.
         var survivors = installerJobs
         for _ in 0..<30 {
@@ -151,16 +160,23 @@ public enum SparkleStagingClearance {
             system.sleep(0.1)
         }
         guard survivors.isEmpty
-        else { return .notCleared(reason: "installer still running after removal: \(survivors.map(\.label))") }
+        else {
+            return .notCleared(
+                reason: "installer still running after removal: \(survivors.map(\.label))"
+                    + (refused.isEmpty ? "" : ", launchd refused \(refused.map(\.label))"),
+                touchedInstaller: touched)
+        }
 
         // Only now, with nothing left to act on it.
         do {
             try fileManager.removeItem(at: stagingDirectory)
         } catch {
-            return .notCleared(reason: "could not delete \(stagingDirectory.path): \(error.localizedDescription)")
+            return .notCleared(
+                reason: "could not delete \(stagingDirectory.path): \(error.localizedDescription)",
+                touchedInstaller: true)
         }
         guard !fileManager.fileExists(atPath: staged.stagedBundlePath.path)
-        else { return .notCleared(reason: "staged bundle still on disk") }
+        else { return .notCleared(reason: "staged bundle still on disk", touchedInstaller: true) }
         Log.install.notice("sparkle staging cleared: \(app.name, privacy: .public) — jobs gone, deleted \(stagingDirectory.path, privacy: .public)")
         return .cleared
     }

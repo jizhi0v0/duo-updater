@@ -101,7 +101,7 @@ struct SparkleStagingClearanceTests {
         _ f: Fixture, calls: Calls,
         jobs: [SparkleStagingClearance.Job]? = nil,
         paths: [pid_t: String]? = nil,
-        removeSucceeds: Bool = true,
+        refuses: Set<String> = [],
         alive: Set<pid_t> = []
     ) -> SparkleStagingClearance.System {
         let jobs = jobs ?? [
@@ -119,7 +119,7 @@ struct SparkleStagingClearanceTests {
         return SparkleStagingClearance.System(
             listJobs: { jobs },
             executablePath: { paths[$0] },
-            removeJob: { label in calls.removed.append(label); return removeSucceeds },
+            removeJob: { label in calls.removed.append(label); return !refuses.contains(label) },
             isAlive: { alive.contains($0) },
             sleep: { _ in })
     }
@@ -150,7 +150,10 @@ struct SparkleStagingClearanceTests {
         let cases: [(String, Setup)] = [
             ("launchctl list failed", { f, c in self.system(f, calls: c, jobs: nil, paths: nil).with { $0.listJobs = { nil } } }),
             ("no installer job", { f, c in self.system(f, calls: c, jobs: [.init(pid: 712, label: "application.x")]) }),
-            ("removal refused", { f, c in self.system(f, calls: c, removeSucceeds: false) }),
+            ("removal refused, installer still up", { f, c in
+                self.system(f, calls: c,
+                            refuses: ["com.example.tinyweb-sparkle-updater", "com.example.tinyweb-sparkle-progress"],
+                            alive: [802, 804]) }),
             ("installer survives", { f, c in self.system(f, calls: c, alive: [802]) }),
         ]
         for (name, setup) in cases {
@@ -165,6 +168,51 @@ struct SparkleStagingClearanceTests {
                 #expect(FileManager.default.fileExists(atPath: f.staged.stagedBundlePath.path),
                         "\(name): the staged bundle must survive")
             }
+        }
+    }
+
+    /// The round-2 review's case: the first job goes, the second will not. Both
+    /// removals must be attempted, nothing deleted, and the outcome must say part
+    /// of the installer is gone — the caller may no longer claim it applies on
+    /// quit. And the untouched shape must say it was not touched.
+    ///
+    /// Mutations: return on the first refusal (the first `removed` expectation
+    /// goes red); hard-code `touchedInstaller: false` (the first `touched` one).
+    @Test func aPartlyRemovedInstallerSaysSo() throws {
+        try withFixture { f in
+            let calls = Calls()
+            let outcome = SparkleStagingClearance.clear(
+                for: f.app, staged: f.staged, cachesDirectory: f.caches,
+                system: system(f, calls: calls,
+                               refuses: ["com.example.tinyweb-sparkle-updater"], alive: [802]))
+            #expect(Set(calls.removed) == [
+                "com.example.tinyweb-sparkle-updater", "com.example.tinyweb-sparkle-progress",
+            ], "every job is attempted, not just up to the first refusal")
+            guard case .notCleared(_, let touched) = outcome else {
+                Issue.record("expected notCleared, got \(outcome)"); return
+            }
+            #expect(touched, "the progress agent's job was removed")
+            #expect(FileManager.default.fileExists(atPath: f.staged.stagedBundlePath.path))
+        }
+        try withFixture { f in
+            let outcome = SparkleStagingClearance.clear(
+                for: f.app, staged: f.staged, cachesDirectory: f.caches,
+                system: system(f, calls: Calls(), jobs: [.init(pid: 712, label: "application.x")]))
+            #expect(outcome == .notCleared(
+                reason: "no installer job found for com.example.tinyweb", touchedInstaller: false))
+        }
+    }
+
+    /// A job that exits on its own between the list and the removal fails
+    /// `remove` and is exactly as gone: the processes decide, not the status.
+    ///
+    /// Mutation: fail on any refused removal (goes red).
+    @Test func aRefusedRemovalOfAJobThatIsGoneStillClears() throws {
+        try withFixture { f in
+            let outcome = SparkleStagingClearance.clear(
+                for: f.app, staged: f.staged, cachesDirectory: f.caches,
+                system: system(f, calls: Calls(), refuses: ["com.example.tinyweb-sparkle-progress"]))
+            #expect(outcome == .cleared)
         }
     }
 

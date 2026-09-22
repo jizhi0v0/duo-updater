@@ -150,19 +150,7 @@ final class AppleDeveloperSession {
         await refreshSignedInState(cookies: cookies)
         guard isSignedIn else { return .inconclusive }
 
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 30
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        // An ephemeral configuration's cookie storage is its own, in memory:
-        // nothing here touches the shared jar or disk. The encode/decode round
-        // trip is the jar's `*.apple.com` filter.
-        guard let jar = configuration.httpCookieStorage else { return .inconclusive }
-        jar.cookieAcceptPolicy = .always
-        for cookie in AppleDeveloperCookieJar.decode(AppleDeveloperCookieJar.encode(cookies)) {
-            jar.setCookie(cookie)
-        }
-        let urlSession = URLSession(
-            configuration: configuration, delegate: RedirectRefuser(), delegateQueue: nil)
+        guard let (urlSession, jar) = Self.sessionCarrying(cookies) else { return .inconclusive }
         defer { urlSession.finishTasksAndInvalidate() }
 
         let verdict: AppleDeveloperSessionProbe.Verdict
@@ -191,6 +179,48 @@ final class AppleDeveloperSession {
             break
         }
         return verdict
+    }
+
+    /// Apple's own list of developer downloads (`AppleDeveloperDownloadList`),
+    /// fetched with the held session; nil when not signed in, or when Apple
+    /// answers with anything but a 200 (a redirect to sign-in is not followed).
+    /// Says nothing about the session either way — `check()` owns that.
+    func fetchDownloadList() async -> Data? {
+        await restore()
+        let cookies = await dataStore.httpCookieStore.allCookies()
+        await refreshSignedInState(cookies: cookies)
+        guard signInNeed == nil,
+              let (urlSession, _) = Self.sessionCarrying(cookies) else { return nil }
+        defer { urlSession.finishTasksAndInvalidate() }
+        var request = URLRequest(url: AppleDeveloperDownloadList.endpoint)
+        request.httpMethod = "POST"
+        do {
+            let (data, response) = try await urlSession.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            Log.app.info("apple download list: \(status, privacy: .public), \(data.count, privacy: .public) bytes")
+            return status == 200 ? data : nil
+        } catch {
+            Log.app.info("apple download list failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// An ephemeral session carrying the store's `*.apple.com` cookies, redirects
+    /// not followed. An ephemeral configuration's cookie storage is its own, in
+    /// memory: nothing here touches the shared jar or disk. The encode/decode
+    /// round trip is the jar's `*.apple.com` filter.
+    private static func sessionCarrying(_ cookies: [HTTPCookie]) -> (URLSession, HTTPCookieStorage)? {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 30
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        guard let jar = configuration.httpCookieStorage else { return nil }
+        jar.cookieAcceptPolicy = .always
+        for cookie in AppleDeveloperCookieJar.decode(AppleDeveloperCookieJar.encode(cookies)) {
+            jar.setCookie(cookie)
+        }
+        let session = URLSession(
+            configuration: configuration, delegate: RedirectRefuser(), delegateQueue: nil)
+        return (session, jar)
     }
 
     /// Re-check `isSignedIn` against the store's live cookies, and return the

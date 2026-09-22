@@ -31113,6 +31113,334 @@
           }
         }
       }
+    },
+    "From Apple and xcodereleases.com · updated %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von Apple und xcodereleases.com · aktualisiert %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De Apple y xcodereleases.com · actualizado %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D’Apple et de xcodereleases.com · mis à jour %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleとxcodereleases.comから・%@に更新"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От Apple и xcodereleases.com · обновлено %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 Apple 和 xcodereleases.com · %@更新"
+          }
+        }
+      }
+    },
+    "From xcodereleases.com · updated %@. Apple's own list couldn't be read this time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von xcodereleases.com · aktualisiert %@. Apples eigene Liste konnte diesmal nicht gelesen werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De xcodereleases.com · actualizado %@. Esta vez no se pudo leer la lista de Apple."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De xcodereleases.com · mis à jour %@. La liste d’Apple n’a pas pu être lue cette fois."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "xcodereleases.comから・%@に更新。今回はApple自身のリストを読み込めませんでした。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С xcodereleases.com · обновлено %@. На этот раз список Apple прочитать не удалось."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 xcodereleases.com · %@更新。这次未能读取 Apple 自己的列表。"
+          }
+        }
+      }
+    },
+    "From xcodereleases.com · updated %@. Sign in to include Apple's own list, which has new releases first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von xcodereleases.com · aktualisiert %@. Melde dich an, um Apples eigene Liste einzubeziehen – dort erscheinen neue Versionen zuerst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De xcodereleases.com · actualizado %@. Inicia sesión para incluir la lista de Apple, donde las versiones nuevas aparecen primero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De xcodereleases.com · mis à jour %@. Connectez-vous pour inclure la liste d’Apple, où les nouvelles versions apparaissent en premier."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "xcodereleases.comから・%@に更新。サインインすると、新しいリリースがいち早く載るApple自身のリストも含めます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С xcodereleases.com · обновлено %@. Войдите, чтобы добавить список Apple — новые версии появляются там первыми."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 xcodereleases.com · %@更新。登录后会同时包含 Apple 自己的列表，新版本会最先出现在那里。"
+          }
+        }
+      }
+    },
+    "New from Apple": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu von Apple"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuevo de Apple"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau chez Apple"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleの新着"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новое от Apple"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 新发布"
+          }
+        }
+      }
+    },
+    "Refresh the list": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liste aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar la lista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiser la liste"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リストを更新"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить список"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新列表"
+          }
+        }
+      }
+    },
+    "The list comes from [xcodereleases.com](https://xcodereleases.com), a community-kept index of every Xcode release — thank you! When you're signed in, Apple's own download list is merged in, so new releases appear within minutes. That approach, and how to reach Apple's list, we learned from [xcodes](https://github.com/XcodesOrg/xcodes), the open-source tool that downloads and installs Xcode — thank you too. The archives themselves always come straight from Apple.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Liste stammt von [xcodereleases.com](https://xcodereleases.com), einem von der Community gepflegten Verzeichnis aller Xcode-Versionen – danke! Wenn du angemeldet bist, wird Apples eigene Download-Liste eingebunden, sodass neue Versionen innerhalb von Minuten erscheinen. Diesen Ansatz und wie man Apples Liste erreicht, haben wir von [xcodes](https://github.com/XcodesOrg/xcodes) gelernt, dem Open-Source-Tool, das Xcode lädt und installiert – auch dafür danke. Die Archive selbst kommen immer direkt von Apple."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista procede de [xcodereleases.com](https://xcodereleases.com), un índice mantenido por la comunidad con todas las versiones de Xcode. ¡Gracias! Si has iniciado sesión, se incorpora también la lista de descargas de Apple, así que las versiones nuevas aparecen en minutos. Ese enfoque, y cómo acceder a la lista de Apple, lo aprendimos de [xcodes](https://github.com/XcodesOrg/xcodes), la herramienta de código abierto que descarga e instala Xcode; gracias también. Los archivos siempre se descargan directamente de Apple."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La liste provient de [xcodereleases.com](https://xcodereleases.com), un index de toutes les versions de Xcode tenu par la communauté — merci ! Quand vous êtes connecté, la liste de téléchargements d’Apple y est ajoutée, si bien que les nouvelles versions apparaissent en quelques minutes. Cette approche, et la façon d’accéder à la liste d’Apple, nous les devons à [xcodes](https://github.com/XcodesOrg/xcodes), l’outil open source qui télécharge et installe Xcode — merci à lui aussi. Les archives elles-mêmes viennent toujours directement d’Apple."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリストはコミュニティが管理するXcode全リリースの索引 [xcodereleases.com](https://xcodereleases.com) から取得しています。ありがとうございます！サインイン中はApple自身のダウンロードリストも統合するため、新しいリリースが数分で表示されます。この方法とAppleのリストへのアクセス方法は、Xcodeのダウンロードとインストールを行うオープンソースのツール [xcodes](https://github.com/XcodesOrg/xcodes) から学びました。こちらにも感謝します。アーカイブ本体は常にAppleから直接ダウンロードされます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список берётся с [xcodereleases.com](https://xcodereleases.com) — поддерживаемого сообществом каталога всех выпусков Xcode. Спасибо! Когда вы вошли, к нему добавляется собственный список загрузок Apple, поэтому новые версии появляются за считаные минуты. Этот подход и способ получить список Apple мы подсмотрели у [xcodes](https://github.com/XcodesOrg/xcodes), инструмента с открытым исходным кодом для загрузки и установки Xcode, — спасибо и ему. Сами архивы всегда загружаются напрямую с Apple."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表来自 [xcodereleases.com](https://xcodereleases.com)，一个由社区维护、收录所有 Xcode 版本的索引——感谢！登录后还会合并 Apple 自己的下载列表，新版本几分钟内就会出现。这个做法以及如何获取 Apple 的列表，是从开源的 Xcode 下载与安装工具 [xcodes](https://github.com/XcodesOrg/xcodes) 学来的——同样感谢。安装包本身始终直接从 Apple 下载。"
+          }
+        }
+      }
+    },
+    "Expand the archive with Archive Utility": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archiv mit dem Archivierungsprogramm entpacken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expandir el archivo con la Utilidad de Archivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décompresser l’archive avec l’Utilitaire d’archive"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブユーティリティで展開"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Распаковать архив с помощью Архиватора"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用“归档实用工具”展开归档"
+          }
+        }
+      }
+    },
+    "Opening the archive only expands it — nothing is installed yet:\n\n1. **Open** expands it next to the archive (about a minute, ~4 GB). A beta becomes Xcode-beta.app; a release or RC becomes Xcode.app.\n2. Drag it into Applications. To keep another Xcode there, rename this one first — for example Xcode-26.6.app.\n3. Open it. Xcode asks you to accept its license and installs its components (your password), and offers the platforms such as the iOS Simulator.\n4. Optional: to use it from Terminal, choose it in Xcode → Settings → Locations → Command Line Tools.\n\nDuoUpdater offers updates for any Xcode in Applications, this one included.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Öffnen des Archivs entpackt es nur – installiert ist dann noch nichts:\n\n1. **Öffnen** entpackt es neben dem Archiv (etwa eine Minute, ~4 GB). Aus einer Beta wird Xcode-beta.app, aus einer finalen Version oder einem RC Xcode.app.\n2. Ziehe es in „Programme“. Um dort ein weiteres Xcode zu behalten, benenne dieses vorher um – zum Beispiel in Xcode-26.6.app.\n3. Öffne es. Xcode bittet dich, die Lizenz zu akzeptieren, installiert seine Komponenten (mit deinem Passwort) und bietet Plattformen wie den iOS-Simulator an.\n4. Optional: Um es im Terminal zu verwenden, wähle es unter Xcode → Einstellungen → Locations → Command Line Tools.\n\nDuoUpdater bietet Updates für jedes Xcode in „Programme“ an, auch für dieses."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir el archivo solo lo expande; todavía no se instala nada:\n\n1. **Abrir** lo expande junto al archivo (alrededor de un minuto, ~4 GB). Una beta se convierte en Xcode-beta.app; una versión final o RC, en Xcode.app.\n2. Arrástralo a Aplicaciones. Para conservar otro Xcode allí, cambia antes el nombre de este, por ejemplo a Xcode-26.6.app.\n3. Ábrelo. Xcode te pide aceptar su licencia, instala sus componentes (con tu contraseña) y ofrece plataformas como el simulador de iOS.\n4. Opcional: para usarlo desde Terminal, elígelo en Xcode → Ajustes → Locations → Command Line Tools.\n\nDuoUpdater ofrece actualizaciones para cualquier Xcode que esté en Aplicaciones, incluido este."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir l’archive ne fait que la décompresser — rien n’est encore installé :\n\n1. **Ouvrir** la décompresse à côté de l’archive (environ une minute, ~4 Go). Une bêta devient Xcode-beta.app ; une version finale ou un RC devient Xcode.app.\n2. Faites-la glisser dans Applications. Pour y garder un autre Xcode, renommez d’abord celui-ci — par exemple Xcode-26.6.app.\n3. Ouvrez-la. Xcode vous demande d’accepter sa licence, installe ses composants (avec votre mot de passe) et propose des plateformes comme le simulateur iOS.\n4. Facultatif : pour l’utiliser dans Terminal, choisissez-la dans Xcode → Réglages → Locations → Command Line Tools.\n\nDuoUpdater propose des mises à jour pour tout Xcode présent dans Applications, celui-ci compris."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブを開いても展開されるだけで、まだ何もインストールされません：\n\n1. **開く**とアーカイブの隣に展開されます（約1分、約4 GB）。ベータ版はXcode-beta.app、正式版やRCはXcode.appになります。\n2. 「アプリケーション」フォルダにドラッグします。別のXcodeも残したい場合は、先にこちらの名前を変更してください（例：Xcode-26.6.app）。\n3. 起動します。Xcodeがライセンスへの同意を求め、コンポーネントをインストールし（パスワードが必要）、iOSシミュレータなどのプラットフォームを提案します。\n4. 任意：ターミナルで使うには、Xcode → 設定 → Locations → Command Line Tools で選択します。\n\nDuoUpdaterは「アプリケーション」内のすべてのXcodeにアップデートを提示します。これも含みます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открытие архива только распаковывает его — ничего ещё не установлено:\n\n1. **Открыть** распакует его рядом с архивом (около минуты, ~4 ГБ). Бета-версия станет Xcode-beta.app, релиз или RC — Xcode.app.\n2. Перетащите его в «Программы». Чтобы сохранить там другой Xcode, сначала переименуйте этот — например, в Xcode-26.6.app.\n3. Откройте его. Xcode попросит принять лицензию, установит компоненты (с вашим паролем) и предложит платформы, например симулятор iOS.\n4. Необязательно: чтобы использовать его в Терминале, выберите его в Xcode → Настройки → Locations → Command Line Tools.\n\nDuoUpdater предлагает обновления для любого Xcode в «Программах», включая этот."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开归档只会将其展开，还没有安装任何东西：\n\n1. 点击**打开**，会在归档旁边展开（约一分钟，约 4 GB）。Beta 版会变成 Xcode-beta.app，正式版或 RC 版会变成 Xcode.app。\n2. 把它拖到“应用程序”文件夹。如果想同时保留另一个 Xcode，请先给这个改名，例如 Xcode-26.6.app。\n3. 打开它。Xcode 会请你接受许可协议、安装组件（需要你的密码），并提供 iOS 模拟器等平台的下载。\n4. 可选：要在终端里使用它，在 Xcode → 设置 → Locations → Command Line Tools 中选择它。\n\nDuoUpdater 会为“应用程序”中的所有 Xcode 提供更新，这个也不例外。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1552,7 +1552,8 @@ private struct DetailHeader: View {
                             model.requestedSettingsAnchor = .testFlightDetection
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
-                        }),
+                        },
+                        signInToAppleDeveloper: { model.signInToAppleDeveloper() }),
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason)
                 if let url = changelogURL {
@@ -1563,7 +1564,7 @@ private struct DetailHeader: View {
                 }
             }
             // Surface an install error inline, same as the popover row does.
-            if let error = model.installErrors[result.id] {
+            if let error = model.installErrorText(for: result) {
                 // Kept wrapping rather than clamped like the popover's copy of this
                 // note: this window is resizable and much wider than 370pt, so the
                 // reason fits without costing a row its height. The tooltip is here

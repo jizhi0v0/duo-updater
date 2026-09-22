@@ -48,13 +48,6 @@ final class DownloadJob: NSObject {
     private var continuation: CheckedContinuation<XcodeArchiveDownload, Error>?
     private var finished = false
 
-    private var authorizedURL: URL!
-    private var reloadedAfterSignIn = false
-    /// Set synchronously — before the `Task` that presents the sign-in window
-    /// even starts — so a second `didFinish` on idmsa while that window is
-    /// still up (WebKit can re-fire `didFinish` more than once for the same
-    /// page) can't open a second one.
-    private var signInInFlight = false
     private var expectedFinalHost: String?
     private var destinationURL: URL?
 
@@ -89,7 +82,6 @@ final class DownloadJob: NSObject {
     }
 
     func run(authorizedURL: URL) async throws -> XcodeArchiveDownload {
-        self.authorizedURL = authorizedURL
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = session.dataStore
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
@@ -220,29 +212,15 @@ extension DownloadJob: WKNavigationDelegate {
         // either to the CDN (and becomes a download) or to idmsa (sign-in),
         // measured 2026-09-22. A page anywhere else is a dead end — say so,
         // rather than leave the caller waiting on a continuation forever.
-        switch Self.finishedPageOutcome(
-            host: webView.url?.host, signInInFlight: signInInFlight,
-            reloadedAfterSignIn: reloadedAfterSignIn) {
-        case .ignore: return
-        case .unexpectedPage: fail(unexpectedPageError()); return
-        // We already completed one sign-in round trip for this call and landed
-        // back on idmsa anyway — the user really did sign in, so this is not a
-        // cancellation. Say what actually happened.
-        case .signInDidNotStick: fail(signInDidNotStickError()); return
-        case .presentSignIn: break
-        }
-        signInInFlight = true
-        Task {
-            let window = AppleDeveloperSignInWindow()
-            let signedIn = await window.present()
-            self.signInInFlight = false
-            guard !self.finished else { return }
-            guard signedIn else {
-                self.fail(CancellationError())
-                return
-            }
-            self.reloadedAfterSignIn = true
-            webView.load(URLRequest(url: self.authorizedURL))
+        switch Self.finishedPageOutcome(host: webView.url?.host) {
+        case .unexpectedPage:
+            fail(unexpectedPageError())
+        case .sessionExpired:
+            // No sign-in window from here: a download the user clicked is not a
+            // moment to be ambushed by one. The row turns to "Sign In…" instead,
+            // and nothing has been downloaded.
+            session.noteExpired()
+            fail(sessionExpiredError())
         }
     }
 
@@ -278,17 +256,14 @@ extension DownloadJob: WKNavigationDelegate {
     /// What a page that finished loading in the main frame means. Pure, so the
     /// dead-end cases are testable without loading a page.
     enum FinishedPageOutcome: Equatable {
-        case ignore, presentSignIn, signInDidNotStick, unexpectedPage
+        case sessionExpired, unexpectedPage
     }
 
-    nonisolated static func finishedPageOutcome(
-        host: String?, signInInFlight: Bool, reloadedAfterSignIn: Bool
-    ) -> FinishedPageOutcome {
-        if signInInFlight { return .ignore }
+    nonisolated static func finishedPageOutcome(host: String?) -> FinishedPageOutcome {
         guard let host, host == "idmsa.apple.com" || host.hasSuffix(".idmsa.apple.com") else {
             return .unexpectedPage
         }
-        return reloadedAfterSignIn ? .signInDidNotStick : .presentSignIn
+        return .sessionExpired
     }
 
     enum ResponseDecision: Equatable {
@@ -331,12 +306,11 @@ extension DownloadJob: WKNavigationDelegate {
                 localized: "The Xcode download did not start. Try again.")])
     }
 
-    private func signInDidNotStickError() -> Error {
+    private func sessionExpiredError() -> Error {
         NSError(
             domain: "com.duoupdater.app.XcodeDownload",
             code: -2,
-            userInfo: [NSLocalizedDescriptionKey: String(
-                localized: "You signed in, but Apple's developer site asked for another sign-in right away. Try again from Settings → Xcode.")])
+            userInfo: [NSLocalizedDescriptionKey: AppleDeveloperSession.expiredMessage])
     }
 }
 
@@ -370,6 +344,7 @@ extension DownloadJob: WKDownloadDelegate {
             // The response that just got authorized is exactly the moment a
             // fresh session/auth cookie shows up — save it per the task's brief.
             await self.session.save()
+            self.session.noteConfirmed()
             self.succeed(XcodeArchiveDownload(
                 fileURL: destinationURL, bytesDownloaded: bytes, finalHost: self.expectedFinalHost))
         }

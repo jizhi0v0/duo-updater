@@ -112,6 +112,16 @@ enum OSWindowWording {
     }
 }
 
+/// Tooltip for an `.appleSignIn` row's "Sign In…", shared by both windows.
+func appleSignInHelp(_ need: AppleSignInNeed) -> String {
+    switch need {
+    case .expired:
+        return String(localized: "Apple ended your Apple Developer sign-in. Sign in again to update Xcode — nothing is downloaded until you click Update.")
+    case .notSignedIn:
+        return String(localized: "Xcode betas and release candidates download through your Apple Developer account. Sign in to update Xcode from here.")
+    }
+}
+
 func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
@@ -176,6 +186,9 @@ struct RowActions {
     /// where the user is, and the way out of the state should be one click from
     /// there.
     var openTestFlightSetting: () -> Void = {}
+    /// Open the Apple Developer sign-in window for a row on the `.appleSignIn`
+    /// route. Signing in only brings the Update button back; it starts nothing.
+    var signInToAppleDeveloper: () -> Void = {}
 
     /// The full set, with no defaults — for a real window, where a missing action
     /// is a dead control rather than a deliberate omission.
@@ -190,14 +203,16 @@ struct RowActions {
         openToolbox: @escaping () -> Void,
         openTestFlight: @escaping () -> Void,
         grantFullDiskAccess: @escaping () -> Void,
-        openTestFlightSetting: @escaping () -> Void
+        openTestFlightSetting: @escaping () -> Void,
+        signInToAppleDeveloper: @escaping () -> Void
     ) -> RowActions {
         RowActions(
             install: install, openStagedPackage: openStagedPackage, retry: retry,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
             openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
-            openTestFlightSetting: openTestFlightSetting)
+            openTestFlightSetting: openTestFlightSetting,
+            signInToAppleDeveloper: signInToAppleDeveloper)
     }
 }
 
@@ -541,6 +556,11 @@ struct WorkbenchRowAction: View {
                       ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                       : appStoreRedirectHelp)
             }
+
+        case .appleSignIn(let need):
+            Button("Sign In…") { actions.signInToAppleDeveloper() }
+                .buttonStyle(.bordered)
+                .help(appleSignInHelp(need))
 
         case .detectionOnly:
             // No artifact, no vendorInstallerKind, no App Store route. Mirror the

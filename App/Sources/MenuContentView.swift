@@ -941,7 +941,7 @@ private struct AppRow: View {
     @Environment(\.openWindow) private var openWindow
 
     private var stage: InstallStage? { model.installing[result.id] }
-    private var installError: String? { model.installErrors[result.id] }
+    private var installError: String? { model.installErrorText(for: result) }
 
     /// The row's height when nothing is stacked under the name line. See the
     /// `.frame` in `body` for why it is fixed and where the number comes from.
@@ -1169,7 +1169,8 @@ private struct AppRow: View {
                             model.requestedSettingsAnchor = .testFlightDetection
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
-                        }),
+                        },
+                        signInToAppleDeveloper: { model.signInToAppleDeveloper() }),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: { downloadReadout },

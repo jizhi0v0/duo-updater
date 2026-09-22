@@ -23,7 +23,8 @@ struct UpdateRouteResolutionTests {
         stagedFileName: String? = nil,
         hasAppStoreAvailability: Bool = false,
         appStoreManagedHere: Bool = false,
-        appStoreGate: AppStoreGate = .none
+        appStoreGate: AppStoreGate = .none,
+        appleSignInNeed: AppleSignInNeed? = nil
     ) -> RouteInputs {
         RouteInputs(
             isToolboxManaged: isToolboxManaged,
@@ -35,7 +36,30 @@ struct UpdateRouteResolutionTests {
             stagedFileName: stagedFileName,
             hasAppStoreAvailability: hasAppStoreAvailability,
             appStoreManagedHere: appStoreManagedHere,
-            appStoreGate: appStoreGate)
+            appStoreGate: appStoreGate,
+            appleSignInNeed: appleSignInNeed)
+    }
+
+    // MARK: - Apple Developer sign-in (Xcode)
+
+    @Test("a one-click row without its Apple sign-in asks for it, never offers Update")
+    func appleSignInReplacesUpdate() {
+        #expect(UpdateRoute.resolve(Self.inputs(canAutoInstall: true, appleSignInNeed: .expired))
+                == .appleSignIn(.expired))
+        #expect(UpdateRoute.resolve(Self.inputs(canAutoInstall: true, appleSignInNeed: .notSignedIn))
+                == .appleSignIn(.notSignedIn))
+        #expect(!UpdateRoute.appleSignIn(.expired).isInstallable)
+        #expect(RowActionState.updateAvailable(.appleSignIn(.expired)).needsExplanation)
+    }
+
+    @Test("sign-in outranks the major-upgrade confirmation, and needs a one-click row")
+    func appleSignInPrecedence() {
+        #expect(UpdateRoute.resolve(Self.inputs(
+            isMajorUpgrade: true, canAutoInstall: true, appleSignInNeed: .expired)) == .appleSignIn(.expired))
+        // Nothing to sign in for when the row could not one-click anyway.
+        #expect(UpdateRoute.resolve(Self.inputs(appleSignInNeed: .expired)) == .detectionOnly)
+        #expect(UpdateRoute.resolve(Self.inputs(
+            defersToSelfUpdater: true, canAutoInstall: true, appleSignInNeed: .expired)) == .selfUpdater)
     }
 
     // MARK: - Every rung reachable on its own

@@ -869,7 +869,8 @@ final class AppListModel {
             stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
             hasAppStoreAvailability: result.remote?.appStore != nil,
             appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload,
-            appStoreGate: AppStoreGate.resolve(result.remote?.appStore)))
+            appStoreGate: AppStoreGate.resolve(result.remote?.appStore),
+            appleSignInNeed: isXcodeRow(result) ? AppleDeveloperSession.shared.signInNeed : nil))
     }
 
     /// A pending update the user hasn't ignored or skipped — what the badge counts
@@ -1728,6 +1729,9 @@ final class AppListModel {
         // Ask the local signals — the announcements especially — on their own cadence
         // instead of only after a networked check.
         armTestFlightLocalPoll()
+        // Ask Apple whether the Xcode route's sign-in still holds, now and hourly,
+        // so an ended session shows on the row before anyone clicks Update.
+        armAppleSessionCheck()
         // Track which apps are running so each row can show a live "running" dot,
         // kept current by KVO on `NSWorkspace.runningApplications`.
         armRunningAppsMonitor()
@@ -3170,6 +3174,7 @@ final class AppListModel {
         // Announce anything newly pending — keyed off a persisted baseline, so it
         // fires no matter which refresh path got here first (background or manual).
         notifyNewUpdates()
+        announceAppleSessionExpiryIfNeeded()
         // Force-push (not plain `sync`) so every check re-asserts the badge even when the
         // count is unchanged — otherwise a wiped badge (e.g. after a Dock restart) never
         // comes back, since re-setting the same value is a no-op the Dock skips.
@@ -3268,6 +3273,32 @@ final class AppListModel {
     /// channel — no cross-channel mixing.
     func canAutoInstall(_ result: UpdateResult) -> Bool {
         UpdatePolicy.canAutoInstall(result, settings: policySettings, environment: policyEnvironment)
+    }
+
+    /// A row updated through the Apple Developer sign-in (`.xcode` route).
+    func isXcodeRow(_ result: UpdateResult) -> Bool {
+        result.remote?.sourceName == "Xcode Releases"
+    }
+
+    /// The red line under a row's name: its install error, else — on an Xcode
+    /// row offering Sign In… because Apple ended the session — that. Keyed on
+    /// the row's own route, so the line and the button appear together: an
+    /// up-to-date, ignored or skipped Xcode row stays quiet. Not stored in
+    /// `installErrors`, which the many paths that clear it would wipe while the
+    /// session is still expired; this reads the session itself, so the line
+    /// goes away exactly when signing in brings the Update button back.
+    func installErrorText(for result: UpdateResult) -> String? {
+        if let error = installErrors[result.id] { return error }
+        guard isXcodeRow(result), isActionableUpdate(result),
+              rowRoute(for: result) == .appleSignIn(.expired)
+        else { return nil }
+        return AppleDeveloperSession.expiredMessage
+    }
+
+    /// The Xcode row's "Sign In…": sign in, and nothing more — the row goes back
+    /// to Update and the user clicks it when they choose.
+    func signInToAppleDeveloper() {
+        Task { _ = await AppleDeveloperSignInWindow().present() }
     }
 
     /// True when this update is a `pkg` (a `pkg` cask, or a vendor pkg): we
@@ -3832,7 +3863,25 @@ final class AppListModel {
         installErrors[id] = nil
         installNotes[id] = nil
         installing[id] = .queued
-        return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+        guard isXcodeRow(result) else {
+            return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+        }
+        // Ask Apple before the rollback copy of a ~4 GB bundle and the download,
+        // not after. Expired → the row turns to "Sign In…" and nothing starts.
+        // Inconclusive (offline, a proxy) goes ahead: the download is the real test.
+        let session = AppleDeveloperSession.shared
+        await session.check()
+        guard session.signInNeed == nil else {
+            installing[id] = nil
+            return .notInstalled
+        }
+        let outcome = await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+        // Expired mid-download: the row already says so and offers Sign In…,
+        // so the downloader's copy of that message would only repeat it.
+        if session.signInNeed != nil, installErrors[id] == AppleDeveloperSession.expiredMessage {
+            installErrors[id] = nil
+        }
+        return outcome
     }
 
     /// Gate-wait, then install a row whose `installing[id] == .queued` claim the
@@ -8155,6 +8204,40 @@ final class AppListModel {
                 await self.pollTestFlightLocalSignals()
             }
         }
+    }
+
+    /// How often the Apple Developer session is asked about (`AppleDeveloperSession
+    /// .check()`): one small unfollowed request, and only while a session is held.
+    @ObservationIgnored private let appleSessionCheckInterval: Duration = .seconds(3600)
+    @ObservationIgnored private var appleSessionCheckTimer: Task<Void, Never>?
+    /// This expiry has been announced; cleared once the session is good again, so
+    /// each expiry is announced once, not hourly.
+    @ObservationIgnored private var announcedAppleSessionExpiry = false
+
+    private func armAppleSessionCheck() {
+        appleSessionCheckTimer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                await AppleDeveloperSession.shared.check()
+                guard !Task.isCancelled, let self else { return }
+                self.announceAppleSessionExpiryIfNeeded()
+                try? await Task.sleep(for: self.appleSessionCheckInterval)
+            }
+        }
+    }
+
+    /// Banner when Apple has ended the session and an Xcode update is waiting on
+    /// it. Also run after each full refresh, since the first check at launch
+    /// comes before there are rows to find the update in.
+    private func announceAppleSessionExpiryIfNeeded() {
+        guard AppleDeveloperSession.shared.status == .expired else {
+            announcedAppleSessionExpiry = false
+            return
+        }
+        guard !announcedAppleSessionExpiry, prefs.notifyOnUpdates,
+              let pending = results.first(where: { isXcodeRow($0) && isActionableUpdate($0) && canAutoInstall($0) })
+        else { return }
+        announcedAppleSessionExpiry = true
+        UpdateNotifier.appleSignInExpired(app: pending.app.name, version: pending.remote?.displayVersion)
     }
 
     /// One pass of that poll. Reads only; it can start a sync but never a check.

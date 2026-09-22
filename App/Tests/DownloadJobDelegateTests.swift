@@ -40,33 +40,23 @@ struct DownloadJobDelegateTests {
     }
 }
 
-/// Every page that finishes loading must lead somewhere: sign-in, or an error.
+/// Every page that finishes loading must lead somewhere: an error, never a wait.
 /// A page left unanswered is an install that never returns and a download
 /// permit that is never given back (PR #803 review, round 1).
 struct DownloadJobDeadEndTests {
 
     @Test func aPageOffIdmsaIsAnErrorNotAWait() {
         for host in ["developer.apple.com", "download.developer.apple.com", "www.apple.com", nil] as [String?] {
-            #expect(DownloadJob.finishedPageOutcome(
-                host: host, signInInFlight: false, reloadedAfterSignIn: false) == .unexpectedPage)
+            #expect(DownloadJob.finishedPageOutcome(host: host) == .unexpectedPage)
         }
     }
 
-    @Test func idmsaAsksForSignInOnceThenGivesUp() {
-        #expect(DownloadJob.finishedPageOutcome(
-            host: "idmsa.apple.com", signInInFlight: false, reloadedAfterSignIn: false) == .presentSignIn)
-        #expect(DownloadJob.finishedPageOutcome(
-            host: "idmsa.apple.com", signInInFlight: false, reloadedAfterSignIn: true) == .signInDidNotStick)
+    /// Landing on sign-in ends the download as "expired" — the row asks for
+    /// sign-in; no window opens mid-install.
+    @Test func idmsaMeansTheSessionExpired() {
+        #expect(DownloadJob.finishedPageOutcome(host: "idmsa.apple.com") == .sessionExpired)
         // Not a lookalike host.
-        #expect(DownloadJob.finishedPageOutcome(
-            host: "notidmsa.apple.com", signInInFlight: false, reloadedAfterSignIn: false) == .unexpectedPage)
-    }
-
-    @Test func nothingIsDecidedWhileTheSignInWindowIsUp() {
-        for host in ["idmsa.apple.com", "developer.apple.com"] {
-            #expect(DownloadJob.finishedPageOutcome(
-                host: host, signInInFlight: true, reloadedAfterSignIn: false) == .ignore)
-        }
+        #expect(DownloadJob.finishedPageOutcome(host: "notidmsa.apple.com") == .unexpectedPage)
     }
 
     @Test func onlyASuccessfulPageIsRendered() {

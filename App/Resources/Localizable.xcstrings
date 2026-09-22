@@ -30212,88 +30212,6 @@
         }
       }
     },
-    "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple can end the session on its side at any time; if it has, DuoUpdater asks you to sign in again the next time it downloads.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das ist es, was DuoUpdater erlaubt, Xcode-Betas und Release Candidates für Ein-Klick-Updates herunterzuladen. Ohne diese Anmeldung kann DuoUpdater dir trotzdem sagen, dass eine neue Version verfügbar ist – herunterladen musst du sie dann aber selbst. Apple kann die Sitzung jederzeit serverseitig beenden; ist das der Fall, bittet dich DuoUpdater beim nächsten Download erneut um eine Anmeldung."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esto es lo que permite a DuoUpdater descargar betas y versiones candidatas de Xcode para actualizaciones con un clic. Sin ello, DuoUpdater aún puede avisarte de que existe una versión nueva, pero tendrás que descargarla tú mismo. Apple puede finalizar la sesión en cualquier momento desde su lado; si lo hace, DuoUpdater te pedirá iniciar sesión de nuevo la próxima vez que descargue algo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "C'est ce qui permet à DuoUpdater de télécharger les bêtas et versions candidates de Xcode pour des mises à jour en un clic. Sans cela, DuoUpdater peut toujours vous signaler qu'une nouvelle version existe, mais vous devrez la télécharger vous-même. Apple peut mettre fin à la session de son côté à tout moment ; si c'est le cas, DuoUpdater vous demandera de vous reconnecter lors du prochain téléchargement."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "これにより、DuoUpdaterはワンクリックアップデートのためにXcodeのベータ版やリリース候補版をダウンロードできます。これがなくても、DuoUpdaterは新しいバージョンの存在を知らせることはできますが、ダウンロードは自分で行う必要があります。Apple側でいつでもセッションを終了させる可能性があります。その場合、DuoUpdaterは次回のダウンロード時に再度サインインを求めます。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Именно это позволяет DuoUpdater загружать бета-версии и релиз-кандидаты Xcode для обновления в один клик. Без этого DuoUpdater всё равно сообщит о выходе новой версии, но скачивать её придётся самостоятельно. Apple может завершить сеанс на своей стороне в любой момент; если это произошло, DuoUpdater попросит вас войти снова при следующей загрузке."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正是这个登录会话让 DuoUpdater 能够下载 Xcode 测试版和候选发布版，实现一键更新。没有它，DuoUpdater 仍然会提示有新版本，但你需要自己下载。Apple 随时可能在其一侧结束该会话；如果发生这种情况，DuoUpdater 会在下次下载时再次要求你登录。"
-          }
-        }
-      }
-    },
-    "You signed in, but Apple's developer site asked for another sign-in right away. Try again from Settings → Xcode.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du hast dich angemeldet, aber die Apple-Developer-Website hat sofort erneut eine Anmeldung verlangt. Versuche es über Einstellungen → Xcode erneut."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iniciaste sesión, pero el sitio de Apple Developer volvió a pedir el inicio de sesión de inmediato. Vuelve a intentarlo desde Ajustes → Xcode."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vous vous êtes connecté, mais le site Apple Developer a immédiatement redemandé une connexion. Réessayez depuis Réglages → Xcode."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サインインしましたが、Apple Developerサイトがすぐにもう一度サインインを求めてきました。設定 → Xcodeからもう一度お試しください。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вы вошли в систему, но сайт Apple Developer сразу же снова запросил вход. Повторите попытку в Настройки → Xcode."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你已登录，但 Apple Developer 网站立即又要求重新登录。请从「设置 → Xcode」中重试。"
-          }
-        }
-      }
-    },
     "Apple's developer site answered with a page instead of the Xcode download. Try again; if it keeps happening, sign out and back in under Settings → Xcode.": {
       "extractionState": "manual",
       "localizations": {
@@ -30372,6 +30290,375 @@
           "stringUnit": {
             "state": "translated",
             "value": "Xcode 下载没有开始。请重试。"
+          }
+        }
+      }
+    },
+    "%@: sign-in expired": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: Anmeldung abgelaufen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: la sesión ha caducado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ : connexion expirée"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@：サインインの有効期限切れ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: срок входа истёк"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@：登录已过期"
+          }
+        }
+      }
+    },
+    "Apple ended your Apple Developer sign-in. Sign in again to update Xcode — nothing is downloaded until you click Update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple hat deine Apple-Developer-Anmeldung beendet. Melde dich erneut an, um Xcode zu aktualisieren – geladen wird erst, wenn du auf „Aktualisieren“ klickst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple ha cerrado tu sesión de Apple Developer. Vuelve a iniciar sesión para actualizar Xcode; no se descarga nada hasta que hagas clic en Actualizar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple a mis fin à votre connexion Apple Developer. Reconnectez-vous pour mettre à jour Xcode — rien n’est téléchargé avant que vous cliquiez sur Mettre à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple DeveloperのサインインがAppleによって終了されました。Xcodeをアップデートするには再度サインインしてください。「アップデート」をクリックするまで何もダウンロードされません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple завершила ваш вход в Apple Developer. Войдите снова, чтобы обновить Xcode, — ничего не загрузится, пока вы не нажмёте «Обновить»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 已结束你的 Apple Developer 登录。请重新登录以更新 Xcode——在你点击“更新”之前不会下载任何内容。"
+          }
+        }
+      }
+    },
+    "Sign in to Apple Developer again to update it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melde dich erneut bei Apple Developer an, um es zu aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a iniciar sesión en Apple Developer para actualizarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnectez-vous à Apple Developer pour le mettre à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートするにはApple Developerに再度サインインしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите в Apple Developer снова, чтобы обновить."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请重新登录 Apple Developer 以进行更新。"
+          }
+        }
+      }
+    },
+    "Sign in to Apple Developer again to update to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melde dich erneut bei Apple Developer an, um auf %@ zu aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a iniciar sesión en Apple Developer para actualizar a %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnectez-vous à Apple Developer pour passer à %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@にアップデートするにはApple Developerに再度サインインしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите в Apple Developer снова, чтобы обновить до %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请重新登录 Apple Developer 以更新到 %@。"
+          }
+        }
+      }
+    },
+    "Xcode betas and release candidates download through your Apple Developer account. Sign in to update Xcode from here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode-Betas und Release Candidates werden über deinen Apple-Developer-Account geladen. Melde dich an, um Xcode von hier aus zu aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las betas y versiones candidatas de Xcode se descargan con tu cuenta de Apple Developer. Inicia sesión para actualizar Xcode desde aquí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les bêtas et versions candidates de Xcode se téléchargent via votre compte Apple Developer. Connectez-vous pour mettre à jour Xcode d’ici."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcodeのベータ版とリリース候補版はApple Developerアカウント経由でダウンロードされます。ここからXcodeをアップデートするにはサインインしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-версии и релиз-кандидаты Xcode загружаются через вашу учётную запись Apple Developer. Войдите, чтобы обновлять Xcode отсюда."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 测试版和候选发布版通过你的 Apple Developer 账户下载。登录后即可在这里更新 Xcode。"
+          }
+        }
+      }
+    },
+    "Your Apple Developer sign-in has expired. Sign in again to update Xcode.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Apple-Developer-Anmeldung ist abgelaufen. Melde dich erneut an, um Xcode zu aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu sesión de Apple Developer ha caducado. Vuelve a iniciar sesión para actualizar Xcode."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre connexion Apple Developer a expiré. Reconnectez-vous pour mettre à jour Xcode."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developerのサインインの有効期限が切れました。Xcodeをアップデートするには再度サインインしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Срок вашего входа в Apple Developer истёк. Войдите снова, чтобы обновить Xcode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 Apple Developer 登录已过期。请重新登录以更新 Xcode。"
+          }
+        }
+      }
+    },
+    "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple can end the session on its side at any time. DuoUpdater asks Apple once an hour whether it still holds; if it has ended, the Xcode row asks you to sign in again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist es, was DuoUpdater erlaubt, Xcode-Betas und Release Candidates für Ein-Klick-Updates herunterzuladen. Ohne diese Anmeldung kann DuoUpdater dir trotzdem sagen, dass eine neue Version verfügbar ist – herunterladen musst du sie dann aber selbst. Apple kann die Sitzung jederzeit beenden. DuoUpdater fragt Apple einmal pro Stunde, ob sie noch gilt; ist sie beendet, bittet dich die Xcode-Zeile, dich erneut anzumelden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto es lo que permite a DuoUpdater descargar betas y versiones candidatas de Xcode para actualizaciones con un clic. Sin ello, DuoUpdater aún puede avisarte de que existe una versión nueva, pero tendrás que descargarla tú mismo. Apple puede cerrar la sesión en cualquier momento. DuoUpdater pregunta a Apple una vez por hora si sigue activa; si ha terminado, la fila de Xcode te pedirá que vuelvas a iniciar sesión."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "C'est ce qui permet à DuoUpdater de télécharger les bêtas et versions candidates de Xcode pour des mises à jour en un clic. Sans cela, DuoUpdater peut toujours vous signaler qu'une nouvelle version existe, mais vous devrez la télécharger vous-même. Apple peut mettre fin à la session à tout moment. DuoUpdater demande à Apple une fois par heure si elle est toujours valide ; si elle a pris fin, la ligne Xcode vous invite à vous reconnecter."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これにより、DuoUpdaterはワンクリックアップデートのためにXcodeのベータ版やリリース候補版をダウンロードできます。これがなくても、DuoUpdaterは新しいバージョンの存在を知らせることはできますが、ダウンロードは自分で行う必要があります。Appleはいつでもこのセッションを終了できます。DuoUpdaterは1時間ごとにAppleにセッションが有効か確認し、終了していればXcodeの行で再サインインを求めます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Именно это позволяет DuoUpdater загружать бета-версии и релиз-кандидаты Xcode для обновления в один клик. Без этого DuoUpdater всё равно сообщит о выходе новой версии, но скачивать её придётся самостоятельно. Apple может завершить сеанс в любой момент. DuoUpdater раз в час спрашивает Apple, действует ли он; если сеанс завершён, строка Xcode попросит войти снова."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正是这个登录会话让 DuoUpdater 能够下载 Xcode 测试版和候选发布版，实现一键更新。没有它，DuoUpdater 仍然会提示有新版本，但你需要自己下载。Apple 随时可能在其一端结束会话。DuoUpdater 每小时向 Apple 确认一次会话是否仍然有效；如已结束，Xcode 这一行会请你重新登录。"
+          }
+        }
+      }
+    },
+    "Apple last confirmed it %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt von Apple bestätigt: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple lo confirmó por última vez %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dernière confirmation par Apple : %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleによる最終確認：%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последнее подтверждение Apple: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 上次确认：%@"
+          }
+        }
+      }
+    },
+    "Sign-in expired": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung abgelaufen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión caducada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion expirée"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインの有効期限切れ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Срок входа истёк"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已过期"
           }
         }
       }

@@ -199,6 +199,13 @@ struct PopoverRowAction: View {
             } else {
                 openButton
             }
+        case .appleSignIn(let need):
+            Button { actions.signInToAppleDeveloper() } label: { Text("Sign In…").rowButtonLabel() }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help(appleSignInHelp(need))
         case .detectionOnly:
             openButton
         }

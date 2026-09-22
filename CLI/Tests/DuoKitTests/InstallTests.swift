@@ -176,10 +176,11 @@ import DuoUpdaterCore
         #expect(why.contains("no installable artefact"))
     }
 
-    /// #193 (follow-up): a source `UpdatePolicy` has no case for at all — Xcode
-    /// Releases never resolves an artifact, by design (`downloadURL: nil`, its
-    /// download 302s to an Apple-ID login page) — must get the SAME wording as
-    /// Electron above, not a distinct "no install route wired up yet" message.
+    /// #193 (follow-up): a source `UpdatePolicy` has no case for at all —
+    /// Toolbox, which hands the install to JetBrains' own app (this test used
+    /// Xcode Releases until that source gained the `.xcode` route) — must get
+    /// the SAME wording as Electron above, not a distinct "no install route
+    /// wired up yet" message.
     ///
     /// #193 originally introduced exactly that distinct message, reasoning it
     /// should read differently from "no artifact this time". It was reverted
@@ -191,7 +192,7 @@ import DuoUpdaterCore
     /// collapse so the split doesn't quietly come back.
     @Test func aSourceThePolicyHasNoCaseForGetsTheSameGenericWording() {
         let decision = Install.classify(
-            result(source: "Xcode Releases", vendorKind: nil),
+            result(source: "Toolbox", vendorKind: nil),
             settings: settings(), environment: environment())
         guard case .refuse(let why, _) = decision else {
             Issue.record("expected a refusal, got \(decision)")
@@ -199,6 +200,22 @@ import DuoUpdaterCore
         }
         #expect(why.contains("no installable artefact"))
         #expect(!why.contains("wired up"))
+    }
+
+    /// An Xcode row with an archive is one-click in the app, but `duo` has no
+    /// Apple ID session to fetch it with. Refused at plan time, carrying the
+    /// route — before `apply` would take a ~4 GB rollback point for an install
+    /// the coordinator then refuses.
+    @Test func anXcodeRowIsRefusedAtPlanTime() {
+        let decision = Install.classify(
+            result(source: "Xcode Releases", vendorKind: nil),
+            settings: settings(), environment: environment())
+        guard case .refuse(let why, let route) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.contains("menu-bar app"))
+        #expect(route == .xcode)
     }
 
     /// The same rule the app applies: don't swap a bundle under a running app
@@ -980,6 +997,21 @@ import DuoUpdaterCore
                 vendorInstallerKind: .zip),
             status: .updateAvailable(latest: "2.0"))
         #expect(InstallCoordinator.route(for: electron, requiresInstaller: false) == .vendor)
+    }
+
+    @Test func theXcodeSourceRoutesToXcode() {
+        let xcode = UpdateResult(
+            app: InstalledApp(
+                name: "Xcode", bundleID: "com.apple.dt.Xcode", shortVersion: "27.0",
+                buildVersion: "27A5237l",
+                path: URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: RemoteVersion(
+                shortVersion: "27.0 RC 1 (27A266a)", version: "27A266a",
+                downloadURL: URL(string: "https://developer.apple.com/services-account/download?path=/Developer_Tools/ZZ/ZZ.xip"),
+                sourceName: "Xcode Releases", requiresManualInstaller: false),
+            status: .updateAvailable(latest: "27.0 RC 1 (27A266a)"))
+        #expect(InstallCoordinator.route(for: xcode, requiresInstaller: false) == .xcode)
     }
 
     @Test func requiringAnInstallerBeatsTheSourceName() {

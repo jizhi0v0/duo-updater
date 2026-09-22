@@ -60,6 +60,11 @@ targets:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
       - path: Sources/RequestCoverageHonesty.swift
+      # The Xcode downloader and what it references, so a test can ask the
+      # Objective-C runtime which WebKit callbacks are really registered.
+      - path: Sources/WebKitXcodeDownloader.swift
+      - path: Sources/AppleDeveloperSession.swift
+      - path: Sources/AppleDeveloperSignInWindow.swift
       # The root helper's XPC peer gate and its request-identity check. Foundation
       # + Security only. HelperService is compiled so the identity guard in
       # installMASApp is executed. Safe today: every test call stops at the identity

@@ -6,11 +6,13 @@ import DuoUpdaterCore
 /// Runs the same `InstallCoordinator` the menu-bar app runs, gated by the same
 /// `UpdatePolicy`, so what this installs and how is not a second opinion.
 ///
-/// Two things it deliberately will not do:
+/// Three things it deliberately will not do:
 ///  - **App Store.** That route needs either the privileged helper (whose
 ///    `SMAppService.daemon` registration requires an app bundle) or the
 ///    Accessibility API driving App Store.app. A CLI has neither, so it says so
 ///    instead of failing halfway.
+///  - **Xcode.** Its archive needs an Apple ID session that only the menu-bar
+///    app's web view holds, so `classify` refuses the `.xcode` route.
 ///  - **Take the lock by force.** If the menu-bar app is installing, this exits
 ///    rather than swapping a bundle underneath it.
 public enum Install {
@@ -313,7 +315,10 @@ public enum Install {
             // login page; Toolbox/TestFlight hand the install to their own
             // app), not a policy gap waiting to be closed. "No route wired up
             // yet" was therefore never true for any source that could actually
-            // reach this branch — it just relocated #193's original complaint
+            // reach this branch. (Xcode Releases has since gained the `.xcode`
+            // route; an Xcode row that still lands here has no archive this Mac
+            // can use, which the message below describes truthfully.) It just
+            // relocated #193's original complaint
             // (a message asserting something false) to the other bucket. One
             // message, worded to be accurate for both "never has one" and
             // "doesn't have one this time" is available.
@@ -362,6 +367,12 @@ public enum Install {
         let route = InstallCoordinator.route(for: result, requiresInstaller: needsInstaller)
         if route == .appStore {
             return .refuse("App Store updates need the menu-bar app", route)
+        }
+        // Refused here, at plan time, and not only by the coordinator (which has
+        // no downloader in `duo`): planning it would first take a rollback point,
+        // a clone-and-hash of a ~4 GB bundle, for an install that cannot start.
+        if route == .xcode {
+            return .refuse("Xcode updates need the menu-bar app (the download needs your Apple ID sign-in)", route)
         }
         return .install(route)
     }

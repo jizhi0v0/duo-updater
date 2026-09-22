@@ -75,7 +75,7 @@ import Foundation
     @Test func aBetaIsOfferedTheNewerBeta() throws {
         let (installed, offer) = try #require(
             XcodeReleasesSource.offer(
-                forBuild: "27A5194q", in: Self.releases(), osVersion: Self.modernHost))
+                forBuild: "27A5194q", in: Self.releases(), osVersion: Self.modernHost, followsBetaLine: false))
         #expect(offer.build == "27A5237l")
         // Both sides are named the same way, from the same formatter, so the row
         // reads "27.0 beta 1 → 27.0 beta 5" rather than putting an opaque build
@@ -90,7 +90,7 @@ import Foundation
     @Test func theNewestBetaIsOfferedItself() throws {
         let (installed, offer) = try #require(
             XcodeReleasesSource.offer(
-                forBuild: "27A5237l", in: Self.releases(), osVersion: Self.modernHost))
+                forBuild: "27A5237l", in: Self.releases(), osVersion: Self.modernHost, followsBetaLine: false))
         #expect(offer.build == "27A5237l")
         #expect(installed.build == offer.build)
     }
@@ -101,7 +101,7 @@ import Foundation
     @Test func aReleaseIsNeverOfferedAPrerelease() throws {
         let (_, offer) = try #require(
             XcodeReleasesSource.offer(
-                forBuild: "17F42", in: Self.releases(), osVersion: Self.modernHost))
+                forBuild: "17F42", in: Self.releases(), osVersion: Self.modernHost, followsBetaLine: false))
         #expect(offer.build == "17F113")
         #expect(offer.stability == .release)
     }
@@ -112,7 +112,7 @@ import Foundation
     @Test func aBuildSharedByAnRCAndItsReleaseReadsAsTheRelease() throws {
         let (installed, _) = try #require(
             XcodeReleasesSource.offer(
-                forBuild: "17F113", in: Self.releases(), osVersion: Self.modernHost))
+                forBuild: "17F113", in: Self.releases(), osVersion: Self.modernHost, followsBetaLine: false))
         #expect(installed.build == "17F113")
         #expect(installed.stability == .release)
     }
@@ -159,7 +159,7 @@ import Foundation
                 "precondition: this ordering is why the build string cannot decide it")
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: XcodeReleasesSource.parse(Self.rcFeed),
-            osVersion: Self.modernHost))
+            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.version == "27A266a")
 
         let app = Self.installedXcode(build: "27A5237l")
@@ -173,7 +173,7 @@ import Foundation
     @Test func theInstalledRCIsUpToDate() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.rcFeed),
-            osVersion: Self.modernHost))
+            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false, installedBeta: nil))
         let app = Self.installedXcode(build: "27A266a")
         let status = UpdateChecker.evaluate(installed: app, remote: remote)
         #expect(status == .upToDate)
@@ -185,7 +185,7 @@ import Foundation
     /// downgrade, so the source declines to answer and the row reads "unknown".
     @Test func anUnknownBuildIsNotGuessedAt() {
         #expect(XcodeReleasesSource.offer(
-                forBuild: "27A9999z", in: Self.releases(), osVersion: Self.modernHost) == nil)
+                forBuild: "27A9999z", in: Self.releases(), osVersion: Self.modernHost, followsBetaLine: false) == nil)
     }
 
     /// The version trap, on a bundle laid out like a real Xcode: `CFBundleVersion`

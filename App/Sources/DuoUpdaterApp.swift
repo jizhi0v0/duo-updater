@@ -120,6 +120,15 @@ private struct MenuBarLabel: View {
             // run left owed — the common case being backups taken while the disk
             // was elsewhere.
             backupVolumeWatcher.start()
+            // Restore before first use, per AppleDeveloperSession's contract —
+            // WebKit drops the session-only cookies (myacinfo) on quit, so this
+            // is what makes "signed in yesterday" still true today. Saving back
+            // happens after sign-in completes and after each finished download
+            // (see AppleDeveloperSession/WebKitXcodeDownloader) — not here at
+            // termination, since there is no delegate hook to hold the process
+            // open for that async work, and those two sites already cover every
+            // moment the session actually changes.
+            Task { await AppleDeveloperSession.shared.restore() }
             if model.prefs.backupDestination.kind == .external {
                 Task { await model.syncBackupsNow() }
             }

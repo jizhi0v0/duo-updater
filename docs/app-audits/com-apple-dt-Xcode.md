@@ -39,3 +39,11 @@ beta below it under `Updates in Xcode 27 Beta N`.
 全 451 条的 `requires` 都能按版本号解析（没有 `null`、没有非数字开头的写法；出现最多的值是 `15.6` 32 次、`26.2` 28 次、`10.7` 27 次）。
 
 `XcodeReleasesSource` 此前根本没读这个字段，所以 macOS 26.0–26.5 的机器会被显示 27.0 RC 可用（#640）。现在它既过滤候选（取「跑得动的最新那个」，26.4 的机器拿到 beta 6 而不是 RC），也写进 `RemoteVersion.minimumSystemVersion`。
+
+## 下载地址与架构（2026-09-22 实测）
+
+`curl -s --compressed https://xcodereleases.com/data.json`（只读 GET，2026-09-22）：454 条目，其中 291 条的 `links.download.url` 是 `https://download.developer.apple.com/Developer_Tools/<dir>/<file>.xip`，全部只由 `[A-Za-z0-9._-]` 组成。`XcodeReleasesSource.authorizedDownloadURL` 只改写这种形状；其余（`.dmg`、`/ios/…`、没有 URL 的 98 条）不给下载地址，该行保持仅检测。
+
+`links.download.architectures` 只有 80 条带：从 26.0 beta 1 起每条都有，16.4 及更早的都没有。同一个 build 常有两条、`_versionOrder` 也相同（26.6：`Xcode_26.6_Apple_silicon.xip` 为 `["arm64"]`，`Xcode_26.6_Universal.xip` 为 `["arm64","x86_64"]`）；27.x 目前每个 build 只有 `["arm64"]` 一条。没写架构的条目不会被选中。
+
+CDN 地址不带会话会被拒；能用的是 `https://developer.apple.com/services-account/download?path=/Developer_Tools/<dir>/<file>.xip`（带登录会话时 302 到 CDN）。这条转引自一键更新设计时的实测，本次未复测。

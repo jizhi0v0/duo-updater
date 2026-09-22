@@ -20,6 +20,11 @@ import CryptoKit
 /// the Accessibility API driving App Store.app, so it cannot be honestly shared
 /// with a command-line tool. `duo install` refuses it with a message rather than
 /// half-doing it.
+///
+/// The Xcode route is here but needs its downloader injected: fetching an
+/// Xcode archive takes an Apple ID session, which lives in the menu-bar app's
+/// web view. The app passes an `XcodeArchiveDownloading`; `duo` passes none and
+/// the route refuses.
 public actor InstallCoordinator {
 
     /// Which installer applies this update. Derived from the source name rather
@@ -32,6 +37,10 @@ public actor InstallCoordinator {
         case vendor
         case sparkle
         case appStore
+        /// An Xcode `.xip` from Apple's developer site. The bytes come through the
+        /// host's `XcodeArchiveDownloading` (an Apple ID session only the menu-bar
+        /// app has); a coordinator built without one refuses this route.
+        case xcode
     }
 
     public enum CoordinatorError: LocalizedError {
@@ -41,6 +50,8 @@ public actor InstallCoordinator {
 
         public var errorDescription: String? {
             switch self {
+            case .routeNotSupportedHere(.xcode):
+                return "Xcode downloads need your Apple ID sign-in, which only the menu-bar app has"
             case .routeNotSupportedHere(let route):
                 return "the \(route.rawValue) route cannot be driven from here"
             case .missingCaskToken:
@@ -95,9 +106,15 @@ public actor InstallCoordinator {
     private let sparkle = SparkleInstaller()
     private let homebrew = HomebrewInstaller()
     private let packages = PackageInstaller()
+    /// The `.xcode` route's downloader, or nil where there is none (the CLI).
+    private let xcodeDownloader: (any XcodeArchiveDownloading)?
 
-    public init(permits: InstallPermits = InstallPermits(downloads: 4, applies: 2)) {
+    public init(
+        permits: InstallPermits = InstallPermits(downloads: 4, applies: 2),
+        xcodeDownloader: (any XcodeArchiveDownloading)? = nil
+    ) {
         self.permits = permits
+        self.xcodeDownloader = xcodeDownloader
     }
 
     /// The route an update takes.
@@ -114,6 +131,7 @@ public actor InstallCoordinator {
         case "Homebrew":                    return .homebrew
         case "Vendor", "GitHub", "Electron": return .vendor
         case "App Store":                   return .appStore
+        case XcodeReleasesSource.sourceName: return .xcode
         default:                            return .sparkle
         }
     }
@@ -162,7 +180,9 @@ public actor InstallCoordinator {
         // Left as an exhaustive switch rather than a bare `true`: a new route has
         // to state its answer here, which is the decision this function exists for.
         switch route {
-        case .homebrew, .vendor, .sparkle, .installer, .appStore: return true
+        // `.xcode` included: a ~4 GB bundle, cloned by `ditto` and then hashed
+        // in full by `BackupManifest.compute` — see the cost note above.
+        case .homebrew, .vendor, .sparkle, .installer, .appStore, .xcode: return true
         }
     }
 
@@ -328,6 +348,15 @@ public actor InstallCoordinator {
         switch route {
         case .appStore:
             throw CoordinatorError.routeNotSupportedHere(.appStore)
+
+        case .xcode:
+            guard let downloader = xcodeDownloader else {
+                throw CoordinatorError.routeNotSupportedHere(.xcode)
+            }
+            return try await fetchThenSwap(
+                result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                download: { try await XcodeInstaller.download($0, using: downloader, onStage: $1) },
+                apply: { try await XcodeInstaller.apply($0, download: $1, onStage: $2) })
 
         case .installer:
             progress(.downloading(fraction: 0))

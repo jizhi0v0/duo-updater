@@ -4276,7 +4276,7 @@ final class AppListModel {
                 for: result, requiresInstaller: requiresInstaller(result))
 
             switch route {
-            case .installer, .homebrew, .vendor, .sparkle:
+            case .installer, .homebrew, .vendor, .sparkle, .xcode:
                 // A missing cask token used to reset the spinner and return
                 // false here; the coordinator throws instead, which the catch
                 // below settles the same way (and now says why).
@@ -7542,7 +7542,8 @@ final class AppListModel {
     /// so the store's fetch still competes for the same budget. The CLI builds
     /// its own with its own pool — the cross-process exclusion is
     /// ``InstallLock``, not these permits.
-    private static let installCoordinator = InstallCoordinator(permits: installPermits)
+    private static let installCoordinator = InstallCoordinator(
+        permits: installPermits, xcodeDownloader: WebKitXcodeDownloader())
 
     /// App Store installs serialize to one at a time, regardless of how many rows
     /// the user clicks. They don't fetch bytes we control — they drive the single
@@ -7616,6 +7617,10 @@ final class AppListModel {
                 // versioned staged case is already out via `canAutoInstall`.
                 && !armedSelfInstallers.contains(result.id)
                 && installing[result.id] == nil
+                // Xcode is one row at a time, by the user: a multi-gigabyte
+                // download that may open an Apple sign-in window mid-batch, and a
+                // swap of the toolchain they build with.
+                && result.remote?.sourceName != "Xcode Releases"
         }
     }
 
@@ -7624,10 +7629,11 @@ final class AppListModel {
     ///
     /// The switch below is reached ONLY by results `installAllTargets()` already
     /// passed through `canAutoInstall(result) || requiresInstaller(result)` — so
-    /// a source `UpdatePolicy` has no case for at all (Xcode Releases, Toolbox,
-    /// TestFlight: always `default: false` on both) never reaches `targets` to
+    /// a source `UpdatePolicy` has no case for at all (Toolbox, TestFlight:
+    /// always `default: false` on both) never reaches `targets` to
     /// begin with, let alone this function. It isn't mis-scheduled here; it's
-    /// simply not a candidate. `requiresInstaller` results are peeled off first
+    /// simply not a candidate. Xcode Releases is one-click but is kept out of
+    /// `installAllTargets()` by name. `requiresInstaller` results are peeled off first
     /// by the guard above (a Vendor/GitHub/Electron `.pkg`, a signed Sparkle
     /// `.pkg`, a Homebrew cask needing the manual installer) — those go through
     /// the system installer, the batch's phase 3, never this switch.

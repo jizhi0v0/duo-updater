@@ -121,6 +121,7 @@ struct SparkleStagingClearanceTests {
             executablePath: { paths[$0] },
             removeJob: { label in calls.removed.append(label); return !refuses.contains(label) },
             isAlive: { alive.contains($0) },
+            bundleIdentifier: { $0 == 804 ? "org.sparkle-project.Sparkle.Updater" : nil },
             sleep: { _ in })
     }
 
@@ -171,27 +172,50 @@ struct SparkleStagingClearanceTests {
         }
     }
 
-    /// The round-2 review's case: the first job goes, the second will not. Both
-    /// removals must be attempted, nothing deleted, and the outcome must say part
-    /// of the installer is gone — the caller may no longer claim it applies on
-    /// quit. And the untouched shape must say it was not touched.
+    /// Round 3's case: `Autoupdate`'s job refused and its process armed. The
+    /// progress agent must be left alone — it is the only thing the staged-install
+    /// gates see, and without it the next Update would install under a live
+    /// installer that applies the stale build on quit. The gates then still say
+    /// "will apply it when you quit it", which is true, so `touchedInstaller` is
+    /// false.
     ///
-    /// Mutations: return on the first refusal (the first `removed` expectation
-    /// goes red); hard-code `touchedInstaller: false` (the first `touched` one).
-    @Test func aPartlyRemovedInstallerSaysSo() async throws {
+    /// Mutations: remove agents in the same pass as the installer (the `removed`
+    /// expectation goes red); report `touchedInstaller: true` here (the second).
+    @Test func aSurvivingInstallerKeepsItsProgressAgent() async throws {
         try await withFixture { f in
             let calls = Calls()
             let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: f.staged, cachesDirectory: f.caches,
                 system: system(f, calls: calls,
                                refuses: ["com.example.tinyweb-sparkle-updater"], alive: [802]))
-            #expect(Set(calls.removed) == [
+            #expect(calls.removed == ["com.example.tinyweb-sparkle-updater"],
+                    "the agent is not touched while the installer survives")
+            #expect(outcome == .notCleared(
+                reason: "still running after removal: [\"com.example.tinyweb-sparkle-updater\"], launchd refused [\"com.example.tinyweb-sparkle-updater\"]",
+                touchedInstaller: false))
+            #expect(FileManager.default.fileExists(atPath: f.staged.stagedBundlePath.path))
+        }
+    }
+
+    /// The one state past undoing: the installer gone, the agent refusing to go.
+    /// Nothing applies on quit any more, and the outcome must say part of the
+    /// installer was removed. The installer goes first.
+    ///
+    /// Mutations: hard-code `touchedInstaller: false` (goes red); swap the phases
+    /// (the order expectation goes red).
+    @Test func anInstallerGoneButAnAgentLeftSaysSo() async throws {
+        try await withFixture { f in
+            let calls = Calls()
+            let outcome = await SparkleStagingClearance.clear(
+                for: f.app, staged: f.staged, cachesDirectory: f.caches,
+                system: system(f, calls: calls, alive: [804]))
+            #expect(calls.removed == [
                 "com.example.tinyweb-sparkle-updater", "com.example.tinyweb-sparkle-progress",
-            ], "every job is attempted, not just up to the first refusal")
+            ], "installer first, agent second")
             guard case .notCleared(_, let touched) = outcome else {
                 Issue.record("expected notCleared, got \(outcome)"); return
             }
-            #expect(touched, "the progress agent's job was removed")
+            #expect(touched)
             #expect(FileManager.default.fileExists(atPath: f.staged.stagedBundlePath.path))
         }
         try await withFixture { f in

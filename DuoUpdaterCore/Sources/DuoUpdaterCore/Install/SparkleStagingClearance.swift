@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 
@@ -26,10 +27,11 @@ import Foundation
 /// processes run, not by label: a label Sparkle renames is then a job this cannot
 /// find, which is the safe outcome.
 ///
-/// One failure cannot be undone: removal is per job, so a survivor can be left
-/// beside a job already removed. `.notCleared(touchedInstaller: true)` says so —
-/// the installer is then no longer the intact thing a "will apply when you quit"
-/// note describes, and the caller must not say that.
+/// Removal is in two phases, the progress agent last (see `attempt`), so an
+/// installer that survives never loses the agent the staged-install gates see.
+/// One failure is still past undoing: the installer gone, the agent refusing to
+/// go. `.notCleared(touchedInstaller: true)` says so — nothing then applies on
+/// quit, and the caller must not say it will.
 public enum SparkleStagingClearance {
 
     public enum Outcome: Equatable, Sendable {
@@ -55,6 +57,7 @@ public enum SparkleStagingClearance {
         public var executablePath: @Sendable (pid_t) -> String?
         public var removeJob: @Sendable (String) async -> Bool
         public var isAlive: @Sendable (pid_t) -> Bool
+        public var bundleIdentifier: @Sendable (pid_t) -> String?
         public var sleep: @Sendable (Duration) async -> Void
 
         public init(
@@ -62,12 +65,14 @@ public enum SparkleStagingClearance {
             executablePath: @escaping @Sendable (pid_t) -> String?,
             removeJob: @escaping @Sendable (String) async -> Bool,
             isAlive: @escaping @Sendable (pid_t) -> Bool,
+            bundleIdentifier: @escaping @Sendable (pid_t) -> String?,
             sleep: @escaping @Sendable (Duration) async -> Void
         ) {
             self.listJobs = listJobs
             self.executablePath = executablePath
             self.removeJob = removeJob
             self.isAlive = isAlive
+            self.bundleIdentifier = bundleIdentifier
             self.sleep = sleep
         }
 
@@ -81,6 +86,9 @@ public enum SparkleStagingClearance {
             },
             removeJob: { label in await launchctl(["remove", label]) != nil },
             isAlive: { pid in kill(pid, 0) == 0 || errno != ESRCH },
+            // A fresh instance per pid: `NSWorkspace.runningApplications` can be a
+            // stale snapshot off the main run loop, this lookup is not.
+            bundleIdentifier: { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier },
             sleep: { try? await Task.sleep(for: $0) })
     }
 
@@ -147,27 +155,31 @@ public enum SparkleStagingClearance {
 
         let described = installerJobs.map { "\($0.label) [\($0.pid)]" }.joined(separator: ", ")
         Log.install.notice("sparkle staging: removing \(app.name, privacy: .public)'s installer jobs \(described, privacy: .public) (staged \(staged.version, privacy: .public))")
-        // Every job, whatever each answers: what decides is whether the processes
-        // are gone afterwards, not the exit status — a job that exited by itself
-        // between the list and the removal fails `remove` and is exactly as gone.
-        var refused: [Job] = []
-        for job in installerJobs where !(await system.removeJob(job.label)) {
-            refused.append(job)
+
+        // Two phases, the progress agent LAST. The agent is the only thing every
+        // staged-install gate can see (`SelfUpdaterStaging.hasParkedSparkleInstaller`
+        // finds installers by its bundle identifier; `Autoupdate` has none). Removed
+        // while `Autoupdate` survives, the gates would go blind to an installer that
+        // still applies the stale build on quit — over whatever we install next.
+        // So the agent goes only once everything else is confirmed gone, and while
+        // an installer survives, the agent keeps the gates honest.
+        let isAgent: (Job) -> Bool = { job in
+            system.bundleIdentifier(job.pid).map(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains) ?? false
         }
-        let touched = refused.count < installerJobs.count
-        // `launchctl remove` sends SIGTERM; the measured exits took under 10 ms.
-        var survivors = installerJobs
-        for _ in 0..<30 {
-            survivors = survivors.filter { system.isAlive($0.pid) }
-            if survivors.isEmpty { break }
-            await system.sleep(.milliseconds(100))
-        }
-        guard survivors.isEmpty
+        let installers = installerJobs.filter { !isAgent($0) }
+        let agents = installerJobs.filter(isAgent)
+
+        let first = await removeAndWait(installers, system: system)
+        guard first.survivors.isEmpty
         else {
-            return .notCleared(
-                reason: "installer still running after removal: \(survivors.map(\.label))"
-                    + (refused.isEmpty ? "" : ", launchd refused \(refused.map(\.label))"),
-                touchedInstaller: touched)
+            // The agent is untouched, so the gates still see an armed installer
+            // and "will apply it when you quit it" is still what they say.
+            return .notCleared(reason: first.reason, touchedInstaller: false)
+        }
+        let second = await removeAndWait(agents, system: system)
+        guard second.survivors.isEmpty
+        else {
+            return .notCleared(reason: second.reason, touchedInstaller: !installers.isEmpty)
         }
 
         // Only now, with nothing left to act on it.
@@ -182,6 +194,29 @@ public enum SparkleStagingClearance {
         else { return .notCleared(reason: "staged bundle still on disk", touchedInstaller: true) }
         Log.install.notice("sparkle staging cleared: \(app.name, privacy: .public) — jobs gone, deleted \(stagingDirectory.path, privacy: .public)")
         return .cleared
+    }
+
+    /// Remove `jobs` and wait for their processes to go. Every job is attempted,
+    /// whatever each answers: what decides is whether the processes are gone
+    /// afterwards, not the exit status — a job that exited by itself between the
+    /// list and the removal fails `remove` and is exactly as gone.
+    private static func removeAndWait(
+        _ jobs: [Job], system: System
+    ) async -> (survivors: [Job], reason: String) {
+        var refused: [Job] = []
+        for job in jobs where !(await system.removeJob(job.label)) {
+            refused.append(job)
+        }
+        // `launchctl remove` sends SIGTERM; the measured exits took under 10 ms.
+        var survivors = jobs
+        for _ in 0..<30 {
+            survivors = survivors.filter { system.isAlive($0.pid) }
+            if survivors.isEmpty { break }
+            await system.sleep(.milliseconds(100))
+        }
+        return (survivors,
+                "still running after removal: \(survivors.map(\.label))"
+                    + (refused.isEmpty ? "" : ", launchd refused \(refused.map(\.label))"))
     }
 
     /// `Installation/<random>` for a bundle staged at

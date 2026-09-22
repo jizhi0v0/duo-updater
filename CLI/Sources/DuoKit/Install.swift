@@ -271,6 +271,14 @@ public enum Install {
                 return .refuse("App Store updates need the menu-bar app (the store's "
                     + "install path is not reachable from a CLI)", nil)
             }
+            // Both policy answers are also false when the app's own updater has
+            // already staged the latest — the row is Relaunch, not install. Say
+            // that, rather than blaming a source that does publish an artefact.
+            if let staged = UpdatePolicy.actionableStaged(
+                result, staged: environment.stagedSelfUpdates[result.id]) {
+                return .refuse("its own updater already has \(result.stagedRelaunchLine(staged).to) "
+                    + "staged — quit it to apply, or `duo restart`", nil)
+            }
             // #193 originally split this into two messages — "no artefact this
             // time" for a recognised source vs. "no route wired up yet" for one
             // `UpdatePolicy` has no case for — reasoning that the two situations

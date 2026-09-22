@@ -56,6 +56,26 @@ import DuoUpdaterCore
             stagedSelfUpdates: [:])
     }
 
+    /// TinyWeb 2026-09-22: Sparkle had staged the latest, so `canAutoInstall` and
+    /// `requiresInstaller` both said no and the refusal blamed the source
+    /// ("detection only"). The staged build is the real reason.
+    @Test func aStagedLatestBuildIsRefusedAsStagedNotDetectionOnly() {
+        let r = result(source: "Sparkle")
+        let decision = Install.classify(
+            r, settings: settings(),
+            environment: InstallEnvironment(
+                isHelperEnabled: false, runningAppPaths: [],
+                stagedSelfUpdates: [r.id: StagedSelfUpdate(
+                    version: "2.0", buildVersion: nil,
+                    stagedBundlePath: URL(fileURLWithPath: "/tmp/staged.app"))]))
+        guard case .refuse(let why, _) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.contains("already has 2.0 staged"))
+        #expect(!why.contains("detection only"))
+    }
+
     @Test func aVendorArchiveInstalls() {
         let decision = Install.classify(
             result(source: "Vendor"), settings: settings(), environment: environment())

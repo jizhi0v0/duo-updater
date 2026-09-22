@@ -212,20 +212,40 @@ import Foundation
         }
     }
 
-    /// The timeout counts from the shell's launch. The wait before the spawn (8 s,
-    /// injected) is longer than the timeout (5 s); a clock started at the call
+    /// The timeout counts from the shell's launch. A clock started at the call
     /// would give up before the shell existed — returning nil with no pid to kill,
-    /// and leaving the shell to start unwatched. The 5 s after launch cover a real
-    /// `zsh -l -i` and the task hops around it on a loaded 3-core runner.
+    /// and leaving the shell to start unwatched.
+    ///
+    /// The timer's clock is injected, so nothing here races real time. A timer
+    /// that starts sleeping while the spawn is still being held back finds its
+    /// timeout already spent (the pre-launch wait outlasted it), and gives up; one
+    /// that starts after the launch sleeps until the shell has answered and it is
+    /// cancelled. The spawn is held for 2 s or until a timer starts, whichever is
+    /// first, which only has to give a timer started at the call time to show
+    /// itself. It replaced a real 8 s wait against a real 5 s timeout: on the
+    /// 3-core runner, with the #763 backup tests in the same process, that 8 s
+    /// sleep took up to 34 s and the shell's answer took up to 10 s to come back
+    /// after launch (its rc files ran in ≤ 1.1 s; 20 instrumented runs,
+    /// 2026-09-22), so the real timeout won 5 times in 77 CI runs from 09-19.
     ///
     /// Mutation: drop `try await launched.waitForLaunch()` from `race` → nil.
     @Test func theTimeoutCountsFromTheShellsLaunch() async throws {
         let home = try Self.fixtureHome(zshrc: "export HOMEBREW_NO_AUTO_UPDATE=1")
         defer { try? FileManager.default.removeItem(at: home) }
         let environment = Self.fixtureEnvironment(home: home)
+        let timerStarted = Flag()
+        let spawnReleased = Flag()
         let variables = await LoginShellEnvironment.resolveHomebrewVariables(
             shell: "/bin/zsh", environment: environment, timeout: 5,
-            beforeSpawn: { try? await Task.sleep(for: .seconds(8)) })
+            beforeSpawn: {
+                _ = await Self.within(seconds: 2) { await timerStarted.wait() }
+                spawnReleased.set()
+            },
+            sleep: { _ in
+                timerStarted.set()
+                guard spawnReleased.value else { return }
+                try await Task.sleep(for: .seconds(600))
+            })
         #expect(variables?["HOMEBREW_NO_AUTO_UPDATE"] == "1")
     }
 
@@ -252,6 +272,7 @@ import Foundation
         private let lock = NSLock()
         private var isSet = false
         private var waiter: CheckedContinuation<Void, Never>?
+        var value: Bool { lock.withLock { isSet } }
         func set() {
             let c: CheckedContinuation<Void, Never>? = lock.withLock {
                 isSet = true

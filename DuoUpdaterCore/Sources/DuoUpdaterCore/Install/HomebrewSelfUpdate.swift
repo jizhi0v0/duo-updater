@@ -142,11 +142,14 @@ public enum LoginShellEnvironment {
     /// swift-subprocess's one worker thread, so a clock started at the call could
     /// expire before the shell existed, return nil without a pid to kill, and leave
     /// the shell to start afterwards with nobody watching it. `beforeSpawn` is a
-    /// test seam for that wait, and `timerExited` one for the timer's own end.
+    /// test seam for that wait, `timerExited` one for the timer's own end, and
+    /// `sleep` one for the timer's clock, so a test can tell whether the timer
+    /// started before or after the launch without racing it against real time.
     static func resolveHomebrewVariables(
         shell: String, environment: [String: String]?, timeout: TimeInterval,
         beforeSpawn: (@Sendable () async -> Void)? = nil,
-        timerExited: (@Sendable () -> Void)? = nil
+        timerExited: (@Sendable () -> Void)? = nil,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) async -> [String: String]? {
         let launched = LaunchedPID()
         let runner = Task {
@@ -167,7 +170,8 @@ public enum LoginShellEnvironment {
                 beforeSpawn: beforeSpawn)
         }
         guard case .finished(let outcome) = await race(
-            runner, launched: launched, within: timeout, timerExited: timerExited) else {
+            runner, launched: launched, within: timeout, timerExited: timerExited,
+            sleep: sleep) else {
             // SIGKILL, not SIGTERM: an interactive zsh ignores SIGTERM, so the
             // shell — and whatever in the rc file it is stuck waiting on — would keep
             // running, one more for every check. The shell's descendants are collected
@@ -202,7 +206,8 @@ public enum LoginShellEnvironment {
     /// in `waitForLaunch` for good: one leaked task per workbench refresh.
     private static func race(
         _ runner: Task<ChildProcess.Outcome?, Never>, launched: LaunchedPID,
-        within seconds: TimeInterval, timerExited: (@Sendable () -> Void)?
+        within seconds: TimeInterval, timerExited: (@Sendable () -> Void)?,
+        sleep: @escaping @Sendable (Duration) async throws -> Void
     ) async -> Race {
         let once = OnceRace()
         return await withCheckedContinuation { continuation in
@@ -211,7 +216,7 @@ public enum LoginShellEnvironment {
                 defer { timerExited?() }
                 do {
                     try await launched.waitForLaunch()
-                    try await Task.sleep(for: .seconds(seconds))
+                    try await sleep(.seconds(seconds))
                     once.resume(.timedOut)
                 } catch {}
             }

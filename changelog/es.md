@@ -2,6 +2,16 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.2
+
+**Qoder CN y Qoder CN IDE ya son compatibles.** Las ediciones para China continental de la app de escritorio y del IDE de Qoder tienen comprobación de actualizaciones e instalación con un clic, y sus notas de versión aparecen en la ventana.
+
+**Qoder IDE ya no cambia de opinión sobre cuál es la última versión.** Qoder distribuye las actualizaciones de forma gradual, y DuoUpdater ahora pregunta de la misma manera que tu copia del IDE, así que recibe siempre la misma respuesta. Antes, la versión ofrecida podía alternar entre dos versiones, y una instalación con un clic podía quedarse a medias porque la respuesta cambiaba.
+
+**Las apps que descargaron una actualización que ya quedó atrasada se pueden volver a actualizar.** Si el actualizador propio de una app descargó una versión y después salió otra más nueva, DuoUpdater ahora elimina la descarga antigua e instala la última. Antes, «Actualizar» repetía que instalar ahora se desharía, y la fila nunca cambiaba.
+
+**`duo install` te avisa cuando la última versión ya está esperando.** Si el actualizador propio de una app ya descargó la última versión, ahora lo dice y sugiere cerrar la app o ejecutar `duo restart`. Antes decía, por error, que la app solo se podía comprobar y no instalar.
+
 ## 0.4.1
 
 **搜狗输入法 ya se actualiza con un clic.** DuoUpdater lo aplica igual que el propio método de entrada se actualiza —el paquete instalado se queda donde está— y antes copia tu diccionario y tus ajustes, así una reversión también los recupera.

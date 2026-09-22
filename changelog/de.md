@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.2
+
+**Qoder CN und Qoder CN IDE werden jetzt unterstützt.** Die Festlandchina-Ausgaben von Qoders Desktop-App und IDE bekommen Update-Prüfungen und die Installation mit einem Klick, und ihre Versionshinweise erscheinen im Fenster.
+
+**Qoder IDE ändert seine Meinung über die neueste Version nicht mehr.** Qoder verteilt Updates schrittweise, und DuoUpdater fragt jetzt genauso wie deine IDE selbst, sodass es jedes Mal dieselbe Antwort bekommt. Bisher konnte die angebotene Version zwischen zwei Releases hin- und herspringen, und eine Installation mit einem Klick konnte auf halbem Weg abbrechen, weil sich die Antwort geändert hatte.
+
+**Apps, deren heruntergeladenes Update inzwischen veraltet ist, lassen sich wieder aktualisieren.** Hat der eigene Updater einer App einen Build geladen und ist danach ein neuerer erschienen, entfernt DuoUpdater jetzt den alten Download und installiert den neuesten. Bisher meldete „Aktualisieren“ immer wieder, dass eine Installation jetzt rückgängig gemacht würde, und die Zeile änderte sich nie.
+
+**`duo install` sagt dir, wenn der neueste Build schon bereitliegt.** Hat der eigene Updater einer App die neueste Version bereits geladen, sagt es das jetzt und schlägt vor, die App zu beenden oder `duo restart` auszuführen. Bisher behauptete es fälschlich, die App lasse sich nur prüfen, nicht installieren.
+
 ## 0.4.1
 
 **搜狗输入法 lässt sich jetzt mit einem Klick aktualisieren.** DuoUpdater spielt das Update so ein, wie die Eingabemethode sich selbst aktualisiert – das installierte Bundle bleibt dabei an seinem Platz – und sichert vorher dein Wörterbuch und deine Einstellungen, damit ein Rücksetzen auch die zurückbringt.

@@ -3281,14 +3281,16 @@ final class AppListModel {
     }
 
     /// The red line under a row's name: its install error, else — on an Xcode
-    /// row whose Apple Developer session Apple has ended — that. Not stored in
+    /// row offering Sign In… because Apple ended the session — that. Keyed on
+    /// the row's own route, so the line and the button appear together: an
+    /// up-to-date, ignored or skipped Xcode row stays quiet. Not stored in
     /// `installErrors`, which the many paths that clear it would wipe while the
     /// session is still expired; this reads the session itself, so the line
     /// goes away exactly when signing in brings the Update button back.
     func installErrorText(for result: UpdateResult) -> String? {
         if let error = installErrors[result.id] { return error }
-        guard isXcodeRow(result), canAutoInstall(result),
-              AppleDeveloperSession.shared.signInNeed == .expired
+        guard isXcodeRow(result), isActionableUpdate(result),
+              rowRoute(for: result) == .appleSignIn(.expired)
         else { return nil }
         return AppleDeveloperSession.expiredMessage
     }

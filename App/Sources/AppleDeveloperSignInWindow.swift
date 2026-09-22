@@ -83,10 +83,13 @@ extension AppleDeveloperSignInWindow: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let host = webView.url?.host, host.hasSuffix("developer.apple.com") else { return }
         Task {
-            let signedIn = await AppleDeveloperSession.shared.refreshSignedInState()
-            guard signedIn else { return }
-            await AppleDeveloperSession.shared.save()
-            AppleDeveloperSession.shared.noteConfirmed()
+            let session = AppleDeveloperSession.shared
+            guard await session.refreshSignedInState() else { return }
+            // A `myacinfo` left over from an ended session is still a cookie;
+            // ask Apple before calling this a sign-in. `check()` saves and
+            // stamps `lastConfirmed` only on a real "signed in".
+            guard await session.check() != .expired else { return }
+            await session.save()
             self.finish(signedIn: true)
         }
     }

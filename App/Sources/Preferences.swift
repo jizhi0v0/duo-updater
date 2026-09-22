@@ -792,6 +792,15 @@ final class Preferences {
         }
     }
 
+    /// Ignore whatever app will be at `path`, before it exists — Settings →
+    /// Xcode's side-by-side install marks its new copy so it is never offered an
+    /// update. Returns whether the key was newly added, so a failed install
+    /// removes only what it added.
+    @discardableResult
+    func ignore(path: URL) -> Bool {
+        ignoredKeys.insert(InstallPreferenceKey.preferenceKey(path.path)).inserted
+    }
+
     // MARK: - Declined administrator prompts
 
     func isElevationDeclined(_ app: InstalledApp) -> Bool {

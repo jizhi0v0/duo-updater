@@ -157,14 +157,39 @@ public enum XcodeInstaller {
         runningExecutables: @Sendable @escaping () -> [String] = AppRestarter.runningExecutablePaths,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
-        let archive = download.archiveURL
+        let newApp = try await verifiedExpansion(
+            of: download.archiveURL, in: download.workDir, onStage: onStage)
 
+        // (e) The gates every swap runs, against the copy being replaced.
+        onStage(.verifyingCodeSignature)
+        try await SignatureVerifier.verifyInstallArtifact(
+            downloadedApp: newApp, installedApp: result.app.path)
+
+        // (f) Replace in place, at the installed path — unless this Xcode was
+        // opened while we downloaded (g). Quarantine (h) is stripped inside
+        // `replace`.
+        onStage(.installing)
+        try await Self.swapUnlessRunning(
+            over: result.app.path, runningExecutables: runningExecutables,
+            swap: { _ = try await InPlaceSwap.replace(newApp: newApp, over: result.app.path) })
+        onStage(.done)
+    }
+
+    /// Steps (a)–(d) of `apply`, shared with `XcodeSideBySideInstaller`: room to
+    /// expand, Apple's signature on the archive, `xip --expand` into
+    /// `workDir/expanded`, and the one `.app` that came out. Nothing outside
+    /// `workDir` is touched.
+    static func verifiedExpansion(
+        of archive: URL,
+        in workDir: URL,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) async throws -> URL {
         // (a) Room to expand, before spending a minute on it.
         onStage(.verifyingSignature)
         let (archiveBytes, available) = try await offCooperativePool {
             let size = try FileManager.default.attributesOfItem(atPath: archive.path)[.size] as? Int64 ?? 0
             // A fresh URL, not one that may carry cached resource values.
-            let values = try URL(fileURLWithPath: download.workDir.path)
+            let values = try URL(fileURLWithPath: workDir.path)
                 .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             return (size, values.volumeAvailableCapacityForImportantUsage ?? 0)
         }
@@ -185,9 +210,10 @@ public enum XcodeInstaller {
 
         // (c) Expand. `xip` writes into its working directory, so it gets one of
         // its own. Killed on cancel: it only ever writes inside the scratch dir,
-        // which the coordinator removes on every exit.
+        // which its owner (the coordinator, or the side-by-side install) removes
+        // on every exit.
         onStage(.extracting)
-        let expanded = download.workDir.appendingPathComponent("expanded", isDirectory: true)
+        let expanded = workDir.appendingPathComponent("expanded", isDirectory: true)
         try FileManager.default.createDirectory(at: expanded, withIntermediateDirectories: true)
         let expand = try await ChildProcess.run(
             "/usr/bin/xip", ["--expand", archive.path],
@@ -203,21 +229,7 @@ public enum XcodeInstaller {
         }
 
         // (d) Exactly one app came out.
-        let newApp = try await offCooperativePool { try Self.expandedApp(in: expanded) }
-
-        // (e) The gates every swap runs, against the copy being replaced.
-        onStage(.verifyingCodeSignature)
-        try await SignatureVerifier.verifyInstallArtifact(
-            downloadedApp: newApp, installedApp: result.app.path)
-
-        // (f) Replace in place, at the installed path — unless this Xcode was
-        // opened while we downloaded (g). Quarantine (h) is stripped inside
-        // `replace`.
-        onStage(.installing)
-        try await Self.swapUnlessRunning(
-            over: result.app.path, runningExecutables: runningExecutables,
-            swap: { _ = try await InPlaceSwap.replace(newApp: newApp, over: result.app.path) })
-        onStage(.done)
+        return try await offCooperativePool { try Self.expandedApp(in: expanded) }
     }
 
     /// The last look before the disk changes: refuse if anything is running from

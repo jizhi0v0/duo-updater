@@ -45,7 +45,7 @@ struct XcodeSettingsPage: View {
         }
         .task { await refresh() }
         .task { await downloads.reload() }
-        // Signing in — here, from a row's "Sign In & Download…", or noticed by
+        // Signing in — here, from a row's "Sign In & Install…", or noticed by
         // the hourly check — brings Apple's list in without pressing refresh.
         .onChange(of: session.signInNeed == nil) { _, signedIn in
             if signedIn { Task { await downloads.reload() } }
@@ -142,7 +142,7 @@ struct XcodeSettingsPage: View {
         SettingsCard(
             header: "Download Xcode",
             headerInfo: "The list comes from [xcodereleases.com](https://xcodereleases.com), a community-kept index of every Xcode release — thank you! When you're signed in, Apple's own download list is merged in, so new releases appear within minutes. That approach, and how to reach Apple's list, we learned from [xcodes](https://github.com/XcodesOrg/xcodes), the open-source tool that downloads and installs Xcode — thank you too. The archives themselves always come straight from Apple.",
-            footer: "Saves the Xcode archive (.xip) to your Downloads folder — open it to expand Xcode, then move it where you like. Nothing is installed or replaced. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed."
+            footer: "Install puts the version you pick in Applications as its own copy — for example Xcode-26.6.app — beside any Xcode already there, then opens it. Nothing installed is replaced, and DuoUpdater won't offer that copy updates (undo in Library → Ignored). Or choose Download Only to save the archive (.xip) to Downloads. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed."
         ) {
             HStack {
                 Picker("", selection: $showBetas) {
@@ -224,6 +224,18 @@ struct XcodeSettingsPage: View {
                 Text(downloadDetail(item))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if downloads.installed[item.id] == nil, let build = item.build,
+                   let app = downloads.installedBuilds[build] {
+                    Text("Already installed as \(app.lastPathComponent)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let app = downloads.installed[item.id] {
+                    Text("Installed as \(app.lastPathComponent) · not offered updates (Library → Ignored)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let error = downloads.errors[item.id] {
                     Text(error)
                         .font(.caption)
@@ -233,11 +245,18 @@ struct XcodeSettingsPage: View {
             }
             Spacer(minLength: 12)
             if downloads.activeID == item.id {
-                ProgressView(value: downloads.progress)
-                    .frame(width: 80)
-                Text("\(Int(downloads.progress * 100))%")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                if downloads.phase == .downloading {
+                    ProgressView(value: downloads.progress)
+                        .frame(width: 80)
+                    Text("\(Int(downloads.progress * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.small)
+                    Text(phaseText(downloads.phase))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Button {
                     downloads.cancel()
                 } label: {
@@ -245,6 +264,18 @@ struct XcodeSettingsPage: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Cancel download")
+            } else if let app = downloads.installed[item.id] {
+                Button("Open") { NSWorkspace.shared.open(app) }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([app])
+                }
+            } else if let build = item.build, let app = downloads.installedBuilds[build],
+                      downloads.finished[item.id] == nil {
+                // Already here: a second copy of the same build would only take
+                // 4 GB more, so the archive is still on offer, the install is not.
+                Button("Open") { NSWorkspace.shared.open(app) }
+                Button("Download Only (.xip)") { downloads.download(item) }
+                    .disabled(downloads.activeID != nil)
             } else if let file = downloads.finished[item.id] {
                 SettingsInfoButton("Opening the archive only expands it — nothing is installed yet:\n\n1. **Open** expands it next to the archive (about a minute, ~4 GB). A beta becomes Xcode-beta.app; a release or RC becomes Xcode.app.\n2. Drag it into Applications. To keep another Xcode there, rename this one first — for example Xcode-26.6.app.\n3. Open it. Xcode asks you to accept its license and installs its components (your password), and offers the platforms such as the iOS Simulator.\n4. Optional: to use it from Terminal, choose it in Xcode → Settings → Locations → Command Line Tools.\n\nDuoUpdater offers updates for any Xcode in Applications, this one included.")
                 Button("Open") {
@@ -258,15 +289,30 @@ struct XcodeSettingsPage: View {
                 }
             } else {
                 // Says so up front when the click will open Apple's sign-in first.
-                Button(session.signInNeed == nil
-                       ? String(localized: "Download")
-                       : String(localized: "Sign In & Download…")) {
-                    downloads.download(item)
+                Menu {
+                    Button("Download Only (.xip)") { downloads.download(item) }
+                } label: {
+                    Text(session.signInNeed == nil
+                         ? String(localized: "Install")
+                         : String(localized: "Sign In & Install…"))
+                } primaryAction: {
+                    downloads.install(item)
                 }
+                .fixedSize()
                 .disabled(downloads.activeID != nil)
+                .help("Install as \(XcodeSideBySideInstaller.bundleName(forVersion: item.displayVersion)) in Applications, beside any Xcode already there, and open it")
             }
         }
         .settingsRow()
+    }
+
+    private func phaseText(_ phase: XcodeDownloadCenter.Phase) -> String {
+        switch phase {
+        case .downloading: return String(localized: "Downloading…")
+        case .verifying: return String(localized: "Verifying…")
+        case .expanding: return String(localized: "Expanding…")
+        case .installing: return String(localized: "Installing…")
+        }
     }
 
     /// Where the list came from — so a refresh visibly did something, and a

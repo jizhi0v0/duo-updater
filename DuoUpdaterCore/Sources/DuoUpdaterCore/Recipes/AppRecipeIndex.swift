@@ -26,6 +26,7 @@ public enum AppRecipeIndex {
         com_1password_1password.set,
         com_aionui_app.set,
         com_alienator88_Pearcleaner.set,
+        com_aliyun_lingma_ide.set,
         com_ameba_SwiftBar.set,
         com_amunx_rockxy_community.set,
         com_anthropic_claudefordesktop.set,

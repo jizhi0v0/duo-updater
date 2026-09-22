@@ -9,7 +9,7 @@
 > | Qoder IDE | `com.qoder.ide` | `T27K5A5ZWD` | [com-qoder-ide.md](com-qoder-ide.md) |
 > | Qoder（国际版桌面 app） | `com.qoder.app` | `B6U242QL73` | [com-qoder-app.md](com-qoder-app.md) |
 > | **Qoder CN**（这份） | `com.qodercn.app` | `9DFNGU9AK5` | — |
-> | Qoder CN IDE | `com.aliyun.lingma.ide` | `9DFNGU9AK5`（厂商声明，未下包核实） | 没审计 |
+> | Qoder CN IDE | `com.aliyun.lingma.ide` | `9DFNGU9AK5` | [com-aliyun-lingma-ide.md](com-aliyun-lingma-ide.md) |
 >
 > 后两个的 bundle id 和 Team 出自 CN 安装器壳自己的 `installer-manifest.json`
 > （`expectedIdeTeamIdentifier` / `expectedQoderTeamIdentifier` 都是 `9DFNGU9AK5`，
@@ -115,9 +115,7 @@ swift test --package-path DuoUpdaterCore --filter QoderRecipeTests
 
 ## 建议下一步
 
-- Qoder CN IDE（`com.aliyun.lingma.ide`）还没审计。它在 CN 安装器清单里的下载地址是
-  `qoder-ide-cn.oss-cn-hangzhou.aliyuncs.com/qoder/release/lastest/Qoder-CN-IDE-darwin-arm64.dmg`
-  （路径里是厂商自己的拼写 `lastest`）；更新走什么没查。
+- 无。Qoder CN IDE 已另行接入（[com-aliyun-lingma-ide.md](com-aliyun-lingma-ide.md)）。
 
 ## 历史与实测
 

@@ -74,7 +74,7 @@ import Foundation
     @Test func appleSiliconGetsTheArm64OnlyArchive() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "17F42", in: XcodeReleasesSource.parse(Self.splitFeed),
-            osVersion: Self.host, host: .arm64, followsBetaLine: false))
+            osVersion: Self.host, host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.version == "17F113")
         #expect(remote.downloadURL?.absoluteString == Self.path("Xcode_26.6_Apple_silicon.xip"))
         #expect(remote.requiresManualInstaller == false)
@@ -83,7 +83,7 @@ import Foundation
     @Test func intelGetsTheUniversalArchive() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "17F42", in: XcodeReleasesSource.parse(Self.splitFeed),
-            osVersion: Self.host, host: .x86_64, followsBetaLine: false))
+            osVersion: Self.host, host: .x86_64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.downloadURL?.absoluteString == Self.path("Xcode_26.6_Universal.xip"))
         #expect(remote.requiresManualInstaller == false)
     }
@@ -121,7 +121,7 @@ import Foundation
             .filter { $0.architectures != ["arm64", "x86_64"] }
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "17F42", in: armOnly,
-            osVersion: Self.host, host: .x86_64, followsBetaLine: false))
+            osVersion: Self.host, host: .x86_64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.version == "17F113")
         #expect(remote.downloadURL == nil)
         #expect(remote.requiresManualInstaller == true)
@@ -133,7 +133,7 @@ import Foundation
         """.utf8)
         let unknown = try #require(XcodeReleasesSource.remote(
             forBuild: "ZZ1", in: XcodeReleasesSource.parse(unlabelled),
-            osVersion: Self.host, host: .arm64, followsBetaLine: false))
+            osVersion: Self.host, host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(unknown.version == "ZZ2")
         #expect(unknown.downloadURL == nil)
     }
@@ -169,7 +169,7 @@ import Foundation
             forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.lineFeed),
             osVersion: Self.host, host: .arm64,
             followsBetaLine: XcodeReleasesSource.followsBetaLine(
-                installedAt: URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app"))))
+                installedAt: URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app")), installedBeta: nil))
         #expect(remote.version == "27B5019j")
         #expect(remote.downloadURL?.absoluteString
             == "https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_27.2_beta/Xcode_27.2_beta.xip")

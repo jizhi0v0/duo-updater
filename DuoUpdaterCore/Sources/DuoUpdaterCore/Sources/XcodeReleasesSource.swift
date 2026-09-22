@@ -58,7 +58,9 @@ import Foundation
 /// installed one and read its release kind. That's authoritative and immune to
 /// renaming, and when the build isn't in the index at all we return nil rather than
 /// guess — an unknown seed compared against the wrong track is exactly how a beta
-/// user gets offered a downgrade.
+/// user gets offered a downgrade. The one exception is a bundle that says itself
+/// that it is a beta (`BetaVersion.plist`): it is ranked where the index would
+/// rank it and offered only what is strictly above (`fallbackOffer`).
 ///
 /// Offers follow a stability floor (the model `ReleaseChannel` uses elsewhere): an
 /// install is offered anything at or above its own stability, never below. A beta
@@ -116,7 +118,108 @@ public struct XcodeReleasesSource: UpdateSource {
 
         return Self.remote(
             forBuild: installedBuild, in: try await fetch(), osVersion: HostOS.numericVersion(),
-            host: .current, followsBetaLine: Self.followsBetaLine(installedAt: app.path))
+            host: .current, followsBetaLine: Self.followsBetaLine(installedAt: app.path),
+            installedBeta: Self.installedBeta(at: app.path, shortVersion: app.shortVersion))
+    }
+
+    /// What a beta bundle says about itself: its marketing version and the seed
+    /// in `Contents/Resources/BetaVersion.plist` (`{ seedNumber = "5"; }` in the
+    /// 27.0 beta 5 bundle; an RC or GA bundle has no such file). Only consulted
+    /// when the index does not list the installed build — see `fallbackOffer`.
+    struct InstalledBeta: Sendable, Equatable {
+        let shortVersion: String
+        let seed: Int
+    }
+
+    /// Reads the file at check time. Nil when there is none, it does not parse,
+    /// or the bundle has no marketing version.
+    static func installedBeta(at bundle: URL, shortVersion: String?) -> InstalledBeta? {
+        guard let shortVersion,
+              let data = try? Data(contentsOf: bundle.appendingPathComponent(
+                "Contents/Resources/BetaVersion.plist")),
+              let seed = betaSeed(fromBetaVersionPlist: data)
+        else { return nil }
+        return InstalledBeta(shortVersion: shortVersion, seed: seed)
+    }
+
+    /// `seedNumber` from a `BetaVersion.plist`, as a string ("5", as measured) or
+    /// a number. Nil outside 1…899: 900 and up is where the index ranks RCs.
+    static func betaSeed(fromBetaVersionPlist data: Data) -> Int? {
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
+                as? [String: Any]
+        else { return nil }
+        let seed: Int?
+        switch plist["seedNumber"] {
+        case let text as String: seed = Int(text.trimmingCharacters(in: .whitespaces))
+        case let number as Int: seed = number
+        default: seed = nil
+        }
+        guard let seed, (1...899).contains(seed) else { return nil }
+        return seed
+    }
+
+    /// Where the index would rank "`version` beta `seed`" in `_versionOrder`:
+    /// `major·10⁹ + minor·10⁶ + patch·10³ + seed`. Checked 2026-09-22 against the
+    /// live index: the same formula (with 900+n for RC n and 999 for a release)
+    /// reproduces all 412 beta, RC, release and GM entries exactly; only the old
+    /// "GM seed" and "DP" entries follow other rules, and neither is a beta.
+    /// Nil for a version that does not parse into at most three numbers with
+    /// minor and patch under 1000.
+    static func rank(ofBetaSeed seed: Int, version: String) -> Int? {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(parts.count) else { return nil }
+        var numbers: [Int] = []
+        for part in parts {
+            guard !part.isEmpty, part.allSatisfy(\.isASCII), let n = Int(part), n >= 0 else { return nil }
+            numbers.append(n)
+        }
+        while numbers.count < 3 { numbers.append(0) }
+        guard numbers[1] < 1000, numbers[2] < 1000, (1...899).contains(seed),
+              numbers[0] < 1_000_000 else { return nil }
+        return numbers[0] * 1_000_000_000 + numbers[1] * 1_000_000 + numbers[2] * 1_000 + seed
+    }
+
+    /// The installed release and the offer for a build the index does NOT list,
+    /// from what the bundle says about itself — the window between Apple shipping
+    /// a seed and xcodereleases.com listing it. Nil when `beta` cannot be ranked.
+    ///
+    /// Two rules keep this honest, because a guess here is either a downgrade or
+    /// a false "up to date":
+    ///
+    /// - Only a release ranked STRICTLY above the installed seed is offered, with
+    ///   the beta floor and the host's macOS floor as usual. Equal is not above.
+    /// - When nothing is above it but the index lists a DIFFERENT build at the
+    ///   same rank — a respin of that seed (Apple has shipped two "beta 1"s) —
+    ///   which of the two is newer cannot be told, so this answers nil, exactly
+    ///   as an unknown build always did. Only when nothing ties is the copy its
+    ///   own offer: it is ahead of everything the index knows.
+    ///
+    /// `remote` then places the installed build in the lineage at this rank, so
+    /// `UpdateChecker.evaluate` can order the pair instead of failing.
+    static func fallbackOffer(
+        forBuild installedBuild: String, beta: InstalledBeta,
+        in releases: [Release], osVersion: String
+    ) -> (installed: Release, offer: Release)? {
+        guard let rank = rank(ofBetaSeed: beta.seed, version: beta.shortVersion),
+              let installed = Release(json: [
+                "name": "Xcode",
+                "_versionOrder": rank,
+                "version": [
+                    "number": beta.shortVersion, "build": installedBuild,
+                    "release": ["beta": beta.seed],
+                ] as [String: Any],
+              ])
+        else { return nil }
+        let newer = releases.filter {
+            $0.order > rank
+                && $0.stability >= .beta
+                && SignatureVerifier.canRun(minimumSystemVersion: $0.requires, on: osVersion)
+        }
+        if let latest = newer.max(by: { $0.order < $1.order }) {
+            return (installed, latest)
+        }
+        if releases.contains(where: { $0.order == rank }) { return nil }
+        return (installed, installed)
     }
 
     /// Whether the copy at `path` stays on the beta line whatever it reads as —
@@ -134,12 +237,23 @@ public struct XcodeReleasesSource: UpdateSource {
     /// default would let a test silently measure whichever Mac it runs on.
     static func remote(
         forBuild installedBuild: String, in releases: [Release], osVersion: String,
-        host: HostArch, followsBetaLine: Bool
+        host: HostArch, followsBetaLine: Bool, installedBeta: InstalledBeta?
     ) -> RemoteVersion? {
-        guard let (installed, offer) = Self.offer(
+        let installed: Release, offer: Release
+        // The releases the lineage is built from: the index, plus the installed
+        // build at its derived rank when the index does not list it.
+        var ranked = releases
+        if let known = Self.offer(
             forBuild: installedBuild, in: releases, osVersion: osVersion,
-            followsBetaLine: followsBetaLine)
-        else { return nil }
+            followsBetaLine: followsBetaLine) {
+            (installed, offer) = known
+        } else if let installedBeta, let guessed = Self.fallbackOffer(
+            forBuild: installedBuild, beta: installedBeta, in: releases, osVersion: osVersion) {
+            (installed, offer) = guessed
+            ranked.append(guessed.installed)
+        } else {
+            return nil
+        }
         // Nil when no archive of the offered build fits this Mac, or none has a URL
         // `authorizedDownloadURL` accepts — the row is then detection-only.
         let download = Self.chooseDownload(
@@ -186,7 +300,7 @@ public struct XcodeReleasesSource: UpdateSource {
             // beta read as AHEAD of its own RC — "up to date", with the RC drawn as a
             // downgrade. The index's `_versionOrder` is the order, so it decides
             // "newer" in the engine exactly as it decided the offer above.
-            buildLineage: Self.lineage(of: releases)
+            buildLineage: Self.lineage(of: ranked)
         )
     }
 

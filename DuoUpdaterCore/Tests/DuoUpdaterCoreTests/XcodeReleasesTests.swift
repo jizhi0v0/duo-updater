@@ -159,7 +159,7 @@ import Foundation
                 "precondition: this ordering is why the build string cannot decide it")
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A5237l", in: XcodeReleasesSource.parse(Self.rcFeed),
-            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false))
+            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.version == "27A266a")
 
         let app = Self.installedXcode(build: "27A5237l")
@@ -173,7 +173,7 @@ import Foundation
     @Test func theInstalledRCIsUpToDate() throws {
         let remote = try #require(XcodeReleasesSource.remote(
             forBuild: "27A266a", in: XcodeReleasesSource.parse(Self.rcFeed),
-            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false))
+            osVersion: Self.modernHost, host: .arm64, followsBetaLine: false, installedBeta: nil))
         let app = Self.installedXcode(build: "27A266a")
         let status = UpdateChecker.evaluate(installed: app, remote: remote)
         #expect(status == .upToDate)

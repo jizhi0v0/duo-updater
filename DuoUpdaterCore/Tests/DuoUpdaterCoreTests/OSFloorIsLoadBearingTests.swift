@@ -215,7 +215,7 @@ import Foundation
             name: "Xcode-beta", bundleID: XcodeReleasesSource.bundleID,
             short: "27.0", build: "27A5237l")
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0", host: .arm64, followsBetaLine: false))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0", host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
@@ -225,7 +225,7 @@ import Foundation
     /// `LSMinimumSystemVersion`, not this.
     @Test func theXcodeRemoteCarriesTheOfferedReleasesFloor() throws {
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0", host: .arm64, followsBetaLine: false))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0", host: .arm64, followsBetaLine: false, installedBeta: nil))
         #expect(remote.version == "27A266a")
         #expect(remote.minimumSystemVersion == "26.6")
     }

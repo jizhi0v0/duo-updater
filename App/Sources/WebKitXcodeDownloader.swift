@@ -213,7 +213,10 @@ extension DownloadJob: WKNavigationDelegate {
     /// into a download — see `expectingDownloadHandoff`'s doc comment. Any
     /// other error, or the same error outside that window, is not swallowed.
     private func consumeExpectedDownloadHandoffFailure(_ error: Error) -> Bool {
-        guard expectingDownloadHandoff else { return false }
+        // `download != nil` as well as the flag: the probe logged the 102 before
+        // the destination callback, but never logged where `didBecome download`
+        // falls relative to it — if it comes first, the flag is already clear.
+        guard expectingDownloadHandoff || download != nil else { return false }
         let nsError = error as NSError
         guard nsError.domain == Self.webKitErrorDomain,
               nsError.code == Self.frameLoadInterruptedCode

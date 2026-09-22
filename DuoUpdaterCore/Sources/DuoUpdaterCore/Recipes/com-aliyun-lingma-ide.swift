@@ -26,7 +26,8 @@ enum com_aliyun_lingma_ide {
         //
         // ⚠️ STAGED ROLLOUT, keyed on `machineId` — the same scheme as the global
         // IDE's `center.qoder.sh` (see `Recipes/com-qoder-ide.swift` for the
-        // mechanism and why the id is read, never recomputed or made up). Without
+        // mechanism, why the id is read and never recomputed, and the fixed id
+        // used when there is none). Without
         // an id the answer alternates per request between the newest release and
         // the one before it; with the app's own id it is the answer the app's
         // updater gets, every time. The same Mac holds the same id in both IDEs

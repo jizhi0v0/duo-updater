@@ -628,14 +628,14 @@ private let qoderCNIDENotesFixture = #"""
     /// Each IDE sends its OWN app's id, from its own data directory. Without
     /// it the server buckets every request afresh and the answer flaps; a
     /// recipe reading the other IDE's directory would still work on a Mac with
-    /// both installed and silently skip on one with only this one.
+    /// both installed and quietly send the fixed fallback on one with only
+    /// this one.
     @Test(arguments: [("com.qoder.ide", "Qoder", "center.qoder.sh"),
                       ("com.aliyun.lingma.ide", "QoderCN", "lingma-api.tongyi.aliyun.com")])
     func eachIDESendsItsOwnMachineID(bundleID: String, directory: String, host: String) throws {
         let recipe = try probe(bundleID)
         let identity = try #require(recipe.identities.first)
         #expect(recipe.identities.count == 1)
-        #expect(identity.fallback == nil)
         let root = try appSupport(directory, storage: storageJSON(machineID: Self.machineID))
         let resolved = try #require(identity.resolve(recipe.url, applicationSupportDirectory: root))
         #expect(resolved.host == host)
@@ -643,18 +643,27 @@ private let qoderCNIDENotesFixture = #"""
 
         let other = try appSupport(directory == "Qoder" ? "QoderCN" : "Qoder",
                                    storage: storageJSON(machineID: Self.machineID))
-        #expect(identity.resolve(recipe.url, applicationSupportDirectory: other) == nil)
+        #expect(identity.resolve(recipe.url, applicationSupportDirectory: other)?.query
+            == "machineId=\(ProbeIdentity.vsCodeMachineIDFallback)")
     }
 
-    /// Never launched → no `storage.json` → skip, never a made-up id: any
-    /// non-empty id is bucketed, so an invented one names a stranger's device.
-    @Test func aMissingStorageFileSkipsRatherThanInventing() throws {
-        let recipe = try probe("com.aliyun.lingma.ide")
+    /// Never launched → no `storage.json` → one fixed id, never a skip: a
+    /// skipped recipe leaves the app unchecked, and on a sweep machine without
+    /// the app, unwatched. Fixed rather than random so the answer is stable.
+    @Test(arguments: ["com.qoder.ide", "com.aliyun.lingma.ide"])
+    func aMissingStorageFileFallsBackToOneFixedID(bundleID: String) throws {
+        let recipe = try probe(bundleID)
         let identity = try #require(recipe.identities.first)
-        let root = try appSupport("QoderCN", storage: nil)
-        #expect(identity.resolve(recipe.url, applicationSupportDirectory: root) == nil)
-        let empty = try appSupport("QoderCN", storage: storageJSON(machineID: ""))
-        #expect(identity.resolve(recipe.url, applicationSupportDirectory: empty) == nil)
+        #expect(identity.fallback == ProbeIdentity.vsCodeMachineIDFallback)
+        let expected = "machineId=\(ProbeIdentity.vsCodeMachineIDFallback)"
+        let missing = try appSupport("Elsewhere", storage: nil)
+        let blank = try appSupport(bundleID == "com.qoder.ide" ? "Qoder" : "QoderCN",
+                                   storage: storageJSON(machineID: ""))
+        for root in [missing, blank] {
+            let resolved = try #require(identity.resolved(recipe.url, applicationSupportDirectory: root))
+            #expect(resolved.url.query == expected)
+            #expect(resolved.provenance == .fallback)
+        }
     }
 
     /// VS Code stores a UUID when it could read no MAC; that is still the id

@@ -59,7 +59,7 @@
   不认识的 commit（包括 `latest`、全 0、国际版 1.31.2 的 commit）一律回答
   `Lingma 0.11.4`（`lingma-ide.oss-rg-china-mainland.aliyuncs.com/release/0.11.4/Lingma-darwin-arm64.zip`）。
 - ⚠️ **按 `machineId` 灰度**，机制同 [Qoder IDE](com-qoder-ide.md)（那份写了 id 怎么来、为什么只读不算、
-  读不到为什么不造）。不带 id 时每个请求重新随机分桶，同一请求连打 15 次：`latest` 是 9 次 1.31.2 / 6 次 1.31.1，
+  读不到时用的固定 id）。不带 id 时每个请求重新随机分桶，同一请求连打 15 次：`latest` 是 9 次 1.31.2 / 6 次 1.31.1，
   `1.31.1` 是 7 次 1.31.2 / 8 次 204——这就是接入时看到的「逐请求抖动」。recipe 带
   `~/Library/Application Support/QoderCN/User/globalStorage/storage.json` 的 `telemetry.machineId`，
   拿到的就是 app 自己的更新器拿到的答案。`umid` 不参与分桶，不发。
@@ -93,9 +93,9 @@
 
 ## 已知问题
 
-- 按设备灰度期间，DuoUpdater 与 IDE 自己同步，不会更早提示。手动装了更新版本的机器（如接入时的开发机：
-  装着 1.31.2，本机 id 仍在 1.31.1 的桶）上 `duo verify` 会报 remote BEHIND，直到放量到这台机器。
-- 没装或没打开过这个 IDE 的机器（包括扫描机）跳过这条 recipe。
+- 按设备灰度期间，DuoUpdater 与 IDE 自己同步，不会更早提示。手动装了更新版本、而本机 id 还在旧桶的机器上
+  `duo verify` 会报 remote BEHIND，直到放量到这台机器（接入当天的开发机就是这样，约一小时后放量完成、警告消失）。
+- 读不到 id 的机器（包括扫描机）用固定合成 id（见 Qoder IDE 审计），灰度期间可能晚于真实用户看到新版。
 - 说明页落后于发布。
 
 ## 如何复验
@@ -153,3 +153,6 @@ latest   6× 200 1.31.1 / 9× 200 1.31.2
 固定在 1.31.2——任何非空值都会被分桶。app 的 `main.log` 里发出去的 `machineId` 与
 `storage.json` 的 `telemetry.machineId` 相同。删掉这一项后重启 app，3 秒内写回同一个值（按 en0 MAC 重算，
 en0 当前是私有地址，与硬件地址不同）。本机真实 id 问 `latest` 4 次都是 1.31.1、问 `1.31.1` 3 次都是 204。
+
+同日约一小时后复测：20 个随机 id 全部 1.31.2（一小时前 6/20），64 个 `0` 由 1.31.1 变为 1.31.2，本机真实 id
+也变为 1.31.2——放量在推进，这是灰度而不是节点不一致的又一证据。

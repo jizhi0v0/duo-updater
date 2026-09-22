@@ -72,8 +72,10 @@
   - 这个 id 是 VS Code 的：首次启动时算 `sha256(第一个有效网卡 MAC)`，存进 `storage.json` 后一直沿用
     （上游 `src/vs/base/node/id.ts`、`platform/telemetry/node/telemetryUtils.ts`）；读不到 MAC 时存 UUID。
     与登录无关。**只读不算**：私有 Wi-Fi 地址会变，自己重算可能是另一个 id。
-  - 没有这个文件（装了没打开过）→ recipe 报 `.notApplicable`，行显示未知；**不造 id**——任何非空
-    id 都会被固定分桶，造一个就是冒充别人的设备。
+  - 没有这个文件（装了没打开过，或没装这个 app 的扫描机）→ 用一个固定的合成 id（64 个 `0`，
+    `ProbeIdentity.vsCodeMachineIDFallback`），**不跳过**。它和任何 id 一样被分桶，灰度期间可能晚几天
+    看到新版，但答案稳定、不会跳，app 始终有检测。不用随机 id：随机的每台机器不同、不可复现。
+    装了从没打开过的用户本来就没有自己的桶可对齐。
   - 同一台 Mac 上国际版和 [Qoder CN IDE](com-aliyun-lingma-ide.md) 的 id 相同，但两个服务器各自放量
     （09-22 同一 id：这里答 1.31.2，CN 答 1.31.1），所以各问各的。
 - 发布时间: `timestamp` 是 epoch **毫秒**（1788277155505），`ReleaseDate` 的毫秒窗口
@@ -133,7 +135,7 @@
   `qoder-ide.oss-accelerate.aliyuncs.com` 是三个不同的域，任何一个换掉都会让 recipe
   失效（表现为 unknown，不会误报）。
 - 端点无 `beta`/`insider` 轨，将来厂商开了轨这条 recipe 不会自动跟上。
-- 读 id 之后，没装过或没打开过 Qoder IDE 的机器（包括没装它的扫描机）会跳过这条 recipe，夜间扫描不再覆盖它。
+- 读不到 id 的机器（包括扫描机）用固定合成 id，灰度期间它可能落在旧版那一桶，晚于真实用户看到新版。
 - **厂商的 release notes 页落后于发布轨道**（2026-09-18 实测）：
   `docs.qoder.com/release-notes/desktop` 共 109 组 label→version，最新一条是
   1.29.0（September 8, 2026），而 probe 行 `vendor:com.qoder.ide:stable` 读到 1.30.1。

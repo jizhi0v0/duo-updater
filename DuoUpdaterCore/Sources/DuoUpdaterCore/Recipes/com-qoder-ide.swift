@@ -76,9 +76,12 @@ enum com_qoder_ide {
         // `platform/telemetry/node/telemetryUtils.ts`); if no MAC is readable
         // VS Code stores a UUID instead, so the pattern takes both. It is never
         // recomputed here: a Wi-Fi private address rotates, so a recomputed id
-        // can name a different device. No file (never launched) skips the
-        // recipe — a made-up id picks a stranger's bucket. The global and CN
-        // IDEs hold the same id on one Mac and are rolled out independently.
+        // can name a different device. No file (never launched, or a sweep
+        // machine without the app) falls back to one fixed synthetic id: it is
+        // bucketed like any other, so mid-rollout it may be told the older
+        // release for a while, but it never flaps and the app stays checked.
+        // The global and CN IDEs hold the same id on one Mac and are rolled out
+        // independently.
         //
         // Single channel: `stable` is the only quality this server answers —
         // `/api/update/darwin-arm64/insider/latest` 404s (measured 2026-09-06).

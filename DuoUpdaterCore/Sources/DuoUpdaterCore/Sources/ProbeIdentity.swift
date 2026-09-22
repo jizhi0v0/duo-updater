@@ -46,7 +46,9 @@ import Foundation
 ///     "don't know" of its own: absence then substitutes that literal rather
 ///     than skipping the recipe. Only for values the endpoint *tolerates* being
 ///     wrong — a machine id has no such value (a made-up one picks a stranger's
-///     bucket), so identity recipes leave `fallback` nil and keep skipping.
+///     bucket), so identity recipes leave `fallback` nil and keep skipping,
+///     except where skipping would leave the app unchecked altogether
+///     (`vsCodeMachineID` says why the Qoder IDEs accept a fixed one).
 public struct ProbeIdentity: Sendable {
 
     /// How the identifier is stored in the file. Apps rarely write a bare value.
@@ -350,11 +352,22 @@ extension ProbeIdentity {
     /// was readable (upstream `src/vs/base/node/id.ts`), so the pattern takes
     /// both. The file also holds window state and grows with use — 70 KB on
     /// one Mac when this was written — hence the raised cap.
+    ///
+    /// No file (the app was installed and never launched, or a sweep machine
+    /// without it) falls back to `vsCodeMachineIDFallback` rather than
+    /// skipping. That id is bucketed like any other, so during a rollout it
+    /// may be told the older release for a while — late, never wrong, and
+    /// stable — where skipping would leave the app unchecked for good. A user
+    /// who never opened the app has no cohort of their own to match.
     static func vsCodeMachineID(applicationSupportDirectory directory: String) -> ProbeIdentity {
         ProbeIdentity(
             applicationSupportPath: "\(directory)/User/globalStorage/storage.json",
             encoding: .jsonKey("telemetry.machineId"),
             validationPattern: #"[0-9a-f]{64}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#,
+            fallback: vsCodeMachineIDFallback,
             maxBytes: 1 << 20)
     }
+
+    /// Plainly synthetic, so it cannot be mistaken for anyone's real id.
+    static let vsCodeMachineIDFallback = String(repeating: "0", count: 64)
 }

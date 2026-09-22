@@ -473,11 +473,7 @@ struct SparkleStagingTests {
     ///
     /// This is the scenario the live test that night could NOT reproduce: by then
     /// the staged build WAS the latest, so it exercised a different path.
-    ///
-    /// The answer was then Update. Since `stagedBlocksInstall` (2026-08-24) that
-    /// Update stands down for any staged build on this route, so the row offers
-    /// Relaunch after all — one hop behind, but the only one that moves.
-    @Test func aStagedBuildTrailingTheFeedOnASparkleRouteIsStillRelaunched() throws {
+    @Test func aStagedBuildTrailingTheFeedIsOfferedAsUpdateNotRelaunch() throws {
         try withScratch { root in
             let caches = root.appendingPathComponent("Caches")
             _ = try stage(in: caches, short: "1.0", build: "129")
@@ -501,11 +497,8 @@ struct SparkleStagingTests {
                 parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
             #expect(staged?.buildVersion == "129", "129 is newer than the installed 128")
 
-            // ...and the feed is at 130, so a relaunch lands a build that is
-            // already behind. It is still what the row offers: on a Sparkle route
-            // our Update yields to the parked installer (`stagedBlocksInstall`),
-            // so falling through to it would be a button that refuses every click
-            // (TinyWeb, 2026-09-22). Relaunch to 129, then Update to 130.
+            // ...but the feed is at 130, so a relaunch would land a build that is
+            // already behind. The row has to fall through to Update.
             let result = UpdateResult(
                 app: amp,
                 remote: RemoteVersion(
@@ -513,8 +506,8 @@ struct SparkleStagingTests {
                     downloadURL: URL(string: "https://example.com/a.dmg"),
                     sourceName: "Sparkle"),
                 status: .updateAvailable(latest: "1.0"))
-            #expect(UpdatePolicy.actionableStaged(result, staged: staged) != nil,
-                    "staged 129 trails feed 130, but Update would be stood down — offer Relaunch")
+            #expect(UpdatePolicy.actionableStaged(result, staged: staged) == nil,
+                    "staged 129 trails feed 130 — Relaunch here strands the user a build behind")
 
             // And once the feed and the staged build agree, Relaunch is right again.
             let caughtUp = UpdateResult(

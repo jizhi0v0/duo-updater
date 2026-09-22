@@ -4133,10 +4133,28 @@ final class AppListModel {
         // way, because the alternative is the user paying twice for one update. The
         // note says so, and the next check installs normally once the transfer has
         // either landed (row goes current) or gone stale (detector stops matching).
-        if let staged = UpdatePolicy.stagedBlocksInstall(
+        //
+        // Except a Sparkle staging that is not the latest: that one is cleared and
+        // our install goes ahead (`UpdatePolicy.clearsStagedBuild`). A clearance
+        // that cannot confirm every step yields exactly as before.
+        var blockingStaged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
-                for: result.app, requireNewerThanInstalled: false)) {
+                for: result.app, requireNewerThanInstalled: false))
+        if let staged = blockingStaged, UpdatePolicy.clearsStagedBuild(result, staged: staged) {
+            let app = result.app
+            let outcome = await Task.detached(priority: .userInitiated) {
+                SparkleStagingClearance.clear(for: app, staged: staged)
+            }.value
+            switch outcome {
+            case .cleared:
+                Log.install.notice("cleared stale staged self-update: \(result.app.name, privacy: .public) had \(staged.version, privacy: .public) staged, installing \(result.remote?.displayVersion ?? "?", privacy: .public)")
+                blockingStaged = nil
+            case .notCleared(let reason):
+                Log.install.error("could not clear staged self-update: \(result.app.name, privacy: .public) — \(reason, privacy: .public); yielding")
+            }
+        }
+        if let staged = blockingStaged {
             let appliesOnLaunch = staged.appliesOn == .launch
             Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a \(appliesOnLaunch ? "launch" : "quit", privacy: .public)")
             let note = appliesOnLaunch
@@ -4150,7 +4168,9 @@ final class AppListModel {
             // which staged 27.1.3 two seconds after relaunching into 27.0.3,
             // one second after our last sweep — so without this the row keeps
             // offering the Update it just refused, and every click is a no-op.
-            // Re-sweeping turns it into the Relaunch the note is talking about.
+            // Re-sweeping turns it into the Relaunch the note is talking about
+            // when the staged build is the latest; one older than what is
+            // installed stays out of the sweep (Relaunch would be a downgrade).
             // A batch sweeps once after its loop instead.
             if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil

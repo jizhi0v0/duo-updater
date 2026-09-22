@@ -12,8 +12,9 @@ struct XcodeSettingsPage: View {
     @State private var feedback: Feedback?
     @State private var confirmingSignOut = false
 
+    /// No `.signedIn` case: the status line itself flips to "Signed in", and a
+    /// second green "Signed in" beside it only repeated it.
     private enum Feedback: Equatable {
-        case signedIn
         case signedOut
         case cancelled
     }
@@ -57,9 +58,6 @@ struct XcodeSettingsPage: View {
 
     @ViewBuilder private var statusFeedback: some View {
         switch feedback {
-        case .signedIn:
-            Label("Signed in", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green).font(.callout)
         case .signedOut:
             Label("Session cleared", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.callout)
@@ -103,7 +101,7 @@ struct XcodeSettingsPage: View {
         let window = AppleDeveloperSignInWindow()
         let signedIn = await window.present()
         isSignedIn = signedIn
-        feedback = signedIn ? .signedIn : .cancelled
+        feedback = signedIn ? nil : .cancelled
     }
 
     private func signOut() async {

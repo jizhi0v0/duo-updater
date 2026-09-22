@@ -41,11 +41,11 @@
 
 ## 更新检测
 
-- 源: `https://lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest`
+- 源: `https://lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest?machineId=<本机 id>`
 - 路径来自 app 自己的流量（用户抓包，2026-09-22）：
   `GET /algo/api/qodercn/update/darwin-arm64/stable/1.31.2?machineId=…&umid=…&os=27.0.0`，已是最新时回 204。
-  和 VS Code 协议有两处不同：多一段 `qodercn`，末段是**已装版本号**而不是 commit。
-  不带 `machineId` / `umid` / `os` 也照常回答。
+  和 VS Code 协议早期的形态有两处不同：多一段 `qodercn`，末段是**已装版本号**而不是 commit
+  （国际版现在也发版本号，见 [Qoder IDE](com-qoder-ide.md)）。不带 `machineId` / `umid` / `os` 也照常回答，但见下面的灰度。
 - 响应（节选）:
   ```json
   {"url":"https://ide.qoder.com.cn/qoder/release/lastest/QoderCN-darwin-arm64.zip",
@@ -58,10 +58,11 @@
 - ⚠️ **不要用 VS Code 原路径** `/algo/api/update/darwin-arm64/stable/<commit>`：那是 Lingma 的旧表，
   不认识的 commit（包括 `latest`、全 0、国际版 1.31.2 的 commit）一律回答
   `Lingma 0.11.4`（`lingma-ide.oss-rg-china-mainland.aliyuncs.com/release/0.11.4/Lingma-darwin-arm64.zip`）。
-- ⚠️ **答案逐请求抖动**，同 [Qoder IDE](com-qoder-ide.md) 的 `center.qoder.sh`：
-  2026-09-22 同一请求连打 15 次，`latest` 是 9 次 1.31.2 / 6 次 1.31.1，`1.31.1` 是 7 次 1.31.2 / 8 次 204。
-  后果：这一行在检查之间时有时无，点更新时可能被安装前复查拦下（「answered 1.31.2, then 1.31.1」），
-  不会装错。
+- ⚠️ **按 `machineId` 灰度**，机制同 [Qoder IDE](com-qoder-ide.md)（那份写了 id 怎么来、为什么只读不算、
+  读不到为什么不造）。不带 id 时每个请求重新随机分桶，同一请求连打 15 次：`latest` 是 9 次 1.31.2 / 6 次 1.31.1，
+  `1.31.1` 是 7 次 1.31.2 / 8 次 204——这就是接入时看到的「逐请求抖动」。recipe 带
+  `~/Library/Application Support/QoderCN/User/globalStorage/storage.json` 的 `telemetry.machineId`，
+  拿到的就是 app 自己的更新器拿到的答案。`umid` 不参与分桶，不发。
 - `/darwin/stable/latest`（不带架构）回答的是 x64 zip；`darwin-x64` 是 404。
 
 ## 增量更新（delta / binary patch）
@@ -92,14 +93,17 @@
 
 ## 已知问题
 
-- 答案逐请求抖动（见上）。要修得让 probe 一次检查里多问几次取最高，是单独的改动。
+- 按设备灰度期间，DuoUpdater 与 IDE 自己同步，不会更早提示。手动装了更新版本的机器（如接入时的开发机：
+  装着 1.31.2，本机 id 仍在 1.31.1 的桶）上 `duo verify` 会报 remote BEHIND，直到放量到这台机器。
+- 没装或没打开过这个 IDE 的机器（包括扫描机）跳过这条 recipe。
 - 说明页落后于发布。
 
 ## 如何复验
 
 ```bash
-# 1. 连打 10 次看抖动（不要只打一次）
+# 1. 不带 id 连打 10 次会在两版间跳；带一个固定 id 就不跳（id 随便造一个，只用于这个实验）
 for i in $(seq 1 10); do curl -s https://lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest | grep -o '"productVersion":"[^"]*"'; done | sort | uniq -c
+ID=$(openssl rand -hex 32); for i in $(seq 1 5); do curl -s "https://lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest?machineId=$ID" | grep -o '"productVersion":"[^"]*"'; done | sort | uniq -c
 
 # 2. 版本化 zip 与 lastest 是否同一对象
 curl -sI https://ide.qoder.com.cn/qoder/release/1.31.2/QoderCN-darwin-arm64.zip | grep -i etag
@@ -141,3 +145,11 @@ latest   6× 200 1.31.1 / 9× 200 1.31.2
 
 **changelog。** 44 个 `update-label`，共享 pattern 匹配 44 条（`1.31.0` → `0.3.0`），没有无 `<li>` 的条目；
 `1.31.0` 8 条 item，`1.30.1` 5 条。
+
+### 2026-09-22 按 `machineId` 灰度（同日稍后）
+
+带固定的随机 `machineId`：20 个 id × 4 次，20/20 恒定（6 新 / 14 旧）；同一 `machineId` 配 4 个不同 `umid`
+答案不变，只带 `umid` 仍然跳。空字符串等同不带；`0`、`a`、`test`、64 个 `0` 都固定在 1.31.1，64 个 `f`
+固定在 1.31.2——任何非空值都会被分桶。app 的 `main.log` 里发出去的 `machineId` 与
+`storage.json` 的 `telemetry.machineId` 相同。删掉这一项后重启 app，3 秒内写回同一个值（按 en0 MAC 重算，
+en0 当前是私有地址，与硬件地址不同）。本机真实 id 问 `latest` 4 次都是 1.31.1、问 `1.31.1` 3 次都是 204。

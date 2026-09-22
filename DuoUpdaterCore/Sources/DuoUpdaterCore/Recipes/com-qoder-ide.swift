@@ -35,9 +35,9 @@ enum com_qoder_ide {
         // sweep that has no install — which is exactly how a check goes quietly
         // dead (the trap the Mozilla AUS recipes (`Recipes/org-mozilla-firefox.swift`) document at length).
         // `latest` is the token this repo's own VS Code recipes already use in
-        // that slot, and Qoder answers it with the newest build: every user and
-        // every sweep then sends the identical request, an answer is always
-        // expected, and empty is unambiguously a failure.
+        // that slot, and Qoder answers it with the newest build this device is
+        // rolled out to: an answer is always expected, and empty is
+        // unambiguously a failure.
         //
         // Be careful about WHY it works, because the measurement does not settle
         // it. An all-zeros commit is answered with the newest build too, which is
@@ -61,6 +61,25 @@ enum com_qoder_ide {
         // the API's `productVersion`, signed by the same Team as the installed
         // copy, so the swap passes the VendorInstaller gate.
         //
+        // ⚠️ STAGED ROLLOUT, keyed on `machineId`. The app sends
+        // `?machineId=<telemetry.machineId>&umid=…&os=…` (read off its own
+        // `main.log`), and the server buckets on `machineId` alone: a fixed id
+        // gets the same answer every time, a different `umid` changes nothing.
+        // With NO id every request is bucketed afresh, so the answer alternates
+        // between the newest release and the one before it — that is the
+        // "answered X, then Y" the pre-install re-check used to stop on. So the
+        // recipe sends the app's own id, read out of its `storage.json`, and gets
+        // exactly the answer the app's own updater gets.
+        //
+        // The id is VS Code's: `sha256(first valid MAC)` computed on first
+        // launch, then persisted and reused (upstream `src/vs/base/node/id.ts`,
+        // `platform/telemetry/node/telemetryUtils.ts`); if no MAC is readable
+        // VS Code stores a UUID instead, so the pattern takes both. It is never
+        // recomputed here: a Wi-Fi private address rotates, so a recomputed id
+        // can name a different device. No file (never launched) skips the
+        // recipe — a made-up id picks a stranger's bucket. The global and CN
+        // IDEs hold the same id on one Mac and are rolled out independently.
+        //
         // Single channel: `stable` is the only quality this server answers —
         // `/api/update/darwin-arm64/insider/latest` 404s (measured 2026-09-06).
         //
@@ -76,7 +95,7 @@ enum com_qoder_ide {
         VendorProbeRecipe(
             bundleID: "com.qoder.ide",
             url: URL(string: "https://center.qoder.sh/algo"
-                + "/api/update/darwin-arm64/stable/latest")!,
+                + "/api/update/darwin-arm64/stable/latest?machineId=__IDENTITY__")!,
             mode: .responseBody,
             versionPattern: #""productVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://qoder.com/download"),
@@ -86,7 +105,8 @@ enum com_qoder_ide {
                 urlSource: .bodyPattern(
                     #""url"\s*:\s*"(https://qoder-ide\.oss-accelerate\.aliyuncs\.com"#
                     + #"/release/[0-9.]+/Qoder-darwin-arm64\.zip)""#),
-                kind: .zip)),
+                kind: .zip),
+            identities: [ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "Qoder")]),
         ],
         changelogs: [
         // Qoder IDE and Qoder — one markup, two pages, two products. See the

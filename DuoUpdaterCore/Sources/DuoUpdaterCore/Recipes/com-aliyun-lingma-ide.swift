@@ -21,18 +21,17 @@ enum com_aliyun_lingma_ide {
         // it answers "Lingma 0.11.4" to any commit it does not know, so reading it
         // would report a years-old product line and never an update.
         //
-        // Asked with `latest`, like the global IDE, so every user and every sweep
-        // sends the identical request and expects an answer. The installed
-        // version's own slot answers 204 when current; the app also sends
-        // `machineId`/`umid`/`os`, which this server does not need to answer.
+        // Asked with `latest`, like the global IDE, so an answer is always
+        // expected; the installed version's own slot answers 204 when current.
         //
-        // ⚠️ THE ANSWER FLAPS PER REQUEST, the same as the global IDE's
-        // `center.qoder.sh`: repeated identical requests alternate between the
-        // newest release and the one before it. So this row can come and go
-        // between checks, and a click on Update can stop at the pre-install
-        // re-check with "answered X, then Y". Nothing wrong gets installed — the
-        // re-check refuses a regressed answer — but the row is unreliable until
-        // the probe can sample more than once.
+        // ⚠️ STAGED ROLLOUT, keyed on `machineId` — the same scheme as the global
+        // IDE's `center.qoder.sh` (see `Recipes/com-qoder-ide.swift` for the
+        // mechanism and why the id is read, never recomputed or made up). Without
+        // an id the answer alternates per request between the newest release and
+        // the one before it; with the app's own id it is the answer the app's
+        // updater gets, every time. The same Mac holds the same id in both IDEs
+        // and the two servers roll out independently, so each recipe asks its own.
+        // `umid` and `os` change nothing and are not sent.
         //
         // `productVersion`, not `name` ("QoderCN") and not `version` (the commit).
         //
@@ -50,7 +49,7 @@ enum com_aliyun_lingma_ide {
         VendorProbeRecipe(
             bundleID: "com.aliyun.lingma.ide",
             url: URL(string: "https://lingma-api.tongyi.aliyun.com/algo"
-                + "/api/qodercn/update/darwin-arm64/stable/latest")!,
+                + "/api/qodercn/update/darwin-arm64/stable/latest?machineId=__IDENTITY__")!,
             mode: .responseBody,
             versionPattern: #""productVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://qoder.cn/download"),
@@ -59,7 +58,8 @@ enum com_aliyun_lingma_ide {
             install: VendorInstallSpec(
                 urlSource: .versionTemplate(
                     "https://ide.qoder.com.cn/qoder/release/{version}/QoderCN-darwin-arm64.zip"),
-                kind: .zip)),
+                kind: .zip),
+            identities: [ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")]),
         ],
         changelogs: [
         // Same docs build as every other Qoder page, so the shared entry pattern;

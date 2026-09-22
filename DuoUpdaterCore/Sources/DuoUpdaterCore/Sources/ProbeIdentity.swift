@@ -339,3 +339,22 @@ public struct ProbeIdentity: Sendable {
         return URL(string: text.replacingOccurrences(of: placeholder, with: accepted))
     }
 }
+
+extension ProbeIdentity {
+    /// A VS Code fork's `telemetry.machineId`, which its update server may
+    /// bucket a staged rollout on (both Qoder IDEs do). Read out of
+    /// `<directory>/User/globalStorage/storage.json`, where VS Code persists it
+    /// on first launch and reuses it thereafter.
+    ///
+    /// The value is `sha256(first valid MAC)` as 64 hex, or a UUID when no MAC
+    /// was readable (upstream `src/vs/base/node/id.ts`), so the pattern takes
+    /// both. The file also holds window state and grows with use — 70 KB on
+    /// one Mac when this was written — hence the raised cap.
+    static func vsCodeMachineID(applicationSupportDirectory directory: String) -> ProbeIdentity {
+        ProbeIdentity(
+            applicationSupportPath: "\(directory)/User/globalStorage/storage.json",
+            encoding: .jsonKey("telemetry.machineId"),
+            validationPattern: #"[0-9a-f]{64}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#,
+            maxBytes: 1 << 20)
+    }
+}

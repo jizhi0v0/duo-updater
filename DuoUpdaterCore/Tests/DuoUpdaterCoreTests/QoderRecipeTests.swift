@@ -264,7 +264,8 @@ private let qoderCNIDENotesFixture = #"""
     @Test func ideAsksTheUnconditionalLatestSentinel() throws {
         let recipe = try probe("com.qoder.ide")
         #expect(recipe.url.absoluteString
-            == "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest")
+            == "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest"
+            + "?machineId=__IDENTITY__")
         // The property that matters is not "the URL ends in latest" but "the last
         // segment is not a commit" — a 40-hex tail is what turns the endpoint
         // conditional, and it is the only thing that could get put there.
@@ -599,5 +600,81 @@ private let qoderCNIDENotesFixture = #"""
         let cn = try probe("com.aliyun.lingma.ide")
         #expect(global.url.host != cn.url.host)
         #expect(global.changelogURL != cn.changelogURL)
+    }
+
+    // MARK: - Both IDEs: the rollout id
+
+    /// A made-up id, shaped like the real one (sha256 hex).
+    private static let machineID = String(repeating: "0123456789abcdef", count: 4)
+
+    /// `storage.json` as VS Code writes it — the id among unrelated state.
+    private func appSupport(_ directory: String, storage: String?) throws -> URL {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("qoder-identity-\(UUID().uuidString)", isDirectory: true)
+        let dir = root.appendingPathComponent("\(directory)/User/globalStorage", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let storage {
+            try Data(storage.utf8).write(to: dir.appendingPathComponent("storage.json"))
+        }
+        return root
+    }
+
+    private func storageJSON(machineID: String, padding: Int = 0) -> String {
+        #"{"telemetry.sqmId":"","telemetry.machineId":"\#(machineID)","#
+            + #""telemetry.devDeviceId":"f24275e6-4ea8-4096-bd28-8120d30d42e5","#
+            + #""windowsState":{"lastActiveWindow":{"folder":"\#(String(repeating: "x", count: padding))"}}}"#
+    }
+
+    /// Each IDE sends its OWN app's id, from its own data directory. Without
+    /// it the server buckets every request afresh and the answer flaps; a
+    /// recipe reading the other IDE's directory would still work on a Mac with
+    /// both installed and silently skip on one with only this one.
+    @Test(arguments: [("com.qoder.ide", "Qoder", "center.qoder.sh"),
+                      ("com.aliyun.lingma.ide", "QoderCN", "lingma-api.tongyi.aliyun.com")])
+    func eachIDESendsItsOwnMachineID(bundleID: String, directory: String, host: String) throws {
+        let recipe = try probe(bundleID)
+        let identity = try #require(recipe.identities.first)
+        #expect(recipe.identities.count == 1)
+        #expect(identity.fallback == nil)
+        let root = try appSupport(directory, storage: storageJSON(machineID: Self.machineID))
+        let resolved = try #require(identity.resolve(recipe.url, applicationSupportDirectory: root))
+        #expect(resolved.host == host)
+        #expect(resolved.query == "machineId=\(Self.machineID)")
+
+        let other = try appSupport(directory == "Qoder" ? "QoderCN" : "Qoder",
+                                   storage: storageJSON(machineID: Self.machineID))
+        #expect(identity.resolve(recipe.url, applicationSupportDirectory: other) == nil)
+    }
+
+    /// Never launched → no `storage.json` → skip, never a made-up id: any
+    /// non-empty id is bucketed, so an invented one names a stranger's device.
+    @Test func aMissingStorageFileSkipsRatherThanInventing() throws {
+        let recipe = try probe("com.aliyun.lingma.ide")
+        let identity = try #require(recipe.identities.first)
+        let root = try appSupport("QoderCN", storage: nil)
+        #expect(identity.resolve(recipe.url, applicationSupportDirectory: root) == nil)
+        let empty = try appSupport("QoderCN", storage: storageJSON(machineID: ""))
+        #expect(identity.resolve(recipe.url, applicationSupportDirectory: empty) == nil)
+    }
+
+    /// VS Code stores a UUID when it could read no MAC; that is still the id
+    /// the app sends, so it passes. Anything else is refused.
+    @Test func theUUIDFallbackIsAcceptedAndOtherShapesAreNot() throws {
+        let identity = ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")
+        let uuid = "f24275e6-4ea8-4096-bd28-8120d30d42e5"
+        #expect(identity.value(applicationSupportDirectory:
+            try appSupport("QoderCN", storage: storageJSON(machineID: uuid))) == uuid)
+        for bad in [String(Self.machineID.dropLast()), Self.machineID.uppercased(), "test"] {
+            #expect(identity.value(applicationSupportDirectory:
+                try appSupport("QoderCN", storage: storageJSON(machineID: bad))) == nil)
+        }
+    }
+
+    /// The file holds window state and grows with use (70 KB measured); the
+    /// 4 KB default identity cap would silently skip a long-used install.
+    @Test func aLargeStorageFileIsStillRead() throws {
+        let identity = ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")
+        let root = try appSupport("QoderCN", storage: storageJSON(machineID: Self.machineID, padding: 200_000))
+        #expect(identity.value(applicationSupportDirectory: root) == Self.machineID)
     }
 }

@@ -175,6 +175,39 @@ differential:
 releaseNotes: {}
 """#
 
+/// `lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest`
+/// (Qoder CN IDE), verbatim 2026-09-22 — one of the two answers it alternated
+/// between that day. Note `url`: the moving `lastest` alias, which the CDN edge
+/// was still serving as 1.31.1 while this said 1.31.2.
+private let qoderCNIDEUpdateFixture = #"""
+{"url":"https://ide.qoder.com.cn/qoder/release/lastest/QoderCN-darwin-arm64.zip","name":"QoderCN","version":"fcfc01753018885dfe7894f2e5a8013cb500c629","productVersion":"1.31.2","hash":"a3203c350f11903c8a402bd8d2837fcc3204d2d9","timestamp":1790004402000,"sha256hash":"e32e221825aabdd8b0f0abfea47a6c9a9dce212cfcfecbb715d35a1dd19ae971"}
+"""#
+
+/// The newest two entries of `docs.qoder.cn/product-overview/qoder-cn-ide-update-log`,
+/// 2026-09-22, verbatim but for the SVG path data. Bare versions, Chinese dates.
+private let qoderCNIDENotesFixture = #"""
+<div class="update update-container relative flex w-full flex-col items-start gap-2 py-8 lg:flex-row lg:gap-6" id="2026-09-18"><div class="group top-(--scroll-mt) flex w-full shrink-0 flex-col items-start justify-start lg:sticky lg:w-[160px]"><div class="absolute"><a aria-label="Navigate to changelog" class="group/link -ml-10 flex items-center border-0 opacity-0 focus:opacity-100 focus:outline-0 group-hover:opacity-100" href="#2026-09-18">​<div class="flex size-6 items-center justify-center rounded-md bg-white text-stone-400 shadow-sm ring-1 ring-stone-400/30 hover:ring-stone-400/60 group-focus/link:border-2 group-focus/link:border-adoc-primary dark:bg-adoc-bg dark:text-white/50 dark:ring-1 dark:ring-stone-700/25 dark:brightness-[1.35] dark:group-focus/link:border-adoc-primary-light dark:hover:ring-white/20 dark:hover:brightness-150"><svg aria-hidden="true"><path d="…"></path></svg></div></a></div><div class="flex grow-0 cursor-pointer items-center justify-center rounded-lg bg-adoc-primary/10 px-2 py-1 font-medium text-adoc-primary text-sm" contentEditable="false" data-component-part="update-label">2026年09月18日</div><div class="wrap-break-word mt-3 max-w-[160px] px-1 text-adoc-text-secondary text-sm dark:text-adoc-text-tertiary" contentEditable="false" data-component-part="update-description">1.31.0</div></div><div class="max-w-full flex-1 overflow-hidden px-0.5"><div class="prose-sm" data-component-part="update-content"><h3>日常优化</h3><h4>优化</h4><ul>
+<li><strong>Editor 视窗增加 Experts 入口</strong>：支持在 Editor 视窗使用 Experts 专家团模式。</li>
+<li><strong>启动与响应更快</strong>：减少 Shell 环境的重复采集与本地连接等待，Skill 监听不再阻塞新建会话；冷启动先展示对话面板，历史记录在后台恢复。</li>
+<li><strong>长会话内存占用更低</strong>：及时回收闲置的文件编辑资源，清理 Markdown、终端标签与消息流的冗余持有，并完善图片预览的资源限制与关闭逻辑。</li>
+<li><strong>自动重试过程可见</strong>：模型请求失败或繁忙时会自动重试，同时透出重试状态，便于随时了解进度。</li>
+</ul><h4>修复</h4><ul>
+<li>修复短暂断连后聊天记录无法自动恢复的问题，并优化重开历史提问的续跑逻辑。</li>
+<li>修复登录回跳与跨窗口更新重启的异常，减少因可恢复的等待任务而触发的退出确认。</li>
+<li>修复子 Agent 命令在特定场景下被误路由的问题。</li>
+<li>修复 Windows 终端输出乱码与文件重复显示的问题。</li>
+</ul></div></div></div>
+<div id="v1301-2026-09-15-日常优化"></div>
+<div class="update update-container relative flex w-full flex-col items-start gap-2 py-8 lg:flex-row lg:gap-6" id="2026-09-15"><div class="group top-(--scroll-mt) flex w-full shrink-0 flex-col items-start justify-start lg:sticky lg:w-[160px]"><div class="absolute"><a aria-label="Navigate to changelog" class="group/link -ml-10 flex items-center border-0 opacity-0 focus:opacity-100 focus:outline-0 group-hover:opacity-100" href="#2026-09-15">​<div class="flex size-6 items-center justify-center rounded-md bg-white text-stone-400 shadow-sm ring-1 ring-stone-400/30 hover:ring-stone-400/60 group-focus/link:border-2 group-focus/link:border-adoc-primary dark:bg-adoc-bg dark:text-white/50 dark:ring-1 dark:ring-stone-700/25 dark:brightness-[1.35] dark:group-focus/link:border-adoc-primary-light dark:hover:ring-white/20 dark:hover:brightness-150"><svg aria-hidden="true"><path d="…"></path></svg></div></a></div><div class="flex grow-0 cursor-pointer items-center justify-center rounded-lg bg-adoc-primary/10 px-2 py-1 font-medium text-adoc-primary text-sm" contentEditable="false" data-component-part="update-label">2026年09月15日</div><div class="wrap-break-word mt-3 max-w-[160px] px-1 text-adoc-text-secondary text-sm dark:text-adoc-text-tertiary" contentEditable="false" data-component-part="update-description">1.30.1</div></div><div class="max-w-full flex-1 overflow-hidden px-0.5"><div class="prose-sm" data-component-part="update-content"><h3>日常优化</h3><ul>
+<li>优化长会话页面性能。</li>
+<li>Qoder CN IDE 启动时默认进入 Editor 视窗。</li>
+<li>优化 Agent 响应前的准备流程，减少无效等待，提升首次响应速度与会话流畅度。</li>
+<li>优化首包超时时的提示信息，让等待原因与后续操作更清晰易懂。</li>
+<li>提升 WSL 启动速度与连接稳定性。</li>
+</ul></div></div></div>
+<div id="v1290-2026-09-08-qoder-security-企业安全治理升级"></div>
+"""#
+
 @Suite struct QoderRecipeTests {
 
     private func probe(_ bundleID: String) throws -> VendorProbeRecipe {
@@ -231,7 +264,8 @@ releaseNotes: {}
     @Test func ideAsksTheUnconditionalLatestSentinel() throws {
         let recipe = try probe("com.qoder.ide")
         #expect(recipe.url.absoluteString
-            == "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest")
+            == "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest"
+            + "?machineId=__IDENTITY__")
         // The property that matters is not "the URL ends in latest" but "the last
         // segment is not a commit" — a 40-hex tail is what turns the endpoint
         // conditional, and it is the only thing that could get put there.
@@ -507,5 +541,149 @@ releaseNotes: {}
         let cn = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qodercn.app"))
         let global = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.app"))
         #expect(cn.source != global.source)
+    }
+
+    // MARK: - Qoder CN IDE
+
+    /// `productVersion` — `name` is "QoderCN" and `version` is the commit.
+    @Test func qoderCNIDEReadsProductVersion() throws {
+        let recipe = try probe("com.aliyun.lingma.ide")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: qoderCNIDEUpdateFixture, pattern: recipe.versionPattern) == "1.31.2")
+        let stampPattern = try #require(recipe.publishedAtPattern)
+        let stamp = try #require(VendorProbeRecipe.extractVersion(
+            from: qoderCNIDEUpdateFixture, pattern: stampPattern))
+        #expect(stamp == "1790004402000")
+    }
+
+    /// The `qodercn` path, asked with `latest`. The plain VS Code path on the
+    /// same host is a legacy table that answers "Lingma 0.11.4" to any commit
+    /// it doesn't know — reading it would never report an update.
+    @Test func qoderCNIDEAsksTheQoderCNTableNotTheLegacyOne() throws {
+        let recipe = try probe("com.aliyun.lingma.ide")
+        #expect(recipe.url.host == "lingma-api.tongyi.aliyun.com")
+        #expect(recipe.url.path.hasSuffix("/api/qodercn/update/darwin-arm64/stable/latest"))
+    }
+
+    /// The install URL is built from the resolved version, never taken from the
+    /// body: the body's `lastest` alias was measured serving the PREVIOUS
+    /// release from the CDN edge while the API already answered the new one.
+    @Test func qoderCNIDEInstallsTheVersionedZipNotTheMovingAlias() throws {
+        let recipe = try probe("com.aliyun.lingma.ide")
+        let spec = try #require(recipe.install)
+        #expect(spec.kind == .zip)
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("expected a version template"); return
+        }
+        #expect(qoderCNIDEUpdateFixture.contains("/release/lastest/"))
+        let version = try #require(VendorProbeRecipe.extractVersion(
+            from: qoderCNIDEUpdateFixture, pattern: recipe.versionPattern))
+        #expect(template.replacingOccurrences(of: "{version}", with: version)
+            == "https://ide.qoder.com.cn/qoder/release/1.31.2/QoderCN-darwin-arm64.zip")
+    }
+
+    @Test func qoderCNIDENotesParseOnTheSharedPattern() throws {
+        let recipe = try #require(
+            ChangelogRecipeRegistry.recipe(forBundleID: "com.aliyun.lingma.ide"))
+        #expect(recipe.source.host == "docs.qoder.cn")
+        let log = try #require(ChangelogExtractor.extract(from: qoderCNIDENotesFixture, using: recipe))
+        #expect(log.entries.map(\.version) == ["1.31.0", "1.30.1"])
+        #expect(log.entries.map(\.date) == ["2026年09月18日", "2026年09月15日"])
+        #expect(log.entries.map(\.items.count) == [8, 5])
+    }
+
+    /// Four products under one name. The two IDEs share source and even commits,
+    /// and must still never share a recipe: different bundle ids, Teams, update
+    /// servers and notes pages.
+    @Test func theTwoIDEsAreSeparateRecipes() throws {
+        let global = try probe("com.qoder.ide")
+        let cn = try probe("com.aliyun.lingma.ide")
+        #expect(global.url.host != cn.url.host)
+        #expect(global.changelogURL != cn.changelogURL)
+    }
+
+    // MARK: - Both IDEs: the rollout id
+
+    /// A made-up id, shaped like the real one (sha256 hex).
+    private static let machineID = String(repeating: "0123456789abcdef", count: 4)
+
+    /// `storage.json` as VS Code writes it — the id among unrelated state.
+    private func appSupport(_ directory: String, storage: String?) throws -> URL {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("qoder-identity-\(UUID().uuidString)", isDirectory: true)
+        let dir = root.appendingPathComponent("\(directory)/User/globalStorage", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let storage {
+            try Data(storage.utf8).write(to: dir.appendingPathComponent("storage.json"))
+        }
+        return root
+    }
+
+    private func storageJSON(machineID: String, padding: Int = 0) -> String {
+        #"{"telemetry.sqmId":"","telemetry.machineId":"\#(machineID)","#
+            + #""telemetry.devDeviceId":"f24275e6-4ea8-4096-bd28-8120d30d42e5","#
+            + #""windowsState":{"lastActiveWindow":{"folder":"\#(String(repeating: "x", count: padding))"}}}"#
+    }
+
+    /// Each IDE sends its OWN app's id, from its own data directory. Without
+    /// it the server buckets every request afresh and the answer flaps; a
+    /// recipe reading the other IDE's directory would still work on a Mac with
+    /// both installed and quietly send the fixed fallback on one with only
+    /// this one.
+    @Test(arguments: [("com.qoder.ide", "Qoder", "center.qoder.sh"),
+                      ("com.aliyun.lingma.ide", "QoderCN", "lingma-api.tongyi.aliyun.com")])
+    func eachIDESendsItsOwnMachineID(bundleID: String, directory: String, host: String) throws {
+        let recipe = try probe(bundleID)
+        let identity = try #require(recipe.identities.first)
+        #expect(recipe.identities.count == 1)
+        let root = try appSupport(directory, storage: storageJSON(machineID: Self.machineID))
+        let resolved = try #require(identity.resolve(recipe.url, applicationSupportDirectory: root))
+        #expect(resolved.host == host)
+        #expect(resolved.query == "machineId=\(Self.machineID)")
+
+        let other = try appSupport(directory == "Qoder" ? "QoderCN" : "Qoder",
+                                   storage: storageJSON(machineID: Self.machineID))
+        #expect(identity.resolve(recipe.url, applicationSupportDirectory: other)?.query
+            == "machineId=\(ProbeIdentity.vsCodeMachineIDFallback)")
+    }
+
+    /// Never launched → no `storage.json` → one fixed id, never a skip: a
+    /// skipped recipe leaves the app unchecked, and on a sweep machine without
+    /// the app, unwatched. Fixed rather than random so the answer is stable.
+    @Test(arguments: ["com.qoder.ide", "com.aliyun.lingma.ide"])
+    func aMissingStorageFileFallsBackToOneFixedID(bundleID: String) throws {
+        let recipe = try probe(bundleID)
+        let identity = try #require(recipe.identities.first)
+        #expect(identity.fallback == ProbeIdentity.vsCodeMachineIDFallback)
+        let expected = "machineId=\(ProbeIdentity.vsCodeMachineIDFallback)"
+        let missing = try appSupport("Elsewhere", storage: nil)
+        let blank = try appSupport(bundleID == "com.qoder.ide" ? "Qoder" : "QoderCN",
+                                   storage: storageJSON(machineID: ""))
+        for root in [missing, blank] {
+            let resolved = try #require(identity.resolved(recipe.url, applicationSupportDirectory: root))
+            #expect(resolved.url.query == expected)
+            #expect(resolved.provenance == .fallback)
+        }
+    }
+
+    /// VS Code stores a UUID when it could read no MAC; that is still the id
+    /// the app sends, so it passes. Anything else is refused.
+    @Test func theUUIDFallbackIsAcceptedAndOtherShapesAreNot() throws {
+        let identity = ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")
+        let uuid = "f24275e6-4ea8-4096-bd28-8120d30d42e5"
+        #expect(identity.value(applicationSupportDirectory:
+            try appSupport("QoderCN", storage: storageJSON(machineID: uuid))) == uuid)
+        for bad in [String(Self.machineID.dropLast()), Self.machineID.uppercased(), "test"] {
+            #expect(identity.value(applicationSupportDirectory:
+                try appSupport("QoderCN", storage: storageJSON(machineID: bad))) == nil)
+        }
+    }
+
+    /// The file holds window state and grows with use (70 KB measured); the
+    /// 4 KB default identity cap would silently skip a long-used install.
+    @Test func aLargeStorageFileIsStillRead() throws {
+        let identity = ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")
+        let root = try appSupport("QoderCN", storage: storageJSON(machineID: Self.machineID, padding: 200_000))
+        #expect(identity.value(applicationSupportDirectory: root) == Self.machineID)
     }
 }

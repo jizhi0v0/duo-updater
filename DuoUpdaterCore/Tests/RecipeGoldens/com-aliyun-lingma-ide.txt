@@ -1,21 +1,21 @@
 // Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
 // Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
 
-family = "com-qoder-ide"
+family = "com-aliyun-lingma-ide"
 
 probes = Array(count: 1)
 probes[0] = struct VendorProbeRecipe
-probes[0].bundleID = "com.qoder.ide"
+probes[0].bundleID = "com.aliyun.lingma.ide"
 probes[0].channel = .stable
 probes[0].variant = nil
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
-probes[0].url = URL("https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest?machineId=__IDENTITY__")
+probes[0].url = URL("https://lingma-api.tongyi.aliyun.com/algo/api/qodercn/update/darwin-arm64/stable/latest?machineId=__IDENTITY__")
 probes[0].identities = Array(count: 1)
 probes[0].identities[0] = struct ProbeIdentity
 probes[0].identities[0].location = .applicationSupport(_:)
-probes[0].identities[0].location.0 = "Qoder/User/globalStorage/storage.json"
+probes[0].identities[0].location.0 = "QoderCN/User/globalStorage/storage.json"
 probes[0].identities[0].encoding = .jsonKey(_:)
 probes[0].identities[0].encoding.0 = "telemetry.machineId"
 probes[0].identities[0].validationPattern = "[0-9a-f]{64}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
@@ -27,8 +27,8 @@ probes[0].mode = .responseBody
 probes[0].versionPattern = "\"productVersion\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
-probes[0].downloadURL? = URL("https://qoder.com/download")
-probes[0].changelogURL? = URL("https://docs.qoder.com/release-notes/desktop")
+probes[0].downloadURL? = URL("https://qoder.cn/download")
+probes[0].changelogURL? = URL("https://docs.qoder.cn/product-overview/qoder-cn-ide-update-log")
 probes[0].selectHighest = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
@@ -38,8 +38,8 @@ probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
-probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "\"url\"\\s*:\\s*\"(https://qoder-ide\\.oss-accelerate\\.aliyuncs\\.com/release/[0-9.]+/Qoder-darwin-arm64\\.zip)\""
+probes[0].install?.urlSource = .versionTemplate(_:)
+probes[0].install?.urlSource.0 = "https://ide.qoder.com.cn/qoder/release/{version}/QoderCN-darwin-arm64.zip"
 probes[0].install?.kind = .zip
 probes[0].install?.checksumPattern = nil
 probes[0].install?.requestHeaders = Dictionary(count: 0)
@@ -51,8 +51,8 @@ probes[0].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe
-changelogs[0].bundleID = "com.qoder.ide"
-changelogs[0].source = URL("https://docs.qoder.com/release-notes/desktop")
+changelogs[0].bundleID = "com.aliyun.lingma.ide"
+changelogs[0].source = URL("https://docs.qoder.cn/product-overview/qoder-cn-ide-update-log")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
@@ -75,7 +75,7 @@ changelogs[0].headingPattern = nil
 changelogs[0].minimumAppVersion = nil
 changelogs[0].belowAppVersion = nil
 changelogs[0].carriesOtherTrainEntries = false
-changelogs[0].acknowledgedStaleEntry? = "1.29.0"
+changelogs[0].acknowledgedStaleEntry = nil
 changelogs[0].structuredFormat = nil
 changelogs[0].httpMethod = .get
 changelogs[0].requestBody = nil

@@ -39,7 +39,7 @@
 返回 404（实测 2026-09-06）。
 
 ## 更新检测
-- 源: `https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest`
+- 源: `https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest?machineId=<本机 id>`
   —— VS Code 更新协议原样：`/api/update/<platform>/<quality>/<commit>`。
 - 响应（344 字节）:
   ```json
@@ -60,8 +60,24 @@
 
   所以 URL 末段写死 `latest`：把本机 commit 送上去会让**同一个响应形状有两个含义**——
   在有安装的 Mac 上是"你已经最新"，在没有安装的 sweep 里是"端点坏了"。这正是
-  `VendorProbeRecipe` 里 Mozilla AUS 几条 recipe 长篇记录的那个坑。用哨兵后，所有用户
-  和 sweep 发的是**同一个请求**，永远期待有答案，空 = 明确的失败。
+  `VendorProbeRecipe` 里 Mozilla AUS 几条 recipe 长篇记录的那个坑。用哨兵后永远期待有答案，
+  空 = 明确的失败。
+- ⚠️ **按 `machineId` 灰度**（2026-09-22 实测）。app 自己发
+  `…/stable/<已装版本>?machineId=…&umid=…&os=…`（读自它的 `main.log`），服务端只按 `machineId`
+  分桶：固定 id 每次同一个答案，换 `umid` 不影响；**不带 id 则每个请求重新随机分桶**，答案在
+  最新版和上一版之间跳（这就是 09-16 记下的「逐请求抖动」，也是安装前复查报
+  「answered X, then Y」的原因）。所以 recipe 带上 app 自己的 id：
+  `~/Library/Application Support/Qoder/User/globalStorage/storage.json` 的 `telemetry.machineId`
+  （`ProbeIdentity.vsCodeMachineID`）。
+  - 这个 id 是 VS Code 的：首次启动时算 `sha256(第一个有效网卡 MAC)`，存进 `storage.json` 后一直沿用
+    （上游 `src/vs/base/node/id.ts`、`platform/telemetry/node/telemetryUtils.ts`）；读不到 MAC 时存 UUID。
+    与登录无关。**只读不算**：私有 Wi-Fi 地址会变，自己重算可能是另一个 id。
+  - 没有这个文件（装了没打开过，或没装这个 app 的扫描机）→ 用一个固定的合成 id（64 个 `0`，
+    `ProbeIdentity.vsCodeMachineIDFallback`），**不跳过**。它和任何 id 一样被分桶，灰度期间可能晚几天
+    看到新版，但答案稳定、不会跳，app 始终有检测。不用随机 id：随机的每台机器不同、不可复现。
+    装了从没打开过的用户本来就没有自己的桶可对齐。
+  - 同一台 Mac 上国际版和 [Qoder CN IDE](com-aliyun-lingma-ide.md) 的 id 相同，但两个服务器各自放量
+    （09-22 同一 id：这里答 1.31.2，CN 答 1.31.1），所以各问各的。
 - 发布时间: `timestamp` 是 epoch **毫秒**（1788277155505），`ReleaseDate` 的毫秒窗口
   认这个数量级，所以行上能拿到精确发布时刻而不是公元 58700 年。
 - 版本方案: `productVersion` == bundle 的 short == build，同构，无陷阱。
@@ -119,6 +135,7 @@
   `qoder-ide.oss-accelerate.aliyuncs.com` 是三个不同的域，任何一个换掉都会让 recipe
   失效（表现为 unknown，不会误报）。
 - 端点无 `beta`/`insider` 轨，将来厂商开了轨这条 recipe 不会自动跟上。
+- 读不到 id 的机器（包括扫描机）用固定合成 id，灰度期间它可能落在旧版那一桶，晚于真实用户看到新版。
 - **厂商的 release notes 页落后于发布轨道**（2026-09-18 实测）：
   `docs.qoder.com/release-notes/desktop` 共 109 组 label→version，最新一条是
   1.29.0（September 8, 2026），而 probe 行 `vendor:com.qoder.ide:stable` 读到 1.30.1。
@@ -129,8 +146,9 @@
 
 ## 如何复验
 ```
-# GET https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest
+# GET https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest?machineId=<id>
 #   → {"productVersion":"1.28.0", "url":"…/release/1.28.0/Qoder-darwin-arm64.zip", …}
+# 灰度：同一个固定 id 连打 5 次答案不变；去掉 machineId 连打 10 次会在两版间跳
 # 同一路径末段换成当前 commit → 204 空 body（哨兵存在的理由）
 # 解包那个 zip → Qoder IDE.app / com.qoder.ide / T27K5A5ZWD / notarized
 duo verify --only qoder.ide
@@ -213,3 +231,13 @@ endpoints exactly. Two numbers below that, and neither is 108:
 pattern's reach over the page, not history a reader gets.
 
 复测 2026-09-14（约 07:28 UTC，只读 GET 两页，只数了块，没有跑 `ChangelogExtractor`）：IDE 页 109 个 `update-label` 块，Qoder 页 11 个；按 `update-content` 到 `</div></div></div>` 切出的正文里，两页带属性的 `<li …>` 都是 0 个——代码里 "no entry on either page carries an attribute there today" 因此原样保留。
+
+### 2026-09-22 按 `machineId` 灰度（取代「逐请求抖动」的解读）
+
+不带 id 连打 30 次：20 次 1.31.2 / 10 次 1.31.1；同一出口 IP、同一网关节点（`acw_tc` 前 8 位）两种答案都出过，
+响应无 Age/X-Cache/Via/ETag/Cache-Control，不是 CDN 缓存。带固定的随机 `machineId`：20 个 id × 4 次，
+20/20 答案恒定（14 新 / 6 旧）。国际版 app 1.31.1 的 `main.log`：
+`GET …/api/update/darwin-arm64/stable/1.31.1?machineId=…&umid=…&os=27.0.0`——末段现在是**已装版本号**，
+不再是 1.27.0 时的 commit。日志里的 `machineId` 与 `storage.json` 的 `telemetry.machineId` 相同，
+也等于用 app 自带的 Electron（`ELECTRON_RUN_AS_NODE=1`）按 en0 MAC 算出的 sha256。
+用这个真实 id 问 `latest` 和 `1.31.1` 各 5 次，全是 1.31.2；app 自己同时进入 `downloading`。

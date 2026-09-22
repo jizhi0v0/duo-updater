@@ -29554,6 +29554,704 @@
           }
         }
       }
+    },
+    "Xcode": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode"
+          }
+        }
+      }
+    },
+    "Sign in to download Xcode betas and release candidates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melde dich an, um Xcode-Betas und Release Candidates herunterzuladen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión para descargar betas y versiones candidatas de Xcode."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez-vous pour télécharger les bêtas et versions candidates de Xcode."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcodeのベータ版やリリース候補版をダウンロードするにはサインインしてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите, чтобы загружать бета-версии и релиз-кандидаты Xcode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录后即可下载 Xcode 测试版和候选发布版。"
+          }
+        }
+      }
+    },
+    "beta, release candidate, developer, sign in, apple id, 2fa, session, cookie": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta, Release Candidate, Entwickler, Anmelden, Apple ID, Zwei-Faktor, Sitzung, Cookie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "beta, versión candidata, desarrollador, iniciar sesión, Apple ID, verificación en dos pasos, sesión, cookie"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bêta, version candidate, développeur, connexion, identifiant Apple, double authentification, session, cookie"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ベータ, リリース候補, デベロッパ, サインイン, Apple ID, 二段階認証, セッション, クッキー"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "бета, релиз-кандидат, разработчик, вход, Apple ID, двухфакторная аутентификация, сессия, cookie"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测试版, 候选发布版, 开发者, 登录, Apple ID, 双重认证, 会话, cookie"
+          }
+        }
+      },
+      "comment": "Comma-separated extra search terms for the Xcode settings page"
+    },
+    "Apple Developer sign-in": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple-Developer-Anmeldung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicio de sesión de Apple Developer"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion Apple Developer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developer サインイン"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход в Apple Developer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developer 登录"
+          }
+        }
+      }
+    },
+    "DuoUpdater stores your Apple Developer sign-in session — the same one developer.apple.com already keeps in a cookie — so it can download Xcode betas and release candidates on your behalf. It's kept in the Keychain on this Mac, never synced to iCloud or anywhere else, and only ever sent to developer.apple.com and its download servers.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater speichert deine Apple-Developer-Anmeldesitzung – dieselbe, die developer.apple.com ohnehin schon in einem Cookie hält –, damit es Xcode-Betas und Release Candidates für dich herunterladen kann. Sie wird im Schlüsselbund auf diesem Mac gespeichert, nie mit iCloud oder anderswo synchronisiert und ausschließlich an developer.apple.com und dessen Download-Server gesendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater guarda tu sesión de inicio de sesión de Apple Developer —la misma que developer.apple.com ya mantiene en una cookie— para poder descargar betas y versiones candidatas de Xcode en tu nombre. Se guarda en el Llavero de este Mac, nunca se sincroniza con iCloud ni con ningún otro sitio, y solo se envía a developer.apple.com y sus servidores de descarga."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater enregistre votre session de connexion Apple Developer — la même que developer.apple.com conserve déjà dans un cookie — afin de pouvoir télécharger les bêtas et versions candidates de Xcode en votre nom. Elle est conservée dans le Trousseau de ce Mac, jamais synchronisée avec iCloud ni ailleurs, et n'est envoyée qu'à developer.apple.com et ses serveurs de téléchargement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdaterは、developer.apple.comがすでにCookieとして保持しているのと同じApple Developerサインインセッションを保存し、あなたに代わってXcodeのベータ版やリリース候補版をダウンロードできるようにします。このセッションはこのMacのキーチェーンに保存され、iCloudなど他の場所と同期されることはなく、developer.apple.comとそのダウンロードサーバーにのみ送信されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater сохраняет сеанс входа Apple Developer — тот же, что developer.apple.com уже хранит в cookie, — чтобы загружать бета-версии и релиз-кандидаты Xcode от вашего имени. Он хранится в Связке ключей на этом Mac, никогда не синхронизируется с iCloud или где-либо ещё и отправляется только на developer.apple.com и его серверы загрузки."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater 会保存你的 Apple Developer 登录会话——就是 developer.apple.com 本身已经保存在 Cookie 里的那个会话——以便代表你下载 Xcode 测试版和候选发布版。该会话保存在这台 Mac 的钥匙串中，绝不会同步到 iCloud 或其他任何地方，也只会发送给 developer.apple.com 及其下载服务器。"
+          }
+        }
+      }
+    },
+    "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist es, was DuoUpdater erlaubt, Xcode-Betas und Release Candidates für Ein-Klick-Updates herunterzuladen. Ohne diese Anmeldung kann DuoUpdater dir trotzdem sagen, dass eine neue Version verfügbar ist – herunterladen musst du sie dann aber selbst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto es lo que permite a DuoUpdater descargar betas y versiones candidatas de Xcode para actualizaciones con un clic. Sin ello, DuoUpdater aún puede avisarte de que existe una versión nueva, pero tendrás que descargarla tú mismo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "C'est ce qui permet à DuoUpdater de télécharger les bêtas et versions candidates de Xcode pour des mises à jour en un clic. Sans cela, DuoUpdater peut toujours vous signaler qu'une nouvelle version existe, mais vous devrez la télécharger vous-même."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これにより、DuoUpdaterはワンクリックアップデートのためにXcodeのベータ版やリリース候補版をダウンロードできます。これがなくても、DuoUpdaterは新しいバージョンの存在を知らせることはできますが、ダウンロードは自分で行う必要があります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Именно это позволяет DuoUpdater загружать бета-версии и релиз-кандидаты Xcode для обновления в один клик. Без этого DuoUpdater всё равно сообщит о выходе новой версии, но скачивать её придётся самостоятельно."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正是这个登录会话让 DuoUpdater 能够下载 Xcode 测试版和候选发布版，实现一键更新。没有它，DuoUpdater 仍然会提示有新版本，但你需要自己下载。"
+          }
+        }
+      }
+    },
+    "Signed in": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angemeldet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión iniciada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecté"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインイン済み"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы вошли в систему"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登录"
+          }
+        }
+      }
+    },
+    "Not signed in": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht angemeldet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin sesión iniciada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non connecté"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未サインイン"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход не выполнен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未登录"
+          }
+        }
+      }
+    },
+    "Session cleared": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzung gelöscht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión eliminada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session effacée"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッションを消去しました"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сеанс очищен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话已清除"
+          }
+        }
+      }
+    },
+    "Sign-in cancelled": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung abgebrochen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicio de sesión cancelado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion annulée"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインがキャンセルされました"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход отменён"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已取消"
+          }
+        }
+      }
+    },
+    "Sign Out and Clear…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden und löschen …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar sesión y borrar…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter et effacer…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインアウトして消去…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти и очистить…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出登录并清除…"
+          }
+        }
+      }
+    },
+    "Sign In…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmelden …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar sesión…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインイン…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录…"
+          }
+        }
+      }
+    },
+    "Sign Out and Clear Session?": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden und Sitzung löschen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Cerrar sesión y borrar la sesión?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter et effacer la session ?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインアウトしてセッションを消去しますか？"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти и очистить сеанс?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出登录并清除会话？"
+          }
+        }
+      }
+    },
+    "Sign Out and Clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden und löschen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar sesión y borrar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter et effacer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインアウトして消去"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти и очистить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出登录并清除"
+          }
+        }
+      }
+    },
+    "This also forgets that Apple trusts this Mac, so your next sign-in will ask for a verification code again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dabei wird auch vergessen, dass Apple diesem Mac vertraut – bei der nächsten Anmeldung wird also wieder ein Bestätigungscode verlangt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto también hace que Apple olvide que confía en este Mac, así que tu próximo inicio de sesión volverá a pedirte un código de verificación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cela fait également oublier à Apple que cet ordinateur est approuvé : votre prochaine connexion vous demandera à nouveau un code de vérification."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これにより、AppleがこのMacを信頼済みとして記憶していた情報も消去されるため、次回のサインイン時には再び確認コードの入力が必要になります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это также сбросит доверие Apple к этому Mac, поэтому при следующем входе снова потребуется код подтверждения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这也会让 Apple 忘记这台 Mac 是受信任的设备，因此下次登录时会再次要求输入验证码。"
+          }
+        }
+      }
+    },
+    "Sign In to Apple Developer": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei Apple Developer anmelden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar sesión en Apple Developer"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion à Apple Developer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developerにサインイン"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход в Apple Developer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录 Apple Developer"
+          }
+        }
+      }
+    },
+    "Apple's download server refused the request. Check your network connection or proxy, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apples Download-Server hat die Anfrage abgelehnt. Überprüfe deine Netzwerkverbindung oder deinen Proxy und versuche es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor de descargas de Apple rechazó la solicitud. Comprueba tu conexión de red o proxy y vuelve a intentarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de téléchargement d'Apple a refusé la demande. Vérifiez votre connexion réseau ou votre proxy, puis réessayez."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleのダウンロードサーバーがリクエストを拒否しました。ネットワーク接続またはプロキシを確認してから、もう一度お試しください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер загрузки Apple отклонил запрос. Проверьте подключение к сети или прокси-сервер и повторите попытку."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 的下载服务器拒绝了此请求。请检查你的网络连接或代理设置后重试。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

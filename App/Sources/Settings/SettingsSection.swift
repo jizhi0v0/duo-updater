@@ -10,7 +10,7 @@ import SwiftUI
 /// "rollback" finds General.
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general, backups, folders, updates
-    case github, alcove
+    case github, alcove, xcode
     case ignored, diagnostics
 
     var id: String { rawValue }
@@ -36,7 +36,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var group: Group {
         switch self {
         case .general, .backups, .folders, .updates: return .app
-        case .github, .alcove:             return .accounts
+        case .github, .alcove, .xcode:      return .accounts
         case .ignored, .diagnostics:       return .library
         }
     }
@@ -49,6 +49,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     return String(localized: "Updates")
         case .github:      return String(localized: "GitHub")
         case .alcove:      return String(localized: "Alcove")
+        case .xcode:       return String(localized: "Xcode")
         case .ignored:     return String(localized: "Ignored")
         case .diagnostics: return String(localized: "Diagnostics")
         }
@@ -62,6 +63,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     return "arrow.triangle.2.circlepath"
         case .github:      return "key.fill"
         case .alcove:      return "sparkles"
+        case .xcode:       return "hammer.fill"
         case .ignored:     return "eye.slash.fill"
         case .diagnostics: return "stethoscope"
         }
@@ -75,6 +77,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     return .green
         case .github:      return .purple
         case .alcove:      return .pink
+        case .xcode:       return .cyan
         case .ignored:     return .orange
         case .diagnostics: return .teal
         }
@@ -89,6 +92,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     return String(localized: "DuoUpdater's own version.")
         case .github:      return String(localized: "Lift GitHub's anonymous rate limit for apps tracked through Releases.")
         case .alcove:      return String(localized: "Alcove keeps release notes and installable builds behind its license.")
+        case .xcode:       return String(localized: "Sign in to download Xcode betas and release candidates.")
         case .ignored:     return String(localized: "Apps and versions you've told DuoUpdater to leave alone.")
         case .diagnostics: return String(localized: "Permissions, last check, and the health of each detection recipe.")
         }
@@ -116,6 +120,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     list = String(localized: "version, about, self", comment: "Comma-separated extra search terms for the Updates settings page")
         case .github:      list = String(localized: "token, personal access token, rate limit", comment: "Comma-separated extra search terms for the GitHub settings page")
         case .alcove:      list = String(localized: "license, key, instance, activation", comment: "Comma-separated extra search terms for the Alcove settings page")
+        case .xcode:       list = String(localized: "beta, release candidate, developer, sign in, apple id, 2fa, session, cookie", comment: "Comma-separated extra search terms for the Xcode settings page")
         case .ignored:     list = String(localized: "hidden, skip, skipped, versions, unignore", comment: "Comma-separated extra search terms for the Ignored settings page")
         case .diagnostics: list = String(localized: "permissions, app management, helper, recipe, health, relaunch, setup", comment: "Comma-separated extra search terms for the Diagnostics settings page")
         }
@@ -147,6 +152,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .updates:     return ["version", "sparkle", "about", "self"]
         case .github:      return ["token", "personal access token", "pat", "gh", "cli", "rate limit"]
         case .alcove:      return ["license", "key", "instance", "activation"]
+        case .xcode:       return ["beta", "release candidate", "rc", "developer", "sign in", "apple id", "2fa", "session", "cookie"]
         case .ignored:     return ["hidden", "skip", "skipped", "versions", "unignore"]
         case .diagnostics: return ["permissions", "app management", "helper", "recipe", "health", "relaunch", "setup"]
         }

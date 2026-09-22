@@ -92,6 +92,9 @@ struct DuoUpdaterApp: App {
 private struct MenuBarLabel: View {
     /// Held here so the notification observers outlive the `.task` that starts them.
     @State private var backupVolumeWatcher = BackupVolumeWatcher()
+    /// Same reason: keeps the termination observer below alive for the app's
+    /// whole run rather than just the `.task` that registers it.
+    @State private var xcodeSessionTerminationObserver: NSObjectProtocol?
 
     @Bindable var model: AppListModel
     @Environment(\.openWindow) private var openWindow
@@ -120,6 +123,23 @@ private struct MenuBarLabel: View {
             // run left owed — the common case being backups taken while the disk
             // was elsewhere.
             backupVolumeWatcher.start()
+            // Restore before first use, per AppleDeveloperSession's contract —
+            // WebKit drops the session-only cookies (myacinfo) on quit, so this
+            // is what makes "signed in yesterday" still true today.
+            Task { await AppleDeveloperSession.shared.restore() }
+            // Best effort: save whatever session cookies are current right
+            // before the process goes away, in addition to the save after
+            // sign-in and after each authorized download. Async work racing a
+            // process exit is inherently best-effort — there is no delegate
+            // hook here to hold termination open for it (no AppDelegate; adding
+            // one is out of this page's scope) — but WKHTTPCookieStore's fetch
+            // is in-process and near-instant, so it reliably lands within the
+            // one runloop turn AppKit leaves between this notification and exit.
+            xcodeSessionTerminationObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+            ) { _ in
+                Task { @MainActor in await AppleDeveloperSession.shared.save() }
+            }
             if model.prefs.backupDestination.kind == .external {
                 Task { await model.syncBackupsNow() }
             }

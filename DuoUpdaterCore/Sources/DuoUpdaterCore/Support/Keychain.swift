@@ -37,16 +37,53 @@ public enum Keychain {
     /// Store `value` for `account`, replacing any existing entry. An empty value
     /// deletes the entry (so "clear the token" leaves nothing behind).
     public static func set(_ value: String, account: String) {
+        set(Data(value.utf8), account: account, allowEmpty: !value.isEmpty)
+    }
+
+    /// The stored bytes for `account`, or nil if absent. Same ACL and service as
+    /// `string(account:)` — only the payload type differs — for callers whose
+    /// secret isn't naturally a `String` (an encoded cookie jar, for instance).
+    public static func data(account: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data
+        else { return nil }
+        return data
+    }
+
+    /// Store `value` for `account`, replacing any existing entry. Empty data
+    /// deletes the entry, same as the empty-string case in `set(_:account:)`.
+    public static func set(_ value: Data, account: String) {
+        set(value, account: account, allowEmpty: !value.isEmpty)
+    }
+
+    /// Delete the stored entry for `account`, if any.
+    public static func delete(account: String) {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        guard !value.isEmpty else {
+        SecItemDelete(base as CFDictionary)
+    }
+
+    private static func set(_ data: Data, account: String, allowEmpty: Bool) {
+        let base: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        guard allowEmpty else {
             SecItemDelete(base as CFDictionary)
             return
         }
-        let data = Data(value.utf8)
         let update: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,

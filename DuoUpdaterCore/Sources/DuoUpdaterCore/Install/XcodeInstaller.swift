@@ -50,10 +50,8 @@ public enum XcodeInstaller {
         case packageSignatureRejected(String)
         case expandFailed(String)
         case unexpectedArchiveContents(String)
-        /// `name` is the installed bundle's name ("Xcode-beta"); `process` is the
-        /// executable found running inside it when that is not the app itself
-        /// (a helper or tool from the bundle), nil when it is.
-        case xcodeRunning(name: String, process: String?)
+        /// `name` is the installed bundle's name ("Xcode-beta").
+        case xcodeRunning(name: String)
 
         public var errorDescription: String? {
             switch self {
@@ -73,9 +71,8 @@ public enum XcodeInstaller {
                 return "The Xcode archive could not be expanded: \(why). Nothing was changed."
             case .unexpectedArchiveContents(let why):
                 return "The Xcode archive did not contain one app: \(why). Nothing was changed."
-            case .xcodeRunning(let name, let process):
-                let detail = process.map { " (\($0) from inside it is still running)" } ?? ""
-                return "\(name) is running\(detail). Quit it, then click Update again. Nothing was changed."
+            case .xcodeRunning(let name):
+                return "\(name) is running. Quit it, then click Update again. Nothing was changed."
             }
         }
     }
@@ -243,20 +240,21 @@ public enum XcodeInstaller {
     /// (symlinks resolved), `runningExecutables` every process's executable path.
     ///
     /// Containment by path component, so `/Applications/Xcode.app` running never
-    /// blocks `/Applications/Xcode-beta.app` (or `Xcode.app.old`). Any executable
-    /// inside the bundle counts, not just `Contents/MacOS/Xcode`: a helper or a
-    /// tool (`xcodebuild` from its `Contents/Developer`) is just as much code
-    /// running out of the directory the swap would delete.
+    /// blocks `/Applications/Xcode-beta.app` (or `Xcode.app.old`).
+    ///
+    /// Only the app itself (`Contents/MacOS/…`) counts, not every executable in
+    /// the bundle. Helpers outlive the app: on 2026-09-22, with the App Store
+    /// Xcode not running, `ibtoold` and a `Python` from inside its bundle were
+    /// still up. Refusing on those would block a user who has already quit Xcode,
+    /// on a process they cannot see; the app is what holds unsaved work, and a
+    /// replaced helper is started afresh the next time Xcode runs.
     static func runningRefusal(installedAt bundlePath: String, runningExecutables: [String]) -> InstallError? {
-        guard let hit = runningExecutables.first(where: {
-            AppRestarter.isExecutable($0, insideBundlePath: bundlePath)
-        }) else { return nil }
         let bundle = URL(fileURLWithPath: bundlePath)
-        let name = bundle.deletingPathExtension().lastPathComponent
-        let main = bundle.appendingPathComponent("Contents/MacOS").path + "/"
-        return .xcodeRunning(
-            name: name,
-            process: hit.hasPrefix(main) ? nil : URL(fileURLWithPath: hit).lastPathComponent)
+        let appDir = bundle.appendingPathComponent("Contents/MacOS").path
+        guard runningExecutables.contains(where: {
+            AppRestarter.isExecutable($0, insideBundlePath: appDir)
+        }) else { return nil }
+        return .xcodeRunning(name: bundle.deletingPathExtension().lastPathComponent)
     }
 
     /// `path` as `proc_pidpath` spells it: symlinks resolved.

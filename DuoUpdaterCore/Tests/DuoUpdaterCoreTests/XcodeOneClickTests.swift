@@ -355,13 +355,15 @@ import Foundation
         #expect(XcodeInstaller.runningRefusal(
             installedAt: beta,
             runningExecutables: ["/ZZFixture/Applications/Xcode-beta.app/Contents/MacOS/Xcode"])
-            == .xcodeRunning(name: "Xcode-beta", process: nil))
-        // A tool running out of the bundle counts too, and is named.
+            == .xcodeRunning(name: "Xcode-beta"))
+        // Helpers left behind after Xcode quit do not block (measured: ibtoold
+        // outlives the app).
         #expect(XcodeInstaller.runningRefusal(
             installedAt: beta,
-            runningExecutables: ["/ZZFixture/Applications/Xcode-beta.app/Contents/Developer/usr/bin/xcodebuild"])
-            == .xcodeRunning(name: "Xcode-beta", process: "xcodebuild"))
-        #expect(XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil).errorDescription
+            runningExecutables: ["/ZZFixture/Applications/Xcode-beta.app/Contents/Developer/usr/bin/xcodebuild",
+                                 "/ZZFixture/Applications/Xcode-beta.app/Contents/SharedFrameworks/ZZ.framework/ibtoold"])
+            == nil)
+        #expect(XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta").errorDescription
             == "Xcode-beta is running. Quit it, then click Update again. Nothing was changed.")
     }
 
@@ -371,7 +373,7 @@ import Foundation
         let root = try Self.scratchRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let fake = FakeDownloader(mode: .succeed)
-        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil)) {
+        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta")) {
             _ = try await XcodeInstaller.download(
                 Self.result(), using: fake, scratchRoot: root,
                 runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },
@@ -386,7 +388,7 @@ import Foundation
     @Test func theSwapIsSkippedIfXcodeWasOpenedMeanwhile() async throws {
         let target = URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app")
         let swaps = StageLog()
-        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil)) {
+        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta")) {
             try await XcodeInstaller.swapUnlessRunning(
                 over: target,
                 runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },

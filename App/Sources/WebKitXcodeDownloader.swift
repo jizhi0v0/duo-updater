@@ -186,6 +186,13 @@ extension DownloadJob: WKNavigationDelegate {
         let looksLikeFile = !navigationResponse.canShowMIMEType || (url?.path.hasSuffix(".xip") ?? false)
 
         guard looksLikeFile else {
+            // An error page is a dead end, not something to load and wait on:
+            // nothing below would ever resume the caller for it.
+            guard Self.pageResponseIsLoadable(status: http.statusCode) else {
+                decisionHandler(.cancel)
+                fail(networkRefusalError(status: http.statusCode))
+                return
+            }
             decisionHandler(.allow)
             return
         }
@@ -197,6 +204,15 @@ extension DownloadJob: WKNavigationDelegate {
         expectedFinalHost = url?.host
         expectingDownloadHandoff = true
         decisionHandler(.download)
+        // The 102 that follows `.download` is swallowed as the handoff; if the
+        // `WKDownload` then never attaches, nothing else would resume the caller.
+        // Measured: handoff, destination and first progress land within one
+        // second, so 30 s is only a backstop.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.handoffDeadlineSeconds))
+            guard let self, !self.finished, self.download == nil else { return }
+            self.fail(self.handoffStalledError())
+        }
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
@@ -206,14 +222,20 @@ extension DownloadJob: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let host = webView.url?.host, host.hasSuffix("idmsa.apple.com") else { return }
-        guard !signInInFlight else { return }
-        guard !reloadedAfterSignIn else {
-            // We already completed one sign-in round trip for this call and
-            // landed back on idmsa anyway — the user really did sign in, so
-            // this is not a cancellation. Say what actually happened.
-            fail(signInDidNotStickError())
-            return
+        // No page is meant to finish loading here: the authorized URL redirects
+        // either to the CDN (and becomes a download) or to idmsa (sign-in),
+        // measured 2026-09-22. A page anywhere else is a dead end — say so,
+        // rather than leave the caller waiting on a continuation forever.
+        switch Self.finishedPageOutcome(
+            host: webView.url?.host, signInInFlight: signInInFlight,
+            reloadedAfterSignIn: reloadedAfterSignIn) {
+        case .ignore: return
+        case .unexpectedPage: fail(unexpectedPageError()); return
+        // We already completed one sign-in round trip for this call and landed
+        // back on idmsa anyway — the user really did sign in, so this is not a
+        // cancellation. Say what actually happened.
+        case .signInDidNotStick: fail(signInDidNotStickError()); return
+        case .presentSignIn: break
         }
         signInInFlight = true
         Task {
@@ -255,6 +277,46 @@ extension DownloadJob: WKNavigationDelegate {
         else { return false }
         expectingDownloadHandoff = false
         return true
+    }
+
+    private static let handoffDeadlineSeconds = 30
+
+    /// What a page that finished loading in the main frame means. Pure, so the
+    /// dead-end cases are testable without loading a page.
+    enum FinishedPageOutcome: Equatable {
+        case ignore, presentSignIn, signInDidNotStick, unexpectedPage
+    }
+
+    nonisolated static func finishedPageOutcome(
+        host: String?, signInInFlight: Bool, reloadedAfterSignIn: Bool
+    ) -> FinishedPageOutcome {
+        if signInInFlight { return .ignore }
+        guard let host, host == "idmsa.apple.com" || host.hasSuffix(".idmsa.apple.com") else {
+            return .unexpectedPage
+        }
+        return reloadedAfterSignIn ? .signInDidNotStick : .presentSignIn
+    }
+
+    /// A non-file response we let the web view render: only a success. An error
+    /// page would load, finish, and leave nothing to resume the caller.
+    nonisolated static func pageResponseIsLoadable(status: Int) -> Bool {
+        (200..<300).contains(status)
+    }
+
+    private func unexpectedPageError() -> Error {
+        NSError(
+            domain: "com.duoupdater.app.XcodeDownload",
+            code: -3,
+            userInfo: [NSLocalizedDescriptionKey: String(
+                localized: "Apple's developer site answered with a page instead of the Xcode download. Try again; if it keeps happening, sign out and back in under Settings → Xcode.")])
+    }
+
+    private func handoffStalledError() -> Error {
+        NSError(
+            domain: "com.duoupdater.app.XcodeDownload",
+            code: -4,
+            userInfo: [NSLocalizedDescriptionKey: String(
+                localized: "The Xcode download did not start. Try again.")])
     }
 
     private func signInDidNotStickError() -> Error {

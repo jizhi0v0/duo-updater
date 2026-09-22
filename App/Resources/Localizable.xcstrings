@@ -30293,6 +30293,88 @@
           }
         }
       }
+    },
+    "Apple's developer site answered with a page instead of the Xcode download. Try again; if it keeps happening, sign out and back in under Settings → Xcode.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Apple-Developer-Website hat mit einer Seite statt mit dem Xcode-Download geantwortet. Versuche es erneut; wenn das weiter passiert, melde dich unter Einstellungen → Xcode ab und wieder an."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El sitio de Apple Developer respondió con una página en lugar de la descarga de Xcode. Vuelve a intentarlo; si sigue pasando, cierra sesión y vuelve a iniciarla en Ajustes → Xcode."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le site Apple Developer a répondu par une page au lieu du téléchargement de Xcode. Réessayez ; si cela se reproduit, déconnectez-vous puis reconnectez-vous dans Réglages → Xcode."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developerサイトが、Xcodeのダウンロードではなくページを返しました。もう一度お試しください。繰り返し起きる場合は、設定 → Xcodeで一度サインアウトしてからサインインし直してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сайт Apple Developer вернул страницу вместо загрузки Xcode. Повторите попытку; если это повторяется, выйдите и войдите снова в разделе Настройки → Xcode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Developer 网站返回了一个页面，而不是 Xcode 下载。请重试；如果反复出现，请在「设置 → Xcode」中退出后重新登录。"
+          }
+        }
+      }
+    },
+    "The Xcode download did not start. Try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Xcode-Download ist nicht gestartet. Versuche es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga de Xcode no se inició. Vuelve a intentarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement de Xcode n'a pas démarré. Réessayez."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcodeのダウンロードが開始されませんでした。もう一度お試しください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка Xcode не началась. Повторите попытку."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 下载没有开始。请重试。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

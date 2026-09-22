@@ -4276,7 +4276,7 @@ final class AppListModel {
                 for: result, requiresInstaller: requiresInstaller(result))
 
             switch route {
-            case .installer, .homebrew, .vendor, .sparkle:
+            case .installer, .homebrew, .vendor, .sparkle, .xcode:
                 // A missing cask token used to reset the spinner and return
                 // false here; the coordinator throws instead, which the catch
                 // below settles the same way (and now says why).

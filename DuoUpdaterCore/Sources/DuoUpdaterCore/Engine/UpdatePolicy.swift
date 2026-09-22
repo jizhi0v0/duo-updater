@@ -216,6 +216,16 @@ public enum UpdatePolicy {
             // above for both routes.
             case .incremental: return true
             }
+        case "Xcode Releases":
+            // An `.xip` from Apple's developer site, fetched through the host's
+            // signed-in web view (`XcodeArchiveDownloading`) and applied by
+            // `XcodeInstaller`: Apple package signature, then the same bundle
+            // gates as every other swap. The source leaves `downloadURL` nil —
+            // detection-only — whenever no archive fits this Mac or its URL is
+            // not one it rewrites. A host with no downloader (the CLI) refuses
+            // the `.xcode` route itself.
+            return result.remote?.downloadURL != nil
+                && result.remote?.requiresManualInstaller == false
         default:
             return false
         }
@@ -350,7 +360,8 @@ public enum UpdatePolicy {
     /// this to split that text in two — "no artefact THIS time" for a
     /// recognised source vs. "no route wired up yet" for one this function
     /// returns false for — but every source that returns false here in
-    /// production (Xcode Releases, Toolbox, TestFlight) is permanently,
+    /// production (Toolbox, TestFlight; Xcode Releases too, until it gained
+    /// the `.xcode` route) is permanently,
     /// deliberately artefact-less by design, not a policy gap waiting to be
     /// closed, so "not wired up yet" was never true for anything that could
     /// reach it. `Install.swift`'s follow-up review reverted the split; see
@@ -363,7 +374,7 @@ public enum UpdatePolicy {
     /// instead of silently offering nothing.
     public static func isRecognizedInstallSource(_ sourceName: String?) -> Bool {
         switch sourceName {
-        case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store":
+        case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store", "Xcode Releases":
             return true
         default:
             return false

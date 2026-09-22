@@ -668,10 +668,6 @@ private func storeAvailability(
     let sourcesOutsideTheStack = ["Toolbox", "TestFlight"]
 
     let deliberatelyUnwired: [String: String] = [
-        // XcodeReleasesSource never resolves an installable artifact — Apple
-        // gates every Xcode download behind an Apple ID and its own installer
-        // UI, so this source is always detection-only by construction.
-        "Xcode Releases": "always detection-only — no installable artifact exists to vet",
         // JetBrains Toolbox owns the install; there is no bundle of ours to swap.
         "Toolbox": "Toolbox manages the app itself",
         // Apple's TestFlight app owns the install.

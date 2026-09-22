@@ -4,13 +4,34 @@ import Foundation
 /// release index at `xcodereleases.com/data.json`.
 ///
 /// Xcode has no feed of its own: stable ships through the Mac App Store (handled by
-/// `MacAppStoreSource`, which can actually install it) and every beta/RC lives
-/// behind an Apple ID on `developer.apple.com`. So this source is **detection
-/// only** — it reports what exists and links to Apple's page and release notes,
-/// and never offers a one-click. That isn't a gap to close later: the download
-/// endpoint 302s to `developer.apple.com/unauthorized/` without a session cookie
-/// (verified 2026-08-14), so installing would mean driving an Apple ID login,
-/// which this app does not do.
+/// `MacAppStoreSource`, which can actually install it — and a store copy never
+/// reaches this source, see `UpdateSource.answersAppStoreCopies`) while every
+/// beta and RC, and a developer-site copy of each GA, lives behind an Apple ID on
+/// `developer.apple.com`.
+///
+/// ## What it offers to install
+///
+/// Each index entry names its `.xip` on Apple's CDN (`links.download.url`). The CDN
+/// refuses a request that did not come through the account endpoint first
+/// (measured 2026-09-22: anonymous CDN → 302 to `/unauthorized/`), so the URL
+/// published on the `RemoteVersion` is the AUTHORIZED one,
+/// `developer.apple.com/services-account/download?path=/Developer_Tools/<dir>/<file>.xip`
+/// (`authorizedDownloadURL`). Only an exact `https://download.developer.apple.com/
+/// Developer_Tools/<dir>/<file>.xip` is rewritten; anything else leaves
+/// `downloadURL` nil and the row detection-only, as every row used to be.
+///
+/// Fetching it needs the user's Apple ID session, which only the menu-bar app has
+/// (an embedded, signed-in web view). So the bytes come through
+/// `XcodeArchiveDownloading`, the install route is `InstallCoordinator.Route.xcode`,
+/// and a host without a downloader (the `duo` CLI) refuses it. `XcodeInstaller`
+/// checks the archive's Apple signature, expands it and runs the usual bundle
+/// gates before replacing the installed copy in place — at its own path.
+///
+/// Several entries can describe one build packaged for different Macs (26.6:
+/// `Xcode_26.6_Apple_silicon.xip` and `Xcode_26.6_Universal.xip`, same build, same
+/// `_versionOrder`), each listing `links.download.architectures`. The one offered
+/// is chosen for the host (`chooseDownload`); an entry that lists none is never
+/// chosen, because "unknown" is not "fits".
 ///
 /// ## The version trap
 ///
@@ -44,7 +65,19 @@ import Foundation
 /// user is offered a newer beta, an RC, or the GA; a release user is only ever
 /// offered another release. `_versionOrder` — the index's own ranking, which
 /// already sorts release above rc above beta within a version — decides "newer",
-/// so no string comparison has to understand Apple's build spelling.
+/// so no string comparison has to understand Apple's build spelling. Parallel
+/// lines are not special-cased: 27.2 beta 1 outranks the later-published,
+/// device-specific 27.1 beta, and that is the intended answer.
+///
+/// **One exception, by install path** (`followsBetaLine`): a copy whose bundle is
+/// named exactly `Xcode-beta.app` follows the beta line for good, and is offered
+/// the newest beta, RC or GA whatever it reads as today. The one-click replaces a
+/// bundle in place, keeping its path, so once a beta is overwritten by the GA — or
+/// sits on the last RC, which is byte-identical to the GA and reads as release —
+/// the floor above would stop offering it the next beta, and the copy the user
+/// keeps for betas would quietly turn into a second release Xcode. The name is
+/// only a convention, which is why it decides what to OFFER and never what a
+/// build IS: the installed release is still found by build, as above.
 ///
 /// ## The macOS floor
 ///
@@ -52,10 +85,9 @@ import Foundation
 /// one Xcode version: measured 2026-09-15 on the live index, 27.0 RC 1
 /// (`27A266a`) requires macOS 26.6 while all six 27.0 betas require 26.4. This
 /// source was ignoring the field, so a Mac on 26.0–26.5 was shown 27.0 RC as
-/// available — detection-only, so the cost was a row nobody could act on rather
-/// than a failed install, but it was still a version that does not exist for that
-/// Mac (#640). The floor now both bounds the candidates and rides along on the
-/// `RemoteVersion`.
+/// available — a version that does not exist for that Mac (#640). The floor now
+/// both bounds the candidates and rides along on the `RemoteVersion`; when there
+/// is a download, install-time gate 6 reads the bundle's own floor as well.
 public struct XcodeReleasesSource: UpdateSource {
 
     static let sourceName = "Xcode Releases"
@@ -83,21 +115,36 @@ public struct XcodeReleasesSource: UpdateSource {
         guard let installedBuild = app.buildVersion, !installedBuild.isEmpty else { return nil }
 
         return Self.remote(
-            forBuild: installedBuild, in: try await fetch(), osVersion: HostOS.numericVersion())
+            forBuild: installedBuild, in: try await fetch(), osVersion: HostOS.numericVersion(),
+            host: .current, followsBetaLine: Self.followsBetaLine(installedAt: app.path))
+    }
+
+    /// Whether the copy at `path` stays on the beta line whatever it reads as —
+    /// see "Channels" above. The bundle's own name, exactly.
+    static func followsBetaLine(installedAt path: URL) -> Bool {
+        path.lastPathComponent == "Xcode-beta.app"
     }
 
     /// What `latestVersion` reports for an installed build, given the index. Pure,
     /// so the engine's verdict on it is testable without network.
     ///
-    /// `osVersion` has no default on purpose: the index states a macOS floor per
-    /// release (`requires`), so this function's answer depends on the host, and a
+    /// `osVersion`, `host` and `followsBetaLine` have no defaults on purpose: the
+    /// index states a macOS floor per release (`requires`) and the architectures
+    /// of each archive, so this function's answer depends on the host, and a
     /// default would let a test silently measure whichever Mac it runs on.
     static func remote(
-        forBuild installedBuild: String, in releases: [Release], osVersion: String
+        forBuild installedBuild: String, in releases: [Release], osVersion: String,
+        host: HostArch, followsBetaLine: Bool
     ) -> RemoteVersion? {
         guard let (installed, offer) = Self.offer(
-            forBuild: installedBuild, in: releases, osVersion: osVersion)
+            forBuild: installedBuild, in: releases, osVersion: osVersion,
+            followsBetaLine: followsBetaLine)
         else { return nil }
+        // Nil when no archive of the offered build fits this Mac, or none has a URL
+        // `authorizedDownloadURL` accepts — the row is then detection-only.
+        let download = Self.chooseDownload(
+            among: releases.filter { $0.build == offer.build && $0.order == offer.order },
+            host: host)?.authorizedURL
 
         return RemoteVersion(
             // Build-to-build is the real comparison (`shortVersion` here is a label
@@ -106,8 +153,9 @@ public struct XcodeReleasesSource: UpdateSource {
             // both sides have one, which for Xcode is always).
             shortVersion: offer.displayVersion,
             version: offer.build,
-            // Detection only: no artifact, deliberately. See the note above.
-            downloadURL: nil,
+            // The authorized endpoint, not the CDN URL — see "What it offers to
+            // install" above.
+            downloadURL: download,
             pageURL: offer.stability >= .release ? Self.appStorePage : Self.downloadsPage,
             // Name the installed side too: on disk it is only "27.0", and which beta
             // that is exists nowhere in the bundle — so "27.0 beta 1 → 27.0 beta 5"
@@ -123,11 +171,11 @@ public struct XcodeReleasesSource: UpdateSource {
             // candidates by this value, so the build named here is one this Mac
             // can run. Carried anyway because it is a fact about the release.
             // Nothing reads it yet — the row's "requires macOS N" line (#634
-            // part 3) would be the first — and gate 6 never sees this release:
-            // there is no download to check.
+            // part 3) would be the first. Gate 6 separately reads the expanded
+            // bundle's own floor at install time.
             minimumSystemVersion: offer.requires,
             sourceName: Self.sourceName,
-            requiresManualInstaller: true,
+            requiresManualInstaller: download == nil,
             changelogURL: offer.notesURL,
             // Deliberately no `publishedAt`: the index dates releases to the DAY,
             // and the release timeline only plots times it can trust to the minute
@@ -162,13 +210,17 @@ public struct XcodeReleasesSource: UpdateSource {
     /// 27.0 RC 1 requires macOS 26.6 while 27.0 beta 6 requires 26.4 — so a Mac
     /// on 26.4 is offered the newest beta rather than an RC it cannot run. This is
     /// the shape `SparkleAppcastSource.usableItems` has always had (filter the
-    /// candidate list, then take its head), with the same predicate. This filter
-    /// is the ONLY floor gate Xcode has, at any stage: `UpdateChecker.evaluate`
-    /// asks nothing about the host, and install-time gate 6 never runs because
-    /// the remote carries no download (`requiresManualInstaller`). A build this
-    /// filter lets through is offered, and the user downloads it by hand.
+    /// candidate list, then take its head), with the same predicate. It is the
+    /// only floor gate at CHECK time (`UpdateChecker.evaluate` asks nothing about
+    /// the host); when the offer carries a download, install-time gate 6 also
+    /// reads the expanded bundle's `LSMinimumSystemVersion`.
+    ///
+    /// `followsBetaLine` lowers the stability floor to beta for a copy that
+    /// tracks betas by its path (see "Channels" above), so a beta-path copy that
+    /// reads as release today is still offered the next beta.
     static func offer(
-        forBuild installedBuild: String, in releases: [Release], osVersion: String
+        forBuild installedBuild: String, in releases: [Release], osVersion: String,
+        followsBetaLine: Bool
     ) -> (installed: Release, offer: Release)? {
         // Several entries can share a build (26.6 RC 2 and 26.6 release are the same
         // binary, `17F113`). Identical bits, so take the most stable reading of it:
@@ -183,8 +235,11 @@ public struct XcodeReleasesSource: UpdateSource {
         // release is only ever superseded by another release.
         // ...and by what this Mac can run. `installed` is deliberately NOT
         // filtered: it is on disk, so whatever it declares, it runs here.
+        // A beta-path copy's floor is beta whatever it reads as now — lowered,
+        // never raised: a developer preview installed there keeps its own.
+        let floor = followsBetaLine ? min(installed.stability, .beta) : installed.stability
         let candidates = releases.filter {
-            $0.stability >= installed.stability
+            $0.stability >= floor
                 && SignatureVerifier.canRun(minimumSystemVersion: $0.requires, on: osVersion)
         }
         guard let latest = candidates.max(by: { $0.order < $1.order }) else {
@@ -192,6 +247,71 @@ public struct XcodeReleasesSource: UpdateSource {
         }
         return (installed, latest.order > installed.order ? latest : installed)
     }
+
+    // MARK: - Download
+
+    /// The archive to offer among `entries` — the entries of ONE build and rank —
+    /// for a Mac of architecture `host`, or nil when none fits.
+    ///
+    /// On Apple silicon an arm64-only archive is preferred (the same build, a
+    /// smaller download), then one that also carries arm64 (Universal). On Intel
+    /// only an archive that carries x86_64 will do. An entry that lists no
+    /// architectures, or whose URL `authorizedDownloadURL` refused, is never
+    /// chosen. Ties go to the lexically first URL, so the answer does not depend
+    /// on the index's order.
+    static func chooseDownload(among entries: [Release], host: HostArch) -> Release? {
+        let usable = entries
+            .compactMap { entry in entry.authorizedURL.map { (url: $0, entry: entry) } }
+            .filter { $0.entry.architectures != nil }
+            .sorted { $0.url.absoluteString < $1.url.absoluteString }
+            .map(\.entry)
+        func archs(_ entry: Release) -> Set<String> { Set(entry.architectures ?? []) }
+        switch host {
+        case .arm64:
+            return usable.first { archs($0) == ["arm64"] }
+                ?? usable.first { archs($0).contains("arm64") }
+        case .x86_64:
+            return usable.first { archs($0).contains("x86_64") }
+        }
+    }
+
+    /// `developer.apple.com/services-account/download?path=…` for a CDN URL the
+    /// index publishes, or nil for anything that is not exactly
+    /// `https://download.developer.apple.com/Developer_Tools/<dir>/<file>.xip`.
+    ///
+    /// Strict on purpose: the URL is handed to a web view holding the user's
+    /// Apple ID session, and what comes back is expanded and swapped over an
+    /// installed app. Each path component is limited to the characters Apple's
+    /// own names use (measured 2026-09-22: every `Developer_Tools/…/….xip` in the
+    /// live index is made of them), which also keeps `..`, percent-escapes and a
+    /// smuggled query out of the rewritten `path=`.
+    static func authorizedDownloadURL(fromCDN raw: String) -> URL? {
+        guard let components = URLComponents(string: raw),
+              components.scheme == "https",
+              components.host == "download.developer.apple.com",
+              components.user == nil, components.password == nil, components.port == nil,
+              components.query == nil, components.fragment == nil
+        else { return nil }
+        // ["", "Developer_Tools", dir, file]
+        let parts = components.percentEncodedPath
+            .split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[0].isEmpty, parts[1] == "Developer_Tools" else { return nil }
+        for part in parts[2...] {
+            guard part != ".", part != "..",
+                  !part.isEmpty, part.allSatisfy(Self.pathCharacters.contains)
+            else { return nil }
+        }
+        guard parts[3].hasSuffix(".xip"), parts[3].count > ".xip".count else { return nil }
+        var out = URLComponents()
+        out.scheme = "https"
+        out.host = "developer.apple.com"
+        out.path = "/services-account/download"
+        out.queryItems = [URLQueryItem(name: "path", value: "/Developer_Tools/\(parts[2])/\(parts[3])")]
+        return out.url
+    }
+
+    private static let pathCharacters = Set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
 
     // MARK: - Feed
 
@@ -246,6 +366,12 @@ public struct XcodeReleasesSource: UpdateSource {
     /// the only exact identity Xcode has, and betas of the same number get respun
     /// (27A5194o vs 27A5194q are different bits under one "beta 1").
         let displayVersion: String
+        /// `links.download.url`, already rewritten by `authorizedDownloadURL` —
+        /// nil when the entry has none, or it was refused.
+        let authorizedURL: URL?
+        /// `links.download.architectures` ("arm64", "x86_64"), or nil when the
+        /// entry does not say — as most older entries do not.
+        let architectures: [String]?
 
         init?(json: [String: Any]) {
             // "Xcode", "Xcode (Apple Silicon)" and "Xcode (Universal)" are the same
@@ -276,9 +402,14 @@ public struct XcodeReleasesSource: UpdateSource {
             self.requires = json["requires"] as? String
             let label = suffix.map { "\(number) \($0)" } ?? number
             self.displayVersion = "\(label) (\(build))"
-            self.notesURL = ((json["links"] as? [String: Any])?["notes"] as? [String: Any])
+            let links = json["links"] as? [String: Any]
+            self.notesURL = (links?["notes"] as? [String: Any])
                 .flatMap { $0["url"] as? String }
                 .flatMap(URL.init(string:))
+            let download = links?["download"] as? [String: Any]
+            self.authorizedURL = (download?["url"] as? String)
+                .flatMap(XcodeReleasesSource.authorizedDownloadURL(fromCDN:))
+            self.architectures = download?["architectures"] as? [String]
         }
     }
 }

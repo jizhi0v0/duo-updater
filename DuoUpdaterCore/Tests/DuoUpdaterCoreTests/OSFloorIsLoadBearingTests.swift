@@ -191,11 +191,11 @@ import Foundation
     /// nothing, because the floor bounds the CANDIDATES the way `usableItems` does.
     @Test func aMacBelowTheRCsFloorIsOfferedTheNewestRUNNABLEBuild() throws {
         let (_, onOld) = try #require(XcodeReleasesSource.offer(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.4.0"))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.4.0", followsBetaLine: false))
         #expect(onOld.build == "27A5252f")
         // Same index, a Mac that meets the RC's floor: the RC, as before.
         let (_, onNew) = try #require(XcodeReleasesSource.offer(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0"))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0", followsBetaLine: false))
         #expect(onNew.build == "27A266a")
     }
 
@@ -208,14 +208,14 @@ import Foundation
     /// `(installed, installed)` for every host satisfies it (mutation 9).
     @Test func aMacBelowEveryNewerBuildsFloorIsOfferedItself() throws {
         let (installed, offer) = try #require(XcodeReleasesSource.offer(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0"))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0", followsBetaLine: false))
         #expect(installed.build == "27A5237l")
         #expect(offer.build == "27A5237l")
         let app = Self.app(
             name: "Xcode-beta", bundleID: XcodeReleasesSource.bundleID,
             short: "27.0", build: "27A5237l")
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0"))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.0.0", host: .arm64, followsBetaLine: false))
         #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
@@ -225,7 +225,7 @@ import Foundation
     /// `LSMinimumSystemVersion`, not this.
     @Test func theXcodeRemoteCarriesTheOfferedReleasesFloor() throws {
         let remote = try #require(XcodeReleasesSource.remote(
-            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0"))
+            forBuild: "27A5237l", in: Self.xcodeReleases(), osVersion: "26.6.0", host: .arm64, followsBetaLine: false))
         #expect(remote.version == "27A266a")
         #expect(remote.minimumSystemVersion == "26.6")
     }

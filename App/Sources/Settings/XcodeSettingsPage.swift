@@ -44,7 +44,7 @@ struct XcodeSettingsPage: View {
             downloadCard
         }
         .task { await refresh() }
-        .task { await downloads.loadIfNeeded() }
+        .task { await downloads.reload() }
         .confirmationDialog(
             "Sign Out and Clear Session?",
             isPresented: $confirmingSignOut,
@@ -162,7 +162,7 @@ struct XcodeSettingsPage: View {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Try Again") { Task { await downloads.loadIfNeeded() } }
+                    Button("Try Again") { Task { await downloads.reload() } }
                 }
                 .settingsRow()
             } else {
@@ -216,8 +216,13 @@ struct XcodeSettingsPage: View {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
             } else {
-                Button("Download") { downloads.download(item) }
-                    .disabled(downloads.activeID != nil)
+                // Says so up front when the click will open Apple's sign-in first.
+                Button(session.signInNeed == nil
+                       ? String(localized: "Download")
+                       : String(localized: "Sign In & Download…")) {
+                    downloads.download(item)
+                }
+                .disabled(downloads.activeID != nil)
             }
         }
         .settingsRow()

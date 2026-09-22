@@ -27,13 +27,20 @@ final class XcodeDownloadCenter {
 
     private init() {}
 
-    func loadIfNeeded() async {
-        guard items.isEmpty, !loading else { return }
+    /// Fetch the list again. Called each time the page appears: the index is
+    /// fetched with `versionFeedCachePolicy` on `URLSession.updates`, whose
+    /// in-memory cache keeps it, so a repeat within a launch is a conditional
+    /// request. Measured 2026-09-23 with task metrics: the first fetch received
+    /// 33,459 bytes (gzip; 381,308 decoded), the repeat sent `If-None-Match` and
+    /// got 304 with 0 body bytes. The list on screen stays while it runs, and a
+    /// failed refresh keeps it.
+    func reload() async {
+        guard !loading else { return }
         loading = true
-        loadError = nil
         defer { loading = false }
         do {
             items = try await XcodeDownloadCatalog.load()
+            loadError = nil
         } catch {
             loadError = error.localizedDescription
         }

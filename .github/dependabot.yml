@@ -1,0 +1,19 @@
+# Keep the pinned claude-code-action current.
+#
+# Each commit of that action hard-codes the Claude Code CLI version it installs,
+# and claude-review.yml pins it by commit SHA, so the CLI never moves on its own.
+# A new model can need a newer CLI than the pin installs (claude-opus-5-5 needed
+# 2.1.280; see #808), and switching CLAUDE_REVIEW_MODEL alone then fails every
+# review. Dependabot opens a pull request that moves the SHA, which goes through
+# CI like any other change, so the pin stays a pin.
+#
+# Only this one action is allowed. The other SHA-pinned actions (checkout,
+# upload-artifact, attest-build-provenance) are left as they are.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "anthropics/claude-code-action"

@@ -206,7 +206,9 @@ public enum ChildProcess {
     }
 
     /// Test seam: `beforeSpawn` runs after the deadline race has started and before
-    /// the spawn (so a test can make the pre-launch wait long).
+    /// the spawn (so a test can make the pre-launch wait long), and `deadlineSleep`
+    /// is the deadline's clock (so a test can tell whether it started before or
+    /// after the launch without racing it against real time).
     static func run(
         _ executablePath: String,
         _ arguments: [String] = [],
@@ -219,7 +221,8 @@ public enum ChildProcess {
         onCancel: Cancellation,
         onOutputChunk: (@Sendable (Data) -> Void)? = nil,
         onLaunch: (@Sendable (pid_t) -> Void)? = nil,
-        beforeSpawn: (@Sendable () async -> Void)?
+        beforeSpawn: (@Sendable () async -> Void)?,
+        deadlineSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) async throws -> Outcome {
         let request = Request(
             executablePath: executablePath, arguments: arguments,
@@ -227,7 +230,7 @@ public enum ChildProcess {
             standardInput: standardInput, standardOutput: standardOutput,
             standardError: standardError, deadline: deadline,
             onOutputChunk: onOutputChunk, onLaunch: onLaunch,
-            beforeSpawn: beforeSpawn)
+            beforeSpawn: beforeSpawn, deadlineSleep: deadlineSleep)
         switch onCancel {
         case .runToCompletion:
             // Unstructured on purpose: awaiting `.value` does not forward the
@@ -302,6 +305,7 @@ public enum ChildProcess {
         let onOutputChunk: (@Sendable (Data) -> Void)?
         let onLaunch: (@Sendable (pid_t) -> Void)?
         let beforeSpawn: (@Sendable () async -> Void)?
+        let deadlineSleep: @Sendable (Duration) async throws -> Void
 
         /// The steps swift-subprocess runs when the task driving the child is
         /// cancelled — by the deadline below, or (under `.terminateChild`) by the
@@ -333,7 +337,7 @@ public enum ChildProcess {
                     do {
                         // From launch, not from here: see "Deadline".
                         try await launched.wait()
-                        try await Task.sleep(for: deadline.terminateAfter)
+                        try await deadlineSleep(deadline.terminateAfter)
                         return .deadlinePassed
                     } catch {
                         return .deadlineAbandoned

@@ -177,8 +177,13 @@ import Testing
     // MARK: - Deadline
 
     /// The ladder's second rung: a child that ignores SIGTERM is SIGKILLed. The
-    /// script gives up on its own after ~30 s and exits 7, so an implementation
-    /// that never escalates produces a wrong outcome rather than a hang.
+    /// script gives up on its own after ~300 s and exits 7, so an implementation
+    /// that never escalates produces a wrong outcome rather than a hang. That
+    /// bound is only for such an implementation: a healthy one kills the child
+    /// ~9 s after launch. It was ~30 s, and with the #763 backup tests in the same
+    /// process the kill took up to ~28 s to land (the 8 s deadline woke after up to
+    /// 12.5 s, the 1 s grace took up to 15 s; 20 instrumented runs, 2026-09-22),
+    /// so the loop won once (run 35684793202).
     ///
     /// 8 s before SIGTERM is margin, not a measurement: the deadline now starts at
     /// launch, so a spawn queued behind others no longer eats into it, but `sh`
@@ -195,7 +200,7 @@ import Testing
             trap '' TERM
             echo trapped
             i=0
-            while [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done
+            while [ $i -lt 300 ]; do sleep 1; i=$((i+1)); done
             exit 7
             """)
         let outcome = try await ChildProcess.run(
@@ -382,18 +387,38 @@ import Testing
         #expect((kept.st_mode & S_IFMT) == S_IFIFO)
     }
 
-    /// The deadline counts from launch. Here the wait before the spawn (6 s,
-    /// injected) is longer than `terminateAfter` (3 s) and the child itself is
-    /// instant, so a clock started at the call would kill it before it ran.
+    /// The deadline counts from launch: a clock started at the call would kill the
+    /// child before it ran.
+    ///
+    /// The deadline's clock is injected, so nothing here races real time. A
+    /// deadline that starts sleeping while the spawn is still being held back
+    /// finds `terminateAfter` already spent (the pre-launch wait outlasted it) and
+    /// fires; one that starts after the launch sleeps until the child has exited
+    /// and it is cancelled. The spawn is held for 2 s or until a deadline starts,
+    /// whichever is first, which only has to give a deadline started at the call
+    /// time to show itself. It replaced a real 6 s wait against a real 3 s
+    /// deadline, which fired first in 3 of 20 instrumented runs on the 3-core
+    /// runner (2026-09-22): the instant child's exit took longer than 3 s to come
+    /// back with the #763 backup tests in the same process.
     ///
     /// Mutation: drop `try await launched.wait()` in `raceDeadline` → the deadline
     /// fires during the pre-launch wait, the child is torn down, `timedOut`.
     @Test func theDeadlineClockStartsAtLaunch() async throws {
+        let deadlineStarted = Signal()
+        let spawnReleased = Signal()
         let outcome = try await ChildProcess.run(
             "/bin/sh", ["-c", "echo ran"],
             deadline: .init(terminateAfter: .seconds(3), killAfter: .seconds(4)),
             onCancel: .runToCompletion,
-            beforeSpawn: { try? await Task.sleep(for: .seconds(6)) })
+            beforeSpawn: {
+                _ = await Self.within(seconds: 2) { await deadlineStarted.wait() }
+                spawnReleased.fire()
+            },
+            deadlineSleep: { _ in
+                deadlineStarted.fire()
+                guard spawnReleased.hasFired else { return }
+                try await Task.sleep(for: .seconds(600))
+            })
         #expect(!outcome.timedOut)
         #expect(outcome.succeeded)
         #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "ran\n")
@@ -463,6 +488,8 @@ import Testing
         private let lock = NSLock()
         private var fired = false
         private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        var hasFired: Bool { lock.withLock { fired } }
 
         func fire() {
             let resume: [CheckedContinuation<Void, Never>] = lock.withLock {

@@ -6,11 +6,13 @@ import DuoUpdaterCore
 /// Runs the same `InstallCoordinator` the menu-bar app runs, gated by the same
 /// `UpdatePolicy`, so what this installs and how is not a second opinion.
 ///
-/// Two things it deliberately will not do:
+/// Three things it deliberately will not do:
 ///  - **App Store.** That route needs either the privileged helper (whose
 ///    `SMAppService.daemon` registration requires an app bundle) or the
 ///    Accessibility API driving App Store.app. A CLI has neither, so it says so
 ///    instead of failing halfway.
+///  - **Xcode.** Its archive needs an Apple ID session that only the menu-bar
+///    app's web view holds, so `classify` refuses the `.xcode` route.
 ///  - **Take the lock by force.** If the menu-bar app is installing, this exits
 ///    rather than swapping a bundle underneath it.
 public enum Install {

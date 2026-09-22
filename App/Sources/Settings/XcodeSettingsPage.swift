@@ -136,6 +136,7 @@ struct XcodeSettingsPage: View {
     private var downloadCard: some View {
         SettingsCard(
             header: "Download Xcode",
+            headerInfo: "The list comes from [xcodereleases.com](https://xcodereleases.com), a community-kept index of every Xcode release — thank you! When you're signed in, Apple's own download list is merged in, so new releases appear within minutes. That approach, and how to reach Apple's list, we learned from [xcodes](https://github.com/XcodesOrg/xcodes), the open-source tool that downloads and installs Xcode — thank you too. The archives themselves always come straight from Apple.",
             footer: "Saves the Xcode archive (.xip) to your Downloads folder — open it to expand Xcode, then move it where you like. Nothing is installed or replaced. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed."
         ) {
             HStack {
@@ -147,8 +148,36 @@ struct XcodeSettingsPage: View {
                 .labelsHidden()
                 .fixedSize()
                 Spacer()
+                Button {
+                    Task { await downloads.reload() }
+                } label: {
+                    // Both states in one 16pt box, exactly as the popover's own
+                    // refresh does it (`MenuContentView`) — swapping a spinner in
+                    // beside the button moved the control as it started.
+                    Group {
+                        if downloads.loading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.72)
+                                .offset(y: 1)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.borderless)
+                .disabled(downloads.loading)
+                .help("Refresh the list")
             }
             .settingsRow()
+            if let loaded = downloads.lastLoaded {
+                Text(listSourceLine(loaded: loaded))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .settingsRow()
+            }
             if downloads.loading && downloads.items.isEmpty {
                 SettingsDivider()
                 HStack(spacing: 8) {
@@ -212,6 +241,13 @@ struct XcodeSettingsPage: View {
                 .buttonStyle(.borderless)
                 .help("Cancel download")
             } else if let file = downloads.finished[item.id] {
+                SettingsInfoButton("Opening the archive only expands it — nothing is installed yet:\n\n1. **Open** expands it next to the archive (about a minute, ~4 GB). A beta becomes Xcode-beta.app; a release or RC becomes Xcode.app.\n2. Drag it into Applications. To keep another Xcode there, rename this one first — for example Xcode-26.6.app.\n3. Open it. Xcode asks you to accept its license and installs its components (your password), and offers the platforms such as the iOS Simulator.\n4. Optional: to use it from Terminal, choose it in Xcode → Settings → Locations → Command Line Tools.\n\nDuoUpdater offers updates for any Xcode in Applications, this one included.")
+                Button("Open") {
+                    // Archive Utility is the default handler for .xip (checked
+                    // 2026-09-23): it verifies Apple's signature and expands.
+                    NSWorkspace.shared.open(file)
+                }
+                .help("Expand the archive with Archive Utility")
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
@@ -228,8 +264,24 @@ struct XcodeSettingsPage: View {
         .settingsRow()
     }
 
+    /// Where the list came from — so a refresh visibly did something, and a
+    /// signed-out or failed Apple read is not mistaken for "nothing new".
+    private func listSourceLine(loaded: Date) -> String {
+        let when = loaded.formatted(.relative(presentation: .named))
+        if downloads.includesAppleList {
+            return String(localized: "From Apple and xcodereleases.com · updated \(when)")
+        }
+        if session.signInNeed == nil {
+            return String(localized: "From xcodereleases.com · updated \(when). Apple's own list couldn't be read this time.")
+        }
+        return String(localized: "From xcodereleases.com · updated \(when). Sign in to include Apple's own list, which has new releases first.")
+    }
+
     private func downloadDetail(_ item: XcodeDownloadItem) -> String {
         var parts: [String] = []
+        if item.onlyFromApple {
+            parts.append(String(localized: "New from Apple"))
+        }
         if let date = item.date.flatMap({ Calendar(identifier: .gregorian).date(from: $0) }) {
             parts.append(date.formatted(date: .abbreviated, time: .omitted))
         }

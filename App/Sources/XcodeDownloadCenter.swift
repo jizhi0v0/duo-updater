@@ -16,6 +16,11 @@ final class XcodeDownloadCenter {
     private(set) var items: [XcodeDownloadItem] = []
     private(set) var loading = false
     private(set) var loadError: String?
+    /// The list on screen includes Apple's own (`AppleDeveloperDownloadList`).
+    /// False while signed out, or when Apple's list could not be read — the
+    /// xcodereleases index alone is shown then.
+    private(set) var includesAppleList = false
+    private(set) var lastLoaded: Date?
 
     private(set) var activeID: String?
     private(set) var progress: Double = 0
@@ -38,9 +43,20 @@ final class XcodeDownloadCenter {
         guard !loading else { return }
         loading = true
         defer { loading = false }
+        // Signed in: Apple's own list too, merged by archive path. It is
+        // no-store (~190 KB each time), so it is asked only here — on opening the
+        // page or pressing refresh — never on a timer.
+        let appleData = await AppleDeveloperSession.shared.fetchDownloadList()
+        let appleUsable = appleData.map { !AppleDeveloperDownloadList.parse($0).isEmpty } ?? false
         do {
-            items = try await XcodeDownloadCatalog.load()
+            items = if let appleData, appleUsable {
+                try await XcodeDownloadCatalog.load(mergingAppleList: appleData)
+            } else {
+                try await XcodeDownloadCatalog.load()
+            }
+            includesAppleList = appleUsable
             loadError = nil
+            lastLoaded = Date()
         } catch {
             loadError = error.localizedDescription
         }

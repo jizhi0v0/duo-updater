@@ -115,6 +115,66 @@ private let qoderRSCPayloadFixture = #"""
 \"content\":[[\"$\",\"span\",null,{\"data-as\":\"p\",\"children\":\"This page lists the release history for IDE, with the newest version first.\"}],\"\\n\",[\"$\",\"div\",null,{\"id\":\"1280-2026-09-02\"}],\"\\n\",[\"$\",\"$L19\",null,{\"id\":\"september-2-2026\",\"label\":\"September 2, 2026\",\"description\":\"1.28.0\",\"tags\":\"$undefined\",\"isVisible\":true,\"children\":[[\"$\",\"h3\",null,{\"children\":\"Improvements\"}],[\"$\",\"ul\",null,{\"children\":[\"\\n\",[\"$\",\"li\",null,{\"children\":\"Increased the tool execution limit for single tasks in Qoder IDE to 500 rounds, making complex long-chain tasks less likely to be interrupted prematurely.\"}],\"\\n\",[\"$\",\"li\",null,{\"children\":\"Tasks interrupted due to depleted credits can now be manually resumed by clicking continue after credits are restored.\"}],\"\\n\"]}]]}],\"\\n\",[\"$\",\"div\",null,{\"id\":\"1270-2026-08-29\"}],\"\\n\",[\"$\",\"$L19\",null,{\"id\":\"august-29-2026\",\"label\":\"August 29, 2026\",\"description\":\"1.27.0\",\"tags\":\"$undefined\",\"isVisible\":true,\"children\":[[\"$\",\"h3\",null,{\"children\":\"Improvements\"}],[\"$\",\"ul\",null,{\"children\":[\"\\n\",[\"$\",\"li\",null,{\"children\":\"Added an enterprise control to disable external network access from the built-in browser, helping organizations meet security and operational management requirements.\"}],\"\\n\",[\"$\",\"li\",null,{\"children\":\"Personal edition BYOK now supports OpenAI, Google, and OpenRouter providers, enabling model services to
 """#
 
+/// The newest two entries of `docs.qoder.cn/product-overview/qoder-update-log`
+/// (Qoder CN), 2026-09-22, verbatim but for the SVG path data. Same docs build
+/// as the global pages; the dates are Chinese ("2026年09月20日") and the 0.3.3
+/// entry carries a `<video>` inside one of its `<li>`s.
+private let qoderCNNotesFixture = #"""
+<div class="update update-container relative flex w-full flex-col items-start gap-2 py-8 lg:flex-row lg:gap-6" id="2026-09-20"><div class="group top-(--scroll-mt) flex w-full shrink-0 flex-col items-start justify-start lg:sticky lg:w-[160px]"><div class="absolute"><a aria-label="Navigate to changelog" class="group/link -ml-10 flex items-center border-0 opacity-0 focus:opacity-100 focus:outline-0 group-hover:opacity-100" href="#2026-09-20">​<div class="flex size-6 items-center justify-center rounded-md bg-white text-stone-400 shadow-sm ring-1 ring-stone-400/30 hover:ring-stone-400/60 group-focus/link:border-2 group-focus/link:border-adoc-primary dark:bg-adoc-bg dark:text-white/50 dark:ring-1 dark:ring-stone-700/25 dark:brightness-[1.35] dark:group-focus/link:border-adoc-primary-light dark:hover:ring-white/20 dark:hover:brightness-150"><svg aria-hidden="true"><path d="…"></path></svg></div></a></div><div class="flex grow-0 cursor-pointer items-center justify-center rounded-lg bg-adoc-primary/10 px-2 py-1 font-medium text-adoc-primary text-sm" contentEditable="false" data-component-part="update-label">2026年09月20日</div><div class="wrap-break-word mt-3 max-w-[160px] px-1 text-adoc-text-secondary text-sm dark:text-adoc-text-tertiary" contentEditable="false" data-component-part="update-description">Qoder 0.3.4</div></div><div class="max-w-full flex-1 overflow-hidden px-0.5"><div class="prose-sm" data-component-part="update-content"><h3>日常优化</h3><h4>修复</h4><ul>
+<li>修复安全相关问题。</li>
+</ul></div></div></div>
+<div class="update update-container relative flex w-full flex-col items-start gap-2 py-8 lg:flex-row lg:gap-6" id="2026-09-18"><div class="group top-(--scroll-mt) flex w-full shrink-0 flex-col items-start justify-start lg:sticky lg:w-[160px]"><div class="absolute"><a aria-label="Navigate to changelog" class="group/link -ml-10 flex items-center border-0 opacity-0 focus:opacity-100 focus:outline-0 group-hover:opacity-100" href="#2026-09-18">​<div class="flex size-6 items-center justify-center rounded-md bg-white text-stone-400 shadow-sm ring-1 ring-stone-400/30 hover:ring-stone-400/60 group-focus/link:border-2 group-focus/link:border-adoc-primary dark:bg-adoc-bg dark:text-white/50 dark:ring-1 dark:ring-stone-700/25 dark:brightness-[1.35] dark:group-focus/link:border-adoc-primary-light dark:hover:ring-white/20 dark:hover:brightness-150"><svg aria-hidden="true"><path d="…"></path></svg></div></a></div><div class="flex grow-0 cursor-pointer items-center justify-center rounded-lg bg-adoc-primary/10 px-2 py-1 font-medium text-adoc-primary text-sm" contentEditable="false" data-component-part="update-label">2026年09月18日</div><div class="wrap-break-word mt-3 max-w-[160px] px-1 text-adoc-text-secondary text-sm dark:text-adoc-text-tertiary" contentEditable="false" data-component-part="update-description">Qoder 0.3.3</div></div><div class="max-w-full flex-1 overflow-hidden px-0.5"><div class="prose-sm" data-component-part="update-content"><h3>Sites：通过对话创建和发布网站</h3><h4>功能</h4><ul>
+<li><strong>Sites 建站</strong>：支持选择模板，通过对话创建网站，并在桌面端内预览、发布和管理站点。<!-- -->
+<video src="https://download.qoder.com/assets/changelog/283/1789571870033_4bbb52b6.mp4" controls="" loop="" muted="" playsInline="" style="max-width:100%;border-radius:8px"></video>
+</li>
+<li><strong>PPT 创建与编辑</strong>：支持在桌面端内打开工作区中的 PPTX 文件，直接编辑并保存，可在扩展-插件市场下载PPT插件获得更好的体验。</li>
+<li><strong>电脑操控</strong>：升级至 Computer Use 2.0，带来更流畅的使用体验，并支持 Linux 系统。在设置-电脑操作中开启后即可体验。</li>
+<li><strong>成就贴纸</strong>：新增 7 枚成就贴纸，随使用逐步解锁，等你探索收集。</li>
+<li><strong>回复批注</strong>：在设置-实验功能中开启后，可划选 Agent 回复中的文字并添加到输入框，附加评论，并在后续回复中回引对应批注。</li>
+</ul><h4>优化</h4><ul>
+<li><strong>语音输入</strong>：支持在输入框内长按鼠标进行语音输入，松开后将转写内容保留在输入框，方便编辑后发送。</li>
+<li><strong>发送快捷键</strong>：支持在设置中选择使用 Enter 或 Cmd/Ctrl+Enter 发送消息。</li>
+<li><strong>Remote Control</strong>：支持自动同步最近 7 天内更新的本地会话历史，并优化增量同步，减少重复传输。</li>
+<li><strong>Worktree</strong>：优化大型仓库的起点列表加载和创建准备，减少本地改动较多时出现的加载或创建失败。</li>
+</ul><h4>修复</h4><ul>
+<li>修复升级后 Remote Control 无法恢复连接，以及重新连接时旧消息可能被重复执行的问题。</li>
+<li>修复 Side Chat 首轮回复无法正确继承来源会话上下文的问题。</li>
+<li>修复会话压缩期间发送消息后，回复可能无法显示的问题。</li>
+<li>修复 Windows 更新后，任务栏固定入口仍可能打开旧版本的问题。</li>
+</ul></div></div></div>
+"""#
+
+/// `Qoder CN.app/Contents/Resources/app-update.yml` from the 0.3.4 bundle
+/// (the payload of `Qoder-CN-Installer-mac-arm64.zip`), verbatim.
+private let qoderCNUpdateConfigFixture = #"""
+provider: generic
+url: https://static.qoder.com.cn/qoder-app/releases
+updaterCacheDirName: qoder-cn-updater
+"""#
+
+/// `static.qoder.com.cn/qoder-app/releases/latest-mac.yml`, verbatim
+/// 2026-09-22 — what that config makes the app's own updater read.
+private let qoderCNLatestMacFixture = #"""
+version: 0.3.4
+files:
+  - url: https://static.qoder.com.cn/qoder-app/releases/0.3.4/Qoder-CN-mac-arm64.zip
+    sha512: t+v5C9YNx4fIh7FjKjcrAYOmRbBLAY/fHFPzMqB/LbIBhI4gbJdN9gN0WdjJXAH8pCuCbloJMao0tWoRZ9fJ2w==
+    sha256: c6a93ef668864a7d662b6b86a2fa4fef1c427280cb0317177b867ce194ae6679
+    size: 255505455
+path: Qoder-CN-mac-arm64.zip
+sha512: t+v5C9YNx4fIh7FjKjcrAYOmRbBLAY/fHFPzMqB/LbIBhI4gbJdN9gN0WdjJXAH8pCuCbloJMao0tWoRZ9fJ2w==
+releaseDate: 2026-09-19T08:53:03.284Z
+releaseId: 0.3.4
+commit: 081b9000518bbd81daf8108840085007425d9bb9
+buildNumber: "73913403"
+buildKind: official
+differential:
+  blockmapUrl: https://static.qoder.com.cn/qoder-app/releases/0.3.4/Qoder-CN-mac-arm64.zip.blockmap
+  sha256: 2dcb1460686c98b19bfd525f42f6deb9746a05959f22b4f3b4903af98f90dcab
+  size: 267344
+releaseNotes: {}
+"""#
+
 @Suite struct QoderRecipeTests {
 
     private func probe(_ bundleID: String) throws -> VendorProbeRecipe {
@@ -402,5 +462,50 @@ private let qoderRSCPayloadFixture = #"""
         let log = try #require(ChangelogExtractor.extract(from: qoderIDENotesFixture, using: recipe))
         #expect(log.entries.first?.date == "September 2, 2026")
         #expect(log.entries.first?.date != "Release Notes")
+    }
+
+    // MARK: - Qoder CN
+
+    /// Qoder CN has no version recipe on purpose: its bundle names its own
+    /// electron-updater feed, and `ElectronManifestSource` reads that. These pin
+    /// the two real files that path depends on — the config resolves to the
+    /// manifest the app's updater reads, and the manifest yields the arm64 zip
+    /// with a checksum, which is what makes it installable at all.
+    @Test func qoderCNIsCoveredByItsOwnElectronFeed() throws {
+        #expect(!VendorProbeRegistry.recipes.contains { $0.bundleID == "com.qodercn.app" })
+
+        let config = try #require(ElectronUpdateConfig.parse(qoderCNUpdateConfigFixture))
+        #expect(config.manifestURL?.absoluteString
+            == "https://static.qoder.com.cn/qoder-app/releases/latest-mac.yml")
+
+        let manifest = try #require(ElectronManifest.parse(qoderCNLatestMacFixture))
+        #expect(manifest.version == "0.3.4")
+        let file = try #require(manifest.artifact(forArch: "arm64"))
+        #expect(file.url
+            == "https://static.qoder.com.cn/qoder-app/releases/0.3.4/Qoder-CN-mac-arm64.zip")
+        #expect(file.sha512?.isEmpty == false)
+    }
+
+    /// The CN page is the same docs build, so the shared pattern reads it — and
+    /// the Chinese date comes through as the entry's own label, as text.
+    @Test func qoderCNNotesParseOnTheSharedPattern() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qodercn.app"))
+        #expect(recipe.source.host == "docs.qoder.cn")
+        let log = try #require(ChangelogExtractor.extract(from: qoderCNNotesFixture, using: recipe))
+        #expect(log.entries.map(\.version) == ["0.3.4", "0.3.3"])
+        #expect(log.entries.map(\.date) == ["2026年09月20日", "2026年09月18日"])
+        #expect(log.entries.first?.items == ["修复安全相关问题。"])
+        // 5 功能 + 4 优化 + 4 修复, under three `<h4>`s.
+        #expect(log.entries.last?.items.count == 13)
+        #expect(log.entries.last?.items.first?.contains("Sites 建站") == true)
+    }
+
+    /// A third product, not a mirror: its own bundle id AND its own notes page.
+    /// Collapsing it onto `com.qoder.app` would show the global app's notes to
+    /// a CN install.
+    @Test func qoderCNIsNotTheGlobalApp() throws {
+        let cn = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qodercn.app"))
+        let global = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.app"))
+        #expect(cn.source != global.source)
     }
 }

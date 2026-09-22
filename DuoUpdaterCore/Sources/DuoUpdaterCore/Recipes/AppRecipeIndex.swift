@@ -119,6 +119,7 @@ public enum AppRecipeIndex {
         com_qianwen_inputmethod_desktopime.set,
         com_qoder_app.set,
         com_qoder_ide.set,
+        com_qodercn_app.set,
         com_raspberrypi_rpi_imager.set,
         com_raycast_macos.set,
         com_readdle_PDFExpert_Mac.set,

@@ -4,11 +4,11 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.4.2
 
-**Qoder CN y Qoder CN IDE ya son compatibles.** Las ediciones para China continental de la app de escritorio y del IDE de Qoder tienen comprobación de actualizaciones e instalación con un clic, y sus notas de versión aparecen en la ventana.
+**Qoder CN IDE ya es compatible.** La edición para China continental del IDE de Qoder tiene comprobación de actualizaciones, instalación con un clic y sus notas de versión en la ventana. Qoder CN, la app de escritorio, ahora también muestra sus notas de versión.
 
 **Qoder IDE ya no cambia de opinión sobre cuál es la última versión.** Qoder distribuye las actualizaciones de forma gradual, y DuoUpdater ahora pregunta de la misma manera que tu copia del IDE, así que recibe siempre la misma respuesta. Antes, la versión ofrecida podía alternar entre dos versiones, y una instalación con un clic podía quedarse a medias porque la respuesta cambiaba.
 
-**Las apps que descargaron una actualización que ya quedó atrasada se pueden volver a actualizar.** Si el actualizador propio de una app descargó una versión y después salió otra más nueva, DuoUpdater ahora elimina la descarga antigua e instala la última. Antes, «Actualizar» repetía que instalar ahora se desharía, y la fila nunca cambiaba.
+**Las apps con Sparkle que descargaron una actualización que ya quedó atrasada se pueden volver a actualizar.** Si una app que se actualiza sola mediante Sparkle descargó una versión y después salió otra más nueva, DuoUpdater ahora elimina la descarga antigua e instala la última. Antes, «Actualizar» repetía que instalar ahora se desharía, y la fila nunca cambiaba.
 
 **`duo install` te avisa cuando la última versión ya está esperando.** Si el actualizador propio de una app ya descargó la última versión, ahora lo dice y sugiere cerrar la app o ejecutar `duo restart`. Antes decía, por error, que la app solo se podía comprobar y no instalar.
 

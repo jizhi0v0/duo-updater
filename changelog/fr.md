@@ -4,11 +4,11 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.4.2
 
-**Qoder CN et Qoder CN IDE sont désormais pris en charge.** Les éditions pour la Chine continentale de l'app de bureau et de l'IDE de Qoder ont la vérification des mises à jour et l'installation en un clic, et leurs notes de version s'affichent dans la fenêtre.
+**Qoder CN IDE est désormais pris en charge.** L'édition pour la Chine continentale de l'IDE de Qoder a la vérification des mises à jour, l'installation en un clic et ses notes de version dans la fenêtre. Qoder CN, l'app de bureau, affiche aussi désormais ses notes de version.
 
 **Qoder IDE ne change plus d'avis sur la dernière version.** Qoder déploie ses mises à jour progressivement, et DuoUpdater pose désormais la question de la même manière que votre copie de l'IDE, si bien qu'il obtient toujours la même réponse. Auparavant, la version proposée pouvait alterner entre deux versions, et une installation en un clic pouvait s'arrêter en cours de route parce que la réponse avait changé.
 
-**Les apps dont la mise à jour téléchargée est devenue obsolète peuvent de nouveau être mises à jour.** Si le programme de mise à jour d'une app a téléchargé une version et qu'une plus récente est sortie ensuite, DuoUpdater supprime maintenant l'ancien téléchargement et installe la dernière. Auparavant, « Mettre à jour » répétait qu'une installation maintenant serait annulée, et la ligne ne changeait jamais.
+**Les apps Sparkle dont la mise à jour téléchargée est devenue obsolète peuvent de nouveau être mises à jour.** Si une app qui se met à jour elle-même via Sparkle a téléchargé une version et qu'une plus récente est sortie ensuite, DuoUpdater supprime maintenant l'ancien téléchargement et installe la dernière. Auparavant, « Mettre à jour » répétait qu'une installation maintenant serait annulée, et la ligne ne changeait jamais.
 
 **`duo install` vous prévient quand la dernière version attend déjà.** Si le programme de mise à jour d'une app a déjà téléchargé la dernière version, il le dit maintenant et propose de quitter l'app ou de lancer `duo restart`. Auparavant, il affirmait à tort que l'app pouvait seulement être vérifiée, pas installée.
 

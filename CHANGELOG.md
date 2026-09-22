@@ -21,11 +21,11 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.4.2
 
-**Qoder CN and Qoder CN IDE are now supported.** The mainland-China editions of Qoder's desktop app and IDE get update checks and a one-click install, and their release notes show up in the window.
+**Qoder CN IDE is now supported.** The mainland-China edition of Qoder's IDE gets update checks, a one-click install and its release notes in the window. Qoder CN, the desktop app, now shows its release notes too.
 
 **Qoder IDE no longer changes its mind about the latest version.** Qoder rolls updates out gradually, and DuoUpdater now asks the same way your copy of the IDE does, so it gets the same answer every time. Before, the offered version could flip between two releases, and a one-click install could stop halfway because the answer changed.
 
-**Apps that downloaded an update that is now out of date can be updated again.** If an app's own updater fetched a build and a newer one came out later, DuoUpdater now clears the old download and installs the latest. Before, Update kept saying that installing now would be undone, and the row never changed.
+**Sparkle apps that downloaded an update that is now out of date can be updated again.** If an app that updates itself through Sparkle fetched a build and a newer one came out later, DuoUpdater now clears the old download and installs the latest. Before, Update kept saying that installing now would be undone, and the row never changed.
 
 **`duo install` tells you when the latest build is already waiting.** If an app's own updater has already downloaded the latest version, it now says so and suggests quitting the app or running `duo restart`. Before, it wrongly said the app could only be checked, not installed.
 

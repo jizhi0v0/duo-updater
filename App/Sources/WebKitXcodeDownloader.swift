@@ -178,28 +178,22 @@ extension DownloadJob: WKNavigationDelegate {
         decidePolicyFor navigationResponse: WKNavigationResponse,
         decisionHandler: @escaping @MainActor @Sendable (WKNavigationResponsePolicy) -> Void
     ) {
-        guard let http = navigationResponse.response as? HTTPURLResponse else {
+        let http = navigationResponse.response as? HTTPURLResponse
+        let url = http?.url ?? navigationResponse.response.url
+        switch Self.responseDecision(
+            isForMainFrame: navigationResponse.isForMainFrame,
+            status: http?.statusCode,
+            canShowMIMEType: navigationResponse.canShowMIMEType,
+            path: url?.path ?? "") {
+        case .allow:
             decisionHandler(.allow)
             return
-        }
-        let url = http.url ?? navigationResponse.response.url
-        let looksLikeFile = !navigationResponse.canShowMIMEType || (url?.path.hasSuffix(".xip") ?? false)
-
-        guard looksLikeFile else {
-            // An error page is a dead end, not something to load and wait on:
-            // nothing below would ever resume the caller for it.
-            guard Self.pageResponseIsLoadable(status: http.statusCode) else {
-                decisionHandler(.cancel)
-                fail(networkRefusalError(status: http.statusCode))
-                return
-            }
-            decisionHandler(.allow)
-            return
-        }
-        guard http.statusCode == 200 else {
+        case .refuse(let status):
             decisionHandler(.cancel)
-            fail(networkRefusalError(status: http.statusCode))
+            fail(networkRefusalError(status: status))
             return
+        case .download:
+            break
         }
         expectedFinalHost = url?.host
         expectingDownloadHandoff = true
@@ -297,10 +291,28 @@ extension DownloadJob: WKNavigationDelegate {
         return reloadedAfterSignIn ? .signInDidNotStick : .presentSignIn
     }
 
-    /// A non-file response we let the web view render: only a success. An error
-    /// page would load, finish, and leave nothing to resume the caller.
-    nonisolated static func pageResponseIsLoadable(status: Int) -> Bool {
-        (200..<300).contains(status)
+    enum ResponseDecision: Equatable {
+        case allow, download, refuse(status: Int)
+    }
+
+    /// What to do with a navigation response. Pure, so it is testable without
+    /// loading anything.
+    ///
+    /// Subframes are always allowed: the sign-in page embeds an iframe
+    /// (`idmsa.apple.com/appleauth/auth/signin`), and this callback fires for it
+    /// too — a failing subframe must not end the job. In the main frame, a file
+    /// (not showable, or a `.xip` path) downloads on 200; anything else that is
+    /// not 2xx is refused, because an error page would load, finish, and leave
+    /// nothing to resume the caller.
+    nonisolated static func responseDecision(
+        isForMainFrame: Bool, status: Int?, canShowMIMEType: Bool, path: String
+    ) -> ResponseDecision {
+        guard isForMainFrame, let status else { return .allow }
+        let looksLikeFile = !canShowMIMEType || path.hasSuffix(".xip")
+        if looksLikeFile {
+            return status == 200 ? .download : .refuse(status: status)
+        }
+        return (200..<300).contains(status) ? .allow : .refuse(status: status)
     }
 
     private func unexpectedPageError() -> Error {

@@ -70,9 +70,34 @@ struct DownloadJobDeadEndTests {
     }
 
     @Test func onlyASuccessfulPageIsRendered() {
-        #expect(DownloadJob.pageResponseIsLoadable(status: 200))
+        #expect(DownloadJob.responseDecision(
+            isForMainFrame: true, status: 200, canShowMIMEType: true, path: "/account") == .allow)
         for status in [301, 401, 403, 404, 500, 503] {
-            #expect(!DownloadJob.pageResponseIsLoadable(status: status))
+            #expect(DownloadJob.responseDecision(
+                isForMainFrame: true, status: status, canShowMIMEType: true, path: "/services-account/download")
+                == .refuse(status: status))
+        }
+    }
+
+    @Test func aFileDownloadsOnlyOn200() {
+        #expect(DownloadJob.responseDecision(
+            isForMainFrame: true, status: 200, canShowMIMEType: false, path: "/Developer_Tools/X/X.xip") == .download)
+        #expect(DownloadJob.responseDecision(
+            isForMainFrame: true, status: 200, canShowMIMEType: true, path: "/Developer_Tools/X/X.xip") == .download)
+        #expect(DownloadJob.responseDecision(
+            isForMainFrame: true, status: 403, canShowMIMEType: true, path: "/Developer_Tools/X/X.xip")
+            == .refuse(status: 403))
+    }
+
+    /// The sign-in page embeds an iframe, and this callback fires for it: a
+    /// failing subframe must not end the job (PR #803 review, round 2).
+    @Test func aSubframeIsNeverRefusedOrDownloaded() {
+        for status in [200, 403, 500] {
+            for showable in [true, false] {
+                #expect(DownloadJob.responseDecision(
+                    isForMainFrame: false, status: status, canShowMIMEType: showable,
+                    path: "/appleauth/auth/signin") == .allow)
+            }
         }
     }
 }

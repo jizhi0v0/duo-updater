@@ -21,9 +21,16 @@ import Foundation
 /// GA stays at `Xcode-beta.app`, although the RC/GA archive expands to
 /// `Xcode.app` — the expanded bundle's own name is never used for anything.
 ///
-/// **A running Xcode** is treated as every other swap route treats a running app
-/// (`VendorInstaller`, `SparkleInstaller`): the bundle is replaced anyway, the
-/// caller surfaces "Restart", and nothing is ever force-quit.
+/// **A running Xcode is refused, never swapped and never quit.** Unlike the
+/// vendor and Sparkle routes, which replace a running app's bundle and ask for
+/// a restart, this route will not replace Xcode under itself: Xcode keeps
+/// loading plugins, frameworks and tools out of its bundle long after launch
+/// (a user decision, not a measurement). Asked twice — before the download,
+/// so gigabytes are not spent on an install that would be refused, and again
+/// right before the swap, because it may have been opened meanwhile. Matched by
+/// the executables running from inside THIS bundle's path (`runningRefusal`),
+/// never by bundle id: every Xcode is `com.apple.dt.Xcode`, and the App Store
+/// `Xcode.app` running must not block `Xcode-beta.app`.
 ///
 /// **Quarantine** is not handled here: `InPlaceSwap.replace` strips
 /// `com.apple.quarantine` recursively from the new bundle after the gates pass,
@@ -43,6 +50,10 @@ public enum XcodeInstaller {
         case packageSignatureRejected(String)
         case expandFailed(String)
         case unexpectedArchiveContents(String)
+        /// `name` is the installed bundle's name ("Xcode-beta"); `process` is the
+        /// executable found running inside it when that is not the app itself
+        /// (a helper or tool from the bundle), nil when it is.
+        case xcodeRunning(name: String, process: String?)
 
         public var errorDescription: String? {
             switch self {
@@ -62,6 +73,9 @@ public enum XcodeInstaller {
                 return "The Xcode archive could not be expanded: \(why). Nothing was changed."
             case .unexpectedArchiveContents(let why):
                 return "The Xcode archive did not contain one app: \(why). Nothing was changed."
+            case .xcodeRunning(let name, let process):
+                let detail = process.map { " (\($0) from inside it is still running)" } ?? ""
+                return "\(name) is running\(detail). Quit it, then click Update again. Nothing was changed."
             }
         }
     }
@@ -75,18 +89,27 @@ public enum XcodeInstaller {
     /// `pkgutil`'s output in particular, which echoes the file name — depends on
     /// a name the download chose. On any failure the directory is removed here.
     ///
-    /// `scratchRoot` is a seam for tests; production uses the temporary directory,
-    /// like the other routes.
+    /// Refused up front, before any byte moves, when this Xcode is running.
+    ///
+    /// `scratchRoot` and `runningExecutables` are seams for tests; production
+    /// uses the temporary directory, like the other routes, and the live process
+    /// list.
     static func download(
         _ result: UpdateResult,
         using downloader: any XcodeArchiveDownloading,
         scratchRoot: URL = FileManager.default.temporaryDirectory,
+        runningExecutables: @Sendable () -> [String] = AppRestarter.runningExecutablePaths,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> DownloadedUpdate {
         guard let remote = result.remote, remote.sourceName == XcodeReleasesSource.sourceName else {
             throw InstallError.notXcodeUpdate
         }
         guard let url = remote.downloadURL else { throw InstallError.noDownloadURL }
+        if let refusal = Self.runningRefusal(
+            installedAt: Self.processPath(of: result.app.path),
+            runningExecutables: runningExecutables()) {
+            throw refusal
+        }
 
         // `displayVersion` goes through `filesystemSafeToken` for the reason
         // `VendorInstaller.download` gives: it must stay ONE path component.
@@ -134,6 +157,7 @@ public enum XcodeInstaller {
     static func apply(
         _ result: UpdateResult,
         download: DownloadedUpdate,
+        runningExecutables: @Sendable @escaping () -> [String] = AppRestarter.runningExecutablePaths,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
         let archive = download.archiveURL
@@ -189,11 +213,55 @@ public enum XcodeInstaller {
         try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp, installedApp: result.app.path)
 
-        // (f) Replace in place, at the installed path. Quarantine (h) is stripped
-        // inside `replace`; a running Xcode (g) is swapped like any running app.
+        // (f) Replace in place, at the installed path — unless this Xcode was
+        // opened while we downloaded (g). Quarantine (h) is stripped inside
+        // `replace`.
         onStage(.installing)
-        _ = try await InPlaceSwap.replace(newApp: newApp, over: result.app.path)
+        try await Self.swapUnlessRunning(
+            over: result.app.path, runningExecutables: runningExecutables,
+            swap: { _ = try await InPlaceSwap.replace(newApp: newApp, over: result.app.path) })
         onStage(.done)
+    }
+
+    /// The last look before the disk changes: refuse if anything is running from
+    /// inside `target`, otherwise `swap`. Split out so the ordering — ask, THEN
+    /// swap — is testable with a fake swap.
+    static func swapUnlessRunning(
+        over target: URL,
+        runningExecutables: @Sendable () -> [String],
+        swap: () async throws -> Void
+    ) async throws {
+        if let refusal = runningRefusal(
+            installedAt: processPath(of: target), runningExecutables: runningExecutables()) {
+            throw refusal
+        }
+        try await swap()
+    }
+
+    /// Why this Xcode cannot be replaced right now, or nil when nothing runs from
+    /// it. Pure: `bundlePath` is the installed bundle as the kernel reports paths
+    /// (symlinks resolved), `runningExecutables` every process's executable path.
+    ///
+    /// Containment by path component, so `/Applications/Xcode.app` running never
+    /// blocks `/Applications/Xcode-beta.app` (or `Xcode.app.old`). Any executable
+    /// inside the bundle counts, not just `Contents/MacOS/Xcode`: a helper or a
+    /// tool (`xcodebuild` from its `Contents/Developer`) is just as much code
+    /// running out of the directory the swap would delete.
+    static func runningRefusal(installedAt bundlePath: String, runningExecutables: [String]) -> InstallError? {
+        guard let hit = runningExecutables.first(where: {
+            AppRestarter.isExecutable($0, insideBundlePath: bundlePath)
+        }) else { return nil }
+        let bundle = URL(fileURLWithPath: bundlePath)
+        let name = bundle.deletingPathExtension().lastPathComponent
+        let main = bundle.appendingPathComponent("Contents/MacOS").path + "/"
+        return .xcodeRunning(
+            name: name,
+            process: hit.hasPrefix(main) ? nil : URL(fileURLWithPath: hit).lastPathComponent)
+    }
+
+    /// `path` as `proc_pidpath` spells it: symlinks resolved.
+    static func processPath(of path: URL) -> String {
+        path.resolvingSymlinksInPath().path
     }
 
     /// Free bytes the scratch volume needs, with the archive already on it, before

@@ -287,7 +287,7 @@ import Foundation
         let fake = FakeDownloader(mode: .succeed)
         let stages = StageLog()
         let downloaded = try await XcodeInstaller.download(
-            Self.result(), using: fake, scratchRoot: root, onStage: { stages.append($0) })
+            Self.result(), using: fake, scratchRoot: root, runningExecutables: { [] }, onStage: { stages.append($0) })
         #expect(fake.receivedURL?.absoluteString
             == "https://developer.apple.com/services-account/download?path=/Developer_Tools/ZZ/ZZ.xip")
         #expect(downloaded.workDir.deletingLastPathComponent().standardizedFileURL
@@ -305,7 +305,7 @@ import Foundation
         let fake = FakeDownloader(mode: .fail)
         await #expect(throws: ZZDownloadFailed.self) {
             _ = try await XcodeInstaller.download(
-                Self.result(), using: fake, scratchRoot: root, onStage: { _ in })
+                Self.result(), using: fake, scratchRoot: root, runningExecutables: { [] }, onStage: { _ in })
         }
         let dir = try #require(fake.directory)
         #expect(!FileManager.default.fileExists(atPath: dir.path))
@@ -321,7 +321,7 @@ import Foundation
         let fake = FakeDownloader(mode: .writeTo(outside))
         await #expect(throws: XcodeInstaller.InstallError.archiveOutsideWorkDir(outside.path)) {
             _ = try await XcodeInstaller.download(
-                Self.result(), using: fake, scratchRoot: root, onStage: { _ in })
+                Self.result(), using: fake, scratchRoot: root, runningExecutables: { [] }, onStage: { _ in })
         }
         let dir = try #require(fake.directory)
         #expect(!FileManager.default.fileExists(atPath: dir.path))
@@ -333,13 +333,71 @@ import Foundation
         let fake = FakeDownloader(mode: .succeed)
         await #expect(throws: XcodeInstaller.InstallError.notXcodeUpdate) {
             _ = try await XcodeInstaller.download(
-                Self.result(source: "Vendor"), using: fake, onStage: { _ in })
+                Self.result(source: "Vendor"), using: fake, runningExecutables: { [] }, onStage: { _ in })
         }
         await #expect(throws: XcodeInstaller.InstallError.noDownloadURL) {
             _ = try await XcodeInstaller.download(
-                Self.result(downloadURL: nil), using: fake, onStage: { _ in })
+                Self.result(downloadURL: nil), using: fake, runningExecutables: { [] }, onStage: { _ in })
         }
         #expect(fake.directory == nil)
+    }
+
+    // MARK: - A running Xcode
+
+    @Test func aRunningCopyIsRefusedByPathNotByBundleID() {
+        let beta = "/ZZFixture/Applications/Xcode-beta.app"
+        // The App Store Xcode running beside it: same bundle id, other path.
+        #expect(XcodeInstaller.runningRefusal(
+            installedAt: beta,
+            runningExecutables: ["/ZZFixture/Applications/Xcode.app/Contents/MacOS/Xcode",
+                                 "/ZZFixture/Applications/Xcode-beta.app.old/Contents/MacOS/Xcode",
+                                 "/usr/bin/ZZtool"]) == nil)
+        #expect(XcodeInstaller.runningRefusal(
+            installedAt: beta,
+            runningExecutables: ["/ZZFixture/Applications/Xcode-beta.app/Contents/MacOS/Xcode"])
+            == .xcodeRunning(name: "Xcode-beta", process: nil))
+        // A tool running out of the bundle counts too, and is named.
+        #expect(XcodeInstaller.runningRefusal(
+            installedAt: beta,
+            runningExecutables: ["/ZZFixture/Applications/Xcode-beta.app/Contents/Developer/usr/bin/xcodebuild"])
+            == .xcodeRunning(name: "Xcode-beta", process: "xcodebuild"))
+        #expect(XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil).errorDescription
+            == "Xcode-beta is running. Quit it, then click Update again. Nothing was changed.")
+    }
+
+    /// Checked before a byte moves: the downloader is never called and no scratch
+    /// directory is made.
+    @Test func aRunningCopyIsRefusedBeforeTheDownload() async throws {
+        let root = try Self.scratchRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = FakeDownloader(mode: .succeed)
+        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil)) {
+            _ = try await XcodeInstaller.download(
+                Self.result(), using: fake, scratchRoot: root,
+                runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },
+                onStage: { _ in })
+        }
+        #expect(fake.directory == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+    }
+
+    /// Checked again right before the swap: opened during the download means no
+    /// swap; still closed means the swap runs.
+    @Test func theSwapIsSkippedIfXcodeWasOpenedMeanwhile() async throws {
+        let target = URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app")
+        let swaps = StageLog()
+        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta", process: nil)) {
+            try await XcodeInstaller.swapUnlessRunning(
+                over: target,
+                runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },
+                swap: { swaps.append(.installing) })
+        }
+        #expect(swaps.all.isEmpty)
+        try await XcodeInstaller.swapUnlessRunning(
+            over: target,
+            runningExecutables: { ["/ZZFixture/Xcode.app/Contents/MacOS/Xcode"] },
+            swap: { swaps.append(.installing) })
+        #expect(swaps.all == [.installing])
     }
 
     // MARK: - Apply phase: pure checks
@@ -467,7 +525,8 @@ import Foundation
         try Data("not a xip".utf8).write(to: archive)
         let downloaded = DownloadedUpdate(archiveURL: archive, bytesDownloaded: 9, workDir: root)
         do {
-            try await XcodeInstaller.apply(Self.result(), download: downloaded, onStage: { _ in })
+            try await XcodeInstaller.apply(
+                Self.result(), download: downloaded, runningExecutables: { [] }, onStage: { _ in })
             Issue.record("expected a refusal")
         } catch XcodeInstaller.InstallError.packageSignatureRejected {
             // pkgutil prints "Could not open package" and no status for this file.

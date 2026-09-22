@@ -266,21 +266,29 @@ public enum AppRestarter {
     /// "no running instances" does not mean the bundle has gone quiet.
     public static func hasProcesses(insideBundle bundle: URL) -> Bool {
         let bundlePath = bundle.resolvingSymlinksInPath().path
+        return runningExecutablePaths().contains { isExecutable($0, insideBundlePath: bundlePath) }
+    }
+
+    /// The executable path of every process this user can see, read fresh from
+    /// the kernel (`proc_listallpids` + `proc_pidpath`) — no LaunchServices
+    /// snapshot, so it cannot be stale without a run loop the way
+    /// `NSWorkspace.runningApplications` is.
+    public static func runningExecutablePaths() -> [String] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
-        guard capacity > 64 else { return false }
+        guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
         let count = Int(pids.withUnsafeMutableBytes {
             proc_listallpids($0.baseAddress, Int32($0.count))
         })
-        guard count > 0 else { return false }
+        guard count > 0 else { return [] }
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        var paths: [String] = []
         for pid in pids.prefix(min(count, capacity)) where pid > 0 {
             let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
             guard length > 0 else { continue }
-            let path = String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
-            if isExecutable(path, insideBundlePath: bundlePath) { return true }
+            paths.append(String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
-        return false
+        return paths
     }
 
     /// Path-component containment, so `/Applications/Foo.app` does not claim

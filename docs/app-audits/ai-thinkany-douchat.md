@@ -96,9 +96,9 @@ ditto -x -k Douchat-<version>-mac-arm64.zip out && codesign -dv out/Douchat.app 
 
 - 无。厂商出了更新日志页再加 changelog recipe。
 
-## 历史与实测
+## 接入时的实测（2026-09-22）
 
-### 2026-09-22 接入时的测量
+没有 recipe 文件，所以这里不用 `## 历史与实测`（那个标题要和 recipe 里的 `// History:` 指针成对出现）。
 
 **包身份。** 官网下载的 `Douchat-0.1.8-mac-arm64.dmg` 的 sha512 与 `latest-mac.yml` 里同名条目一致
 （`HmaiKkzr…q4eA==`）。挂载后是 `Douchat.app`：`ai.thinkany.douchat`，`0.1.8` / `0.1.8`，

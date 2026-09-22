@@ -10,7 +10,8 @@ import Testing
 struct RowOrderTests {
 
     private func row(
-        _ name: String, latest: String? = nil, path: String? = nil
+        _ name: String, latest: String? = nil, path: String? = nil,
+        source: String = "GitHub"
     ) -> UpdateResult {
         let id = path ?? "/Applications/\(name).app"
         let app = InstalledApp(
@@ -24,7 +25,7 @@ struct RowOrderTests {
         return UpdateResult(
             app: app,
             remote: RemoteVersion(
-                shortVersion: latest, version: nil, downloadURL: nil, sourceName: "GitHub"),
+                shortVersion: latest, version: nil, downloadURL: nil, sourceName: source),
             status: .updateAvailable(latest: latest))
     }
 
@@ -94,14 +95,16 @@ struct RowOrderTests {
         #expect(sorted(current, armed: ["/Applications/Zulu.app"]) == ["Alpha", "Zulu"])
     }
 
-    /// …but a staged build that TRAILS the latest is an ordinary pending update:
-    /// it will show Update, not Relaunch. `actionableStaged` is what draws that
-    /// line, and the sort has to go through it rather than test the raw table.
+    /// …but a staged build that TRAILS the latest, on a route whose Update is not
+    /// stood down by it (Homebrew), is an ordinary pending update: it will show
+    /// Update, not Relaunch. `actionableStaged` is what draws that line, and the
+    /// sort has to go through it rather than test the raw table.
     ///
     /// Mutation: rank on `stagedSelfUpdates[r.id] != nil` instead of
     /// `UpdatePolicy.actionableStaged(...)`.
     @Test func aStagedBuildThatTrailsTheLatestDoesNotJumpTheQueue() {
-        let rows = [row("Alpha", latest: "3.0"), row("Zulu", latest: "3.0")]
+        let rows = [row("Alpha", latest: "3.0", source: "Homebrew"),
+                    row("Zulu", latest: "3.0", source: "Homebrew")]
 
         #expect(sorted(rows, staged: ["/Applications/Zulu.app": staged("2.0")])
             == ["Alpha", "Zulu"])

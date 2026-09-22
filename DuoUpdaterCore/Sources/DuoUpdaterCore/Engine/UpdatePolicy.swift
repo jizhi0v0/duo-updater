@@ -17,7 +17,8 @@ public struct InstallEnvironment: Sendable {
     /// Raw staged self-updates (Squirrel ShipIt / Spotify), keyed by app id
     /// (the install path, like `InstalledApp.id`). The policy computes
     /// "actionable" itself: only a staged build that IS the latest is
-    /// relaunch-only; one that trails it still gets a normal Update.
+    /// relaunch-only; one that trails it still gets a normal Update, unless
+    /// `stagedBlocksInstall` would stand that Update down.
     public var stagedSelfUpdates: [String: StagedSelfUpdate]
     /// Bundle paths (normalized through `runtimeBundlePath`, like
     /// `runningAppPaths`) whose install location we cannot write, so replacing
@@ -131,7 +132,8 @@ public enum UpdatePolicy {
         // The app's own updater already staged *the latest* for relaunch — installing
         // it ourselves would re-download the same bytes and collide with the pending
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
-        // isn't actionable as Relaunch, so we still offer Update — a direct jump.)
+        // isn't actionable as Relaunch — unless our install would yield to it
+        // anyway — so we still offer Update — a direct jump.)
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
@@ -302,8 +304,9 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         environment: InstallEnvironment
     ) -> Bool {
-        // Same as `canAutoInstall`: only a staged build that *is* the latest is
-        // relaunch-only; one that trails the latest still gets a normal installer.
+        // Same as `canAutoInstall`: only a staged build that *is* the latest (or
+        // one our install would yield to anyway) is relaunch-only; any other that
+        // trails the latest still gets a normal installer.
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
         // An input method is never handed to the system installer. This is not a
         // second opinion about the same question `canAutoInstall` answers — it is
@@ -704,8 +707,16 @@ public enum UpdatePolicy {
     /// relaunching to it would still leave the user a download behind. In that case
     /// we return nil so the row falls back to the normal **Update** (a direct jump
     /// to the latest) instead of a Relaunch that doesn't get you current. "Relaunch"
-    /// thus means exactly: the latest is already downloaded, just restart — zero
-    /// extra download.
+    /// thus means: the latest is already downloaded, just restart — zero extra
+    /// download.
+    ///
+    /// Except where that Update cannot run. On routes where `stagedBlocksInstall`
+    /// stands our install down for ANY staged build, falling back to Update offered
+    /// a button whose every click only repeated the "installing now would be
+    /// undone" note — observed on TinyWeb 2026-09-22 (27.0.2 installed, 27.0.3
+    /// staged, 27.1.3 offered). There the trailing build is still surfaced as
+    /// Relaunch: quitting is the only thing that unblocks the row, and the next
+    /// check offers the rest as an ordinary Update.
     public static func actionableStaged(
         _ result: UpdateResult,
         staged: StagedSelfUpdate?
@@ -734,7 +745,8 @@ public enum UpdatePolicy {
         // `VersionComparator.isNewer(_:than:)` for why the build only decides
         // when the marketing versions tie.
         if let latest = result.remote?.versionSide, !latest.isEmpty,
-           VersionComparator.isNewer(latest, than: staged.versionSide) {
+           VersionComparator.isNewer(latest, than: staged.versionSide),
+           stagedBlocksInstall(result, staged: staged) == nil {
             return nil  // staged trails the latest — show Update, not Relaunch
         }
         return staged

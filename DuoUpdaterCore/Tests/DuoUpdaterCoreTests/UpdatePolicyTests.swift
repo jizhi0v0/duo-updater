@@ -758,9 +758,10 @@ private func storeAvailability(
 }
 
 /// The staged-vs-latest rule still applies underneath: visibility is an extra
-/// gate, not a replacement for it.
+/// gate, not a replacement for it. On a route whose Update is not stood down by
+/// the staged build (Homebrew), so the trailing rule is the one deciding.
 @Test func nudgeableStagedStillRequiresTheStagedBuildToBeTheLatest() {
-    let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
+    let remote = fixtureResult(source: "Homebrew", sourceIdentifier: "fixture")
     #expect(
         UpdatePolicy.nudgeableStaged(
             remote, staged: staged("1.5"), isIgnored: false,
@@ -807,8 +808,9 @@ private func storeAvailability(
         "a different version was skipped — this one is still relaunched")
     #expect(
         !UpdatePolicy.batchRelaunchesStaged(
-            remote, staged: staged("1.5"), isIgnored: false, isVersionSkipped: never),
-        "staged trailing the latest is not relaunched")
+            fixtureResult(source: "Homebrew", sourceIdentifier: "fixture"),
+            staged: staged("1.5"), isIgnored: false, isVersionSkipped: never),
+        "staged trailing the latest is not relaunched where Update can install")
     #expect(
         !UpdatePolicy.batchRelaunchesStaged(
             remote, staged: nil, isIgnored: false, isVersionSkipped: never),
@@ -817,16 +819,47 @@ private func storeAvailability(
 
 // MARK: - actionableStaged
 
+/// TinyWeb, observed 2026-09-22: 27.0.2 installed, 27.0.3 staged by its own
+/// Sparkle with the installer parked on its quit, 27.1.3 on offer. The trailing
+/// rule fell through to Update, and `stagedBlocksInstall` stood every click of it
+/// down — the row repeated "installing now would be undone" and never moved.
+///
+/// The invariant: wherever the install gate yields to a staged build, the row
+/// must offer the Relaunch that unblocks it, not an Update it will refuse.
+///
+/// Mutation: drop `stagedBlocksInstall(result, staged: staged) == nil` from the
+/// trailing branch of `actionableStaged` (the first expectation goes red).
+@Test func aTrailingStagedBuildThatBlocksUpdateIsOfferedAsRelaunch() {
+    let installed = fixtureApp()  // 1.0
+    for source in ["Vendor", "GitHub", "Sparkle", "Electron"] {
+        let remote = fixtureResult(source: source, displayVersion: "3.0", app: installed)
+        let trailing = staged("2.0")
+        #expect(UpdatePolicy.stagedBlocksInstall(remote, staged: trailing) != nil,
+                "precondition: \(source) yields its install to the staged build")
+        #expect(UpdatePolicy.actionableStaged(remote, staged: trailing) != nil,
+                "\(source): the Update would be refused, so Relaunch is what's offered")
+    }
+    // A trailing build at or below what is installed is still never a Relaunch —
+    // the downgrade guard runs before this.
+    let remote = fixtureResult(source: "Vendor", displayVersion: "3.0", app: installed)
+    #expect(UpdatePolicy.actionableStaged(remote, staged: staged("1.0")) == nil)
+}
+
 @Test func actionableStagedOnlyWhenTheStagedBuildIsTheLatest() {
     let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
 
     #expect(UpdatePolicy.actionableStaged(remote, staged: nil) == nil)
     #expect(UpdatePolicy.actionableStaged(remote, staged: staged("2.0")) != nil, "staged == latest is actionable")
-    #expect(UpdatePolicy.actionableStaged(remote, staged: staged("1.5")) == nil, "staged trailing the latest is not actionable")
+    #expect(UpdatePolicy.actionableStaged(
+        fixtureResult(source: "Homebrew", sourceIdentifier: "fixture"), staged: staged("1.5")) == nil,
+        "staged trailing the latest is not actionable where Update can install")
     #expect(UpdatePolicy.actionableStaged(remote, staged: staged("3.0")) != nil, "a staged build ahead of the latest stays actionable")
 
     // No remote version to compare against: nothing proves the staged build
     // trails, so it stays actionable.
+    //
+    // (See `aTrailingStagedBuildThatBlocksUpdateIsOfferedAsRelaunch` for the
+    // trailing case on a route whose Update would stand down.)
     let noRemote = UpdateResult(app: fixtureApp(), remote: nil, status: .unknown)
     #expect(UpdatePolicy.actionableStaged(noRemote, staged: staged("9.9")) != nil)
 }
@@ -864,12 +897,14 @@ private func storeAvailability(
                          stagedBundlePath: URL(fileURLWithPath: "/tmp/Amp.app"))
     }
 
-    // Staged 129 while the feed offers 130: a Relaunch here lands a build that is
-    // already behind, so the row must fall through to Update instead.
+    // Staged 129 while the feed offers 130. Sparkle is a route our install
+    // yields on (`stagedBlocksInstall`), so falling through to Update would offer
+    // a button that refuses every click; Relaunch to 129, then Update to 130.
+    // See `aTrailingStagedBuildThatBlocksUpdateIsOfferedAsRelaunch`.
     #expect(UpdatePolicy.actionableStaged(
         ampRemote(latestBuild: "130", installedBuild: "128"),
-        staged: ampStaged("129")) == nil,
-        "staged 129 trails latest 130 — must not offer Relaunch")
+        staged: ampStaged("129")) != nil,
+        "staged 129 trails latest 130, but Update would be stood down — offer Relaunch")
 
     // Staged IS the latest: Relaunch is exactly right, zero extra download.
     #expect(UpdatePolicy.actionableStaged(

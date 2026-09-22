@@ -4133,10 +4133,37 @@ final class AppListModel {
         // way, because the alternative is the user paying twice for one update. The
         // note says so, and the next check installs normally once the transfer has
         // either landed (row goes current) or gone stale (detector stops matching).
-        if let staged = UpdatePolicy.stagedBlocksInstall(
+        //
+        // Except a Sparkle staging that is not the latest: that one is cleared and
+        // our install goes ahead (`UpdatePolicy.clearsStagedBuild`). A clearance
+        // that cannot confirm every step yields exactly as before.
+        var blockingStaged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
-                for: result.app, requireNewerThanInstalled: false)) {
+                for: result.app, requireNewerThanInstalled: false))
+        if let staged = blockingStaged, UpdatePolicy.clearsStagedBuild(result, staged: staged) {
+            let outcome = await SparkleStagingClearance.clear(for: result.app, staged: staged)
+            switch outcome {
+            case .cleared:
+                Log.install.notice("cleared stale staged self-update: \(result.app.name, privacy: .public) had \(staged.version, privacy: .public) staged, installing \(result.remote?.displayVersion ?? "?", privacy: .public)")
+                blockingStaged = nil
+            case .notCleared(let reason, touchedInstaller: false):
+                Log.install.error("could not clear staged self-update: \(result.app.name, privacy: .public) — \(reason, privacy: .public); yielding")
+            case .notCleared(let reason, touchedInstaller: true):
+                // Part of the installer is gone, so the yield note below ("will
+                // apply it when you quit it") may no longer be true. What is true
+                // either way: a quit and reopen leaves no installer armed, and the
+                // next Update goes through.
+                Log.install.error("partly cleared staged self-update: \(result.app.name, privacy: .public) — \(reason, privacy: .public)")
+                let note = String(localized: "Couldn’t fully stop \(result.app.name)’s own updater — quit and reopen it, then update.")
+                installNotes[id] = note
+                inFlightNotes[id] = note
+                if !deferBookkeeping { await computeSelfUpdateStaging() }
+                installing[id] = nil
+                return .notInstalled
+            }
+        }
+        if let staged = blockingStaged {
             let appliesOnLaunch = staged.appliesOn == .launch
             Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a \(appliesOnLaunch ? "launch" : "quit", privacy: .public)")
             let note = appliesOnLaunch
@@ -4144,6 +4171,17 @@ final class AppListModel {
                 : String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it when you quit it — installing now would be undone.")
             installNotes[id] = note
             inFlightNotes[id] = note
+            // This gate just read staging off disk; the row's own copy of it
+            // (`pendingSelfUpdate`) may predate it. Nothing else re-reads staging
+            // when a vendor stages on its own — measured on TinyWeb 2026-09-22,
+            // which staged 27.1.3 two seconds after relaunching into 27.0.3,
+            // one second after our last sweep — so without this the row keeps
+            // offering the Update it just refused, and every click is a no-op.
+            // Re-sweeping turns it into the Relaunch the note is talking about
+            // when the staged build is the latest; one older than what is
+            // installed stays out of the sweep (Relaunch would be a downgrade).
+            // A batch sweeps once after its loop instead.
+            if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
             return .notInstalled
         }
@@ -4161,6 +4199,9 @@ final class AppListModel {
             let note = String(localized: "\(result.app.name) has already downloaded an update and will apply it when you quit it — installing now would collide with it.")
             installNotes[id] = note
             inFlightNotes[id] = note
+            // Same staleness as the branch above; the sweep records the armed
+            // installer so the row offers its version-less Relaunch.
+            if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
             return .notInstalled
         }

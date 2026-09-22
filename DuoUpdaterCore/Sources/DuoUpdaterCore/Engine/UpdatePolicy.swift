@@ -665,6 +665,29 @@ public enum UpdatePolicy {
         return routeCollidesWithSelfUpdater(result) ? staged : nil
     }
 
+    /// Whether a staged build that `stagedBlocksInstall` returned should be cleared
+    /// (`SparkleStagingClearance`) so our install can go ahead, rather than yielded
+    /// to.
+    ///
+    /// Only a Sparkle staging, and only one that is not the latest. A staged build
+    /// that IS the latest is a Relaunch away (`actionableStaged`) — nothing to
+    /// download, so it is yielded to. One that trails the latest is a hop the app
+    /// will never get past on its own while it runs: Sparkle does not re-check with
+    /// an installer armed (see `SparkleStagingClearance`), so relaunching lands the
+    /// stale build and the rest takes another download and another quit anyway.
+    /// That includes a staged build older than what is installed, which is only
+    /// ever a downgrade waiting for the quit. Squirrel's ShipIt and Spotify stage
+    /// differently and keep yielding.
+    public static func clearsStagedBuild(
+        _ result: UpdateResult,
+        staged: StagedSelfUpdate
+    ) -> Bool {
+        guard staged.updater == .sparkle,
+              let latest = result.remote?.versionSide, !latest.isEmpty
+        else { return false }
+        return VersionComparator.isNewer(latest, than: staged.versionSide)
+    }
+
     /// Whether an installer parked on this app's quit, whose staged build could not
     /// be read, makes installing pointless right now.
     ///

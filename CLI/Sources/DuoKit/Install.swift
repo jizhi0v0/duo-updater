@@ -216,6 +216,29 @@ public enum Install {
     }
 
 
+    enum StagingClearance: Equatable {
+        case none
+        case cleared(String)
+        /// Staged version, reason, and whether part of the installer was removed.
+        case failed(String, String, touchedInstaller: Bool)
+    }
+
+    /// Clear a stale Sparkle staging in the way of `result`'s install — the
+    /// case `classify` let through (`UpdatePolicy.clearsStagedBuild`).
+    static func clearStaleStaging(_ result: UpdateResult) async -> StagingClearance {
+        guard let staged = UpdatePolicy.stagedBlocksInstall(
+            result,
+            staged: SelfUpdaterStaging.staged(
+                for: result.app, requireNewerThanInstalled: false)),
+              UpdatePolicy.clearsStagedBuild(result, staged: staged)
+        else { return .none }
+        let version = result.stagedRelaunchLine(staged).to
+        switch await SparkleStagingClearance.clear(for: result.app, staged: staged) {
+        case .cleared: return .cleared(version)
+        case .notCleared(let reason, let touched): return .failed(version, reason, touchedInstaller: touched)
+        }
+    }
+
     /// The staged self-updates the policy needs, keyed the way it looks them up.
     ///
     /// Built rather than left empty: `canAutoInstall` and `requiresInstaller` both
@@ -302,10 +325,14 @@ public enum Install {
         // Its own updater already has a build parked for the next quit; installing
         // over it is undone when that lands. Asked here as well as in the menu-bar
         // app because a gate only one host honours is not a gate.
+        // A Sparkle staging that is not the latest is cleared instead, in `apply`
+        // right before the install (`clearStaleStaging`) — not here, which must
+        // stay free of side effects.
         if let staged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
-                for: result.app, requireNewerThanInstalled: false)) {
+                for: result.app, requireNewerThanInstalled: false)),
+           !UpdatePolicy.clearsStagedBuild(result, staged: staged) {
             return .refuse("its own updater has \(result.stagedRelaunchLine(staged).to) staged for the next quit "
                 + "— installing now would be undone (quit it to apply)", nil)
         }
@@ -750,6 +777,26 @@ public enum Install {
                 emitSkipped(name: name, route: end.route, reason: end.reason,
                             outcome: end.outcome, json: json)
                 tally.record(end.outcome)
+                continue
+            }
+
+            // Staged by the app's own Sparkle, not the latest: cleared so this
+            // install is not undone on the next quit. Same rule as the menu-bar
+            // app; a clearance that cannot confirm every step skips the row.
+            switch await clearStaleStaging(toInstall) {
+            case .none:
+                break
+            case .cleared(let version):
+                if !json { print("   cleared \(version), staged by its own updater") }
+            case .failed(let version, let why, let touched):
+                let reason = touched
+                    ? "its own updater could only be partly stopped (\(why)) — "
+                        + "quit and reopen it, then run this again"
+                    : "its own updater has \(version) staged for the next quit and it "
+                        + "could not be cleared (\(why)) — installing now would be undone"
+                if !json { print("   \(reason)") }
+                emitSkipped(name: name, route: route, reason: reason, outcome: .skipped, json: json)
+                tally.record(.skipped)
                 continue
             }
 

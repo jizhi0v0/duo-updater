@@ -51,18 +51,18 @@ public enum SparkleStagingClearance {
 
     /// The system calls, injectable so the fail-closed branches can be tested.
     public struct System: Sendable {
-        public var listJobs: @Sendable () -> [Job]?
+        public var listJobs: @Sendable () async -> [Job]?
         public var executablePath: @Sendable (pid_t) -> String?
-        public var removeJob: @Sendable (String) -> Bool
+        public var removeJob: @Sendable (String) async -> Bool
         public var isAlive: @Sendable (pid_t) -> Bool
-        public var sleep: @Sendable (TimeInterval) -> Void
+        public var sleep: @Sendable (Duration) async -> Void
 
         public init(
-            listJobs: @escaping @Sendable () -> [Job]?,
+            listJobs: @escaping @Sendable () async -> [Job]?,
             executablePath: @escaping @Sendable (pid_t) -> String?,
-            removeJob: @escaping @Sendable (String) -> Bool,
+            removeJob: @escaping @Sendable (String) async -> Bool,
             isAlive: @escaping @Sendable (pid_t) -> Bool,
-            sleep: @escaping @Sendable (TimeInterval) -> Void
+            sleep: @escaping @Sendable (Duration) async -> Void
         ) {
             self.listJobs = listJobs
             self.executablePath = executablePath
@@ -72,16 +72,16 @@ public enum SparkleStagingClearance {
         }
 
         public static let live = System(
-            listJobs: { launchctl(["list"]).map(parseJobList) },
+            listJobs: { await launchctl(["list"]).map(parseJobList) },
             executablePath: { pid in
                 var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
                 let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
                 guard length > 0 else { return nil }
                 return String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
             },
-            removeJob: { label in launchctl(["remove", label]) != nil },
+            removeJob: { label in await launchctl(["remove", label]) != nil },
             isAlive: { pid in kill(pid, 0) == 0 || errno != ESRCH },
-            sleep: { Thread.sleep(forTimeInterval: $0) })
+            sleep: { try? await Task.sleep(for: $0) })
     }
 
     /// Remove the installer parked on `app`'s quit and delete what it staged.
@@ -100,8 +100,8 @@ public enum SparkleStagingClearance {
         cachesDirectory: URL? = nil,
         system: System = .live,
         fileManager: FileManager = .default
-    ) -> Outcome {
-        let outcome = attempt(
+    ) async -> Outcome {
+        let outcome = await attempt(
             for: app, staged: staged, cachesDirectory: cachesDirectory,
             system: system, fileManager: fileManager)
         if case .notCleared(let reason, _) = outcome {
@@ -116,7 +116,7 @@ public enum SparkleStagingClearance {
         cachesDirectory: URL?,
         system: System,
         fileManager: FileManager
-    ) -> Outcome {
+    ) async -> Outcome {
         guard staged.updater == .sparkle, let bundleID = app.bundleID,
               let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -128,7 +128,7 @@ public enum SparkleStagingClearance {
         guard let stagingDirectory = topLevelEntry(of: staged.stagedBundlePath, under: installation)
         else { return .notCleared(reason: "staged bundle is outside this app's Sparkle cache", touchedInstaller: false) }
 
-        guard let jobs = system.listJobs()
+        guard let jobs = await system.listJobs()
         else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
         // Where Sparkle runs its installer pieces from: the progress agent is
         // copied into the cache's `Launcher/` up to 2.9.6 and runs from the host's
@@ -150,14 +150,17 @@ public enum SparkleStagingClearance {
         // Every job, whatever each answers: what decides is whether the processes
         // are gone afterwards, not the exit status — a job that exited by itself
         // between the list and the removal fails `remove` and is exactly as gone.
-        let refused = installerJobs.filter { !system.removeJob($0.label) }
+        var refused: [Job] = []
+        for job in installerJobs where !(await system.removeJob(job.label)) {
+            refused.append(job)
+        }
         let touched = refused.count < installerJobs.count
         // `launchctl remove` sends SIGTERM; the measured exits took under 10 ms.
         var survivors = installerJobs
         for _ in 0..<30 {
             survivors = survivors.filter { system.isAlive($0.pid) }
             if survivors.isEmpty { break }
-            system.sleep(0.1)
+            await system.sleep(.milliseconds(100))
         }
         guard survivors.isEmpty
         else {
@@ -204,17 +207,12 @@ public enum SparkleStagingClearance {
     }
 
     /// stdout of `/bin/launchctl`, or nil if it did not exit 0.
-    private static func launchctl(_ arguments: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(decoding: data, as: UTF8.self)
+    private static func launchctl(_ arguments: [String]) async -> String? {
+        guard let outcome = try? await ChildProcess.run(
+            "/bin/launchctl", arguments,
+            standardOutput: .capture, standardError: .discard, onCancel: .runToCompletion),
+              outcome.succeeded
+        else { return nil }
+        return String(decoding: outcome.standardOutput, as: UTF8.self)
     }
 }

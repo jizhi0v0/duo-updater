@@ -67,7 +67,7 @@ struct SparkleStagingClearanceTests {
         var autoupdate: String { app.path.path + "/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" }
     }
 
-    private func withFixture(_ body: (Fixture) throws -> Void) throws {
+    private func withFixture(_ body: (Fixture) async throws -> Void) async throws {
         let fm = FileManager.default
         let root = fm.temporaryDirectory
             .appendingPathComponent("SparkleStagingClearanceTests-\(UUID().uuidString)", isDirectory: true)
@@ -85,7 +85,7 @@ struct SparkleStagingClearanceTests {
             name: "TinyWeb", bundleID: bundleID, shortVersion: "27.0.2", buildVersion: "102",
             path: appPath, isMASApp: false, sparkleFeedURL: nil,
             hasSelfUpdater: false, hasSparkleUpdater: true)
-        try body(Fixture(
+        try await body(Fixture(
             root: root, caches: caches, app: app,
             staged: StagedSelfUpdate(version: "27.0.3", buildVersion: "103",
                                      stagedBundlePath: stagedApp, updater: .sparkle),
@@ -126,10 +126,10 @@ struct SparkleStagingClearanceTests {
 
     /// Mutations: widen the framework home to all of `Contents/Frameworks` (the
     /// helper gets removed); drop the cache home (the progress agent survives).
-    @Test func clearsBothInstallerJobsAndTheStagingRun() throws {
-        try withFixture { f in
+    @Test func clearsBothInstallerJobsAndTheStagingRun() async throws {
+        try await withFixture { f in
             let calls = Calls()
-            let outcome = SparkleStagingClearance.clear(
+            let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: f.staged, cachesDirectory: f.caches,
                 system: system(f, calls: calls))
             #expect(outcome == .cleared)
@@ -145,7 +145,7 @@ struct SparkleStagingClearanceTests {
     ///
     /// Mutations: turn any of the guards in `clear` into a fall-through (the
     /// matching case goes red on `fileExists`).
-    @Test func anyUnconfirmedStepLeavesTheStagingAlone() throws {
+    @Test func anyUnconfirmedStepLeavesTheStagingAlone() async throws {
         typealias Setup = (Fixture, Calls) -> SparkleStagingClearance.System
         let cases: [(String, Setup)] = [
             ("launchctl list failed", { f, c in self.system(f, calls: c, jobs: nil, paths: nil).with { $0.listJobs = { nil } } }),
@@ -157,8 +157,8 @@ struct SparkleStagingClearanceTests {
             ("installer survives", { f, c in self.system(f, calls: c, alive: [802]) }),
         ]
         for (name, setup) in cases {
-            try withFixture { f in
-                let outcome = SparkleStagingClearance.clear(
+            try await withFixture { f in
+                let outcome = await SparkleStagingClearance.clear(
                     for: f.app, staged: f.staged, cachesDirectory: f.caches,
                     system: setup(f, Calls()))
                 guard case .notCleared = outcome else {
@@ -178,10 +178,10 @@ struct SparkleStagingClearanceTests {
     ///
     /// Mutations: return on the first refusal (the first `removed` expectation
     /// goes red); hard-code `touchedInstaller: false` (the first `touched` one).
-    @Test func aPartlyRemovedInstallerSaysSo() throws {
-        try withFixture { f in
+    @Test func aPartlyRemovedInstallerSaysSo() async throws {
+        try await withFixture { f in
             let calls = Calls()
-            let outcome = SparkleStagingClearance.clear(
+            let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: f.staged, cachesDirectory: f.caches,
                 system: system(f, calls: calls,
                                refuses: ["com.example.tinyweb-sparkle-updater"], alive: [802]))
@@ -194,8 +194,8 @@ struct SparkleStagingClearanceTests {
             #expect(touched, "the progress agent's job was removed")
             #expect(FileManager.default.fileExists(atPath: f.staged.stagedBundlePath.path))
         }
-        try withFixture { f in
-            let outcome = SparkleStagingClearance.clear(
+        try await withFixture { f in
+            let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: f.staged, cachesDirectory: f.caches,
                 system: system(f, calls: Calls(), jobs: [.init(pid: 712, label: "application.x")]))
             #expect(outcome == .notCleared(
@@ -207,9 +207,9 @@ struct SparkleStagingClearanceTests {
     /// `remove` and is exactly as gone: the processes decide, not the status.
     ///
     /// Mutation: fail on any refused removal (goes red).
-    @Test func aRefusedRemovalOfAJobThatIsGoneStillClears() throws {
-        try withFixture { f in
-            let outcome = SparkleStagingClearance.clear(
+    @Test func aRefusedRemovalOfAJobThatIsGoneStillClears() async throws {
+        try await withFixture { f in
+            let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: f.staged, cachesDirectory: f.caches,
                 system: system(f, calls: Calls(), refuses: ["com.example.tinyweb-sparkle-progress"]))
             #expect(outcome == .cleared)
@@ -218,13 +218,13 @@ struct SparkleStagingClearanceTests {
 
     /// A staged path that is not inside this app's own Sparkle cache is refused
     /// before anything is asked of launchd — nothing outside it is ever deleted.
-    @Test func refusesAStagedPathOutsideTheCache() throws {
-        try withFixture { f in
+    @Test func refusesAStagedPathOutsideTheCache() async throws {
+        try await withFixture { f in
             let calls = Calls()
             let elsewhere = StagedSelfUpdate(
                 version: "27.0.3", buildVersion: "103",
                 stagedBundlePath: f.app.path, updater: .sparkle)
-            let outcome = SparkleStagingClearance.clear(
+            let outcome = await SparkleStagingClearance.clear(
                 for: f.app, staged: elsewhere, cachesDirectory: f.caches,
                 system: system(f, calls: calls))
             #expect(outcome != .cleared)

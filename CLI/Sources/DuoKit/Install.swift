@@ -225,7 +225,7 @@ public enum Install {
 
     /// Clear a stale Sparkle staging in the way of `result`'s install — the
     /// case `classify` let through (`UpdatePolicy.clearsStagedBuild`).
-    static func clearStaleStaging(_ result: UpdateResult) -> StagingClearance {
+    static func clearStaleStaging(_ result: UpdateResult) async -> StagingClearance {
         guard let staged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
@@ -233,7 +233,7 @@ public enum Install {
               UpdatePolicy.clearsStagedBuild(result, staged: staged)
         else { return .none }
         let version = result.stagedRelaunchLine(staged).to
-        switch SparkleStagingClearance.clear(for: result.app, staged: staged) {
+        switch await SparkleStagingClearance.clear(for: result.app, staged: staged) {
         case .cleared: return .cleared(version)
         case .notCleared(let reason, let touched): return .failed(version, reason, touchedInstaller: touched)
         }
@@ -783,7 +783,7 @@ public enum Install {
             // Staged by the app's own Sparkle, not the latest: cleared so this
             // install is not undone on the next quit. Same rule as the menu-bar
             // app; a clearance that cannot confirm every step skips the row.
-            switch clearStaleStaging(toInstall) {
+            switch await clearStaleStaging(toInstall) {
             case .none:
                 break
             case .cleared(let version):

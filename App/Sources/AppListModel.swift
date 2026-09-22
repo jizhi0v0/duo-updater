@@ -4144,6 +4144,15 @@ final class AppListModel {
                 : String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it when you quit it — installing now would be undone.")
             installNotes[id] = note
             inFlightNotes[id] = note
+            // This gate just read staging off disk; the row's own copy of it
+            // (`pendingSelfUpdate`) may predate it. Nothing else re-reads staging
+            // when a vendor stages on its own — measured on TinyWeb 2026-09-22,
+            // which staged 27.1.3 two seconds after relaunching into 27.0.3,
+            // one second after our last sweep — so without this the row keeps
+            // offering the Update it just refused, and every click is a no-op.
+            // Re-sweeping turns it into the Relaunch the note is talking about.
+            // A batch sweeps once after its loop instead.
+            if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
             return .notInstalled
         }
@@ -4161,6 +4170,9 @@ final class AppListModel {
             let note = String(localized: "\(result.app.name) has already downloaded an update and will apply it when you quit it — installing now would collide with it.")
             installNotes[id] = note
             inFlightNotes[id] = note
+            // Same staleness as the branch above; the sweep records the armed
+            // installer so the row offers its version-less Relaunch.
+            if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
             return .notInstalled
         }

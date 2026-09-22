@@ -430,7 +430,7 @@ public struct XcodeReleasesSource: UpdateSource {
 
     // MARK: - Feed
 
-    private func fetch() async throws -> [Release] {
+    func fetch() async throws -> [Release] {
         var request = URLRequest(url: Self.feedURL)
         // Same reason every other version feed sets this: a long max-age would
         // otherwise let a stale copy hide a release for days.
@@ -487,6 +487,8 @@ public struct XcodeReleasesSource: UpdateSource {
         /// `links.download.architectures` ("arm64", "x86_64"), or nil when the
         /// entry does not say — as most older entries do not.
         let architectures: [String]?
+        /// The index's `date` (`{year, month, day}`), for display only.
+        let date: DateComponents?
 
         init?(json: [String: Any]) {
             // "Xcode", "Xcode (Apple Silicon)" and "Xcode (Universal)" are the same
@@ -525,6 +527,12 @@ public struct XcodeReleasesSource: UpdateSource {
             self.authorizedURL = (download?["url"] as? String)
                 .flatMap(XcodeReleasesSource.authorizedDownloadURL(fromCDN:))
             self.architectures = download?["architectures"] as? [String]
+            let day = json["date"] as? [String: Any]
+            if let y = day?["year"] as? Int, let m = day?["month"] as? Int, let d = day?["day"] as? Int {
+                self.date = DateComponents(year: y, month: m, day: d)
+            } else {
+                self.date = nil
+            }
         }
     }
 }

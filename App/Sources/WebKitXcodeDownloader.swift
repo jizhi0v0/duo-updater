@@ -51,8 +51,37 @@ private final class DownloadJob: NSObject {
 
     private var authorizedURL: URL!
     private var reloadedAfterSignIn = false
+    /// Set synchronously — before the `Task` that presents the sign-in window
+    /// even starts — so a second `didFinish` on idmsa while that window is
+    /// still up (WebKit can re-fire `didFinish` more than once for the same
+    /// page) can't open a second one.
+    private var signInInFlight = false
     private var expectedFinalHost: String?
     private var destinationURL: URL?
+
+    /// Set synchronously the moment `decidePolicyFor:navigationResponse:`
+    /// answers `.download`, cleared once the handoff either lands
+    /// (`didBecome download`) or is dealt with. Guards against a WebKit quirk
+    /// measured 2026-09-22: answering `.download` makes WebKit immediately fail
+    /// the *same* navigation with `WebKitErrorDomain` code 102 ("Frame load
+    /// interrupted" / `WKError.frameLoadInterruptedByPolicyChange`) — logged in
+    /// this order, same timestamp:
+    ///   AUTHORIZED: downloading
+    ///   provisional fail WebKitErrorDomain 102 Frame load interrupted
+    ///   download -> …/Xcode_27_Release_Candidate.xip (expected 2014229334)
+    ///   download 0% … DOWNLOAD FINISHED
+    /// That failure is WebKit telling us the *page* load was interrupted
+    /// because it turned into a download — not a real failure — so it must not
+    /// reach `fail(_:)`. Only 102 while this flag is set is treated that way; a
+    /// 102 with the flag clear is a genuine navigation failure.
+    private var expectingDownloadHandoff = false
+
+    /// `WebKitErrorDomain` doesn't have a public Swift constant for 102
+    /// specifically as a plain NSError domain string (WKError's domain is
+    /// `WKErrorDomain`, a different string) — matched by the values logged in
+    /// the 2026-09-22 probe.
+    private static let webKitErrorDomain = "WebKitErrorDomain"
+    private static let frameLoadInterruptedCode = 102
 
     init(session: AppleDeveloperSession, directory: URL, progress: @escaping @Sendable (Double) -> Void) {
         self.session = session
@@ -139,22 +168,26 @@ private final class DownloadJob: NSObject {
 
 extension DownloadJob: WKNavigationDelegate {
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        expectingDownloadHandoff = false
         self.download = download
         download.delegate = self
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let host = webView.url?.host, host.hasSuffix("idmsa.apple.com") else { return }
+        guard !signInInFlight else { return }
         guard !reloadedAfterSignIn else {
-            // We already tried the sign-in round trip once for this call and
-            // landed back on idmsa — treat a second visit as a real giveup
-            // rather than looping.
-            fail(CancellationError())
+            // We already completed one sign-in round trip for this call and
+            // landed back on idmsa anyway — the user really did sign in, so
+            // this is not a cancellation. Say what actually happened.
+            fail(signInDidNotStickError())
             return
         }
+        signInInFlight = true
         Task {
             let window = AppleDeveloperSignInWindow()
             let signedIn = await window.present()
+            self.signInInFlight = false
             guard !self.finished else { return }
             guard signedIn else {
                 self.fail(CancellationError())
@@ -166,11 +199,35 @@ extension DownloadJob: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if consumeExpectedDownloadHandoffFailure(error) { return }
         fail(error)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if consumeExpectedDownloadHandoffFailure(error) { return }
         fail(error)
+    }
+
+    /// True (and consumes the flag) when `error` is exactly the frame-load-
+    /// interrupted failure WebKit raises for the navigation we just turned
+    /// into a download — see `expectingDownloadHandoff`'s doc comment. Any
+    /// other error, or the same error outside that window, is not swallowed.
+    private func consumeExpectedDownloadHandoffFailure(_ error: Error) -> Bool {
+        guard expectingDownloadHandoff else { return false }
+        let nsError = error as NSError
+        guard nsError.domain == Self.webKitErrorDomain,
+              nsError.code == Self.frameLoadInterruptedCode
+        else { return false }
+        expectingDownloadHandoff = false
+        return true
+    }
+
+    private func signInDidNotStickError() -> Error {
+        NSError(
+            domain: "com.duoupdater.app.XcodeDownload",
+            code: -2,
+            userInfo: [NSLocalizedDescriptionKey: String(
+                localized: "You signed in, but Apple's developer site asked for another sign-in right away. Try again from Settings → Xcode.")])
     }
 }
 
@@ -202,6 +259,7 @@ extension DownloadJob {
             return
         }
         expectedFinalHost = url?.host
+        expectingDownloadHandoff = true
         decisionHandler(.download)
     }
 }

@@ -63,9 +63,12 @@ final class AppleDeveloperSession {
     }
 
     /// Snapshot the store's `*.apple.com` cookies and persist them. Call after
-    /// sign-in completes, after each download is authorized (the file response
-    /// arrives — that's when a fresh `ADCDownloadAuth`/session cookie shows up),
-    /// and at app termination.
+    /// sign-in completes and after each download finishes (the file response
+    /// that authorized it is exactly when a fresh `ADCDownloadAuth`/session
+    /// cookie shows up). Not hooked to app termination: there is no delegate
+    /// available here to hold the process open for the async fetch and write,
+    /// and these two call sites already cover every moment the session
+    /// actually changes.
     func save() async {
         let cookies = await dataStore.httpCookieStore.allCookies()
         let data = AppleDeveloperCookieJar.encode(cookies)

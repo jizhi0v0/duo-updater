@@ -15,17 +15,16 @@ import DuoUpdaterCore
 /// rather than a bare, unhosted `WKWebView`.
 @MainActor
 final class WebKitXcodeDownloader: NSObject, XcodeArchiveDownloading, @unchecked Sendable {
-    private let session: AppleDeveloperSession
-
-    init(session: AppleDeveloperSession = .shared) {
-        self.session = session
-    }
+    /// Nonisolated so `AppListModel`'s static `InstallCoordinator` can be built
+    /// with one; the session is reached on the main actor, per call.
+    nonisolated override init() {}
 
     func downloadXcodeArchive(
         from authorizedURL: URL,
         into directory: URL,
         progress: @Sendable @escaping (Double) -> Void
     ) async throws -> XcodeArchiveDownload {
+        let session = AppleDeveloperSession.shared
         await session.restore()
         let job = DownloadJob(session: session, directory: directory, progress: progress)
         return try await job.run(authorizedURL: authorizedURL)

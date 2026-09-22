@@ -311,6 +311,8 @@ struct RowActionStateTests {
         (.appStore(managedHere: false, gate: .none), false),
         (.appStore(managedHere: true, gate: .none), false),
         (.detectionOnly, false),
+        (.appleSignIn(.expired), false),
+        (.appleSignIn(.notSignedIn), false),
     ])
     func onlyOurRoutesInstall(route: UpdateRoute, installs: Bool) {
         let state = RowAction.state(for: RowActionFacts(
@@ -323,6 +325,7 @@ struct RowActionStateTests {
     @Test("a non-installable route still explains itself", arguments: [
         UpdateRoute.toolbox, .testFlight, .selfUpdater, .majorUpgrade,
         .appStore(managedHere: false, gate: .none), .detectionOnly,
+        .appleSignIn(.expired), .appleSignIn(.notSignedIn),
     ])
     func nonInstallableRoutesExplain(_ route: UpdateRoute) {
         let state = RowAction.state(for: RowActionFacts(

@@ -189,16 +189,29 @@ public enum UpdateRoute: Sendable, Equatable {
     case appStore(managedHere: Bool, gate: AppStoreGate)
     /// Detected but not installable from here — no artifact, no route.
     case detectionOnly
+    /// One-click, but only through an Apple Developer sign-in the app does not
+    /// hold right now (the Xcode route). The action is "Sign In…", never an
+    /// install: signing in brings the Update button back without starting one.
+    case appleSignIn(AppleSignInNeed)
 
     /// Routes where pressing the control starts an install we perform.
     public var isInstallable: Bool {
         switch self {
         case .autoInstall, .installer:
             return true
-        case .toolbox, .testFlight, .selfUpdater, .majorUpgrade, .appStore, .detectionOnly:
+        case .toolbox, .testFlight, .selfUpdater, .majorUpgrade, .appStore, .detectionOnly,
+             .appleSignIn:
             return false
         }
     }
+}
+
+/// Why an `.appleSignIn` row cannot update yet.
+public enum AppleSignInNeed: Sendable, Equatable {
+    /// Never signed in, or signed out in Settings.
+    case notSignedIn
+    /// Was signed in; Apple has since ended the session.
+    case expired
 }
 
 /// Whether an App Store listing an `.appStore` route points at can actually be
@@ -303,6 +316,9 @@ public struct RouteInputs {
     /// `AppStoreGate.resolve(remote?.appStore)` — only meaningful when
     /// `hasAppStoreAvailability` is true, same as `appStoreManagedHere`.
     public var appStoreGate: AppStoreGate
+    /// Set only for a row whose one-click install needs the Apple Developer
+    /// session (Xcode) while that session is missing or expired.
+    public var appleSignInNeed: AppleSignInNeed?
 
     public init(
         isToolboxManaged: Bool,
@@ -314,7 +330,8 @@ public struct RouteInputs {
         stagedFileName: String?,
         hasAppStoreAvailability: Bool,
         appStoreManagedHere: Bool,
-        appStoreGate: AppStoreGate
+        appStoreGate: AppStoreGate,
+        appleSignInNeed: AppleSignInNeed? = nil
     ) {
         self.isToolboxManaged = isToolboxManaged
         self.isTestFlight = isTestFlight
@@ -326,6 +343,7 @@ public struct RouteInputs {
         self.hasAppStoreAvailability = hasAppStoreAvailability
         self.appStoreManagedHere = appStoreManagedHere
         self.appStoreGate = appStoreGate
+        self.appleSignInNeed = appleSignInNeed
     }
 }
 
@@ -353,6 +371,9 @@ extension UpdateRoute {
         if inputs.isToolboxManaged { return .toolbox }
         if inputs.isTestFlight { return .testFlight }
         if inputs.defersToSelfUpdater { return .selfUpdater }
+        // Ahead of `.majorUpgrade`: confirming a licence boundary only to be told
+        // to sign in would ask the user twice for one install.
+        if let need = inputs.appleSignInNeed, inputs.canAutoInstall { return .appleSignIn(need) }
         if inputs.isMajorUpgrade && (inputs.canAutoInstall || inputs.requiresInstaller) {
             return .majorUpgrade
         }

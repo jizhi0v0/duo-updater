@@ -4,9 +4,8 @@ import WebKit
 /// A small `NSWindow` hosting a `WKWebView` on `AppleDeveloperSession`'s store,
 /// for the user to sign in to their Apple Developer account (including 2FA).
 ///
-/// Not a SwiftUI `Window` scene: it's opened on demand from a background task
-/// (the downloader, hitting `idmsa.apple.com`) as much as from a settings-page
-/// button, and it needs to report completion back to a caller rather than just
+/// Not a SwiftUI `Window` scene: it's opened on demand from a settings-page or
+/// row button, and it needs to report completion back to a caller rather than just
 /// existing. A plain `NSWindow` plus a completion closure fits that better than
 /// wiring a new scene and a deep-link round trip through `AppListModel`.
 ///
@@ -87,6 +86,7 @@ extension AppleDeveloperSignInWindow: WKNavigationDelegate {
             let signedIn = await AppleDeveloperSession.shared.refreshSignedInState()
             guard signedIn else { return }
             await AppleDeveloperSession.shared.save()
+            AppleDeveloperSession.shared.noteConfirmed()
             self.finish(signedIn: true)
         }
     }

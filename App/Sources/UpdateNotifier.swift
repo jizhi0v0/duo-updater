@@ -25,6 +25,16 @@ enum UpdateNotifier {
         post(title: title, body: body, categoryID: NotificationController.ID.updatesCategory)
     }
 
+    /// Apple ended the Apple Developer session while an Xcode update is waiting
+    /// on it. Nothing opens a sign-in window by itself; this is how the user
+    /// hears about it without opening the menu.
+    static func appleSignInExpired(app: String, version: String?) {
+        let body = version.map { String(localized: "Sign in to Apple Developer again to update to \($0).") }
+            ?? String(localized: "Sign in to Apple Developer again to update it.")
+        post(title: String(localized: "\(app): sign-in expired"), body: body,
+             identifier: "apple-signin-expired")
+    }
+
     /// A not-running app was updated in place — there's nothing left to do.
     static func updated(app: String, version: String?) {
         post(title: app, body: version.map { String(localized: "Updated to \($0).") } ?? String(localized: "Updated."))

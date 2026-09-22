@@ -190,6 +190,7 @@ enum RowStateGalleryCases {
         ("21-update-app-store-region-locked", .updateAvailable(.appStore(managedHere: false, gate: .region)), storeRegionLocked),
         ("22-update-app-store-mac-incompatible", .updateAvailable(.appStore(managedHere: false, gate: .macIncompatible)), storeMacIncompatible),
         ("23-update-detection-only", .updateAvailable(.detectionOnly), app),
+        ("23b-update-apple-sign-in-expired", .updateAvailable(.appleSignIn(.expired)), app),
         ("24-check-failed", .checkFailed(message: "The request timed out.", rateLimited: false), app),
         ("25-check-failed-rate-limit", .checkFailed(message: "API rate limit exceeded for 1.2.3.4.", rateLimited: true), app),
         ("26-no-source-covers", .noSourceCovers(hint: .none), app),

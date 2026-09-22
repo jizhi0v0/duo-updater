@@ -19,6 +19,7 @@ import DuoUpdaterCore
 /// kept or sent is spelled out in the Xcode settings page, and why `signOut()`
 /// is a real, complete erase rather than "log out and hope".
 @MainActor
+@Observable
 final class AppleDeveloperSession {
     static let shared = AppleDeveloperSession()
 
@@ -30,16 +31,36 @@ final class AppleDeveloperSession {
 
     private static let keychainAccount = "apple-developer-session"
 
-    private(set) lazy var dataStore: WKWebsiteDataStore =
+    @ObservationIgnored private(set) lazy var dataStore: WKWebsiteDataStore =
         WKWebsiteDataStore(forIdentifier: Self.dataStoreIdentifier)
 
     /// Guards `restore()` so it only ever runs once per launch, no matter how
     /// many call sites race to be first (app launch, and the sign-in window or
     /// downloader if either is used before launch wiring runs).
-    private var restored = false
-    private var restoreTask: Task<Void, Never>?
+    @ObservationIgnored private var restored = false
+    @ObservationIgnored private var restoreTask: Task<Void, Never>?
 
+    /// A `myacinfo` cookie is in the store — the app holds a session. Says
+    /// nothing about whether Apple still honours it; `status` does.
     private(set) var isSignedIn = false
+
+    /// What Apple last said about the held session (`check()`). `.unknown` until
+    /// the first conclusive answer this launch.
+    enum Status: Equatable { case unknown, signedIn, expired }
+    private(set) var status: Status = .unknown
+
+    /// When Apple last confirmed the session — by `check()`, a completed sign-in,
+    /// or a finished download. Kept across launches for Settings → Xcode.
+    private(set) var lastConfirmed: Date? =
+        UserDefaults.standard.object(forKey: AppleDeveloperSession.lastConfirmedKey) as? Date
+
+    private static let lastConfirmedKey = "appleDeveloperSessionLastConfirmed"
+
+    /// Why the Xcode row cannot update right now, or nil when it can try.
+    var signInNeed: AppleSignInNeed? {
+        if !isSignedIn { return .notSignedIn }
+        return status == .expired ? .expired : nil
+    }
 
     private init() {}
 
@@ -86,10 +107,90 @@ final class AppleDeveloperSession {
     /// cookie, so the next sign-in asks for 2FA again — the settings page says so.
     func signOut() async {
         Keychain.delete(account: Self.keychainAccount)
+        status = .unknown
+        lastConfirmed = nil
+        UserDefaults.standard.removeObject(forKey: Self.lastConfirmedKey)
         let types = WKWebsiteDataStore.allWebsiteDataTypes()
         let records = await dataStore.dataRecords(ofTypes: types)
         await dataStore.removeData(ofTypes: types, for: records)
         isSignedIn = false
+    }
+
+    /// What an Xcode row says while `status` is `.expired`.
+    static var expiredMessage: String {
+        String(localized: "Your Apple Developer sign-in has expired. Sign in again to update Xcode.")
+    }
+
+    /// Apple sent a request that carried the session to sign-in instead.
+    func noteExpired() {
+        status = .expired
+    }
+
+    /// Apple just honoured the session: a sign-in completed or a download was
+    /// authorized.
+    func noteConfirmed() {
+        status = .signedIn
+        let now = Date()
+        lastConfirmed = now
+        UserDefaults.standard.set(now, forKey: Self.lastConfirmedKey)
+    }
+
+    /// Ask Apple whether the held session is still signed in: one request to the
+    /// authorized download endpoint, redirect not followed
+    /// (`AppleDeveloperSessionProbe`). Updates `status`; an inconclusive answer
+    /// (offline, a proxy page) leaves it as it was. Cookies the response sets are
+    /// written back to the store and saved, as after a download.
+    ///
+    /// Not signed in at all → `.inconclusive` without a request: there is no
+    /// session to ask about.
+    @discardableResult
+    func check() async -> AppleDeveloperSessionProbe.Verdict {
+        await restore()
+        let cookies = await dataStore.httpCookieStore.allCookies()
+        await refreshSignedInState(cookies: cookies)
+        guard isSignedIn else { return .inconclusive }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 30
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        // An ephemeral configuration's cookie storage is its own, in memory:
+        // nothing here touches the shared jar or disk. The encode/decode round
+        // trip is the jar's `*.apple.com` filter.
+        guard let jar = configuration.httpCookieStorage else { return .inconclusive }
+        jar.cookieAcceptPolicy = .always
+        for cookie in AppleDeveloperCookieJar.decode(AppleDeveloperCookieJar.encode(cookies)) {
+            jar.setCookie(cookie)
+        }
+        let urlSession = URLSession(
+            configuration: configuration, delegate: RedirectRefuser(), delegateQueue: nil)
+        defer { urlSession.finishTasksAndInvalidate() }
+
+        let verdict: AppleDeveloperSessionProbe.Verdict
+        do {
+            let (_, response) = try await urlSession.data(from: AppleDeveloperSessionProbe.probeURL)
+            let http = response as? HTTPURLResponse
+            verdict = AppleDeveloperSessionProbe.verdict(
+                status: http?.statusCode ?? 0,
+                location: http?.value(forHTTPHeaderField: "Location"))
+            Log.app.info("apple session check: \(http?.statusCode ?? 0, privacy: .public) → \(String(describing: verdict), privacy: .public)")
+        } catch {
+            Log.app.info("apple session check failed: \(error.localizedDescription, privacy: .public)")
+            return .inconclusive
+        }
+
+        switch verdict {
+        case .signedIn:
+            for cookie in AppleDeveloperCookieJar.decode(AppleDeveloperCookieJar.encode(jar.cookies ?? [])) {
+                await dataStore.httpCookieStore.setCookie(cookie)
+            }
+            await save()
+            noteConfirmed()
+        case .expired:
+            status = .expired
+        case .inconclusive:
+            break
+        }
+        return verdict
     }
 
     /// Re-check `isSignedIn` against the store's live cookies, and return the
@@ -104,5 +205,17 @@ final class AppleDeveloperSession {
     private func refreshSignedInState(cookies: [HTTPCookie]) async -> Bool {
         isSignedIn = cookies.contains { $0.name == "myacinfo" }
         return isSignedIn
+    }
+}
+
+/// Hands the redirect back as the response instead of following it — the
+/// check only needs to know where Apple would send us.
+private final class RedirectRefuser: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? {
+        nil
     }
 }

@@ -85,7 +85,10 @@ jobs:
 
       - name: Review
         if: steps.prep.outputs.mode != 'skip'
-        uses: anthropics/claude-code-action@3b8197d3d486006dd4af54613517f21ac6ac625e # v1.0.227
+        # Unreleased main: the first commit that installs Claude Code 2.1.280,
+        # the minimum for claude-opus-5-5 (v1.0.231 still installs 2.1.278).
+        # Move back to a release tag once one ships with 2.1.280 or newer.
+        uses: anthropics/claude-code-action@9ca9355b36297178e28d37c799d1c9c8a28e6507 # main, 2026-09-22
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -96,8 +99,11 @@ jobs:
           # The reviewer's model is the repository variable CLAUDE_REVIEW_MODEL
           # (Settings → Secrets and variables → Actions → Variables), so it can
           # change without a pull request. Unset means the action's default.
+          # Effort is set explicitly: claude-opus-5-5 defaults to medium, which is
+          # what day-to-day authoring runs at, and the reviewer sits one above it.
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
+            --effort high
             --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
 
       - name: Post the review

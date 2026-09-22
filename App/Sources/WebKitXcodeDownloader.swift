@@ -35,7 +35,7 @@ final class WebKitXcodeDownloader: NSObject, XcodeArchiveDownloading, @unchecked
 /// downloads (unlikely today, but the protocol doesn't rule it out) never share
 /// a web view or a continuation.
 @MainActor
-private final class DownloadJob: NSObject {
+final class DownloadJob: NSObject {
     private let session: AppleDeveloperSession
     private let directory: URL
     private let onProgress: @Sendable (Double) -> Void
@@ -166,6 +166,39 @@ private final class DownloadJob: NSObject {
 // MARK: - WKNavigationDelegate
 
 extension DownloadJob: WKNavigationDelegate {
+    // In the extension that declares the conformance, with the SDK's exact
+    // signature. It used to sit in a plain `extension DownloadJob` with a
+    // `decisionHandler` lacking `@MainActor @Sendable`: the compiler warned it
+    // "nearly matches" the requirement, the method was never exposed to
+    // Objective-C, and WebKit — never asked — cancelled the unshowable `.xip`
+    // itself with the same 102 the handoff guard expects, so every download failed
+    // (2026-09-22, first real install). `DownloadJobDelegateTests` asks the runtime.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationResponsePolicy) -> Void
+    ) {
+        guard let http = navigationResponse.response as? HTTPURLResponse else {
+            decisionHandler(.allow)
+            return
+        }
+        let url = http.url ?? navigationResponse.response.url
+        let looksLikeFile = !navigationResponse.canShowMIMEType || (url?.path.hasSuffix(".xip") ?? false)
+
+        guard looksLikeFile else {
+            decisionHandler(.allow)
+            return
+        }
+        guard http.statusCode == 200 else {
+            decisionHandler(.cancel)
+            fail(networkRefusalError(status: http.statusCode))
+            return
+        }
+        expectedFinalHost = url?.host
+        expectingDownloadHandoff = true
+        decisionHandler(.download)
+    }
+
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         expectingDownloadHandoff = false
         self.download = download
@@ -230,39 +263,6 @@ extension DownloadJob: WKNavigationDelegate {
             code: -2,
             userInfo: [NSLocalizedDescriptionKey: String(
                 localized: "You signed in, but Apple's developer site asked for another sign-in right away. Try again from Settings → Xcode.")])
-    }
-}
-
-// Split into its own extension: the compiler otherwise warns that this
-// completion-handler overload "nearly matches" `WKNavigationDelegate`'s
-// `async -> WKNavigationResponsePolicy` requirement, even though it resolves
-// unambiguously (WebKit calls the completion-handler form when one is
-// provided).
-extension DownloadJob {
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationResponse: WKNavigationResponse,
-        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
-    ) {
-        guard let http = navigationResponse.response as? HTTPURLResponse else {
-            decisionHandler(.allow)
-            return
-        }
-        let url = http.url ?? navigationResponse.response.url
-        let looksLikeFile = !navigationResponse.canShowMIMEType || (url?.path.hasSuffix(".xip") ?? false)
-
-        guard looksLikeFile else {
-            decisionHandler(.allow)
-            return
-        }
-        guard http.statusCode == 200 else {
-            decisionHandler(.cancel)
-            fail(networkRefusalError(status: http.statusCode))
-            return
-        }
-        expectedFinalHost = url?.host
-        expectingDownloadHandoff = true
-        decisionHandler(.download)
     }
 }
 

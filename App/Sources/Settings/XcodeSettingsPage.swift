@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DuoUpdaterCore
 
 /// Onboarding for the `.xcode` install route's sign-in session (Option C):
@@ -15,6 +16,12 @@ struct XcodeSettingsPage: View {
     @State private var busy = false
     @State private var feedback: Feedback?
     @State private var confirmingSignOut = false
+    private var downloads: XcodeDownloadCenter { .shared }
+    @State private var showBetas = true
+    @State private var showAll = false
+
+    /// How many builds the list shows before "Show All".
+    private static let collapsedCount = 8
 
     /// No `.signedIn` case: the status line itself flips to "Signed in", and a
     /// second green "Signed in" beside it only repeated it.
@@ -34,8 +41,10 @@ struct XcodeSettingsPage: View {
                 SettingsDivider()
                 actionsRow
             }
+            downloadCard
         }
         .task { await refresh() }
+        .task { await downloads.reload() }
         .confirmationDialog(
             "Sign Out and Clear Session?",
             isPresented: $confirmingSignOut,
@@ -116,6 +125,118 @@ struct XcodeSettingsPage: View {
                 .opacity(busy ? 1 : 0)
         }
         .settingsRow()
+    }
+
+    // MARK: - Download Xcode
+
+    private var shownItems: [XcodeDownloadItem] {
+        downloads.items.filter { showBetas ? $0.isPrerelease : !$0.isPrerelease }
+    }
+
+    private var downloadCard: some View {
+        SettingsCard(
+            header: "Download Xcode",
+            footer: "Saves the Xcode archive (.xip) to your Downloads folder — open it to expand Xcode, then move it where you like. Nothing is installed or replaced. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed."
+        ) {
+            HStack {
+                Picker("", selection: $showBetas) {
+                    Text("Betas & RCs").tag(true)
+                    Text("Releases").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                Spacer()
+            }
+            .settingsRow()
+            if downloads.loading && downloads.items.isEmpty {
+                SettingsDivider()
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading versions…").foregroundStyle(.secondary)
+                }
+                .settingsRow()
+            } else if let error = downloads.loadError, downloads.items.isEmpty {
+                SettingsDivider()
+                HStack {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Try Again") { Task { await downloads.reload() } }
+                }
+                .settingsRow()
+            } else {
+                let items = shownItems
+                ForEach(showAll ? items : Array(items.prefix(Self.collapsedCount))) { item in
+                    SettingsDivider()
+                    downloadRow(item)
+                }
+                if items.count > Self.collapsedCount {
+                    SettingsDivider()
+                    Button(showAll ? String(localized: "Show Fewer") : String(localized: "Show All (\(items.count))")) {
+                        showAll.toggle()
+                    }
+                    .buttonStyle(.link)
+                    .settingsRow()
+                }
+            }
+        }
+    }
+
+    private func downloadRow(_ item: XcodeDownloadItem) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.displayVersion)
+                Text(downloadDetail(item))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let error = downloads.errors[item.id] {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 12)
+            if downloads.activeID == item.id {
+                ProgressView(value: downloads.progress)
+                    .frame(width: 80)
+                Text("\(Int(downloads.progress * 100))%")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Button {
+                    downloads.cancel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel download")
+            } else if let file = downloads.finished[item.id] {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([file])
+                }
+            } else {
+                // Says so up front when the click will open Apple's sign-in first.
+                Button(session.signInNeed == nil
+                       ? String(localized: "Download")
+                       : String(localized: "Sign In & Download…")) {
+                    downloads.download(item)
+                }
+                .disabled(downloads.activeID != nil)
+            }
+        }
+        .settingsRow()
+    }
+
+    private func downloadDetail(_ item: XcodeDownloadItem) -> String {
+        var parts: [String] = []
+        if let date = item.date.flatMap({ Calendar(identifier: .gregorian).date(from: $0) }) {
+            parts.append(date.formatted(date: .abbreviated, time: .omitted))
+        }
+        if let requires = item.requiresMacOS {
+            parts.append(String(localized: "Requires macOS \(requires)"))
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Actions

@@ -389,6 +389,14 @@ import Foundation
             2. Apple Worldwide Developer Relations Certification Authority
             3. Apple Root CA
         """,
+        // The right leaf NAME under a status that is not Apple's: a locally
+        // trusted certificate can be called anything.
+        """
+        Package "Xcode-download.xip":
+           Status: signed by a certificate trusted by macOS
+           Certificate Chain:
+            1. Software Update
+        """,
         // Apple's status and no chain at all.
         """
         Package "Xcode-download.xip":

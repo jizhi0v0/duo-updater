@@ -262,9 +262,10 @@ public struct XcodeReleasesSource: UpdateSource {
     static func chooseDownload(among entries: [Release], host: HostArch) -> Release? {
         let usable = entries
             .compactMap { entry in entry.authorizedURL.map { (url: $0, entry: entry) } }
-            .filter { $0.entry.architectures != nil }
             .sorted { $0.url.absoluteString < $1.url.absoluteString }
             .map(\.entry)
+        // An entry that lists none reads as the empty set, which no rule below
+        // accepts.
         func archs(_ entry: Release) -> Set<String> { Set(entry.architectures ?? []) }
         switch host {
         case .arm64:

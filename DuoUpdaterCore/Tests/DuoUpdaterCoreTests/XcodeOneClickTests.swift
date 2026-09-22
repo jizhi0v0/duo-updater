@@ -96,6 +96,24 @@ import Foundation
         #expect(chosen.authorizedURL?.absoluteString == Self.path("Xcode_26.6_Universal.xip"))
     }
 
+    /// The preference is by architecture, not by URL order: here the Universal
+    /// archive sorts first ("U" < "a") and arm64-only must still win on arm64.
+    @Test func arm64OnlyWinsWhateverTheURLOrder() throws {
+        let feed = Data("""
+        [{"name":"Xcode","_versionOrder":5,"version":{"number":"5","build":"ZZ5","release":{"release":true}},
+          "links":{"download":{"url":"https://download.developer.apple.com/Developer_Tools/ZZ/Xcode_ZZ_arm64.xip","architectures":["arm64"]}}},
+         {"name":"Xcode","_versionOrder":5,"version":{"number":"5","build":"ZZ5","release":{"release":true}},
+          "links":{"download":{"url":"https://download.developer.apple.com/Developer_Tools/ZZ/Xcode_ZZ_Universal.xip","architectures":["arm64","x86_64"]}}}]
+        """.utf8)
+        let entries = XcodeReleasesSource.parse(feed)
+        #expect(XcodeReleasesSource.chooseDownload(among: entries, host: .arm64)?
+            .authorizedURL?.absoluteString.hasSuffix("Xcode_ZZ_arm64.xip") == true)
+        #expect(XcodeReleasesSource.chooseDownload(among: entries.reversed(), host: .arm64)?
+            .authorizedURL?.absoluteString.hasSuffix("Xcode_ZZ_arm64.xip") == true)
+        #expect(XcodeReleasesSource.chooseDownload(among: entries, host: .x86_64)?
+            .authorizedURL?.absoluteString.hasSuffix("Xcode_ZZ_Universal.xip") == true)
+    }
+
     /// No archive fits (Intel, arm64-only build) or none says what it fits: the
     /// row stays detection-only rather than guessing.
     @Test func noFittingArchiveMeansDetectionOnly() throws {

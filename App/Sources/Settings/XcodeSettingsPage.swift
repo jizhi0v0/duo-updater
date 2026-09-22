@@ -45,6 +45,11 @@ struct XcodeSettingsPage: View {
         }
         .task { await refresh() }
         .task { await downloads.reload() }
+        // Signing in — here, from a row's "Sign In & Download…", or noticed by
+        // the hourly check — brings Apple's list in without pressing refresh.
+        .onChange(of: session.signInNeed == nil) { _, signedIn in
+            if signedIn { Task { await downloads.reload() } }
+        }
         .confirmationDialog(
             "Sign Out and Clear Session?",
             isPresented: $confirmingSignOut,
@@ -171,8 +176,8 @@ struct XcodeSettingsPage: View {
                 .help("Refresh the list")
             }
             .settingsRow()
-            if let loaded = downloads.lastLoaded {
-                Text(listSourceLine(loaded: loaded))
+            if let loaded = downloads.lastLoaded, let state = downloads.appleList {
+                Text(listSourceLine(loaded: loaded, state: state))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -266,15 +271,16 @@ struct XcodeSettingsPage: View {
 
     /// Where the list came from — so a refresh visibly did something, and a
     /// signed-out or failed Apple read is not mistaken for "nothing new".
-    private func listSourceLine(loaded: Date) -> String {
+    private func listSourceLine(loaded: Date, state: XcodeDownloadCenter.AppleListState) -> String {
         let when = loaded.formatted(.relative(presentation: .named))
-        if downloads.includesAppleList {
+        switch state {
+        case .included:
             return String(localized: "From Apple and xcodereleases.com · updated \(when)")
-        }
-        if session.signInNeed == nil {
+        case .unreadable:
             return String(localized: "From xcodereleases.com · updated \(when). Apple's own list couldn't be read this time.")
+        case .signedOut:
+            return String(localized: "From xcodereleases.com · updated \(when). Sign in to include Apple's own list, which has new releases first.")
         }
-        return String(localized: "From xcodereleases.com · updated \(when). Sign in to include Apple's own list, which has new releases first.")
     }
 
     private func downloadDetail(_ item: XcodeDownloadItem) -> String {

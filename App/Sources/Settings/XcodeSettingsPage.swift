@@ -230,6 +230,12 @@ struct XcodeSettingsPage: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if let reason = notInstallableText(item) {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let app = downloads.installed[item.id] {
                     Text("Installed as \(app.lastPathComponent) · not offered updates (Library → Ignored)")
                         .font(.caption)
@@ -287,6 +293,9 @@ struct XcodeSettingsPage: View {
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
+            } else if installability(item) != .installable {
+                Button("Download Only (.xip)") { downloads.download(item) }
+                    .disabled(downloads.activeID != nil)
             } else {
                 // Says so up front when the click will open Apple's sign-in first.
                 Menu {
@@ -304,6 +313,27 @@ struct XcodeSettingsPage: View {
             }
         }
         .settingsRow()
+    }
+
+    private func installability(_ item: XcodeDownloadItem) -> XcodeSideBySideInstaller.Installability {
+        XcodeSideBySideInstaller.installability(
+            displayVersion: item.displayVersion, requiresMacOS: item.requiresMacOS,
+            macOSVersion: HostOS.numericVersion())
+    }
+
+    /// Why a row offers Download Only — shown unless it is already installed or
+    /// was just downloaded, where the row says that instead.
+    private func notInstallableText(_ item: XcodeDownloadItem) -> String? {
+        guard downloads.installed[item.id] == nil, downloads.finished[item.id] == nil,
+              item.build.flatMap({ downloads.installedBuilds[$0] }) == nil
+        else { return nil }
+        switch installability(item) {
+        case .installable: return nil
+        case .tooOldForMacOS(let macOS):
+            return String(localized: "Doesn't run on macOS \(macOS) — download only")
+        case .needsMacOS(let requires):
+            return String(localized: "Needs macOS \(requires) to install — download only")
+        }
     }
 
     private func phaseText(_ phase: XcodeDownloadCenter.Phase) -> String {

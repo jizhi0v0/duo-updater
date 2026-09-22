@@ -103,6 +103,48 @@ public enum XcodeSideBySideInstaller {
         return destination
     }
 
+    /// Whether Install is offered for an Xcode on this Mac, decided from the list
+    /// alone — before 2 GB are downloaded. What is not installable is still
+    /// offered as Download Only.
+    public enum Installability: Sendable, Equatable {
+        case installable
+        /// This macOS is newer than any this Xcode supports ("27").
+        case tooOldForMacOS(String)
+        /// This Xcode needs a newer macOS ("26.6").
+        case needsMacOS(String)
+    }
+
+    /// Apple's published ranges (developer.apple.com/xcode/system-requirements,
+    /// read 2026-09-23) end each Xcode at the macOS it was made for: 26.x at
+    /// "macOS Tahoe 26.x", 16.x at "macOS Sequoia 15.x", 15.x at "macOS Sonoma
+    /// 14.x" — while a new Xcode runs one macOS back (27 on "Tahoe 26.6 or
+    /// later"). So an Xcode whose macOS generation — its major version from 26
+    /// on, one less before the renumbering (16 → 15) — is older than this
+    /// macOS's major is refused; a newer one is fine as long as this macOS meets
+    /// its "Requires". macOS 27 agrees on its own: its launch list hard-disables
+    /// every Xcode up to `CFBundleVersion` 24999, and 26.6 is 24959.
+    ///
+    /// One published exception is left conservative: 16.4 lists "Tahoe 26.1.x",
+    /// and on 26.0–26.1 is still offered as Download Only. The check after
+    /// expanding (`verifyNotBlockedByMacOS`) stays the last word.
+    public static func installability(
+        displayVersion: String, requiresMacOS: String?, macOSVersion: String
+    ) -> Installability {
+        let hostMajor = Int(macOSVersion.split(separator: ".").first ?? "") ?? 0
+        if let range = displayVersion.range(of: #"^[0-9]+"#, options: .regularExpression),
+           let major = Int(displayVersion[range]) {
+            let generation = major >= 26 ? major : major - 1
+            if generation < hostMajor {
+                return .tooOldForMacOS(String(hostMajor))
+            }
+        }
+        if let requires = requiresMacOS,
+           VersionComparator.compare(macOSVersion, requires) == .orderedAscending {
+            return .needsMacOS(requires)
+        }
+        return .installable
+    }
+
     /// The Xcodes already in `directories` (top level only), by published build
     /// (`ProductBuildVersion`, what the list shows — `27A266a`). The list offers
     /// Download Only for these instead of Install: a second copy of the same

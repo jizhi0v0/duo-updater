@@ -182,6 +182,30 @@ import Foundation
         }
     }
 
+    /// Rows of Apple's system-requirements table (2026-09-23), on macOS 27,
+    /// Tahoe 26.6, Tahoe 26.2 and Sequoia 15.6.
+    @Test(arguments: [
+        ("27.1 beta 1 (27A9269)", "26.6" as String?, "27.0", XcodeSideBySideInstaller.Installability.installable),
+        ("27.0 (27A266a)", "26.6", "27.0", .installable),
+        ("26.6 (17F113)", "26.2", "27.0", .tooOldForMacOS("27")),   // failed to open live
+        ("16.4 (16F6)", "15.3", "27.0", .tooOldForMacOS("27")),
+        ("27.0 (27A266a)", "26.6", "26.6", .installable),           // a new Xcode runs one macOS back
+        ("26.6 (17F113)", "26.2", "26.6", .installable),
+        ("16.4 (16F6)", "15.3", "26.6", .tooOldForMacOS("26")),     // Apple: up to 26.1.x
+        ("27.0 (27A266a)", "26.6", "26.2", .needsMacOS("26.6")),
+        ("26.0 (17A324)", "15.6", "15.6", .installable),
+        ("16.2 (16C5032a)", "14.5", "15.6", .installable),          // before the renumbering: 16 → 15
+        ("15.4 (15F31d)", "14.0", "15.6", .tooOldForMacOS("15")),
+        ("27.1 beta", nil, "27.0", .installable),                   // Apple-only item
+    ])
+    func installIsOfferedWhereApplesTableSaysItRuns(
+        version: String, requires: String?, macOS: String,
+        expected: XcodeSideBySideInstaller.Installability
+    ) {
+        #expect(XcodeSideBySideInstaller.installability(
+            displayVersion: version, requiresMacOS: requires, macOSVersion: macOS) == expected)
+    }
+
     /// What the list checks to offer Download Only instead of Install.
     @Test func installedXcodesAreFoundByPublishedBuild() throws {
         let root = try Self.scratchRoot()

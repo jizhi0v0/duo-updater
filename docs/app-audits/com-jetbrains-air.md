@@ -57,3 +57,6 @@
 - `whatsnew` 三种形态：`<h4>` + `<ul><li>`（功能版）、`<h4>` + `<p>` 正文（262.43.30/32）、只有 `<p>`（小修复，261.311.x 第一段是标题式短句）；
   页脚是 `<p>Share your feedback…</p>`，或 `Learn more about Air… and share your feedback…`，早期几条页脚不在 `<p>` 里。
   相邻 build 常复用同一份说明（如 262.132.34/35），是厂商原样。
+- 2026-09-23：多 type 请求的排序（为 `type=eap,preview,release` 下未来的 release build 会不会被 `maxEntries: 20` 截掉）。
+  AIR 目前只有 preview，没法直接测；在同端点的 `IIU` 上测：`type=eap,release` 与 `type=release,eap` 都返回 408 条、顺序完全相同，
+  eap/release 交错，按 build 降序（`263.5153.40` e、…、`262.10968.63` r、`262.10315.125` r、`262.10315.19` e…），不按 type 分组。

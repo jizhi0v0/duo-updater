@@ -14,7 +14,10 @@ enum com_jetbrains_air {
         // `<li>` bullets or `<p>` prose, closed by a "Share your feedback" footer
         // the decoder drops. Air ships only as `preview` today and the endpoint
         // returns nothing for `AIR` without a `type`, so all three types are asked
-        // for — a future `release` build still shows up.
+        // for — a future `release` build still shows up. A multi-type response
+        // interleaves the types in build order rather than grouping them (checked
+        // on IntelliJ's `IIU`, which has both), so a release build is not pushed
+        // past `maxEntries` behind the preview backlog.
         // History: docs/app-audits/com-jetbrains-air.md#历史与实测
         ChangelogRecipe(
             bundleID: "com.jetbrains.air",

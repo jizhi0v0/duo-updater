@@ -25,6 +25,16 @@ public enum AppleDeveloperSessionRenewal {
     /// this is the form waiting for a password.
     public static let timeout: Duration = .seconds(30)
 
+    /// Whether to try a renewal after Apple answered `verdict`: only when it said
+    /// the session has ended, only once per expiry, and never for a check that
+    /// runs while the user is signing in themselves (`allowed` false) — a hidden
+    /// page there would compete with the window for the same store.
+    public static func shouldTry(
+        verdict: AppleDeveloperSessionProbe.Verdict, alreadyTried: Bool, allowed: Bool
+    ) -> Bool {
+        allowed && !alreadyTried && verdict == .expired
+    }
+
     /// Whether a page that finished loading at `host` is back on the developer
     /// site — the only way the round trip through `idmsa` ends signed in. Exact
     /// host: `idmsa.apple.com` (the form) and anything else are not.

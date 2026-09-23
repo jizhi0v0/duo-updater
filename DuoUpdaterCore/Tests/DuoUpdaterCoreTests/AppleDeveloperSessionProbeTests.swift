@@ -52,3 +52,14 @@ import Testing
     #expect(!landed("xdeveloper.apple.com"))
     #expect(!landed("developer.apple.com.example.net"))
 }
+
+/// One try per expiry, only on "expired", and never while the user is in the
+/// sign-in window (PR #816 review, round 1).
+@Test func sessionRenewalIsTriedOnlyOnceOnAnExpiryAndNotDuringSignIn() {
+    let t = AppleDeveloperSessionRenewal.shouldTry
+    #expect(t(.expired, false, true))
+    #expect(!t(.expired, true, true))
+    #expect(!t(.expired, false, false))
+    #expect(!t(.signedIn, false, true))
+    #expect(!t(.inconclusive, false, true))
+}

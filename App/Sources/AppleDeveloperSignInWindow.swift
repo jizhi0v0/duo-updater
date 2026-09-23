@@ -88,7 +88,7 @@ extension AppleDeveloperSignInWindow: WKNavigationDelegate {
             // A `myacinfo` left over from an ended session is still a cookie;
             // ask Apple before calling this a sign-in. `check()` saves and
             // stamps `lastConfirmed` only on a real "signed in".
-            guard await session.check() != .expired else { return }
+            guard await session.check(renewing: false) != .expired else { return }
             await session.save()
             self.finish(signedIn: true)
         }

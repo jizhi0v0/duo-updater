@@ -154,11 +154,16 @@ final class AppleDeveloperSession {
     ///
     /// Not signed in at all → `.inconclusive` without a request: there is no
     /// session to ask about.
+    ///
+    /// `renewing: false` is for the sign-in window: the user is signing in, so it
+    /// neither starts a renewal nor waits on one — it asks Apple directly.
     @discardableResult
-    func check() async -> AppleDeveloperSessionProbe.Verdict {
-        if let renewal { return await renewal.value }
+    func check(renewing: Bool = true) async -> AppleDeveloperSessionProbe.Verdict {
+        if renewing, let renewal { return await renewal.value }
         let verdict = await ask()
-        guard verdict == .expired, !renewalTried else { return verdict }
+        guard AppleDeveloperSessionRenewal.shouldTry(
+            verdict: verdict, alreadyTried: renewalTried, allowed: renewing)
+        else { return verdict }
         renewalTried = true
         let task = Task { @MainActor in await self.renew() }
         renewal = task

@@ -24,8 +24,10 @@ final class AppleDeveloperSignInWindow: NSObject {
     /// completion (e.g. a second `didFinish` racing the close) can't call the
     /// handler twice.
     private var finished = false
-    /// When the developer site first answered with a page of its own — for the
-    /// log line that says how soon after it the window closed.
+    /// When the latest developer-site page committed — for the log line that
+    /// says how soon after it the window closed. Latest, not first: the
+    /// window's own first load commits there too before going on to `idmsa`,
+    /// and counting from it would count the password and 2FA as well.
     private var landedAt: Date?
 
     /// Show the window and sign the user in. Resumes once with `true` after a
@@ -91,6 +93,7 @@ extension AppleDeveloperSignInWindow: WKNavigationDelegate {
     /// commit that comes too early (signed out, or a page that goes on to
     /// `idmsa`) only asks and gets no "signed in"; nothing closes.
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        if webView.url?.host?.hasSuffix("developer.apple.com") == true { landedAt = Date() }
         confirmIfLanded(webView, on: "commit")
     }
 

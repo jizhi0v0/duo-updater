@@ -9,10 +9,9 @@ import Foundation
 /// parses to an empty list, and the caller falls back to the xcodereleases index.
 ///
 /// Measured 2026-09-23 (signed in): 1601 downloads, 259 of them Xcode, back to
-/// Xcode 2.3 (2006); 27.1 beta was listed at 17:07 UTC, seven minutes after
-/// Apple announced it (the index took ~1h22m). ~190 KB on the wire (gzip of
-/// 1.79 MB), `cache-control: no-store` — so it is fetched only when the user
-/// opens or refreshes the list, never on a timer.
+/// Xcode 2.3 (2006). ~190 KB on the wire (gzip of 1.79 MB), `cache-control:
+/// no-store` — so it is fetched only when the user opens or refreshes the list,
+/// never on a timer.
 public enum AppleDeveloperDownloadList {
     public static let endpoint = URL(
         string: "https://developer.apple.com/services-account/QH65B2/downloadws/listDownloads.action")!
@@ -21,7 +20,8 @@ public enum AppleDeveloperDownloadList {
         /// "27.1 beta" — Apple's name without "Xcode ".
         public let displayName: String
         public let isPrerelease: Bool
-        public let published: Date?
+        /// When Apple created the entry (`dateCreated`) — see `date(from:)`.
+        public let listed: Date?
         public let requiresMacOS: String?
         public let archives: [Archive]
     }
@@ -61,7 +61,7 @@ public enum AppleDeveloperDownloadList {
             return Release(
                 displayName: String(name.dropFirst("Xcode ".count)),
                 isPrerelease: isPrerelease(name),
-                published: (download["datePublished"] as? String).flatMap(date(from:)),
+                listed: (download["dateCreated"] as? String).flatMap(date(from:)),
                 requiresMacOS: description.flatMap(requiredMacOS(in:)),
                 archives: archives)
         }
@@ -84,12 +84,23 @@ public enum AppleDeveloperDownloadList {
         return match.range(of: #"[0-9]+(\.[0-9]+)*"#, options: .regularExpression).map { String(match[$0]) }
     }
 
-    /// `datePublished`, "09/18/26 17:07", in UTC: 27.1 beta reads 17:07 against
-    /// Apple's 10:00 PDT (17:00 UTC) announcement (2026-09-23).
+    /// The zone the list's dates are written in: Pacific wall-clock time.
+    public static let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+    /// "09/18/26 10:32", Pacific wall-clock time. Measured 2026-09-23 on all 173
+    /// Xcode entries created since 2020:
+    ///  - `dateCreated` falls on the xcodereleases release day for 148 of the
+    ///    162 that match an index entry; `datePublished` falls BEFORE it for 114
+    ///    (27 beta 2: published 06/18, created and released 06/22), so it is not
+    ///    the release date and is not read.
+    ///  - The hours cluster at 09–10 as written in both PDT and PST months; a
+    ///    UTC field would move an hour between them, and read as UTC these land
+    ///    at 1–4 AM Pacific. 26.6, announced in Apple's feed at 15:00 PDT, was
+    ///    created at 15:04.
     static func date(from string: String) -> Date? {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "MM/dd/yy HH:mm"
         return formatter.date(from: string)
     }

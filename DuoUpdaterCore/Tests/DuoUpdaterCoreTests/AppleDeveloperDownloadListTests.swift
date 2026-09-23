@@ -3,13 +3,14 @@ import Testing
 @testable import DuoUpdaterCore
 
 /// Trimmed from a real `listDownloads` response (2026-09-23): the fields read,
-/// verbatim, for four Xcode releases plus one non-Xcode download.
+/// verbatim, for four Xcode releases plus one non-Xcode download. Both dates are
+/// kept so a test can tell which one is read.
 private let appleSample = #"""
 {"resultCode":0,"downloads":[
-{"name":"Xcode 27.1 beta","description":"Xcode 27.1 beta includes Swift 6.4 and SDKs for iOS 27.1, iPadOS 27, tvOS 27, macOS 27, and visionOS 27. Xcode 27.1 beta supports on-device debugging in iOS 17 and later, tvOS 17 and later, watchOS 10 and later, and visionOS. Xcode 27.1 beta requires a Mac running macOS Tahoe 26.6 or later on Apple silicon.","isReleased":0,"datePublished":"09/18/26 17:07","files":[{"filename":"Xcode 27.1 beta.xip","remotePath":"/Developer_Tools/Xcode_27.1_beta/Xcode_27.1_beta.xip","fileSize":2027292809}]},
-{"name":"Xcode 26","description":"Xcode enables you to develop, test, and distribute apps for all Apple platforms.","isReleased":1,"datePublished":"09/15/25 14:00","files":[{"filename":"Xcode 26 Apple silicon.xip","remotePath":"/Developer_Tools/Xcode_26/Xcode_26_Apple_silicon.xip","fileSize":2230256043},{"filename":"Xcode 26 Universal.xip","remotePath":"/Developer_Tools/Xcode_26/Xcode_26_Universal.xip","fileSize":2827013395}]},
-{"name":"Xcode 27 Release Candidate","description":"Xcode 27 Release Candidate enables you to develop.","isReleased":0,"datePublished":"09/09/26 12:00","files":[{"filename":"Xcode 27 Release Candidate.xip","remotePath":"/Developer_Tools/Xcode_27_Release_Candidate/Xcode_27_Release_Candidate.xip","fileSize":2014229334}]},
-{"name":"Xcode 16.4","description":"Xcode 16.4 enables you to develop.","isReleased":0,"datePublished":"05/28/25 10:15","files":[{"filename":"Xcode 16.4.xip","remotePath":"/Developer_Tools/Xcode_16.4/Xcode_16.4.xip","fileSize":3036085732}]},
+{"name":"Xcode 27.1 beta","description":"Xcode 27.1 beta includes Swift 6.4 and SDKs for iOS 27.1, iPadOS 27, tvOS 27, macOS 27, and visionOS 27. Xcode 27.1 beta supports on-device debugging in iOS 17 and later, tvOS 17 and later, watchOS 10 and later, and visionOS. Xcode 27.1 beta requires a Mac running macOS Tahoe 26.6 or later on Apple silicon.","isReleased":0,"datePublished":"09/18/26 17:07","dateCreated":"09/18/26 10:32","files":[{"filename":"Xcode 27.1 beta.xip","remotePath":"/Developer_Tools/Xcode_27.1_beta/Xcode_27.1_beta.xip","fileSize":2027292809}]},
+{"name":"Xcode 26","description":"Xcode enables you to develop, test, and distribute apps for all Apple platforms.","isReleased":1,"datePublished":"09/15/25 14:00","dateCreated":"09/15/25 14:03","files":[{"filename":"Xcode 26 Apple silicon.xip","remotePath":"/Developer_Tools/Xcode_26/Xcode_26_Apple_silicon.xip","fileSize":2230256043},{"filename":"Xcode 26 Universal.xip","remotePath":"/Developer_Tools/Xcode_26/Xcode_26_Universal.xip","fileSize":2827013395}]},
+{"name":"Xcode 27 Release Candidate","description":"Xcode 27 Release Candidate enables you to develop.","isReleased":0,"datePublished":"09/09/26 12:00","dateCreated":"09/09/26 11:49","files":[{"filename":"Xcode 27 Release Candidate.xip","remotePath":"/Developer_Tools/Xcode_27_Release_Candidate/Xcode_27_Release_Candidate.xip","fileSize":2014229334}]},
+{"name":"Xcode 16.4","description":"Xcode 16.4 enables you to develop.","isReleased":0,"datePublished":"05/28/25 10:15","dateCreated":"05/27/25 12:22","files":[{"filename":"Xcode 16.4.xip","remotePath":"/Developer_Tools/Xcode_16.4/Xcode_16.4.xip","fileSize":3036085732}]},
 {"name":"Xcode 3.2.3 and iOS SDK 4.0.2","description":"","datePublished":"06/01/10 10:00","files":[{"filename":"x.dmg","remotePath":"/Developer_Tools/xcode_3.2.3/x.dmg"}]},
 {"name":"Additional Tools for Xcode 27","description":"","datePublished":"09/14/26 17:00","files":[{"filename":"a.dmg","remotePath":"/Developer_Tools/Additional_Tools/a.dmg"}]}
 ]}
@@ -21,7 +22,7 @@ private let appleSample = #"""
     let beta = releases[0]
     #expect(beta.isPrerelease)
     #expect(beta.requiresMacOS == "26.6")
-    #expect(beta.published == Date(timeIntervalSince1970: 1_789_751_220))  // 2026-09-18 17:07 UTC
+    #expect(beta.listed == Date(timeIntervalSince1970: 1_789_752_720))  // 2026-09-18 10:32 PDT = 17:32 UTC
     #expect(releases[1].archives.map(\.arch) == [.appleSilicon, .universal])
     // isReleased says 0 for the final 16.4; the name decides.
     #expect(!releases[3].isPrerelease)
@@ -79,4 +80,23 @@ private func indexEntry(_ number: String, build: String, order: Int, release: [S
     #expect(items.map(\.fileName) == [
         "Xcode_27_Release_Candidate.xip", "Xcode_26_Universal.xip", "Xcode_16.4.xip",
     ])
+}
+
+/// The day an Apple-only row shows is the day Apple created the entry, in
+/// Pacific time. Both entries are verbatim from the live list (2026-09-23).
+@Test func appleOnlyRowShowsThePacificDayTheEntryWasCreated() {
+    let json = #"""
+    {"resultCode":0,"downloads":[
+    {"name":"Xcode 27 beta 2","description":"","datePublished":"06/18/26 18:17","dateCreated":"06/22/26 15:40","files":[{"filename":"Xcode 27 beta 2.xip","remotePath":"/Developer_Tools/Xcode_27_beta_2/Xcode_27_beta_2.xip"}]},
+    {"name":"Xcode 12.2","description":"","datePublished":"10/25/20 05:33","dateCreated":"11/12/20 18:52","files":[{"filename":"Xcode 12.2.xip","remotePath":"/Developer_Tools/Xcode_12.2/Xcode_12.2.xip"}]}
+    ]}
+    """#
+    let apple = AppleDeveloperDownloadList.parse(Data(json.utf8))
+    let items = XcodeDownloadCatalog.merged(index: [], apple: apple, host: .arm64)
+    // Released 06-22 (xcodereleases agrees); `datePublished` says 06-18.
+    #expect(items.first { $0.displayVersion == "27 beta 2" }?.date
+        == DateComponents(year: 2026, month: 6, day: 22))
+    // 18:52 PST is already 11-13 in UTC.
+    #expect(items.first { $0.displayVersion == "12.2" }?.date
+        == DateComponents(year: 2020, month: 11, day: 12))
 }

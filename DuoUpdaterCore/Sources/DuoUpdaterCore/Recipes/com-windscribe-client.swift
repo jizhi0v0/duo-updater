@@ -297,6 +297,13 @@ enum com_windscribe_client {
         // without an `Authorization` header that `ChangelogRecipe` has no field
         // for, and its notes are markdown escaped inside a JSON string, which
         // wants its own `structuredFormat` rather than a regex. See the audit.
+        //
+        // Those never-announced builds are why `carriesOtherTrainEntries` is set
+        // (#790/#791): on 2026-09-23 GitHub's newest was `v2.25.1-alpha` while
+        // every vendor endpoint (`ChangeLogs?platform=osx`, `ChangeLogs/summary`,
+        // `CheckUpdate?beta=0…3`, 10 requests each) still answered 2.24.12, and of
+        // the 29 releases just below it 13 never reached any vendor track. The top
+        // entry here cannot stand in for what a track is being offered.
         ] + [ReleaseChannel.beta, .guineaPig].map { channel in
             ChangelogRecipe(
                 bundleID: "com.windscribe.client",
@@ -305,6 +312,7 @@ enum com_windscribe_client {
                 maxEntries: 20,
                 channel: channel,
                 includesPromotedStable: true,
+                carriesOtherTrainEntries: true,
                 structuredFormat: .gitHubReleases)
         })
 

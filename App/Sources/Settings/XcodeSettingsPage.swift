@@ -214,6 +214,7 @@ struct XcodeSettingsPage: View {
                         ForEach(group.items) { item in
                             SettingsDivider()
                             downloadRow(item)
+                                .padding(.leading, Self.groupIndent)
                         }
                     }
                 }
@@ -225,6 +226,10 @@ struct XcodeSettingsPage: View {
         let host = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         return Set([XcodeDownloadGroup.defaultOpen(in: groups, hostMacOSMajor: host)].compactMap { $0 })
     }
+
+    /// Chevron (10) + gap (8) + icon (20) + gap (8): a group's rows start
+    /// under its "Xcode N", not under the chevron.
+    private static let groupIndent: CGFloat = 46
 
     /// One line per Xcode major. The whole line opens and closes it.
     private func groupHeader(_ group: XcodeDownloadGroup, isOpen: Bool, toggle: @escaping () -> Void) -> some View {
@@ -242,7 +247,9 @@ struct XcodeSettingsPage: View {
                 } else {
                     Text("Older Xcode").fontWeight(.medium)
                 }
-                if let macOS = group.macOS {
+                // Only where the numbers differ (Xcode 12–16): "Xcode 27 macOS 27"
+                // said the same thing twice.
+                if let macOS = group.macOS, macOS != group.major.map(String.init) {
                     Text(verbatim: "macOS \(macOS)").foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)

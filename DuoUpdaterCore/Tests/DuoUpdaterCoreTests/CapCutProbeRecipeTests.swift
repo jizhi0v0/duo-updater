@@ -454,4 +454,59 @@ struct CapCutProbeRecipeTests {
         #expect(Self.version(try Self.recipe(.beta), in: plain) == "9.4.1")
         #expect(Self.version(try Self.recipe(.stable), in: plain) == nil)
     }
+
+    // MARK: - the `_nosandbox` artifact (issue #427, 2026-09-20)
+
+    /// Verbatim `update_reminder` from the same URL, 2026-09-23. The object is
+    /// still there with all 26 keys; what changed is the beta filename, which
+    /// gained a `_nosandbox` suffix after `creatortool`. The pattern ended
+    /// `_creatortool\.dmg"`, matched nothing, and `duo verify` reported
+    /// `versionPatternNoMatch` (last good 9.5.5-beta1). Every `version_code` that
+    /// answers and all three channel tokens return this same filename, and the
+    /// suffix-less name for the same build is a 404 on the CDN.
+    private static let noSandboxBody = """
+        {"data":{"__logid":"20260923180149528630AF8567F3797CB1","settings_time":1789984909,\
+        "settings":{"update_reminder": {"lastest_stable_url_md5": "a03f1ad6fae0c07c674fce41573a3f86", \
+        "update_frequency": 1, "current_version": 99900, "lastest_stable_version": 590849, \
+        "alwaysremind": 1, "lastest_stable_update_content": "- Fixed some known issues and improved \
+        the trimming experience.\\nWe thank you for supporting CapCut and look forward to creating \
+        beautiful moments together.", "build_number": 4638, "lastest_sync_builder_number": 4583, \
+        "lastest_stable_builder_number": 4574, "lastest_sync_url": \
+        "https://sf16-web-tos-buz.capcutstatic.com/obj/capcut-web-buz-sg/packages/CapCut_9_5_5-beta1_4583_capcutpc_beta_creatortool.dmg", \
+        "update_version": 591360, "timeinterval": 72, "update_url_md5": "e0449ce461fdf8796e9cd3ced7cbfd2f", \
+        "lastest_update_content": "- Fixed some known issues and improved the trimming experience.\\nWe \
+        thank you for supporting CapCut and look forward to creating beautiful moments together.", \
+        "lastest_sync_url_md5": "257473c79fdbbadb89dcbd107fb14ff7", "updatestyle": "prompt", \
+        "update_content": "- Fixed some known issues and improved the trimming experience.\\nWe thank \
+        you for supporting CapCut and look forward to creating beautiful moments together.", \
+        "lastest_builder_number": 4638, "lastest_url_md5": "e0449ce461fdf8796e9cd3ced7cbfd2f", \
+        "beta_number": "3", "lastest_version": 591360, "lastest_sync_version": 591109, \
+        "lastest_beta_number": "3", "lastest_url": \
+        "https://sf16-web-tos-buz.capcutstatic.com/obj/capcut-web-buz-sg/packages/CapCut_9_6_0-beta3_4638_capcutpc_beta_creatortool_nosandbox.dmg", \
+        "update_url": \
+        "https://sf16-web-tos-buz.capcutstatic.com/obj/capcut-web-buz-sg/packages/CapCut_9_6_0-beta3_4638_capcutpc_beta_creatortool_nosandbox.dmg", \
+        "lastest_stable_url": \
+        "https://sf16-web-tos-buz.capcutstatic.com/obj/capcut-web-buz-sg/packages/CapCut_9_4_1_4574_capcutpc_0_creatortool.dmg"}}},\
+        "message": "success"}
+        """
+
+    /// The beta track reads the `_nosandbox` build off `lastest_url` — not the
+    /// older, suffix-less 9.5.5-beta1 still sitting in `lastest_sync_url` — and
+    /// installs that same file. The stable track is unaffected.
+    @Test func theBetaTrackResolvesTheNoSandboxArtifact() throws {
+        let beta = try Self.recipe(.beta)
+        #expect(Self.version(beta, in: Self.noSandboxBody) == "9.6.0-beta3")
+        let url = try #require(try Self.installURL(.beta, in: Self.noSandboxBody))
+        #expect(url == "https://sf16-web-tos-buz.capcutstatic.com/obj/capcut-web-buz-sg/packages/CapCut_9_6_0-beta3_4638_capcutpc_beta_creatortool_nosandbox.dmg")
+        #expect(Self.version(try Self.recipe(.stable), in: Self.noSandboxBody) == "9.4.1")
+        #expect(try Self.installURL(.stable, in: Self.noSandboxBody)?
+            .hasSuffix("CapCut_9_4_1_4574_capcutpc_0_creatortool.dmg") == true)
+        // The channel proof still recognises it as the beta track's artifact.
+        guard case .artifact(let marker)? =
+                ChannelProofRegistry.proofs[ChannelProofKey(CapCutChannel.bundleID, .beta)] else {
+            Issue.record("CapCut beta's proof should be an artifact marker")
+            return
+        }
+        #expect(url.range(of: marker, options: [.regularExpression, .caseInsensitive]) != nil)
+    }
 }

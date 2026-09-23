@@ -246,13 +246,18 @@ enum com_lemon_lvoverseas {
         trackClosedPattern: String? = nil
     ) -> VendorProbeRecipe {
         let host = #"https://sf16-web-tos-buz\.capcutstatic\.com"#
+        // Since 9.6.0-beta3 (seen 2026-09-20, issue #427) the beta dmg is named
+        // `…_capcutpc_beta_creatortool_nosandbox.dmg`; the suffix-less name for
+        // that build is a 404. Optional, and spelled out rather than `[^"]*`, so
+        // any other renaming still fails loudly as `versionPatternNoMatch`.
+        let fileSuffix = #"_creatortool(?:_nosandbox)?\.dmg"#
         return VendorProbeRecipe(
             bundleID: CapCutChannel.bundleID,
             url: URL(string: "https://editor-api.capcutapi.com/service/settings/v3/"
                      + "?aid=359289&device_platform=mac&channel=capcutpc_0&version_code=9.99")!,
             mode: .responseBody,
             versionPattern:
-                #""\#(urlKey)"\s*:\s*"[^"]*/CapCut_([0-9]+)_([0-9]+)_(\#(patchSegment))_[0-9]+_\#(packageToken)_creatortool\.dmg""#,
+                #""\#(urlKey)"\s*:\s*"[^"]*/CapCut_([0-9]+)_([0-9]+)_(\#(patchSegment))_[0-9]+_\#(packageToken)\#(fileSuffix)""#,
             // ByteDance's settings service overrunning its own 500 ms internal RPC
             // budget: HTTP 200, `{"data": {},"message": "ExecBizCode error: …
             // request timeout … real_time=501018us"}`, ~390 bytes where the answer
@@ -267,7 +272,7 @@ enum com_lemon_lvoverseas {
                 // Host pinned rather than `[^"]+`: the channel token and the host
                 // are the only things in a resolved URL that say what this file is.
                 urlSource: .bodyPattern(
-                    #""\#(urlKey)"\s*:\s*"(\#(host)/[^"]*_\#(packageToken)_creatortool\.dmg)""#),
+                    #""\#(urlKey)"\s*:\s*"(\#(host)/[^"]*_\#(packageToken)\#(fileSuffix))""#),
                 kind: .dmg),
             channel: channel,
             hostRequirement: VendorHostRequirement(architectures: [.arm64]))

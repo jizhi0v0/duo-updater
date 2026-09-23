@@ -101,10 +101,10 @@ public enum XcodeDownloadCatalog {
                 fromCDN: "https://download.developer.apple.com" + chosen.path)
         else { return nil }
         var day: DateComponents?
-        if let published = release.published {
+        if let listed = release.listed {
             var calendar = Calendar(identifier: .gregorian)
-            calendar.timeZone = TimeZone(identifier: "UTC")!
-            day = calendar.dateComponents([.year, .month, .day], from: published)
+            calendar.timeZone = AppleDeveloperDownloadList.timeZone
+            day = calendar.dateComponents([.year, .month, .day], from: listed)
         }
         let fileName = chosen.path.split(separator: "/").last.map(String.init) ?? ""
         return XcodeDownloadItem(

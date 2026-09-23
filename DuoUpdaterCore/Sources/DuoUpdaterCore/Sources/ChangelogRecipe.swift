@@ -421,7 +421,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// genuine newlines and un-escaped text, sidestepping both problems.
         case postmanReleaseNotes
         /// JetBrains' `data.services.jetbrains.com/products/releases?code=<CODE>`
-        /// (shared by IntelliJ IDEA's `IIU` and Toolbox App's `TBA`) —
+        /// (shared by IntelliJ IDEA's `IIU`, Toolbox App's `TBA` and Air's `AIR`) —
         /// `{"<CODE>": [{date, version, whatsnew, …}]}`. Regex-extractable in
         /// principle (and formerly regex-extracted), but `whatsnew` is JSON-escaped
         /// HTML whose embedded `\n` is exactly the two-char-escape trap that motivated

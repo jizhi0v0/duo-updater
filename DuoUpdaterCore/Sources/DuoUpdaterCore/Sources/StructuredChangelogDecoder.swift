@@ -947,13 +947,17 @@ public enum StructuredChangelogDecoder {
     /// and `TBA` (Toolbox App) endpoints: both return `{"<CODE>": [ {…}, … ]}` —
     /// exactly one top-level key — with each element carrying `date` (already
     /// plain `YYYY-MM-DD`, no parsing needed), `version` (marketing string, e.g.
-    /// "2026.2.1" / "3.7.2"), and `whatsnew` (release-notes HTML). Fields present
-    /// in the real response but unused here (`type`, `build`, `downloads`,
-    /// `patches`, `notesLink`, `uninstallFeedbackLinks`, …) are simply omitted —
-    /// `Decodable` ignores keys a struct doesn't declare.
+    /// "2026.2.1" / "3.7.2"), and `whatsnew` (release-notes HTML). `build` is
+    /// read only for Air (`AIR`), whose `version` is the two-part train
+    /// ("262.834") shared by several builds while the installed app reports the
+    /// full build ("262.834.44"). Fields present in the real response but unused
+    /// here (`type`, `downloads`, `patches`, `notesLink`,
+    /// `uninstallFeedbackLinks`, …) are simply omitted — `Decodable` ignores keys
+    /// a struct doesn't declare.
     private struct JetBrainsRelease: Decodable {
         let date: String?
         let version: String?
+        let build: String?
         let whatsnew: String?
     }
 
@@ -974,13 +978,15 @@ public enum StructuredChangelogDecoder {
 
         var entries: [Changelog.Entry] = []
         for release in releases {
-            guard let version = release.version?.trimmingCharacters(in: .whitespaces),
+            guard let version = (code == "AIR" ? release.build : release.version)?
+                    .trimmingCharacters(in: .whitespaces),
                   !version.isEmpty,
                   let whatsnew = release.whatsnew, !whatsnew.isEmpty
             else { continue }
             let items = jetBrainsItems(from: whatsnew, code: code)
             guard !items.isEmpty else { continue }
-            entries.append(.init(version: version, date: release.date, items: items))
+            let title = code == "AIR" ? jetBrainsHeadline(in: whatsnew) : nil
+            entries.append(.init(title: title, version: version, date: release.date, items: items))
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
@@ -1002,8 +1008,15 @@ public enum StructuredChangelogDecoder {
     /// full list of release notes…" `<p>` footer. Headings aren't matched by this
     /// sweep (only `<li>`/`<p>`), so both tags count as items; only that trailing
     /// footer paragraph is dropped.
+    ///
+    /// Air (`AIR`) documents are an optional `<h4>` headline (taken as the entry
+    /// title by `jetBrainsHeadline`, never an item) then either `<ul><li>` bullets
+    /// or plain `<p>` prose for small fixes, so both tags count. Nearly every one
+    /// closes on a "Share your feedback with us via the issue tracker…" paragraph
+    /// (sometimes "Learn more about Air… and share your feedback…"); any `<p>`
+    /// carrying that phrase is dropped.
     static func jetBrainsItems(from whatsnew: String, code: String) -> [String] {
-        let tags = code == "TBA" ? "li|p" : "li"
+        let tags = code == "TBA" || code == "AIR" ? "li|p" : "li"
         guard let regex = try? NSRegularExpression(
             pattern: "<(\(tags))>(.*?)</\\1>",
             options: [.caseInsensitive, .dotMatchesLineSeparators])
@@ -1016,11 +1029,25 @@ public enum StructuredChangelogDecoder {
             if raw.range(
                 of: #"^\s*See the full list"#, options: [.regularExpression, .caseInsensitive]
             ) != nil { continue }
+            if code == "AIR",
+               raw.range(of: "share your feedback", options: .caseInsensitive) != nil { continue }
             let cleaned = ChangelogExtractor.collapseWhitespace(
                 ChangelogExtractor.decodeEntities(ChangelogExtractor.stripTags(raw)))
             if !cleaned.isEmpty { items.append(cleaned) }
         }
         return items
+    }
+
+    /// The first `<h4>` of a `whatsnew` document, as plain text — Air's release
+    /// headline. Nil when there is none (small-fix releases are bare `<p>`s).
+    static func jetBrainsHeadline(in whatsnew: String) -> String? {
+        guard let range = whatsnew.range(
+            of: #"<h4>(.*?)</h4>"#, options: [.regularExpression, .caseInsensitive])
+        else { return nil }
+        let inner = String(whatsnew[range].dropFirst(4).dropLast(5))
+        let cleaned = ChangelogExtractor.collapseWhitespace(
+            ChangelogExtractor.decodeEntities(ChangelogExtractor.stripTags(inner)))
+        return cleaned.isEmpty ? nil : cleaned
     }
     // MARK: - Typeless (typeless.com/help/release-notes/macos)
 

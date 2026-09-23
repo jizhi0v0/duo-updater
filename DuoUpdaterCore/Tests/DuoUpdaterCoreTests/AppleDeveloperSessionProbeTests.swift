@@ -80,13 +80,18 @@ import Testing
     #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: ["Location": "x"], now: now).isEmpty)
 }
 
-/// `Max-Age=0` parses to the parsing moment; the default clock is read after
-/// that, so the deletion is marked whatever the sub-second timing (PR #828
-/// review, round 1).
+/// `Max-Age=0` parses to the parsing moment floored to the second. With `now`
+/// read 0.9 s before the call, only the second of grace marks it: without it,
+/// each call passes only when the sub-second part is ≥ 0.9 (PR #828 review,
+/// rounds 1–2). A cookie meant to stay is still not marked.
 @Test func sessionProbeMarksAMaxAgeZeroDeletion() {
-    for _ in 0..<50 {
+    for _ in 0..<20 {
+        let before = Date().addingTimeInterval(-0.9)
         #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: [
             "Set-Cookie": "myacinfo=x; Max-Age=0; Domain=.apple.com; Path=/",
-        ]) == ["-myacinfo"])
+        ], now: before) == ["-myacinfo"])
     }
+    #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+        "Set-Cookie": "myacinfo=x; Max-Age=3600; Domain=.apple.com; Path=/",
+    ]) == ["myacinfo"])
 }

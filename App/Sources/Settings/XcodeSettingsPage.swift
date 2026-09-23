@@ -45,7 +45,6 @@ struct XcodeSettingsPage: View {
                     "Renew the session in the background",
                     detail: "When Apple ends it, DuoUpdater opens Apple's sign-in page once, hidden, for a new one. That works without your password while Apple still recognizes this Mac's sign-in.",
                     isOn: $prefs.renewAppleDeveloperSession)
-                    .settingsRow()
             }
             downloadCard
         }

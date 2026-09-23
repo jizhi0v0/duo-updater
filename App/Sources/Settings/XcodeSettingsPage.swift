@@ -18,10 +18,9 @@ struct XcodeSettingsPage: View {
     @State private var confirmingSignOut = false
     private var downloads: XcodeDownloadCenter { .shared }
     @State private var showBetas = true
-    @State private var showAll = false
-
-    /// How many builds the list shows before "Show All".
-    private static let collapsedCount = 8
+    /// Groups the user opened or closed; nil until they touch one, so the
+    /// group for this Mac's macOS opens by itself (`XcodeDownloadGroup.defaultOpen`).
+    @State private var openGroups: Set<XcodeDownloadGroup.ID>?
 
     /// No `.signedIn` case: the status line itself flips to "Signed in", and a
     /// second green "Signed in" beside it only repeated it.
@@ -202,20 +201,72 @@ struct XcodeSettingsPage: View {
                 }
                 .settingsRow()
             } else {
-                let items = shownItems
-                ForEach(showAll ? items : Array(items.prefix(Self.collapsedCount))) { item in
+                let groups = XcodeDownloadGroup.grouped(shownItems)
+                let open = openGroups ?? defaultOpen(groups)
+                ForEach(groups) { group in
                     SettingsDivider()
-                    downloadRow(item)
-                }
-                if items.count > Self.collapsedCount {
-                    SettingsDivider()
-                    Button(showAll ? String(localized: "Show Fewer") : String(localized: "Show All (\(items.count))")) {
-                        showAll.toggle()
+                    groupHeader(group, isOpen: open.contains(group.id)) {
+                        var next = open
+                        if next.contains(group.id) { next.remove(group.id) } else { next.insert(group.id) }
+                        openGroups = next
                     }
-                    .buttonStyle(.link)
-                    .settingsRow()
+                    if open.contains(group.id) {
+                        ForEach(group.items) { item in
+                            SettingsDivider()
+                            downloadRow(item)
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private func defaultOpen(_ groups: [XcodeDownloadGroup]) -> Set<XcodeDownloadGroup.ID> {
+        let host = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        return Set([XcodeDownloadGroup.defaultOpen(in: groups, hostMacOSMajor: host)].compactMap { $0 })
+    }
+
+    /// One line per Xcode major. The whole line opens and closes it.
+    private func groupHeader(_ group: XcodeDownloadGroup, isOpen: Bool, toggle: @escaping () -> Void) -> some View {
+        Button(action: toggle) {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                    .frame(width: 10)
+                groupIcon(group)
+                    .frame(width: 20, height: 20)
+                if let major = group.major {
+                    Text(verbatim: "Xcode \(major)").fontWeight(.medium)
+                } else {
+                    Text("Older Xcode").fontWeight(.medium)
+                }
+                if let macOS = group.macOS {
+                    Text(verbatim: "macOS \(macOS)").foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Text("\(group.items.count) versions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: isOpen)
+        .settingsRow()
+    }
+
+    /// The real icon of a copy of this major installed here — read from the
+    /// bundle, never shipped with DuoUpdater (Apple's artwork) — else a
+    /// generic mark.
+    @ViewBuilder private func groupIcon(_ group: XcodeDownloadGroup) -> some View {
+        if let app = group.items.lazy.compactMap({ $0.build.flatMap { downloads.installedBuilds[$0] } }).first {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                .resizable()
+        } else {
+            Image(systemName: "hammer")
+                .foregroundStyle(.secondary)
         }
     }
 

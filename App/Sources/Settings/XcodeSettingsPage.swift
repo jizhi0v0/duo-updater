@@ -214,7 +214,6 @@ struct XcodeSettingsPage: View {
                         ForEach(group.items) { item in
                             SettingsDivider()
                             downloadRow(item)
-                                .padding(.leading, Self.groupIndent)
                         }
                     }
                 }
@@ -227,19 +226,13 @@ struct XcodeSettingsPage: View {
         return Set([XcodeDownloadGroup.defaultOpen(in: groups, hostMacOSMajor: host)].compactMap { $0 })
     }
 
-    /// Chevron (10) + gap (8) + icon (20) + gap (8): a group's rows start
-    /// under its "Xcode N", not under the chevron.
-    private static let groupIndent: CGFloat = 46
-
     /// One line per Xcode major. The whole line opens and closes it.
     private func groupHeader(_ group: XcodeDownloadGroup, isOpen: Bool, toggle: @escaping () -> Void) -> some View {
         Button(action: toggle) {
+            // Icon at the card's edge, where the rows' text starts, and the
+            // chevron at the far end: an indent for the rows left a wide empty
+            // column under the header (tried in this PR, looked worse).
             HStack(spacing: 8) {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isOpen ? 90 : 0))
-                    .frame(width: 10)
                 groupIcon(group)
                     .frame(width: 20, height: 20)
                 if let major = group.major {
@@ -256,6 +249,11 @@ struct XcodeSettingsPage: View {
                 Text("\(group.items.count) versions")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                    .frame(width: 10)
             }
             .contentShape(Rectangle())
         }

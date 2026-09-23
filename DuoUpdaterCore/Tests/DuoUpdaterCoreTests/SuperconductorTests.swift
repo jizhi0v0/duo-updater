@@ -341,6 +341,53 @@ struct SuperconductorTests {
         }
         """#
 
+    /// `latest.json` whole, verbatim, 2026-09-23 — the first manifest after the
+    /// vendor started shipping a second bundle id (`engineering.super.app`). The
+    /// entry now carries a `bundles` object keyed by bundle id, and the top-level
+    /// `url` is the legacy-id build. Both dmgs were mounted that day: the
+    /// `-legacy-id` one is `com.zarifpour.superconductor`, the other
+    /// `engineering.super.app`; same build, same Team `MR38E36N26`.
+    static let bundlesLatestBody = #"""
+        {
+          "nightly": {
+            "sha": "5dab43b40544e851eeb736f779d2b939ccf6eebf",
+            "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+            "sha256": "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378",
+            "date": "2026-09-23",
+            "bundles": {
+              "engineering.super.app": {
+                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64.dmg",
+                "sha256": "47561a58d6633d575cb61372f1facac078da80300168e08a21a918bb04286e4c"
+              },
+              "com.zarifpour.superconductor": {
+                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+                "sha256": "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378"
+              }
+            }
+          }
+        }
+        """#
+
+    /// The same day's `changelog.json`, trimmed to its first two releases with
+    /// their `groups` dropped — only the order is read from it here.
+    static let bundlesChangelogBody = #"""
+        {
+          "releases": [
+            {
+              "version": "5dab43b40544e851eeb736f779d2b939ccf6eebf",
+              "date": "2026-09-23"
+            },
+            {
+              "version": "a7143e8c507c0ce1cdd10da3505a2fa4e08f5a6c",
+              "date": "2026-09-22"
+            }
+          ]
+        }
+        """#
+
+    static let legacyIDInstaller =
+        "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg"
+
     static let installedBuild = "8545a7d8"
     static let historyHead = ["8545a7d8", "19d32d9a", "fc41dde9", "c437b979", "1f68f34a", "5b73c7f4"]
 
@@ -380,15 +427,80 @@ struct SuperconductorTests {
             from: Self.latestBody, pattern: try Self.recipe().versionPattern) == Self.installedBuild)
     }
 
-    @Test func theInstallIsTheManifestsArm64DMG() throws {
-        let install = try #require(try Self.recipe().install)
-        guard case .bodyPattern(let pattern) = install.urlSource else {
+    static func installPattern() throws -> String {
+        guard case .bodyPattern(let pattern) = try #require(try recipe().install).urlSource else {
             Issue.record("expected a .bodyPattern install URL")
-            return
+            return ""
         }
-        #expect(VendorProbeRecipe.extractVersion(from: Self.latestBody, pattern: pattern)
-            == "https://releases.superconductor.so/nightly/Superconductor-nightly-8545a7d8-arm64.dmg")
-        #expect(install.kind == .dmg)
+        return pattern
+    }
+
+    /// The install is the dmg that keeps THIS bundle id: `bundles`'s
+    /// `com.zarifpour.superconductor` entry, never `engineering.super.app`'s.
+    @Test func theInstallIsTheBuildThatKeepsThisBundleID() throws {
+        #expect(VendorProbeRecipe.extractVersion(
+            from: Self.bundlesLatestBody, pattern: try Self.installPattern()) == Self.legacyIDInstaller)
+        #expect(try #require(try Self.recipe().install).kind == .dmg)
+        // The version and date patterns still read the same entry.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: Self.bundlesLatestBody, pattern: try Self.recipe().versionPattern) == "5dab43b4")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: Self.bundlesLatestBody, pattern: try #require(try Self.recipe().publishedAtPattern))
+            == "2026-09-23")
+    }
+
+    /// Read by key, not by position: the entry still resolves when `bundles`
+    /// precedes the entry's other fields and when this id is listed first.
+    @Test func theBundlesEntryIsFoundWhereverItIsListed() throws {
+        let reordered = #"""
+            {
+              "nightly": {
+                "bundles": {
+                  "com.zarifpour.superconductor": {
+                    "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+                    "sha256": "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378"
+                  },
+                  "engineering.super.app": {
+                    "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64.dmg",
+                    "sha256": "47561a58d6633d575cb61372f1facac078da80300168e08a21a918bb04286e4c"
+                  }
+                },
+                "sha": "5dab43b40544e851eeb736f779d2b939ccf6eebf",
+                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg"
+              }
+            }
+            """#
+        #expect(VendorProbeRecipe.extractVersion(from: reordered, pattern: try Self.installPattern())
+            == Self.legacyIDInstaller)
+    }
+
+    /// No `bundles` entry for this id means no installer — not the top-level
+    /// `url`, whose bundle id the manifest does not state, and not a sibling
+    /// id's build, which would change the installed app's identity.
+    @Test func withoutThisIDsBundlesEntryThereIsNoInstaller() throws {
+        let pattern = try Self.installPattern()
+        #expect(VendorProbeRecipe.extractVersion(from: Self.latestBody, pattern: pattern) == nil)
+        let onlyTheNewID = #"""
+            {
+              "nightly": {
+                "sha": "5dab43b40544e851eeb736f779d2b939ccf6eebf",
+                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64.dmg",
+                "bundles": {
+                  "engineering.super.app": {
+                    "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64.dmg"
+                  }
+                }
+              },
+              "stable": {
+                "bundles": {
+                  "com.zarifpour.superconductor": {
+                    "url": "https://releases.superconductor.so/stable/Superconductor-stable-01234567-arm64-legacy-id.dmg"
+                  }
+                }
+              }
+            }
+            """#
+        #expect(VendorProbeRecipe.extractVersion(from: onlyTheNewID, pattern: pattern) == nil)
     }
 
     @Test func thePublishDayIsTheManifestsDate() throws {
@@ -410,26 +522,38 @@ struct SuperconductorTests {
                 "sha": "0123456789abcdef0123456789abcdef01234567",
                 "url": "https://releases.superconductor.so/stable/Superconductor-stable-01234567-arm64.dmg",
                 "sha256": "00",
-                "date": "2026-01-01"
+                "date": "2026-01-01",
+                "bundles": {
+                  "com.zarifpour.superconductor": {
+                    "url": "https://releases.superconductor.so/stable/Superconductor-stable-01234567-arm64-legacy-id.dmg",
+                    "sha256": "00"
+                  }
+                }
               },
               "nightly": {
-                "sha": "8545a7d83ced2ee07202688ebbb95bda8b3958a4",
-                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-8545a7d8-arm64.dmg",
-                "sha256": "8b8b408598e343e4e94da170d24ccd90fa45a7008485f114eee7c60cc1489ed7",
-                "date": "2026-09-10"
+                "sha": "5dab43b40544e851eeb736f779d2b939ccf6eebf",
+                "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+                "sha256": "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378",
+                "date": "2026-09-23",
+                "bundles": {
+                  "engineering.super.app": {
+                    "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64.dmg",
+                    "sha256": "47561a58d6633d575cb61372f1facac078da80300168e08a21a918bb04286e4c"
+                  },
+                  "com.zarifpour.superconductor": {
+                    "url": "https://releases.superconductor.so/nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+                    "sha256": "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378"
+                  }
+                }
               }
             }
             """#
         #expect(VendorProbeRecipe.extractVersion(from: twoTracks, pattern: recipe.versionPattern)
-            == "8545a7d8")
+            == "5dab43b4")
         #expect(VendorProbeRecipe.extractVersion(
-            from: twoTracks, pattern: try #require(recipe.publishedAtPattern)) == "2026-09-10")
-        guard case .bodyPattern(let pattern) = try #require(recipe.install).urlSource else {
-            Issue.record("expected a .bodyPattern install URL")
-            return
-        }
-        #expect(VendorProbeRecipe.extractVersion(from: twoTracks, pattern: pattern)
-            == "https://releases.superconductor.so/nightly/Superconductor-nightly-8545a7d8-arm64.dmg")
+            from: twoTracks, pattern: try #require(recipe.publishedAtPattern)) == "2026-09-23")
+        #expect(VendorProbeRecipe.extractVersion(from: twoTracks, pattern: try Self.installPattern())
+            == Self.legacyIDInstaller)
     }
 
     @Test func theLineageIsTheHistoryNewestFirstInTheBundlesForm() throws {

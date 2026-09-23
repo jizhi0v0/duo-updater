@@ -35,7 +35,7 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "\"nightly\"\\s*:\\s*\\{[^{}]*?\"url\"\\s*:\\s*\"(https://releases\\.superconductor\\.so/[^\"]+-arm64\\.dmg)\""
+probes[0].install?.urlSource.0 = "\"nightly\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"bundles\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"com\\.zarifpour\\.superconductor\"\\s*:\\s*\\{[^{}]*?\"url\"\\s*:\\s*\"(https://releases\\.superconductor\\.so/[^\"]+-arm64[^\"/]*\\.dmg)\""
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.requestHeaders = Dictionary(count: 0)
@@ -83,7 +83,7 @@ appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 1)
 channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)] = .artifact(_:)
-channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)].0 = "/nightly/Superconductor-nightly-[0-9a-f]{8}-arm64\\.dmg$"
+channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)].0 = "/nightly/Superconductor-nightly-[0-9a-f]{8}-arm64[^/]*\\.dmg$"
 
 githubChannelProofs = Dictionary(count: 0)
 

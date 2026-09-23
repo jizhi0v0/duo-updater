@@ -30745,47 +30745,6 @@
         }
       }
     },
-    "Download": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Laden"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Descargar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Télécharger"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ダウンロード"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Загрузить"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载"
-          }
-        }
-      }
-    },
     "Download Xcode": {
       "extractionState": "manual",
       "localizations": {
@@ -30950,47 +30909,6 @@
         }
       }
     },
-    "Saves the Xcode archive (.xip) to your Downloads folder — open it to expand Xcode, then move it where you like. Nothing is installed or replaced. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speichert das Xcode-Archiv (.xip) in deinem Downloads-Ordner – öffne es, um Xcode zu entpacken, und bewege es dann, wohin du möchtest. Es wird nichts installiert oder ersetzt. Verwendet deine Apple-Developer-Anmeldung; falls nötig, wirst du zuerst um eine Anmeldung gebeten."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Guarda el archivo de Xcode (.xip) en tu carpeta Descargas: ábrelo para expandir Xcode y muévelo donde quieras. No se instala ni se reemplaza nada. Usa tu sesión de Apple Developer; si hace falta, primero se te pedirá iniciar sesión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enregistre l’archive de Xcode (.xip) dans votre dossier Téléchargements — ouvrez-la pour décompresser Xcode, puis déplacez-le où vous voulez. Rien n’est installé ni remplacé. Utilise votre connexion Apple Developer ; il vous sera demandé de vous connecter d’abord si nécessaire."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcodeのアーカイブ（.xip）を「ダウンロード」フォルダに保存します。開いてXcodeを展開し、好きな場所に移動してください。インストールや置き換えは行いません。Apple Developerのサインインを使用し、必要な場合は先にサインインを求めます。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сохраняет архив Xcode (.xip) в папку «Загрузки» — откройте его, чтобы распаковать Xcode, и переместите куда удобно. Ничего не устанавливается и не заменяется. Использует ваш вход в Apple Developer; при необходимости сначала попросит войти."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将 Xcode 归档（.xip）保存到“下载”文件夹——打开它即可展开 Xcode，再移到你想放的位置。不会安装或替换任何内容。使用你的 Apple Developer 登录；如有需要，会先请你登录。"
-          }
-        }
-      }
-    },
     "Show All (%lld)": {
       "extractionState": "manual",
       "localizations": {
@@ -31069,47 +30987,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "收起"
-          }
-        }
-      }
-    },
-    "Sign In & Download…": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anmelden & laden …"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iniciar sesión y descargar…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se connecter et télécharger…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サインインしてダウンロード…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Войти и загрузить…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录并下载…"
           }
         }
       }
@@ -31438,6 +31315,498 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开归档只会将其展开，还没有安装任何东西：\n\n1. 点击**打开**，会在归档旁边展开（约一分钟，约 4 GB）。Beta 版会变成 Xcode-beta.app，正式版或 RC 版会变成 Xcode.app。\n2. 把它拖到“应用程序”文件夹。如果想同时保留另一个 Xcode，请先给这个改名，例如 Xcode-26.6.app。\n3. 打开它。Xcode 会请你接受许可协议、安装组件（需要你的密码），并提供 iOS 模拟器等平台的下载。\n4. 可选：要在终端里使用它，在 Xcode → 设置 → Locations → Command Line Tools 中选择它。\n\nDuoUpdater 会为“应用程序”中的所有 Xcode 提供更新，这个也不例外。"
+          }
+        }
+      }
+    },
+    "Sign In & Install…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmelden & installieren …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar sesión e instalar…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter et installer…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインしてインストール…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти и установить…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录并安装…"
+          }
+        }
+      }
+    },
+    "Download Only (.xip)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur laden (.xip)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo descargar (.xip)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger seulement (.xip)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードのみ（.xip）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только загрузить (.xip)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅下载（.xip）"
+          }
+        }
+      }
+    },
+    "Verifying…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird geprüft …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificando…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérification…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検証中…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在验证…"
+          }
+        }
+      }
+    },
+    "Expanding…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird entpackt …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expandiendo…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Décompression…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開中…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Распаковка…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在展开…"
+          }
+        }
+      }
+    },
+    "Install as %@ in Applications, beside any Xcode already there, and open it": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als %@ in „Programme“ installieren, neben jedem vorhandenen Xcode, und öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar como %@ en Aplicaciones, junto a cualquier Xcode que ya esté allí, y abrirlo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer sous %@ dans Applications, à côté de tout Xcode déjà présent, et l’ouvrir"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ として「アプリケーション」に、既存の Xcode と並べてインストールし、開きます"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить как %@ в «Программы» рядом с уже имеющимися Xcode и открыть"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 %@ 安装到“应用程序”，与已有的 Xcode 并存，然后打开"
+          }
+        }
+      }
+    },
+    "Installed as %@ · not offered updates (Library → Ignored)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert als %@ · keine Updates angeboten (Mediathek → Ignoriert)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalado como %@ · sin ofertas de actualización (Biblioteca → Ignoradas)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installé sous %@ · aucune mise à jour proposée (Bibliothèque → Ignorées)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ としてインストール済み · アップデートは提示しません（ライブラリ → 無視）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установлено как %@ · обновления не предлагаются (Медиатека → Игнорируемые)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装为 %@ · 不提供更新（资料库 → 已忽略）"
+          }
+        }
+      }
+    },
+    "Install puts the version you pick in Applications as its own copy — for example Xcode-26.6.app — beside any Xcode already there, then opens it. Nothing installed is replaced, and DuoUpdater won't offer that copy updates (undo in Library → Ignored). Or choose Download Only to save the archive (.xip) to Downloads. Uses your Apple Developer sign-in; you'll be asked to sign in first if needed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Installieren“ legt die gewählte Version als eigene Kopie in „Programme“ ab – zum Beispiel Xcode-26.6.app –, neben jedem vorhandenen Xcode, und öffnet sie. Nichts Installiertes wird ersetzt, und DuoUpdater bietet dieser Kopie keine Updates an (rückgängig unter Mediathek → Ignoriert). Oder wähle „Nur laden“, um das Archiv (.xip) in „Downloads“ zu sichern. Nutzt deine Apple-Developer-Anmeldung; bei Bedarf wirst du zuerst zur Anmeldung aufgefordert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar coloca la versión que elijas en Aplicaciones como una copia propia —por ejemplo, Xcode-26.6.app—, junto a cualquier Xcode que ya esté allí, y la abre. No se reemplaza nada instalado, y DuoUpdater no ofrecerá actualizaciones para esa copia (se deshace en Biblioteca → Ignoradas). O elige Solo descargar para guardar el archivo (.xip) en Descargas. Usa tu inicio de sesión de Apple Developer; si hace falta, se te pedirá iniciar sesión primero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer place la version choisie dans Applications comme copie distincte — par exemple Xcode-26.6.app —, à côté de tout Xcode déjà présent, puis l’ouvre. Rien d’installé n’est remplacé, et DuoUpdater ne proposera pas de mise à jour pour cette copie (annulable dans Bibliothèque → Ignorées). Ou choisissez Télécharger seulement pour enregistrer l’archive (.xip) dans Téléchargements. Utilise votre connexion Apple Developer ; il vous sera demandé de vous connecter d’abord si nécessaire."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「インストール」は、選んだバージョンを独立したコピー（例：Xcode-26.6.app）として「アプリケーション」に、既存の Xcode と並べて置き、開きます。インストール済みのものは置き換えず、DuoUpdater はこのコピーにアップデートを提示しません（ライブラリ → 無視 で元に戻せます）。アーカイブ（.xip）を「ダウンロード」に保存するだけなら「ダウンロードのみ」を選んでください。Apple Developer のサインインを使います。必要なら先にサインインを求められます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Установить» помещает выбранную версию в «Программы» отдельной копией — например, Xcode-26.6.app — рядом с уже имеющимися Xcode и открывает её. Ничего установленного не заменяется, и DuoUpdater не будет предлагать обновления для этой копии (отменить можно в «Медиатека → Игнорируемые»). Либо выберите «Только загрузить», чтобы сохранить архив (.xip) в «Загрузки». Используется ваш вход Apple Developer; при необходимости сначала будет предложено войти."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“安装”会把你选的版本作为独立副本放进“应用程序”（例如 Xcode-26.6.app），与已有的 Xcode 并存，然后打开它。不会替换任何已安装的内容，DuoUpdater 也不会为这个副本提供更新（可在资料库 → 已忽略中撤销）。也可以选择“仅下载”，把归档（.xip）存到“下载”文件夹。使用你的 Apple Developer 登录；如有需要会先请你登录。"
+          }
+        }
+      }
+    },
+    "Already installed as %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits installiert als %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya instalado como %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déjà installé sous %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ としてインストール済み"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже установлено как %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装为 %@"
+          }
+        }
+      }
+    },
+    "Doesn't run on macOS %@ — download only": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft nicht unter macOS %@ – nur laden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No funciona en macOS %@: solo descarga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne fonctionne pas sous macOS %@ — téléchargement seulement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS %@ では動作しません — ダウンロードのみ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не работает в macOS %@ — только загрузка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法在 macOS %@ 上运行——仅可下载"
+          }
+        }
+      }
+    },
+    "Needs macOS %@ to install — download only": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Installieren ist macOS %@ nötig – nur laden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requiere macOS %@ para instalar: solo descarga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite macOS %@ pour l’installation — téléchargement seulement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールには macOS %@ が必要です — ダウンロードのみ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для установки нужна macOS %@ — только загрузка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装需要 macOS %@——仅可下载"
+          }
+        }
+      }
+    },
+    "Sign In Again…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut anmelden …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a iniciar sesión…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reconnecter…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再度サインイン…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти снова…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新登录…"
+          }
+        }
+      }
+    },
+    "Sign In & Download (.xip)…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmelden & laden (.xip) …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar sesión y descargar (.xip)…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter et télécharger (.xip)…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サインインしてダウンロード（.xip）…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти и загрузить (.xip)…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录并下载（.xip）…"
           }
         }
       }

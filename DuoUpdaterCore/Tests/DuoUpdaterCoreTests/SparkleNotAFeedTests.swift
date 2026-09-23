@@ -5,8 +5,9 @@ import Foundation
 /// A feed URL that answers with a web page is a failed check, not "no source".
 ///
 /// Muse (`com.meta.endo`) points `SUFeedURL` at facebook.com, which answers most
-/// requests with a 302 to `/login` — 12 real appcasts out of ~190 fetches in the
-/// request ledger, 2026-09-16…23. `URLSession` follows the redirect and hands back
+/// requests with a 302 to `/login` — 13 real appcasts out of 189 of the menu-bar
+/// app's fetches in one machine's request ledger, the ~16 hours from 2026-09-22
+/// 12:43Z to 09-23 04:16Z. `URLSession` follows the redirect and hands back
 /// a 200 HTML page with zero `<item>`s. Returned as `nil`, that was `.unknown`, so
 /// the Update click's re-check replaced the row with one carrying no offer and the
 /// row vanished. Thrown, it is `.error` — see `PreInstallGate.cannotConfirm`.

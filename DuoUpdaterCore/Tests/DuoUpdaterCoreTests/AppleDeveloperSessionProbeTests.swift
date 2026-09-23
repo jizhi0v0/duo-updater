@@ -63,3 +63,35 @@ import Testing
     #expect(!t(.signedIn, false, true))
     #expect(!t(.inconclusive, false, true))
 }
+
+/// Names only, and a deletion is told apart from a new cookie — the log line
+/// that says whether a check refreshes the session must never carry a value.
+@Test func sessionProbeLogsTheNamesOfTheCookiesAResponseSets() {
+    let now = Date(timeIntervalSince1970: 1_790_000_000)
+    let names = AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+        "Set-Cookie": "myacinfo=SECRETVALUE; Domain=.apple.com; Path=/; Secure; HttpOnly, "
+            + "DSESSIONID=OTHERSECRET; Domain=.developer.apple.com; Path=/, "
+            + "ADCDownloadAuth=gone; Domain=.apple.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT, "
+            + "aa=; Domain=.idmsa.apple.com; Path=/",
+        "Location": "https://download.developer.apple.com/Developer_Tools/Xcode_16.4/Xcode_16.4.xip",
+    ], now: now)
+    #expect(names == ["-ADCDownloadAuth", "-aa", "DSESSIONID", "myacinfo"])
+    #expect(!names.joined().contains("SECRET"))
+    #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: ["Location": "x"], now: now).isEmpty)
+}
+
+/// `Max-Age=0` parses to the parsing moment floored to the second. With `now`
+/// read 0.9 s before the call, only the second of grace marks it: without it,
+/// each call passes only when the sub-second part is ≥ 0.9 (PR #828 review,
+/// rounds 1–2). A cookie meant to stay is still not marked.
+@Test func sessionProbeMarksAMaxAgeZeroDeletion() {
+    for _ in 0..<20 {
+        let before = Date().addingTimeInterval(-0.9)
+        #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+            "Set-Cookie": "myacinfo=x; Max-Age=0; Domain=.apple.com; Path=/",
+        ], now: before) == ["-myacinfo"])
+    }
+    #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+        "Set-Cookie": "myacinfo=x; Max-Age=3600; Domain=.apple.com; Path=/",
+    ]) == ["myacinfo"])
+}

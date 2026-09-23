@@ -30,6 +30,27 @@ public enum AppleDeveloperSessionProbe {
     public static let probeURL = URL(
         string: "https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.4/Xcode_16.4.xip")!
 
+    /// The names of the cookies one response sets, sorted, never their values —
+    /// for the log that tells whether a check hands out a new `myacinfo` (and so
+    /// keeps the session alive by itself) or not. A cookie the response deletes
+    /// is marked `-name`: an empty value, or an expiry no more than a second past
+    /// `now`. The second of grace is for `Max-Age=0`, which parses to the moment
+    /// of parsing floored to the second (measured 2026-09-23) — within a second
+    /// of any clock read around the call, whichever side of it. No cookie Apple
+    /// sets to be kept expires within a second.
+    public static func setCookieNames(
+        headerFields: [String: String], url: URL = probeURL, now: Date? = nil
+    ) -> [String] {
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+        let now = now ?? Date()
+        return cookies
+            .map { cookie in
+                let expired = cookie.expiresDate.map { $0 <= now.addingTimeInterval(1) } ?? false
+                return expired || cookie.value.isEmpty ? "-" + cookie.name : cookie.name
+            }
+            .sorted()
+    }
+
     /// The verdict for one unfollowed response.
     public static func verdict(status: Int, location: String?) -> Verdict {
         guard (300..<400).contains(status),

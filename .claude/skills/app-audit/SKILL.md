@@ -41,9 +41,9 @@ might install Firefox via direct download (has Sparkle) or via MAS (sandboxed,
 no Sparkle). The app's bundle ID is `org.mozilla.firefox` either way, but the
 update path differs completely.
 
-`UpdateChecker` resolves this with a **priority chain** — it tries sources in
-order and the first that returns a version wins. The audit should document which
-source actually answers and why.
+`UpdateChecker` runs the sources `SourceStack.make` lists, in that order, and the
+first that returns a version wins. The audit should document which source
+actually answers and why.
 
 ### Axis 2: Release channel — WHICH quality track
 
@@ -259,12 +259,10 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 | `review <blocker>` | The blocker names the reason | Continue the audit; the blocker tells you what to investigate |
 | `noKnownUpdater` | No Sparkle, no electron-builder config | Continue the audit |
 
-**Skipping this step has a measured cost.** Bartender, ImageOptim and Vivaldi
-Snapshot each got a hand-written `VendorProbeRecipe` pointing at the *exact
-address their own bundle already declares in `SUFeedURL`*. `SparkleAppcastSource`
-sits ahead of `VendorProbeSource`, so all three recipes were dead the day they
-were written — and nobody noticed for months, because a dead recipe and a working
-one look identical from outside. Three of them, one avoidable read.
+**Skipping this step produces a dead recipe that looks alive.**
+`SparkleAppcastSource` sits ahead of `VendorProbeSource`, so a `VendorProbeRecipe`
+pointing at the address the bundle already declares in `SUFeedURL` never runs —
+and from outside, a dead recipe and a working one look identical.
 
 **When the verdict is `declared`, the only questions left are:**
 
@@ -298,7 +296,9 @@ history, OS floor — the generic source already does.
 **1b. For each source found, note:**
 - Does it serve the same version as other sources?
 - Are there source-specific quirks? (MAS may lag behind direct download)
-- Which source should `UpdateChecker` prefer? (Usually: Sparkle > MAS > Homebrew > GitHub > VendorProbe)
+- Which source answers first? The order is fixed in `Engine/SourceStack.swift`
+  (`SourceStack.make`), not chosen per app: read it there. A source earlier in
+  the list shadows every later one for the apps it matches.
 
 **1c. The `auto_updates` trap:**
 If the Homebrew cask has `auto_updates: true`, `HomebrewCaskSource` returns nil —
@@ -482,12 +482,12 @@ channel, and the live probe's from→to verdict.
 bundle id / version / channel marker / detected channel / probe verdict per channel.
 That section is what backs a ✓.
 
-Do **not** point at `application-test/records/`. It stopped being tracked on
-2026-08-14 (it had grown into a second, drifting reference), and
-`scripts/check_app_audits.py` fails the build on any audit that links to it. An
+Do **not** point at `application-test/records/`. It is untracked (a second,
+drifting reference), and `scripts/check_app_audits.py` fails the build on any
+audit that links to it. An
 audit must carry its own evidence, not a path that resolves for one machine.
 
-### Phase 3⅞: What else does the vendor's updater DO? (the step that keeps getting skipped)
+### Phase 3⅞: What else does the vendor's updater do?
 
 Phases 1–3¾ all ask the same shape of question: *is there a feed we can read?*
 When the answer is "no", it is easy to write the app up and stop. That is how a
@@ -522,15 +522,11 @@ almost never from the response body. Two real cases, both found only after the
 recipe had already shipped:
 
 - **Little Snitch** (`sw-update.obdev.at/update-feeds/littlesnitch6.plist`): every
-  entry carries `MinimumSystemVersion` **and** `MaximumSystemVersion` — on
-  2026-08-30 the stable entry read 14.0/**26.99** while the nightly read
-  14.0/**27.99**, i.e. obdev routed a macOS 27 Mac away from stable (by
-  2026-09-15 both read 27.99: the cap moves on its own). Those two keys sat
-  verbatim in the audit's own captured fixture and the audit doc never
-  mentioned them, and for two weeks nothing read them either (#634). When a
-  body states a window, the recipe reads it with
-  `minimumSystemVersionPattern` / `maximumSystemVersionPattern` — never pins
-  it in `hostRequirement`, which is for endpoints that state nothing.
+  entry carries `MinimumSystemVersion` **and** `MaximumSystemVersion`, the stable
+  and nightly caps can differ (routing a newer macOS away from stable), and the
+  cap moves between releases on its own. When a body states a window, the recipe
+  reads it with `minimumSystemVersionPattern` / `maximumSystemVersionPattern` —
+  never pins it in `hostRequirement`, which is for endpoints that state nothing.
 - **WeChat** (`dldir1.qq.com/weixin/mac/mac-release.xml`): 7 items, 3 of them
   capped (`min12.0/max14.3`, `min14.3/max15.0`, `max10.10.6`). The SAME version is
   bucketed by OS into different artifacts, and one bucket carries no enclosure at
@@ -929,9 +925,9 @@ so each file has to carry the exception's cost.
 
 ### The class that actually slips through
 
-The list above is easy and audits are usually already clean of it. What got
-published on 2026-08-27, and had to be rewritten, was subtler — three shapes that
-all *look* like legitimate forensic evidence:
+The list above is easy and audits are usually already clean of it. What slips
+through is subtler — three shapes that all *look* like legitimate forensic
+evidence:
 
 **1. Which channel this machine runs the app on.**
 
@@ -992,7 +988,7 @@ ordinary engineering prose and stays. Cross-listing what else is installed
 Verification harness:
 - `application-test/` — `channel-verify` runs production detect()+probe against a
   real `.app`/`.dmg`. Its evidence goes in the audit doc, not in `records/`
-  (untracked since 2026-08-14; `check_app_audits.py` rejects links to it).
+  (untracked; `check_app_audits.py` rejects links to it).
 
 Core (read as needed):
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift` — channel enum + detect()
@@ -1002,7 +998,8 @@ Core (read as needed):
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift` — GitHub rule struct + `GitHubReleaseRegistry` (derived)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogRecipe.swift` — changelog recipe struct + `ChangelogRecipeRegistry` (derived)
 - `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SparkleAppcastSource.swift` — Sparkle channel filtering
-- `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/UpdateChecker.swift` — source priority chain
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/SourceStack.swift` — source priority order (the one place it is decided)
+- `DuoUpdaterCore/Sources/DuoUpdaterCore/Engine/UpdateChecker.swift` — runs that order; first answer wins
 - `CHANNEL_COVERAGE_TODO.md` — channel gap analysis
 - `docs/app-audits/` — persisted audit results
 

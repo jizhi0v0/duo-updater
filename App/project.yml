@@ -65,6 +65,7 @@ targets:
       - path: Sources/WebKitXcodeDownloader.swift
       - path: Sources/AppleDeveloperSession.swift
       - path: Sources/AppleDeveloperSignInWindow.swift
+      - path: Sources/AppleDeveloperSessionRenewer.swift
       # The root helper's XPC peer gate and its request-identity check. Foundation
       # + Security only. HelperService is compiled so the identity guard in
       # installMASApp is executed. Safe today: every test call stops at the identity

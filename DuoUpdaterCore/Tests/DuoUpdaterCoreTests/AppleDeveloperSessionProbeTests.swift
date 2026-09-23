@@ -39,3 +39,16 @@ import Testing
     #expect(XcodeReleasesSource.authorizedDownloadURL(
         fromCDN: "https://download.developer.apple.com/Developer_Tools/Xcode_16.4/Xcode_16.4.xip") == url)
 }
+
+/// The hidden renewal ends signed in only back on the developer site; the
+/// sign-in form it passes through, or stays on, is not an arrival.
+@Test func sessionRenewalLandsOnlyOnTheDeveloperSite() {
+    let landed = AppleDeveloperSessionRenewal.hasLanded
+    #expect(landed("developer.apple.com"))
+    #expect(landed("Developer.Apple.com"))
+    #expect(!landed("idmsa.apple.com"))
+    #expect(!landed(nil))
+    #expect(!landed("www.apple.com"))
+    #expect(!landed("xdeveloper.apple.com"))
+    #expect(!landed("developer.apple.com.example.net"))
+}

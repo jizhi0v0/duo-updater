@@ -106,8 +106,11 @@ final class AppleDeveloperSession {
     /// sign-in starts from nothing. This also forgets Apple's "trust this device"
     /// cookie, so the next sign-in asks for 2FA again — the settings page says so.
     func signOut() async {
+        // A renewal that lands after the erase would save a new session.
+        if let renewal { _ = await renewal.value }
         Keychain.delete(account: Self.keychainAccount)
         status = .unknown
+        renewalTried = false
         lastConfirmed = nil
         UserDefaults.standard.removeObject(forKey: Self.lastConfirmedKey)
         let types = WKWebsiteDataStore.allWebsiteDataTypes()
@@ -130,21 +133,54 @@ final class AppleDeveloperSession {
     /// authorized.
     func noteConfirmed() {
         status = .signedIn
+        renewalTried = false
         let now = Date()
         lastConfirmed = now
         UserDefaults.standard.set(now, forKey: Self.lastConfirmedKey)
     }
 
-    /// Ask Apple whether the held session is still signed in: one request to the
-    /// authorized download endpoint, redirect not followed
-    /// (`AppleDeveloperSessionProbe`). Updates `status`; an inconclusive answer
-    /// (offline, a proxy page) leaves it as it was. Cookies the response sets are
-    /// written back to the store and saved, as after a download.
+    /// A silent renewal has been tried since Apple last confirmed the session.
+    /// One try per expiry: when Apple's sign-in session has ended too, the next
+    /// sign-in needs the user, and asking a hidden page every hour won't change
+    /// that.
+    @ObservationIgnored private var renewalTried = false
+    @ObservationIgnored private var renewal: Task<AppleDeveloperSessionProbe.Verdict, Never>?
+
+    /// Ask Apple whether the held session is still signed in (`ask()`), and when
+    /// Apple says it has ended, try once to get a new one without the user
+    /// (`AppleDeveloperSessionRenewal`): a hidden page on this store, then Apple
+    /// is asked again. Only that second answer counts — a page that came back
+    /// is not proof of a session.
     ///
     /// Not signed in at all → `.inconclusive` without a request: there is no
     /// session to ask about.
     @discardableResult
     func check() async -> AppleDeveloperSessionProbe.Verdict {
+        if let renewal { return await renewal.value }
+        let verdict = await ask()
+        guard verdict == .expired, !renewalTried else { return verdict }
+        renewalTried = true
+        let task = Task { @MainActor in await self.renew() }
+        renewal = task
+        defer { renewal = nil }
+        return await task.value
+    }
+
+    private func renew() async -> AppleDeveloperSessionProbe.Verdict {
+        let since = lastConfirmed.map { Int(Date().timeIntervalSince($0) / 60) } ?? -1
+        let started = Date()
+        let landed = await AppleDeveloperSessionRenewer().run(in: dataStore)
+        let verdict = landed ? await ask() : .expired
+        let seconds = Int(Date().timeIntervalSince(started))
+        Log.app.notice("apple session renewal: \(verdict == .signedIn ? "renewed" : "failed", privacy: .public) in \(seconds, privacy: .public)s, page \(landed ? "came back" : "stayed on sign-in", privacy: .public); last confirmed \(since, privacy: .public) min before")
+        return verdict
+    }
+
+    /// One request to the authorized download endpoint, redirect not followed
+    /// (`AppleDeveloperSessionProbe`). Updates `status`; an inconclusive answer
+    /// (offline, a proxy page) leaves it as it was. Cookies the response sets are
+    /// written back to the store and saved, as after a download.
+    private func ask() async -> AppleDeveloperSessionProbe.Verdict {
         await restore()
         let cookies = await dataStore.httpCookieStore.allCookies()
         await refreshSignedInState(cookies: cookies)
@@ -160,9 +196,10 @@ final class AppleDeveloperSession {
             verdict = AppleDeveloperSessionProbe.verdict(
                 status: http?.statusCode ?? 0,
                 location: http?.value(forHTTPHeaderField: "Location"))
-            Log.app.info("apple session check: \(http?.statusCode ?? 0, privacy: .public) → \(String(describing: verdict), privacy: .public)")
+            // Notice, not info: kept on disk, so an expiry can be dated afterwards.
+            Log.app.notice("apple session check: \(http?.statusCode ?? 0, privacy: .public) → \(String(describing: verdict), privacy: .public)")
         } catch {
-            Log.app.info("apple session check failed: \(error.localizedDescription, privacy: .public)")
+            Log.app.notice("apple session check failed: \(error.localizedDescription, privacy: .public)")
             return .inconclusive
         }
 

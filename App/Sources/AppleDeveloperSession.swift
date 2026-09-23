@@ -162,7 +162,8 @@ final class AppleDeveloperSession {
         if renewing, let renewal { return await renewal.value }
         let verdict = await ask()
         guard AppleDeveloperSessionRenewal.shouldTry(
-            verdict: verdict, alreadyTried: renewalTried, allowed: renewing)
+            verdict: verdict, alreadyTried: renewalTried, allowed: renewing,
+            enabled: AppleDeveloperSessionRenewal.isEnabled(in: .standard))
         else { return verdict }
         renewalTried = true
         let task = Task { @MainActor in await self.renew() }

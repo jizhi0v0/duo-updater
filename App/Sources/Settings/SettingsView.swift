@@ -84,7 +84,7 @@ struct SettingsView: View {
         case .updates:     UpdatesSettingsPage()
         case .github:      GitHubSettingsPage(prefs: prefs)
         case .alcove:      AlcoveSettingsPage(prefs: prefs)
-        case .xcode:       XcodeSettingsPage()
+        case .xcode:       XcodeSettingsPage(prefs: prefs)
         case .ignored:     IgnoredSettingsPage(prefs: prefs, model: model)
         case .diagnostics: DiagnosticsSettingsPage(model: model)
         }

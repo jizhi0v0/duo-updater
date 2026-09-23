@@ -8,6 +8,7 @@ import DuoUpdaterCore
 /// is no token or API key to enter instead. This page exists so the user always
 /// knows where that access lives and how to take it back.
 struct XcodeSettingsPage: View {
+    @Bindable var prefs: Preferences
     /// Observed directly: the hourly check and a row's "Sign In…" change it while
     /// this page is open.
     private var session: AppleDeveloperSession { .shared }
@@ -35,11 +36,17 @@ struct XcodeSettingsPage: View {
             SettingsCard(
                 header: "Apple Developer sign-in",
                 headerInfo: "DuoUpdater stores your Apple Developer sign-in session — the same one developer.apple.com already keeps in a cookie — so it can download Xcode betas and release candidates on your behalf. It's kept in the Keychain on this Mac, never synced to iCloud or anywhere else, and only ever sent to *.apple.com — Apple's developer, sign-in, and download servers.",
-                footer: "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple can end the session on its side at any time. DuoUpdater asks Apple once an hour whether it still holds; if it has ended, DuoUpdater first asks Apple for a new one in the background, without a window. Only when Apple wants your password does the Xcode row ask you to sign in again."
+                footer: "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple ends the session on its side — in our tests about 8 hours after signing in. DuoUpdater asks Apple once an hour whether it still holds; once it has ended, the Xcode row asks you to sign in again, unless a background renewal got a new one first."
             ) {
                 statusRow
                 SettingsDivider()
                 actionsRow
+                SettingsDivider()
+                SettingsToggle(
+                    "Renew the session in the background",
+                    detail: "When Apple ends it, DuoUpdater opens Apple's sign-in page once, hidden, for a new one. That works without your password while Apple still recognizes this Mac's sign-in.",
+                    isOn: $prefs.renewAppleDeveloperSession)
+                    .settingsRow()
             }
             downloadCard
         }

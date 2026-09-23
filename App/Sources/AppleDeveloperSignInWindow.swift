@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import DuoUpdaterCore
 
 /// A small `NSWindow` hosting a `WKWebView` on `AppleDeveloperSession`'s store,
 /// for the user to sign in to their Apple Developer account (including 2FA).
@@ -23,6 +24,12 @@ final class AppleDeveloperSignInWindow: NSObject {
     /// completion (e.g. a second `didFinish` racing the close) can't call the
     /// handler twice.
     private var finished = false
+    /// When the latest developer-site page committed — for the log line that
+    /// says how soon after it the window closed. Latest, not first: if the
+    /// window's own first load commits there before going on to `idmsa` (not
+    /// measured — it may be a plain redirect), counting from it would count
+    /// the password and 2FA as well.
+    private var landedAt: Date?
 
     /// Show the window and sign the user in. Resumes once with `true` after a
     /// completed sign-in (saved), or `false` if the user closes the window first.
@@ -80,8 +87,26 @@ final class AppleDeveloperSignInWindow: NSObject {
 }
 
 extension AppleDeveloperSignInWindow: WKNavigationDelegate {
+    /// The developer site's page has started to arrive — seconds before the
+    /// rest of it (scripts, styles, API calls) has loaded, which is what
+    /// `didFinish` waits for. Once a sign-in has come back from `idmsa`, the
+    /// session cookie is already in the store, so Apple can be asked now. Any
+    /// developer-site commit before the sign-in is done only asks and gets no
+    /// "signed in"; nothing closes.
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        if webView.url?.host?.hasSuffix("developer.apple.com") == true { landedAt = Date() }
+        confirmIfLanded(webView, on: "commit")
+    }
+
+    /// Kept as the fallback: if the check at commit did not confirm a
+    /// session, the one here still can.
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let host = webView.url?.host, host.hasSuffix("developer.apple.com") else { return }
+        confirmIfLanded(webView, on: "finish")
+    }
+
+    private func confirmIfLanded(_ webView: WKWebView, on event: String) {
+        guard !finished, let host = webView.url?.host, host.hasSuffix("developer.apple.com") else { return }
+        if landedAt == nil { landedAt = Date() }
         Task {
             let session = AppleDeveloperSession.shared
             guard await session.refreshSignedInState() else { return }
@@ -90,6 +115,9 @@ extension AppleDeveloperSignInWindow: WKNavigationDelegate {
             // stamps `lastConfirmed` only on a real "signed in".
             guard await session.check(renewing: false) != .expired else { return }
             await session.save()
+            guard !self.finished else { return }
+            let seconds = self.landedAt.map { Date().timeIntervalSince($0) } ?? 0
+            Log.app.notice("apple sign-in: window closed on \(event, privacy: .public), \(seconds, format: .fixed(precision: 1), privacy: .public)s after the developer site answered")
             self.finish(signedIn: true)
         }
     }

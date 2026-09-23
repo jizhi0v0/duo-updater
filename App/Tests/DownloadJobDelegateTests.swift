@@ -44,6 +44,15 @@ struct DownloadJobDelegateTests {
     @Test func theSilentRenewalAnswers() {
         #expect(AppleDeveloperSessionRenewer().responds(to: NSSelectorFromString("webView:didFinishNavigation:")))
     }
+
+    /// The sign-in window closes on the developer site's commit, falling back
+    /// to its finish; either one missing silently brings back the wait, or the
+    /// window that never closes.
+    @Test func theSignInWindowAnswersCommitAndFinish() {
+        let window = AppleDeveloperSignInWindow()
+        #expect(window.responds(to: NSSelectorFromString("webView:didCommitNavigation:")))
+        #expect(window.responds(to: NSSelectorFromString("webView:didFinishNavigation:")))
+    }
 }
 
 /// Every page that finishes loading must lead somewhere: an error, never a wait.

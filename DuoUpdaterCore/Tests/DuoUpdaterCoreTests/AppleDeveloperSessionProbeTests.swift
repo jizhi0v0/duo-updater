@@ -63,3 +63,18 @@ import Testing
     #expect(!t(.signedIn, false, true))
     #expect(!t(.inconclusive, false, true))
 }
+
+/// Names only, and a deletion is told apart from a new cookie — the log line
+/// that says whether a check refreshes the session must never carry a value.
+@Test func sessionProbeLogsTheNamesOfTheCookiesAResponseSets() {
+    let now = Date(timeIntervalSince1970: 1_790_000_000)
+    let names = AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+        "Set-Cookie": "myacinfo=SECRETVALUE; Domain=.apple.com; Path=/; Secure; HttpOnly, "
+            + "DSESSIONID=OTHERSECRET; Domain=.developer.apple.com; Path=/, "
+            + "ADCDownloadAuth=gone; Domain=.apple.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        "Location": "https://download.developer.apple.com/Developer_Tools/Xcode_16.4/Xcode_16.4.xip",
+    ], now: now)
+    #expect(names == ["-ADCDownloadAuth", "DSESSIONID", "myacinfo"])
+    #expect(!names.joined().contains("SECRET"))
+    #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: ["Location": "x"], now: now).isEmpty)
+}

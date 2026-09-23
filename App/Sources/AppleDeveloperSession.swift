@@ -202,7 +202,11 @@ final class AppleDeveloperSession {
                 status: http?.statusCode ?? 0,
                 location: http?.value(forHTTPHeaderField: "Location"))
             // Notice, not info: kept on disk, so an expiry can be dated afterwards.
-            Log.app.notice("apple session check: \(http?.statusCode ?? 0, privacy: .public) → \(String(describing: verdict), privacy: .public)")
+            // Names only, never values: whether Apple hands out a new `myacinfo`
+            // on each check says whether the check alone keeps the session alive.
+            let setCookies = AppleDeveloperSessionProbe.setCookieNames(
+                headerFields: http?.allHeaderFields as? [String: String] ?? [:])
+            Log.app.notice("apple session check: \(http?.statusCode ?? 0, privacy: .public) → \(String(describing: verdict), privacy: .public); sets cookies: \(setCookies.isEmpty ? "none" : setCookies.joined(separator: " "), privacy: .public)")
         } catch {
             Log.app.notice("apple session check failed: \(error.localizedDescription, privacy: .public)")
             return .inconclusive

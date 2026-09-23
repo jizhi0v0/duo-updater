@@ -144,3 +144,5 @@ must stop at the next <h1> — bounding to </section> would swallow those
 feature bullets. No per-entry date is printed.
 
 复测 2026-09-14（13:59 UTC，只读 GET `www.videolan.org/vlc/releases/`）：第一个 per-version 链接仍是 `/vlc/releases/3.0.23.html`，其后是 `3.0.21.html`、`3.0.20.html`。
+
+复测 2026-09-23（#812，只读 GET）：index 第一个链接变为 `/vlc/releases/3.0.24.html`；该页的发布块标题改成 `3.0.24 Highlights`（不再是 `X Fixes`），旧 pattern 因此 `noEntriesExtracted`。`3.0.23.html`（`3.0.22/3.0.23 Fixes`）、`3.0.21.html`/`3.0.20.html`（`3.0.19/3.0.20 Fixes`）、`3.0.18.html`（`3.0.18 Fixes`）仍是旧式标题。每页其后都跟着通用的 `3.0 Highlights` 营销标题，所以新 pattern 同时接受 `Fixes|Highlights`，并要求版本至少三段，避免把 `3.0` 当成一个发布。新 pattern（Python re.S 复算）在其中三页上各抽出 1 条：3.0.24（12 项）、3.0.23（10 项）、3.0.18（10 项）。

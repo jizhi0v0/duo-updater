@@ -590,6 +590,40 @@ beta 还**倒退**了（9.4.0-beta8 → 9.3.5-beta1）。
 ⚠️ 由此可知，第 3 坑里那句「旧桶是唯一**静默**错的方向」还漏了一种：**所有桶一起回退**。
 钉哪个 `version_code` 都躲不开，能看见它的只有 Homebrew 交叉核对本身。
 
+### 第六个坑：beta 包文件名多了 `_nosandbox`（2026-09-20 起，#427）
+
+`duo verify` 报 beta `versionPatternNoMatch`（last good 9.5.5-beta1）。issue 里自动分析说
+「body 里已没有 `lastest_url`」——**不对**，`update_reminder` 26 个键都在，是 beta 文件名变成了
+`CapCut_9_6_0-beta3_4638_capcutpc_beta_creatortool_nosandbox.dmg`，旧 pattern 以
+`_creatortool\.dmg"` 收尾，所以匹配不到。
+
+2026-09-23 实测，其余参数固定，一次只变一维：
+
+| 变的那一维 | 取值 | 结果 |
+|---|---|---|
+| 重复 | 同一 URL × 10 | 10/10 相同：`lastest_url` = 9.6.0-beta3 `_nosandbox`，stable 9.4.1/4574，`lastest_beta_number` `"3"` |
+| `version_code` | `0.0.1` `9.3.0` `9.4.1` `9.5.0` `9.6.0` `9.9` `9.99` `10.0.0` | 同上 |
+| `version_code` | `1.0.0` | 旧桶：beta 9.5.5-beta1（无后缀）|
+| `version_code` | `9.999` | 无 `update_reminder`（既有行为）|
+| `channel` | `capcutpc_0` `capcutpc_beta` `capcutpc_1` | 同上，三者一致 |
+
+所以不是 `version_code` 窗口、不是厂商关轨、也不是字段挪位。CDN 上
+`…9_6_0-beta3_4638_capcutpc_beta_creatortool.dmg`（不带后缀）是 **404**，带后缀的是 200、
+1,382,620,362 B —— 该 build 只有 `_nosandbox` 这一个产物。同日稍后厂商已前进到
+`9_6_0-beta4_4641_…_nosandbox.dmg`。stable 仍是无后缀的 `capcutpc_0_creatortool.dmg`
+（`…9_4_1_4574_capcutpc_0_creatortool_nosandbox.dmg` 是 404）。
+
+**修法**：两轨共用的 helper 里把文件名尾巴写成 `_creatortool(?:_nosandbox)?\.dmg`（版本 pattern
+和安装 pattern 同一个），明写后缀而不是 `[^"]*`，别的改名仍会响亮地失败。channel proof
+`_capcutpc_beta_` 照样命中。stable 目前没有这个后缀；放进共用 helper 是因为两轨由同一个函数
+生成，并非观测到 stable 已改名。
+
+**未验证**：没有下载那个 1.38 GB 的 `_nosandbox` dmg，所以它的 Team ID / bundle id / 架构 /
+是否真的去掉了 App Sandbox entitlement 都没核对。安装时 `VendorInstaller` 的 Team + bundle id
+强制闸会拦住不一致的包（fail-closed），但「沙盒版 → 非沙盒版」对用户数据位置
+（容器里的 prefs 会不会被新版读到）的影响没有查过 —— 这是厂商自己的更新器也在推的同一个包
+（`update_url` 指向它）。
+
 ## 建议下一步
 
 1. CapCut 进 10.x 时 `version_code=9.99` 会掉出窗口 —— 那天 `duo verify` 会报

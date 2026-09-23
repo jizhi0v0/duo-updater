@@ -38,6 +38,12 @@ struct DownloadJobDelegateTests {
     func theSignInWindowAnswers(_ selector: String) {
         #expect(AppleDeveloperSignInWindow().responds(to: NSSelectorFromString(selector)))
     }
+
+    /// Without it the hidden renewal never sees the page come back and every
+    /// try runs to its timeout as a failure.
+    @Test func theSilentRenewalAnswers() {
+        #expect(AppleDeveloperSessionRenewer().responds(to: NSSelectorFromString("webView:didFinishNavigation:")))
+    }
 }
 
 /// Every page that finishes loading must lead somewhere: an error, never a wait.

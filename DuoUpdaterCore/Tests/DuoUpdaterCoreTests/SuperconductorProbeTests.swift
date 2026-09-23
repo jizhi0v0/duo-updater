@@ -73,15 +73,20 @@ struct SuperconductorProbeTests {
 
     @Test func whenBothDocumentsAgreeTheRemoteCarriesTheLineage() async throws {
         let (recipe, latest, lineage) = try Self.recipe(host: "agree.example.invalid")
-        DocumentServer.serve(latest, SuperconductorTests.latestBody)
-        DocumentServer.serve(lineage, SuperconductorTests.changelogBody)
+        DocumentServer.serve(latest, SuperconductorTests.bundlesLatestBody)
+        DocumentServer.serve(lineage, SuperconductorTests.bundlesChangelogBody)
 
         let outcome = await Self.probe(recipe)
         #expect(outcome.failure == nil)
+        #expect(outcome.warnings.isEmpty)
         let remote = try #require(outcome.remote)
-        #expect(remote.displayVersion == SuperconductorTests.installedBuild)
-        #expect(remote.buildLineage?.newestFirst == SuperconductorTests.historyHead)
+        #expect(remote.displayVersion == "5dab43b4")
+        #expect(remote.buildLineage?.newestFirst == ["5dab43b4", "a7143e8c"])
         #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.downloadURL?.absoluteString == SuperconductorTests.legacyIDInstaller)
+        // The registered nightly proof accepts the legacy-id artifact name.
+        #expect(RecipeSanity.crossChannelArtifact(
+            recipe: try SuperconductorTests.recipe(), remote: remote) == nil)
     }
 
     /// The two documents are published separately; a check between them must not

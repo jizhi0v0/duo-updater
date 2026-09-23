@@ -33,14 +33,20 @@ public enum AppleDeveloperSessionProbe {
     /// The names of the cookies one response sets, sorted, never their values —
     /// for the log that tells whether a check hands out a new `myacinfo` (and so
     /// keeps the session alive by itself) or not. A cookie the response deletes
-    /// (expiry already past) is marked `-name`.
+    /// is marked `-name`: an expiry already past, or an empty value.
+    ///
+    /// `now` defaults to after parsing, not before: `Max-Age=0` parses to the
+    /// moment of parsing, floored to the second (measured 2026-09-23), so a clock
+    /// read before it could fall on the far side of a second boundary.
     public static func setCookieNames(
-        headerFields: [String: String], url: URL = probeURL, now: Date = Date()
+        headerFields: [String: String], url: URL = probeURL, now: Date? = nil
     ) -> [String] {
-        HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+        let now = now ?? Date()
+        return cookies
             .map { cookie in
-                if let expires = cookie.expiresDate, expires <= now { return "-" + cookie.name }
-                return cookie.name
+                let expired = cookie.expiresDate.map { $0 <= now } ?? false
+                return expired || cookie.value.isEmpty ? "-" + cookie.name : cookie.name
             }
             .sorted()
     }

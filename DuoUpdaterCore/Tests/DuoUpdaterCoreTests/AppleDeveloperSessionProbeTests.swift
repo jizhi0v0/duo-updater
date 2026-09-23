@@ -71,10 +71,22 @@ import Testing
     let names = AppleDeveloperSessionProbe.setCookieNames(headerFields: [
         "Set-Cookie": "myacinfo=SECRETVALUE; Domain=.apple.com; Path=/; Secure; HttpOnly, "
             + "DSESSIONID=OTHERSECRET; Domain=.developer.apple.com; Path=/, "
-            + "ADCDownloadAuth=gone; Domain=.apple.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+            + "ADCDownloadAuth=gone; Domain=.apple.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT, "
+            + "aa=; Domain=.idmsa.apple.com; Path=/",
         "Location": "https://download.developer.apple.com/Developer_Tools/Xcode_16.4/Xcode_16.4.xip",
     ], now: now)
-    #expect(names == ["-ADCDownloadAuth", "DSESSIONID", "myacinfo"])
+    #expect(names == ["-ADCDownloadAuth", "-aa", "DSESSIONID", "myacinfo"])
     #expect(!names.joined().contains("SECRET"))
     #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: ["Location": "x"], now: now).isEmpty)
+}
+
+/// `Max-Age=0` parses to the parsing moment; the default clock is read after
+/// that, so the deletion is marked whatever the sub-second timing (PR #828
+/// review, round 1).
+@Test func sessionProbeMarksAMaxAgeZeroDeletion() {
+    for _ in 0..<50 {
+        #expect(AppleDeveloperSessionProbe.setCookieNames(headerFields: [
+            "Set-Cookie": "myacinfo=x; Max-Age=0; Domain=.apple.com; Path=/",
+        ]) == ["-myacinfo"])
+    }
 }

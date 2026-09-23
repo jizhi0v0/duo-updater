@@ -90,6 +90,7 @@ public enum AppRecipeIndex {
         com_longbridge_app_desktop.set,
         com_macpaw_site_theunarchiver.set,
         com_meetily_ai.set,
+        com_meta_endo.set,
         com_microsoft_edgemac.set,
         com_microsoft_Excel.set,
         com_microsoft_Headlamp.set,

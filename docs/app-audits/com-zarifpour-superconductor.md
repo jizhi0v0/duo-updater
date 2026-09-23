@@ -37,7 +37,7 @@ available"。但设置页的选择器还在，选择写在 `~/.superconductor/se
 bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `SuperconductorChannel` 读这个键：
 `nightly` 或没有记录 → `.nightly`（app 自己的默认，也是唯一轨道）；其他任何值 → 一个没有配方的渠道，
 不提示，**绝不把 nightly 推给选了别的轨道的人**。binding 是 authoritative 的，会顶掉 `detect()`。
-`ChannelProofRegistry` 登记了 `.artifact(/nightly/Superconductor-nightly-<sha8>-arm64.dmg)`。
+`ChannelProofRegistry` 登记了 `.artifact(/nightly/Superconductor-nightly-<sha8>-arm64<后缀>.dmg)`（后缀区分 bundle id，本 id 是 `-legacy-id`）。
 
 **若厂商重开 stable**：`latest.json` 大概率会多出一个同级的 `"stable"` 条目 —— 更新器按渠道名取条目
 （报错字符串 "nightly entry missing from release manifest"）；这是推断，归档里找不到 #711 之前的清单。
@@ -53,6 +53,9 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
   （URL、UA `superconductor-updater`、报错字符串 "nightly entry missing valid sha" 都在二进制里）。
   浏览器 UA 同样 200。
 - 形状（2026-09-10）: `{"nightly": {"sha": "<40 位 hex>", "url": ".../nightly/Superconductor-nightly-<sha8>-arm64.dmg", "sha256": "<hex>", "date": "2026-09-10"}}`
+- 形状（2026-09-23 起）: 条目多了 `"bundles": {"<bundle id>": {"url", "sha256"}, …}`，按 bundle id 各给一个 dmg ——
+  `engineering.super.app` → `…-arm64.dmg`，`com.zarifpour.superconductor` → `…-arm64-legacy-id.dmg`；
+  顶层 `url` 变成了 legacy-id 那个。见「新 bundle id」。
 - **版本是 commit hash**。bundle 两个版本字段都是 sha 的前 8 位，所以 `versionPattern` 只取这 8 位；
   取全 40 位会永远不等于 bundle，恒判「有更新」。
 - **hash 没有顺序**。用真实的 `VersionComparator.swift` 重放 `changelog.json` 里全部 626 对相邻发布
@@ -101,6 +104,18 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - 格式: dmg。镜像里 `Superconductor.app` 是指向 `super.engineering.app` 的符号链接；扫描器先解析符号链接、
   按真实路径去重，只出一行。
 - 校验: `sha256` 是 hex SHA-256，`checksumPattern` 只吃 base64 SHA-512，未武装；Team `MR38E36N26` 闸兜底。
+- **读哪个 dmg**: `bundles` 里**本 bundle id** 那一项（`-legacy-id.dmg`），不读顶层 `url`（它指哪个 id 是厂商的
+  选择，清单里不写），也绝不取 `engineering.super.app` 那项（装上会换掉 app 的身份）。pattern 用
+  `(?:[^{}]|\{[^{}]*\})*?` 整块跨过一层嵌套对象，出不了 `"nightly"`，也不依赖键的顺序；没有本 id 那项就不给
+  installer（`installURLUnresolved`，响亮失败）。
+- **新 bundle id**（2026-09-23）: 同一构建另发一个 `engineering.super.app` 的 dmg。两个 dmg 都挂载核对过：
+  legacy-id 的 `CFBundleIdentifier` = `com.zarifpour.superconductor`，另一个 = `engineering.super.app`；
+  版本同为 `5dab43b4`，Team 同为 `MR38E36N26`，都已公证，都只有 arm64，下限都是 14.0。
+  厂商 changelog #2400（2026-09-23）原话 "updates to the new name automatically"——按厂商的说法，旧 id 的安装
+  会被它自己的更新器迁到新 id。**机制未验证**（没在运行中的安装上观测过）：二进制里有 `bundles` 键、`x-bundle-identifier` 请求头、
+  `app_identity_migration`（`defaults export/import` 迁偏好）和 "staged app bundle identifier … is not one of"，
+  但哪一步从 legacy-id 跳到新 id 看不出来。服务端不按 `x-bundle-identifier` 变（三种取值各 10 次，响应体逐字相同）。
+  迁移完成后装着的是 `engineering.super.app`，目前没有 recipe，会变成「没有来源覆盖」。
 - **读的是**: 轨道最新 —— 也是唯一的轨道。它就是官网 Download 按钮（`super.engineering/api/download`
   在 2026-09-10 302 到同一个 dmg）和 app 自己的更新器发给任何用户的那个构建，不存在「厂商还没分配给
   这台机器」的情况。
@@ -138,6 +153,7 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 ## 建议下一步
 1. 厂商重开 stable 时：加锚 `"stable"` 的 recipe，核对 lineage 是否分轨（见 Channel 详情）。
 2. 让 App 层的 Restart 徽标也认 lineage（单独的 PR）。
+3. 决定是否为 `engineering.super.app` 加 recipe（厂商说旧安装会自动迁过去；迁完的安装目前没有来源覆盖）。
 
 ## 历史与实测
 
@@ -152,3 +168,24 @@ Download button (`super.engineering/api/download`, a 302 to the same URL
 on 2026-09-10) and the app's updater hand every user.
 
 复测 2026-09-14（11:40 UTC，只读、不跟随重定向）：`super.engineering/api/download` 302 → `https://releases.superconductor.so/nightly/Superconductor-nightly-33171b9c-arm64.dmg`，与同一时刻 `latest.json` 的 `"nightly".url` 相同（`date` `2026-09-14`）。
+
+### 2026-09-23 — `bundles` 与 legacy-id dmg
+
+live test `vendorResolvesInstallPlans` 报 `installURLUnresolved`：旧 install pattern 要求 `-arm64\.dmg"`，
+而当天 `latest.json` 的顶层 `url` 已是 `Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg`。实测：
+
+- `latest.json`（Last-Modified 07:49:33 GMT）多出 `bundles`：`engineering.super.app` → `…-5dab43b4-arm64.dmg`
+  （sha256 `47561a58…`），`com.zarifpour.superconductor` → `…-5dab43b4-arm64-legacy-id.dmg`（sha256 `208b5f57…`，
+  与顶层 `url`/`sha256` 相同）。两个 dmg 下载后 sha256 与清单一致。
+- `hdiutil attach -nobrowse -readonly` 两个 dmg：布局都和以前一样（`super.engineering.app` + `Superconductor.app`
+  符号链接）。`Info.plist`：legacy-id → `com.zarifpour.superconductor`，可执行文件 `superconductor`；另一个 →
+  `engineering.super.app`，可执行文件 `super.engineering`；两个版本字段都是 `5dab43b4`，`LSMinimumSystemVersion`
+  14.0。`codesign -dvv` 都是 TeamIdentifier `MR38E36N26`，`spctl -a -t exec` 都是 "accepted / Notarized Developer ID"，
+  `lipo -archs` 都是 `arm64`。两份主二进制的 `strings` 输出逐行相同。
+- `super.engineering/api/download` 302 → legacy-id dmg（新用户从官网下到的仍是旧 id）。
+- `x-bundle-identifier` 取空 / 旧 id / 新 id，各请求 10 次，响应体 sha256 全部相同 —— 服务端不按请求头分发。
+- 厂商 changelog：#2400（5dab43b4）"The app is now named `super.engineering` (bundle ID `engineering.super.app`)
+  and updates to the new name automatically"，并说改名后 macOS 会重新要辅助功能等权限；#2233（acef210f，
+  2026-09-11）"preserving compatibility with older app updaters"。
+- **推断，未验证**：顶层 `url` 留给还不认识 `bundles` 的旧更新器，所以它们先装上 legacy-id 构建；之后由新构建的
+  更新器迁到新 id。没在运行中的安装上观测过，迁移的哪一步发生、何时发生都不知道。

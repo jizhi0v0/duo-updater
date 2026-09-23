@@ -719,6 +719,19 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
    `theGitHubFeedCannotTellTheTwoPrereleaseTracksApart` 把上面那个代价钉成了断言而不是
    一段没人重读的注释。
 
+   **同一个代价的另一面：这两条的顶条不能代表「本轨正在提供的版本」**（#790/#791）。
+   2026-09-23 实测：GitHub 最新是 `v2.25.1-alpha`（09-21，`prerelease: true`，带
+   `Windscribe_2.25.1_guinea_pig_universal.dmg`，厂商 CDN 上也 200），而
+   `ChangeLogs?platform=osx`、`ChangeLogs/summary`、`CheckUpdate?beta=0/1/2/3`
+   **各打 10 次全部答 2.24.12**，feed 里没有任何 `2.25`。所以 probe 没冻住，是厂商
+   还没把这个构建放进任何一条轨——而且未必会放：它下面紧挨的 29 个 release 里有 13 个
+   从没进过厂商 feed（2.24.13、2.24.11、2.24.9 …）。进了 feed 的，GitHub 往往领先
+   0~6 天（2.24.3 07-16 → 07-21，2.23.5 06-02 → 06-08）。因此 beta / guinea pig 两条设了
+   `carriesOtherTrainEntries: true`，关掉 `duo verify` 的反向「changelog 领先所有 probe」
+   检查；stable 那条（只收 `prerelease: false`）不设，冻结探测仍由它守着。
+   ⚠️ 注意 2.24.13 在 GitHub 上是 `prerelease: false` 却不在厂商 feed 里——stable 面板
+   顶条会是 2.24.13 而 probe 报 2.24.12；major.minor 相同所以不触发那条检查。
+
    ⚠️ **但它没有把那个失败消干净，只消掉了大部分。** 版本来自厂商 feed，正文来自
    GitHub，**两边装的不是同一批 release**：2024 年以来厂商列过的 70 个版本里，
    **有 3 个 GitHub 上根本没有对应 release**（`2.21.1` guinea pig、`2.20.6` beta、

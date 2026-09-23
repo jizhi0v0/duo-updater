@@ -81,6 +81,34 @@ import DuoUpdaterCore
             == Verify.numericMajorMinor("157.0b2"))
     }
 
+    /// #790/#791: Windscribe's beta and guinea pig changelogs read the GitHub
+    /// prereleases, and GitHub carries builds the vendor's own track feed never
+    /// lists. On 2026-09-23 it topped out at `v2.25.1-alpha` (2026-09-21, ships a
+    /// `_guinea_pig_universal.dmg`) while `ChangeLogs?platform=osx`,
+    /// `ChangeLogs/summary` and `CheckUpdate?beta=0…3` all still answered 2.24.12
+    /// on every one of 10 requests each — and of the 29 releases just below it, 13
+    /// never reached any vendor track at all (2.24.13, 2.24.11, 2.24.9, …).
+    @Test func windscribePrereleaseChangelogsCarryBuildsNoTrackOffers() throws {
+        let probes = ["stable": ["2.24.12"], "beta": ["2.24.12"], "guineaPig": ["2.24.12"]]
+        let recipes = ChangelogRecipeRegistry.recipes
+            .filter { $0.bundleID == "com.windscribe.client" }
+        let prerelease = recipes.filter { $0.channel == .beta || $0.channel == .guineaPig }
+        #expect(prerelease.count == 2)
+        for recipe in prerelease {
+            #expect(Verify.changelogLeadsProbeComplaint(
+                entry: "2.25.1", probeVersionsByChannel: probes,
+                carriesOtherTrainEntries: recipe.carriesOtherTrainEntries) == nil)
+        }
+        // The flag is the only thing holding it back: the same reading complains
+        // without it…
+        #expect(Verify.changelogLeadsProbeComplaint(
+            entry: "2.25.1", probeVersionsByChannel: probes) != nil)
+        // …and the stable recipe, which `.gitHubReleases` filters to
+        // `prerelease: false`, keeps the frozen-probe check.
+        let stable = try #require(recipes.first { $0.channel == .stable })
+        #expect(!stable.carriesOtherTrainEntries)
+    }
+
     @Test func aMultiChannelAppIsNotItsOwnDisagreement() {
         // Thunderbird's stable and ESR trains share `org.mozilla.thunderbird`.
         // Comparing either changelog against an arbitrary row reads the other

@@ -1513,6 +1513,50 @@ private let vlcFixture = """
     #expect(changelog.entries[0].items[3] == "Fixed multiple security issues, which are detailed here")
 }
 
+// Trimmed real markup from videolan.org/vlc/releases/3.0.24.html (issue #812):
+// the release block is now headed "3.0.24 Highlights" instead of "X Fixes", and
+// is followed by the generic "3.0 Highlights" marketing <h1>, which must not
+// become an entry of its own (a two-part "3.0" is not a release version).
+private let vlc3024Fixture = """
+<section class="features">
+<div class="container">
+<h1 style='margin-bottom: 12px;'>3.0.24 Highlights</h1>
+<div class="row">
+<div class="col-sm-6"><ul>
+<li><b>Over 130 security fixes</b> across VLC and its bundled libraries</li>
+<li>Upgrades FFmpeg from 4.4 to 8.1.2</li>
+</ul></div>
+<div class="col-sm-6"><ul>
+<li>Fixes the AudioToolbox MIDI synthesizer crash on macOS 26 and later</li>
+</ul></div>
+</div>
+<p>Read the <a href="https://code.videolan.org/videolan/vlc/-/raw/3.0.24/NEWS">full changelog</a>.</p>
+</div>
+<div class="container">
+<h1 style='margin-bottom: 12px;'>3.0 Highlights</h1>
+<ul><li>VLC 3.0 "Vetinari" is a new major update of VLC</li></ul>
+</div>
+</section>
+"""
+
+@Test func extractsVLCReleaseHighlightsAndSkipsGenericHighlights() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "org.videolan.vlc"))
+    let changelog = try #require(ChangelogExtractor.extract(from: vlc3024Fixture, using: recipe))
+
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "3.0.24")
+    #expect(changelog.entries[0].items == [
+        "Over 130 security fixes across VLC and its bundled libraries",
+        "Upgrades FFmpeg from 4.4 to 8.1.2",
+        "Fixes the AudioToolbox MIDI synthesizer crash on macOS 26 and later",
+    ])
+
+    // With the release block gone, the generic "3.0 Highlights" block alone must
+    // not be read as a release named "3.0".
+    let genericOnly = vlc3024Fixture.replacingOccurrences(of: "3.0.24 Highlights", with: "Downloads")
+    #expect(ChangelogExtractor.extract(from: genericOnly, using: recipe)?.entries.isEmpty ?? true)
+}
+
 // MARK: - Index link-following (two-stage resolution)
 
 // Trimmed real markup from www.videolan.org/vlc/releases/: the newest-first list

@@ -1561,59 +1561,48 @@ private let ghosttyIndexFixture = """
     #expect(url == nil)
 }
 
-// Trimmed slice of air.dev's real Vite/React JS bundle (the data array `h9=[…]`).
-// Four entries cover all three content shapes plus the description fallback:
-//   - 261.681.18: feature release, each feature an <h4> heading (h4 pattern)
-//   - 261.311.41: small fix, plain <p> prose + the "Share your feedback" footer
-//     that must be skipped (prose pattern, footer filtered)
-//   - 261.232.26: <p> whose children open with an AIR issue link, real note in
-//     the text after it (after-link pattern)
-//   - 261.232.22: content is only the footer; the note lives in `description`
-// The array closes with `}],m9=` to exercise the entry terminator's array-end arm.
-private let airFixture = """
-;h9=[{version:"261.681.18",date:"June 2, 2026",title:"Air on Linux, Claude subagents via /, and per-agent permission modes",description:"",content:i.jsxs(i.Fragment,{children:[i.jsx("h4",{className:"mb-[10px] uppercase",style:{color:"var(--header-white, #FFF)"},children:"Air on Linux in Toolbox App"}),i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Air now runs on Linux."]}),i.jsx("h4",{className:"mb-[10px] mt-[24px] uppercase",style:{color:"#FFF"},children:"Built-in and custom Claude subagents"})]})},{version:"261.311.41",date:"March 14, 2026",title:"Fixes for Junie and Terminal",description:"",content:i.jsxs(i.Fragment,{children:[i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["This update fixes the 403 error when working with Junie (",i.jsx("a",{href:"https://youtrack.jetbrains.com/issue/AIR-4175",children:"AIR-4175"}),")."]}),i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Share your feedback with us via the"," ",i.jsx("a",{href:"x",children:"issue tracker"}),"."]})]})},{version:"261.232.26",date:"February 13, 2026",title:"Fix for Claude Agent",description:"",content:i.jsx(i.Fragment,{children:i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:[i.jsx("a",{href:"https://youtrack.jetbrains.com/issue/AIR-3781",children:"AIR-3781"})," ","Fixed an issue with handling events from the Claude Agent"]})})},{version:"261.232.22",date:"February 12, 2026",title:"Claude Agent with Opus 4.6",description:"This update of the Claude Agent to version 2.1.38 and adds support for Opus 4.6.",content:i.jsx(i.Fragment,{children:i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Share your feedback with us via the"," ",i.jsx("a",{href:"x",children:"issue tracker"}),"."]})})}],m9=()=>i.jsx
-"""
+// Air — a trimmed slice of the real `data.services.jetbrains.com/products/
+// releases?code=AIR&type=eap,preview,release` response (the per-build notes,
+// two <li> of 262.834.41 kept), JSON-escaped on the wire. Covers every shape:
+//   - 262.834.50: bare <p> prose + the "Share your feedback" footer <p>
+//   - 262.834.41: <h4> headline + <ul><li> bullets + footer
+//   - 262.43.32: <h4> + <p> prose + a "Learn more … and share your feedback" <p>
+//   - 261.474.25: <meta> + <p>, footer as bare text outside any tag
+//   - 261.311.29: empty `whatsnew` → skipped
+// `version` is the shared "262.834" train; the entry must key on `build`.
+private let airFixture = #"""
+{"AIR":[{"date":"2026-09-22","type":"preview","version":"262.834","build":"262.834.50","whatsnew":"<p>Junie: improved reliability of AI access authentication, fixing intermittent sign-in failures in some environments.</p>\n<p>Share your feedback with us via the <a href=\"https://youtrack.jetbrains.com/newIssue?project=AIR\">issue tracker</a> or <a href=\"https://air-support.jetbrains.com/hc/en-us/requests/new\">contact form</a>.</p>"},{"date":"2026-09-10","type":"preview","version":"262.834","build":"262.834.41","whatsnew":"<h4>Run agents in any folder, improved Task list, and stability improvements</h4>\n<ul>\n <li>Git repository no longer required — open any folder and start a task</li>\n <li>In the Task list, you can now pin tasks, have more flexible task grouping, and control the list density</li>\n</ul>\n<p>Share your feedback with us via the <a href=\"https://youtrack.jetbrains.com/newIssue?project=AIR\">issue tracker</a> or <a href=\"https://air-support.jetbrains.com/hc/en-us/requests/new\">contact form</a>.</p>"},{"date":"2026-06-30","type":"preview","version":"262.43","build":"262.43.32","whatsnew":"<h4>Air lands on Windows</h4>\n<p>Air, the Agentic Development Environment, is now available for Windows. The full agentic workflow comes with it: plan tasks in Plan mode, run agents – including Claude, Codex, Gemini, and Junie – in parallel across Git worktrees, and review diffs with inline comments, including using one agent to review another's work.</p>\n<p>Learn more about Air at <a href=\"https://air.dev/\">air.dev</a> and share your feedback with us via the <a href=\"https://youtrack.jetbrains.com/newIssue?project=AIR\">issue tracker</a> or <a href=\"https://air-support.jetbrains.com/hc/en-us/requests/new\">contact form</a>.</p>"},{"date":"2026-04-28","type":"preview","version":"261.474","build":"261.474.25","whatsnew":"<meta charset=\"utf-8\">\n<p>Bugfix for the feedback form which might not work</p>\nShare your feedback with us via the <a href=\"https://youtrack.jetbrains.com/newIssue?project=AIR\">issue tracker</a> or <a href=\"https://air-support.jetbrains.com/hc/en-us/requests/new\">contact form</a>."},{"date":"2026-03-05","type":"preview","version":"261.311","build":"261.311.29","whatsnew":""}]}
+"""#
 
-@Test func extractsAirEntriesAcrossContentShapes() throws {
+@Test func decodesJetBrainsAirReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.air"))
-    let changelog = try #require(ChangelogExtractor.extract(from: airFixture, using: recipe))
+    #expect(recipe.structuredFormat == .jetBrainsProductReleases)
+    let cl = try #require(StructuredChangelogDecoder.decode(
+        airFixture, format: .jetBrainsProductReleases, channel: nil, maxEntries: recipe.maxEntries))
 
-    #expect(changelog.entries.count == 4)
+    #expect(cl.entries.map(\.version) == ["262.834.50", "262.834.41", "262.43.32", "261.474.25"])
+    #expect(cl.entries[0].date == "2026-09-22")
 
-    // Feature release → <h4> headings.
-    #expect(changelog.entries[0].version == "261.681.18")
-    #expect(changelog.entries[0].date == "June 2, 2026")
-    #expect(changelog.entries[0].title == "Air on Linux, Claude subagents via /, and per-agent permission modes")
-    #expect(changelog.entries[0].items == [
-        "Air on Linux in Toolbox App",
-        "Built-in and custom Claude subagents",
+    // Prose only: no headline, footer dropped.
+    #expect(cl.entries[0].title == nil)
+    #expect(cl.entries[0].items == [
+        "Junie: improved reliability of AI access authentication, fixing intermittent sign-in failures in some environments.",
     ])
 
-    // Small fix → lead <p> prose, "Share your feedback" footer skipped.
-    #expect(changelog.entries[1].version == "261.311.41")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0] == "This update fixes the 403 error when working with Junie (")
-
-    // <p> opening with an issue link → the note text after the link.
-    #expect(changelog.entries[2].version == "261.232.26")
-    #expect(changelog.entries[2].items == ["Fixed an issue with handling events from the Claude Agent"])
-
-    // Footer-only content → the note from the `description` field.
-    #expect(changelog.entries[3].version == "261.232.22")
-    #expect(changelog.entries[3].items == [
-        "This update of the Claude Agent to version 2.1.38 and adds support for Opus 4.6.",
+    // <h4> is the title, not an item; the <li> bullets are the items.
+    #expect(cl.entries[1].title == "Run agents in any folder, improved Task list, and stability improvements")
+    #expect(cl.entries[1].items == [
+        "Git repository no longer required — open any folder and start a task",
+        "In the Task list, you can now pin tasks, have more flexible task grouping, and control the list density",
     ])
-}
 
-@Test func followsAirHashedBundleLink() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.air"))
-    let pattern = try #require(recipe.indexLinkPattern)
-    let shell = """
-    <link rel="stylesheet" crossorigin href="/assets/index-ChMVGmWt.css">
-    <script type="module" crossorigin src="/assets/index-CtPepV0y.js"></script>
-    """
-    let url = ChangelogService.firstLink(in: shell, pattern: pattern, base: recipe.source)
-    #expect(url?.absoluteString == "https://air.dev/assets/index-CtPepV0y.js")
+    // <h4> + prose; the "Learn more … share your feedback" footer variant dropped.
+    #expect(cl.entries[2].title == "Air lands on Windows")
+    #expect(cl.entries[2].items.count == 1)
+    #expect(cl.entries[2].items[0].hasPrefix("Air, the Agentic Development Environment, is now available for Windows."))
+
+    // Footer outside any tag never becomes an item.
+    #expect(cl.entries[3].items == ["Bugfix for the feedback form which might not work"])
 }
 
 // Slack — two trimmed release <article>s from slack.com/release-notes/mac; the

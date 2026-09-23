@@ -1732,6 +1732,9 @@ final class AppListModel {
         // Ask Apple whether the Xcode route's sign-in still holds, now and hourly,
         // so an ended session shows on the row before anyone clicks Update.
         armAppleSessionCheck()
+        // While Apple usually publishes Xcode, ask the index every five minutes
+        // instead of waiting for the next scheduled check.
+        armXcodeReleaseWatch()
         // Track which apps are running so each row can show a live "running" dot,
         // kept current by KVO on `NSWorkspace.runningApplications`.
         armRunningAppsMonitor()
@@ -8238,6 +8241,47 @@ final class AppListModel {
         else { return }
         announcedAppleSessionExpiry = true
         UpdateNotifier.appleSignInExpired(app: pending.app.name, version: pending.remote?.displayVersion)
+    }
+
+    @ObservationIgnored private var xcodeReleaseWatchTask: Task<Void, Never>?
+
+    /// `XcodeReleaseWatcher`: a background check minutes after the xcodereleases
+    /// index lists a new Xcode, on weekdays 09:30–16:00 Pacific, instead of at the
+    /// next scheduled one.
+    private func armXcodeReleaseWatch() {
+        let environment = XcodeReleaseWatcher.Environment.live(
+            gate: { @MainActor [weak self] in self?.xcodeReleaseWatchGate() ?? .off("shutting down") },
+            check: { @MainActor [weak self] in await self?.runXcodeReleaseWatchCheck() ?? false },
+            log: { message, notable in
+                if notable {
+                    Log.app.notice("\(message, privacy: .public)")
+                } else {
+                    Log.app.info("\(message, privacy: .public)")
+                }
+            })
+        xcodeReleaseWatchTask = Task { await XcodeReleaseWatcher.run(environment) }
+    }
+
+    /// Only for an Xcode this check would answer from the index, and only when
+    /// scheduled checks are slower than the watch — at five minutes they already
+    /// ask the index as often.
+    private func xcodeReleaseWatchGate() -> XcodeReleaseWatcher.Gate {
+        guard let interval = prefs.checkFrequency.interval else { return .off("checks are manual") }
+        guard interval > XcodeReleaseWatch.pollInterval else {
+            return .off("scheduled checks already run every \(Int(interval / 60)) min")
+        }
+        guard results.map(\.app).contains(where: {
+            $0.bundleID == XcodeReleasesSource.bundleID && !$0.isMASApp && prefs.deservesCheck($0)
+        }) else { return .off("no Xcode outside the App Store") }
+        return NetworkMonitor.shared.isOnline ? .on : .offline
+    }
+
+    /// The same check the scheduler runs, under the same conditions; false when
+    /// it cannot start now, so the watch asks again at its next tick.
+    private func runXcodeReleaseWatchCheck() async -> Bool {
+        guard NetworkMonitor.shared.isOnline, canRefresh else { return false }
+        await backgroundRefresh()
+        return true
     }
 
     /// One pass of that poll. Reads only; it can start a sync but never a check.

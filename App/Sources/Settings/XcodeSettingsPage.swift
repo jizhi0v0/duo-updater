@@ -112,7 +112,9 @@ struct XcodeSettingsPage: View {
     private var actionsRow: some View {
         HStack(spacing: 10) {
             if isExpired {
-                Button("Sign In…") { Task { await signIn() } }
+                // Beside "Sign Out and Clear…", which still has the expired
+                // session's cookies to erase.
+                Button("Sign In Again…") { Task { await signIn() } }
                     .settingsGlassButton(prominent: true)
                     .disabled(busy)
             }
@@ -280,7 +282,7 @@ struct XcodeSettingsPage: View {
                 // Already here: a second copy of the same build would only take
                 // 4 GB more, so the archive is still on offer, the install is not.
                 Button("Open") { NSWorkspace.shared.open(app) }
-                Button("Download Only (.xip)") { downloads.download(item) }
+                Button(downloadOnlyTitle) { downloads.download(item) }
                     .disabled(downloads.activeID != nil)
             } else if let file = downloads.finished[item.id] {
                 SettingsInfoButton("Opening the archive only expands it — nothing is installed yet:\n\n1. **Open** expands it next to the archive (about a minute, ~4 GB). A beta becomes Xcode-beta.app; a release or RC becomes Xcode.app.\n2. Drag it into Applications. To keep another Xcode there, rename this one first — for example Xcode-26.6.app.\n3. Open it. Xcode asks you to accept its license and installs its components (your password), and offers the platforms such as the iOS Simulator.\n4. Optional: to use it from Terminal, choose it in Xcode → Settings → Locations → Command Line Tools.\n\nDuoUpdater offers updates for any Xcode in Applications, this one included.")
@@ -294,12 +296,12 @@ struct XcodeSettingsPage: View {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
             } else if installability(item) != .installable {
-                Button("Download Only (.xip)") { downloads.download(item) }
+                Button(downloadOnlyTitle) { downloads.download(item) }
                     .disabled(downloads.activeID != nil)
             } else {
                 // Says so up front when the click will open Apple's sign-in first.
                 Menu {
-                    Button("Download Only (.xip)") { downloads.download(item) }
+                    Button(downloadOnlyTitle) { downloads.download(item) }
                 } label: {
                     Text(session.signInNeed == nil
                          ? String(localized: "Install")
@@ -319,6 +321,14 @@ struct XcodeSettingsPage: View {
         XcodeSideBySideInstaller.installability(
             displayVersion: item.displayVersion, requiresMacOS: item.requiresMacOS,
             macOSVersion: HostOS.numericVersion())
+    }
+
+    /// Says so up front when the click will open Apple's sign-in first, as
+    /// "Sign In & Install…" does.
+    private var downloadOnlyTitle: String {
+        session.signInNeed == nil
+            ? String(localized: "Download Only (.xip)")
+            : String(localized: "Sign In & Download (.xip)…")
     }
 
     /// Why a row offers Download Only — shown unless it is already installed or

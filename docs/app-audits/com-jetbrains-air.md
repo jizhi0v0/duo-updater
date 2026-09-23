@@ -60,3 +60,6 @@
 - 2026-09-23：多 type 请求的排序（为 `type=eap,preview,release` 下未来的 release build 会不会被 `maxEntries: 20` 截掉）。
   AIR 目前只有 preview，没法直接测；在同端点的 `IIU` 上测：`type=eap,release` 与 `type=release,eap` 都返回 408 条、顺序完全相同，
   eap/release 交错，按 build 降序（`263.5153.40` e、…、`262.10968.63` r、`262.10315.125` r、`262.10315.19` e…），不按 type 分组。
+  同日补测 `IIU&type=eap,preview,release,rc`：452 条，eap/rc/release 三种交错，相邻对按 build 比较**零处**非降序。
+  `preview` 与其他 type 并存的情况无法实测——扫了 16 个产品代码（IIU PCP WS GO RR CL DG TBA PS RD RM DS JCD 及 FL/QA/AI），
+  没有一个同时发布 `preview` 和别的 type；「preview 也按 build 交错」是推断。

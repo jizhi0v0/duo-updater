@@ -15,9 +15,10 @@ enum com_jetbrains_air {
         // the decoder drops. Air ships only as `preview` today and the endpoint
         // returns nothing for `AIR` without a `type`, so all three types are asked
         // for — a future `release` build still shows up. A multi-type response
-        // interleaves the types in build order rather than grouping them (checked
-        // on IntelliJ's `IIU`, which has both), so a release build is not pushed
-        // past `maxEntries` behind the preview backlog.
+        // is one list in descending build order, not grouped by type — checked on
+        // IntelliJ's `IIU` with eap, rc and release; no product publishes `preview`
+        // beside another type, so that case is assumed, not measured. A release
+        // build newer than the previews therefore lands inside `maxEntries`.
         // History: docs/app-audits/com-jetbrains-air.md#历史与实测
         ChangelogRecipe(
             bundleID: "com.jetbrains.air",

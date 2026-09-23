@@ -29,7 +29,7 @@ Do not report style, naming, formatting, optional refactors, missing tests on th
 
 For each candidate finding, quote the exact line or lines that show it, and state the concrete inputs or state that trigger the wrong behavior.
 
-Then, before writing the review, check every candidate again as if someone else had raised it: reopen the cited lines, and look for a guard, caller or test elsewhere that already prevents the trigger. Drop any candidate you cannot confirm. Two confirmed findings are worth more than ten plausible ones. Report at most 8, most severe first.
+Then, before writing the review, check every candidate again as if someone else had raised it: reopen the cited lines, and look for a guard, caller or test elsewhere that already prevents the trigger. Drop any candidate you cannot confirm. Two confirmed findings are worth more than ten plausible ones. Report every confirmed finding, most severe first.
 
 ## Output
 

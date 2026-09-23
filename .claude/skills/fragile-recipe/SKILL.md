@@ -137,11 +137,14 @@ Save the raw response to a file with a browser-like User-Agent, for example:
 
 ```bash
 /usr/bin/python3 - <<'PY'
-import urllib.request
+import gzip, urllib.request
 req = urllib.request.Request(
     "<URL>",
     headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
-data = urllib.request.urlopen(req, timeout=25).read()
+resp = urllib.request.urlopen(req, timeout=25)
+data = resp.read()
+if resp.headers.get("Content-Encoding") == "gzip" or data[:2] == b"\x1f\x8b":
+    data = gzip.decompress(data)
 open("/tmp/probe.html", "wb").write(data)
 print(len(data))
 PY
@@ -149,6 +152,9 @@ PY
 
 A browser-like User-Agent matters — several vendor endpoints reject unfamiliar
 agents (the same reason `VendorProbeSource` and `ChangelogService` send one).
+The gzip branch matters too: some servers compress regardless of
+`Accept-Encoding`, `urllib` does not decode it (`URLSession` does), and a regex
+validated against compressed bytes proves nothing.
 `WebFetch` is fine for a quick human-readable look, but it returns
 markdown-converted text, so for **writing and validating a regex you need the raw
 bytes** — use the Python fetch and inspect/validate against the saved file.

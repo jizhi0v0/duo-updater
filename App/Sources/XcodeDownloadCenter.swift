@@ -115,8 +115,9 @@ final class XcodeDownloadCenter {
         let session = AppleDeveloperSession.shared
         await session.restore()
         await session.refreshSignedInState()
-        // Ended on Apple's side: `check()` tries to get a new session without
-        // the user before the sign-in window is put in front of them.
+        // Ended on Apple's side: with background renewal on, `check()` tries to
+        // get a new session without the user before the sign-in window is put
+        // in front of them.
         if session.signInNeed == .expired { await session.check() }
         if session.signInNeed != nil {
             guard await AppleDeveloperSignInWindow().present(), !Task.isCancelled else { return }

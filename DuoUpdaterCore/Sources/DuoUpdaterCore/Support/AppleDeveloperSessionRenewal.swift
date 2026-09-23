@@ -25,14 +25,23 @@ public enum AppleDeveloperSessionRenewal {
     /// this is the form waiting for a password.
     public static let timeout: Duration = .seconds(30)
 
-    /// Whether to try a renewal after Apple answered `verdict`: only when it said
-    /// the session has ended, only once per expiry, and never for a check that
-    /// runs while the user is signing in themselves (`allowed` false) — a hidden
-    /// page there would compete with the window for the same store.
+    /// The user's switch for all of this (Settings → Xcode), in the app's
+    /// defaults. On unless turned off.
+    public static let enabledKey = "RenewAppleDeveloperSession"
+
+    public static func isEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: enabledKey) as? Bool ?? true
+    }
+
+    /// Whether to try a renewal after Apple answered `verdict`: only when the
+    /// user left background renewal on (`enabled`), only when Apple said the
+    /// session has ended, only once per expiry, and never for a check that runs
+    /// while the user is signing in themselves (`allowed` false) — a hidden page
+    /// there would compete with the window for the same store.
     public static func shouldTry(
-        verdict: AppleDeveloperSessionProbe.Verdict, alreadyTried: Bool, allowed: Bool
+        verdict: AppleDeveloperSessionProbe.Verdict, alreadyTried: Bool, allowed: Bool, enabled: Bool
     ) -> Bool {
-        allowed && !alreadyTried && verdict == .expired
+        enabled && allowed && !alreadyTried && verdict == .expired
     }
 
     /// Whether a page that finished loading at `host` is back on the developer

@@ -53,15 +53,30 @@ import Testing
     #expect(!landed("developer.apple.com.example.net"))
 }
 
-/// One try per expiry, only on "expired", and never while the user is in the
-/// sign-in window (PR #816 review, round 1).
+/// One try per expiry, only on "expired", never while the user is in the
+/// sign-in window (PR #816 review, round 1), and never once the user turned
+/// background renewal off.
 @Test func sessionRenewalIsTriedOnlyOnceOnAnExpiryAndNotDuringSignIn() {
     let t = AppleDeveloperSessionRenewal.shouldTry
-    #expect(t(.expired, false, true))
-    #expect(!t(.expired, true, true))
-    #expect(!t(.expired, false, false))
-    #expect(!t(.signedIn, false, true))
-    #expect(!t(.inconclusive, false, true))
+    #expect(t(.expired, false, true, true))
+    #expect(!t(.expired, true, true, true))
+    #expect(!t(.expired, false, false, true))
+    #expect(!t(.expired, false, true, false))
+    #expect(!t(.signedIn, false, true, true))
+    #expect(!t(.inconclusive, false, true, true))
+}
+
+/// On until the user turns it off: a Mac that never saw the switch renews.
+@Test func sessionRenewalIsOnUntilTurnedOff() throws {
+    let suite = "AppleDeveloperSessionRenewalTests"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.removeObject(forKey: AppleDeveloperSessionRenewal.enabledKey)
+    #expect(AppleDeveloperSessionRenewal.isEnabled(in: defaults))
+    defaults.set(false, forKey: AppleDeveloperSessionRenewal.enabledKey)
+    #expect(!AppleDeveloperSessionRenewal.isEnabled(in: defaults))
+    defaults.set(true, forKey: AppleDeveloperSessionRenewal.enabledKey)
+    #expect(AppleDeveloperSessionRenewal.isEnabled(in: defaults))
 }
 
 /// Names only, and a deletion is told apart from a new cookie — the log line

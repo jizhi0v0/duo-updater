@@ -100,6 +100,7 @@ final class Preferences {
         static let marketingByBuild = "MarketingVersionByBuild"
         static let stagedPackages = "StagedPackages"
         static let showRuntimeTags = "ShowRuntimeTags"
+        static let renewAppleDeveloperSession = AppleDeveloperSessionRenewal.enabledKey
         static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
         static let lastRunSelfVersion = "LastRunSelfVersion"
     }
@@ -276,6 +277,14 @@ final class Preferences {
     /// filter admits, six of about a hundred and fifty here.
     var showRuntimeTags: Bool {
         didSet { defaults.set(showRuntimeTags, forKey: Key.showRuntimeTags) }
+    }
+
+    /// When Apple ends the Apple Developer session, try once to get a new one
+    /// in the background (`AppleDeveloperSessionRenewal`) before the Xcode row
+    /// asks the user to sign in again. Default ON; off, an ended session just
+    /// waits for the user.
+    var renewAppleDeveloperSession: Bool {
+        didSet { defaults.set(renewAppleDeveloperSession, forKey: Key.renewAppleDeveloperSession) }
     }
 
     /// Settings whose "new" dot the user has already seen. See `SettingsSpotlight`.
@@ -531,6 +540,7 @@ final class Preferences {
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
+        self.renewAppleDeveloperSession = AppleDeveloperSessionRenewal.isEnabled(in: defaults)
         self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
         // `.incremental` is not offered in Settings (see `visibleCases`), but it is
         // honoured when set by hand:

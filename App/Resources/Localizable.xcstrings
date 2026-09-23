@@ -30540,43 +30540,125 @@
         }
       }
     },
-    "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple can end the session on its side at any time. DuoUpdater asks Apple once an hour whether it still holds; if it has ended, DuoUpdater first asks Apple for a new one in the background, without a window. Only when Apple wants your password does the Xcode row ask you to sign in again.": {
+    "This is what lets DuoUpdater download Xcode betas and release candidates for one-click updates. Without it, DuoUpdater can still tell you a new version exists, but you'll need to download it yourself. Apple ends the session on its side — in our tests about 8 hours after signing in. DuoUpdater asks Apple once an hour whether it still holds; once it has ended, the Xcode row asks you to sign in again, unless a background renewal got a new one first.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das ist es, was DuoUpdater erlaubt, Xcode-Betas und Release Candidates für Ein-Klick-Updates herunterzuladen. Ohne diese Anmeldung kann DuoUpdater dir trotzdem sagen, dass eine neue Version verfügbar ist – herunterladen musst du sie dann aber selbst. Apple kann die Sitzung jederzeit beenden. DuoUpdater fragt Apple einmal pro Stunde, ob sie noch gilt; ist sie beendet, fragt DuoUpdater Apple zuerst im Hintergrund und ohne Fenster nach einer neuen. Nur wenn Apple dein Passwort verlangt, bittet dich die Xcode-Zeile, dich erneut anzumelden."
+            "value": "Das ist es, was DuoUpdater erlaubt, Xcode-Betas und Release Candidates für Ein-Klick-Updates herunterzuladen. Ohne diese Anmeldung kann DuoUpdater dir trotzdem sagen, dass eine neue Version verfügbar ist – herunterladen musst du sie dann aber selbst. Apple beendet die Sitzung von sich aus – in unseren Tests etwa 8 Stunden nach der Anmeldung. DuoUpdater fragt Apple einmal pro Stunde, ob sie noch gilt; ist sie beendet, bittet dich die Xcode-Zeile, dich erneut anzumelden – es sei denn, eine Erneuerung im Hintergrund hat schon eine neue geholt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esto es lo que permite a DuoUpdater descargar betas y versiones candidatas de Xcode para actualizaciones con un clic. Sin ello, DuoUpdater aún puede avisarte de que existe una versión nueva, pero tendrás que descargarla tú mismo. Apple puede cerrar la sesión en cualquier momento. DuoUpdater pregunta a Apple una vez por hora si sigue activa; si ha terminado, DuoUpdater primero pide a Apple una nueva en segundo plano, sin ninguna ventana. Solo si Apple pide tu contraseña, la fila de Xcode te pedirá que vuelvas a iniciar sesión."
+            "value": "Esto es lo que permite a DuoUpdater descargar betas y versiones candidatas de Xcode para actualizaciones con un clic. Sin ello, DuoUpdater aún puede avisarte de que existe una versión nueva, pero tendrás que descargarla tú mismo. Apple cierra la sesión por su parte; en nuestras pruebas, unas 8 horas después de iniciarla. DuoUpdater pregunta a Apple una vez por hora si sigue activa; cuando ha terminado, la fila de Xcode te pide que vuelvas a iniciar sesión, salvo que una renovación en segundo plano ya haya obtenido una nueva."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C'est ce qui permet à DuoUpdater de télécharger les bêtas et versions candidates de Xcode pour des mises à jour en un clic. Sans cela, DuoUpdater peut toujours vous signaler qu'une nouvelle version existe, mais vous devrez la télécharger vous-même. Apple peut mettre fin à la session à tout moment. DuoUpdater demande à Apple une fois par heure si elle est toujours valide ; si elle a pris fin, DuoUpdater en demande d'abord une nouvelle à Apple en arrière-plan, sans fenêtre. Ce n'est que si Apple demande votre mot de passe que la ligne Xcode vous invite à vous reconnecter."
+            "value": "C'est ce qui permet à DuoUpdater de télécharger les bêtas et versions candidates de Xcode pour des mises à jour en un clic. Sans cela, DuoUpdater peut toujours vous signaler qu'une nouvelle version existe, mais vous devrez la télécharger vous-même. Apple met fin à la session de son côté — lors de nos tests, environ 8 heures après la connexion. DuoUpdater demande à Apple une fois par heure si elle est toujours valide ; une fois qu'elle a pris fin, la ligne Xcode vous invite à vous reconnecter, sauf si un renouvellement en arrière-plan en a déjà obtenu une nouvelle."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "これにより、DuoUpdaterはワンクリックアップデートのためにXcodeのベータ版やリリース候補版をダウンロードできます。これがなくても、DuoUpdaterは新しいバージョンの存在を知らせることはできますが、ダウンロードは自分で行う必要があります。Appleはいつでもこのセッションを終了できます。DuoUpdaterは1時間ごとにAppleにセッションが有効か確認し、終了していれば、まずウインドウを出さずにバックグラウンドでAppleに新しいセッションを求めます。Appleがパスワードを求めた場合にのみ、Xcodeの行で再サインインを求めます。"
+            "value": "これにより、DuoUpdaterはワンクリックアップデートのためにXcodeのベータ版やリリース候補版をダウンロードできます。これがなくても、DuoUpdaterは新しいバージョンの存在を知らせることはできますが、ダウンロードは自分で行う必要があります。セッションはApple側で終了されます。こちらのテストではサインインから約8時間後でした。DuoUpdaterは1時間ごとにAppleにセッションが有効か確認し、終了していればXcodeの行で再サインインを求めます。ただし、バックグラウンドでの更新で新しいセッションを取得できた場合は除きます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Именно это позволяет DuoUpdater загружать бета-версии и релиз-кандидаты Xcode для обновления в один клик. Без этого DuoUpdater всё равно сообщит о выходе новой версии, но скачивать её придётся самостоятельно. Apple может завершить сеанс в любой момент. DuoUpdater раз в час спрашивает Apple, действует ли он; если сеанс завершён, DuoUpdater сначала запрашивает у Apple новый в фоне, без окна. Только если Apple потребует пароль, строка Xcode попросит войти снова."
+            "value": "Именно это позволяет DuoUpdater загружать бета-версии и релиз-кандидаты Xcode для обновления в один клик. Без этого DuoUpdater всё равно сообщит о выходе новой версии, но скачивать её придётся самостоятельно. Apple завершает сеанс на своей стороне — в наших тестах примерно через 8 часов после входа. DuoUpdater раз в час спрашивает Apple, действует ли он; когда сеанс завершён, строка Xcode просит войти снова, если только фоновое продление уже не получило новый."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正是这个登录会话让 DuoUpdater 能够下载 Xcode 测试版和候选发布版，实现一键更新。没有它，DuoUpdater 仍然会提示有新版本，但你需要自己下载。Apple 随时可能在其一端结束会话。DuoUpdater 每小时向 Apple 确认一次会话是否仍然有效；如已结束，DuoUpdater 会先在后台、不弹出窗口地向 Apple 取得新的会话；只有 Apple 要求输入密码时，Xcode 这一行才会请你重新登录。"
+            "value": "正是这个登录会话让 DuoUpdater 能够下载 Xcode 测试版和候选发布版，实现一键更新。没有它，DuoUpdater 仍然会提示有新版本，但你需要自己下载。Apple 会在其一端结束会话——我们实测约在登录 8 小时后。DuoUpdater 每小时向 Apple 确认一次会话是否仍然有效；会话结束后，Xcode 这一行会请你重新登录，除非后台续期已先取得新的会话。"
+          }
+        }
+      }
+    },
+    "Renew the session in the background": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzung im Hintergrund erneuern"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renovar la sesión en segundo plano"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renouveler la session en arrière-plan"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックグラウンドでセッションを更新"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продлевать сеанс в фоне"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在后台续期会话"
+          }
+        }
+      }
+    },
+    "When Apple ends it, DuoUpdater opens Apple's sign-in page once, hidden, for a new one. That works without your password while Apple still recognizes this Mac's sign-in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn Apple sie beendet, öffnet DuoUpdater einmal unsichtbar Apples Anmeldeseite, um eine neue zu holen. Das geht ohne dein Passwort, solange Apple die Anmeldung dieses Macs noch erkennt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando Apple la cierra, DuoUpdater abre una vez, oculta, la página de inicio de sesión de Apple para obtener una nueva. Funciona sin tu contraseña mientras Apple aún reconozca el inicio de sesión de este Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand Apple y met fin, DuoUpdater ouvre une fois, de façon invisible, la page de connexion d'Apple pour en obtenir une nouvelle. Cela fonctionne sans votre mot de passe tant qu'Apple reconnaît encore la connexion de ce Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleがセッションを終了すると、DuoUpdaterはAppleのサインインページを非表示で一度開き、新しいセッションを取得します。AppleがこのMacのサインインをまだ認識している間は、パスワードなしで行えます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда Apple завершает сеанс, DuoUpdater один раз незаметно открывает страницу входа Apple, чтобы получить новый. Это работает без пароля, пока Apple ещё узнаёт вход с этого Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 结束会话后，DuoUpdater 会在后台隐藏打开一次 Apple 登录页，取得新的会话。只要 Apple 仍认得这台 Mac 的登录，就无需输入密码。"
           }
         }
       }

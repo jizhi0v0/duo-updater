@@ -2101,3 +2101,27 @@ private let doubaoImeDownloadURLFixture = #"""
     #expect(VendorProbeRecipe.extractVersion(
         from: body, pattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#) == nil)
 }
+
+// Muse (Meta) — the latest link's 307 target, as `.redirectFilename` reads it:
+// the real 2026-09-23 `Location` ends in `…_n.dmg/Muse-2.2.dmg`, and the probe
+// matches the last path component. The bundle in that dmg reports 2.2.
+@Test func museReadsTheMarketingVersionOffTheLatestLinksFilename() throws {
+    let r = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "com.meta.endo" })
+    guard case .redirectFilename = r.mode else { Issue.record("expected .redirectFilename"); return }
+    let resolved = try #require(URL(string:
+        "https://scontent-sea5-1.xx.fbcdn.net/v/t39.110568-6/818743816_1593738112204460_1141483048044975808_n.dmg/Muse-2.2.dmg?_nc_cat=102&ccb=1-7&oe=6AB942DA"))
+    #expect(VendorProbeRecipe.extractVersion(
+        from: resolved.lastPathComponent, pattern: r.versionPattern) == "2.2")
+    // Anchored to the whole name: the fbcdn object id before it, or a renamed
+    // artifact, must not yield a number.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: "818743816_1593738112204460_1141483048044975808_n.dmg", pattern: r.versionPattern) == nil)
+    #expect(VendorProbeRecipe.extractVersion(
+        from: "Muse-Installer-2.2.dmg", pattern: r.versionPattern) == nil)
+    // One-click fetches the same link at download time, never a signed URL held on the row.
+    guard case .redirect(let link) = try #require(r.install).urlSource else {
+        Issue.record("expected .redirect install"); return
+    }
+    #expect(link == r.url)
+    #expect(r.install?.kind == .dmg)
+}

@@ -27,6 +27,15 @@ public struct SparkleAppcastSource: UpdateSource {
         }
 
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
+        // An HTML page with no items is not a feed that offers nothing — it is a
+        // feed we never got. Muse's (facebook.com/endo/…/appcast.xml) answers most
+        // requests with a 302 to a login page; `URLSession` follows it, and a `nil`
+        // here reads as "no source covers this app", which the pre-install
+        // re-check turns into a row with no offer, so the row vanished on every
+        // Update click. Thrown, it is `.error`: tried and failed, retryable.
+        if items.isEmpty, Self.isHTML(response) {
+            throw SparkleError.notAFeed(response.url)
+        }
         let osVersion = Self.numericSystemVersion()
         let usable = Self.usableItems(for: app, from: items, osVersion: osVersion)
         guard let best = Self.offerableItem(for: app, from: usable) else {
@@ -599,6 +608,9 @@ public struct SparkleAppcastSource: UpdateSource {
     /// Alfred's feed 404'd for weeks behind exactly that text.
     enum SparkleError: LocalizedError {
         case badStatus(Int)
+        /// The feed URL answered with a web page instead of an appcast. Carries
+        /// the URL the page came from, which after a redirect is the useful half.
+        case notAFeed(URL?)
 
         var errorDescription: String? {
             switch self {
@@ -606,8 +618,17 @@ public struct SparkleAppcastSource: UpdateSource {
                 return "The app's update feed returned HTTP 404 — the vendor moved or retired it."
             case .badStatus(let code):
                 return "The app's update feed returned HTTP \(code)."
+            case .notAFeed(let url):
+                let place = url.map { " (\($0.host ?? "")\($0.path))" } ?? ""
+                return "The app's update feed answered with a web page instead of an appcast\(place)."
             }
         }
+    }
+
+    /// Whether the response declared itself an HTML page.
+    static func isHTML(_ response: URLResponse) -> Bool {
+        let mime = response.mimeType?.lowercased() ?? ""
+        return mime == "text/html" || mime == "application/xhtml+xml"
     }
 }
 

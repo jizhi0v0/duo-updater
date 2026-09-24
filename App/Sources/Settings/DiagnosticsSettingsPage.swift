@@ -288,46 +288,41 @@ private struct HelperStatusRow: View {
     }
 
     private var field: some View {
-        SettingsField(title: "App Store helper") {
+        Group {
             if helper.isEnabled {
-                // Buttons before the status, so this row's "Enabled" lines up with
-                // the "Granted" directly above it: the states read down one column
-                // and the actions sit to their left, instead of the status drifting
-                // inward by however wide the buttons happen to be.
-                //
-                // "Enabled" is not the same as "answering". Updating DuoUpdater
-                // replaces its bundle while the helper from the old one keeps
-                // holding launchd's slot, so the record still reads enabled while
-                // every App Store install times out. Re-registering cannot fix that
-                // — `register()` on a live record does nothing, measured — so the
-                // button offered here is the one that works: kill the stale copy so
-                // launchd starts the one belonging to the app that's installed now.
-                // Helpers built after this change exit on their own when idle; the
-                // button is for the ones already stranded by an older build.
-                checkButton
-                // Disabled while the authorization panel is up: pressing again
-                // would stack a second prompt on the first and kickstart twice.
-                Button(restarting ? String(localized: "Restarting…") : String(localized: "Restart Helper…")) {
-                    guard !restarting else { return }
-                    restarting = true
-                    Task {
-                        let restarted = await helper.restartDaemon()
-                        restarting = false
-                        // Re-probe rather than assume: the point of the button is
-                        // that it makes the helper answer again, so show whether it
-                        // did instead of leaving a stale result on screen.
-                        if restarted { answering = await HelperShellRunner().isAnswering() }
+                // One line when it fits, otherwise the buttons drop to a line of
+                // their own under the title. At the default window size (680×460)
+                // the row is about 390pt wide, and one line didn't fit in any of
+                // en, de, es, fr or ru — measured: the title wrapped, "Restart
+                // Helper…" truncated, and in Russian "Enabled" itself broke in two.
+                // Either way "Enabled" stays last on the title's line — see
+                // `enabledLabel`.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        Text("App Store helper")
+                        Spacer(minLength: 8)
+                        checkButton
+                        restartButton
+                        enabledLabel
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Text("App Store helper")
+                            Spacer(minLength: 8)
+                            enabledLabel
+                        }
+                        HStack(spacing: 12) {
+                            checkButton
+                            restartButton
+                        }
                     }
                 }
-                .settingsGlassButton()
-                .disabled(restarting)
-                .help("Restart the background helper — use this if App Store updates fail saying the helper isn’t answering. Asks for an administrator password.")
-                Label("Enabled", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .labelStyle(.titleAndIcon)
+                .settingsRow()
             } else {
-                Button("Enable…") { helper.register() }
-                    .settingsGlassButton()
+                SettingsField(title: "App Store helper") {
+                    Button("Enable…") { helper.register() }
+                        .settingsGlassButton()
+                }
             }
         }
         .onAppear { helper.refreshStatus() }
@@ -336,5 +331,52 @@ private struct HelperStatusRow: View {
         // result line is populated from the start, so the first press of Check
         // changes a word rather than growing the card by a row.
         .task { answering = await HelperShellRunner().isAnswering() }
+    }
+
+    /// Last on the title's line in both layouts, so this row's "Enabled" lines up
+    /// with the "Granted" directly above it: the states read down one column and
+    /// the actions sit to their left (or below), instead of the status drifting
+    /// inward by however wide the buttons happen to be.
+    private var enabledLabel: some View {
+        Label("Enabled", systemImage: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+            .labelStyle(.titleAndIcon)
+    }
+
+    // "Enabled" is not the same as "answering". Updating DuoUpdater replaces its
+    // bundle while the helper from the old one keeps holding launchd's slot, so the
+    // record still reads enabled while every App Store install times out.
+    // Re-registering cannot fix that — `register()` on a live record does nothing,
+    // measured — so the button offered here is the one that works: kill the stale
+    // copy so launchd starts the one belonging to the app that's installed now.
+    // Helpers built after this change exit on their own when idle; the button is
+    // for the ones already stranded by an older build.
+    private var restartButton: some View {
+        // Disabled while the authorization panel is up: pressing again would stack
+        // a second prompt on the first and kickstart twice.
+        Button {
+            guard !restarting else { return }
+            restarting = true
+            Task {
+                let restarted = await helper.restartDaemon()
+                restarting = false
+                // Re-probe rather than assume: the point of the button is that it
+                // makes the helper answer again, so show whether it did instead of
+                // leaving a stale result on screen.
+                if restarted { answering = await HelperShellRunner().isAnswering() }
+            }
+        } label: {
+            // Sized for the wider of its two titles, so the press can't change the
+            // row's width — which would move the button under the pointer, and near
+            // the threshold flip the row between its one- and two-line layouts.
+            ZStack {
+                Text("Restart Helper…").hidden()
+                Text("Restarting…").hidden()
+                Text(restarting ? String(localized: "Restarting…") : String(localized: "Restart Helper…"))
+            }
+        }
+        .settingsGlassButton()
+        .disabled(restarting)
+        .help("Restart the background helper — use this if App Store updates fail saying the helper isn’t answering. Asks for an administrator password.")
     }
 }

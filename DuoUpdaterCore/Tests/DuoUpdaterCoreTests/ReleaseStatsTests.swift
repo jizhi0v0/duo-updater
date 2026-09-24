@@ -113,7 +113,7 @@ private func event(_ day: Int, _ hour: Int, version: String) -> ReleaseEvent {
 }
 
 /// A vendor time later than our own first sighting can't be real — TinyWeb's
-/// feed stamps every build 15:30:08 +0700 on a day days ahead. Plotting it would
+/// feed stamps every build 15:30:08 +0700 on a date up to 9 days ahead. Plotting it would
 /// chart the vendor's made-up hour as a shipping habit, so it's left out, and
 /// `detectedAt` (our polling clock) is never plotted in its place.
 @Test func futureDatedPublishTimesAreExcluded() {

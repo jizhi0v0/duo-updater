@@ -79,7 +79,7 @@ public struct ReleaseEvent: Codable, Sendable, Hashable {
     /// before it ships. Measured 2026-09-24: TinyWeb's Sparkle feed stamps every
     /// build `15:30:08 +0700` on a day that runs ahead of reality (27.3.5 dated
     /// Oct 3 while being served on Sep 24; all 26 recorded releases lead their
-    /// `detectedAt`, by 18h up to 4 days), and TablePlus — same vendor — leads on
+    /// `detectedAt`, by 18h up to 9 days), and TablePlus — same vendor — leads on
     /// 9 of 34. The raw value stays stored: it is the dedupe key, and replacing it
     /// with a clock of ours would re-record the release on every check.
     public var publishedAfterDetection: Bool {

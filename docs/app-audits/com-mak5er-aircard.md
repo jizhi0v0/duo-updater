@@ -30,7 +30,7 @@
 - 版本方案: settled from source: `build.sh` on `main` —— Info.plist 由脚本内联写入，
   `CFBundleShortVersionString` 与 tag 同构（tag `v1.2.4` ↔ `1.2.4`）。
   早期 tag 有两段式（`v1.2`、`v1.1`、`v1.0`）。
-- Homebrew: `brew search --cask aircard` 无结果；MAS 无。
+- Homebrew: `brew search --cask aircard` 无结果（只返回 `aircall`）；MAS 无（`mas search AirCard` 与 iTunes Search API `entity=macSoftware` 均无 `com.mak5er.aircard`）。
 
 ## 增量更新（delta / binary patch）
 

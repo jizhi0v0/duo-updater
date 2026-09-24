@@ -6,8 +6,8 @@ enum com_mak5er_aircard {
         githubRules: [
         // Shared rationale for Detection-only: Recipes/org-alacritty.swift.
 
-        // AirCard — ad-hoc signed, no Team ID (`build.sh` ends in
-        // `codesign --sign -`). Tags are `v1.2.4`, matching
+        // AirCard — ad-hoc signed, no Team ID (`build.sh` signs the bundle
+        // with `codesign --force --deep --sign -`). Tags are `v1.2.4`, matching
         // CFBundleShortVersionString; one `AirCard.dmg` asset per release.
         GitHubReleaseRule(
             bundleID: "com.mak5er.aircard",

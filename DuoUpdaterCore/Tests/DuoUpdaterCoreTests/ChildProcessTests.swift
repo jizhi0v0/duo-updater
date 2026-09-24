@@ -276,27 +276,43 @@ import Testing
     }
 
     /// `.terminateChild`: cancelling the caller tears the child down and throws.
-    /// The child would create a marker after ~30 s; it must never get there.
     ///
-    /// Mutation: route `.terminateChild` through the detached branch → the child
-    /// runs to the end, the marker exists and nothing throws.
+    /// Decided by ordering, not by a race against the child: the child never ends
+    /// on its own, so the cancelled call can only return by tearing it down (a
+    /// bare SIGKILL — no deadline, so no SIGTERM rung) or by never returning.
+    /// A watchdog on a Dispatch timer, off the cooperative pool, turns "never" into
+    /// a verdict: 300 s after the cancel it sends the child SIGTERM, which the
+    /// child's trap answers by creating the marker. So the marker means "still
+    /// alive 300 s after being cancelled" — ≥ 10× the worst teardown measured on
+    /// the starved CI pool (SIGKILL grace ≤ 15 s, exit delivery ≤ 10 s). Before
+    /// this the child created the marker by itself after ~30 s of `sleep 0.1`s,
+    /// and one CI run (35969985061) cancelled after that.
+    ///
+    /// Mutation: route `.terminateChild` through the detached branch → nothing
+    /// throws, and the watchdog's SIGTERM ends the child through the trap, so the
+    /// marker exists.
     @Test func terminateChildTearsTheChildDownOnCancellation() async throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
         let marker = dir.appendingPathComponent("finished")
         let started = Signal()
+        let pid = PID()
         let task = Task {
             try await ChildProcess.run(
                 "/bin/sh",
-                ["-c", "echo started; i=0; while [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done; touch '\(marker.path)'"],
+                ["-c", "trap \"touch '\(marker.path)'; exit 0\" TERM; echo started; while :; do sleep 1; done"],
                 onCancel: .terminateChild,
                 onOutputChunk: { chunk in
                     if String(decoding: chunk, as: UTF8.self).contains("started") { started.fire() }
-                })
+                },
+                onLaunch: { pid.set($0) })
         }
         await started.wait()
         task.cancel()
+        let watchdog = DispatchWorkItem { if let child = pid.value { kill(child, SIGTERM) } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: watchdog)
         await #expect(throws: CancellationError.self) { _ = try await task.value }
+        watchdog.cancel()
         #expect(!FileManager.default.fileExists(atPath: marker.path))
     }
 
@@ -459,6 +475,13 @@ import Testing
             Task { await body(); once.resume(true) }
             DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { once.resume(false) }
         }
+    }
+
+    private final class PID: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pid: pid_t?
+        func set(_ value: pid_t) { lock.withLock { pid = value } }
+        var value: pid_t? { lock.withLock { pid } }
     }
 
     private final class Counter: @unchecked Sendable {

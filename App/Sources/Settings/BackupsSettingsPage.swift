@@ -71,6 +71,13 @@ struct BackupsSettingsPage: View {
     @State private var lastReport: BackupDestinationProbe.Report?
     @State private var pickError: String?
     @State private var isWorking = false
+    /// Why the last "Copy Now" could not copy anything, shown in the button's
+    /// place until `copyNowResetTask` clears it. See `copyNow()`.
+    @State private var copyNowRefusal: String?
+    @State private var copyNowResetTask: Task<Void, Never>?
+    /// A press already in flight, so a second one is not a second drain. Not
+    /// shown: the button's own answer is on its way.
+    @State private var isCopyingNow = false
     /// True when the chosen folder lives on the same volume as the local
     /// store, which makes every word of the "another disk" promise untrue.
     @State private var isOnThisMacsDisk = false
@@ -582,9 +589,18 @@ struct BackupsSettingsPage: View {
                             Text("Waiting to be copied: \(pendingCount)")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Button("Copy Now") { Task { await work { await model.syncBackupsNow() } } }
-                                .controlSize(.small)
-                                .disabled(isWorking)
+                            // Both laid out, one hidden, so the row keeps its
+                            // size when they swap.
+                            ZStack(alignment: .trailing) {
+                                Button("Copy Now") { copyNow() }
+                                    .controlSize(.small)
+                                    .disabled(isWorking)
+                                    .opacity(copyNowRefusal == nil ? 1 : 0)
+                                if let copyNowRefusal {
+                                    Label(copyNowRefusal, systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                         }
                         .settingsRow()
                     }
@@ -1133,6 +1149,39 @@ struct BackupsSettingsPage: View {
         }
     }
 
+
+    /// "Copy Now" with the disk away used to do nothing you could see: the drain
+    /// had nowhere to write, the count stayed put, and the press looked lost.
+    /// It still tries — the disk may have come back in the second before the
+    /// tick noticed — and if it is still unreachable afterwards, says why in
+    /// the button's place for a moment.
+    ///
+    /// Not through `work`: a drain is exactly what that flag is kept out of, and
+    /// holding it greyed out every destination row for as long as the sync
+    /// took — the disks above blinked on each press.
+    private func copyNow() {
+        guard !isCopyingNow else { return }
+        isCopyingNow = true
+        Task {
+            await model.syncBackupsNow()
+            await refresh()
+            isCopyingNow = false
+            let reason: String? = switch availability {
+            case .ready, .localOnly: nil
+            case .volumeNotMounted:  String(localized: "Isn’t connected")
+            case .identityMismatch:  String(localized: "A different disk is mounted here")
+            case .notWritable:       String(localized: "Can’t be written to")
+            }
+            guard let reason else { return }
+            copyNowRefusal = reason
+            copyNowResetTask?.cancel()
+            copyNowResetTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                copyNowRefusal = nil
+            }
+        }
+    }
 
     /// Runs `body` with the busy flag held and the page refreshed afterwards, so
     /// every button that changes something leaves the numbers honest.

@@ -616,10 +616,11 @@ struct WorkbenchWindowView: View {
     private func offlineBackupNotice(_ disk: String, hasRollback: Bool) -> some View {
         Label {
             // No `fixedSize(vertical:)`: the window's minimum size is measured with
-            // the sidebar squeezed to ~50 pt, where this line stands one character to
-            // a row. It held the Workbench at 1,247 pt on a 1,083 pt screen, its
-            // bottom off-screen. The list below gives way first, so it still wraps
-            // in full at any usable height.
+            // this text far narrower than the column's 260 pt minimum, where it
+            // stands about a character to a row. Measured, it held the Workbench at
+            // 1,247 pt on a 1,083 pt screen, its bottom off-screen. Without it the
+            // list below gives way first: the longest translation (French, at the
+            // 260 pt column) still wraps in full in a window 300 pt tall.
             Text("Backups on “\(disk)” aren’t available right now — showing only what’s on this Mac.")
         } icon: {
             Image(systemName: "externaldrive.badge.xmark")

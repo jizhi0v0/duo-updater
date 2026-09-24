@@ -263,7 +263,7 @@ struct XcodeSettingsPage: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GroupHeaderButtonStyle())
         .animation(.easeOut(duration: 0.15), value: isOpen)
         .settingsRow()
     }
@@ -466,5 +466,14 @@ struct XcodeSettingsPage: View {
         defer { busy = false }
         await session.signOut()
         feedback = .signedOut
+    }
+}
+
+/// The group header's button with no pressed look. `.plain` dims the whole
+/// line while the mouse is down, which read as a flicker on every click; the
+/// chevron turning and the rows appearing are the feedback here.
+private struct GroupHeaderButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }

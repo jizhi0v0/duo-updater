@@ -37,7 +37,7 @@ available"。但设置页的选择器还在，选择写在 `~/.superconductor/se
 bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `SuperconductorChannel` 读这个键：
 `nightly` 或没有记录 → `.nightly`（app 自己的默认，也是唯一轨道）；其他任何值 → 一个没有配方的渠道，
 不提示，**绝不把 nightly 推给选了别的轨道的人**。binding 是 authoritative 的，会顶掉 `detect()`。
-`ChannelProofRegistry` 登记了 `.artifact(/nightly/Superconductor-nightly-<sha8>-arm64<后缀>.dmg)`（后缀区分 bundle id，本 id 是 `-legacy-id`）。
+`ChannelProofRegistry` 登记了 `.artifact(/nightly/(super.engineering|Superconductor)-nightly-<sha8>-arm64<后缀>.dmg)`（后缀区分 bundle id，本 id 是 `-legacy-id`；前缀 b4ff1a8d 起从 `Superconductor-` 改成 `super.engineering-`，两种都认，见历史 2026-09-24）。
 
 **若厂商重开 stable**：`latest.json` 大概率会多出一个同级的 `"stable"` 条目 —— 更新器按渠道名取条目
 （报错字符串 "nightly entry missing from release manifest"）；这是推断，归档里找不到 #711 之前的清单。
@@ -189,3 +189,22 @@ live test `vendorResolvesInstallPlans` 报 `installURLUnresolved`：旧 install 
   2026-09-11）"preserving compatibility with older app updaters"。
 - **推断，未验证**：顶层 `url` 留给还不认识 `bundles` 的旧更新器，所以它们先装上 legacy-id 构建；之后由新构建的
   更新器迁到新 id。没在运行中的安装上观测过，迁移的哪一步发生、何时发生都不知道。
+
+### 2026-09-24 — dmg 文件名前缀改成 `super.engineering-`
+
+`make test` 的 `vendorResolvesInstallPlans` 报 `resolved …/nightly/super.engineering-nightly-b4ff1a8d-arm64-legacy-id.dmg,
+which carries no nightly marker`：channel proof 只认 `Superconductor-nightly-`。实测（01:06 UTC，只读）：
+
+- `latest.json`（Last-Modified 2026-09-23 22:03:52 GMT，`sha` b4ff1a8d，`date` 2026-09-23）：顶层 `url` 与
+  `bundles["com.zarifpour.superconductor"].url` 都是 `…/nightly/super.engineering-nightly-b4ff1a8d-arm64-legacy-id.dmg`，
+  `bundles["engineering.super.app"].url` 是 `…/nightly/super.engineering-nightly-b4ff1a8d-arm64.dmg`。结构不变，只有文件名前缀变了。
+- `HEAD`：两个新名字 200；`Superconductor-nightly-b4ff1a8d-arm64[-legacy-id].dmg` 都 404 —— 新构建只以新名字发布。
+  旧构建的旧名字仍在（`Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg` 200）。`changelog.json` 顶部是 b4ff1a8d、5dab43b4。
+- legacy-id dmg 下载后 sha256 `8fac20e2…` 与清单一致；挂载后布局照旧（`super.engineering.app` + `Superconductor.app`
+  符号链接），`Info.plist` `com.zarifpour.superconductor`、版本字段都是 `b4ff1a8d`、`LSMinimumSystemVersion` 14.0，
+  TeamIdentifier `MR38E36N26`，`spctl` "accepted / Notarized Developer ID"。
+- `super.engineering/api/download` 现在 302 → **新 id** 的 `super.engineering-nightly-b4ff1a8d-arm64.dmg`（09-23 还是 legacy-id）——
+  官网新下载的用户拿到的已是 `engineering.super.app`。
+
+proof 改成 `(?:super\.engineering|Superconductor)-nightly-`：两种前缀都带 `-nightly-`，仍是渠道专属标记；旧前缀保留，
+因为旧构建还以旧名字在线。

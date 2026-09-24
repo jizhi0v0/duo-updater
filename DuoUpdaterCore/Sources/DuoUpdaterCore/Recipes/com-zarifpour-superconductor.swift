@@ -11,8 +11,10 @@ enum com_zarifpour_superconductor {
         // (checked 2026-09-23):
         //   {"nightly": {"sha": "<40 hex>", "url": "<dmg>", "sha256": "<hex>",
         //     "date": "2026-09-23", "bundles": {"<bundle id>": {"url":
-        //     "https://releases.superconductor.so/nightly/Superconductor-nightly-
+        //     "https://releases.superconductor.so/nightly/super.engineering-nightly-
         //     <sha8>-arm64[-legacy-id].dmg", "sha256": "<hex>"}, …}}}
+        // (The file prefix was `Superconductor-nightly-` through 5dab43b4; b4ff1a8d,
+        // 2026-09-23, is the first build published only as `super.engineering-`.)
         //
         // The version IS a commit hash. The bundle reports its first eight hex
         // digits as both `CFBundleShortVersionString` and `CFBundleVersion`
@@ -87,10 +89,12 @@ enum com_zarifpour_superconductor {
         ],
         channelProofs: [
         // super.engineering: the dmg lives under `/nightly/` and is named
-        // `Superconductor-nightly-<sha8>-arm64<suffix>.dmg` — the vendor's own track
-        // name, twice, in the URL `latest.json`'s `"nightly"` entry gives. The
+        // `super.engineering-nightly-<sha8>-arm64<suffix>.dmg` — the vendor's own
+        // track name, twice, in the URL `latest.json`'s `"nightly"` entry gives. The
         // suffix names the bundle id, not the track (`-legacy-id` for this one).
+        // Builds through 5dab43b4 were `Superconductor-nightly-…` and are still
+        // served under that name; both prefixes carry the same `-nightly-` marker.
         ChannelProofKey("com.zarifpour.superconductor", .nightly):
-            .artifact(#"/nightly/Superconductor-nightly-[0-9a-f]{8}-arm64[^/]*\.dmg$"#),
+            .artifact(#"/nightly/(?:super\.engineering|Superconductor)-nightly-[0-9a-f]{8}-arm64[^/]*\.dmg$"#),
         ])
 }

@@ -2,6 +2,20 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.4
+
+**DuoUpdater spricht jetzt Italienisch, traditionelles Chinesisch, Portugiesisch (Brasilien) und Türkisch.** Das sind elf Sprachen. Auf Deutsch, Spanisch und Japanisch wurden falsche oder abgeschnittene Texte korrigiert. Einstellungen → Ordner zeigt Ordnernamen jetzt so an wie der Finder in deiner Sprache.
+
+**Apps, die du mit Homebrew installiert hast, werden jetzt über Homebrew aktualisiert.** Das betrifft per brew installierte Apps, die auch einen eigenen Updater haben. Bisher hat DuoUpdater sie direkt aktualisiert, ohne dass Homebrew davon wusste, und das nächste `brew upgrade` hat die Version, die du schon hattest, erneut heruntergeladen und installiert.
+
+**Fenster öffnen sich auf dem Space, auf dem du gerade bist.** Bisher konnte das erneute Öffnen der Einstellungen oder eines anderen DuoUpdater-Fensters nach dem Schließen dich zurück auf den Space wechseln, auf dem es zuletzt angezeigt wurde.
+
+**Ein Update, eine Mitteilung.** Manche Apps werden über zwei Quellen geprüft, und diese konnten dieselbe neue Version immer wieder melden.
+
+**Das Release-Protokoll zeigt keine Releases mit einem Datum in der Zukunft mehr.** Wenn der Feed eines Entwicklers ein späteres Datum angibt als den Zeitpunkt, zu dem DuoUpdater das Release zum ersten Mal gesehen hat, verwendet das Protokoll diesen Zeitpunkt.
+
+**Wenn das Backup-Laufwerk nicht angeschlossen ist, passt das Werkbank-Fenster wieder auf den Bildschirm, und „Jetzt kopieren“ sagt dir, warum es nicht kopieren kann.** Bisher konnte das Fenster höher als der Bildschirm werden, sodass sich Listen nicht bis zum Ende scrollen ließen, und „Jetzt kopieren“ tat stillschweigend nichts.
+
 ## 0.4.3
 
 **Xcode-Betas und Release Candidates lassen sich jetzt mit einem Klick aktualisieren.** Melde dich einmal unter Einstellungen → Xcode bei deinem Apple-Developer-Konto an, und DuoUpdater lädt neue Betas und RCs herunter und installiert sie wie jedes andere Update. Bisher konnte es dir nur sagen, dass eine neue erschienen ist.

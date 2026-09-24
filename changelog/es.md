@@ -2,6 +2,20 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.4
+
+**DuoUpdater ahora está en italiano, chino tradicional, portugués (Brasil) y turco.** Son once idiomas. En alemán, español y japonés se han corregido textos incorrectos o cortados. Ajustes → Carpetas ahora muestra los nombres de las carpetas como los muestra el Finder en tu idioma.
+
+**Las apps que instalaste con Homebrew ahora se actualizan a través de Homebrew.** Esto afecta a las apps instaladas con brew que también tienen su propio actualizador. Antes, DuoUpdater las actualizaba directamente sin que Homebrew se enterara, así que el siguiente `brew upgrade` volvía a descargar e instalar la versión que ya tenías.
+
+**Las ventanas se abren en el Space en el que estás.** Antes, volver a abrir Ajustes u otra ventana de DuoUpdater después de cerrarla podía llevarte de vuelta al Space donde se mostró por última vez.
+
+**Una actualización, un aviso.** Algunas apps se comprueban a través de dos fuentes, y estas podían anunciar la misma versión nueva una y otra vez.
+
+**El Registro de versiones ya no muestra versiones con fecha en el futuro.** Si el feed de un desarrollador da una fecha posterior al momento en que DuoUpdater vio la versión por primera vez, el registro usa el momento en que la vio.
+
+**Con el disco de copias desconectado, la ventana del workbench vuelve a caber en la pantalla, y «Copiar ahora» te dice por qué no puede copiar.** Antes, la ventana podía crecer más que la pantalla, de modo que las listas no llegaban al final, y «Copiar ahora» no hacía nada sin avisar.
+
 ## 0.4.3
 
 **Las betas y versiones candidatas de Xcode ahora se actualizan con un clic.** Inicia sesión una vez con tu cuenta de Apple Developer en Ajustes → Xcode, y DuoUpdater descarga e instala las nuevas betas y RC como cualquier otra actualización. Antes, solo podía avisarte de que había salido una nueva.

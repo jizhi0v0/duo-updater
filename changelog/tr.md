@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.4.4
+
+**DuoUpdater artık İtalyanca, Geleneksel Çince, Portekizce (Brezilya) ve Türkçe konuşuyor.** Böylece toplam on bir dil oldu. Almanca, İspanyolca ve Japonca’daki yanlış veya kesik metinler düzeltildi. Ayarlar → Klasörler artık klasör adlarını Finder’ın sizin dilinizde gösterdiği gibi gösteriyor.
+
+**Homebrew ile yüklediğiniz uygulamalar artık Homebrew üzerinden güncelleniyor.** Bu, brew ile yüklenmiş ve kendi güncelleyicisi de olan uygulamaları kapsar. Önceden DuoUpdater bunları doğrudan güncelliyor, Homebrew bundan haberdar olmuyordu; bir sonraki `brew upgrade` de zaten sahip olduğunuz sürümü yeniden indirip yüklüyordu.
+
+**Pencereler bulunduğunuz Space’te açılıyor.** Önceden Ayarlar’ı veya başka bir DuoUpdater penceresini kapatıp yeniden açmak, sizi pencerenin en son gösterildiği Space’e geri geçirebiliyordu.
+
+**Bir güncelleme, bir bildirim.** Bazı uygulamalar iki kaynak üzerinden denetleniyor ve bu kaynaklar aynı yeni sürümü tekrar tekrar duyurabiliyordu.
+
+**Sürüm Günlüğü artık tarihi gelecekte olan sürümler göstermiyor.** Bir geliştiricinin akışı, DuoUpdater’ın sürümü ilk gördüğü andan daha sonraki bir tarih verirse, günlük o anı kullanıyor.
+
+**Yedekleme diski takılı değilken çalışma alanı penceresi yeniden ekrana sığıyor ve Şimdi Kopyala neden kopyalayamadığını söylüyor.** Önceden pencere ekrandan uzun olabiliyor, listeler sonuna kadar kaydırılamıyordu; Şimdi Kopyala da hiçbir şey söylemeden hiçbir şey yapmıyordu.
+
 ## 0.4.3
 
 **Xcode betaları ve sürüm adayları artık tek tıkla güncelleniyor.** Ayarlar → Xcode’da Apple Developer hesabınızla bir kez oturum açın; DuoUpdater yeni betaları ve RC’leri diğer tüm güncellemeler gibi indirip yükler. Önceden yalnızca yenisinin çıktığını haber verebiliyordu.

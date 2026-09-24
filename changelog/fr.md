@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.4.4
+
+**DuoUpdater parle désormais italien, chinois traditionnel, portugais (Brésil) et turc.** Cela fait onze langues. En allemand, en espagnol et en japonais, les textes erronés ou tronqués ont été corrigés. Réglages → Dossiers affiche désormais le nom des dossiers comme le Finder dans votre langue.
+
+**Les apps installées avec Homebrew sont désormais mises à jour par Homebrew.** Cela concerne les apps installées avec brew qui ont aussi leur propre outil de mise à jour. Auparavant, DuoUpdater les mettait à jour directement sans que Homebrew le sache, et le `brew upgrade` suivant retéléchargeait et réinstallait la version que vous aviez déjà.
+
+**Les fenêtres s’ouvrent dans le Space où vous êtes.** Auparavant, rouvrir les Réglages ou une autre fenêtre de DuoUpdater après l’avoir fermée pouvait vous ramener dans le Space où elle était affichée la dernière fois.
+
+**Une mise à jour, une notification.** Certaines apps sont vérifiées par deux sources, qui pouvaient annoncer la même nouvelle version encore et encore.
+
+**Le Journal des versions n’affiche plus de versions datées dans le futur.** Si le flux d’un développeur indique une date postérieure au moment où DuoUpdater a vu la version pour la première fois, le journal utilise ce moment-là.
+
+**Quand le disque de sauvegarde est débranché, la fenêtre de l’établi tient de nouveau dans l’écran, et « Copier maintenant » vous dit pourquoi la copie est impossible.** Auparavant, la fenêtre pouvait devenir plus haute que l’écran, si bien que les listes ne défilaient pas jusqu’au bout, et « Copier maintenant » ne faisait rien, sans rien dire.
+
 ## 0.4.3
 
 **Les bêtas et versions candidates de Xcode se mettent désormais à jour en un clic.** Connectez-vous une fois à votre compte Apple Developer dans Réglages → Xcode, et DuoUpdater télécharge et installe les nouvelles bêtas et RC comme n’importe quelle autre mise à jour. Auparavant, il pouvait seulement vous signaler qu’une nouvelle version était sortie.

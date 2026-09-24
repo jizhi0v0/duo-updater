@@ -449,6 +449,36 @@ struct SuperconductorTests {
             == "2026-09-23")
     }
 
+    /// The nightly proof accepts both file prefixes the vendor has published —
+    /// `Superconductor-` through 5dab43b4, `super.engineering-` from b4ff1a8d
+    /// (2026-09-23, both URLs checked live the next day) — and still refuses a
+    /// dmg whose name does not say nightly.
+    @Test func theNightlyProofAcceptsBothFileNamesAndNothingElse() throws {
+        let recipe = try Self.recipe()
+        func complaint(_ url: String) -> String? {
+            RecipeSanity.crossChannelArtifact(recipe: recipe, remote: RemoteVersion(
+                shortVersion: "b4ff1a8d", version: "b4ff1a8d",
+                downloadURL: URL(string: url)!, sourceName: "super.engineering",
+                vendorInstallerKind: .dmg))
+        }
+        let base = "https://releases.superconductor.so/"
+        for accepted in [
+            "nightly/super.engineering-nightly-b4ff1a8d-arm64-legacy-id.dmg",
+            "nightly/super.engineering-nightly-b4ff1a8d-arm64.dmg",
+            "nightly/Superconductor-nightly-5dab43b4-arm64-legacy-id.dmg",
+        ] {
+            #expect(complaint(base + accepted) == nil, "\(accepted)")
+        }
+        for refused in [
+            "stable/super.engineering-b4ff1a8d-arm64-legacy-id.dmg",
+            "nightly/super.engineering-b4ff1a8d-arm64-legacy-id.dmg",
+            "stable/super.engineering-stable-b4ff1a8d-arm64-legacy-id.dmg",
+            "nightly/superXengineering-nightly-b4ff1a8d-arm64-legacy-id.dmg",
+        ] {
+            #expect(complaint(base + refused) != nil, "\(refused)")
+        }
+    }
+
     /// Read by key, not by position: the entry still resolves when `bundles`
     /// precedes the entry's other fields and when this id is listed first.
     @Test func theBundlesEntryIsFoundWhereverItIsListed() throws {

@@ -115,6 +115,7 @@ private struct MenuBarLabel: View {
             // badge, and `sync` checks the policy this sets.
             DockIcon.apply(hidden: model.prefs.hideDockIcon)
             AppDockBadge.syncSoon(count: model.badgeCount)
+            WindowSpaces.followActiveSpace()
             // Start moving backups when the backup disk shows up, and get out of
             // the way when it is about to leave. Also drains anything a previous
             // run left owed — the common case being backups taken while the disk
@@ -210,5 +211,46 @@ private struct SettingsCommand: Commands {
             }
             .disabled(!AppUpdater.shared.canCheckForUpdates)
         }
+    }
+}
+
+/// Makes our `Window` scenes come to the Space the user is on instead of taking
+/// the user to theirs. Reported from use: open Settings on one Space, ⌘W, open it
+/// again from another — the screen switched back to the first Space. That the
+/// reopened window is the same NSWindow, still tied to its old Space, is inferred
+/// from that behavior, not traced. `.moveToActiveSpace` is Apple's documented
+/// answer: "When the window becomes active, move it to the active space instead of
+/// switching spaces" (developer.apple.com, NSWindow.CollectionBehavior).
+@MainActor
+private enum WindowSpaces {
+    /// The scene ids of every `Window` in `DuoUpdaterApp`. Matched the same way as
+    /// `AppListModel.surfaceWindow`: the identifier rawValue embeds the scene id.
+    private static let sceneIDs = [
+        WelcomeView.windowID, WorkbenchWindowView.windowID, SettingsView.windowID,
+        ReleaseLogView.windowID, NetworkWindowView.windowID, SelfChangelogView.windowID,
+    ]
+    private static var observer: NSObjectProtocol?
+
+    /// Tags each scene window the first time it becomes key — which is also when it
+    /// is first shown, on the Space the user is on — so every later open follows them.
+    static func followActiveSpace() {
+        guard observer == nil else { return }
+        NSApp.windows.forEach(apply)
+        observer = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
+        ) { note in
+            guard let window = note.object as? NSWindow else { return }
+            MainActor.assumeIsolated { apply(window) }
+        }
+    }
+
+    private static func apply(_ window: NSWindow) {
+        guard let id = window.identifier?.rawValue,
+              sceneIDs.contains(where: { id.contains($0) }),
+              // Mutually exclusive with `.moveToActiveSpace`: measured on macOS 27, setting
+              // both throws NSInternalInconsistencyException from setCollectionBehavior.
+              !window.collectionBehavior.contains(.canJoinAllSpaces)
+        else { return }
+        window.collectionBehavior.insert(.moveToActiveSpace)
     }
 }

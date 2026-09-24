@@ -74,7 +74,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Il Registro release non aggiunge più la stessa release a ogni avvio.** App come Claude, Raycast e Cline ricevevano una voce duplicata ogni volta che DuoUpdater si avviava.
 
-**La barra laterale del banco di lavoro è divisa nelle schede App, Brew e Ripristino.** Fai clic su una scheda o trascina sopra di esse per passare dall’uno all’altro; la ricerca filtra tutti e tre insieme.
+**La barra laterale del banco di lavoro è divisa nelle schede App, Brew e Ripristino.** Fai clic su una scheda o trascina sopra di esse per passare dall’una all’altra; la ricerca filtra tutte e tre insieme.
 
 **Dietro le quinte.** Riapri e Ripristina sulla stessa app non si sovrappongono più; un feed di aggiornamento non può più far eliminare a DuoUpdater file al di fuori della sua cartella di download; i controlli in background non rischiano più di far chiedere a macOS l’accesso ai dati di altre app; un numero molto grande nel filtro di Richieste non fa più chiudere l’app; e la barra dei menu ora rispetta la richiesta di password di amministratore che hai rifiutato in `duo install`.
 
@@ -228,7 +228,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Una beta di TestFlight è contrassegnata dall’icona di TestFlight.** Le righe gestite dall’App Store avevano già l’icona dello store; quelle gestite da TestFlight ne scrivevano invece il nome per esteso, quindi lo stesso tipo di riga era contrassegnato in due modi diversi.
 
-**L’intestazione della finestra Rete resta ferma quando cambi scheda.** Le due schede avevano i titoli ad altezze leggermente diverse, quindi passando dall’uno all’altro sembrava che la finestra avesse un sussulto.
+**L’intestazione della finestra Rete resta ferma quando cambi scheda.** Le due schede avevano i titoli ad altezze leggermente diverse, quindi passando dall’una all’altra sembrava che la finestra avesse un sussulto.
 
 ## 0.3.88
 

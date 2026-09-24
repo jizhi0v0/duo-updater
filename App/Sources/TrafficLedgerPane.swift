@@ -27,7 +27,8 @@ struct TrafficLedgerPane: View {
         var label: String {
             switch self {
             case .size:      return String(localized: "Size")
-            case .downloads: return String(localized: "Downloads")
+            case .downloads: return String(localized: "Downloads (sort order)", defaultValue: "Downloads",
+                                           comment: "Sort option: order apps by how many downloads they made. Not the tab name, which is the plain \"Downloads\" key.")
             case .recent:    return String(localized: "Recent")
             }
         }

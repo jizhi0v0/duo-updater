@@ -61,7 +61,8 @@ struct FoldersSettingsPage: View {
                 HStack(spacing: 10) {
                     Image(systemName: "folder")
                         .foregroundStyle(.secondary)
-                    Text(url.lastPathComponent)
+                    // Finder's name, localized ("Programme", "アプリケーション"), not the on-disk one.
+                    Text(FileManager.default.displayName(atPath: url.path))
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 12)
                     Text(url.path)
@@ -77,13 +78,12 @@ struct FoldersSettingsPage: View {
 
     @ViewBuilder
     private func folderRow(_ path: String) -> some View {
-        let url = URL(fileURLWithPath: path)
         let exists = FileManager.default.fileExists(atPath: path)
         HStack(spacing: 10) {
             Image(systemName: exists ? "folder.fill" : "folder.badge.questionmark")
                 .foregroundStyle(exists ? Color.accentColor : .orange)
             VStack(alignment: .leading, spacing: 1) {
-                Text(url.lastPathComponent)
+                Text(FileManager.default.displayName(atPath: path))
                 Text(path)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)

@@ -7,7 +7,9 @@ import Foundation
 /// release moment) interpreted in a supplied `Calendar` — so the answer is "what
 /// time of day, in *this* clock". The store does record releases with no hour to
 /// bucket — `vendorDay` events, and detection-only `estimatedRange` ones off our
-/// own polling clock — so only the to-the-minute tier is counted here.
+/// own polling clock — so only the to-the-minute tier is counted here, and only
+/// when it is believable (`trustedPublishedAt`: a vendor time later than our own
+/// first sighting is a made-up hour, not a shipping habit).
 public struct ReleaseStats: Sendable, Equatable {
     /// Total releases counted.
     public let total: Int
@@ -36,7 +38,7 @@ public struct ReleaseStats: Sendable, Equatable {
         var counted = 0
 
         for event in events {
-            guard let published = event.publishedAt else { continue }
+            guard let published = event.trustedPublishedAt else { continue }
             let comps = calendar.dateComponents([.hour, .weekday], from: published)
             guard let h = comps.hour, let w = comps.weekday else { continue }
             let wd = w - 1                       // 1...7 → 0...6

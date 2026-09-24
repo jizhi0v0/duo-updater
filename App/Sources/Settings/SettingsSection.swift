@@ -90,7 +90,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .backups:     return String(localized: "Keep a copy of the previous version so an update can be undone — here or on another disk.")
         case .folders:     return String(localized: "Where DuoUpdater looks for installed apps.")
         case .updates:     return String(localized: "DuoUpdater's own version.")
-        case .github:      return String(localized: "Lift GitHub's anonymous rate limit for apps tracked through Releases.")
+        case .github:      return String(localized: "Raise GitHub's rate limit for apps tracked through Releases.")
         case .alcove:      return String(localized: "Alcove keeps release notes and installable builds behind its license.")
         case .xcode:       return String(localized: "Sign in to download Xcode betas and release candidates.")
         case .ignored:     return String(localized: "Apps and versions you've told DuoUpdater to leave alone.")

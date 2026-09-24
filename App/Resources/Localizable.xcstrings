@@ -657,7 +657,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ konnte nach dem Zurücksetzen an seinem Pfad nicht wieder gelesen werden."
+            "value": "%@ konnte nach der Wiederherstellung an seinem Pfad nicht wieder gelesen werden."
           }
         },
         "es": {
@@ -2022,7 +2022,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ wurde nicht neu gestartet: Es wird gerade auf die vorherige Version zurückgesetzt. Versuche es erneut, sobald das abgeschlossen ist."
+            "value": "%@ wurde nicht neu gestartet: Gerade wird die vorherige Version wiederhergestellt. Versuche es erneut, sobald das abgeschlossen ist."
           }
         },
         "es": {
@@ -2087,7 +2087,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ wurde nach dem Beenden nicht wieder geöffnet: Ein Update oder Zurücksetzen der App lief noch. Öffne sie selbst, wenn du so weit bist."
+            "value": "%@ wurde nach dem Beenden nicht wieder geöffnet: Ein Update oder eine Wiederherstellung der App lief noch. Öffne sie selbst, wenn du so weit bist."
           }
         },
         "es": {
@@ -7189,7 +7189,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "也會自行詢問 TestFlight——每小時最多一次，或在 Beta 版有新進展時——在背景啟動它幾秒鐘（約 0.7 MB）。需要完整磁碟取用權限。"
+            "value": "也會自行詢問 TestFlight——每小時最多一次，或在 Beta 版有新進展時——在背景啟動它幾秒鐘（約 0.7 MB）。需要「完全取用磁碟」權限。"
           }
         }
       }
@@ -9509,7 +9509,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "As atualizações da App Store são instaladas por um item em segundo plano que o macOS pede para você aprovar uma vez. Ative o DuoUpdater em Itens de Início e Extensões e execute a atualização de novo — depois disso ele continua ativado e nunca pede sua senha."
+            "value": "As atualizações da App Store são instaladas por um item em segundo plano que o macOS pede para você aprovar uma vez. Ative o DuoUpdater em Itens de Início de Sessão e Extensões e execute a atualização de novo — depois disso ele continua ativado e nunca pede sua senha."
           }
         },
         "ru": {
@@ -11686,7 +11686,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未取得完整磁碟取用權限時的檢查結果 — 按一下查看原因"
+            "value": "未取得「完全取用磁碟」權限時的檢查結果 — 按一下查看原因"
           }
         }
       }
@@ -13194,7 +13194,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die aktuelle Version konnte nicht gesichert werden – dieses Update wird ohne Rücksetzpunkt eingespielt."
+            "value": "Die aktuelle Version konnte nicht gesichert werden – dieses Update wird ohne Wiederherstellungspunkt eingespielt."
           }
         },
         "es": {
@@ -15151,7 +15151,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 沒有完整磁碟取用權限，無法讀取 TestFlight 提供給你的版本，因此無法判斷這個 Beta 版是否為最新"
+            "value": "DuoUpdater 沒有「完全取用磁碟」權限，無法讀取 TestFlight 提供給你的版本，因此無法判斷這個 Beta 版是否為最新"
           }
         }
       }
@@ -15387,7 +15387,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O DuoUpdater funciona apenas pela barra de menus. A contagem de atualizações pendentes passa para o ícone da barra de menus — o indicador do Dock precisa de um ícone no Dock."
+            "value": "O DuoUpdater funciona apenas pela barra de menus. A contagem de atualizações pendentes passa para o ícone da barra de menus — o aviso do Dock precisa de um ícone no Dock."
           }
         },
         "ru": {
@@ -15552,7 +15552,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jedes Backup ermöglicht das Zurücksetzen eines Updates. Es zu löschen gibt Speicherplatz frei, verzichtet aber auf diese Option – die App selbst bleibt unberührt."
+            "value": "Mit jedem Backup lässt sich ein Update rückgängig machen. Es zu löschen gibt Speicherplatz frei, verzichtet aber auf diese Option – die App selbst bleibt unberührt."
           }
         },
         "es": {
@@ -17237,7 +17237,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "完整磁碟取用權限"
+            "value": "完全取用磁碟"
           }
         }
       }
@@ -17302,7 +17302,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "有了完整磁碟取用權限，DuoUpdater 才能檢查這些 App"
+            "value": "有了「完全取用磁碟」權限，DuoUpdater 才能檢查這些 App"
           }
         }
       }
@@ -17367,7 +17367,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "需要完整磁碟取用權限"
+            "value": "需要「完全取用磁碟」權限"
           }
         }
       }
@@ -17827,37 +17827,37 @@
         }
       }
     },
-    "GitHub CLI isn’t installed. Paste a personal access token below to lift the rate limit.": {
+    "GitHub CLI isn’t installed. Paste a personal access token below to raise the rate limit.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI ist nicht installiert. Füge unten ein persönliches Zugriffstoken ein, um das Ratenlimit aufzuheben."
+            "value": "GitHub CLI ist nicht installiert. Füge unten ein persönliches Zugriffstoken ein, um das Ratenlimit zu erhöhen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI no está instalado. Pega un token de acceso personal abajo para eliminar el límite de solicitudes."
+            "value": "GitHub CLI no está instalado. Pega un token de acceso personal abajo para aumentar el límite de solicitudes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI n'est pas installé. Collez un jeton d'accès personnel ci-dessous pour lever la limite de requêtes."
+            "value": "GitHub CLI n'est pas installé. Collez un jeton d'accès personnel ci-dessous pour augmenter la limite de requêtes."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La CLI GitHub non è installata. Incolla qui sotto un token di accesso personale per superare il limite di richieste."
+            "value": "La CLI GitHub non è installata. Incolla qui sotto un token di accesso personale per aumentare il limite di richieste."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLIはインストールされていません。下にパーソナルアクセストークンを貼り付けるとレート制限が解除されます。"
+            "value": "GitHub CLIはインストールされていません。下にパーソナルアクセストークンを貼り付けるとレート制限が引き上げられます。"
           }
         },
         "pt-BR": {
@@ -17869,25 +17869,25 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI не установлен. Вставьте личный токен доступа ниже, чтобы снять ограничение частоты запросов."
+            "value": "GitHub CLI не установлен. Вставьте личный токен доступа ниже, чтобы повысить ограничение частоты запросов."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI yüklü değil. Hız sınırını kaldırmak için aşağıya bir kişisel erişim token’ı yapıştırın."
+            "value": "GitHub CLI yüklü değil. Hız sınırını yükseltmek için aşağıya bir kişisel erişim token’ı yapıştırın."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚未安装 GitHub CLI。请在下方粘贴个人访问令牌以解除请求限制。"
+            "value": "尚未安装 GitHub CLI。请在下方粘贴个人访问令牌以提升请求限制。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub CLI 尚未安裝。請在下方貼上個人存取權杖以解除速率限制。"
+            "value": "GitHub CLI 尚未安裝。請在下方貼上個人存取權杖以提高速率限制。"
           }
         }
       }
@@ -20238,7 +20238,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backup aufbewahren, damit Updates zurückgesetzt werden können"
+            "value": "Backup aufbewahren, damit Updates rückgängig gemacht werden können"
           }
         },
         "es": {
@@ -20670,7 +20670,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Girişte aç"
+            "value": "Oturum açıldığında aç"
           }
         },
         "zh-Hans": {
@@ -21142,67 +21142,67 @@
         }
       }
     },
-    "Lift GitHub's anonymous rate limit for apps tracked through Releases.": {
+    "Raise GitHub's rate limit for apps tracked through Releases.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das anonyme Ratenlimit von GitHub für über Releases verfolgte Apps aufheben."
+            "value": "Das Ratenlimit von GitHub für über Releases verfolgte Apps erhöhen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elimina el límite de solicitudes anónimas de GitHub para las apps que se siguen mediante Releases."
+            "value": "Aumenta el límite de solicitudes de GitHub para las apps que se siguen mediante Releases."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lever la limite de requêtes anonymes de GitHub pour les applications suivies via Releases."
+            "value": "Augmenter la limite de requêtes de GitHub pour les applications suivies via Releases."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supera il limite anonimo di richieste GitHub per le app seguite tramite Releases."
+            "value": "Aumenta il limite di richieste GitHub per le app seguite tramite Releases."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Releasesで追跡しているアプリに対するGitHubの匿名レート制限を解除します。"
+            "value": "Releasesで追跡しているアプリに対するGitHubのレート制限を引き上げます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aumentar o limite de requisições anônimas do GitHub para apps acompanhados via Releases."
+            "value": "Aumentar o limite de requisições do GitHub para apps acompanhados via Releases."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Снять анонимное ограничение частоты запросов GitHub для приложений, отслеживаемых через Releases."
+            "value": "Повысить ограничение частоты запросов GitHub для приложений, отслеживаемых через Releases."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Releases üzerinden izlenen uygulamalar için GitHub’ın anonim hız sınırını yükseltin."
+            "value": "Releases üzerinden izlenen uygulamalar için GitHub’ın hız sınırını yükseltin."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "解除 GitHub 对通过 Releases 追踪的应用的匿名请求限制。"
+            "value": "提升 GitHub 对通过 Releases 追踪的应用的请求限制。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "為透過 Releases 追蹤的 App 解除 GitHub 的匿名速率限制。"
+            "value": "為透過 Releases 追蹤的 App 提高 GitHub 的速率限制。"
           }
         }
       }
@@ -23618,7 +23618,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein Rücksetzpunkt: Teile dieser App sind für dich nicht lesbar (üblich bei Apps, die per .pkg installiert wurden und oft root gehören)."
+            "value": "Kein Wiederherstellungspunkt: Teile dieser App sind für dich nicht lesbar (üblich bei Apps, die per .pkg installiert wurden und oft root gehören)."
           }
         },
         "es": {
@@ -24599,7 +24599,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch nichts zum Zurücksetzen"
+            "value": "Noch nichts wiederherzustellen"
           }
         },
         "es": {
@@ -28045,7 +28045,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取 TestFlight 已知的內容，並在你按下「重新整理」時請它重新查詢。需要完整磁碟取用權限。"
+            "value": "讀取 TestFlight 已知的內容，並在你按下「重新整理」時請它重新查詢。需要「完全取用磁碟」權限。"
           }
         }
       }
@@ -30225,7 +30225,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zurücksetzen"
+            "value": "Wiederherstellen"
           }
         },
         "es": {
@@ -30290,7 +30290,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auf %@ zurücksetzen"
+            "value": "Version %@ wiederherstellen"
           }
         },
         "es": {
@@ -30355,7 +30355,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zurücksetzen"
+            "value": "Wiederherstellen"
           }
         },
         "es": {
@@ -30420,7 +30420,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zurückgesetzt – aber %@ wird über den App Store aktualisiert: Der Store bietet dieses Update sofort wieder an und installiert es von sich aus erneut, wenn automatische App-Updates aktiviert sind."
+            "value": "Vorherige Version wiederhergestellt – aber %@ wird über den App Store aktualisiert: Der Store bietet dieses Update sofort wieder an und installiert es von sich aus erneut, wenn automatische App-Updates aktiviert sind."
           }
         },
         "es": {
@@ -33021,7 +33021,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "你的部分 App 將 DuoUpdater 檢查時所需的資訊存放在 macOS 只允許以完整磁碟取用權限讀取的位置。在那裡讀取的任何內容都不會離開你的 Mac。\n\n%@\n\n你可以稍後在 DuoUpdater 的「設定」→「診斷」中授予，或前往「系統設定」→「隱私權與安全性」→「完整磁碟取用權限」。"
+            "value": "你的部分 App 將 DuoUpdater 檢查時所需的資訊存放在 macOS 只允許以「完全取用磁碟」權限讀取的位置。在那裡讀取的任何內容都不會離開你的 Mac。\n\n%@\n\n你可以稍後在 DuoUpdater 的「設定」→「診斷」中授予，或前往「系統設定」→「隱私權與安全性」→「完全取用磁碟」。"
           }
         }
       }
@@ -33612,7 +33612,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight 將提供給你的版本存放在它自己的資料庫中，而且只有 TestFlight 本身會更新這個資料庫——因此要取得最新結果，就得啟動 TestFlight。讀取資料庫需要完整磁碟取用權限；沒有權限時，Beta 版所在的列會如實註明。"
+            "value": "TestFlight 將提供給你的版本存放在它自己的資料庫中，而且只有 TestFlight 本身會更新這個資料庫——因此要取得最新結果，就得啟動 TestFlight。讀取資料庫需要「完全取用磁碟」權限；沒有權限時，Beta 版所在的列會如實註明。"
           }
         }
       }
@@ -35969,7 +35969,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktiviere sie, um ein Update zurückzusetzen und zu vergleichen, was es geändert hat."
+            "value": "Aktiviere sie, um ein Update rückgängig zu machen und zu vergleichen, was es geändert hat."
           }
         },
         "es": {
@@ -38428,7 +38428,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒有完整磁碟取用權限，DuoUpdater 無法讀取 TestFlight 提供給你的版本，因此無法判斷這個 Beta 版是否為最新。"
+            "value": "沒有「完全取用磁碟」權限，DuoUpdater 無法讀取 TestFlight 提供給你的版本，因此無法判斷這個 Beta 版是否為最新。"
           }
         }
       }
@@ -38493,7 +38493,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒有完整磁碟取用權限，DuoUpdater 無法得知你是否在 CotEditor 中選擇了預先發行版，因此只會提供正式版。"
+            "value": "沒有「完全取用磁碟」權限，DuoUpdater 無法得知你是否在 CotEditor 中選擇了預先發行版，因此只會提供正式版。"
           }
         }
       }
@@ -39704,7 +39704,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O macOS está aguardando sua aprovação. Ative o DuoUpdater em “Permitir em Segundo Plano” em Itens de Início e Extensões — já está aberto."
+            "value": "O macOS está aguardando sua aprovação. Ative o DuoUpdater em “Permitir em Segundo Plano” em Itens de Início de Sessão e Extensões — já está aberto."
           }
         },
         "ru": {
@@ -39769,7 +39769,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O macOS recusou o registro. Ative o DuoUpdater em “Permitir em Segundo Plano” em Itens de Início e Extensões — só isso costuma resolver. Se ele não estiver na lista, ou se ativá-lo não mudar nada, o registro deste item em segundo plano no macOS está danificado e precisa ser redefinido no nível do sistema: execute “sudo sfltool resetbtm” no Terminal e reinicie. Isso apaga as aprovações de itens em segundo plano de todos os apps, então você também precisará aprovar os outros de novo."
+            "value": "O macOS recusou o registro. Ative o DuoUpdater em “Permitir em Segundo Plano” em Itens de Início de Sessão e Extensões — só isso costuma resolver. Se ele não estiver na lista, ou se ativá-lo não mudar nada, o registro deste item em segundo plano no macOS está danificado e precisa ser redefinido no nível do sistema: execute “sudo sfltool resetbtm” no Terminal e reinicie. Isso apaga as aprovações de itens em segundo plano de todos os apps, então você também precisará aprovar os outros de novo."
           }
         },
         "ru": {
@@ -49528,7 +49528,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Espandi l’archivio con Utility Archivio"
+            "value": "Espandi l’archivio con Utility Compressione"
           }
         },
         "ja": {
@@ -49540,7 +49540,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Expandir o arquivo com o Utilitário de Compactação"
+            "value": "Expandir o arquivo com o Utilitário de Compressão"
           }
         },
         "ru": {
@@ -49564,7 +49564,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用「壓縮工具程式」展開封存檔"
+            "value": "使用「封存工具程式」展開封存檔"
           }
         }
       }

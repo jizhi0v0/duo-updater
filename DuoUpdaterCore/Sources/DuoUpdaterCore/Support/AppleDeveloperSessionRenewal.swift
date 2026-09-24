@@ -14,9 +14,12 @@ import Foundation
 /// account-name cookies included. The same morning a real session, ~14 h after
 /// its sign-in and hours after Apple ended its `myacinfo`, came back this way.
 ///
-/// How long Apple honours `acsso` is not published and not yet measured. When
-/// it has ended too, the page stays on the password form and the caller gives
-/// up at `timeout`.
+/// How long Apple honours `acsso` is not published. Measured so far, it has
+/// outlived `myacinfo` every time: on 2026-09-24 a probe signed in without
+/// "remember me" found its session ended 8 h later and renewed it in ~7 s,
+/// and the installed app renewed twice at ~8 h (8 s each). Its limit beyond
+/// that is unknown. When it has ended too, the page stays on the password
+/// form and the caller gives up at `timeout`.
 public enum AppleDeveloperSessionRenewal {
     /// Where the hidden page starts — the same page the sign-in window opens.
     public static let startURL = URL(string: "https://developer.apple.com/account")!

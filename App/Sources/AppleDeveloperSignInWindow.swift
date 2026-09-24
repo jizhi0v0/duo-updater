@@ -25,10 +25,12 @@ final class AppleDeveloperSignInWindow: NSObject {
     /// handler twice.
     private var finished = false
     /// When the latest developer-site page committed — for the log line that
-    /// says how soon after it the window closed. Latest, not first: if the
-    /// window's own first load commits there before going on to `idmsa` (not
-    /// measured — it may be a plain redirect), counting from it would count
-    /// the password and 2FA as well.
+    /// says how soon after it the window closed. Latest, not first, in case
+    /// the window's own first load ever commits there before going on to
+    /// `idmsa` — counting from it would count the password and 2FA as well.
+    /// Measured 2026-09-24 with a session Apple had ended: it does not, the
+    /// first load is a plain redirect to `idmsa`; after the sign-in, `/account`
+    /// committed about a second before it finished loading.
     private var landedAt: Date?
 
     /// Show the window and sign the user in. Resumes once with `true` after a

@@ -71,6 +71,10 @@ struct BackupsSettingsPage: View {
     @State private var lastReport: BackupDestinationProbe.Report?
     @State private var pickError: String?
     @State private var isWorking = false
+    /// Why the last "Copy Now" could not copy anything, shown in the button's
+    /// place until `copyNowResetTask` clears it. See `copyNow()`.
+    @State private var copyNowRefusal: String?
+    @State private var copyNowResetTask: Task<Void, Never>?
     /// True when the chosen folder lives on the same volume as the local
     /// store, which makes every word of the "another disk" promise untrue.
     @State private var isOnThisMacsDisk = false
@@ -582,9 +586,18 @@ struct BackupsSettingsPage: View {
                             Text("Waiting to be copied: \(pendingCount)")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Button("Copy Now") { Task { await work { await model.syncBackupsNow() } } }
-                                .controlSize(.small)
-                                .disabled(isWorking)
+                            // Both laid out, one hidden, so the row keeps its
+                            // size when they swap.
+                            ZStack(alignment: .trailing) {
+                                Button("Copy Now") { copyNow() }
+                                    .controlSize(.small)
+                                    .disabled(isWorking)
+                                    .opacity(copyNowRefusal == nil ? 1 : 0)
+                                if let copyNowRefusal {
+                                    Label(copyNowRefusal, systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                         }
                         .settingsRow()
                     }
@@ -1141,6 +1154,31 @@ struct BackupsSettingsPage: View {
     /// transfer. `syncBackupsNow()`/`beginDrainingBackups()` are fire-and-forget
     /// on purpose (see the latter's doc comment), so a drain that takes minutes
     /// never holds this flag and never greys out the card while it runs.
+    /// "Copy Now" with the disk away used to do nothing you could see: the drain
+    /// had nowhere to write, the count stayed put, and the press looked lost.
+    /// It still tries — the disk may have come back in the second before the
+    /// tick noticed — and if it is still unreachable afterwards, says why in
+    /// the button's place for a moment.
+    private func copyNow() {
+        Task {
+            await work { await model.syncBackupsNow() }
+            let reason: String? = switch availability {
+            case .ready, .localOnly: nil
+            case .volumeNotMounted:  String(localized: "Isn’t connected")
+            case .identityMismatch:  String(localized: "A different disk is mounted here")
+            case .notWritable:       String(localized: "Can’t be written to")
+            }
+            guard let reason else { return }
+            copyNowRefusal = reason
+            copyNowResetTask?.cancel()
+            copyNowResetTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                copyNowRefusal = nil
+            }
+        }
+    }
+
     private func work(_ body: () async -> Void) async {
         isWorking = true
         await body()

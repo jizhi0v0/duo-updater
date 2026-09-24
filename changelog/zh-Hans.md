@@ -2,6 +2,18 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.4.3
+
+**Xcode 测试版和候选发布版现在可以一键更新了。** 在「设置 → Xcode」里登录一次 Apple Developer 账户，DuoUpdater 就会像其他更新一样下载并安装新的测试版和 RC。以前它只能告诉你有新版本出来了。
+
+**任意版本的 Xcode 都能和已有的并排安装。** 「设置 → Xcode」列出了所有 Xcode 版本，按版本分组，你的 macOS 对应的那一组默认展开。「安装」会把你选的版本作为单独一份放进「应用程序」——比如 Xcode-26.6.app——不替换任何东西；也可以只保存归档（.xip）。登录后还会并入 Apple 自己的列表，新版本几分钟内就会出现。
+
+**Apple Developer 登录会自己续上。** Apple 大约八小时后会结束开发者会话；现在只要 Apple 还认得这台 Mac，DuoUpdater 就会在后台取得新的会话——不弹窗、不用输密码。可以在「设置 → Xcode」里关掉。
+
+**新 Xcode 版本出现得更快了。** 工作日里 Apple 通常发布的时段，DuoUpdater 每五分钟找一次新的 Xcode。
+
+**几个应用在开发者改动后又能正常用了。** CapCut beta 和 Superconductor nightly 又能找到并安装了，Superconductor 也会保持现在的应用身份。VLC 3.0.24 和 JetBrains Air 又能显示更新说明了。
+
 ## 0.4.2
 
 **现在支持 Qoder CN IDE 了。** Qoder 国内版 IDE 能检查更新、一键安装，更新说明也会显示在窗口里。Qoder CN 桌面应用现在也会显示更新说明了。

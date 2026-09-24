@@ -2,6 +2,18 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.3
+
+**Xcode-Betas und Release Candidates lassen sich jetzt mit einem Klick aktualisieren.** Melde dich einmal unter Einstellungen → Xcode bei deinem Apple-Developer-Konto an, und DuoUpdater lädt neue Betas und RCs herunter und installiert sie wie jedes andere Update. Bisher konnte es dir nur sagen, dass eine neue erschienen ist.
+
+**Installiere jede Xcode-Version neben denen, die du schon hast.** Einstellungen → Xcode listet jedes Xcode-Release auf, nach Version gruppiert, und die Gruppe für dein macOS ist schon geöffnet. „Installieren“ legt die gewählte Version als eigene Kopie in „Programme“ ab – zum Beispiel Xcode-26.6.app – und ersetzt nichts; oder du sicherst nur das Archiv (.xip). Wenn du angemeldet bist, ist Apples eigene Liste dabei, sodass neue Releases innerhalb von Minuten erscheinen.
+
+**Deine Apple-Developer-Anmeldung hält sich selbst am Leben.** Apple beendet eine Developer-Sitzung nach etwa acht Stunden; DuoUpdater holt jetzt im Hintergrund eine neue – ohne Fenster, ohne Passwort –, solange Apple diesen Mac noch erkennt. Unter Einstellungen → Xcode kannst du das ausschalten.
+
+**Neue Xcode-Releases erscheinen früher.** An Werktagen während Apples üblicher Veröffentlichungszeiten sieht DuoUpdater alle fünf Minuten nach einem neuen Xcode.
+
+**Einige Apps funktionieren wieder, nachdem ihre Entwickler etwas geändert haben.** CapCut Beta und Superconductor Nightly werden wieder gefunden und installiert, und Superconductor behält seine bisherige App-Identität. VLC 3.0.24 und JetBrains Air zeigen wieder ihre Versionshinweise.
+
 ## 0.4.2
 
 **Qoder CN IDE wird jetzt unterstützt.** Die Festlandchina-Ausgabe von Qoders IDE bekommt Update-Prüfungen, die Installation mit einem Klick und ihre Versionshinweise im Fenster. Auch Qoder CN, die Desktop-App, zeigt jetzt ihre Versionshinweise.

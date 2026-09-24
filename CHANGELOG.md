@@ -19,6 +19,18 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.3
+
+**Xcode betas and release candidates now update with one click.** Sign in to your Apple Developer account once in Settings → Xcode, and DuoUpdater downloads and installs new betas and RCs like any other update. Before, it could only tell you a new one was out.
+
+**Install any Xcode version beside the ones you have.** Settings → Xcode lists every Xcode release, grouped by version, with the group for your macOS already open. Install puts the one you pick in Applications as its own copy (for example Xcode-26.6.app) and replaces nothing. You can also save just the archive (.xip). When you're signed in, Apple's own list is included, so new releases appear within minutes.
+
+**Your Apple Developer sign-in keeps itself going.** Apple ends a developer session after about eight hours. DuoUpdater now gets a new one in the background, with no window and no password, as long as Apple still recognizes this Mac. You can turn this off in Settings → Xcode.
+
+**New Xcode releases show up sooner.** On weekdays during Apple's usual release hours, DuoUpdater looks for a new Xcode every five minutes.
+
+**A few apps work again after their developers changed things.** CapCut beta and Superconductor nightly are found and installed again, and Superconductor keeps its current app identity. VLC 3.0.24 and JetBrains Air show their release notes again.
+
 ## 0.4.2
 
 **Qoder CN IDE is now supported.** The mainland-China edition of Qoder's IDE gets update checks, a one-click install and its release notes in the window. Qoder CN, the desktop app, now shows its release notes too.

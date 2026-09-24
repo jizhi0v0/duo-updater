@@ -2,6 +2,18 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.3
+
+**Las betas y versiones candidatas de Xcode ahora se actualizan con un clic.** Inicia sesión una vez con tu cuenta de Apple Developer en Ajustes → Xcode, y DuoUpdater descarga e instala las nuevas betas y RC como cualquier otra actualización. Antes, solo podía avisarte de que había salido una nueva.
+
+**Instala cualquier versión de Xcode junto a las que ya tienes.** Ajustes → Xcode muestra todas las versiones de Xcode, agrupadas por versión, con el grupo de tu macOS ya abierto. «Instalar» pone la que elijas en Aplicaciones como una copia propia —por ejemplo, Xcode-26.6.app— sin reemplazar nada; o guarda solo el archivo (.xip). Si has iniciado sesión, se incluye la propia lista de Apple, así que las nuevas versiones aparecen en minutos.
+
+**Tu sesión de Apple Developer se mantiene sola.** Apple cierra una sesión de desarrollador tras unas ocho horas; DuoUpdater ahora obtiene una nueva en segundo plano —sin ventana y sin contraseña— mientras Apple siga reconociendo este Mac. Puedes desactivarlo en Ajustes → Xcode.
+
+**Las nuevas versiones de Xcode aparecen antes.** Los días laborables, en el horario en que Apple suele publicar, DuoUpdater busca un nuevo Xcode cada cinco minutos.
+
+**Algunas apps vuelven a funcionar después de que sus desarrolladores cambiaran cosas.** CapCut beta y Superconductor nightly vuelven a encontrarse e instalarse, y Superconductor conserva su identidad de app actual. VLC 3.0.24 y JetBrains Air vuelven a mostrar sus notas de versión.
+
 ## 0.4.2
 
 **Qoder CN IDE ya es compatible.** La edición para China continental del IDE de Qoder tiene comprobación de actualizaciones, instalación con un clic y sus notas de versión en la ventana. Qoder CN, la app de escritorio, ahora también muestra sus notas de versión.

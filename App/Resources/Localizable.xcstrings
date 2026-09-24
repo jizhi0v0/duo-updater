@@ -29188,10 +29188,22 @@
             "value": "Détectée le %@. L’éditeur date cette version du %@, après que nous l’avions déjà vue ; l’heure de détection est donc affichée."
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rilevata il %@. Il produttore data questa release al %@, dopo che l’avevamo già vista, quindi viene mostrata l’ora del rilevamento."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ に検知。ベンダーはこのリリースの日付を %@ としていますが、検知より後の日時のため、検知時刻を表示しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detectada em %@. O fornecedor data esta versão de %@, depois de já a termos visto, então o horário da detecção é mostrado no lugar."
           }
         },
         "ru": {
@@ -29200,10 +29212,22 @@
             "value": "Обнаружено %@. Поставщик датирует этот выпуск %@ — позже, чем мы его увидели, поэтому показано время обнаружения."
           }
         },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algılanma: %@. Geliştirici bu sürümün tarihini %@ olarak veriyor; bu, sürümü gördüğümüz andan sonra olduğu için algılanma zamanı gösteriliyor."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "检测于 %@。厂商给这个版本标的日期是 %@，晚于我们首次看到它的时间，所以改为显示检测时间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "偵測於 %@。廠商為這個版本標示的日期是 %@，晚於我們首次看到它的時間，所以改為顯示偵測時間。"
           }
         }
       }

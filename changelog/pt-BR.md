@@ -2,6 +2,20 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.4.4
+
+**O DuoUpdater agora fala italiano, chinês tradicional, português (Brasil) e turco.** São onze idiomas no total. Em alemão, espanhol e japonês, textos errados ou cortados foram corrigidos. Ajustes → Pastas agora mostra os nomes das pastas como o Finder mostra no seu idioma.
+
+**Apps que você instalou com o Homebrew agora são atualizados pelo Homebrew.** Isso vale para apps instalados com o brew que também têm seu próprio atualizador. Antes, o DuoUpdater os atualizava diretamente sem que o Homebrew soubesse, e o `brew upgrade` seguinte baixava e reinstalava a versão que você já tinha.
+
+**As janelas abrem no Space em que você está.** Antes, reabrir os Ajustes ou outra janela do DuoUpdater depois de fechá-la podia levar você de volta ao Space em que ela foi mostrada pela última vez.
+
+**Uma atualização, uma notificação.** Alguns apps são verificados por duas fontes, e elas podiam anunciar a mesma versão nova várias e várias vezes.
+
+**O Registro de Versões não mostra mais versões com data no futuro.** Se o feed de um desenvolvedor informa uma data posterior ao momento em que o DuoUpdater viu a versão pela primeira vez, o registro usa esse momento.
+
+**Com o disco de backup desconectado, a janela da bancada volta a caber na tela, e Copiar Agora diz por que não consegue copiar.** Antes, a janela podia ficar mais alta que a tela, de modo que as listas não rolavam até o fim, e Copiar Agora não fazia nada sem avisar.
+
 ## 0.4.3
 
 **Os betas e release candidates do Xcode agora são atualizados com um clique.** Inicie sessão uma vez na sua conta Apple Developer em Ajustes → Xcode, e o DuoUpdater baixa e instala os novos betas e RCs como qualquer outra atualização. Antes, ele só conseguia avisar que havia um novo.

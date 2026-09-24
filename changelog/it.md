@@ -2,6 +2,20 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.4.4
+
+**DuoUpdater ora parla italiano, cinese tradizionale, portoghese (Brasile) e turco.** In tutto sono undici lingue. In tedesco, spagnolo e giapponese sono stati corretti testi sbagliati o troncati. Impostazioni → Cartelle ora mostra i nomi delle cartelle come li mostra il Finder nella tua lingua.
+
+**Le app che hai installato con Homebrew ora si aggiornano tramite Homebrew.** Riguarda le app installate con brew che hanno anche un proprio sistema di aggiornamento. Prima DuoUpdater le aggiornava direttamente senza che Homebrew lo sapesse, e il `brew upgrade` successivo scaricava e reinstallava la versione che avevi già.
+
+**Le finestre si aprono nello Space in cui ti trovi.** Prima, riaprire Impostazioni o un’altra finestra di DuoUpdater dopo averla chiusa poteva riportarti nello Space in cui era stata mostrata l’ultima volta.
+
+**Un aggiornamento, una notifica.** Alcune app vengono controllate tramite due fonti, che potevano annunciare la stessa nuova versione più e più volte.
+
+**Il Registro release non mostra più release con una data nel futuro.** Se il feed di uno sviluppatore indica una data successiva al momento in cui DuoUpdater ha visto la release per la prima volta, il registro usa quel momento.
+
+**Con il disco di backup scollegato, la finestra del banco di lavoro torna a stare nello schermo e Copia ora ti dice perché non può copiare.** Prima la finestra poteva diventare più alta dello schermo, così gli elenchi non scorrevano fino in fondo, e Copia ora non faceva nulla senza dire niente.
+
 ## 0.4.3
 
 **Le beta e le release candidate di Xcode ora si aggiornano con un clic.** Accedi una sola volta al tuo account Apple Developer in Impostazioni → Xcode e DuoUpdater scaricherà e installerà le nuove beta e RC come qualsiasi altro aggiornamento. Prima poteva solo avvisarti che ne era uscita una nuova.

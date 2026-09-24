@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.4
+
+**DuoUpdater now speaks Italian, Traditional Chinese, Portuguese (Brazil) and Turkish.** That makes eleven languages. In German, Spanish and Japanese, wording that was wrong or cut off has been fixed. Settings → Folders now shows folder names the way Finder does in your language.
+
+**Apps you installed with Homebrew are now updated through Homebrew.** This covers brew-installed apps that also have their own updater. Before, DuoUpdater updated them in place and Homebrew didn't notice, so the next `brew upgrade` downloaded and reinstalled the version you already had.
+
+**Windows open on the Space you're on.** Before, reopening Settings or another DuoUpdater window after closing it could switch you back to the Space where it was last shown.
+
+**One update, one notification.** Some apps are checked through two sources, and those could announce the same new version again and again.
+
+**The Release Log no longer shows releases dated in the future.** If a developer's feed gives a date later than when DuoUpdater first saw the release, the log uses the time it was seen.
+
+**With the backup disk unplugged, the Workbench window fits on the screen again, and Copy Now tells you why it can't copy.** Before, the window could grow taller than the screen so lists couldn't scroll to the end, and Copy Now silently did nothing.
+
 ## 0.4.3
 
 **Xcode betas and release candidates now update with one click.** Sign in to your Apple Developer account once in Settings → Xcode, and DuoUpdater downloads and installs new betas and RCs like any other update. Before, it could only tell you a new one was out.

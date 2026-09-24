@@ -75,6 +75,9 @@ struct BackupsSettingsPage: View {
     /// place until `copyNowResetTask` clears it. See `copyNow()`.
     @State private var copyNowRefusal: String?
     @State private var copyNowResetTask: Task<Void, Never>?
+    /// A press already in flight, so a second one is not a second drain. Not
+    /// shown: the button's own answer is on its way.
+    @State private var isCopyingNow = false
     /// True when the chosen folder lives on the same volume as the local
     /// store, which makes every word of the "another disk" promise untrue.
     @State private var isOnThisMacsDisk = false
@@ -1147,21 +1150,22 @@ struct BackupsSettingsPage: View {
     }
 
 
-    /// Runs `body` with the busy flag held and the page refreshed afterwards, so
-    /// every button that changes something leaves the numbers honest.
-    ///
-    /// Deliberately narrow: this covers a switch, a hold, or a revert — never a
-    /// transfer. `syncBackupsNow()`/`beginDrainingBackups()` are fire-and-forget
-    /// on purpose (see the latter's doc comment), so a drain that takes minutes
-    /// never holds this flag and never greys out the card while it runs.
     /// "Copy Now" with the disk away used to do nothing you could see: the drain
     /// had nowhere to write, the count stayed put, and the press looked lost.
     /// It still tries — the disk may have come back in the second before the
     /// tick noticed — and if it is still unreachable afterwards, says why in
     /// the button's place for a moment.
+    ///
+    /// Not through `work`: a drain is exactly what that flag is kept out of, and
+    /// holding it greyed out every destination row for as long as the sync
+    /// took — the disks above blinked on each press.
     private func copyNow() {
+        guard !isCopyingNow else { return }
+        isCopyingNow = true
         Task {
-            await work { await model.syncBackupsNow() }
+            await model.syncBackupsNow()
+            await refresh()
+            isCopyingNow = false
             let reason: String? = switch availability {
             case .ready, .localOnly: nil
             case .volumeNotMounted:  String(localized: "Isn’t connected")
@@ -1179,6 +1183,13 @@ struct BackupsSettingsPage: View {
         }
     }
 
+    /// Runs `body` with the busy flag held and the page refreshed afterwards, so
+    /// every button that changes something leaves the numbers honest.
+    ///
+    /// Deliberately narrow: this covers a switch, a hold, or a revert — never a
+    /// transfer. `syncBackupsNow()`/`beginDrainingBackups()` are fire-and-forget
+    /// on purpose (see the latter's doc comment), so a drain that takes minutes
+    /// never holds this flag and never greys out the card while it runs.
     private func work(_ body: () async -> Void) async {
         isWorking = true
         await body()

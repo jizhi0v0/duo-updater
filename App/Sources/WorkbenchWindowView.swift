@@ -615,8 +615,13 @@ struct WorkbenchWindowView: View {
     /// one that makes a user think their backups are gone.
     private func offlineBackupNotice(_ disk: String, hasRollback: Bool) -> some View {
         Label {
+            // No `fixedSize(vertical:)`: the window's minimum size is measured with
+            // this text far narrower than the column's 260 pt minimum, where it
+            // stands about a character to a row. Measured, it held the Workbench at
+            // 1,247 pt on a 1,083 pt screen, its bottom off-screen. Without it the
+            // list below gives way first: the longest translation (French, at the
+            // 260 pt column) still wraps in full in a window 300 pt tall.
             Text("Backups on “\(disk)” aren’t available right now — showing only what’s on this Mac.")
-                .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "externaldrive.badge.xmark")
         }

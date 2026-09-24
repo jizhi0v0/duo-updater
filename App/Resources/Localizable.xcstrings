@@ -734,7 +734,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ n’a pas quitté — une fenêtre y attend ta réponse (une demande d’enregistrement, une feuille de connexion, une boîte de dialogue). Passe à l’app, règle cette fenêtre, puis quitte-la ou reclique sur « Relancer ». Rien n’a été modifié et la nouvelle version est déjà installée."
+            "value": "%@ n’a pas quitté — une fenêtre y attend votre réponse (une demande d’enregistrement, une feuille de connexion, une boîte de dialogue). Passez à l’app, réglez cette fenêtre, puis quittez-la ou recliquez sur « Relancer ». Rien n’a été modifié et la nouvelle version est déjà installée."
           }
         },
         "it": {
@@ -1254,7 +1254,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ a téléchargé sa propre mise à jour (%@) et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quitte %@ toi-même quand tu veux prendre la leur."
+            "value": "%@ a téléchargé sa propre mise à jour (%@) et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quittez %@ vous-même quand vous voulez prendre la leur."
           }
         },
         "it": {
@@ -1579,7 +1579,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est en cours d’exécution — l’app a été mise au premier plan pour que son propre programme de mise à jour applique la mise à jour. Quitte-la (ou passe sur « Toujours remplacer » dans les réglages) pour installer directement."
+            "value": "%@ est en cours d’exécution — l’app a été mise au premier plan pour que son propre programme de mise à jour applique la mise à jour. Quittez-la (ou passez à « Toujours remplacer » dans les réglages) pour installer directement."
           }
         },
         "it": {
@@ -7005,7 +7005,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine Seite mit Versionshinweisen wird in einer Webansicht geladen, die ihre eigenen Bilder und Schriften abruft, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt. Diese Anfragen kann DuoUpdater nicht erfassen — dies ist also kein Protokoll von allem, was Ihr Mac sendet."
+            "value": "Eine Seite mit Versionshinweisen wird in einer Webansicht geladen, die ihre eigenen Bilder und Schriften abruft, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt. Diese Anfragen kann DuoUpdater nicht erfassen — dies ist also kein Protokoll von allem, was dein Mac sendet."
           }
         },
         "es": {
@@ -9296,7 +9296,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’App Store ne peut pas remplacer %@ tant qu’elle est ouverte. Si cela semble bloqué, passe à l’App Store et clique sur « Continuer » — il attend que tu le fasses. %@ se rouvre une fois la mise à jour installée."
+            "value": "L’App Store ne peut pas remplacer %@ tant qu’elle est ouverte. Si cela semble bloqué, passez à l’App Store et cliquez sur « Continuer » — il attend que vous le fassiez. %@ se rouvre une fois la mise à jour installée."
           }
         },
         "it": {
@@ -14790,6 +14790,78 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
+            "value": "ダウンロード"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirmeler"
+          }
+        }
+      }
+    },
+    "Downloads (sort order)": {
+      "comment": "Sort option in the Network window's Downloads tab: order apps by how many downloads they made. Not the tab name, which is the plain \"Downloads\" key.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descargas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Téléchargements"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
             "value": "ダウンロード数"
           }
         },
@@ -14820,7 +14892,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "下載"
+            "value": "下載次數"
           }
         },
         "tr": {
@@ -15292,7 +15364,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater protokolliert hier die Anfragen, die es für Sie stellt: Update-Prüfungen, Versionshinweise und eigene Downloads."
+            "value": "DuoUpdater protokolliert hier die Anfragen, die es für dich stellt: Update-Prüfungen, Versionshinweise und eigene Downloads."
           }
         },
         "es": {
@@ -16007,7 +16079,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jeder Abruf, den DuoUpdater selbst durchführt: Update-Prüfungen, Versionshinweise und die Downloads, die es für Sie installiert."
+            "value": "Jeder Abruf, den DuoUpdater selbst durchführt: Update-Prüfungen, Versionshinweise und die Downloads, die es für dich installiert."
           }
         },
         "es": {
@@ -23630,7 +23702,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pas de point de restauration : certaines parties de cette app ne te sont pas lisibles (fréquent pour les apps installées via un .pkg, souvent détenues par root)."
+            "value": "Pas de point de restauration : certaines parties de cette app ne vous sont pas lisibles (fréquent pour les apps installées via un .pkg, souvent détenues par root)."
           }
         },
         "it": {
@@ -26177,7 +26249,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Programme d’installation de %@ %@ ouvert — termine l’opération là-bas."
+            "value": "Programme d’installation de %@ %@ ouvert — terminez l’opération là-bas."
           }
         },
         "it": {
@@ -42300,7 +42372,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ a téléchargé sa propre mise à jour et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quitte %@ toi-même quand tu veux prendre la leur."
+            "value": "%@ a téléchargé sa propre mise à jour et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quittez %@ vous-même quand vous voulez prendre la leur."
           }
         },
         "it": {

@@ -523,7 +523,7 @@ struct MenuContentView: View {
                 // A `fixedSize` button plus `maxWidth: .infinity` here serves the
                 // button its ideal first and hands the line exactly the rest,
                 // where `lineLimit` truncates instead of overflowing. Verified in
-                // all seven shipped languages: nothing truncates at realistic
+                // all eleven shipped languages: nothing truncates at realistic
                 // counts, and the four-digit case ends in an ellipsis inside the
                 // popover instead of over its edge. The tooltip carries the whole
                 // line either way.

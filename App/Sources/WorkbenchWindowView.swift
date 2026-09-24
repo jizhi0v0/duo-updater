@@ -538,8 +538,8 @@ struct WorkbenchWindowView: View {
     /// One tab: icon, title and count on one line when the row has room, otherwise
     /// icon and count on top with the title beneath. At the sidebar's 260 pt minimum
     /// a tab is ~75 pt wide inside the track. The widest title measured at caption
-    /// semibold is the German "Zurücksetzen", 69 pt; the stacked layout's scale
-    /// factor covers whatever is wider.
+    /// semibold is the German "Wiederherstellen", 86 pt; the stacked layout's 0.8
+    /// scale factor brings it to 69 pt, and covers whatever else is wider.
     private func tabButton(
         _ tab: SidebarTab, title: String, systemImage: String, count: Int, reservedCount: Int,
         shown: SidebarTab, stacked: Bool

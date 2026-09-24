@@ -29,8 +29,13 @@ public enum SourceStack {
             // above (the store can actually update it), and everything else — every
             // beta and RC, which only exist behind an Apple ID — lands here.
             XcodeReleasesSource(),
-            SparkleAppcastSource(),
+            // Homebrew ahead of Sparkle: an app brew installed is updated through
+            // brew, or the Caskroom keeps the old version and the next
+            // `brew upgrade` reinstalls what Sparkle already put there. It only
+            // answers for casks brew keeps current — not `auto_updates`, not an app
+            // brew did not install — so everything else still reaches Sparkle.
             HomebrewCaskSource(),
+            SparkleAppcastSource(),
             // GitHub Releases for apps distributed that way (detection only unless
             // a rule names an installable asset).
             GitHubReleasesSource(

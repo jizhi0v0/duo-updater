@@ -63,9 +63,11 @@ Apps are scanned from `/Applications`, `/Applications/Utilities`, and
    none, to avoid phantom updates).
 2. **Xcode Releases** — non-App-Store Xcode beta and RC builds, matched to the
    installed release channel.
-3. **Sparkle** — the app's own `SUFeedURL` appcast.
-4. **Homebrew Cask** — matched by `.app` filename, falling back to bundle id
-   (so `pkg`-only casks like AweSun are still found).
+3. **Homebrew Cask** — matched by `.app` filename, falling back to bundle id
+   (so `pkg`-only casks like AweSun are still found). Only for apps Homebrew
+   installed and keeps up to date (not `auto_updates` casks), so that updating
+   one does not leave `brew upgrade` to install the same release again.
+4. **Sparkle** — the app's own `SUFeedURL` appcast.
 5. **GitHub Releases** — channel-aware release/tag matching for apps distributed
    through GitHub, with installable assets only where an explicit rule vets one.
 6. **Alcove** — its authenticated update endpoint when the user has supplied a

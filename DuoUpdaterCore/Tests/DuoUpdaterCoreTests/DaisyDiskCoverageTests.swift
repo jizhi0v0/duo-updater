@@ -6,8 +6,8 @@ import Foundation
 /// `ChannelBinding`: its direct-download build ships a genuine `SUFeedURL` that
 /// the generic `SparkleAppcastSource` already resolves, so it is fully covered
 /// with zero registry entries. The Homebrew cask (`auto_updates: true`) makes
-/// `HomebrewCaskSource` skip it, but that never matters — Sparkle sits earlier
-/// in `SourceStack.make` and answers first. See
+/// `HomebrewCaskSource` decline it (`homebrewSourceDefersAutoUpdatingCask`), so
+/// the check falls through to Sparkle, which answers. See
 /// `docs/app-audits/com-daisydiskapp-DaisyDiskStandAlone.md` for the full audit;
 /// this file exists so a future change to the generic Sparkle pipeline can't
 /// silently regress this app back to `.unknown` without a test noticing.
@@ -45,17 +45,6 @@ private func daisyDiskApp(shortVersion: String, buildVersion: String) -> Install
 @Suite struct DaisyDiskCoverageTests {
     private var items: [SparkleAppcastItem] {
         SparkleAppcastParser.parse(Data(daisyDiskFeedFixture.utf8))
-    }
-
-    /// The premise the whole audit rests on: the cask is `auto_updates` and
-    /// `HomebrewCaskSource` declines it, so Sparkle has to be asked FIRST. Read
-    /// from the production stack rather than restated, so reordering it fails here.
-    @Test func sparkleIsAskedBeforeHomebrew() {
-        let names = SourceStack.make(githubToken: nil).map(\.name)
-        let sparkle = names.firstIndex(of: "Sparkle")
-        let homebrew = names.firstIndex(of: "Homebrew")
-        #expect(sparkle != nil && homebrew != nil, "stack: \(names)")
-        if let sparkle, let homebrew { #expect(sparkle < homebrew, "stack: \(names)") }
     }
 
     @Test func genericSparklePicksTheNewestRealRelease() {

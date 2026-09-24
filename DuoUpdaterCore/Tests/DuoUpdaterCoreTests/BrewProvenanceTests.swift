@@ -100,3 +100,25 @@ private func appNamed(_ filename: String) -> InstalledApp {
     #expect(remote?.shortVersion == "7.1.0")
     #expect(remote?.sourceIdentifier == "tableplus")
 }
+
+// MARK: - SourceStack order
+
+/// A brew-installed app that also carries a `SUFeedURL` must be answered by
+/// Homebrew, so Homebrew has to be asked before Sparkle. The other way round,
+/// Sparkle swaps the bundle in place, the Caskroom keeps the old version, and
+/// the next `brew upgrade` reinstalls the release the user already has —
+/// reproduced on 2026-09-24 with the `mos` cask (4.2.0 → 4.2.1 by Sparkle, then
+/// `brew upgrade` replaced the 4.2.1 bundle with 4.2.1). Read from the
+/// production stack rather than restated, so reordering it fails here.
+///
+/// Only the casks Homebrew actually keeps up to date move: `auto_updates` casks
+/// (`homebrewSourceDefersAutoUpdatingCask`) and apps brew did not install
+/// (`homebrewSourceSkipsAppNotInCaskroom`) still decline and fall through to
+/// Sparkle as before.
+@Test func homebrewIsAskedBeforeSparkle() {
+    let names = SourceStack.make(githubToken: nil).map(\.name)
+    let homebrew = names.firstIndex(of: "Homebrew")
+    let sparkle = names.firstIndex(of: "Sparkle")
+    #expect(homebrew != nil && sparkle != nil, "stack: \(names)")
+    if let homebrew, let sparkle { #expect(homebrew < sparkle, "stack: \(names)") }
+}

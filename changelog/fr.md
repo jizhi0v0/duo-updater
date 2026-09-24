@@ -2,6 +2,18 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.4.3
+
+**Les bêtas et versions candidates de Xcode se mettent désormais à jour en un clic.** Connectez-vous une fois à votre compte Apple Developer dans Réglages → Xcode, et DuoUpdater télécharge et installe les nouvelles bêtas et RC comme n'importe quelle autre mise à jour. Auparavant, il pouvait seulement vous signaler qu'une nouvelle version était sortie.
+
+**Installez n'importe quelle version de Xcode à côté de celles que vous avez.** Réglages → Xcode liste toutes les versions de Xcode, regroupées par version, avec le groupe de votre macOS déjà ouvert. « Installer » place celle que vous choisissez dans Applications comme une copie à part — par exemple Xcode-26.6.app — sans rien remplacer ; ou enregistrez seulement l'archive (.xip). Quand vous êtes connecté, la liste d'Apple elle-même est incluse, si bien que les nouvelles versions apparaissent en quelques minutes.
+
+**Votre connexion Apple Developer se maintient toute seule.** Apple met fin à une session développeur au bout d'environ huit heures ; DuoUpdater en obtient maintenant une nouvelle en arrière-plan — sans fenêtre ni mot de passe — tant qu'Apple reconnaît encore ce Mac. Vous pouvez désactiver cela dans Réglages → Xcode.
+
+**Les nouvelles versions de Xcode apparaissent plus tôt.** En semaine, aux heures où Apple publie habituellement, DuoUpdater cherche un nouveau Xcode toutes les cinq minutes.
+
+**Quelques apps fonctionnent de nouveau après des changements de leurs développeurs.** CapCut bêta et Superconductor nightly sont de nouveau trouvées et installées, et Superconductor garde son identité d'app actuelle. VLC 3.0.24 et JetBrains Air affichent de nouveau leurs notes de version.
+
 ## 0.4.2
 
 **Qoder CN IDE est désormais pris en charge.** L'édition pour la Chine continentale de l'IDE de Qoder a la vérification des mises à jour, l'installation en un clic et ses notes de version dans la fenêtre. Qoder CN, l'app de bureau, affiche aussi désormais ses notes de version.

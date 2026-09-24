@@ -80,7 +80,7 @@ func describe(_ f: FeedDiscovery.Finding) -> String {
         lines.append("   ADOPT     \(url.absoluteString)")
         switch p.family {
         case .electron:
-            lines.append("      electron-builder manifest — propose a VendorProbeRecipe over it")
+            lines.append("      (electron-builder manifest; ElectronManifestSource already resolves this app — no recipe)")
         default:
             lines.append("      SparkleFeedCatalog entry: \"\(id.lowercased())\": \(url.absoluteString)")
         }

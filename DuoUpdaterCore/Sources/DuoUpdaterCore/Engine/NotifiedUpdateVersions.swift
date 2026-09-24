@@ -154,11 +154,26 @@ public struct NotifiedUpdateVersions: Equatable, Sendable {
     /// passes are both swallowed, and after it only a genuinely unannounced build
     /// can match. Deliberately not time-limited, because an app that stops being
     /// actionable keeps its old entry indefinitely.
+    ///
+    /// The reverse also holds: an offer naming NO build is covered by any
+    /// announced build of the same marketing version. Muse has two sources for
+    /// one release — its Sparkle feed says "3.0 (1075746581)" when facebook.com
+    /// lets it through, the latest-download probe says "3.0" the rest of the time
+    /// — and `record` consuming the bare spelling made every hand-off from the
+    /// feed to the probe a fresh banner (2026-09-24). A build-less offer cannot
+    /// tell builds apart anyway, so this swallows nothing it could have
+    /// announced; an offer that does name a build is still matched exactly.
     public func wasAnnounced(_ offered: VersionSide?, under keys: [String]) -> Bool {
         let key = announceKeyAndLegacy(offered)
+        let anyBuildOf: String? = offered.flatMap { side in
+            guard side.build == nil || side.build == side.marketing,
+                  let marketing = side.marketing else { return nil }
+            return "\(marketing) ("
+        }
         return keys.contains { name in
             guard let stored = entries[name] else { return false }
             return stored.contains(key.exact) || (key.legacy.map(stored.contains) ?? false)
+                || (anyBuildOf.map { prefix in stored.contains { $0.hasPrefix(prefix) } } ?? false)
         }
     }
 

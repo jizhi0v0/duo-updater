@@ -211,10 +211,14 @@ private struct ReleaseRow: View {
 
     @ViewBuilder
     private var timing: some View {
-        if let published = event.event.publishedAt {
+        if let published = event.event.trustedPublishedAt {
             Text(published.formatted(date: .omitted, time: .shortened))
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 .help("Published \(published.formatted(date: .abbreviated, time: .standard))")
+        } else if event.event.publishedAfterDetection {
+            Text(event.event.detectedAt.formatted(date: .omitted, time: .shortened))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                .help(ReleaseTiming.futureDatedHelp(event.event))
         } else if let day = event.event.vendorDay {
             Text(day.formatted(ReleaseTiming.vendorDayStyle))
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
@@ -240,6 +244,15 @@ enum ReleaseTiming {
 
     static func vendorDayHelp(_ day: Date) -> String {
         String(localized: "Published on \(day.formatted(vendorDayStyle)) — the vendor gave only a date, not a time.")
+    }
+
+    /// A vendor `publishedAt` later than our first sighting is shown at
+    /// `detectedAt` instead (see `ReleaseEvent.publishedAfterDetection`); the
+    /// tooltip says so and keeps the vendor's claim visible.
+    static func futureDatedHelp(_ event: ReleaseEvent) -> String {
+        let detected = event.detectedAt.formatted(date: .abbreviated, time: .standard)
+        let claimed = (event.publishedAt ?? event.detectedAt).formatted(date: .abbreviated, time: .standard)
+        return String(localized: "Detected \(detected). The vendor dates this release \(claimed), after we had already seen it, so the detection time is shown instead.")
     }
 
     /// "≈ 2:00–6:00 PM" for a tight (≤36h) window, else "≈ within 3d".
@@ -407,9 +420,13 @@ private struct ReleasePatternsView: View {
                     Text(row.event.version)
                         .font(.callout).monospacedDigit()
                     Spacer()
-                    if let published = row.event.publishedAt {
+                    if let published = row.event.trustedPublishedAt {
                         Text(published.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    } else if row.event.publishedAfterDetection {
+                        Text(row.event.detectedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            .help(ReleaseTiming.futureDatedHelp(row.event))
                     } else if let day = row.event.vendorDay {
                         Text(day.formatted(ReleaseTiming.vendorDayStyle))
                             .font(.caption).foregroundStyle(.secondary).monospacedDigit()

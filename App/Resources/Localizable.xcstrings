@@ -29161,6 +29161,53 @@
         }
       }
     },
+    "Detected %@. The vendor dates this release %@, after we had already seen it, so the detection time is shown instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erkannt am %@. Der Anbieter datiert diese Version auf %@ – später, als wir sie bereits gesehen hatten –, daher wird der Erkennungszeitpunkt angezeigt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detected %@. The vendor dates this release %@, after we had already seen it, so the detection time is shown instead."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detectada el %@. El proveedor fecha esta versión el %@, después de que ya la hubiéramos visto, así que se muestra la hora de detección."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détectée le %@. L’éditeur date cette version du %@, après que nous l’avions déjà vue ; l’heure de détection est donc affichée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に検知。ベンダーはこのリリースの日付を %@ としていますが、検知より後の日時のため、検知時刻を表示しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обнаружено %@. Поставщик датирует этот выпуск %@ — позже, чем мы его увидели, поэтому показано время обнаружения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测于 %@。厂商给这个版本标的日期是 %@，晚于我们首次看到它的时间，所以改为显示检测时间。"
+          }
+        }
+      }
+    },
     "Releases appear here as the apps you track ship them": {
       "extractionState": "manual",
       "localizations": {

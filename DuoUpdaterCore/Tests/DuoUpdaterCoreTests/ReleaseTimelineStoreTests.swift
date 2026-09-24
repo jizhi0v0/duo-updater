@@ -349,3 +349,33 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     #expect(another)
     #expect(await relaunched.timeline(forAppID: id)?.events.count == 2)
 }
+
+/// A vendor `publishedAt` later than our first sighting (TinyWeb's feed dated
+/// 27.3.5 Oct 3 while serving it on Sep 24) is placed at `detectedAt` instead, so
+/// the Release Log doesn't show releases in the future. The raw vendor date stays
+/// the dedupe key: were it replaced by our own clock, every re-check would read as
+/// a new release.
+@Test func futureDatedReleaseIsPlacedAtDetectionAndStillDedupes() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/ZZFixture-FutureDated.app"
+    let first = await store.record(appID: id, appName: "ZZFixtureFutureDated", bundleID: nil,
+        version: "27.3.5", sourceName: "Sparkle", publishedAt: d3, detectedAt: d1)
+    let recheck = await store.record(appID: id, appName: "ZZFixtureFutureDated", bundleID: nil,
+        version: "27.3.5", sourceName: "Sparkle", publishedAt: d3, detectedAt: d2)
+    #expect(first)
+    #expect(!recheck)
+    let event = await store.timeline(forAppID: id)?.events.first
+    #expect(event?.publishedAt == d3)             // vendor's claim kept as recorded
+    #expect(event?.publishedAfterDetection == true)
+    #expect(event?.trustedPublishedAt == nil)
+    #expect(event?.timestamp == d1)               // shown at first sighting
+}
+
+/// The fallback only fires on a date that is actually after detection: a vendor
+/// time at or before our first sighting is believed as-is.
+@Test func publishTimeAtOrBeforeDetectionIsTrusted() {
+    let same = ReleaseEvent(version: "1", publishedAt: d2, detectedAt: d2, sourceName: "Sparkle")
+    let earlier = ReleaseEvent(version: "2", publishedAt: d1, detectedAt: d2, sourceName: "Sparkle")
+    #expect(!same.publishedAfterDetection && same.timestamp == d2)
+    #expect(!earlier.publishedAfterDetection && earlier.timestamp == d1)
+}

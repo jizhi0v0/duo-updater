@@ -111,3 +111,21 @@ private func event(_ day: Int, _ hour: Int, version: String) -> ReleaseEvent {
     #expect(stats.byHour[8] == 1)         // 08:00 local
     #expect(stats.byWeekday[4] == 1)      // Thursday
 }
+
+/// A vendor time later than our own first sighting can't be real — TinyWeb's
+/// feed stamps every build 15:30:08 +0700 on a date up to 9 days ahead. Plotting it would
+/// chart the vendor's made-up hour as a shipping habit, so it's left out, and
+/// `detectedAt` (our polling clock) is never plotted in its place.
+@Test func futureDatedPublishTimesAreExcluded() {
+    let honest = event(24, 17, version: "1")
+    let futureDated = ReleaseEvent(
+        version: "2",
+        publishedAt: utc.date(from: DateComponents(year: 2026, month: 6, day: 27, hour: 8))!,
+        detectedAt: utc.date(from: DateComponents(year: 2026, month: 6, day: 23, hour: 12))!,
+        sourceName: "Sparkle")
+    #expect(futureDated.publishedAfterDetection)
+    let stats = ReleaseStats(events: [honest, futureDated], calendar: utc)
+    #expect(stats.total == 1)
+    #expect(stats.byHour[8] == 0)        // the vendor's claimed hour
+    #expect(stats.byHour[12] == 0)       // nor our detection hour
+}

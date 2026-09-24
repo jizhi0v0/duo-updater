@@ -74,10 +74,30 @@ public struct ReleaseEvent: Codable, Sendable, Hashable {
     /// coarser than `publishedAt`), so it does NOT count as approximate here.
     public var isApproximate: Bool { estimatedRange != nil }
 
+    /// True when the vendor's `publishedAt` is later than our own first sighting
+    /// of the release — a date that cannot be true, since nothing is detected
+    /// before it ships. Measured 2026-09-24: TinyWeb's Sparkle feed stamps every
+    /// build `15:30:08 +0700` on a day that runs ahead of reality (27.3.5 dated
+    /// Oct 3 while being served on Sep 24; all 26 recorded releases lead their
+    /// `detectedAt`, by 18h up to 9 days), and TablePlus — same vendor — leads on
+    /// 9 of 34. The raw value stays stored: it is the dedupe key, and replacing it
+    /// with a clock of ours would re-record the release on every check.
+    public var publishedAfterDetection: Bool {
+        guard let publishedAt else { return false }
+        return publishedAt > detectedAt
+    }
+
+    /// `publishedAt` when it's believable, nil when it claims a moment after we
+    /// had already seen the release. What anything that treats the vendor time as
+    /// real (the feed's time label, the release-habits heatmap) must read.
+    public var trustedPublishedAt: Date? { publishedAfterDetection ? nil : publishedAt }
+
     /// The single instant to sort and place this event by: the real publish
     /// moment when known, else the vendor's day, else the end of the estimated
-    /// window (when we first saw it).
-    public var timestamp: Date { publishedAt ?? vendorDay ?? estimatedRange?.end ?? detectedAt }
+    /// window (when we first saw it). A `publishedAt` later than `detectedAt`
+    /// falls back to `detectedAt` — the latest moment the release can have
+    /// shipped — so a vendor's future-dated feed doesn't put it in the future.
+    public var timestamp: Date { trustedPublishedAt ?? vendorDay ?? estimatedRange?.end ?? detectedAt }
 }
 
 /// The release history we've accumulated for a single app, newest-published last.

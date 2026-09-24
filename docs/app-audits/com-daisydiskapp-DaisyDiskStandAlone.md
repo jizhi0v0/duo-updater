@@ -22,7 +22,7 @@
 | **stable（直装）** | ✓ 一键 | ✗（auto_updates）| — | — | —（不需要） |
 | **stable（MAS）**  | — | —  | ✓ | — | — |
 
-当前生效源: 直装版 **Sparkle**（`SourceStack.make` 里排在 HomebrewCask 之前，先应答）；
+当前生效源: 直装版 **Sparkle**（HomebrewCask 因 `auto_updates` 退让后由它应答；2026-09-24 起 HomebrewCask 排在 Sparkle 之前）；
 MAS 版 **App Store**（`MacAppStoreSource`，通用逻辑）。商店副本只有声明了
 `answersAppStoreCopies` 的源会作答，目前只有 `MacAppStoreSource`，由
 `SourceStorePolicyTests.exactlyOneSourceAnswersStoreCopies` 从注册表推导钉住。

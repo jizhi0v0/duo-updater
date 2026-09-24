@@ -183,6 +183,10 @@ import CryptoKit
     // When the nightly `duo verify` last resolved each recipe, per the committed
     // baseline. Unreadable means empty, which excuses nothing.
     let lastGood = committedLastGoodDates()
+    // How many recipes still timed out after their retry. A runner that lost its
+    // network times out everywhere, so `excusesVendorOutage` stops excusing
+    // timeouts once there are more than a handful.
+    let timedOutInSweep = targets.filter { isTimeout((results[$0] ?? nil)?.failure) }.count
 
     for key in targets {
         let outcome = results[key] ?? nil
@@ -231,7 +235,8 @@ import CryptoKit
                 ?? "no recipe applied"
             let message = "\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)"
             if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
-               excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt) {
+               excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt,
+                                   timedOutInSweep: timedOutInSweep) {
                 withKnownIssue("vendor outage on a recipe the nightly sweep resolved on \(lastGoodAt) — see excusesVendorOutage") {
                     Issue.record(Comment(rawValue: message))
                 }
@@ -254,8 +259,9 @@ import CryptoKit
 }
 
 /// Whether the live sweep above may report a miss as a known issue instead of
-/// failing: the vendor's version endpoint answered 5xx/429 (after the sweep's
-/// retry), AND the nightly sweep resolved this recipe within its infra window.
+/// failing: the vendor's version endpoint answered 5xx/429 or timed out (after
+/// the sweep's retry), AND the nightly sweep resolved this recipe within its
+/// infra window.
 ///
 /// The sweep is `test`, the check every PR needs to merge, and it probes vendors
 /// the PR did not touch. On 2026-09-17 Termius's beta feed answered 503
@@ -273,17 +279,39 @@ import CryptoKit
 /// The nightly counts it from the first unreachable sweep, this from the last
 /// good one, which is earlier — so this stops excusing no later than the nightly
 /// starts reporting the recipe as gone.
-/// A 4xx, a pattern that stopped matching, and transport errors — the
-/// runner's own network among them — are never excused. Neither is
-/// `installURLTransient`: `lastGoodAt` proves the version resolved, not the
-/// installer.
+/// A timeout (`URLError.timedOut`, -1001) is the one transport error excused.
+/// On 2026-09-24 WeChat DevTools' nightly and rc feeds on
+/// `devtools.wxqcloud.qq.com.cn` timed out on hosted runners on both attempts
+/// of run 35962546489 (PR #841, which touched no recipe), while the same URL
+/// answered 200 in under 0.2s from a Mac at the same time. A typo'd host is
+/// -1003, not a timeout, so this does not reopen that hole. The runner losing
+/// its network does time out, but everywhere at once. So timeouts are excused
+/// only while at most `maxExcusedTimeouts` recipes in the sweep hit one, and
+/// past that none are excused.
+///
+/// A 4xx, a pattern that stopped matching, and every other transport error are
+/// never excused. Neither is `installURLTransient`: `lastGoodAt` proves the
+/// version resolved, not the installer.
 func excusesVendorOutage(
-    _ failure: ProbeFailure?, lastGoodAt: Date?, now: Date = Date()
+    _ failure: ProbeFailure?, lastGoodAt: Date?, timedOutInSweep: Int, now: Date = Date()
 ) -> Bool {
-    guard case .httpStatus(let code)? = failure, VendorProbeSource.isTransientStatus(code),
-          let lastGoodAt
-    else { return false }
+    let transient: Bool
+    switch failure {
+    case .httpStatus(let code)?: transient = VendorProbeSource.isTransientStatus(code)
+    case let f? where isTimeout(f): transient = timedOutInSweep <= maxExcusedTimeouts
+    default: transient = false
+    }
+    guard transient, let lastGoodAt else { return false }
     return now.timeIntervalSince(lastGoodAt) < 5 * 24 * 60 * 60
+}
+
+/// More timeouts than this in one sweep reads as the runner's network, not a
+/// vendor's. The 2026-09-24 case was two: one host, two channels.
+let maxExcusedTimeouts = 3
+
+func isTimeout(_ failure: ProbeFailure?) -> Bool {
+    guard case .transport(let code, _)? = failure else { return false }
+    return code == URLError.timedOut.rawValue
 }
 
 /// `lastGoodAt` per recipe ID from the committed `verify/baseline.json`.
@@ -306,16 +334,27 @@ private func committedLastGoodDates() -> [String: Date] {
     let now = Date()
     let fresh = now.addingTimeInterval(-3_600)
     let stale = now.addingTimeInterval(-6 * 24 * 60 * 60)
-    #expect(excusesVendorOutage(.httpStatus(503), lastGoodAt: fresh, now: now))
-    #expect(excusesVendorOutage(.httpStatus(429), lastGoodAt: fresh, now: now))
-    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: nil, now: now),
+    #expect(excusesVendorOutage(.httpStatus(503), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(excusesVendorOutage(.httpStatus(429), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: nil, timedOutInSweep: 0, now: now),
             "a recipe the nightly never resolved has not shown it works")
-    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: stale, now: now),
+    #expect(!excusesVendorOutage(.httpStatus(503), lastGoodAt: stale, timedOutInSweep: 0, now: now),
             "past the infra window the nightly calls it gone")
-    #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, now: now))
-    #expect(!excusesVendorOutage(.versionPatternNoMatch(sampleBytes: 10), lastGoodAt: fresh, now: now))
-    #expect(!excusesVendorOutage(.transport(urlErrorCode: -1003, "host not found"), lastGoodAt: fresh, now: now))
-    #expect(!excusesVendorOutage(nil, lastGoodAt: fresh, now: now),
+    #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(!excusesVendorOutage(.versionPatternNoMatch(sampleBytes: 10), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(!excusesVendorOutage(.transport(urlErrorCode: -1003, "host not found"), lastGoodAt: fresh, timedOutInSweep: 0, now: now),
+            "a typo'd host is not a timeout")
+    // A timeout on a feed that recently worked is the vendor's route, not the recipe.
+    let timeout = ProbeFailure.transport(urlErrorCode: -1001, "The request timed out.")
+    #expect(excusesVendorOutage(timeout, lastGoodAt: fresh, timedOutInSweep: 2, now: now))
+    #expect(!excusesVendorOutage(timeout, lastGoodAt: nil, timedOutInSweep: 1, now: now),
+            "a recipe the nightly never resolved has not shown it works")
+    #expect(!excusesVendorOutage(timeout, lastGoodAt: stale, timedOutInSweep: 1, now: now),
+            "past the infra window the nightly calls it gone")
+    #expect(!excusesVendorOutage(timeout, lastGoodAt: fresh, timedOutInSweep: maxExcusedTimeouts + 1, now: now),
+            "the runner's network timing out everywhere must not pass the sweep")
+    #expect(!excusesVendorOutage(.transport(urlErrorCode: -1009, "offline"), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(!excusesVendorOutage(nil, lastGoodAt: fresh, timedOutInSweep: 0, now: now),
             "no failure means a detection-only fallback, which this does not cover")
 
     // The anchor has to be readable, or the excuse is dead code that fails closed.

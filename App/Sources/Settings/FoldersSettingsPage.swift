@@ -83,7 +83,9 @@ struct FoldersSettingsPage: View {
             Image(systemName: exists ? "folder.fill" : "folder.badge.questionmark")
                 .foregroundStyle(exists ? Color.accentColor : .orange)
             VStack(alignment: .leading, spacing: 1) {
-                Text(FileManager.default.displayName(atPath: path))
+                // displayName is documented to return the whole path when nothing is there.
+                Text(exists ? FileManager.default.displayName(atPath: path)
+                            : (path as NSString).lastPathComponent)
                 Text(path)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)

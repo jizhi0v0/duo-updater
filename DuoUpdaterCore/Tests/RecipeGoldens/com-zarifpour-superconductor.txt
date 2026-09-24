@@ -83,7 +83,7 @@ appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 1)
 channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)] = .artifact(_:)
-channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)].0 = "/nightly/Superconductor-nightly-[0-9a-f]{8}-arm64[^/]*\\.dmg$"
+channelProofs[ChannelProofKey(bundleID: "com.zarifpour.superconductor", channel: .nightly)].0 = "/nightly/(?:super\\.engineering|Superconductor)-nightly-[0-9a-f]{8}-arm64[^/]*\\.dmg$"
 
 githubChannelProofs = Dictionary(count: 0)
 

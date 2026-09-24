@@ -130,7 +130,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   stable（它 changelog 里的 #711），现在只有 nightly。`SuperconductorChannel`：`nightly` / 无记录 →
   `.nightly`，其他值 → 无配方的渠道（绝不推 nightly）。门控 = channel-gated VendorProbe（`latest.json`，
   pattern 全部锚在 `"nightly"` 对象里），一键 dmg，`ChannelProofRegistry` 登记
-  `.artifact(/nightly/Superconductor-nightly-<sha8>-arm64.dmg)`。版本是 commit hash，排序靠
+  `.artifact(/nightly/(super.engineering|Superconductor)-nightly-<sha8>-arm64<后缀>.dmg)`（2026-09-23 b4ff1a8d 起文件名前缀改成 `super.engineering-`）。版本是 commit hash，排序靠
   `BuildLineage`（`changelog.json`）。stable 重开时的待办见审计文档。
 
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）

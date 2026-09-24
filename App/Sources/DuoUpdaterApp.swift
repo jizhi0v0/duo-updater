@@ -215,11 +215,12 @@ private struct SettingsCommand: Commands {
 }
 
 /// Makes our `Window` scenes come to the Space the user is on instead of taking
-/// the user to theirs. ⌘W only orders a SwiftUI `Window` out — the same NSWindow is
-/// reused on the next open and stays tied to the Space it was last shown on, so
-/// opening Settings from another Space switched back to that one. Reported from use.
-/// `.moveToActiveSpace`: "When the window becomes active, move it to the active
-/// space instead of switching spaces" (NSWindow.CollectionBehavior docs).
+/// the user to theirs. Reported from use: open Settings on one Space, ⌘W, open it
+/// again from another — the screen switched back to the first Space. That the
+/// reopened window is the same NSWindow, still tied to its old Space, is inferred
+/// from that behavior, not traced. `.moveToActiveSpace` is Apple's documented
+/// answer: "When the window becomes active, move it to the active space instead of
+/// switching spaces" (developer.apple.com, NSWindow.CollectionBehavior).
 @MainActor
 private enum WindowSpaces {
     /// The scene ids of every `Window` in `DuoUpdaterApp`. Matched the same way as
@@ -246,7 +247,8 @@ private enum WindowSpaces {
     private static func apply(_ window: NSWindow) {
         guard let id = window.identifier?.rawValue,
               sceneIDs.contains(where: { id.contains($0) }),
-              // Mutually exclusive with `.moveToActiveSpace`; AppKit raises if both are set.
+              // Mutually exclusive with `.moveToActiveSpace`: measured on macOS 27, setting
+              // both throws NSInternalInconsistencyException from setCollectionBehavior.
               !window.collectionBehavior.contains(.canJoinAllSpaces)
         else { return }
         window.collectionBehavior.insert(.moveToActiveSpace)

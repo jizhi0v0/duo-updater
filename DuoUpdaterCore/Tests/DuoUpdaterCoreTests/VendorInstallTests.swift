@@ -359,8 +359,11 @@ struct BalrogTrack: Hashable {
 /// The active shutoffs, or nil if the list could not be read — which excuses
 /// nothing.
 func fetchBalrogShutoffs() async -> Set<BalrogTrack>? {
-    let url = URL(string: "https://aus-api.mozilla.org/api/v1/emergency_shutoff")!
-    guard let (data, response) = try? await URLSession.shared.data(from: url),
+    // Past our own cache: a lifted shutoff still listed would excuse a real break.
+    // (Mozilla sends `max-age=90`, so its CDN copy is at most that stale.)
+    var request = URLRequest(url: URL(string: "https://aus-api.mozilla.org/api/v1/emergency_shutoff")!)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    guard let (data, response) = try? await URLSession.shared.data(for: request),
           (response as? HTTPURLResponse)?.statusCode == 200
     else { return nil }
     return parseBalrogShutoffs(data)

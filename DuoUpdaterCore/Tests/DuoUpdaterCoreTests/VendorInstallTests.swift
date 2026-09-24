@@ -187,6 +187,8 @@ import CryptoKit
     // network times out everywhere, so `excusesVendorOutage` stops excusing
     // timeouts once there are more than a handful.
     let timedOutInSweep = targets.filter { isTimeout((results[$0] ?? nil)?.failure) }.count
+    // Balrog's emergency shutoffs, fetched at most once and only if needed.
+    var balrogShutoffs: Set<BalrogTrack>?
 
     for key in targets {
         let outcome = results[key] ?? nil
@@ -234,9 +236,18 @@ import CryptoKit
                 ?? outcome?.warnings.map(\.display).joined(separator: "; ")
                 ?? "no recipe applied"
             let message = "\(key) resolved no installer — \(why.isEmpty ? "no reason recorded" : why)"
+            // Asked only for a pattern miss on an AUS recipe, so the sweep adds a
+            // request only on the day it would otherwise fail.
+            var shutOff = false
+            if case .versionPatternNoMatch? = outcome?.failure,
+               let track = byKey[key].flatMap({ BalrogTrack(updateURL: $0.url) }) {
+                if balrogShutoffs == nil { balrogShutoffs = await fetchBalrogShutoffs() }
+                shutOff = balrogShutoffs?.contains(track) ?? false
+            }
             if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
                excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt,
-                                   timedOutInSweep: timedOutInSweep) {
+                                   timedOutInSweep: timedOutInSweep,
+                                   balrogShutoff: shutOff) {
                 withKnownIssue("vendor outage on a recipe the nightly sweep resolved on \(lastGoodAt) — see excusesVendorOutage") {
                     Issue.record(Comment(rawValue: message))
                 }
@@ -291,16 +302,25 @@ import CryptoKit
 /// every host at once. So timeouts are excused only while at most
 /// `maxExcusedTimeouts` recipes in the sweep hit one, and past that none are.
 ///
-/// A 4xx, a pattern that stopped matching, and every other transport error are
-/// never excused. Neither is `installURLTransient`: `lastGoodAt` proves the
+/// A pattern that stopped matching is excused only while Mozilla has an
+/// emergency shutoff on the recipe's own AUS product and channel
+/// (`balrogShutoff`). AUS then answers every anchor with an empty `<updates>`,
+/// which the fixed-anchor recipes read as a miss. On 2026-09-24 a Firefox
+/// `nightly` shutoff ("Bug 2075059: crashes") failed `test` on every PR, as a
+/// 13-hour one had on 2026-09-16 (PR #695).
+///
+/// A 4xx, any other pattern miss, and every other transport error are never
+/// excused. Neither is `installURLTransient`: `lastGoodAt` proves the
 /// version resolved, not the installer.
 func excusesVendorOutage(
-    _ failure: ProbeFailure?, lastGoodAt: Date?, timedOutInSweep: Int, now: Date = Date()
+    _ failure: ProbeFailure?, lastGoodAt: Date?, timedOutInSweep: Int,
+    balrogShutoff: Bool = false, now: Date = Date()
 ) -> Bool {
     let transient: Bool
     switch failure {
     case .httpStatus(let code)?: transient = VendorProbeSource.isTransientStatus(code)
     case let f? where isTimeout(f): transient = timedOutInSweep <= maxExcusedTimeouts
+    case .versionPatternNoMatch?: transient = balrogShutoff
     default: transient = false
     }
     guard transient, let lastGoodAt else { return false }
@@ -314,6 +334,50 @@ let maxExcusedTimeouts = 3
 func isTimeout(_ failure: ProbeFailure?) -> Bool {
     guard case .transport(let code, _)? = failure else { return false }
     return code == URLError.timedOut.rawValue
+}
+
+/// The product and channel of an AUS update request, which is what a Balrog
+/// emergency shutoff names. Only `aus5.mozilla.org`: that is the Balrog
+/// instance `aus-api.mozilla.org` reports on. Path shape:
+/// `/update/6/<product>/<version>/<buildID>/<target>/<locale>/<channel>/…`.
+struct BalrogTrack: Hashable {
+    let product: String
+    let channel: String
+
+    init(product: String, channel: String) {
+        self.product = product
+        self.channel = channel
+    }
+
+    init?(updateURL url: URL) {
+        let parts = url.pathComponents
+        guard url.host == "aus5.mozilla.org", parts.count > 8, parts[1] == "update" else { return nil }
+        self.init(product: parts[3], channel: parts[8])
+    }
+}
+
+/// The active shutoffs, or nil if the list could not be read — which excuses
+/// nothing.
+func fetchBalrogShutoffs() async -> Set<BalrogTrack>? {
+    // Past our own cache: a lifted shutoff still listed would excuse a real break.
+    // (Mozilla sends `max-age=90`, so its CDN copy is at most that stale.)
+    var request = URLRequest(url: URL(string: "https://aus-api.mozilla.org/api/v1/emergency_shutoff")!)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    guard let (data, response) = try? await URLSession.shared.data(for: request),
+          (response as? HTTPURLResponse)?.statusCode == 200
+    else { return nil }
+    return parseBalrogShutoffs(data)
+}
+
+func parseBalrogShutoffs(_ data: Data) -> Set<BalrogTrack>? {
+    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let rows = json["shutoffs"] as? [[String: Any]]
+    else { return nil }
+    return Set(rows.compactMap { row in
+        guard let product = row["product"] as? String, let channel = row["channel"] as? String
+        else { return nil }
+        return BalrogTrack(product: product, channel: channel)
+    })
 }
 
 /// `lastGoodAt` per recipe ID from the committed `verify/baseline.json`.
@@ -358,6 +422,15 @@ private func committedLastGoodDates() -> [String: Date] {
     #expect(!excusesVendorOutage(.transport(urlErrorCode: -1009, "offline"), lastGoodAt: fresh, timedOutInSweep: 0, now: now))
     #expect(!excusesVendorOutage(nil, lastGoodAt: fresh, timedOutInSweep: 0, now: now),
             "no failure means a detection-only fallback, which this does not cover")
+
+    // A pattern miss is excused only under a Mozilla shutoff, and still needs the anchor.
+    let miss = ProbeFailure.versionPatternNoMatch(sampleBytes: 42)
+    #expect(excusesVendorOutage(miss, lastGoodAt: fresh, timedOutInSweep: 0, balrogShutoff: true, now: now))
+    #expect(!excusesVendorOutage(miss, lastGoodAt: nil, timedOutInSweep: 0, balrogShutoff: true, now: now),
+            "a recipe the nightly never resolved has not shown it works")
+    #expect(!excusesVendorOutage(miss, lastGoodAt: stale, timedOutInSweep: 0, balrogShutoff: true, now: now))
+    #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, timedOutInSweep: 0, balrogShutoff: true, now: now),
+            "a shutoff answers 200 with an empty body, not a 4xx")
 
     // The anchor has to be readable, or the excuse is dead code that fails closed.
     // Only `vendor:` keys: the sweep looks up `ProbeOutcome.recipeID`, and the
@@ -1233,4 +1306,20 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
     // exactly like the real installers (#351, noted above). A change to the
     // shared gate ordering downstream of gate 3 will not be caught here, but IS
     // caught by `ArchitectureDowngradeWiringTests` in `ArchitectureGateTests.swift`.
+}
+
+/// The shutoff has to be matched against the recipe's real URL, or the excuse
+/// never fires: parse what the registry holds, not a hand-copied path.
+@Test func balrogShutoffMatchesTheNightlyRecipe() throws {
+    let nightly = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == "org.mozilla.nightly" && $0.channel == .nightly
+    })
+    #expect(BalrogTrack(updateURL: nightly.url) == BalrogTrack(product: "Firefox", channel: "nightly"))
+    #expect(BalrogTrack(updateURL: URL(string: "https://example.com/update/6/Firefox/1/2/3/4/nightly/x")!) == nil)
+
+    // The body Balrog served on 2026-09-24.
+    let body = Data(#"{"count":1,"shutoffs":[{"channel":"nightly","comment":"Bug 2075059: crashes","data_version":1,"product":"Firefox"}]}"#.utf8)
+    #expect(parseBalrogShutoffs(body) == [BalrogTrack(product: "Firefox", channel: "nightly")])
+    #expect(parseBalrogShutoffs(Data(#"{"count":0,"shutoffs":[]}"#.utf8)) == [])
+    #expect(parseBalrogShutoffs(Data("<html>".utf8)) == nil)
 }

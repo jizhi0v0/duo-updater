@@ -280,14 +280,16 @@ import CryptoKit
 /// good one, which is earlier — so this stops excusing no later than the nightly
 /// starts reporting the recipe as gone.
 /// A timeout (`URLError.timedOut`, -1001) is the one transport error excused.
-/// On 2026-09-24 WeChat DevTools' nightly and rc feeds on
-/// `devtools.wxqcloud.qq.com.cn` timed out on hosted runners on both attempts
-/// of run 35962546489 (PR #841, which touched no recipe), while the same URL
-/// answered 200 in under 0.2s from a Mac at the same time. A typo'd host is
-/// -1003, not a timeout, so this does not reopen that hole. The runner losing
-/// its network does time out, but everywhere at once. So timeouts are excused
-/// only while at most `maxExcusedTimeouts` recipes in the sweep hit one, and
-/// past that none are excused.
+/// On 2026-09-24 WeChat DevTools' feeds on `devtools.wxqcloud.qq.com.cn` timed
+/// out on hosted runners in run 35962546489 (PR #841, which touched no recipe):
+/// nightly and rc after their retry on attempt 1, nightly again on attempt 2.
+/// The same URL answered 200 in under 0.2s from a Mac at the same time. A
+/// typo'd host is -1003, not a timeout (measured with no proxy, as on a hosted
+/// runner — through a local proxy it can surface as -1200 instead), so this
+/// does not reopen that hole. A runner that lost its network may report -1009
+/// or -1003, never excused, or — if packets are dropped silently — time out on
+/// every host at once. So timeouts are excused only while at most
+/// `maxExcusedTimeouts` recipes in the sweep hit one, and past that none are.
 ///
 /// A 4xx, a pattern that stopped matching, and every other transport error are
 /// never excused. Neither is `installURLTransient`: `lastGoodAt` proves the

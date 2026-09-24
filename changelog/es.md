@@ -166,7 +166,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Una nueva compilación de una app que conserva el mismo nombre de versión se vuelve a anunciar.** Una vez anunciada una compilación, todas las posteriores con ese mismo nombre llegaban en silencio: la fila se encendía y el distintivo la contaba, pero nunca llegaba ningún aviso.
 
-**«Actualizar todo» ahora solo cuenta las apps que realmente se actualizaron.** Una app que abre el Instalador de Apple para que termines tú se contaba como hecha mientras su ventana seguía abierta, así que «se han actualizado 2 apps» podía significar que aún no había cambiado nada.
+**«Actualizar todo» ahora solo cuenta las apps que realmente se actualizaron.** Una app que abre el Instalador de Apple para que termines tú se contaba como hecha mientras su ventana seguía abierta, así que «2 apps se actualizaron» podía significar que aún no había cambiado nada.
 
 **Una actualización que llegó a su destino pero dejó un resto detrás ahora se informa como instalada, y no como «concede Gestión de apps».** La nueva versión ya estaba en marcha mientras la fila te enviaba a Ajustes del Sistema.
 
@@ -268,13 +268,13 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Las dos apps de Mac de Qoder ya se distinguen.** El IDE y la app de escritorio comparten nombre y página de descarga, pero salen en líneas de versión distintas, así que ahora cada una se sigue por su cuenta.
 
-**Las betas de WhatCable y de Yaak se siguen en su propio canal.** Una copia con una beta no tenía ninguna fuente y se quedaba en «Failed»; ahora se le ofrece la siguiente beta, con notas de versión separadas de las de las versiones finales. En WhatCable eso incluye además la versión final en la que acaba convirtiéndose una beta: aceptarla pasa la copia al canal final.
+**Las betas de WhatCable y de Yaak se siguen en su propio canal.** Una copia con una beta no tenía ninguna fuente y se quedaba en «Fallo»; ahora se le ofrece la siguiente beta, con notas de versión separadas de las de las versiones finales. En WhatCable eso incluye además la versión final en la que acaba convirtiéndose una beta: aceptarla pasa la copia al canal final.
 
 ## 0.3.85
 
 **Comprobar tus apps de la App Store gasta una fracción de la red que gastaba.** Cada comprobación volvía a pedir la página de producto de cada app de la App Store; ahora las páginas se conservan una hora y se pregunta a la tienda por todas tus apps en unas pocas peticiones en vez de una por app. Con un intervalo de comprobación de cinco minutos eso supone alrededor de un tercio menos de tráfico en total; con el intervalo por omisión de seis horas las páginas siguen caducando entre comprobaciones, así que ahí el ahorro es menor.
 
-**Volver a comprobar una sola app ya no vuelve a pedir todas las de la App Store.** Un solo «Check Again» descartaba todas las páginas de producto guardadas, de modo que la siguiente comprobación programada las pagaba todas; ahora solo actualiza la app por la que preguntaste.
+**Volver a comprobar una sola app ya no vuelve a pedir todas las de la App Store.** Un solo «Comprobar de nuevo» descartaba todas las páginas de producto guardadas, de modo que la siguiente comprobación programada las pagaba todas; ahora solo actualiza la app por la que preguntaste.
 
 **Comprobar apps que se distribuyen por GitHub cuesta una fracción de la red que costaba.** Cada comprobación volvía a descargar la descripción completa de cada versión aunque no se hubiera publicado nada; ahora se pregunta a GitHub si la versión ha cambiado desde la última vez y no se descarga nada si no. Una vez al día se relee cada versión entera, así que una versión retirada se nota en menos de un día.
 
@@ -287,23 +287,23 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 ## 0.3.84
 **Los registros de peticiones que exportas ya no llevan tu nombre de cuenta.** Cada fila de una app instalada en tu carpeta personal escribía la ruta completa; ahora muestra `~`, sea cual sea la forma en que extraigas el registro.
 
-**La pestaña «Requests» ahora dice qué incluye y qué no.** Registra las peticiones que hace el propio DuoUpdater. Una página de notas de versión carga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte: nada de eso aparece ahí, y ahora la ventana lo dice en vez de dejar que lo supongas.
+**La pestaña «Solicitudes» ahora dice qué incluye y qué no.** Registra las peticiones que hace el propio DuoUpdater. Una página de notas de versión carga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte: nada de eso aparece ahí, y ahora la ventana lo dice en vez de dejar que lo supongas.
 
-**«Copy URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
+**«Copiar URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
 
-**La fila beta de CapCut ya no informa de una comprobación fallida.** Entre una beta y la siguiente —cuando una pasa a versión final y la próxima aún no ha abierto— su fabricante no publica nada en ese canal. Eso aparecía como una fila roja y un «Retry» que no podía funcionar. Ahora la fila simplemente no tiene respuesta de esa fuente hasta que aparece la siguiente beta.
+**La fila beta de CapCut ya no informa de una comprobación fallida.** Entre una beta y la siguiente —cuando una pasa a versión final y la próxima aún no ha abierto— su fabricante no publica nada en ese canal. Eso aparecía como una fila roja y un «Reintentar» que no podía funcionar. Ahora la fila simplemente no tiene respuesta de esa fuente hasta que aparece la siguiente beta.
 
 **Audacity ahora muestra la marca que dice con qué está hecha.** Arranca mediante un pequeño lanzador que cede el paso al programa real que tiene al lado, y la marca se leía del lanzador, que no enlaza nada.
 
 **Las notas de versión de la App Store ahora llegan en tu idioma.** Siempre se obtenían en el idioma predeterminado de la tienda, así que un Mac configurado en chino o japonés las seguía leyendo en inglés.
 
-**Las actualizaciones del propio DuoUpdater ahora aparecen a su nombre en la ventana «Network».** Su comprobación de versión, sus notas de versión y su descarga figuraban con la columna de app vacía.
+**Las actualizaciones del propio DuoUpdater ahora aparecen a su nombre en la ventana «Red».** Su comprobación de versión, sus notas de versión y su descarga figuraban con la columna de app vacía.
 
 **Por dentro.** Una credencial incluida en la ruta de una dirección web se elimina ahora antes de registrar la petición, igual que ya ocurría con las de la cadena de consulta.
 
 ## 0.3.83
 
-**La ventana «Download Traffic» ahora se llama «Network» y tiene una segunda pestaña.** «Downloads» es el registro que ya tenía: lo que costó cada actualización como archivo. «Requests» es nuevo: cada petición que DuoUpdater hace por usted, para qué era, a qué app pertenecía y lo que costó, con un campo de filtro para preguntarle cosas al registro en lugar de recorrerlo. Las cifras de arriba responden a lo que tenga filtrado, no al total histórico.
+**La ventana «Download Traffic» ahora se llama «Red» y tiene una segunda pestaña.** «Descargas» es el registro que ya tenía: lo que costó cada actualización como archivo. «Solicitudes» es nuevo: cada petición que DuoUpdater hace por ti, para qué era, a qué app pertenecía y lo que costó, con un campo de filtro para preguntarle cosas al registro en lugar de recorrerlo. Las cifras de arriba responden a lo que tengas filtrado, no al total histórico.
 
 **Comprobar si Spotify tiene actualizaciones casi no usa red.** Spotify no publica ningún archivo de versión, así que la comprobación lee la versión de un instalador reducido de dos megabytes, y se lo descargaba entero cada vez, a todas horas. Ahora pregunta primero si ese archivo ha cambiado y se salta la descarga cuando no.
 
@@ -311,15 +311,15 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Las versiones preliminares de UTM ahora reciben sus propias actualizaciones, se instalan con un clic y muestran las notas correspondientes.** Antes una copia preliminar se comparaba con el canal final y se le decía, sin avisar, que estaba al día; ahora sigue su propia línea y vuelve al canal final en cuanto recibe la versión final de esa línea.
 
-**Por dentro.** Las peticiones registradas pasaron al mismo almacén que el registro de descargas, así que las dos cuentas de una misma descarga ya no pueden separarse. Su registro actual se conserva intacto.
+**Por dentro.** Las peticiones registradas pasaron al mismo almacén que el registro de descargas, así que las dos cuentas de una misma descarga ya no pueden separarse. Tu registro actual se conserva intacto.
 
 ## 0.3.82
 
-**Quince aplicaciones más están vigiladas, y todas menos una se instalan con un solo clic.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code —en sus dos canales, alpha y nightly— y Vorssaint. La excepción es ChatGPT Classic: lo comprobamos por usted, pero trae un instalador que actualiza la app por su cuenta, así que esa actualización sigue estando en sus manos.
+**Quince aplicaciones más están vigiladas, y todas menos una se instalan con un solo clic.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code —en sus dos canales, alpha y nightly— y Vorssaint. La excepción es ChatGPT Classic: lo comprobamos por ti, pero trae un instalador que actualiza la app por su cuenta, así que esa actualización sigue estando en tus manos.
 
-**Ocho aplicaciones muestran ahora sus notas de versión dentro de DuoUpdater en lugar de enviarle a una página web.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp y Helium. En tres de ellas no había adónde enviarle: la página de AnyDesk responde con una comprobación antibots, quienes hacen Helium no publican ninguna página de notas, y Antigravity IDE no tenía enlace alguno.
+**Ocho aplicaciones muestran ahora sus notas de versión dentro de DuoUpdater en lugar de enviarte a una página web.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp y Helium. En tres de ellas no había adónde enviarte: la página de AnyDesk responde con una comprobación antibots, quienes hacen Helium no publican ninguna página de notas, y Antigravity IDE no tenía enlace alguno.
 
-**Las betas de Xcode dicen qué cambió en cada beta.** Antes la fila ofrecía un número de compilación y un enlace; ahora enumera las notas de Apple para la beta que tiene instalada y para todas las betas anteriores de esa misma versión.
+**Las betas de Xcode dicen qué cambió en cada beta.** Antes la fila ofrecía un número de compilación y un enlace; ahora enumera las notas de Apple para la beta que tienes instalada y para todas las betas anteriores de esa misma versión.
 
 ## 0.3.81
 
@@ -341,7 +341,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Las comprobaciones fallidas ya se ven en la ventana.** La ventana no dibujaba nada para una fila cuya comprobación había fallado —ni para las que habías ignorado, aquellas cuya versión habías omitido, ni las que gestionan la App Store, Toolbox o TestFlight—, y eso se veía exactamente igual que «al día». Ahora las dos ventanas dicen lo mismo sobre la misma aplicación, y el botón para reintentar está en ambas.
 
-**«Check Again» consulta, en cualquier fila, solo esa aplicación.** De paso vuelve a leer qué aplicaciones están abiertas: es la forma más rápida de corregir un punto verde que parece equivocado.
+**«Comprobar de nuevo» consulta, en cualquier fila, solo esa aplicación.** De paso vuelve a leer qué aplicaciones están abiertas: es la forma más rápida de corregir un punto verde que parece equivocado.
 
 **Omitir una versión e ignorar una aplicación ahora se deshacen desde el menú contextual de la ventana.** Ambas filas pedían hacer clic derecho para deshacerlo, en una ventana cuyo menú no ofrecía nada de eso.
 
@@ -565,7 +565,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Un reabrir que macOS nunca puede responder ya no puede cuñar cada actualización posterior.** Servicios de lanzamiento ocasionalmente aceptan una solicitud para reabrir una app actualizada y luego nunca devuelven la llamada. La fila se quedó en «Reabriendo…» para siempre, su botón Reiniciar permaneció deshabilitado, y la actualización de DuoUpdater mismo esperó detrás. Un lanzamiento que no ha respondido después de un minuto ahora se libera como fallido, así que la fila se recupera y el resto del actualizador sigue funcionando.
 
-**Release Log permanece poblado cuando su barra de desplazamiento se arrastra rápidamente.** La pila perezosa anterior podía ser superada por un largo salto, dejando brevemente una ventana en blanco mientras las filas se creaban alrededor de la nueva posición. El registro ahora usa una lista de reciclaje que puede saltar directamente al destino. El control de actualización también mantiene la misma huella mientras cambia entre su flecha y spinner, así que la fila inferior ya no se retuerce cuando comienza una comprobación.
+**El Registro de versiones permanece poblado cuando su barra de desplazamiento se arrastra rápidamente.** La pila perezosa anterior podía ser superada por un largo salto, dejando brevemente una ventana en blanco mientras las filas se creaban alrededor de la nueva posición. El registro ahora usa una lista de reciclaje que puede saltar directamente al destino. El control de actualización también mantiene la misma huella mientras cambia entre su flecha y spinner, así que la fila inferior ya no se retuerce cuando comienza una comprobación.
 
 **Download Traffic ahora marca actualizaciones que usaron un parche binario.** Las nuevas descargas registran la ruta que realmente completó; no meramente si se ofreció un parche; y llevan un badge Delta en su historial. Las descargas de parche, inconfundiblemente más pequeñas, de 0.3.62 también se reconocen, aunque se registraron antes de que el libro mayor de tráfico tuviera un campo de ruta.
 
@@ -585,7 +585,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Una actualización que fue rechazada ahora se explica a sí misma en tu idioma.** Cuando algo más ya se está instalando: DuoUpdater trabajando a través de un lote, o `duo` en una terminal; la fila te lo dice. Ese mensaje era solo en inglés, en una ventana por lo demás traducida, y terminaba con un número de proceso: útil en una terminal, y nada sobre lo que puedas actuar en un menú. Ahora se traduce, y dice qué hacer en lugar de quién tiene el bloqueo. La herramienta de línea de comandos aún imprime el número de proceso, donde puedes hacer algo con ello.
 
-**La línea del patrón de versión, y su reloj, ahora siguen tu configuración regional.** Release Log → Patterns lo resumió todo como «Most often ships Friday, around 6 PM» («La mayoría de las veces se envía el viernes, alrededor de las 6 PM»). Los idiomas que conjugan los nombres de días no pueden decir eso con el día soltado en el medio de la oración, y obtenían la forma incorrecta de la palabra: el ruso decía «Чаще всего выходит пятница» donde necesita «по пятницам». Ahora es una etiqueta: «Pico: viernes, alrededor de las 6 PM», que es correcta en todas partes. La hora va con ello: si tu Mac escribe horas de reloj en un dial de 24 horas, así lo hace esto, en el eje del gráfico también.
+**La línea del patrón de versión, y su reloj, ahora siguen tu configuración regional.** Registro de versiones → Patrones lo resumió todo como «Most often ships Friday, around 6 PM» («La mayoría de las veces se envía el viernes, alrededor de las 6 PM»). Los idiomas que conjugan los nombres de días no pueden decir eso con el día soltado en el medio de la oración, y obtenían la forma incorrecta de la palabra: el ruso decía «Чаще всего выходит пятница» donde necesita «по пятницам». Ahora es una etiqueta: «Pico: viernes, alrededor de las 6 PM», que es correcta en todas partes. La hora va con ello: si tu Mac escribe horas de reloj en un dial de 24 horas, así lo hace esto, en el eje del gráfico también.
 
 **La búsqueda de Ajustes ahora entiende las palabras en tu pantalla.** El campo de búsqueda anterior a la barra lateral de ajustes coincidía con una lista de términos adicionales que fue escrita en inglés y nunca traducida, así que «rollback» llegaba a General mientras «Zurücksetzen» y «回滚» no llegaban a nada. Esos términos ahora existen en cada idioma que DuoUpdater habla. Los ingleses aún funcionan en cada idioma también, ya que la documentación de la que vienen está en inglés.
 
@@ -603,7 +603,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **El build registrado es el que realmente aterrizó, leído de la app misma una vez que la actualización está en su lugar.** No el número que el feed de actualización del desarrollador anunció; los feeds sí reportan mal, y de esta manera también funciona para los lugares que no publican ningún número de build en absoluto: GitHub, Homebrew y la App Store. Una actualización aún esperando en la ventana del instalador de macOS nunca se adivina; nada se registra para ello hasta que es real.
 
-**Una descarga que no cambió nada ahora se marca como tal.** Ocasionalmente una actualización obtiene e instala el build que ya estaba en tu Mac: un desajuste de número de versión del lado del desarrollador, un espejo sirviendo lo que ya tienes. Eso es ancho de banda real gastado sin resultado, y la ventana de tráfico es donde querrías verlo. Esas filas ahora llevan una etiqueta «sin cambio». Las descargas registradas antes de esta versión no tienen números de build para comparar, así que se dejan solas en lugar de adivinarse: lo desconocido no es lo mismo que lo inalterado.
+**Una descarga que no cambió nada ahora se marca como tal.** Ocasionalmente una actualización obtiene e instala el build que ya estaba en tu Mac: un desajuste de número de versión del lado del desarrollador, un espejo sirviendo lo que ya tienes. Eso es ancho de banda real gastado sin resultado, y la ventana de tráfico es donde querrías verlo. Esas filas ahora llevan una etiqueta «sin cambios». Las descargas registradas antes de esta versión no tienen números de build para comparar, así que se dejan solas en lugar de adivinarse: lo desconocido no es lo mismo que lo inalterado.
 
 ## 0.3.58
 

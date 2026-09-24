@@ -142,33 +142,33 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.93
 
-**Les notes de version s’affichent désormais dans ta langue quand une app les publie en plusieurs langues.** Certaines apps traduisent leurs notes à chaque publication ; DuoUpdater retenait celle que l’app citait en premier ou en dernier, si bien que les notes d’une app s’affichaient en allemand pour tout le monde et que celles d’une autre changeaient de langue d’une version à l’autre.
+**Les notes de version s’affichent désormais dans votre langue quand une app les publie en plusieurs langues.** Certaines apps traduisent leurs notes à chaque publication ; DuoUpdater retenait celle que l’app citait en premier ou en dernier, si bien que les notes d’une app s’affichaient en allemand pour tout le monde et que celles d’une autre changeaient de langue d’une version à l’autre.
 
-**Les apps qui ont ajouté une version Mac ne sont plus marquées « Non pris en charge sur ce Mac ».** Une app iPhone ou iPad que tu utilises sur Apple silicon était signalée à tort dès l’instant où son développeur publiait une véritable version Mac — le seul changement qui rend la mise à jour plus accessible, pas moins.
+**Les apps qui ont ajouté une version Mac ne sont plus marquées « Non pris en charge sur ce Mac ».** Une app iPhone ou iPad que vous utilisez sur Apple silicon était signalée à tort dès l’instant où son développeur publiait une véritable version Mac — le seul changement qui rend la mise à jour plus accessible, pas moins.
 
-**Une app de l’App Store que tu testes aussi en bêta n’est plus prise pour une version TestFlight.** Quand un développeur promouvait une bêta telle quelle, les deux portaient le même numéro de build et ta copie achetée était confiée à TestFlight — l’App Store ne pouvait donc jamais lui proposer de mise à jour.
+**Une app de l’App Store que vous testez aussi en bêta n’est plus prise pour une version TestFlight.** Quand un développeur promouvait une bêta telle quelle, les deux portaient le même numéro de build et votre copie achetée était confiée à TestFlight — l’App Store ne pouvait donc jamais lui proposer de mise à jour.
 
-**Une mise à jour de l’App Store qui exige un macOS plus récent que le tien le dit désormais.** Avant, la rangée proposait quand même de l’installer et l’App Store refusait à la dernière étape, sans rien afficher pour expliquer pourquoi.
+**Une mise à jour de l’App Store qui exige un macOS plus récent que le vôtre le dit désormais.** Avant, la rangée proposait quand même de l’installer et l’App Store refusait à la dernière étape, sans rien afficher pour expliquer pourquoi.
 
 **La fenêtre « Requêtes » indique désormais jusqu’où remonte réellement son journal, et signale les périodes qu’elle ne peut pas couvrir entièrement.** Avant, choisir « 30 derniers jours » sur un journal qui ne remontait qu’à quelques heures donnait exactement le même résultat que « Dernières 24 heures », sans rien à l’écran pour expliquer pourquoi.
 
-**Tu choisis ce que DuoUpdater fait des bêtas TestFlight, dans Réglages → Général.** « À l’actualisation » lit ce que TestFlight sait déjà et lui demande une réponse fraîche quand tu appuies sur le bouton d’actualisation ; « Garder à jour » laisse en plus DuoUpdater demander de lui-même, si bien qu’une bêta TestFlight installée en arrière-plan ne reste plus un point d’interrogation jusqu’à ta prochaine actualisation, et qu’un build qui t’attend ne passe plus inaperçu derrière un « à jour » ; « Désactivé » ne lit rien et l’indique sur ces rangées au lieu de deviner. Les Mac qui avaient déjà l’accès complet au disque démarrent sur « À l’actualisation », les autres sur « Désactivé ».
+**Vous choisissez ce que DuoUpdater fait des bêtas TestFlight, dans Réglages → Général.** « À l’actualisation » lit ce que TestFlight sait déjà et lui demande une réponse fraîche quand vous appuyez sur le bouton d’actualisation ; « Garder à jour » laisse en plus DuoUpdater demander de lui-même, si bien qu’une bêta TestFlight installée en arrière-plan ne reste plus un point d’interrogation jusqu’à votre prochaine actualisation, et qu’un build qui vous attend ne passe plus inaperçu derrière un « à jour » ; « Désactivé » ne lit rien et l’indique sur ces rangées au lieu de deviner. Les Mac qui avaient déjà l’accès complet au disque démarrent sur « À l’actualisation », les autres sur « Désactivé ».
 
-**Ouvrir TestFlight toi-même suffit désormais à ce que DuoUpdater remarque ce qu’il a installé.** Une bêta que tu installais via TestFlight restait un point d’interrogation jusqu’à l’actualisation suivante — et sur macOS 27, où l’avis « Prêt à tester » de TestFlight n’arrive plus pour les apps que tu as déjà, cela pouvait durer des heures.
+**Ouvrir TestFlight vous-même suffit désormais à ce que DuoUpdater remarque ce qu’il a installé.** Une bêta que vous installiez via TestFlight restait un point d’interrogation jusqu’à l’actualisation suivante — et sur macOS 27, où l’avis « Prêt à tester » de TestFlight n’arrive plus pour les apps que vous avez déjà, cela pouvait durer des heures.
 
 **Cline reçoit désormais ses mises à jour, sur sa version stable comme sur sa bêta, et affiche ses notes de version.** Jusqu’ici, sa rangée affichait un point d’interrogation au lieu d’une version : il ne publie aucun flux de mise à jour que DuoUpdater sache lire, et il n’existe pas de paquet Homebrew pour lui. DuoUpdater interroge maintenant la même adresse que l’outil de mise à jour de Cline, si bien que la mise à jour proposée est celle que Cline aurait installée lui-même, et la bêta reste sur la piste bêta.
 
 **Les notes de version qui regroupent les changements sous des titres comme « Added » ou « Fixed » conservent désormais ces titres.** Avant, tous les groupes étaient fondus en une seule liste, impossible de distinguer les nouveautés des corrections de bugs.
 
-**Mac Mouse Fix propose désormais ses bêtas si tu as activé « Get Beta Versions » dans ses propres réglages Général.** Avant, DuoUpdater ne voyait que les versions ordinaires de Mac Mouse Fix, et une bêta passait inaperçue jusqu’à la publication de la version ordinaire suivante.
+**Mac Mouse Fix propose désormais ses bêtas si vous avez activé « Get Beta Versions » dans ses propres réglages Général.** Avant, DuoUpdater ne voyait que les versions ordinaires de Mac Mouse Fix, et une bêta passait inaperçue jusqu’à la publication de la version ordinaire suivante.
 
 **Les apps dont le numéro de build est un simple compteur ne masquent plus leurs propres versions correctives.** Pour une app annonçant une version comme 12.10 avec le build 282987, une version 12.10.1 se lisait comme « déjà à jour ».
 
 **Un nouveau build d’une app qui garde le même nom de version est de nouveau annoncé.** Une fois qu’un build avait été annoncé, tous les suivants portant ce nom arrivaient en silence — la rangée s’allumait, la pastille les comptait, mais aucune bannière n’arrivait jamais.
 
-**« Tout mettre à jour » ne compte plus que les apps réellement mises à jour.** Une app qui ouvre le programme d’installation d’Apple pour que tu termines était comptée comme faite alors que sa fenêtre était encore ouverte, si bien que « 2 apps ont été mises à jour » pouvait ne rien vouloir dire.
+**« Tout mettre à jour » ne compte plus que les apps réellement mises à jour.** Une app qui ouvre le programme d’installation d’Apple pour que vous terminiez était comptée comme faite alors que sa fenêtre était encore ouverte, si bien que « 2 apps ont été mises à jour » pouvait ne rien vouloir dire.
 
-**Une mise à jour qui a abouti mais a laissé un résidu est désormais signalée comme installée, et non par une demande de « Gestion des applications ».** La nouvelle version tournait déjà pendant que la rangée t’envoyait dans les Réglages Système.
+**Une mise à jour qui a abouti mais a laissé un résidu est désormais signalée comme installée, et non par une demande de « Gestion des applications ».** La nouvelle version tournait déjà pendant que la rangée vous envoyait dans les Réglages Système.
 
 **Arrêter « Tout mettre à jour » arrête désormais le téléchargement en cours.** Avant, un transfert de plusieurs gigaoctets continuait jusqu’au bout, réessayait jusqu’à cinq fois, et ne s’apercevait qu’ensuite qu’il avait été annulé.
 
@@ -178,7 +178,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **La page « Diagnostic » affiche une ligne d’état par canal de publication.** Une règle bêta ou preview cassée se cachait jusqu’ici derrière sa voisine stable en bonne santé.
 
-**Une réponse « interdit » de GitHub n’est plus signalée comme une limite de requêtes.** Un dépôt devenu privé ou un jeton auquel il manque une autorisation t’incitait à ajouter un jeton qui n’aurait rien changé.
+**Une réponse « interdit » de GitHub n’est plus signalée comme une limite de requêtes.** Un dépôt devenu privé ou un jeton auquel il manque une autorisation vous incitait à ajouter un jeton qui n’aurait rien changé.
 
 **« Relancer » n’est plus proposé pour une app qui se met à jour elle-même quand le build en attente est plus ancien que celui qui tourne.**
 
@@ -202,15 +202,15 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.90
 
-**super.engineering est désormais pris en charge : vérification des mises à jour, notes de version et installation en un clic.** Un nouveau nightly apparaît avec ce qui y a changé, et « Mettre à jour » l’installe pour toi.
+**super.engineering est désormais pris en charge : vérification des mises à jour, notes de version et installation en un clic.** Un nouveau nightly apparaît avec ce qui y a changé, et « Mettre à jour » l’installe pour vous.
 
-**Microsoft Edge Beta pouvait te proposer un build stable d’Edge.** Pendant la brève période où le flux bêta de Microsoft était vide, la rangée indiquait une version stable, et mettre à jour l’aurait installée par-dessus ta bêta.
+**Microsoft Edge Beta pouvait vous proposer un build stable d’Edge.** Pendant la brève période où le flux bêta de Microsoft était vide, la rangée indiquait une version stable, et mettre à jour l’aurait installée par-dessus votre bêta.
 
-**Les bêtas TestFlight affichent désormais les mises à jour que TestFlight leur propose, y compris les bêtas d’apps iPhone et iPad.** Le bouton d’actualisation interroge TestFlight en arrière-plan, une mise à jour ne disparaît plus quelques minutes après que tu l’as trouvée, et le bouton TestFlight ouvre la page de cette bêta.
+**Les bêtas TestFlight affichent désormais les mises à jour que TestFlight leur propose, y compris les bêtas d’apps iPhone et iPad.** Le bouton d’actualisation interroge TestFlight en arrière-plan, une mise à jour ne disparaît plus quelques minutes après que vous l’avez trouvée, et le bouton TestFlight ouvre la page de cette bêta.
 
-**Quand DuoUpdater ne peut pas savoir si une bêta TestFlight est à jour, il le signale.** La rangée affiche un point d’interrogation au lieu de la présenter comme à jour — par exemple quand tu t’es déconnecté de TestFlight ou que tu ne testes plus cette bêta.
+**Quand DuoUpdater ne peut pas savoir si une bêta TestFlight est à jour, il le signale.** La rangée affiche un point d’interrogation au lieu de la présenter comme à jour — par exemple quand vous vous êtes déconnecté de TestFlight ou que vous ne testez plus cette bêta.
 
-**L’accès complet au disque est désormais expliqué, et plus rien ne t’importune sans lui.** Sans cet accès, DuoUpdater ne déclenche plus les avertissements de macOS sur la lecture des données d’autres apps ; si une bêta TestFlight ou CotEditor en a besoin, il t’explique une seule fois pourquoi et où l’accorder.
+**L’accès complet au disque est désormais expliqué, et plus rien ne vous importune sans lui.** Sans cet accès, DuoUpdater ne déclenche plus les avertissements de macOS sur la lecture des données d’autres apps ; si une bêta TestFlight ou CotEditor en a besoin, il vous explique une seule fois pourquoi et où l’accorder.
 
 **« Relancer » disparaît dès qu’une app mise à jour a été quittée.** Une app qui laissait tourner un processus auxiliaire continuait de demander à être relancée longtemps après que sa mise à jour avait pris effet.
 
@@ -218,7 +218,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les notes de version de Rockxy et d’Ollama sont de nouveau complètes.** Celles de Rockxy remontent le fil de ses versions récentes au lieu de s’en tenir à la plus récente, et la dernière version d’Ollama n’est plus laissée de côté.
 
-**`duo`, le compagnon optionnel en ligne de commande, gère mieux TestFlight.** `--refresh-testflight` fonctionne que TestFlight soit ouvert ou non, sans s’emparer de ton écran, et `duo check` ne dit plus qu’une bêta est à jour quand TestFlight a annoncé un build plus récent.
+**`duo`, le compagnon optionnel en ligne de commande, gère mieux TestFlight.** `--refresh-testflight` fonctionne que TestFlight soit ouvert ou non, sans s’emparer de votre écran, et `duo check` ne dit plus qu’une bêta est à jour quand TestFlight a annoncé un build plus récent.
 
 ## 0.3.89
 
@@ -228,21 +228,21 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Une bêta TestFlight porte l’icône de TestFlight lui-même.** Les rangées dont s’occupe l’App Store portaient déjà l’icône du store ; celles dont s’occupe TestFlight en écrivaient le nom en toutes lettres, si bien que le même genre de rangée était signalé de deux façons différentes.
 
-**L’en-tête de la fenêtre Réseau ne bouge plus quand tu changes d’onglet.** Ses deux onglets plaçaient leur titre à des hauteurs légèrement différentes, de sorte que passer de l’un à l’autre donnait l’impression que la fenêtre tressautait.
+**L’en-tête de la fenêtre Réseau ne bouge plus quand vous changez d’onglet.** Ses deux onglets plaçaient leur titre à des hauteurs légèrement différentes, de sorte que passer de l’un à l’autre donnait l’impression que la fenêtre tressautait.
 
 ## 0.3.88
 
 **Le défilement de toute la liste des apps est de nouveau fluide.** Un défilement rapide dans la liste complète perdait des images ; chaque ligne indique désormais sa hauteur sans devoir être construite d’abord.
 
-**Les notes de version d’une app de l’App Store viennent maintenant toujours de l’App Store.** Quand la recherche du store pour une app n’aboutissait pas ou échouait, la fenêtre pouvait se rabattre sur les notes de l’autre canal de distribution de cette app — une autre version, avec ses propres numéros — et décrivait donc une publication que ta copie n’allait jamais recevoir.
+**Les notes de version d’une app de l’App Store viennent maintenant toujours de l’App Store.** Quand la recherche du store pour une app n’aboutissait pas ou échouait, la fenêtre pouvait se rabattre sur les notes de l’autre canal de distribution de cette app — une autre version, avec ses propres numéros — et décrivait donc une publication que votre copie n’allait jamais recevoir.
 
-**Windscribe sur son canal Beta ou Guinea Pig se voit proposer les versions de ce canal.** DuoUpdater lit le canal de mise à jour que tu as choisi dans les réglages de Windscribe, si bien qu’une copie suivant une ligne de préversion ne s’entend plus dire qu’elle est à jour alors que cette ligne a du plus récent. La fenêtre affiche aussi les notes de ces préversions, qu’elle ne listait auparavant que pour les versions stables.
+**Windscribe sur son canal Beta ou Guinea Pig se voit proposer les versions de ce canal.** DuoUpdater lit le canal de mise à jour que vous avez choisi dans les réglages de Windscribe, si bien qu’une copie suivant une ligne de préversion ne s’entend plus dire qu’elle est à jour alors que cette ligne a du plus récent. La fenêtre affiche aussi les notes de ces préversions, qu’elle ne listait auparavant que pour les versions stables.
 
 **Windscribe est désormais suivi pour les mises à jour, avec ses notes de version.** Une copie sur une version ancienne est listée avec la version vers laquelle elle peut aller et ce qui y a changé ; auparavant, DuoUpdater n’avait aucun moyen de voir la version de Windscribe. La mise à jour passe toujours par l’installateur de Windscribe, qui configure aussi des éléments situés hors de l’app.
 
-**Une mise à jour n’est plus appliquée à une app qui a disparu pendant que tu cliquais.** Si l’app est désinstallée, remplacée ou devient illisible entre le clic et le début de l’installation, DuoUpdater s’arrête et le dit, au lieu d’installer quand même à cet emplacement.
+**Une mise à jour n’est plus appliquée à une app qui a disparu pendant que vous cliquiez.** Si l’app est désinstallée, remplacée ou devient illisible entre le clic et le début de l’installation, DuoUpdater s’arrête et le dit, au lieu d’installer quand même à cet emplacement.
 
-**`duo`, le compagnon optionnel en ligne de commande, ne dit plus qu’une installation par paquet est terminée avant qu’elle le soit.** Installer une app livrée en `.pkg` ouvre l’installateur de macOS et te laisse la suite, mais le récapitulatif la comptait comme installée — « 1 installed » alors que rien n’avait encore été remplacé. Les deux sont maintenant comptés séparément. Sa sortie `--json` étiquette également chaque ligne avec ce qui est arrivé à cette app, si bien qu’un script n’a plus besoin de lire l’explication en anglais pour distinguer un échec d’un saut délibéré.
+**`duo`, le compagnon optionnel en ligne de commande, ne dit plus qu’une installation par paquet est terminée avant qu’elle le soit.** Installer une app livrée en `.pkg` ouvre l’installateur de macOS et vous laisse la suite, mais le récapitulatif la comptait comme installée — « 1 installed » alors que rien n’avait encore été remplacé. Les deux sont maintenant comptés séparément. Sa sortie `--json` étiquette également chaque ligne avec ce qui est arrivé à cette app, si bien qu’un script n’a plus besoin de lire l’explication en anglais pour distinguer un échec d’un saut délibéré.
 
 **Sous le capot.** La revérification juste avant l’installation qui protège une mise à jour en un clic protège maintenant aussi `duo install` ; et les contrôles qu’un téléchargement doit passer avant de remplacer une app tiennent en un seul endroit pour les deux chemins qui s’en servent.
 
@@ -268,13 +268,13 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les deux apps Mac de Qoder sont désormais distinguées.** L’IDE et l’app de bureau partagent un nom et une page de téléchargement mais paraissent sur des lignes de versions séparées ; chacune est maintenant suivie pour elle-même.
 
-**Les versions beta de WhatCable et de Yaak sont suivies sur leur propre canal.** Une copie exécutant une beta n’avait aucune source et restait sur « Failed » ; la beta suivante lui est désormais proposée, avec des notes de version distinctes de celles des versions finales. Pour WhatCable, cela inclut aussi la version finale en laquelle une beta finit par passer — l’accepter fait basculer la copie sur le canal final.
+**Les versions beta de WhatCable et de Yaak sont suivies sur leur propre canal.** Une copie exécutant une beta n’avait aucune source et restait sur « Échec » ; la beta suivante lui est désormais proposée, avec des notes de version distinctes de celles des versions finales. Pour WhatCable, cela inclut aussi la version finale en laquelle une beta finit par passer — l’accepter fait basculer la copie sur le canal final.
 
 ## 0.3.85
 
 **Vérifier vos apps de l’App Store consomme une fraction du réseau qu’elle consommait.** Chaque vérification redemandait la page produit de chaque app de l’App Store ; les pages sont désormais conservées une heure et la boutique est interrogée sur toutes vos apps en quelques requêtes au lieu d’une par app. Avec un intervalle de vérification de cinq minutes, cela représente environ un tiers de trafic en moins au total ; avec l’intervalle par défaut de six heures, les pages expirent toujours entre deux vérifications, l’économie y est donc moindre.
 
-**Revérifier une seule app ne recharge plus toutes les apps de l’App Store.** Un simple « Check Again » jetait toutes les pages produit conservées, si bien que la vérification planifiée suivante les payait toutes ; il n’actualise désormais que l’app sur laquelle vous avez cliqué.
+**Revérifier une seule app ne recharge plus toutes les apps de l’App Store.** Un simple « Vérifier à nouveau » jetait toutes les pages produit conservées, si bien que la vérification planifiée suivante les payait toutes ; il n’actualise désormais que l’app sur laquelle vous avez cliqué.
 
 **Vérifier les apps distribuées via GitHub coûte une fraction du réseau que cela coûtait.** Chaque vérification retéléchargeait la description complète de chaque version même quand rien n’avait été publié ; GitHub est désormais interrogé pour savoir si la version a changé depuis la dernière fois, et rien n’est téléchargé si ce n’est pas le cas. Une fois par jour, chaque version est relue intégralement, de sorte qu’une version retirée est remarquée en moins d’un jour.
 
@@ -287,23 +287,23 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 ## 0.3.84
 **Les journaux de requêtes que vous exportez ne contiennent plus votre nom de compte.** Pour une app installée dans votre dossier personnel, chaque ligne indiquait le chemin complet ; elle affiche désormais `~`, quelle que soit la façon dont vous sortez le journal.
 
-**L’onglet « Requests » indique désormais ce qu’il couvre et ce qu’il ne couvre pas.** Il enregistre les requêtes que DuoUpdater effectue lui-même. Une page de notes de version charge ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts : rien de tout cela n’y figure, et la fenêtre le dit maintenant au lieu de vous laisser le supposer.
+**L’onglet « Requêtes » indique désormais ce qu’il couvre et ce qu’il ne couvre pas.** Il enregistre les requêtes que DuoUpdater effectue lui-même. Une page de notes de version charge ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts : rien de tout cela n’y figure, et la fenêtre le dit maintenant au lieu de vous laisser le supposer.
 
-**« Copy URL » échappe désormais l’adresse qu’elle vous donne.** Les chemins comportant une espace — ceux des téléchargements de Firefox, Thunderbird et Bartender, entre autres — étaient copiés tels quels : un navigateur le corrige, la ligne de commande non.
+**« Copier l’URL » échappe désormais l’adresse qu’elle vous donne.** Les chemins comportant une espace — ceux des téléchargements de Firefox, Thunderbird et Bartender, entre autres — étaient copiés tels quels : un navigateur le corrige, la ligne de commande non.
 
-**La ligne beta de CapCut ne signale plus une vérification en échec.** Entre deux betas — une fois l’une passée en version finale et avant que la suivante n’ouvre — son éditeur ne publie rien sur ce canal. Cela apparaissait comme une ligne rouge et un « Retry » qui ne pouvait pas aboutir. La ligne n’a désormais simplement pas de réponse de cette source, jusqu’à l’arrivée de la beta suivante.
+**La ligne beta de CapCut ne signale plus une vérification en échec.** Entre deux betas — une fois l’une passée en version finale et avant que la suivante n’ouvre — son éditeur ne publie rien sur ce canal. Cela apparaissait comme une ligne rouge et un « Réessayer » qui ne pouvait pas aboutir. La ligne n’a désormais simplement pas de réponse de cette source, jusqu’à l’arrivée de la beta suivante.
 
 **Audacity affiche désormais la marque indiquant avec quoi elle est conçue.** Elle démarre par un petit lanceur qui passe la main au vrai programme placé à côté, et la marque était lue sur le lanceur, qui ne lie rien du tout.
 
 **Les notes de version de l’App Store arrivent maintenant dans votre langue.** Elles étaient toujours récupérées dans la langue par défaut de la boutique, si bien qu’un Mac en chinois ou en japonais les lisait toujours en anglais.
 
-**Les mises à jour de DuoUpdater lui-même apparaissent maintenant à son nom dans la fenêtre « Network ».** Sa vérification de version, ses notes de version et son téléchargement y figuraient avec une colonne d’app vide.
+**Les mises à jour de DuoUpdater lui-même apparaissent maintenant à son nom dans la fenêtre « Réseau ».** Sa vérification de version, ses notes de version et son téléchargement y figuraient avec une colonne d’app vide.
 
 **Sous le capot.** Un identifiant présent dans le chemin d’une adresse web est désormais retiré avant l’enregistrement de la requête, comme l’était déjà celui d’une chaîne de requête.
 
 ## 0.3.83
 
-**La fenêtre « Download Traffic » s’appelle désormais « Network » et comporte un second onglet.** « Downloads », c’est le relevé que vous aviez déjà : ce que chaque mise à jour a coûté en tant que fichier. « Requests » est nouveau : chaque requête que DuoUpdater effectue pour vous, son objet, l’app à laquelle elle se rattache et ce qu’elle a coûté, avec un champ de filtre pour interroger le journal plutôt que le faire défiler. Les chiffres du haut répondent à ce que vous avez filtré, pas au total de toujours.
+**La fenêtre « Download Traffic » s’appelle désormais « Réseau » et comporte un second onglet.** « Téléchargements », c’est le relevé que vous aviez déjà : ce que chaque mise à jour a coûté en tant que fichier. « Requêtes » est nouveau : chaque requête que DuoUpdater effectue pour vous, son objet, l’app à laquelle elle se rattache et ce qu’elle a coûté, avec un champ de filtre pour interroger le journal plutôt que le faire défiler. Les chiffres du haut répondent à ce que vous avez filtré, pas au total de toujours.
 
 **Vérifier les mises à jour de Spotify ne consomme presque plus de réseau.** Spotify ne publie aucun fichier de version, la vérification lit donc le numéro dans un installeur allégé de deux mégaoctets — et le téléchargeait en entier à chaque fois, jour et nuit. Elle demande maintenant si ce fichier a changé et ne le télécharge pas quand ce n’est pas le cas.
 
@@ -341,7 +341,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les vérifications en échec sont désormais visibles dans la fenêtre.** La fenêtre n’affichait rien pour une ligne dont la vérification avait échoué — ni pour celles que vous aviez ignorées, celles dont vous aviez passé la version, ni celles gérées par l’App Store, Toolbox ou TestFlight. Cela ressemblait exactement à « à jour ». Les deux fenêtres disent maintenant la même chose de la même application, et le bouton de nouvelle tentative existe des deux côtés.
 
-**« Check Again » interroge, sur n’importe quelle ligne, cette seule application.** La liste des applications en cours d’exécution est relue au passage : c’est le moyen le plus rapide de corriger un point vert qui semble faux.
+**« Vérifier à nouveau » interroge, sur n’importe quelle ligne, cette seule application.** La liste des applications en cours d’exécution est relue au passage : c’est le moyen le plus rapide de corriger un point vert qui semble faux.
 
 **Passer une version et ignorer une application s’annulent maintenant depuis le menu contextuel de la fenêtre.** Les deux lignes invitaient à faire un clic droit pour annuler, dans une fenêtre dont le menu ne proposait rien de tel.
 
@@ -451,7 +451,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **百度网盘 est suivi maintenant — nouvelles versions, mises à jour en un clic et ses notes de version dans la fenêtre.** Aucune des routes habituelles n’était ouverte. Il ne publie pas de flux Sparkle ; le cask Homebrew ne peut pas parler d’une copie installée manuellement ; et le manifeste de mise à jour que son propre bundle nomme est devenu inaccessible — ce fichier, son jumeau arm64 et le répertoire qui les contient tous répondent 404. Donc DuoUpdater lit le point de terminaison que la page de téléchargement du fournisseur elle-même utilise, et installe l’image disque notariée arm64 nommée dans cette même réponse. Ses notes de version arrivent de la même manière : la page « 版本更新 » a un onglet Mac版, mais la page elle-même est expédiée vide et se remplit à partir d’une API, donc DuoUpdater lit cette API directement et affiche les quarante dernières versions dans sa propre fenêtre. Une limite qui vaut la peine de préciser clairement : ce flux publie la version que vous voyez et jamais le numéro de version sous-jacent, donc une réimpression d’une version qui conserve son nom est invisible ici. Il ne peut pas inventer une mise à jour qui n’existe pas — il ne peut tout simplement pas voir ce type.
 
-**Une vérification qui a échoué dit maintenant qu’elle a échoué, au lieu d’afficher un tiret vide.** Une application dont la version ne peut être répondue que par le point de terminaison propre du fournisseur avait une façon de dire « pas de réponse » : un tiret vide — ce à quoi ressemble aussi une application que rien ne couvre. Donc un délai d’expiration d’un point de terminaison du fournisseur, ou son déplacement, se lit exactement comme « DuoUpdater ne suit pas cette application » — un verdict permanent, sans bouton Réessayer et rien dans le décompte « les applications n’ont pas pu être vérifiées ». Ce sont maintenant une vérification échouée, c’est ce qu’elles sont : un bouton Réessayer, une place dans le décompte et la raison nommée. Délibérément pas tout : une condition face à laquelle votre Mac ne peut tout simplement rien faire — pas de recette pour la piste de version sur laquelle vous vous trouvez, un point de terminaison qui a besoin d’une identité que cette machine n’a pas — reste le tiret silencieux qu’il a toujours été, et une vérification qui a échoué trois tours de suite sort toujours de la bannière plutôt que de l’épingler pour toujours. Une application que JetBrains Toolbox installe conserve également son bouton « ouvrir Toolbox » quand la version derrière elle échoue à se lire, puisque l’ouverture de Toolbox était la réponse de toute façon.
+**Une vérification qui a échoué dit maintenant qu’elle a échoué, au lieu d’afficher un tiret vide.** Une application dont la version ne peut être répondue que par le point de terminaison propre du fournisseur avait une façon de dire « pas de réponse » : un tiret vide — ce à quoi ressemble aussi une application que rien ne couvre. Donc un délai d’expiration d’un point de terminaison du fournisseur, ou son déplacement, se lit exactement comme « DuoUpdater ne suit pas cette application » — un verdict permanent, sans bouton Réessayer et rien dans le décompte « les apps n’ont pas pu être vérifiées ». Ce sont maintenant une vérification échouée, c’est ce qu’elles sont : un bouton Réessayer, une place dans le décompte et la raison nommée. Délibérément pas tout : une condition face à laquelle votre Mac ne peut tout simplement rien faire — pas de recette pour la piste de version sur laquelle vous vous trouvez, un point de terminaison qui a besoin d’une identité que cette machine n’a pas — reste le tiret silencieux qu’il a toujours été, et une vérification qui a échoué trois tours de suite sort toujours de la bannière plutôt que de l’épingler pour toujours. Une application que JetBrains Toolbox installe conserve également son bouton « ouvrir Toolbox » quand la version derrière elle échoue à se lire, puisque l’ouverture de Toolbox était la réponse de toute façon.
 
 **Le rappel « relancer pour l’appliquer » disparaît maintenant une fois que vous avez relancé.** Quand le propre programme de mise à jour d’une application a téléchargé une version en arrière-plan, DuoUpdater vous l’a dit et a offert un bouton Relancer sur la notification. Le prendre a fonctionné — l’application est revenue sur la nouvelle version et a dit « 1.0 est maintenant en cours d’exécution. » — mais le rappel qu’il a remplacé est resté dans le Centre de notifications en dessous, vous demandant toujours de relancer quelque chose que vous aviez juste relancé. DuoUpdater observait pour que le rappel *cesse* d’être pertinent, et le moment où il a vérifié était le seul moment déjà pris en compte. Il supprime maintenant le rappel chaque fois qu’il n’y a pas de relance en attente, ce qui efface aussi celui laissé par une application qui a appliqué sa propre mise à jour pendant que DuoUpdater n’était pas en cours d’exécution.
 
@@ -493,7 +493,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les notes de version d’une formule Homebrew suivent la version à laquelle elles appartiennent.** Les notes étaient mémorisées par formule et jamais par version, donc une fois que les notes d’une formule avaient été chargées, chaque consultation ultérieure se voyait servir les notes de cette première version pour le reste de la session — y compris après l’apparition d’une version plus récente. Les lire occupait aussi la file d’attente sur laquelle le reste de la liste des formules patientait, donc un lent `brew info` pourrait bloquer la liste autour d’elle.
 
-**Clic droit sur une application dans la barre latérale de l’établi pour l’ouvrir.** Le même Open que les rangées de la barre de menu ont toujours offert, dans la fenêtre où vous êtes plus susceptible de le vouloir.
+**Clic droit sur une application dans la barre latérale de l’établi pour l’ouvrir.** Le même Ouvrir que les rangées de la barre de menu ont toujours offert, dans la fenêtre où vous êtes plus susceptible de le vouloir.
 
 **Jeter un installateur téléchargé prend l’erreur qu’il a laissée derrière lui avec lui.** Jeter un paquet mis en scène l’a déjà remis à Mettre à jour, mais un échec rouge issu de la tentative que vous veniez d’annuler restait affiché dessus — et rien ne l’aurait jamais effacé, puisqu’une erreur n’est retirée qu’une fois qu’une rangée est à jour, ce qu’une rangée offrant toujours une mise à jour ne fait jamais. Elle part avec le téléchargement, maintenant.
 
@@ -553,7 +553,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **L’en-tête du menu contient plus en moins de place.** La version propre de DuoUpdater s’assoit maintenant à côté de son nom, et cliquer dessus ouvre ses notes de version. « Tout mettre à jour » a été transféré à sa propre ligne, où un libellé traduit a de la place pour être lu en entier, et les actions le long du bas sont des icônes. La bannière qui avait l’habitude d’annoncer DuoUpdater mettant à jour lui-même est partie — l’étincelle à côté de la version s’éclaire à la place, et reste allumée jusqu’à ce que vous ayez lu ce qui a changé. Une ligne d’état trop longue pour le menu se termine maintenant par une ellipse plutôt que de s’étirer.
 
-**Les paramètres ne coupent plus court les choix de mise à jour qu’ils offrent.** Les deux menus qui décident comment une mise à jour est appliquée coupaient leurs propres libellés dans plusieurs langues. La terminologie est plus courte maintenant, et elles passent à une deuxième ligne lorsque les mots en ont encore besoin.
+**Les Réglages ne coupent plus court les choix de mise à jour qu’ils offrent.** Les deux menus qui décident comment une mise à jour est appliquée coupaient leurs propres libellés dans plusieurs langues. La terminologie est plus courte maintenant, et elles passent à une deuxième ligne lorsque les mots en ont encore besoin.
 
 **Nouveautés dit quand chaque version a été expédiée.** Chaque version du rail porte maintenant sa date de publication.
 
@@ -563,7 +563,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les contrôles de mise à jour de ChatGPT suivent maintenant la piste de déploiement attachée au compte.** OpenAI tient parfois les comptes commerciaux et d’entreprise sur une version antérieure du bureau tandis qu’une nouvelle en atteint d’abord les comptes de consommateurs. DuoUpdater avait l’habitude d’omettre le plan du compte de ce contrôle, ce qui a silencieusement sélectionné la piste prudente pour tout le monde : il pouvait affirmer que la copie installée était en quelque sorte en avance, alors que ChatGPT téléchargeait déjà une version plus récente, ou offrait une version que le propre programme de mise à jour de l’application remplacerait à nouveau. Il envoie maintenant le libellé du plan de l’état de la session ChatGPT/Codex avec la même demande de mise à jour que l’application fait. Si ce libellé n’est pas disponible, il conserve le comportement prudent ; les identifiants eux-mêmes ne sont jamais mis dans la demande ou les diagnostics.
 
-**Une relance à laquelle macOS ne répond jamais ne peut plus bloquer chaque mise à jour ultérieure.** Launch Services accepte parfois une demande de rouvrir une application mise à jour et ne rappelle ensuite jamais. La rangée est restée sur « Relance… » pour toujours, son bouton Redémarrer est resté désactivé, et la propre mise à jour de DuoUpdater a attendu derrière. Une relance qui n’a pas répondu après une minute est maintenant libérée comme échouée, donc la rangée se rétablit et le reste du programme de mise à jour continue de travailler.
+**Une relance à laquelle macOS ne répond jamais ne peut plus bloquer chaque mise à jour ultérieure.** Launch Services accepte parfois une demande de rouvrir une application mise à jour et ne rappelle ensuite jamais. La rangée est restée sur « Relance en cours… » pour toujours, son bouton Redémarrer est resté désactivé, et la propre mise à jour de DuoUpdater a attendu derrière. Une relance qui n’a pas répondu après une minute est maintenant libérée comme échouée, donc la rangée se rétablit et le reste du programme de mise à jour continue de travailler.
 
 **Le journal des versions reste peuplé quand sa barre de défilement est traînée rapidement.** L’ancienne pile paresseuse pouvait être dépassée par un long saut, laissant brièvement une fenêtre vide tandis que les rangées étaient créées autour de la nouvelle position. Le journal utilise maintenant une liste recyclable qui peut sauter directement à la destination. Le contrôle de rafraîchissement conserve également la même empreinte tout en passant entre sa flèche et son rouleau, donc la rangée du bas ne scintille plus quand un contrôle commence.
 
@@ -585,9 +585,9 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Une mise à jour qui a été refusée s’explique maintenant dans votre langue.** Quand quelque chose d’autre installe déjà — DuoUpdater travaillant par un lot, ou `duo` dans un terminal — la rangée vous le dit. Ce message était anglais uniquement, dans une fenêtre autrement traduite, et il s’est terminé par un numéro de processus : utile dans un terminal, et rien sur lequel vous puissiez agir dans un menu. Il est maintenant traduit, et dit ce qu’il faut faire plutôt que qui a le verrou. L’outil en ligne de commande imprime toujours le numéro de processus, où vous pouvez faire quelque chose avec lui.
 
-**La ligne du modèle de version, et son horloge, suivent maintenant votre locale.** Journal des versions → Les modèles totalisaient tout « Expédie plus souvent le vendredi, vers 18 h ». Les langues qui infléchissent les noms des jours ne peuvent pas dire cela avec le jour tombé au milieu de la phrase, et ont obtenu la mauvaise forme du mot — le russe a lu « Чаще всего выходит пятница » là où il fallait « по пятницам ». C’est maintenant une étiquette : « Pic : vendredi, vers 18 h », ce qui est correct partout. L’heure va avec — si votre Mac écrit les heures de l’horloge sur un cadran de 24 heures, tout comme cela, sur l’axe du graphique aussi.
+**La ligne du modèle de version, et son horloge, suivent maintenant votre locale.** Journal des versions → Tendances totalisaient tout « Expédie plus souvent le vendredi, vers 18 h ». Les langues qui infléchissent les noms des jours ne peuvent pas dire cela avec le jour tombé au milieu de la phrase, et ont obtenu la mauvaise forme du mot — le russe a lu « Чаще всего выходит пятница » là où il fallait « по пятницам ». C’est maintenant une étiquette : « Pic : vendredi, vers 18 h », ce qui est correct partout. L’heure va avec — si votre Mac écrit les heures de l’horloge sur un cadran de 24 heures, tout comme cela, sur l’axe du graphique aussi.
 
-**La recherche des paramètres comprend maintenant les mots à l’écran.** Le champ de recherche au-dessus de la barre latérale des paramètres correspondait à une liste de termes supplémentaires qui était écrite en anglais et jamais traduite, donc « rollback » atteignait General tandis que « Zurücksetzen » et « 回滚 » n’atteignaient rien. Ces termes existent maintenant dans chaque langue que DuoUpdater parle. Les termes anglais fonctionnent toujours dans chaque langue aussi, car la documentation dont ils proviennent est en anglais.
+**La recherche des Réglages comprend maintenant les mots à l’écran.** Le champ de recherche au-dessus de la barre latérale des Réglages correspondait à une liste de termes supplémentaires qui était écrite en anglais et jamais traduite, donc « rollback » atteignait Général tandis que « Zurücksetzen » et « 回滚 » n’atteignaient rien. Ces termes existent maintenant dans chaque langue que DuoUpdater parle. Les termes anglais fonctionnent toujours dans chaque langue aussi, car la documentation dont ils proviennent est en anglais.
 
 ## 0.3.60
 
@@ -603,7 +603,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Le build enregistré est celui qui a réellement atterri, lu sur l’application elle-même une fois que la mise à jour est en place.** Pas le nombre que le flux de mise à jour du développeur a annoncé — les flux se trompent parfois, et de cette manière cela fonctionne aussi pour les endroits qui ne publient aucun numéro de build : GitHub, Homebrew et l’App Store. Une mise à jour encore en attente dans la fenêtre d’installation de macOS n’est jamais devinée ; rien n’est enregistré à son sujet tant qu’elle n’est pas réelle.
 
-**Un téléchargement qui n’a rien changé est maintenant marqué comme tel.** Occasionnellement, une mise à jour récupère et installe la version qui était déjà sur votre Mac — un décalage entre le numéro de version du côté du développeur, un miroir servant ce que vous avez déjà. C’est la bande passante réelle dépensée pour aucun résultat, et la fenêtre du trafic est l’endroit où vous voudriez le voir. Ces rangées portent maintenant une étiquette « pas de changement ». Les téléchargements enregistrés avant cette version n’ont pas de numéros de build à comparer, donc ils sont laissés tels quels plutôt que de faire l’objet d’une supposition : inconnu n’est pas la même chose que sans changement.
+**Un téléchargement qui n’a rien changé est maintenant marqué comme tel.** Occasionnellement, une mise à jour récupère et installe la version qui était déjà sur votre Mac — un décalage entre le numéro de version du côté du développeur, un miroir servant ce que vous avez déjà. C’est la bande passante réelle dépensée pour aucun résultat, et la fenêtre du trafic est l’endroit où vous voudriez le voir. Ces rangées portent maintenant une étiquette « aucun changement ». Les téléchargements enregistrés avant cette version n’ont pas de numéros de build à comparer, donc ils sont laissés tels quels plutôt que de faire l’objet d’une supposition : inconnu n’est pas la même chose que sans changement.
 
 ## 0.3.58
 

@@ -244,7 +244,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **`duo`, le compagnon optionnel en ligne de commande, ne dit plus qu'une installation par paquet est terminée avant qu'elle le soit.** Installer une app livrée en `.pkg` ouvre l'installateur de macOS et te laisse la suite, mais le récapitulatif la comptait comme installée — « 1 installed » alors que rien n'avait encore été remplacé. Les deux sont maintenant comptés séparément. Sa sortie `--json` étiquette également chaque ligne avec ce qui est arrivé à cette app, si bien qu'un script n'a plus besoin de lire l'explication en anglais pour distinguer un échec d'un saut délibéré.
 
-**Under the hood.** La revérification juste avant l'installation qui protège une mise à jour en un clic protège maintenant aussi `duo install` ; et les contrôles qu'un téléchargement doit passer avant de remplacer une app tiennent en un seul endroit pour les deux chemins qui s'en servent.
+**Sous le capot.** La revérification juste avant l'installation qui protège une mise à jour en un clic protège maintenant aussi `duo install` ; et les contrôles qu'un téléchargement doit passer avant de remplacer une app tiennent en un seul endroit pour les deux chemins qui s'en servent.
 
 ## 0.3.87
 

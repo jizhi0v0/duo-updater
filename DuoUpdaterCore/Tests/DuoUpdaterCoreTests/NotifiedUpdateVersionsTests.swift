@@ -104,6 +104,35 @@ struct NotifiedUpdateVersionsTests {
         #expect(!ledger.wasAnnounced(side("1.31.0"), under: [key]))
     }
 
+    /// The Muse shape: two sources answer the same release, one with a build and
+    /// one without. Measured 2026-09-24: Muse's Sparkle feed (`3.0 (1075746581)`)
+    /// answers only when facebook.com lets it through, and the latest-download
+    /// probe (`3.0`, filename only) answers the rest, so the offer alternates
+    /// between the two spellings. Recording the build-aware one consumes the bare
+    /// one, and every Sparkle → probe hand-off posted a banner — at 05:59Z and
+    /// 06:09Z, each right after an appcast 200.
+    ///
+    /// Mutation: dropping the build-agnostic arm of `wasAnnounced`. The probe's
+    /// `3.0` after a Sparkle pass then reads as news and the loop fails.
+    @Test func aBuildlessOfferIsCoveredByAnAnnouncedBuildOfTheSameVersion() {
+        var ledger = NotifiedUpdateVersions()
+        ledger.record(side("3.0"), under: key)
+        for _ in 0..<5 {
+            #expect(ledger.wasAnnounced(side("3.0", "1075746581"), under: [key]))
+            ledger.record(side("3.0", "1075746581"), under: key)
+            #expect(ledger.wasAnnounced(side("3.0"), under: [key]))
+            ledger.record(side("3.0"), under: key)
+        }
+        // Only the same marketing string is covered: a version that merely starts
+        // with it is a different release.
+        var built = NotifiedUpdateVersions()
+        built.record(side("3.0", "1075746581"), under: key)
+        #expect(!built.wasAnnounced(side("3.0.1"), under: [key]))
+        #expect(!built.wasAnnounced(side("3"), under: [key]))
+        // And the leniency runs one way only: a new build is still news (Amp).
+        #expect(!built.wasAnnounced(side("3.0", "1075746582"), under: [key]))
+    }
+
     /// Re-recording a version already held must not consume a slot, or a
     /// two-version flap would evict its own earlier announcements and start
     /// re-announcing after `capacity` flips.

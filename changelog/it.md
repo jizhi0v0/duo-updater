@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.4.5
+
+**Blender scaricato da blender.org ora riceve gli aggiornamenti, con un clic.** Prima veniva controllata solo una copia installata con Homebrew.
+
+**Le build alpha, beta e release candidate (RC) di Blender seguono il proprio canale.** DuoUpdater riconosce che tipo di build hai e ti avvisa quando ne esce una più recente dello stesso tipo. A una alpha non viene mai proposta una versione stabile, né viceversa.
+
+**Gli aggiornamenti di Muse tornano a comparire.** Da quando Muse chiede di accedere per il suo link di download, la sua riga mostrava un errore invece della nuova versione.
+
+**Dietro le quinte.** Il popover della barra dei menu e il banco di lavoro si aprono un po’ più in fretta la prima volta dopo l’avvio, e `duo check` ora elenca le app il cui controllo non è riuscito invece di dire che è tutto aggiornato.
+
 ## 0.4.4
 
 **DuoUpdater ora parla italiano, cinese tradizionale, portoghese (Brasile) e turco.** In tutto sono undici lingue. In tedesco, spagnolo e giapponese sono stati corretti testi sbagliati o troncati. Impostazioni → Cartelle ora mostra i nomi delle cartelle come li mostra il Finder nella tua lingua.

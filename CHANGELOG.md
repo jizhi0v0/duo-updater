@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.5
+
+**Blender downloaded from blender.org now gets updates, with one click.** Before, only a copy installed with Homebrew was checked.
+
+**Blender alpha, beta and release-candidate builds follow their own track.** DuoUpdater reads which kind of build you have and tells you when a newer build of that same kind is out. An alpha is never offered a stable release, or the other way round.
+
+**Muse updates show up again.** After Muse started asking for a sign-in on its download link, its row showed an error instead of the new version.
+
+**Under the hood.** The menu bar popover and the Workbench open a little faster the first time after launch, and `duo check` now lists apps whose check failed instead of saying everything is up to date.
+
 ## 0.4.4
 
 **DuoUpdater now speaks Italian, Traditional Chinese, Portuguese (Brazil) and Turkish.** That makes eleven languages. In German, Spanish and Japanese, wording that was wrong or cut off has been fixed. Settings → Folders now shows folder names the way Finder does in your language.

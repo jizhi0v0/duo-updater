@@ -10,8 +10,11 @@ enum com_meta_endo {
         // WHY A PROBE AT ALL: the bundle ships a Sparkle `SUFeedURL`
         // (`www.facebook.com/endo/release/appcast.xml?channel=production`), and
         // facebook.com login-walls it: most anonymous requests 302 to `/login`, in
-        // runs of a minute or more, whatever the host (www/web/m), User-Agent or
-        // Accept header. `SparkleAppcastSource` answers first whenever the feed
+        // runs of a minute or more. Changing the request shape doesn't get through:
+        // in one walled run, www / web / m, a Sparkle User-Agent and an RSS
+        // `Accept` all got 302, ten times each. Outside a run the hosts don't even
+        // agree: www and m 200 in the same round that web 302s.
+        // `SparkleAppcastSource` answers first whenever the feed
         // does come through — with the build, and the fbcdn enclosure one-click
         // installs from — and throws `SparkleError.notAFeed` when it gets the
         // login page, which is when this recipe answers instead.

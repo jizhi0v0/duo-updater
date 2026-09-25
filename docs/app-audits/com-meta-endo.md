@@ -23,8 +23,8 @@
 ## 更新检测
 - Sparkle feed 被 facebook.com 登录墙：匿名请求大多 302 到 `/login`，成段出现（几十秒到一分钟以上）。
   `SparkleAppcastSource` 对"HTML 且零 item"抛 `SparkleError.notAFeed`，交给后面的源。
-- 登录墙不看请求形状：www / web / m / 裸域、Sparkle UA、`Accept: application/rss+xml` 交替各 10 轮，
-  同一窗口里全部 302（2026-09-25）。
+- 换请求形状逃不出撞墙时段：www / web / m / 裸域、Sparkle UA、`Accept: application/rss+xml` 交替各 10 轮，
+  同一窗口里全部 302（2026-09-25）。放行时各 host 也不一致：同一轮 www、m 200 而 web 302（同日稍后）。
 - VendorProbe: `https://formulae.brew.sh/api/cask/muse.json` 的顶层 `"version"`。cask 的 `livecheck`
   读的也是这个带墙的 appcast，但 autobump 周期性地反复跑，任何一次穿过就够；`sha256 :no_check`
   使 bump 不下载任何东西，所以版本号能前进，只是有滞后：4.0 从 appcast `pubDate`（02:10Z）到

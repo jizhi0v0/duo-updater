@@ -97,4 +97,77 @@ struct InstallEnvironmentRuntimeKeyTests {
 
         #expect(!UpdatePolicy.isRunning(row, environment: environment))
     }
+
+    /// `inputMethods` is the same seam for `UpdatePolicy.isInputMethod`: a map
+    /// entry that says "input method" for a path the function would clear. A
+    /// vendor `.pkg` is handed to the system installer anywhere except an input
+    /// method, so which of the two answered is visible in `requiresInstaller`.
+    ///
+    /// Mutation: put `isInputMethod(result.app.path)` back into
+    /// `requiresInstaller` and the first expectation fails.
+    @Test func requiresInstallerAnswersFromThePrecomputedInputMethodFlag() {
+        let row = UpdateResult(
+            app: app(path: Self.rawPath),
+            remote: RemoteVersion(
+                shortVersion: "2.0", version: nil,
+                downloadURL: URL(string: "https://example.com/fixture.pkg"),
+                sourceName: "Vendor", vendorInstallerKind: .pkg),
+            status: .updateAvailable(latest: "2.0"))
+        #expect(!UpdatePolicy.isInputMethod(row.app.path),
+                "the seam only proves anything while the function disagrees with the map")
+
+        let flagged = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:],
+            inputMethods: [URL(fileURLWithPath: Self.rawPath): true])
+        #expect(!UpdatePolicy.requiresInstaller(row, environment: flagged))
+        #expect(!UpdatePolicy.canAutoInstall(
+            row, settings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite),
+            environment: flagged))
+
+        // With no entry the function answers, as it always did.
+        let unflagged = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        #expect(UpdatePolicy.requiresInstaller(row, environment: unflagged))
+        #expect(UpdatePolicy.canAutoInstall(
+            row, settings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite),
+            environment: unflagged))
+    }
+
+    /// `InstallPathFacts` is what the host fills those maps from, and its whole
+    /// contract is "exactly what the functions answer" — so it is checked against
+    /// them, over the shapes each function treats specially: a staged name
+    /// (`runtimeBundlePath` rewrites it), an input-method directory
+    /// (`isInputMethod` and the elevation exception), and a plain app.
+    @Test func pathFactsAreExactlyWhatTheFunctionsAnswer() {
+        let bundles = [
+            "/ZZFixture-RuntimeKey/.duoupdater-staged-Live.app",
+            "/ZZFixture-RuntimeKey/Library/Input Methods/Fixture.app",
+            Self.rawPath,
+        ].map { path -> URL in
+            #expect(!FileManager.default.fileExists(atPath: path))
+            return URL(fileURLWithPath: path)
+        }
+        let facts = InstallPathFacts.observing(bundles)
+
+        #expect(facts.elevationRequiredPaths == InPlaceSwap.elevationRequiredPaths(for: bundles))
+        for bundle in bundles {
+            #expect(facts.runtimeKeys[bundle] == UpdatePolicy.runtimeBundlePath(bundle))
+            #expect(facts.inputMethods[bundle] == UpdatePolicy.isInputMethod(bundle))
+        }
+        #expect(facts.inputMethods[bundles[1]] == true, "the fixture must exercise the input-method branch")
+    }
+
+    /// The host observes a new install on its own and leaves the rest of the list
+    /// to the off-main pass, so `observe` must add without disturbing what is
+    /// there, and `unobserved` must name exactly the installs it has not seen.
+    @Test func observingMoreKeepsWhatWasObserved() {
+        let first = URL(fileURLWithPath: Self.rawPath)
+        let second = URL(fileURLWithPath: "/ZZFixture-RuntimeKey/Second.app")
+        var facts = InstallPathFacts.observing([first])
+        #expect(facts.unobserved(in: [first, second]) == [second])
+
+        facts.observe([second])
+        #expect(facts.unobserved(in: [first, second]).isEmpty)
+        #expect(facts == InstallPathFacts.observing([first, second]))
+    }
 }

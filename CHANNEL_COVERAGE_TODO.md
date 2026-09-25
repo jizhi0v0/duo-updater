@@ -57,6 +57,7 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 | App | 磁盘 bundle id | 登记 id | 读的文件 → 信号 |
 |---|---|---|---|
 | **微信开发者工具** | 2.02 `com.github.Electron`（Electron 出厂默认，三渠道相同）/ 2.01 `com.tencent.webplusdevtools` | `com.tencent.wechatdevtools` | `Resources/app.asar.unpacked/package.json`（2.01 是 `package.nw/`）→ `versionType` 0/1/2 = stable/rc/nightly |
+| **Blender**（2026-09-25 接 alpha/beta/rc） | `org.blenderfoundation.blender`（四种构建相同，版本串不带周期） | 同左 | `Contents/MacOS/Blender` 主程序 → `blender_version_init()` 格式串前紧挨的周期字面量对（`" Alpha"/" a"`、`" Beta"/" b"`、`" Release Candidate"/" RC"`，正式版没有）+ `buildinfo.c` 的 commit/分支/UTC 构建时间。`BlenderBuildInfo` |
 
 Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`），所以这个 app 的
 版本号也一起从 `package.json` 取。三渠道共用一个 `config.json` 端点，各自锚 `"id"`。
@@ -476,7 +477,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   真正永久挡住的不是检测，是签名：nightly 完全未走 Developer ID
   （`TeamIdentifier=not set`），一键永远过不了 `VendorInstaller` 的 Team 闸。
   见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
-- ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
+- ✅ **Blender — Alpha / Beta / RC** · 已接入（**更正 2026-09-25**：原先这里记为「无检测信号」——信号不在 plist，在主程序里，见 §1 Pattern A\*）。三条轨都读 builder.blender.org 的 daily JSON（每分支只列最新一个构建，按 commit 比：`headBuildPattern` + `BuildLineage.head`）；beta/rc 只在发布周期里存在几周，其余时间是「轨道关闭」而不是失败。一键装 builder CDN 的 dmg（Team 68UA947AUU）。见 `docs/app-audits/org-blenderfoundation-blender.md`。
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✅ **GitHub Desktop — Beta** · 已接入（**更正 2026-09-14**：原先这里记为 ✗，与代码矛盾）。同 `com.github.GitHubClient`，beta 由装机版本串 `-betaN` 后缀判轨（`ReleaseChannel.detect` 第 4 步），`Recipes/com-github-GitHubClient.swift` 有 `channel: .beta` 的 `GitHubReleaseRule`（`release-X.Y.Z-betaN`，一键 `GitHub.Desktop-arm64.zip`）和 `?env=beta` 的 changelog，`githubChannelProofs` 锚 `/download/release-…-betaN/`。stable rule 仍排除 prerelease。
 - ✅ **Longbridge Desktop — Preview** · 已接入。**更正 2026-08-25 那版"已停更"的判断**：那条结论是

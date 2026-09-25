@@ -11,6 +11,7 @@ probes[0].variant? = "ga"
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://api.anthropic.com/api/desktop/darwin/universal/zip/latest/redirect")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -46,6 +47,7 @@ probes[1].variant? = "rollout"
 probes[1].hostRequirement = nil
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://api.anthropic.com/api/desktop/darwin/universal/squirrel/update?device_id=__IDENTITY__")
 probes[1].identities = Array(count: 1)
 probes[1].identities[0] = struct ProbeIdentity

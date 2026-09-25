@@ -279,6 +279,7 @@ public struct AppScanner: Sendable {
                 shortVersion: app.shortVersion,
                 buildVersion: app.buildVersion,
                 vendorBuildVersion: app.vendorBuildVersion,
+                vendorBuildDate: app.vendorBuildDate,
                 path: app.path,
                 isMASApp: false,
                 isiOSAppOnMac: app.isiOSAppOnMac,
@@ -721,6 +722,15 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
+        // Blender: every build shares the bundle id and a cycle-free version
+        // string; the cycle and the commit exist only in the executable. See
+        // `BlenderBuildInfo`.
+        let blender = bundleID == BlenderBuildInfo.bundleID
+            ? BlenderBuildInfo.read(bundleAt: bundleURL) : nil
+        if let channel = blender?.channel {
+            releaseChannel = channel
+            channelIsAuthoritative = true
+        }
         if let bound = ChannelBinding.resolve(bundleID: bundleID) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
@@ -744,7 +754,8 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: effectiveBuildVersion,
-            vendorBuildVersion: mozillaINI.buildID,
+            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+            vendorBuildDate: blender?.builtAt,
             path: bundleURL,
             isMASApp: isMAS,
             isiOSAppOnMac: isiOSAppOnMac,

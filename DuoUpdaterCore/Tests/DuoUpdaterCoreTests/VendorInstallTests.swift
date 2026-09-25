@@ -493,6 +493,9 @@ private func committedLastGoodDates() -> [String: Date] {
 @Test func channelAnchorSurfaceCoversEveryRecipeField() {
     let recipe = VendorProbeRegistry.recipes[0]
     let labels = Mirror(reflecting: recipe).children.compactMap(\.label)
+    // 28 since `headBuildPattern` (2026-09-25). IN: it is a pattern the recipe
+    // reads out of the entry, and the id it captures (a commit) names no channel.
+    //
     // 27 since `minimumSystemVersionPattern` / `maximumSystemVersionPattern`
     // (2026-09-15, #634). Both stay IN: each is a regex the recipe READS out of
     // the body, exactly like `displayVersionPattern`, and the text it holds
@@ -523,7 +526,7 @@ private func committedLastGoodDates() -> [String: Date] {
     // is a bad proof, not a tautological one, and a proof must name the fields it
     // relies on anyway (#110). Useless as an anchor, harmless in the surface,
     // same as every other Bool here.
-    #expect(labels.count == 27,
+    #expect(labels.count == 28,
             "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
     // A renamed field would turn its exclusion into a silent no-op, quietly
     // widening the surface instead of narrowing it. Same class of bug, other

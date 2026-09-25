@@ -11,6 +11,7 @@ probes[0].variant = nil
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -46,6 +47,7 @@ probes[1].variant = nil
 probes[1].hostRequirement = nil
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil
@@ -81,6 +83,7 @@ probes[2].variant = nil
 probes[2].hostRequirement = nil
 probes[2].installedVersionPattern = nil
 probes[2].buildLineage = nil
+probes[2].headBuildPattern = nil
 probes[2].url = URL("https://edgeupdates.microsoft.com/api/products?view=enterprise")
 probes[2].identities = Array(count: 0)
 probes[2].track = nil

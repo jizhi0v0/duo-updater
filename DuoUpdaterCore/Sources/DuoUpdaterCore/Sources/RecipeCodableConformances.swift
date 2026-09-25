@@ -14,7 +14,7 @@ private let placeholderURL = URL(fileURLWithPath: "/")
 extension VendorProbeRecipe: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case bundleID, channel, variant, hostRequirement, installedVersionPattern
-        case buildLineage, url, identities, track, mode, versionPattern
+        case buildLineage, headBuildPattern, url, identities, track, mode, versionPattern
         case transientBodyPattern, trackClosedPattern, downloadURL, changelogURL
         case selectHighest, versionIsBuild, buildNamespace, displayVersionPattern
         case publishedAtPattern, minimumSystemVersionPattern, maximumSystemVersionPattern
@@ -77,7 +77,9 @@ extension VendorProbeRecipe: Codable {
             installedVersionPattern: try c.decodeOptional(
                 String.self, forKey: .installedVersionPattern, default: d.installedVersionPattern),
             buildLineage: try c.decodeOptional(
-                BuildLineageSpec.self, forKey: .buildLineage, default: d.buildLineage))
+                BuildLineageSpec.self, forKey: .buildLineage, default: d.buildLineage),
+            headBuildPattern: try c.decodeOptional(
+                String.self, forKey: .headBuildPattern, default: d.headBuildPattern))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -92,6 +94,8 @@ extension VendorProbeRecipe: Codable {
             installedVersionPattern, forKey: .installedVersionPattern,
             defaultIsNil: d.installedVersionPattern == nil)
         try c.encodeOptional(buildLineage, forKey: .buildLineage, defaultIsNil: d.buildLineage == nil)
+        try c.encodeOptional(
+            headBuildPattern, forKey: .headBuildPattern, defaultIsNil: d.headBuildPattern == nil)
         try c.encode(url, forKey: .url)
         try c.encode(identities, forKey: .identities)
         try c.encodeOptional(track, forKey: .track, defaultIsNil: d.track == nil)

@@ -327,6 +327,23 @@ public struct VendorProbeRecipe: Sendable {
     /// back to the coin flip this field exists to replace.
     public let buildLineage: BuildLineageSpec?
 
+    /// For an endpoint that names only the NEWEST build of its track, by an id
+    /// with no order of its own (Blender's builder: one entry per branch, keyed
+    /// by commit). Capture group 1 is that id, read from the same entry as
+    /// `versionPattern`, and written to yield exactly what the installed bundle
+    /// reports in `buildNamespace`.
+    ///
+    /// `versionPattern` keeps reading the MARKETING version, so choosing between
+    /// entries (`entryStartPattern` + `selectHighest`) still compares something
+    /// orderable; this id becomes the remote's build instead — which is also what
+    /// keeps a skipped build from silencing every later build under the same
+    /// marketing string (`UpdateSettings.skipKey`). The remote carries
+    /// `BuildLineage.head(id)`: the engine orders by that and never by
+    /// `VersionComparator`, which on two commits is a coin flip. A declared
+    /// pattern that matches nothing fails the probe, for the same reason.
+    /// Not combined with `buildLineage` or `versionIsBuild`.
+    public let headBuildPattern: String?
+
     /// A document listing every release newest first, and how to read one
     /// release's build id out of it.
     public struct BuildLineageSpec: Sendable {
@@ -816,7 +833,8 @@ public struct VendorProbeRecipe: Sendable {
         variant: String? = nil,
         hostRequirement: VendorHostRequirement? = nil,
         installedVersionPattern: String? = nil,
-        buildLineage: BuildLineageSpec? = nil
+        buildLineage: BuildLineageSpec? = nil,
+        headBuildPattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -827,6 +845,7 @@ public struct VendorProbeRecipe: Sendable {
         self.hostRequirement = hostRequirement
         self.installedVersionPattern = installedVersionPattern
         self.buildLineage = buildLineage
+        self.headBuildPattern = headBuildPattern
         self.mode = mode
         self.versionPattern = versionPattern
         self.transientBodyPattern = transientBodyPattern
@@ -1116,7 +1135,8 @@ public struct VendorProbeRecipe: Sendable {
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
             track: track, variant: variant, hostRequirement: hostRequirement,
-            installedVersionPattern: installedVersionPattern, buildLineage: buildLineage)
+            installedVersionPattern: installedVersionPattern, buildLineage: buildLineage,
+            headBuildPattern: headBuildPattern)
     }
 
     /// Whether this recipe's build can run on the described machine. A recipe with

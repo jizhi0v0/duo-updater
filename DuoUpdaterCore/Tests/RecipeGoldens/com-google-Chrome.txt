@@ -11,6 +11,7 @@ probes[0].variant = nil
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -46,6 +47,7 @@ probes[1].variant = nil
 probes[1].hostRequirement = nil
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/beta/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil
@@ -81,6 +83,7 @@ probes[2].variant = nil
 probes[2].hostRequirement = nil
 probes[2].installedVersionPattern = nil
 probes[2].buildLineage = nil
+probes[2].headBuildPattern = nil
 probes[2].url = URL("https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/dev/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")
 probes[2].identities = Array(count: 0)
 probes[2].track = nil
@@ -116,6 +119,7 @@ probes[3].variant = nil
 probes[3].hostRequirement = nil
 probes[3].installedVersionPattern = nil
 probes[3].buildLineage = nil
+probes[3].headBuildPattern = nil
 probes[3].url = URL("https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/canary/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")
 probes[3].identities = Array(count: 0)
 probes[3].track = nil

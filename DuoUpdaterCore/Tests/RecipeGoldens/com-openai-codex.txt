@@ -11,6 +11,7 @@ probes[0].variant = nil
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")
 probes[0].identities = Array(count: 1)
 probes[0].identities[0] = struct ProbeIdentity

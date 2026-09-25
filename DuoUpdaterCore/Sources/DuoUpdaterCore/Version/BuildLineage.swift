@@ -30,9 +30,33 @@ public struct BuildLineage: Sendable, Hashable {
     /// occurrence kept), so a position is unambiguous.
     public let newestFirst: [String]
 
+    /// Whether a build this lineage does not list is OLDER than every build it
+    /// does, rather than unplaceable.
+    ///
+    /// True only for ``head(_:)``: a vendor that publishes nothing but the newest
+    /// build of a track (Blender's builder lists one build per branch, and keeps
+    /// ~100 days of the rest in an archive that is not in date order). What such a
+    /// vendor states is exactly "this is the newest", so any other build of the
+    /// track is behind it — which is all `isNewer` needs, and never a coin flip.
+    /// `UpdateChecker.evaluate` adds the two guards this claim cannot make on its
+    /// own: a lower marketing version, and a head published before the installed
+    /// copy was built.
+    public let unlistedIsOlder: Bool
+
     public init(newestFirst builds: [String]) {
+        self.init(newestFirst: builds, unlistedIsOlder: false)
+    }
+
+    private init(newestFirst builds: [String], unlistedIsOlder: Bool) {
         var seen = Set<String>()
         newestFirst = builds.filter { !$0.isEmpty && seen.insert($0).inserted }
+        self.unlistedIsOlder = unlistedIsOlder
+    }
+
+    /// A lineage that knows only the newest build of its track. See
+    /// ``unlistedIsOlder``.
+    public static func head(_ build: String) -> BuildLineage {
+        BuildLineage(newestFirst: [build], unlistedIsOlder: true)
     }
 
     /// Where `build` sits — 0 is the newest — or nil when the lineage does not
@@ -43,13 +67,16 @@ public struct BuildLineage: Sendable, Hashable {
 
     /// Whether `candidate` is a newer build than `current`: true or false when the
     /// lineage places both, nil when it cannot place one of them. The same build is
-    /// never newer than itself, whether or not the lineage lists it.
+    /// never newer than itself, whether or not the lineage lists it. With
+    /// ``unlistedIsOlder``, a listed build is newer than an unlisted one.
     public func isNewer(_ candidate: String, than current: String) -> Bool? {
         if candidate == current { return false }
-        guard let c = position(of: candidate), let i = position(of: current) else {
-            return nil
+        switch (position(of: candidate), position(of: current)) {
+        case let (c?, i?): return c < i
+        case (.some, nil) where unlistedIsOlder: return true
+        case (nil, .some) where unlistedIsOlder: return false
+        default: return nil
         }
-        return c < i
     }
 
     /// Every capture-group-1 match of `pattern` in `body`, in document order (the

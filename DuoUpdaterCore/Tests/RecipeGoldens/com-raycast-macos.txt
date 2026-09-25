@@ -11,6 +11,7 @@ probes[0].variant? = "v1"
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://releases.raycast.com/releases/latest?build=universal")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -49,6 +50,7 @@ probes[1].hostRequirement?.architectures = Array(count: 1)
 probes[1].hostRequirement?.architectures[0] = .arm64
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://x.raycast-releases.com/releases/latest?platform=macos&architecture=arm64")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil

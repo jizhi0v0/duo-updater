@@ -216,14 +216,16 @@ struct MozillaPreReleaseTests {
         }
     }
 
-    /// The mirror, registry-wide: `.vendor` is meaningless without
-    /// `versionIsBuild`, and today Mozilla is the only vendor that speaks it.
+    /// The mirror, registry-wide: `.vendor` is meaningless without a build to put
+    /// in it — `versionIsBuild`, or a `headBuildPattern` (Blender's commit) — and
+    /// only apps whose scan fills `InstalledApp.vendorBuildVersion` can speak it:
+    /// Mozilla's (`application.ini`) and Blender (`BlenderBuildInfo`).
     @Test func theVendorNamespaceIsOnlyEverUsedWithABuild() {
         for recipe in VendorProbeRegistry.recipes where recipe.buildNamespace == .vendor {
-            #expect(recipe.versionIsBuild,
+            #expect(recipe.versionIsBuild || recipe.headBuildPattern != nil,
                     Comment(rawValue: "\(recipe.recipeID) declares the vendor build namespace but reports a marketing version"))
-            #expect(recipe.bundleID.hasPrefix("org.mozilla"),
-                    Comment(rawValue: "\(recipe.recipeID) is not a Mozilla app — `InstalledApp.vendorBuildVersion` is only populated for org.mozilla.* and would be nil here"))
+            #expect(recipe.bundleID.hasPrefix("org.mozilla") || recipe.bundleID == BlenderBuildInfo.bundleID,
+                    Comment(rawValue: "\(recipe.recipeID) — `InstalledApp.vendorBuildVersion` is only populated for org.mozilla.* and Blender, and would be nil here"))
         }
     }
 

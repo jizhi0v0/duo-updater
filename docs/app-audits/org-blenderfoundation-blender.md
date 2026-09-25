@@ -43,7 +43,7 @@
 - 源: `VendorProbeSource`（直接下载）、`HomebrewCaskSource`（brew 装的正式版）
 - **stable** 端点: `https://www.blender.org/download/`，取 macOS 按钮的链接 `/download/release/Blender<major.minor>/blender-<version>-macos-arm64.dmg/`（页面上唯一的 macOS 链接，出现两处：页头按钮与平台菜单）。读的是：人人可手动下载的 GA。
 - **alpha / beta / rc** 端点: `https://builder.blender.org/download/daily/?format=json&v=1`（约 80 KB，每个分支 × 平台 × 文件类型只列**最新一个**构建；更早的在 `/download/daily/archive/?format=json&v=1`，约 100 天，**不按时间排序**，也不含当前构建）。按 `{"url"` 切成条目，取 `risk_id` / 分支 / `darwin` / `arm64` / `dmg` 都对得上的条目里 `version` 最高的那个；`hash` 是 commit（`headBuildPattern`），`file_mtime` 是上传时间（`publishedAtPattern`）。读的是：该轨的最新构建，builder 页面上人人可下。
-- **比较**: 同一轨所有构建的 `version` 都一样（每个 5.3 alpha 都是 5.3.0），只能按 commit 比。列表只给最新那个，所以用 `BuildLineage.head`：已装 commit 等于它就是最新，否则落后于它。`UpdateChecker.evaluate` 在上面加两道闸：已装的 marketing 版本更高时不提示（RC 轨可能同时列着 4.5 LTS 和 5.2 的 candidate，按版本取最高后仍可能低于已装的）；该构建的上传时间早于已装拷贝的构建时间时不提示（列表滞后于 builder 页面）。
+- **比较**: 同一轨所有构建的 `version` 都一样（每个 5.3 alpha 都是 5.3.0），只能按 commit 比。列表只给最新那个，所以用 `BuildLineage.head`：已装 commit 等于它就是最新，否则落后于它。`UpdateChecker.evaluate` 在上面加两道闸：已装的 marketing 版本更高时不提示（RC 轨可能同时列着 4.5 LTS 和 5.2 的 candidate，按版本取最高后仍可能低于已装的）；该构建的上传时间早于已装拷贝的构建时间时不提示——这是防护，没观测到过：防的是列表万一滞后于 builder 页面上已被下载的构建，或本地用更新的 commit 编译的拷贝。
 - **周期外**: beta/RC 只在发布周期里存在几周。列表里还有正常形状的 alpha 条目、却没有该轨条目时，`trackClosedPattern` 判为「轨道关闭」，不算失败；列表形状变了则两者都不匹配，照常报 recipe 失败。
 - `hostRequirement`: 全部仅 arm64。5.0 起 Blender 不再出 Intel dmg，builder 条目也只读 `darwin`/`arm64`。
 - 注意事项:
@@ -164,3 +164,5 @@ exposes no released-only index to follow.
 主程序字节（四个 dmg 挂载后用 mmap 读）：`\0%d.%01d.%d%s%s\0` 各出现一次，前面紧挨的字符串见上文「Channel 详情」；`\0 Beta\0` 只在 beta 里、`\0 Release Candidate\0` 只在 RC 里，`\0 Alpha\0` 四个都有（alpha 里紧挨格式串，其余在别处）。`buildinfo.c` 的布局：`<date>\0<time>\0<commit>\0` + 7 字节对齐填充 + 8 字节 `build_commit_timestamp`（5.2.2 为 `3e 0f a8 6a 00 00 00 00`）+ `<branch>\0Darwin\0Release`；`\0Darwin\0` 在 5.2.2 里只出现一次。最初按「相邻字符串」往回读，被那 8 字节整数挡住，读不出 commit——所以现在先取 `Darwin` 前的分支，再在分支前 96 字节里找 `date\0time\0commit\0`。
 
 新守卫的变异验证（每条改掉后跑 `BlenderBuilderTrackTests` + `BlenderBuildInfoTests`）：去掉 marketing 闸、去掉时间闸、去掉 `unlistedIsOlder`、去掉 lineage 分支里的「vendor 为空 → unknown」、去掉 alpha 的 `main` 分支检查、去掉 `" LTS"` 跳过、让 probe 不把 head 放进 `version`——七条都有测试变红，恢复后全绿。
+
+复核 review 列出的外部断言（2026-09-25，PR #869 第 1 轮）：`download.blender.org/release/Blender5.0/`、`5.1/`、`5.2/` 三个目录的 macOS 文件全是 `-macos-arm64.dmg`（2、3、3 个），没有 x64；builder 的 `blender-5.3.0-alpha+main.425ab43ad645-darwin.arm64-release.dmg.sha256` 内容是 64 位 hex；四个主程序里 commit 与分支之间都是 7 字节 0 填充 + 8 字节 `build_commit_timestamp`（小端，5.2.2 / 5.2.0 beta / 5.2.1 RC / 5.3.0 alpha 分别为 2026-09-14 15:14、07-08 00:32、08-22 07:09、09-24 20:24 UTC，都早于各自的构建时间）。「列表会滞后」没有观测到，代码与本文都已改写为防护措施。

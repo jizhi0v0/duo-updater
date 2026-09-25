@@ -63,7 +63,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// When the vendor built this copy, where the bundle states it and the build
     /// id alone cannot order it. Blender is the case: its `vendorBuildVersion` is
     /// a commit, and `UpdateChecker.evaluate` will not offer a track's newest
-    /// build published before this copy was built (see `BuildLineage.head`).
+    /// build published before this copy was built (see `BuildLineage.head`) — a
+    /// precaution, not an observed failure.
     /// Nil for every other app.
     public let vendorBuildDate: Date?
 

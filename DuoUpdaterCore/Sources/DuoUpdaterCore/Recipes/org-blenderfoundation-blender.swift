@@ -144,7 +144,9 @@ enum org_blenderfoundation_blender {
             url: URL(string: "https://builder.blender.org/download/daily/?format=json&v=1")!,
             mode: .responseBody,
             versionPattern: builderEntry(risk: risk, branch: branch),
-            // Alpha is always published; a listing without it is not "between
+            // The listing keeps each branch's newest build indefinitely (a 2024
+            // Windows alpha is still in it), and `main` builds daily, so the alpha
+            // entry is always there: a listing without it is not "between
             // releases", it is a listing this recipe no longer understands.
             trackClosedPattern: channel == .alpha ? nil
                 : #"(?s)\A(?=.*"# + builderEntry(risk: "alpha", branch: "main")

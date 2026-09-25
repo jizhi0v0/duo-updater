@@ -740,9 +740,11 @@ public struct UpdateChecker: Sendable {
     /// - a lower marketing version is never offered — Blender's release-candidate
     ///   track can be headed by an older line's candidate (4.5.15 RC) while the
     ///   installed copy is a newer line's (5.2.1 RC);
-    /// - a head published before this copy was built is not newer than it — a
-    ///   vendor listing that lags a build already downloaded from the vendor's
-    ///   own page. Only when both dates are known; the commit already differs.
+    /// - a head published before this copy was built is not newer than it. This
+    ///   is a precaution, not a failure anyone has seen: it covers a listing that
+    ///   lagged a build already downloaded from the vendor's own page, or a copy
+    ///   built locally from a newer commit. Only when both dates are known; the
+    ///   commit already differs.
     static func headIsNotAhead(installed: InstalledApp, remote: RemoteVersion) -> Bool {
         if let offered = remote.shortVersion, let current = installed.shortVersion,
            VersionComparator.isNewer(current, than: offered) {

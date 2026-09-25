@@ -142,6 +142,16 @@ public enum Check {
 
     /// The (installed, latest) build pair to show when the marketing version stays
     /// put, mirroring `UpdateResult.buildBump` on the row shape this command emits.
+    /// The installed build in the namespace the source reported its build in, so
+    /// `installedBuild` and `latestBuild` always name the same kind of thing — the
+    /// rule `UpdateResult.buildBump` applies. A vendor-namespace source (a Mozilla
+    /// pre-release's `BuildID`, a Blender alpha's commit) otherwise printed
+    /// `5.3.0 (5.3.0)` beside `latest 5.3.0 (425ab43ad645)`: `CFBundleVersion`
+    /// against a commit.
+    static func installedBuild(_ result: UpdateResult) -> String? {
+        result.app.buildVersion(in: result.remote?.buildNamespace ?? .bundle)
+    }
+
     static func buildBump(_ row: Row) -> (installed: String, remote: String)? {
         guard row.latestVersion == row.installedVersion,
               let installed = row.installedBuild.map(UpdateResult.strippingBuildPrefix),
@@ -248,7 +258,7 @@ public enum Check {
                 bundleID: result.app.bundleID,
                 path: result.app.path.path,
                 installedVersion: result.installedDisplay,
-                installedBuild: result.app.buildVersion,
+                installedBuild: Self.installedBuild(result),
                 latestVersion: result.remote?.displayVersion,
                 latestBuild: result.remote?.version,
                 source: result.remote?.sourceName,

@@ -72,7 +72,7 @@
 - stable URL: 下载页的链接是感谢页不是文件；由同一个链接的两个捕获拼出 `https://download.blender.org/release/Blender{major.minor}/blender-{version}-macos-arm64.dmg`（HEAD 200，`application/octet-stream`，346286611 字节）
 - alpha/beta/rc URL: 条目自己的 `url`，`https://cdn.builder.blender.org/download/daily/blender-<ver>-<alpha|beta|candidate>+<main|vNN>.<commit>-darwin.arm64-release.dmg`；channel proof 锚在文件名里的 `-alpha+main.` / `-beta+vNN.` / `-candidate+vNN.`，beta/RC 轨永远不会装到正式版。
 - **读的是**: stable 是人人可手动下载的 GA；alpha/beta/rc 是 builder 页面上该轨的最新构建（人人可下，没有灰度）
-- 阻塞: 无；尚未在一个旧版拷贝上真跑过一次一键安装（见「如何复验」）
+- 阻塞: 无。stable 已在真实旧版拷贝上跑通（见「如何复验」）；alpha/beta/rc 的一键安装尚未真跑。
 
 ## 已知问题
 - dev-docs 没有「只列已发布版本」的索引（导航把开发中的 minor 排在最前），所以不走 `indexLinkPattern`，改走按 major.minor 的模板。开发中的 minor（alpha 用户的 5.3）解析为零条，回落到嵌入网页。
@@ -80,7 +80,7 @@
 - 周期检测依赖编译器把周期字面量对放在格式串前面。布局变了时，读不到那对就当正式版：预发布拷贝会落到 stable 轨，读成「无更新」而不是被提示降级。
 
 ## 建议下一步
-1. 在一个旧版拷贝上真跑一次一键安装（stable 用下载页，alpha 用 builder）。
+1. alpha 的一键安装在真实拷贝上跑一次：builder 每天约 02:30–03:00 UTC 出新 alpha，已装的 alpha 次日就落后一版。
 2. 下一个 beta 周期（5.3 按发布说明 2026-09-30 后进 beta）开始后，用 `duo verify --only blender` 看 beta 轨从「关闭」变成 ✓。
 
 ## 如何复验
@@ -95,6 +95,8 @@
     5.3.0-alpha+main.425ab43ad645         alpha    main                   425ab43ad645  2026-09-25 01:35:56  alpha    builder 头 425ab43ad645，up to date
     5.2.0-beta+v52.4481d59ccf4e           beta     blender-v5.2-release   4481d59ccf4e  2026-07-08 01:34:43  beta     beta 轨关闭（当天无 beta 条目）
     5.2.1-candidate+v52.5adcd79a574f      rc       blender-v5.2-release   5adcd79a574f  2026-08-24 01:31:02  rc       rc 轨关闭（当天无 candidate 条目）
+
+stable 一键安装实跑（2026-09-25）：官方 `blender-5.2.1-macos-arm64.dmg` 里的 Blender.app 放到 `~/Applications`，`duo check` 给出 `5.2.1 → 5.2.2 [Vendor, in-place]`；`duo install … --yes` 用时 52 s（备份 5.2.1 → 下载 → 解包 → 验签 → 安装）。装完的 bundle 为 5.2.2，commit `d13f752e3b9c`，Team `68UA947AUU`，`codesign --verify --deep --strict` 通过，`spctl` 为 Notarized Developer ID；复查为 up to date，`duo backups` 有 5.2.1 的回滚点。
 
 同一天在只有 Info.plist + 按真实布局写的主程序字节的桩 bundle 上（打真实 builder 列表）：commit `3bcf2d172c1f`、构建于 09-24 → `UPDATE 5.3.0 (3bcf2d172c1f) → 5.3.0 (425ab43ad645)`，下载 builder CDN 的 dmg；另一个 commit、构建于头的上传时间之后 → up to date。`duo verify --only blender`：stable ✓、alpha ✓、beta 与 rc 为 `-`（"no current build on the … track"）、changelog ✓。
 

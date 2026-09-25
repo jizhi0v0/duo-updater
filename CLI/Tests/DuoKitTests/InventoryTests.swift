@@ -230,4 +230,42 @@ private let installed = [
     @Test func aHiddenUpdateIsNothingToDo() {
         #expect(!Check.isActionable(row(hasUpdate: true, hidden: true)))
     }
+
+    private func result(_ status: UpdateStatus) -> UpdateResult {
+        UpdateResult(
+            app: InstalledApp(
+                name: "Fixture", bundleID: "com.example.fixture", shortVersion: "1.0",
+                buildVersion: "1", path: URL(fileURLWithPath: "/Applications/Fixture.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: nil, status: status)
+    }
+
+    /// A failed check is listed without `--all`; nothing else that is not an
+    /// update is. Mutation: drop the `.error` case from `showsByDefault` → red.
+    @Test func aFailedCheckIsShownByDefault() {
+        #expect(Check.showsByDefault(result(.error("HTTP 403"))))
+        #expect(!Check.showsByDefault(result(.upToDate)))
+        #expect(!Check.showsByDefault(result(.unknown)))
+    }
+
+    /// Muse, 2026-09-25: the only row was a failure and the run printed
+    /// "Everything is up to date." The failure has to be on its line and in the
+    /// summary, and — being nothing the user can act on — must not flip the exit
+    /// status. Mutations: drop the "check failed" suffix; drop the summary clause.
+    @Test func aFailedRowSaysWhyAndIsCountedApart() {
+        let failed = Check.Row(
+            name: "Muse", bundleID: "com.meta.endo", path: "/Applications/Muse.app",
+            installedVersion: "2.2", installedBuild: "1074644564",
+            latestVersion: nil, source: nil, status: Check.describe(.error("HTTP 403")),
+            hasUpdate: false, hidden: false, route: nil)
+        var out: [String] = []
+        let status = Check.finish(
+            [failed], command: "check", json: false, scanAbandoned: false, testFlightGap: nil,
+            out: { out.append($0) }, err: { _ in })
+        #expect(out.first == "  Muse  2.2  — check failed: HTTP 403")
+        #expect(out.last == "\n  0 updates available of 1 app shown; 1 could not be checked.")
+        #expect(!out.contains { $0.contains("up to date") })
+        #expect(status == 0)
+        #expect(Check.failure(row(hasUpdate: false, hidden: false)) == nil)
+    }
 }

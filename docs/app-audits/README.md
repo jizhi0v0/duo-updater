@@ -179,7 +179,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Granola**](com-granola-app.md) · `com.granola.app` — P (one-click universal dmg) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Longbridge Desktop（长桥桌面版）**](com-longbridge-app-desktop.md) · `com.longbridge.app.desktop` — P+C (stable + preview, one-click arm64 dmg) · changelog 读英文逐版本页 · stable + preview real DMGs verified ✓（preview 不是退役轨：独立 bundle `…desktop.preview`，recipe 活着，2026-09-14 复测 `1.0.0-preview.1`）· 2026-08-25
 - [x] [**Aside**](at-studio-AsideBrowser.md) · `at.studio.AsideBrowser` — P (detection-only) C · Chromium/Omaha 自更新,无 Sparkle · 版本读 `version_info.json` 的 mac 对象(按平台分轨) · changelog 读 `.md`、跨平台共用 · 真实 DMG 核对 ✓ · 2026-09-14
-- [x] [**Muse**](com-meta-endo.md) · `com.meta.endo` — P (one-click) · Sparkle feed 被 facebook 登录墙（多数 302→/login），撞墙时由 latest 下载链接 `muse.ai/api/hatch/app-download/mac` 的文件名接手 · 真包 ✓ · 2026-09-23
+- [x] [**Muse**](com-meta-endo.md) · `com.meta.endo` — P (one-click, Sparkle 放行时) · Sparkle feed 被 facebook 登录墙（多数 302→/login），撞墙时由 Homebrew cask API 的版本号接手（只检测；`muse.ai` latest 链接 09-25 起需登录）· 真包 ✓ · 2026-09-25
 - [x] [**AirCard**](com-mak5er-aircard.md) · `com.mak5er.aircard` — G (detection-only) · ad-hoc 签名无 Team ID，一键过不了 Team 闸 · 2026-09-24
 - [x] [**Comet**](ai-perplexity-comet.md) · `ai.perplexity.comet` — P · 一键 ✓（2026-08-29，`.fixed` 指向网关）· redirect version avoids stale rollout API · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (one-click dmg via `.bodyPattern`) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17

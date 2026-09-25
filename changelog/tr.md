@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.4.5
+
+**blender.org’dan indirilen Blender artık tek tıkla güncelleniyor.** Önceden yalnızca Homebrew ile kurulmuş kopya denetleniyordu.
+
+**Blender’ın alfa, beta ve sürüm adayı (RC) derlemeleri kendi kanallarını izliyor.** DuoUpdater hangi tür derlemeye sahip olduğunuzu anlıyor ve aynı türden daha yeni bir derleme çıktığında haber veriyor. Bir alfaya asla kararlı sürüm önerilmiyor, tersi de geçerli.
+
+**Muse güncellemeleri yeniden görünüyor.** Muse indirme bağlantısı için oturum açmayı istemeye başladığından beri, satırında yeni sürüm yerine bir hata görünüyordu.
+
+**Perde arkasında.** Menü çubuğu açılır penceresi ve çalışma alanı, açılıştan sonraki ilk seferde biraz daha hızlı açılıyor; `duo check` de artık her şeyin güncel olduğunu söylemek yerine denetimi başarısız olan uygulamaları listeliyor.
+
 ## 0.4.4
 
 **DuoUpdater artık İtalyanca, Geleneksel Çince, Portekizce (Brezilya) ve Türkçe konuşuyor.** Böylece toplam on bir dil oldu. Almanca, İspanyolca ve Japonca’daki yanlış veya kesik metinler düzeltildi. Ayarlar → Klasörler artık klasör adlarını Finder’ın sizin dilinizde gösterdiği gibi gösteriyor.

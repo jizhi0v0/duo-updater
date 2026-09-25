@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.5
+
+**Blender, das von blender.org geladen wurde, bekommt jetzt Updates, mit einem Klick.** Bisher wurde nur eine per Homebrew installierte Kopie geprüft.
+
+**Alpha-, Beta- und Release-Candidate-Builds von Blender folgen ihrem eigenen Track.** DuoUpdater erkennt, welche Art von Build du hast, und sagt dir, wenn ein neuerer Build derselben Art erscheint. Einer Alpha wird nie eine stabile Version angeboten, und umgekehrt.
+
+**Updates für Muse werden wieder angezeigt.** Seit Muse für seinen Download-Link eine Anmeldung verlangt, zeigte seine Zeile einen Fehler statt der neuen Version.
+
+**Unter der Haube.** Das Popover in der Menüleiste und die Werkbank öffnen sich beim ersten Mal nach dem Start etwas schneller, und `duo check` listet jetzt Apps auf, deren Prüfung fehlgeschlagen ist, statt zu melden, alles sei aktuell.
+
 ## 0.4.4
 
 **DuoUpdater spricht jetzt Italienisch, traditionelles Chinesisch, Portugiesisch (Brasilien) und Türkisch.** Das sind elf Sprachen. Auf Deutsch, Spanisch und Japanisch wurden falsche oder abgeschnittene Texte korrigiert. Einstellungen → Ordner zeigt Ordnernamen jetzt so an wie der Finder in deiner Sprache.

@@ -2,6 +2,16 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.4.5
+
+**O Blender baixado do blender.org agora recebe atualizações, com um clique.** Antes, só uma cópia instalada pelo Homebrew era verificada.
+
+**As versões alfa, beta e release candidate (RC) do Blender seguem seu próprio canal.** O DuoUpdater identifica que tipo de versão você tem e avisa quando sai uma mais nova do mesmo tipo. Uma alfa nunca recebe a oferta de uma versão estável, nem o contrário.
+
+**As atualizações do Muse voltam a aparecer.** Depois que o Muse passou a pedir login no link de download, a linha dele mostrava um erro em vez da nova versão.
+
+**Nos bastidores.** O popover da barra de menus e a bancada abrem um pouco mais rápido na primeira vez depois de iniciar o app, e o `duo check` agora lista os apps cuja verificação falhou em vez de dizer que tudo está atualizado.
+
 ## 0.4.4
 
 **O DuoUpdater agora fala italiano, chinês tradicional, português (Brasil) e turco.** São onze idiomas no total. Em alemão, espanhol e japonês, textos errados ou cortados foram corrigidos. Ajustes → Pastas agora mostra os nomes das pastas como o Finder mostra no seu idioma.

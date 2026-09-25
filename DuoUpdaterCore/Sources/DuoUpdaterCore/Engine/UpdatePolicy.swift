@@ -125,6 +125,13 @@ public struct InstallPathFacts: Sendable, Equatable {
     /// Add the facts for `bundles`. An install observed before is observed
     /// again (its entries replaced); installs not named are left as they were.
     public mutating func observe(_ bundles: [URL]) {
+        // The elevation set is keyed by runtime path, not by install, so "replaced"
+        // means dropping the key each re-observed install was last filed under
+        // before adding today's answer — otherwise an install that stopped needing
+        // an administrator would keep answering that it does.
+        for bundle in bundles {
+            if let previous = runtimeKeys[bundle] { elevationRequiredPaths.remove(previous) }
+        }
         elevationRequiredPaths.formUnion(InPlaceSwap.elevationRequiredPaths(for: bundles))
         for bundle in bundles {
             runtimeKeys[bundle] = UpdatePolicy.runtimeBundlePath(bundle)

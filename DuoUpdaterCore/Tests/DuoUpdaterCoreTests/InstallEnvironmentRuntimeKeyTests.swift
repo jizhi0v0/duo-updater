@@ -170,4 +170,22 @@ struct InstallEnvironmentRuntimeKeyTests {
         #expect(facts.unobserved(in: [first, second]).isEmpty)
         #expect(facts == InstallPathFacts.observing([first, second]))
     }
+
+    /// Re-observing an install replaces its answers — including the elevation
+    /// entry, which lives in a set keyed by runtime path and so is not overwritten
+    /// by assignment. A missing path reads as "needs an administrator"; once a
+    /// writable bundle exists there, re-observing it must clear that.
+    @Test func reobservingClearsAStaleElevationEntry() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-Reobserve-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bundle = dir.appendingPathComponent("Fixture.app")
+        var facts = InstallPathFacts.observing([bundle])
+        #expect(facts.elevationRequiredPaths.contains(UpdatePolicy.runtimeBundlePath(bundle)), "a missing bundle must start out needing elevation")
+
+        try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+        facts.observe([bundle])
+        #expect(!facts.elevationRequiredPaths.contains(UpdatePolicy.runtimeBundlePath(bundle)))
+        #expect(facts == InstallPathFacts.observing([bundle]))
+    }
 }

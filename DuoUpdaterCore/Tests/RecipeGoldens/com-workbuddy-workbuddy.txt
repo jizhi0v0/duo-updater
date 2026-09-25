@@ -14,6 +14,7 @@ probes[0].hostRequirement?.architectures = Array(count: 1)
 probes[0].hostRequirement?.architectures[0] = .arm64
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://www.workbuddy.cn/v2/update?platform=workbuddy-darwin-arm64")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -52,6 +53,7 @@ probes[1].hostRequirement?.architectures = Array(count: 1)
 probes[1].hostRequirement?.architectures[0] = .x86_64
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://www.workbuddy.cn/v2/update?platform=workbuddy-darwin-x64")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil

@@ -60,6 +60,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// answers with, byte for byte. See ``BuildNamespace``.
     public let vendorBuildVersion: String?
 
+    /// When the vendor built this copy, where the bundle states it and the build
+    /// id alone cannot order it. Blender is the case: its `vendorBuildVersion` is
+    /// a commit, and `UpdateChecker.evaluate` will not offer a track's newest
+    /// build published before this copy was built (see `BuildLineage.head`).
+    /// Nil for every other app.
+    public let vendorBuildDate: Date?
+
     /// Which of an installed bundle's two build identifiers a remote version is
     /// expressed in. A source that reports a build states this so the comparison
     /// can never be made across namespaces — the failure mode being a silent
@@ -275,6 +282,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         shortVersion: String?,
         buildVersion: String?,
         vendorBuildVersion: String? = nil,
+        vendorBuildDate: Date? = nil,
         path: URL,
         isMASApp: Bool,
         isiOSAppOnMac: Bool = false,
@@ -300,6 +308,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.shortVersion = shortVersion
         self.buildVersion = buildVersion
         self.vendorBuildVersion = vendorBuildVersion
+        self.vendorBuildDate = vendorBuildDate
         self.path = path
         self.isMASApp = isMASApp
         self.isiOSAppOnMac = isiOSAppOnMac

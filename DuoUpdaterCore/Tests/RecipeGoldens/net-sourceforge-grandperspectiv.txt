@@ -11,6 +11,7 @@ probes[0].variant = nil
 probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://sourceforge.net/projects/grandperspectiv/best_release.json")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil

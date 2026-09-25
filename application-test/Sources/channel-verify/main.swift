@@ -317,7 +317,10 @@ let inferred = ReleaseChannel.detect(
 // the app had it on beta, so a verification run exercised a recipe the user's
 // machine would never reach, and the actually-broken channel looked fine.
 let bound = bundleID.flatMap { ChannelBinding.resolve(bundleID: $0) }
-let detected = weChatDevTools?.channel ?? bound?.channel ?? inferred
+// Blender's cycle and commit exist only in its executable — the same read
+// AppScanner makes. See `BlenderBuildInfo`.
+let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bundleAt: appPath) : nil
+let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? inferred
 
 print("""
 
@@ -329,6 +332,7 @@ print("""
   RemotingName    \(remotingName ?? "<none>")
   BuildID         \(mozillaINI.buildID ?? "<none>")
   package.json    \(weChatDevTools.map { "\($0.version) · versionType → \($0.channel.rawValue)" } ?? "<none>")
+  Blender build   \(blender.map { "cycle \($0.cycle?.rawValue ?? "?") · \($0.branch ?? "?") · \($0.commit ?? "?") · built \($0.builtAt.map { "\($0)" } ?? "?") · track commit \($0.trackCommit ?? "<none>")" } ?? "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
   ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
   ─────────────────────────────────────────────
@@ -350,7 +354,8 @@ let app = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+    vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: nil,
@@ -467,7 +472,8 @@ let chainApp = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+    vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: chainFeedURL,

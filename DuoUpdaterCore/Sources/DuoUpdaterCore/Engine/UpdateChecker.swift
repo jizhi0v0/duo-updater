@@ -580,12 +580,23 @@ public struct UpdateChecker: Sendable {
         // than the lineage this remote carries; the next check reads a lineage that
         // lists it, which is what the failed check's Retry is for.
         if let lineage = remote.buildLineage {
+            // Same rule as the vendor-namespace check below, asked first: without
+            // this the pair would fall back to marketing strings, which a head
+            // lineage cannot place and a head track freezes across builds.
+            if remote.buildNamespace == .vendor, remote.version != nil,
+               installed.vendorBuildVersion == nil {
+                return .unknown
+            }
             guard let pair = remote.lineageComparands(
                 installedMarketing: installed.shortVersion,
                 installedBuild: installed.buildVersion(in: remote.buildNamespace))
             else { return .unknown }
             switch lineage.isNewer(pair.remote, than: pair.installed) {
-            case .some(true): return .updateAvailable(latest: remote.displayVersion ?? pair.remote)
+            case .some(true):
+                if lineage.unlistedIsOlder, Self.headIsNotAhead(installed: installed, remote: remote) {
+                    return .upToDate
+                }
+                return .updateAvailable(latest: remote.displayVersion ?? pair.remote)
             case .some(false): return .upToDate
             case .none:
                 return .error("The vendor's release history does not place \(pair.installed) "
@@ -719,6 +730,29 @@ public struct UpdateChecker: Sendable {
     static func buildIsFoldableCounter(_ build: String) -> Bool {
         guard !build.isEmpty, build.allSatisfy({ $0.isASCII && $0.isNumber }) else { return false }
         return build.drop(while: { $0 == "0" }).count >= 3
+    }
+
+    /// Whether a head lineage's "newer" must be withheld (see `BuildLineage.head`).
+    ///
+    /// The head claim is only "this is the newest build of the track"; it says
+    /// nothing about a copy the track does not list, which is also how a copy from
+    /// a DIFFERENT line looks. Two facts the claim cannot supply decide it:
+    /// - a lower marketing version is never offered — Blender's release-candidate
+    ///   track can be headed by an older line's candidate (4.5.15 RC) while the
+    ///   installed copy is a newer line's (5.2.1 RC);
+    /// - a head published before this copy was built is not newer than it — a
+    ///   vendor listing that lags a build already downloaded from the vendor's
+    ///   own page. Only when both dates are known; the commit already differs.
+    static func headIsNotAhead(installed: InstalledApp, remote: RemoteVersion) -> Bool {
+        if let offered = remote.shortVersion, let current = installed.shortVersion,
+           VersionComparator.isNewer(current, than: offered) {
+            return true
+        }
+        if let published = remote.publishedAt, let built = installed.vendorBuildDate,
+           published <= built {
+            return true
+        }
+        return false
     }
 
     /// Drop a leading product-code run like "IU-"/"AI-" from a build number so a

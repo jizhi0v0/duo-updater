@@ -657,6 +657,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half**. A STATIC per-generation floor only; a bound that moves release to release must be read from the feed instead, never frozen here |
 | `buildLineage` | the version is a commit hash (no order of its own) and the vendor publishes its release history: the engine orders by position there instead of `VersionComparator`, which on hashes is a coin flip. See `BuildLineage` |
 | `buildNamespace` | with `versionIsBuild`: the published build id is the vendor's own (Mozilla's `application.ini` `BuildID`), not `CFBundleVersion` |
+| `headBuildPattern` | the endpoint names only the NEWEST build of a track, by a commit, while the marketing version stays frozen across builds (Blender's builder: every 5.3 alpha is "5.3.0"). Ordered by `BuildLineage.head`; the installed commit comes from a scan (`BlenderBuildInfo`) |
 | `transientBodyPattern` | the vendor sometimes answers with its own error envelope under a success status: reported as transient, not as a broken recipe |
 | `trackClosedPattern` | the body can say, in the vendor's words, that this track has no current build |
 | `installedVersionPattern` | the recipe applies only to installed copies whose marketing version matches (a new major is a separate, often paid, product rather than the next version) |

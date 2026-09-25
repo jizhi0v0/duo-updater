@@ -27,7 +27,7 @@ stable endpoint you want.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `VendorProbeRecipe.init` currently takes **27** parameters. Read it before you
+> `VendorProbeRecipe.init` currently takes **28** parameters. Read it before you
 > conclude a situation is unsupported — a recipe that "can't express this" is far
 > more often a field nobody has read than a real limit.
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
@@ -66,6 +66,7 @@ The rest, by the problem they solve — go to the source for the exact semantics
 | Endpoint sometimes returns a "nothing new" / closed-track body | `transientBodyPattern`, `trackClosedPattern` |
 | Recipe applies only to installed copies whose marketing version matches (a new major is a separate, often paid, product rather than the next version) | `installedVersionPattern` |
 | Versions are commit hashes (no order of their own); the vendor publishes its release history | `buildLineage` — see `BuildLineage` |
+| The endpoint names only the newest build of a track, by a commit (no order of its own), and the marketing version is frozen across builds | `headBuildPattern` + `buildNamespace: .vendor` — see `BuildLineage.head`; the installed side needs a scan that fills `vendorBuildVersion` (Blender: `BlenderBuildInfo`) |
 
 - **`.redirectFilename`** — `url` is a stable link that 302s to the real package;
   HEAD it, follow redirects, parse the version out of the final filename. Preferred

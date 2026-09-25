@@ -16,6 +16,7 @@ probes[0].installedVersionPattern = nil
 probes[0].buildLineage? = struct VendorProbeRecipe.BuildLineageSpec
 probes[0].buildLineage?.url = URL("https://releases.superconductor.so/changelog.json")
 probes[0].buildLineage?.entryPattern = "\"version\"\\s*:\\s*\"([0-9a-f]{8})[0-9a-f]*\""
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://releases.superconductor.so/latest.json")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil

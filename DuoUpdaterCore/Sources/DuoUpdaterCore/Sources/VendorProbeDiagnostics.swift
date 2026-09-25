@@ -112,6 +112,12 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// like `versionPatternNoMatch`.
     case buildLineagePatternNoMatch(sampleBytes: Int)
 
+    /// The version resolved, but the recipe's `headBuildPattern` found no build id
+    /// in the same entry — the vendor changed the entry's shape. A recipe problem.
+    /// Fails the probe: without the id, the remote could only be ordered by its
+    /// marketing string, which such a track freezes across builds.
+    case headBuildPatternNoMatch(sampleBytes: Int)
+
     /// The lineage parsed but does not list the build the version endpoint just
     /// named. They are two documents published separately — Superconductor's
     /// `latest.json` and `changelog.json` carried Last-Modified stamps three
@@ -155,7 +161,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .redirectMissingLocation, .malformedResolvedURL,
              .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch,
              .assetPatternNoMatch, .versionSegmentCountChanged, .channelDiscoveryBroken,
-             .buildLineagePatternNoMatch:
+             .buildLineagePatternNoMatch, .headBuildPatternNoMatch:
             return .recipe
         }
     }
@@ -177,6 +183,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
         case .vendorErrorEnvelope: return "vendorErrorEnvelope"
         case .buildLineagePatternNoMatch: return "buildLineagePatternNoMatch"
+        case .headBuildPatternNoMatch: return "headBuildPatternNoMatch"
         case .buildLineageMissesVersion: return "buildLineageMissesVersion"
         case .archiveChangedDuringRead: return "archiveChangedDuringRead"
         case .buildLineageUnavailable(let inner): return "buildLineageUnavailable.\(inner.kind)"
@@ -207,6 +214,9 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .buildLineagePatternNoMatch(let bytes):
             return "the release-order document answered (\(bytes) bytes) but its entry "
                 + "pattern matched no build — the vendor changed that document's shape"
+        case .headBuildPatternNoMatch(let bytes):
+            return "the version resolved, but no build id matched in the same entry "
+                + "(\(bytes)-byte body) — the vendor changed the entry's shape"
         case .buildLineageUnavailable(let inner):
             return "the release-order document could not be read: \(inner.detail)"
         case .archiveChangedDuringRead(let why): return why

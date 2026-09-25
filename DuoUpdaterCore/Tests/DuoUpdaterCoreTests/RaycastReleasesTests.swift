@@ -152,6 +152,16 @@ private let raycastChangelogFixture = #"""
             // other train to land an Intel or pre-Sonoma Mac on — so those read
             // "unknown" rather than being offered a build that cannot run.
             "vendor:com.zarifpour.superconductor:nightly",
+            // Blender: the download page links only the arm64 dmg — 5.0 dropped
+            // Intel builds, and Intel copies stop at the 4.5 LTS line, which this
+            // recipe does not read. Offering an Intel Mac the page's version would
+            // be a permanent "update available" for a build it cannot run.
+            "vendor:org.blenderfoundation.blender:stable",
+            // Blender's builder tracks: the listing entries they read are the
+            // `darwin`/`arm64` ones, and there is no Intel build of any of them.
+            "vendor:org.blenderfoundation.blender:alpha",
+            "vendor:org.blenderfoundation.blender:beta",
+            "vendor:org.blenderfoundation.blender:rc",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

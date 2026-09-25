@@ -13,6 +13,7 @@ probes[0].hostRequirement?.minimumSystemVersion? = "13.1"
 probes[0].hostRequirement?.architectures = Array(count: 0)
 probes[0].installedVersionPattern? = "^7\\."
 probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
 probes[0].url = URL("https://bombich.com/software/download_ccc.php?v=ccc7")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
@@ -43,6 +44,7 @@ probes[1].hostRequirement?.minimumSystemVersion? = "13.1"
 probes[1].hostRequirement?.architectures = Array(count: 0)
 probes[1].installedVersionPattern? = "^7\\."
 probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
 probes[1].url = URL("https://bombich.com/software/download_ccc.php?v=latestbeta")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil
@@ -73,6 +75,7 @@ probes[2].hostRequirement?.minimumSystemVersion? = "10.15"
 probes[2].hostRequirement?.architectures = Array(count: 0)
 probes[2].installedVersionPattern? = "^6\\."
 probes[2].buildLineage = nil
+probes[2].headBuildPattern = nil
 probes[2].url = URL("https://bombich.com/software/download_ccc.php?v=ccc6")
 probes[2].identities = Array(count: 0)
 probes[2].track = nil
@@ -103,6 +106,7 @@ probes[3].hostRequirement?.minimumSystemVersion? = "10.10"
 probes[3].hostRequirement?.architectures = Array(count: 0)
 probes[3].installedVersionPattern? = "^5\\."
 probes[3].buildLineage = nil
+probes[3].headBuildPattern = nil
 probes[3].url = URL("https://bombich.com/software/download_ccc.php?v=ccc5")
 probes[3].identities = Array(count: 0)
 probes[3].track = nil

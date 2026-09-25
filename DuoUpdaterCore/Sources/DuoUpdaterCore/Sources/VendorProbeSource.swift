@@ -907,6 +907,20 @@ public struct VendorProbeSource: UpdateSource {
             lineage = fetched
         }
 
+        // The head's build id, from the same entry the version came from. Missing
+        // it fails the probe: the remote would otherwise be ordered by a marketing
+        // string the track freezes across builds. See `headBuildPattern`.
+        if let pattern = recipe.headBuildPattern {
+            guard let head = VendorProbeRecipe.extractVersion(from: scope, pattern: pattern) else {
+                Log.source.error(
+                    "vendor probe \(recipe.bundleID, privacy: .public): \(version, privacy: .public) resolved, no build id matched /\(pattern, privacy: .public)/")
+                return fail(
+                    .headBuildPatternNoMatch(sampleBytes: scope.utf8.count), status: body.status,
+                    sample: sample)
+            }
+            lineage = .head(head)
+        }
+
         // Refused only now, after the lineage: the refusal carries the release as
         // this source would have reported it, and `UpdateChecker` asks whether that
         // release is newer than the installed copy before the row says anything.
@@ -1400,12 +1414,16 @@ public struct VendorProbeSource: UpdateSource {
         // construction — the one case besides a Sparkle feed where
         // `marketingMatchesBundle` is a fact rather than a guess.
         let shortVersion = bundle.map(\.marketing) ?? (recipe.versionIsBuild ? display : version)
-        let buildVersion = bundle.map(\.build) ?? (recipe.versionIsBuild ? version : nil)
+        // A `headBuildPattern` recipe keeps its marketing version in `shortVersion`
+        // and puts the head's build id beside it; that id is the one `lineage`
+        // lists (`BuildLineage.head`), set by the caller from the same entry.
+        let headBuild = recipe.headBuildPattern != nil ? lineage?.newestFirst.first : nil
+        let buildVersion = bundle.map(\.build) ?? headBuild ?? (recipe.versionIsBuild ? version : nil)
         // Only meaningful alongside a build. A detection-only marketing answer is
         // in no build namespace at all, and stamping one on it would let a future
         // reader think the comparison was namespaced when it wasn't.
         let namespace: InstalledApp.BuildNamespace =
-            recipe.versionIsBuild ? recipe.buildNamespace : .bundle
+            recipe.versionIsBuild || headBuild != nil ? recipe.buildNamespace : .bundle
 
         if let spec, let plan {
             return RemoteVersion(

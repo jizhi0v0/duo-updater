@@ -80,7 +80,7 @@
 - 周期检测依赖编译器把周期字面量对放在格式串前面。布局变了时，读不到那对就当正式版：预发布拷贝会落到 stable 轨，读成「无更新」而不是被提示降级。
 
 ## 建议下一步
-1. alpha 的一键安装在真实拷贝上跑一次：builder 每天约 02:30–03:00 UTC 出新 alpha，已装的 alpha 次日就落后一版。
+1. alpha 的一键安装在真实拷贝上跑一次：builder 出了下一个 alpha，已装的就落后一版。alpha 大多在 02:30–03:15 UTC 上传（2026-06-18 至 09-25 的 86 个 macOS arm64 alpha 里有 81 个），但不是每天都有（这段时间有 17 天没有）。
 2. 下一个 beta 周期（5.3 按发布说明 2026-09-30 后进 beta）开始后，用 `duo verify --only blender` 看 beta 轨从「关闭」变成 ✓。
 
 ## 如何复验
@@ -166,3 +166,5 @@ exposes no released-only index to follow.
 新守卫的变异验证（每条改掉后跑 `BlenderBuilderTrackTests` + `BlenderBuildInfoTests`）：去掉 marketing 闸、去掉时间闸、去掉 `unlistedIsOlder`、去掉 lineage 分支里的「vendor 为空 → unknown」、去掉 alpha 的 `main` 分支检查、去掉 `" LTS"` 跳过、让 probe 不把 head 放进 `version`——七条都有测试变红，恢复后全绿。
 
 复核 review 列出的外部断言（2026-09-25，PR #869 第 1 轮）：`download.blender.org/release/Blender5.0/`、`5.1/`、`5.2/` 三个目录的 macOS 文件全是 `-macos-arm64.dmg`（2、3、3 个），没有 x64；builder 的 `blender-5.3.0-alpha+main.425ab43ad645-darwin.arm64-release.dmg.sha256` 内容是 64 位 hex；四个主程序里 commit 与分支之间都是 7 字节 0 填充 + 8 字节 `build_commit_timestamp`（小端，5.2.2 / 5.2.0 beta / 5.2.1 RC / 5.3.0 alpha 分别为 2026-09-14 15:14、07-08 00:32、08-22 07:09、09-24 20:24 UTC，都早于各自的构建时间）。「列表会滞后」没有观测到，代码与本文都已改写为防护措施。
+
+复核第 2 轮 review（2026-09-25）：stable 一键实跑的数字出自本会话在真实拷贝上跑的 `duo check` / `duo install` / `codesign` / `spctl` 原始输出。alpha 的上传时间此前写成「每天约 02:30–03:00 UTC」，按 archive + daily 列表复算后更正：86 个里 81 个在 02:30–03:15 UTC，另外 5 个在 07-24 10:18、07-28 07:53、09-04 18:01、09-10 22:02、09-18 03:16；有 17 天没有 alpha，3 天有两个。

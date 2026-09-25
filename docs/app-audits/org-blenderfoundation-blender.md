@@ -168,3 +168,5 @@ exposes no released-only index to follow.
 复核 review 列出的外部断言（2026-09-25，PR #869 第 1 轮）：`download.blender.org/release/Blender5.0/`、`5.1/`、`5.2/` 三个目录的 macOS 文件全是 `-macos-arm64.dmg`（2、3、3 个），没有 x64；builder 的 `blender-5.3.0-alpha+main.425ab43ad645-darwin.arm64-release.dmg.sha256` 内容是 64 位 hex；四个主程序里 commit 与分支之间都是 7 字节 0 填充 + 8 字节 `build_commit_timestamp`（小端，5.2.2 / 5.2.0 beta / 5.2.1 RC / 5.3.0 alpha 分别为 2026-09-14 15:14、07-08 00:32、08-22 07:09、09-24 20:24 UTC，都早于各自的构建时间）。「列表会滞后」没有观测到，代码与本文都已改写为防护措施。
 
 复核第 2 轮 review（2026-09-25）：stable 一键实跑的数字出自本会话在真实拷贝上跑的 `duo check` / `duo install` / `codesign` / `spctl` 原始输出。alpha 的上传时间此前写成「每天约 02:30–03:00 UTC」，按 archive + daily 列表复算后更正：86 个里 81 个在 02:30–03:15 UTC，另外 5 个在 07-24 10:18、07-28 07:53、09-04 18:01、09-10 22:02、09-18 03:16；有 17 天没有 alpha，3 天有两个。
+
+复核第 4 轮 review（2026-09-25）：「列表长期保留每个分支最新的 Mac 构建」改为直接看 Mac 条目，而不是从 Windows 条目推断。当天的 daily 列表里 `darwin`/`arm64`/`dmg` 条目有 `v43` 的 4.3.2（`32f5fdce0a0a`，上传于 2025-01-10）、`v44` 的 4.4.3（`802179c51ccc`，2025-05-13）、`v50` 的 5.0.1（2026-02-06）——这几个分支早已不再出构建，条目仍在。

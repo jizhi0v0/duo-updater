@@ -121,6 +121,25 @@ public enum Check {
     /// A row worth acting on: an update the user has not hidden.
     static func isActionable(_ row: Row) -> Bool { row.hasUpdate && !row.hidden }
 
+    /// Whether a check lists this result without `--all`: an update, or a check
+    /// that failed. A failure is not "current" — nothing was learned — and leaving
+    /// it out made a run whose only news was a failure print "Everything is up to
+    /// date." (Muse, 2026-09-25: both its sources refused, the row said
+    /// `error: HTTP 403`, the summary said everything was current.)
+    static func showsByDefault(_ result: UpdateResult) -> Bool {
+        if result.hasUpdate { return true }
+        if case .error = result.status { return true }
+        return false
+    }
+
+    /// What went wrong, for a row whose check failed; nil for every other row.
+    /// Read back off `status`, the one field the row carries it in.
+    static func failure(_ row: Row) -> String? {
+        let prefix = "error: "
+        guard row.status.hasPrefix(prefix) else { return nil }
+        return String(row.status.dropFirst(prefix.count))
+    }
+
     /// The (installed, latest) build pair to show when the marketing version stays
     /// put, mirroring `UpdateResult.buildBump` on the row shape this command emits.
     static func buildBump(_ row: Row) -> (installed: String, remote: String)? {
@@ -217,7 +236,7 @@ public enum Check {
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
             let hidden = settings.isHidden(result)
             if hidden && !options.includeHidden { continue }
-            if !options.all && !result.hasUpdate { continue }
+            if !options.all && !Self.showsByDefault(result) { continue }
             if !options.sources.isEmpty {
                 // An app no source answered for has no source to match, so a
                 // `--source` filter excludes it rather than letting it through.
@@ -533,12 +552,15 @@ public enum Check {
             if let route = row.route, route != "manual" { tags.append(route) }
             if row.hidden { tags.append("hidden") }
             if !tags.isEmpty { line += "  [\(tags.joined(separator: ", "))]" }
+            if let failure = failure(row) { line += "  — check failed: \(failure)" }
             print(line)
         }
         let actionable = rows.filter(isActionable).count
+        let failed = rows.filter { failure($0) != nil }.count
         if checked {
             print("\n  \(actionable) update\(actionable == 1 ? "" : "s") available "
-                + "of \(rows.count) app\(rows.count == 1 ? "" : "s") shown.")
+                + "of \(rows.count) app\(rows.count == 1 ? "" : "s") shown"
+                + (failed == 0 ? "." : "; \(failed) could not be checked."))
         }
     }
 }

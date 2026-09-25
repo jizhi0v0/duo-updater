@@ -2102,26 +2102,23 @@ private let doubaoImeDownloadURLFixture = #"""
         from: body, pattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#) == nil)
 }
 
-// Muse (Meta) — the latest link's 307 target, as `.redirectFilename` reads it:
-// the real 2026-09-23 `Location` ends in `…_n.dmg/Muse-2.2.dmg`, and the probe
-// matches the last path component. The bundle in that dmg reports 2.2.
-@Test func museReadsTheMarketingVersionOffTheLatestLinksFilename() throws {
+// Muse (Meta) — the Homebrew cask's API listing, read for its version only. The
+// head of the real 2026-09-25 `formulae.brew.sh/api/cask/muse.json`, with the keys
+// that merely END in "version" (`bundle_version`, `bundle_short_version`,
+// `pinned_version`) set to other numbers: the leading quote in the pattern is what
+// keeps them out, and a cask that names its own bundle version must not win.
+@Test func museReadsTheVersionOffTheCaskListingNotTheBundleKeys() throws {
     let r = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "com.meta.endo" })
-    guard case .redirectFilename = r.mode else { Issue.record("expected .redirectFilename"); return }
-    let resolved = try #require(URL(string:
-        "https://scontent-sea5-1.xx.fbcdn.net/v/t39.110568-6/818743816_1593738112204460_1141483048044975808_n.dmg/Muse-2.2.dmg?_nc_cat=102&ccb=1-7&oe=6AB942DA"))
-    #expect(VendorProbeRecipe.extractVersion(
-        from: resolved.lastPathComponent, pattern: r.versionPattern) == "2.2")
-    // Anchored to the whole name: the fbcdn object id before it, or a renamed
-    // artifact, must not yield a number.
-    #expect(VendorProbeRecipe.extractVersion(
-        from: "818743816_1593738112204460_1141483048044975808_n.dmg", pattern: r.versionPattern) == nil)
-    #expect(VendorProbeRecipe.extractVersion(
-        from: "Muse-Installer-2.2.dmg", pattern: r.versionPattern) == nil)
-    // One-click fetches the same link at download time, never a signed URL held on the row.
-    guard case .redirect(let link) = try #require(r.install).urlSource else {
-        Issue.record("expected .redirect install"); return
-    }
-    #expect(link == r.url)
-    #expect(r.install?.kind == .dmg)
+    guard case .responseBody = r.mode else { Issue.record("expected .responseBody"); return }
+    #expect(r.url.absoluteString == "https://formulae.brew.sh/api/cask/muse.json")
+    let body = #"{"token":"muse","full_token":"muse","old_tokens":[],"tap":"homebrew/cask","name":["Muse"],"homepage":"https://muse.ai/","url":"https://muse.ai/api/hatch/app-download/mac","url_specs":{},"version":"4.0","autobump":true,"installed":null,"installed_time":null,"bundle_version":"9.9","bundle_short_version":"9.8","pinned":false,"pinned_version":"9.7","sha256":"no_check"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: r.versionPattern) == "4.0")
+    let bundleKeysFirst = #"{"bundle_version":"9.9","bundle_short_version":"9.8","version":"4.0"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: bundleKeysFirst, pattern: r.versionPattern) == "4.0")
+    // Detection only: the cask's `url` answers `403 not_eligible` to anyone not
+    // signed in to muse.ai, and every other link to the dmg is a signed fbcdn URL
+    // that expires (`oe=`, about four and a half days out when measured). The
+    // row's page is muse.ai, where a signed-in user downloads it.
+    #expect(r.install == nil)
+    #expect(r.downloadURL?.absoluteString == "https://muse.ai/")
 }

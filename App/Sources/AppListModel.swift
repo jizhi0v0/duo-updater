@@ -62,20 +62,26 @@ struct ChangelogCacheKey: Hashable {
 @Observable
 final class AppListModel {
     private(set) var results: [UpdateResult] = [] {
-        // Drop the derived memos whenever the list itself is replaced. This is the
-        // *only* thing that invalidates them, which is what lets their getters be a
-        // bare lookup: any change to an app — its path moving to a location with
-        // different permissions, or the permissions changing under an identical
-        // path — arrives as a write here, and staleness is bounded to one scan
-        // cycle, the same window every other derived fact in this model lives in.
+        // Drop (or, for `pathFacts`, re-observe) the derived memos whenever the
+        // list itself is replaced. This is the *only* thing that invalidates them,
+        // which is what lets their getters be a bare lookup: any change to an app —
+        // its path moving to a location with different permissions, or the
+        // permissions changing under an identical path — arrives as a write here,
+        // and staleness is bounded to one scan cycle, the same window every other
+        // derived fact in this model lives in.
         didSet {
-            elevationPathsCache = nil
-            runtimeKeysCache = nil
+            resultsGeneration &+= 1
+            reobservePathFacts()
             orphanedStoreCopiesCache = nil
             pruneSettledInstallErrors()
             pruneRetractedNotes()
         }
     }
+
+    /// Bumped by every write to `results`, element writes included. Lets work done
+    /// off the main actor against a snapshot of `results` tell, once back, whether
+    /// the rows it read are still the rows on screen — without comparing them.
+    @ObservationIgnored private var resultsGeneration = 0
 
     /// Drop the install errors that no longer describe anything real. Hung off the
     /// same write that invalidates the memos above because that is the one place
@@ -936,6 +942,17 @@ final class AppListModel {
             staged: pendingSelfUpdate[result.id])
     }
 
+    /// Warm `AppIconCache` for the rows a scan just published, so the first
+    /// popover or workbench open draws from the cache instead of reading each
+    /// icon in `body`. Rows the popover shows by default go first, the rest in
+    /// `results` order; the whole list fits the cache, so the order only matters
+    /// when the popover opens before the ~0.3 s pass finishes.
+    private func prefetchRowIcons() {
+        let pending = results.filter(needsAction)
+        let rest = results.filter { !needsAction($0) }
+        AppIconCache.prefetch((pending + rest).map(\.app.path.path))
+    }
+
     /// How many rows `needsAction` marks — the badge's number, and the popover's
     /// "N updates available". A relaunch-pending row counts as an update here: its
     /// new version is an update that happens to be downloaded already. Keeping it
@@ -1546,7 +1563,8 @@ final class AppListModel {
     /// leave out — ONCE, via `helperClient.refreshStatus()`. It was twice until
     /// 2026-09-13: `helperClient.isEnabled` is deliberately a live query, so asking
     /// it right after `refreshStatus()` re-asked the same question, and the Welcome
-    /// and Settings panes poll this every 1.5 s.
+    /// and Settings panes poll this every 1.5 s. That query now runs off the main
+    /// thread and lands after this returns (`refreshHelperStatus()`).
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -1594,11 +1612,20 @@ final class AppListModel {
         // published status so the Settings "App Store helper" row flips on its own once
         // approved in Login Items (no second click). The menu's `.task` calls this on
         // appear, so App Store rows reflect the helper without opening Settings.
-        helperClient.refreshStatus()
-        // The mirror it just wrote, not another live query — see the doc above.
-        helperEnabled = helperClient.status == .enabled
+        // Not awaited: callers are window appears and polls, and the mirror is
+        // observable, so it lands a round trip later. A caller that acts on it right
+        // away awaits `refreshHelperStatus()` itself (see `installAll`).
+        Task { await refreshHelperStatus() }
 
         logPermissionsOnce()
+    }
+
+    /// The helper half of `refreshPermissionStatus()`, with the `SMAppService` query off
+    /// the main thread (see `PrivilegedHelperClient.refreshStatusOffMain`).
+    func refreshHelperStatus() async {
+        await helperClient.refreshStatusOffMain()
+        // The mirror it just wrote, not another live query — see the doc above.
+        helperEnabled = helperClient.status == .enabled
     }
 
     /// Track AX trust while a permission-aware window (Welcome, Settings) is open, so a
@@ -2898,9 +2925,13 @@ final class AppListModel {
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
         async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
-        var found = await Task.detached(priority: .userInitiated) {
-            AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
+        // The rows' filesystem facts are observed in the same hop, for the list
+        // the scan just found — see `pathFacts` for why not on the main actor.
+        let (scanned, scannedPathFacts) = await Task.detached(priority: .userInitiated) {
+            let apps = AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
+            return (apps, InstallPathFacts.observing(apps.map(\.path)))
         }.value
+        var found = scanned
         // The store was turned away above, before the scan knew which apps it would
         // have answered; now it does, so the menu can name them.
         // Only when the grant is what stopped it. With detection off no read was
@@ -2923,9 +2954,11 @@ final class AppListModel {
         // file read for the whole list — take it once, out here, never per app
         // (`docs/engine-notes/app-list-model.md` §4.7 records the draft that did).
         let proofs = ResolvedChannelStore.Snapshot()
+        seedPathFacts(scannedPathFacts)
         results = results.isEmpty
             ? ScanRowAssembly.unchecked(found, proofs: proofs)
             : sorted(mergeScanned(found, proofs: proofs))
+        prefetchRowIcons()
         lastScan = .now
         isScanning = false
 
@@ -3205,66 +3238,83 @@ final class AppListModel {
             isHelperEnabled: helperEnabled,
             runningAppPaths: runningAppPaths,
             stagedSelfUpdates: pendingSelfUpdate,
-            elevationRequiredPaths: elevationRequiredPaths,
+            elevationRequiredPaths: pathFacts.elevationRequiredPaths,
             runningBundleIDs: runningBundleIDs,
-            runtimeKeys: runtimeKeys)
+            runtimeKeys: pathFacts.runtimeKeys,
+            inputMethods: pathFacts.inputMethods)
     }
 
-    /// The comparable path for every install in the list, resolved once per scan.
+    /// The filesystem facts every row's policy questions are answered from — which
+    /// installs need an administrator prompt to replace, each install's comparable
+    /// (`realpath`-resolved) path, and which installs are input methods — observed
+    /// off the main actor when the list is produced, and only looked up after that.
     ///
-    /// Same shape and the same reason as `elevationRequiredPaths` above, for the
-    /// other filesystem call on this path: `UpdatePolicy.runtimeBundlePath` opens
-    /// with `resolvingSymlinksInPath()`, a `realpath`. `isRunning` asks for it on
-    /// every row — twice per popover row, since `nameLineWidth` measures the name
-    /// with the running dot and then `nameLine` draws it — and the workbench
-    /// sidebar once more, all on the main actor, all re-run on every download
-    /// tick. The answer cannot change without the list changing, so it is resolved
-    /// with the list and looked up after that.
-    private var runtimeKeys: [URL: String] {
-        if let cache = runtimeKeysCache { return cache }
-        var value: [URL: String] = [:]
-        value.reserveCapacity(results.count)
-        for result in results {
-            value[result.app.path] = UpdatePolicy.runtimeBundlePath(result.app.path)
+    /// Why they must never be asked from a read: `policyEnvironment` is built fresh
+    /// by every `isRunning` / `canAutoInstall` / `requiresInstaller` query, and the
+    /// popover and the sidebar ask those PER ROW, on the main actor, again on every
+    /// download tick. The unmemoized elevation set, the keyed memo that replaced it,
+    /// and the profiles behind both: `docs/engine-notes/app-list-model.md` §4.5.
+    ///
+    /// Why they are no longer a lazy memo: the memo was cleared by `results.didSet`
+    /// and rebuilt by the next read — and the next read after a write is a view
+    /// body. With the menu closed nothing reads, so a write made in the background
+    /// left both rebuilds to the first body of the next open: profiled, the menu
+    /// header's `canUpdateAll` paid them before the open's own rescan had even
+    /// run. §4.5 has that profile.
+    ///
+    /// **Staleness.** Every write to `results` re-observes (`reobservePathFacts`),
+    /// so these are never older than the list's last write — the same bound the
+    /// memo had — except for the moment the re-observation is in flight, when
+    /// the previous observation keeps answering for the installs it covers. An
+    /// answer can only differ across that moment for an install whose permissions
+    /// or symlinks changed without its path changing, and the refresh replaces it
+    /// as soon as it lands (and invalidates the views that read it, which is why
+    /// this one is observed). An install the previous observation never saw — one
+    /// that just appeared — is observed synchronously in `didSet`, because
+    /// `elevationRequiredPaths` is a set and cannot tell "does not need an
+    /// administrator" from "never asked". That is one app per new install, not
+    /// the list; the full list is seeded off-main by `performRefresh`'s scan.
+    private var pathFacts = InstallPathFacts()
+
+    /// The off-main re-observation in flight, if any, and whether `results` was
+    /// written while it ran — its answer is then for a list that no longer
+    /// exists, so it is thrown away and the observation re-run for the current one.
+    @ObservationIgnored private var pathFactsRefresh: Task<Void, Never>?
+    @ObservationIgnored private var pathFactsRefreshOwed = false
+
+    /// Called from `results.didSet`: observe any install the facts have never
+    /// seen, here and now (see `pathFacts` for why that cannot wait), then
+    /// re-observe the whole list off the main actor.
+    private func reobservePathFacts() {
+        let paths = results.map(\.app.path)
+        let unobserved = pathFacts.unobserved(in: paths)
+        if !unobserved.isEmpty { pathFacts.observe(unobserved) }
+        guard pathFactsRefresh == nil else {
+            pathFactsRefreshOwed = true
+            return
         }
-        runtimeKeysCache = value
-        return value
+        pathFactsRefresh = Task { [weak self] in
+            let fresh = await Task.detached(priority: .utility) {
+                InstallPathFacts.observing(paths)
+            }.value
+            guard let self else { return }
+            self.pathFactsRefresh = nil
+            if self.pathFactsRefreshOwed {
+                self.pathFactsRefreshOwed = false
+                self.reobservePathFacts()
+            } else if fresh != self.pathFacts {
+                self.pathFacts = fresh
+            }
+        }
     }
 
-    /// Memo for `runtimeKeys`, invalidated by `results.didSet` — see
-    /// `elevationPathsCache` for why that is sufficient and why it must be
-    /// `@ObservationIgnored`.
-    @ObservationIgnored private var runtimeKeysCache: [URL: String]?
-
-    /// The install paths that need an administrator prompt to replace.
-    ///
-    /// One `access(2)`-class check per app is cheap in isolation and ruinous at
-    /// this call site: `policyEnvironment` is built fresh by every `isRunning` /
-    /// `canAutoInstall` / `requiresInstaller` query, and the sidebar asks at least
-    /// one of those PER ROW — so this must never reach the filesystem on a read
-    /// that changed nothing. Memoized in `elevationPathsCache`, invalidated by
-    /// `results.didSet` alone (that memo's doc says why nothing else is needed).
-    /// The unmemoized version, the keyed version that replaced it, and the
-    /// profiles behind both changes: `docs/engine-notes/app-list-model.md` §4.5.
-    private var elevationRequiredPaths: Set<String> {
-        if let cache = elevationPathsCache { return cache }
-        let value = InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
-        elevationPathsCache = value
-        return value
+    /// Seed `pathFacts` with an observation taken off the main actor for the list
+    /// about to be written, so the write's `didSet` finds every install already
+    /// observed. Unchanged facts are not re-assigned: `pathFacts` is observed, and
+    /// an equal assignment would still invalidate every row that reads it.
+    private func seedPathFacts(_ observed: InstallPathFacts) {
+        if observed != pathFacts { pathFacts = observed }
     }
-
-    /// Memo for `elevationRequiredPaths`. Invalidated solely by `results.didSet`,
-    /// which is sufficient: the memo can only survive a stretch in which `results`
-    /// was never written, and `results` holds value types, so any change to an app
-    /// — including a path moving between `~/Applications` and a root-owned
-    /// location — is a write that clears this. Do not add a key of the app paths
-    /// "to be safe": it cannot miss, and building it per read is itself what a
-    /// profile found (`docs/engine-notes/app-list-model.md` §4.5).
-    ///
-    /// Reading it must not invalidate a view, which is what `@ObservationIgnored`
-    /// buys: `@Observable` instruments `private` stored properties too, so an
-    /// un-ignored memo makes every `didSet` clear invalidate the views that read it.
-    @ObservationIgnored private var elevationPathsCache: Set<String>?
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
     /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the
@@ -3415,18 +3465,44 @@ final class AppListModel {
         // is there. The workbench's own 180s backstop timer is not — it fires
         // whether or not anyone's looking — so it passes `unattended: true`.
         let readsTestFlight = unattended ? unattendedMayReadTestFlightStore : mayReadTestFlightStore
+        // The merge and the sort ride the same hop as the scan, against a snapshot
+        // of everything they read here. Both are pure over those inputs, and on
+        // the main actor they were a visible share of the first popover and
+        // workbench opens (a localized name compare per sort comparison, a
+        // proofs-file read and decode, a carried-forward row per app).
+        let prior = results
+        let priorGeneration = resultsGeneration
+        let restart = needsRestart, staged = pendingSelfUpdate
+        let armed = armedSelfInstallers, pinned = pinnedOrder
         // The whole closure off the cooperative pool, not just the TestFlight
         // read: `AppScanner.scan()` is synchronous to the bottom and bounded the
         // same way (see `BoundedBlockingWork`), so a detached task here parks a
         // cooperative thread for as long as the app-data gate goes unanswered.
-        let found = await offCooperativePool(qos: .userInitiated) {
-            AppScanner(
+        let (found, rows) = await offCooperativePool(qos: .userInitiated) {
+            let found = AppScanner(
                 extraLocations: extraScan,
                 testflight: readsTestFlight
                     ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
             ).scan()
+            let merged = ScanRowAssembly.merged(
+                found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
+            return (found, RowOrder.sorted(
+                merged, needsRestart: restart, stagedSelfUpdates: staged,
+                armedSelfInstallers: armed, pinnedOrder: pinned))
         }
-        results = sorted(mergeScanned(found))
+        // The scan takes long enough for any of those to move under it — a check
+        // round publishing, a row refreshed, an install starting and freezing the
+        // order. The rows are applied only if none did; otherwise they are merged
+        // and sorted again here against the current state, which is exactly what
+        // this line did before the hop existed, so a stale merge is never what
+        // lands.
+        if resultsGeneration == priorGeneration, needsRestart == restart,
+           pendingSelfUpdate == staged, armedSelfInstallers == armed, pinnedOrder == pinned {
+            results = rows
+        } else {
+            results = sorted(mergeScanned(found))
+        }
+        prefetchRowIcons()
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
@@ -7419,19 +7495,29 @@ final class AppListModel {
     /// Re-read which apps have a rollback backup on disk (one directory scan),
     /// mapping it onto the current rows.
     func refreshBackupIndex() async {
+        // Each row's key resolves symlinks in its path and hashes it, which on the
+        // main actor was the largest part of a rescan in a cold-start profile. So
+        // the keys are derived in the same hop, keyed by what they are derived
+        // from rather than by row: `results` can be replaced during the hop, and a
+        // row that arrived since is simply keyed on the main actor below.
+        let sources = Set(results.map { BackupKeySource(bundleID: $0.app.bundleID, path: $0.app.path) })
         let scan = await Task.detached(priority: .utility) {
             // Both in the same hop off the main actor: they read the same two
             // directories, and asking separately would let the list and the
             // "disk isn't there" note disagree about a disk unplugged between them.
-            (map: BackupStore.allBackups(), state: BackupStore.availability())
+            (map: BackupStore.allBackups(), state: BackupStore.availability(),
+             keys: Dictionary(uniqueKeysWithValues: sources.map {
+                 ($0, BackupStore.keyCandidates(bundleID: $0.bundleID, path: $0.path))
+             }))
         }.value
         let map = scan.map
         offlineBackupDisk = scan.state.unreachableDiskName
         var byID: [String: String] = [:]
         var sides: [String: VersionSide] = [:]
         for result in results {
-            for key in BackupStore.keyCandidates(
-                bundleID: result.app.bundleID, path: result.app.path)
+            let source = BackupKeySource(bundleID: result.app.bundleID, path: result.app.path)
+            for key in scan.keys[source]
+                ?? BackupStore.keyCandidates(bundleID: source.bundleID, path: source.path)
             where map[key] != nil {
                 byID[result.id] = map[key]?.version ?? "previous"
                 sides[result.id] = map[key]?.versionSide ?? VersionSide()
@@ -7440,6 +7526,12 @@ final class AppListModel {
         }
         backupVersions = byID
         backupSides = sides
+    }
+
+    /// The two inputs of `BackupStore.keyCandidates`, as a dictionary key.
+    private struct BackupKeySource: Hashable, Sendable {
+        let bundleID: String?
+        let path: URL
     }
 
     /// Restore the previous version from its backup, swapping it back over the
@@ -7767,6 +7859,11 @@ final class AppListModel {
     /// installer window that interrupts the user. The shared restart/staging/backup
     /// sweep runs once after the whole batch has settled.
     func installAll() async {
+        // The filter below reads `helperEnabled`, which `refreshPermissionStatus()`
+        // no longer updates before returning. Awaited here, ahead of the guard, so
+        // nothing suspends between the guard and `isInstallingAll = true` and a
+        // second tap still finds the batch already claimed.
+        await refreshHelperStatus()
         // Say WHY, like `refresh` and `refreshLocal` do. A notification banner's
         // "Update All" routes straight here, so a tap that lands while a check or a
         // refresh is running is otherwise a banner that dismisses with nothing

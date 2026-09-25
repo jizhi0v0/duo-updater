@@ -53,6 +53,14 @@ public struct InstallEnvironment: Sendable {
     /// per redraw, and `URL.path` bridges to `NSURL` — the exact cost the
     /// `elevationRequiredPaths` memo was rewritten to stop paying.
     public var runtimeKeys: [URL: String]
+    /// `InstalledApp.path` → what `UpdatePolicy.isInputMethod` returns for it,
+    /// precomputed by the host exactly like `runtimeKeys`, and for the same
+    /// reason: that function standardizes the parent directory's URL, which
+    /// stats it (`_NSFileExists`, `checkResourceIsReachable`), and
+    /// `canAutoInstall` and `requiresInstaller` both ask it per row per redraw.
+    /// A pure memo with the same contract: an entry MUST be what that function
+    /// would have answered, and a missing one costs the call.
+    public var inputMethods: [URL: Bool]
 
     public init(
         isHelperEnabled: Bool,
@@ -60,7 +68,8 @@ public struct InstallEnvironment: Sendable {
         stagedSelfUpdates: [String: StagedSelfUpdate],
         elevationRequiredPaths: Set<String> = [],
         runningBundleIDs: Set<String> = [],
-        runtimeKeys: [URL: String] = [:]
+        runtimeKeys: [URL: String] = [:],
+        inputMethods: [URL: Bool] = [:]
     ) {
         self.isHelperEnabled = isHelperEnabled
         self.runningAppPaths = runningAppPaths
@@ -68,12 +77,64 @@ public struct InstallEnvironment: Sendable {
         self.elevationRequiredPaths = elevationRequiredPaths
         self.runningBundleIDs = runningBundleIDs
         self.runtimeKeys = runtimeKeys
+        self.inputMethods = inputMethods
     }
 
     /// The comparable path for one install — from `runtimeKeys` when the host
     /// precomputed it, otherwise resolved here.
     func runtimeKey(for url: URL) -> String {
         runtimeKeys[url] ?? UpdatePolicy.runtimeBundlePath(url)
+    }
+
+    /// Whether one install is an input method — from `inputMethods` when the
+    /// host precomputed it, otherwise asked here.
+    func isInputMethod(_ url: URL) -> Bool {
+        inputMethods[url] ?? UpdatePolicy.isInputMethod(url)
+    }
+}
+
+/// The filesystem-backed facts the row-level policy questions need about a list
+/// of installs, observed together so a host can take them OFF the main actor
+/// when the list is produced and hand them to `InstallEnvironment` as lookups.
+///
+/// Each field is exactly what the function it names answers — this type calls
+/// those functions and nothing else — so a policy decision made from these
+/// facts is the decision it would have made by asking. What it changes is only
+/// *when* and *where* they are asked: the app used to build the first two
+/// lazily inside the first view body that read them after the list changed, and
+/// never memoized the third, all on the main actor (a cold first open of the
+/// menu, profiled 2026-09-25: `docs/engine-notes/app-list-model.md` §4.5).
+public struct InstallPathFacts: Sendable, Equatable {
+    /// `InPlaceSwap.elevationRequiredPaths(for:)` over the observed installs.
+    public private(set) var elevationRequiredPaths: Set<String> = []
+    /// `UpdatePolicy.runtimeBundlePath` per observed install.
+    public private(set) var runtimeKeys: [URL: String] = [:]
+    /// `UpdatePolicy.isInputMethod` per observed install.
+    public private(set) var inputMethods: [URL: Bool] = [:]
+
+    public init() {}
+
+    /// The facts for exactly `bundles` — filesystem work, so call it off the
+    /// main actor.
+    public static func observing(_ bundles: [URL]) -> InstallPathFacts {
+        var facts = InstallPathFacts()
+        facts.observe(bundles)
+        return facts
+    }
+
+    /// Add the facts for `bundles`. An install observed before is observed
+    /// again (its entries replaced); installs not named are left as they were.
+    public mutating func observe(_ bundles: [URL]) {
+        elevationRequiredPaths.formUnion(InPlaceSwap.elevationRequiredPaths(for: bundles))
+        for bundle in bundles {
+            runtimeKeys[bundle] = UpdatePolicy.runtimeBundlePath(bundle)
+            inputMethods[bundle] = UpdatePolicy.isInputMethod(bundle)
+        }
+    }
+
+    /// The installs in `bundles` these facts say nothing about yet.
+    public func unobserved(in bundles: [URL]) -> [URL] {
+        bundles.filter { runtimeKeys[$0] == nil }
     }
 }
 
@@ -127,7 +188,7 @@ public enum UpdatePolicy {
         // shaped like the vendor's own update, and a snapshot of the user data the
         // incident was about (`InputMethodDataBackup`), taken with the bundle
         // rollback point and restorable with it.
-        if isInputMethod(result.app.path), !isContentsRotatable(result) { return false }
+        if environment.isInputMethod(result.app.path), !isContentsRotatable(result) { return false }
         // The app's own updater already staged *the latest* for relaunch — installing
         // it ourselves would re-download the same bytes and collide with the pending
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
@@ -327,7 +388,7 @@ public enum UpdatePolicy {
         // source with no code change and no gate firing. `PackageInstaller`'s
         // destination check does not close it either — it hard-refuses only inside
         // `/Applications` and falls back to matching a bundle name anywhere else.
-        if isInputMethod(result.app.path) { return false }
+        if environment.isInputMethod(result.app.path) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
             return result.remote?.requiresManualInstaller == true

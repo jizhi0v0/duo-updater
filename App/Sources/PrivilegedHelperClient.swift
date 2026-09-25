@@ -46,7 +46,20 @@ final class PrivilegedHelperClient: ObservableObject {
     var isEnabled: Bool { service.status == .enabled }
 
     func refreshStatus() {
-        let current = service.status
+        apply(service.status)
+    }
+
+    /// `refreshStatus()` with the query off the main thread. `SMAppService.status` is a
+    /// synchronous XPC round trip to `smd` — measured 16–40 ms per call on macOS 27 —
+    /// and the window-appear and 1.5 s permission polls ran it on the main thread,
+    /// inside a window's first layout.
+    func refreshStatusOffMain() async {
+        let plistName = HelperConfig.plistName
+        let current = await Task.detached { SMAppService.daemon(plistName: plistName).status }.value
+        apply(current)
+    }
+
+    private func apply(_ current: SMAppService.Status) {
         if current != status { status = current }
         // A registration failure explains why the helper ISN'T on. Once it is, the
         // explanation is not just stale but contradictory — the pane showed a green

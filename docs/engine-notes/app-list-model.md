@@ -339,6 +339,36 @@ copy of the 124 × 124 figure is `CHANGELOG.md`'s user-facing note for that
 release ("fifteen thousand redundant lookups"), left alone: it is release
 prose, not a design record.
 
+- **2026-09-25, observed at write time instead of read time (`pathFacts`).**
+  A Time Profiler recording of a cold first open of the menu (1 ms samples,
+  main thread, the ~0.6 s of the open) found both memos being rebuilt inside
+  the header's `canUpdateAll` body — 13 samples under the elevation getter
+  (`access` in `needsElevatedReplace`, and the `isInputMethod` it calls), 4
+  under the runtime-key getter (`realpath`) — *before* the open's own local
+  rescan had run: the memo had been cleared by a write made while the menu
+  was closed, and nothing reads a closed menu, so the rebuild waited for the
+  first body. It also found `UpdatePolicy.isInputMethod` asked directly by
+  `canAutoInstall` / `requiresInstaller` per row (3 samples; standardizing the
+  parent URL stats it), which had never been memoized. All three now live in
+  `InstallPathFacts` (Core), observed off the main actor — seeded by the scan,
+  re-observed by every `results` write — and handed to `InstallEnvironment` as
+  lookups; `InstallEnvironment.inputMethods` is the new seam, with the same
+  "an entry must be what the function answers, a miss costs the call" contract
+  as `runtimeKeys`. The price is that a write no longer gives the next read a
+  fresh answer synchronously: the previous observation answers until the
+  off-main one lands, which can only matter for an install whose permissions
+  changed under an unchanged path (`pathFacts`'s doc comment has the full
+  argument). Micro-measured the same day, release build, warm caches, 192
+  `.app` bundles from the standard locations, median of 21 interleaved runs,
+  for one body pass's policy calls per row (2 × `canAutoInstall`,
+  `requiresInstaller`, 2 × `isRunning`): 5.45 ms for the first pass after a
+  write and 1.98 ms for every later one before; 0.89 ms for any pass after,
+  with 4.09 ms moved off the main actor per observation. Zero answer
+  differences between the precomputed and the asked environment over those
+  bundles.
+
+The rest of this item is the 2026-09-14 pass, which predates the last bullet
+(the two memos it describes are now `pathFacts`).
 Not re-verified this pass: any of the timings. What was re-checked: both
 memos are still `@ObservationIgnored`, both are still cleared by
 `results.didSet` and nothing else, and `elevationRequiredPaths`'s doc comment

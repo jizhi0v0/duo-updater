@@ -269,7 +269,7 @@ struct HomebrewCaskMacOSConstraintTests {
     @Test func theHostTieBreakRunsOverInstalledCasksOnly() async throws {
         func cask(_ token: String, _ requirement: CaskMacOSRequirement) -> CaskEntry {
             CaskEntry(token: token, version: "1.0", url: nil, autoUpdates: false,
-                      isPkg: false, macOS: requirement)
+                      installKind: .brew, macOS: requirement)
         }
         let at27 = CaskMacOSRequirement(comparison: .atLeast, versions: ["27"])
         let only26 = CaskMacOSRequirement(comparison: .exactly, versions: ["26"])

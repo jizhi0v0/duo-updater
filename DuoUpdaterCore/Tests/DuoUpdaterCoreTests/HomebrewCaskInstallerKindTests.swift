@@ -5,46 +5,66 @@ import Foundation
 /// Issue #877: a cask whose `installer` is an unprivileged `script` was sent to
 /// the system-installer route, which looks for a `.pkg` inside the download and
 /// found only the vendor's installer `.app` — so quarkclouddrive's update failed
-/// every time. brew runs that script itself; the other installer shapes still
-/// need a person and keep the package route.
+/// every time. brew runs that script itself. The installer shapes that need a
+/// person keep the package route only when the download holds a package
+/// `PackageInstaller` can reach; the rest are detection-only, where they used to
+/// download in full and then fail the same way.
 ///
-/// Fixture: `Fixtures/homebrew-cask-installer-kinds.json`, four entries copied
+/// Fixture: `Fixtures/homebrew-cask-installer-kinds.json`, seven entries copied
 /// verbatim from `https://formulae.brew.sh/api/cask.json` on 2026-09-26
 /// (`analytics` dropped), one per shape:
 ///
-/// | token | artifact | package route? |
-/// |---|---|---|
-/// | quarkclouddrive | `installer: [{script: {executable, args}}]` | no — brew runs it |
-/// | expressvpn | `installer: [{script: {…, sudo: true}}]` | yes — needs a password |
-/// | figma-agent | `installer: [{manual: …}]` | yes — brew only prints "open …" |
-/// | adguard | `pkg` | yes |
+/// | token | artifact | url | kind |
+/// |---|---|---|---|
+/// | quarkclouddrive | `installer: [{script: {executable, args}}]` | `.dmg` | brew — brew runs it |
+/// | expressvpn | `installer: [{script: {…, sudo: true}}]` | `.zip` | detection-only — needs a password, no package |
+/// | figma-agent | `installer: [{manual: "Install Figma Agent.app"}]` | `.dmg` | detection-only — an `.app`, not a package |
+/// | adguard | `pkg` | `.dmg` | package |
+/// | pivy-app | `installer: [{manual: "pivy-….pkg"}]` | `.pkg` | package — the download is the package |
+/// | qsync-client | `installer: [{manual: "Qsync Client.pkg"}]` | `.dmg` | package — at the image's root |
+/// | autofirma | `installer: [{manual: "AutoFirma_….pkg"}]` | `.zip` | detection-only — only a `.dmg` is opened |
 struct HomebrewCaskInstallerKindTests {
 
+    private static let fixtureURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .appendingPathComponent("Fixtures/homebrew-cask-installer-kinds.json")
+
     private static func index() throws -> CaskIndex {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/homebrew-cask-installer-kinds.json")
-        return try HomebrewCaskCatalog.index(fromCatalogJSON: Data(contentsOf: url))
+        try HomebrewCaskCatalog.index(fromCatalogJSON: Data(contentsOf: fixtureURL))
     }
 
     private static func entry(bundleID: String) throws -> CaskEntry {
         try #require(index().allByBundleID[bundleID]?.first)
     }
 
-    @Test func anUnprivilegedInstallerScriptIsNotAPackage() throws {
-        #expect(try !Self.entry(bundleID: "com.quark.clouddrive.desktop").isPkg)
+    @Test func anUnprivilegedInstallerScriptIsBrew() throws {
+        #expect(try Self.entry(bundleID: "com.quark.clouddrive.desktop").installKind == .brew)
     }
 
-    @Test func aSudoInstallerScriptStaysAPackage() throws {
-        #expect(try Self.entry(bundleID: "com.express.vpn").isPkg)
+    @Test func aSudoInstallerScriptWithNoPackageIsDetectionOnly() throws {
+        #expect(try Self.entry(bundleID: "com.express.vpn").installKind == .detectionOnly)
     }
 
-    @Test func aManualInstallerStaysAPackage() throws {
-        #expect(try Self.entry(bundleID: "com.figma.agent").isPkg)
+    @Test func aManualInstallerAppIsDetectionOnly() throws {
+        #expect(try Self.entry(bundleID: "com.figma.agent").installKind == .detectionOnly)
     }
 
     @Test func aPkgArtifactStaysAPackage() throws {
-        #expect(try Self.entry(bundleID: "com.adguard.mac.adguard").isPkg)
+        #expect(try Self.entry(bundleID: "com.adguard.mac.adguard").installKind == .package)
+    }
+
+    @Test func aManualInstallerWhoseDownloadIsThePackageStaysAPackage() throws {
+        #expect(try Self.entry(bundleID: "net.cooperi.pivy-agent").installKind == .package)
+    }
+
+    @Test func aManualPackageAtADiskImageRootStaysAPackage() throws {
+        #expect(try Self.entry(bundleID: "com.qnap.qsync").installKind == .package)
+    }
+
+    /// The `manual` target is a `.pkg`, but inside a `.zip`, which
+    /// `PackageInstaller` hands to `verifyOpenable` unopened.
+    @Test func aManualPackageInsideAZipIsDetectionOnly() throws {
+        #expect(try Self.entry(bundleID: "es.gob.afirma").installKind == .detectionOnly)
     }
 
     /// The issue's path end to end: a brew-installed Quark resolves through
@@ -77,5 +97,90 @@ struct HomebrewCaskInstallerKindTests {
             settings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite),
             environment: environment))
         #expect(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller) == .homebrew)
+    }
+
+    /// No cask in the catalog has this shape; it is qsync-client's entry with the
+    /// package moved into a folder, which `preferredPackage` (the image's top
+    /// level only) would not find.
+    @Test func aManualPackageBelowADiskImageRootIsDetectionOnly() throws {
+        var casks = try #require(try JSONSerialization.jsonObject(
+            with: Data(contentsOf: Self.fixtureURL)) as? [[String: Any]])
+        var qsync = try #require(casks.first { $0["token"] as? String == "qsync-client" })
+        qsync["artifacts"] = (qsync["artifacts"] as? [Any])?.map { artifact -> Any in
+            guard var dict = artifact as? [String: Any], dict["installer"] != nil else { return artifact }
+            dict["installer"] = [["manual": "Qsync/Qsync Client.pkg"]]
+            return dict
+        }
+        casks = [qsync]
+        let index = try HomebrewCaskCatalog.index(
+            fromCatalogJSON: JSONSerialization.data(withJSONObject: casks))
+        #expect(try #require(index.allByBundleID["com.qnap.qsync"]?.first).installKind == .detectionOnly)
+    }
+
+    /// A brew-installed Figma Agent is still reported as having an update, but
+    /// offers no install: no Update button, nothing for "Update All" to fetch, and
+    /// no URL for `PackageInstaller` to download.
+    @Test func aBrewInstalledFigmaAgentIsDetectionOnly() async throws {
+        let path = "/Applications/ZZFixture-877/Figma Agent.app"
+        #expect(!FileManager.default.fileExists(atPath: path))
+        let app = InstalledApp(
+            name: "Figma Agent", bundleID: "com.figma.agent",
+            shortVersion: "100.0.0", buildVersion: nil, path: URL(fileURLWithPath: path),
+            isMASApp: false, sparkleFeedURL: nil)
+        let remote = try #require(try await HomebrewCaskSource(
+            catalog: HomebrewCaskCatalog(testIndex: Self.index()),
+            inventory: BrewLocalInventory(installedTokens: ["figma-agent"]),
+            hostOSVersion: "26.0"
+        ).latestVersion(for: app))
+        let latest = try #require(remote.shortVersion)
+        #expect(remote.downloadURL == nil)
+        #expect(remote.pageURL == URL(string: "https://formulae.brew.sh/cask/figma-agent"))
+
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: latest))
+        let environment = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        let settings = UpdateSettings(
+            appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite)
+        let canAutoInstall = UpdatePolicy.canAutoInstall(
+            result, settings: settings, environment: environment)
+        let requiresInstaller = UpdatePolicy.requiresInstaller(result, environment: environment)
+        #expect(!canAutoInstall)
+        #expect(!requiresInstaller)
+        #expect(UpdateRoute.resolve(RouteInputs(
+            isToolboxManaged: false, isTestFlight: false, defersToSelfUpdater: false,
+            isMajorUpgrade: result.isMajorUpgrade, canAutoInstall: canAutoInstall,
+            requiresInstaller: requiresInstaller, stagedFileName: nil,
+            hasAppStoreAvailability: false, appStoreManagedHere: false, appStoreGate: .none
+        )) == .detectionOnly)
+    }
+
+    /// The package route is unchanged for a cask that has one: the URL is carried
+    /// and the row goes to the system installer.
+    @Test func aBrewInstalledQsyncClientGoesToTheSystemInstaller() async throws {
+        let path = "/Applications/ZZFixture-877/Qsync Client.app"
+        #expect(!FileManager.default.fileExists(atPath: path))
+        let app = InstalledApp(
+            name: "Qsync Client", bundleID: "com.qnap.qsync",
+            shortVersion: "5.0.0", buildVersion: nil, path: URL(fileURLWithPath: path),
+            isMASApp: false, sparkleFeedURL: nil)
+        let remote = try #require(try await HomebrewCaskSource(
+            catalog: HomebrewCaskCatalog(testIndex: Self.index()),
+            inventory: BrewLocalInventory(installedTokens: ["qsync-client"]),
+            hostOSVersion: "26.0"
+        ).latestVersion(for: app))
+        #expect(remote.downloadURL == URL(
+            string: "https://download.qnap.com/Storage/Utility/QNAPQsyncClientMac-5.1.7.0923.dmg"))
+        #expect(remote.requiresManualInstaller)
+
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "5.1.7"))
+        let environment = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        let requiresInstaller = UpdatePolicy.requiresInstaller(result, environment: environment)
+        #expect(requiresInstaller)
+        #expect(!UpdatePolicy.canAutoInstall(
+            result,
+            settings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite),
+            environment: environment))
+        #expect(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller) == .installer)
     }
 }

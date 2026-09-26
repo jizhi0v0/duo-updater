@@ -124,18 +124,28 @@ public struct CaskMacOSRequirement: Sendable, Equatable {
     }
 }
 
+/// How an update to one cask can be applied from here.
+public enum CaskInstallKind: Sendable, Equatable {
+    /// brew installs it unattended: a dragged `.app`, or an installer `script`
+    /// brew runs itself.
+    case brew
+    /// We download the official package and hand it to the system installer —
+    /// the cask has no route brew can run for us unattended (see
+    /// `HomebrewCaskCatalog.installKind`).
+    case package
+    /// Neither: the installer needs a person and the download holds no package
+    /// `PackageInstaller` can reach. Offered as an update, never installed.
+    case detectionOnly
+}
+
 /// One cask's relevant fields.
 public struct CaskEntry: Sendable {
     public let token: String
     public let version: String
     public let url: URL?
     public let autoUpdates: Bool
-    /// True when the cask installs via a `pkg` artifact, or an `installer` that
-    /// needs a person (`manual`, or a `script` run with `sudo`), rather than
-    /// dragging a `.app`. These can't go through non-interactive brew — we
-    /// download the official package and open it. An unprivileged installer
-    /// `script` is not one: brew runs it (see `hasPackageArtifact`).
-    public let isPkg: Bool
+    /// How an update to this cask can be applied from here (see `CaskInstallKind`).
+    public let installKind: CaskInstallKind
     /// The cask's `depends_on.macos`, when it states one. `nil` means "runs
     /// anywhere", which is what the catalog says for the large majority.
     public let macOS: CaskMacOSRequirement?
@@ -145,14 +155,14 @@ public struct CaskEntry: Sendable {
         version: String,
         url: URL?,
         autoUpdates: Bool,
-        isPkg: Bool,
+        installKind: CaskInstallKind,
         macOS: CaskMacOSRequirement? = nil
     ) {
         self.token = token
         self.version = version
         self.url = url
         self.autoUpdates = autoUpdates
-        self.isPkg = isPkg
+        self.installKind = installKind
         self.macOS = macOS
     }
 
@@ -370,7 +380,8 @@ public actor HomebrewCaskCatalog {
                 version: version,
                 url: (cask["url"] as? String).flatMap { URL(string: $0) },
                 autoUpdates: (cask["auto_updates"] as? Bool) ?? false,
-                isPkg: hasPackageArtifact(in: cask["artifacts"]),
+                installKind: installKind(
+                    artifacts: cask["artifacts"], url: cask["url"] as? String),
                 macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"])
             )
 
@@ -407,36 +418,75 @@ public actor HomebrewCaskCatalog {
         return names
     }
 
-    /// True when a cask installs via a `pkg` artifact, or an `installer` that brew
-    /// cannot run for us unattended: `manual` (brew only prints "open …", and
-    /// `brew upgrade` skips such casks outright) or a `script` with `sudo: true`
-    /// (brew runs it under `/usr/bin/sudo`, which has no terminal to ask on here
-    /// and gets `-A` only when `SUDO_ASKPASS` is set). Read in brew 7.0.6:
-    /// `cask/artifact/installer.rb`, `cask/upgrade.rb`, `system_command.rb`.
+    /// `.package` for a `pkg` artifact. For an `installer` brew cannot run for us
+    /// unattended — `manual` (brew only prints "open …", and `brew upgrade` skips
+    /// such casks outright) or a `script` with `sudo: true` (brew runs it under
+    /// `/usr/bin/sudo`, which has no terminal to ask on here and gets `-A` only
+    /// when `SUDO_ASKPASS` is set) — `.package` only when `PackageInstaller` can
+    /// reach a package in the download, else `.detectionOnly`. Everything else,
+    /// `.brew`. Read in brew 7.0.6: `cask/artifact/installer.rb`,
+    /// `cask/upgrade.rb`, `system_command.rb`.
     ///
-    /// A `script` without `sudo` is NOT one: brew runs it itself in the
+    /// A `script` without `sudo` is `.brew`: brew runs it itself in the
     /// installer artifact's `install_phase`, on `brew install --cask` as on
-    /// `brew upgrade`. Counting it here routed it to `PackageInstaller`, which
-    /// looks for a `.pkg` in the download — while what the cask installs through
-    /// is the script's executable: an installer `.app`, a shell script or a
-    /// program in the archive, never a `.pkg`, for all 24 such casks on
-    /// 2026-09-26 (read off the catalog; the downloads were not opened).
-    /// quarkclouddrive's update failed there with "did not contain an installer
-    /// package" (issue #877).
-    private static func hasPackageArtifact(in artifacts: Any?) -> Bool {
-        guard let artifacts = artifacts as? [Any] else { return false }
+    /// `brew upgrade`. Sending it to `PackageInstaller`, which looks for a `.pkg`
+    /// in the download, failed while what the cask installs through is the
+    /// script's executable: an installer `.app`, a shell script or a program in
+    /// the archive, never a `.pkg`, for all 24 such casks on 2026-09-26 (read off
+    /// the catalog; the downloads were not opened). quarkclouddrive's update
+    /// failed there with "did not contain an installer package" (issue #877).
+    ///
+    /// The same failure awaited most of the casks that need a person, after the
+    /// whole download: on 2026-09-26, 16 non-`auto_updates` casks with a `.app`
+    /// or `uninstall: quit:` to match on had such an installer and no `pkg`
+    /// artifact, and 3 of them named a package `packageIsReachable` accepts —
+    /// pivy-app, datadog-agent, qsync-client (read off the catalog; the downloads
+    /// were not opened).
+    private static func installKind(artifacts: Any?, url: String?) -> CaskInstallKind {
+        guard let artifacts = artifacts as? [Any] else { return .brew }
+        var needsPerson = false
+        var manualTargets: [String] = []
         for artifact in artifacts {
             guard let dict = artifact as? [String: Any] else { continue }
-            if dict["pkg"] != nil { return true }
+            if dict["pkg"] != nil { return .package }
             if let installer = dict["installer"] {
-                // Anything but a list of unprivileged scripts stays on the
-                // package route, as every `installer` did before.
-                guard let entries = installer as? [Any] else { return true }
-                if !entries.allSatisfy(isUnprivilegedScript) { return true }
+                // Anything but a list of unprivileged scripts needs a person, as
+                // every `installer` was taken to before #877.
+                guard let entries = installer as? [Any] else {
+                    needsPerson = true
+                    continue
+                }
+                if !entries.allSatisfy(isUnprivilegedScript) { needsPerson = true }
+                manualTargets += entries.compactMap {
+                    ($0 as? [String: Any])?["manual"] as? String
+                }
             }
         }
-        return false
+        guard needsPerson else { return .brew }
+        return packageIsReachable(url: url, manualTargets: manualTargets)
+            ? .package : .detectionOnly
     }
+
+    /// Whether `PackageInstaller` would find a package in this cask's download:
+    /// the download itself is one, or it is a disk image with one at its top
+    /// level. `resolveInstaller` mounts a `.dmg` and nothing else (a `.zip` is
+    /// handed on as is and refused by `verifyOpenable`), and `preferredPackage`
+    /// lists only the image's root — so a `manual` path with a `/` in it is out
+    /// of reach even inside a `.dmg`. What the catalog *names*: whether the
+    /// image really holds that file is only known after the download.
+    private static func packageIsReachable(url: String?, manualTargets: [String]) -> Bool {
+        guard let ext = url.flatMap(URL.init(string:))?.pathExtension.lowercased()
+        else { return false }
+        if packageExtensions.contains(ext) { return true }
+        guard ext == "dmg" else { return false }
+        return manualTargets.contains {
+            !$0.contains("/")
+                && packageExtensions.contains(($0 as NSString).pathExtension.lowercased())
+        }
+    }
+
+    /// What `PackageInstaller.verifyOpenable` accepts.
+    private static let packageExtensions: Set<String> = ["pkg", "mpkg"]
 
     /// `{"script": {"executable": …}}` without `sudo: true`, or the bare
     /// `{"script": "path"}` form brew also accepts (which cannot ask for sudo).

@@ -395,6 +395,14 @@ private func storeAvailability(
             expected: true
         ),
         (
+            name: "homebrew cask with no package to reach (no URL) is detection-only",
+            result: fixtureResult(
+                source: "Homebrew", downloadURL: nil, sourceIdentifier: "fixture",
+                requiresManualInstaller: true),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
             name: "homebrew archive cask does not need the system installer",
             result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", requiresManualInstaller: false),
             settings: defaultSettings(), environment: environment(),

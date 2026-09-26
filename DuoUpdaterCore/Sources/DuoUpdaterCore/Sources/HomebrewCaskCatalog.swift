@@ -380,18 +380,30 @@ public actor HomebrewCaskCatalog {
         return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle)
     }
 
-    /// Extract the `.app` filenames from a cask's `artifacts` array. Each app
-    /// artifact looks like `{"app": ["Foo.app", {"target": "..."}]}`.
+    /// The `.app` filenames a cask's `artifacts` install under — the name
+    /// `HomebrewCaskSource` looks up, which is the installed bundle's
+    /// `lastPathComponent`. Each app artifact is `{"app": ["<source>"]}` or
+    /// `{"app": ["<source>", {"target": "<target>"}]}`.
+    ///
+    /// Neither string is that name as-is. The source is a path inside the
+    /// download (`j9.7/jbrk.app`), and brew moves it to the target when there is
+    /// one (`Telegram.app` → `Telegram Desktop.app`), else to the source's
+    /// basename (`Cask::Artifact::Relocated#target`). So the key is the target's
+    /// last component, else the source's: `docs/engine-notes/homebrew-cask-catalog.md` §5.
     private static func appFilenames(in artifacts: Any?) -> [String] {
         guard let artifacts = artifacts as? [Any] else { return [] }
         var names: [String] = []
         for artifact in artifacts {
             guard let dict = artifact as? [String: Any],
-                  let apps = dict["app"] as? [Any] else { continue }
-            for app in apps {
-                if let name = app as? String, name.hasSuffix(".app") {
-                    names.append(name)
-                }
+                  let app = dict["app"] as? [Any],
+                  let source = app.first as? String else { continue }
+            // brew treats an empty target as none (`@target_string.presence`).
+            let target = app.dropFirst()
+                .compactMap { ($0 as? [String: Any])?["target"] as? String }
+                .first { !$0.isEmpty }
+            let name = ((target ?? source) as NSString).lastPathComponent
+            if name.hasSuffix(".app") {
+                names.append(name)
             }
         }
         return names

@@ -421,6 +421,15 @@ public actor HomebrewCaskCatalog {
     /// brew 7.0.6: `cask/artifact/pkg.rb`, `cask/artifact/installer.rb`,
     /// `cask/upgrade.rb`, `system_command.rb`, `brew.sh`.
     ///
+    /// Unless Touch ID is on for sudo (`pam_tid` in `/etc/pam.d/sudo_local`;
+    /// the template macOS ships has it commented out). Then the sudo does not
+    /// fail: it puts up a Touch ID prompt for a bare `sudo`, with nothing saying
+    /// which app or update asked. Seen on 2026-09-26: a `brew uninstall --cask`
+    /// run with no terminal went through once the prompt was approved. Still not
+    /// a route for these: most Macs fail after the download, the rest get an
+    /// unexplained root prompt in the middle of Update All, and brew's route
+    /// skips `PackageInstaller`'s Team ID and destination checks.
+    ///
     /// A `script` without `sudo` is `.brew`: brew runs it itself in the
     /// installer artifact's `install_phase`, on `brew install --cask` as on
     /// `brew upgrade`. Sending it to `PackageInstaller`, which looks for a `.pkg`

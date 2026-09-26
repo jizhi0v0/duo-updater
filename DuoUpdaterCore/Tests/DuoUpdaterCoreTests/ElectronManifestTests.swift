@@ -413,6 +413,79 @@ struct ElectronManifestSourceTests {
         #expect(entry?.isHealthy == true)
     }
 
+    /// An earlier source in the stack whose answer the test switches on and off.
+    private final class SwitchableSource: UpdateSource, @unchecked Sendable {
+        let name = "Switchable"
+        private let lock = NSLock()
+        private var answer: String?
+
+        func answer(with version: String?) { lock.withLock { answer = version } }
+
+        func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+            guard let version = lock.withLock({ answer }) else { return nil }
+            return RemoteVersion(
+                shortVersion: version, version: nil, downloadURL: nil, sourceName: name)
+        }
+    }
+
+    /// Antigravity and OpenLens: a bundle whose `app-update.yml` names a dead
+    /// address, covered by an earlier source. One round where that source misses
+    /// lets the manifest read run and record its 404; the rounds after, where the
+    /// earlier source answers, never reach it again. The miss has to go then, or
+    /// the diagnostics panel keeps flagging a manifest the row does not use.
+    @Test func anEarlierAnswerClearsAMissTheManifestReadLeftBehind() async throws {
+        let domain = "https://cdn-superseded.example.test"
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 404, body: nil, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.superseded"
+        let app = electronApp(bundleID: bundleID, domain: domain)
+        let earlier = SwitchableSource()
+        let checker = UpdateChecker(sources: [
+            earlier, ElectronManifestSource(session: fixtureSession()),
+        ])
+        func electronEntry() async -> RecipeHealth.Entry? {
+            await RecipeHealth.shared.snapshot().first { $0.id == bundleID && $0.source == "Electron" }
+        }
+
+        _ = await checker.check(app)
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
+        #expect(await electronEntry()?.isHealthy == false)
+
+        earlier.answer(with: "2.0.0")
+        let result = await checker.check(app)
+        #expect(result.remote?.sourceName == "Switchable")
+        #expect(FixtureProtocol.requestedURLs.count == 1, "the manifest read must not run again")
+        #expect(await electronEntry() == nil)
+    }
+
+    /// The other side of the above: when the manifest read IS the answer, what it
+    /// recorded is what the row rests on and stays.
+    @Test func theManifestReadsOwnAnswerKeepsItsEntry() async throws {
+        let domain = "https://cdn-answers.example.test"
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 3.1.0
+                files:
+                  - url: Answers-3.1.0-arm64.zip
+                    sha512: ANSWERSHA==
+                    size: 1000
+                path: Answers-3.1.0-arm64.zip
+                sha512: ANSWERSHA==
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.answers"
+        let result = await UpdateChecker(sources: [
+            SwitchableSource(), ElectronManifestSource(session: fixtureSession()),
+        ]).check(electronApp(bundleID: bundleID, domain: domain))
+
+        #expect(result.remote?.shortVersion == "3.1.0")
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID && $0.source == "Electron" }
+        #expect(entry?.isHealthy == true)
+    }
+
     @Test func aNon200ManifestRecordsAMiss() async throws {
         let domain = "https://cdn-404.example.test"
         FixtureProtocol.requestedURLs = []

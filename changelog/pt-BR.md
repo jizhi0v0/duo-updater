@@ -2,6 +2,20 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.4.6
+
+**Apps do Homebrew que se instalam com o próprio script de instalação, como o Quark Cloud Drive, agora são atualizados com um clique.** Antes, toda tentativa terminava com um erro dizendo que não havia nenhum pacote de instalação.
+
+**Apps do Homebrew cujo instalador precisa ser executado por você agora mostram a atualização com um link, em vez de falhar.** Antes, o DuoUpdater baixava o instalador inteiro e depois parava com um erro.
+
+**Mais apps do Homebrew são reconhecidos.** Apps que o Homebrew instala com outro nome, como o Visual Paradigm Community Edition, agora são verificados, e um app de nome parecido não é mais confundido com eles.
+
+**Apps cujo cask do Homebrew foi retirado não recebem mais a oferta de uma atualização que o Homebrew se recusa a instalar.** Em vez disso, eles são verificados pelo canal de atualizações do próprio app, quando existe um.
+
+**As notas de versão do VS Code voltam a aparecer.**
+
+**Nos bastidores.** Ajustes › Diagnóstico não fica mais avisando sobre o Antigravity e o OpenLens quando as atualizações deles são encontradas por outro caminho.
+
 ## 0.4.5
 
 **O Blender baixado do blender.org agora recebe atualizações, com um clique.** Antes, só uma cópia instalada pelo Homebrew era verificada.

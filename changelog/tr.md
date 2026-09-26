@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.4.6
+
+**Quark Cloud Drive gibi kendi kurulum betiğiyle kurulan Homebrew uygulamaları artık tek tıkla güncelleniyor.** Önceden her deneme, kurulum paketi bulunamadığını söyleyen bir hatayla bitiyordu.
+
+**Yükleyicisini sizin çalıştırmanız gereken Homebrew uygulamaları artık başarısız olmak yerine güncellemelerini bir bağlantıyla gösteriyor.** Önceden DuoUpdater yükleyicinin tamamını indiriyor, ardından bir hatayla duruyordu.
+
+**Daha fazla Homebrew uygulaması tanınıyor.** Visual Paradigm Community Edition gibi Homebrew’un farklı bir adla kurduğu uygulamalar artık güncellemeler için denetleniyor ve benzer adlı başka bir uygulama artık onlarla karıştırılmıyor.
+
+**Homebrew cask’ı geri çekilmiş uygulamalara, Homebrew’un kurmayı reddettiği bir güncelleme artık önerilmiyor.** Bunun yerine, varsa uygulamanın kendi güncelleme kaynağından denetleniyorlar.
+
+**VS Code sürüm notları yeniden görünüyor.**
+
+**Perde arkasında.** Ayarlar › Tanılama, Antigravity ve OpenLens güncellemeleri başka bir yoldan bulunduğunda artık bu uygulamalar için uyarı göstermeye devam etmiyor.
+
 ## 0.4.5
 
 **blender.org’dan indirilen Blender artık tek tıkla güncelleniyor.** Önceden yalnızca Homebrew ile kurulmuş kopya denetleniyordu.

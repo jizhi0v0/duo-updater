@@ -2,6 +2,20 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.4.6
+
+**透過自帶安裝腳本安裝的 Homebrew App（例如夸克網盤）現在可以一鍵更新。** 以前每次嘗試都會出錯，說下載的檔案裡沒有安裝套件。
+
+**需要你親自執行安裝程式的 Homebrew App，現在會顯示更新並附上連結，而不是更新失敗。** 以前 DuoUpdater 會把整個安裝程式下載完，然後出錯停下。
+
+**能辨識的 Homebrew App 更多了。** Homebrew 以不同名稱安裝的 App（例如 Visual Paradigm Community Edition）現在也會檢查更新，名稱相近的另一個 App 也不會再被誤認成它們。
+
+**Homebrew cask 已被下架的 App，不會再被推薦 Homebrew 拒絕安裝的更新。** 如果 App 有自己的更新來源，會改用它來檢查。
+
+**VS Code 的版本說明又能顯示了。**
+
+**底層改進。** Antigravity 和 OpenLens 的更新透過其他途徑找到之後，設定 › 診斷 裡不會再一直留著它們的警告。
+
 ## 0.4.5
 
 **從 blender.org 下載的 Blender 現在也能檢查更新，並且一鍵更新。** 以前只有用 Homebrew 安裝的 Blender 才會被檢查。

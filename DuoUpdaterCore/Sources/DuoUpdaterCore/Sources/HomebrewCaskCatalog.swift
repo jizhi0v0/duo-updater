@@ -130,9 +130,11 @@ public struct CaskEntry: Sendable {
     public let version: String
     public let url: URL?
     public let autoUpdates: Bool
-    /// True when the cask installs via a `pkg`/`installer` artifact rather than
-    /// dragging a `.app`. These need admin rights, so we can't run them through
-    /// non-interactive brew — we download the official package and open it.
+    /// True when the cask installs via a `pkg` artifact, or an `installer` that
+    /// needs a person (`manual`, or a `script` run with `sudo`), rather than
+    /// dragging a `.app`. These can't go through non-interactive brew — we
+    /// download the official package and open it. An unprivileged installer
+    /// `script` is not one: brew runs it (see `hasPackageArtifact`).
     public let isPkg: Bool
     /// The cask's `depends_on.macos`, when it states one. `nil` means "runs
     /// anywhere", which is what the catalog says for the large majority.
@@ -397,14 +399,44 @@ public actor HomebrewCaskCatalog {
         return names
     }
 
-    /// True when a cask installs via a `pkg` or `installer` artifact.
+    /// True when a cask installs via a `pkg` artifact, or an `installer` that brew
+    /// cannot run for us unattended: `manual` (brew only prints "open …", and
+    /// `brew upgrade` skips such casks outright) or a `script` with `sudo: true`
+    /// (brew runs it under `/usr/bin/sudo`, which has no terminal to ask on here
+    /// and gets `-A` only when `SUDO_ASKPASS` is set). Read in brew 7.0.6:
+    /// `cask/artifact/installer.rb`, `cask/upgrade.rb`, `system_command.rb`.
+    ///
+    /// A `script` without `sudo` is NOT one: brew runs it itself in the
+    /// installer artifact's `install_phase`, on `brew install --cask` as on
+    /// `brew upgrade`. Counting it here routed it to `PackageInstaller`, which
+    /// looks for a `.pkg` in the download — while what the cask installs through
+    /// is the script's executable: an installer `.app`, a shell script or a
+    /// program in the archive, never a `.pkg`, for all 24 such casks on
+    /// 2026-09-26 (read off the catalog; the downloads were not opened).
+    /// quarkclouddrive's update failed there with "did not contain an installer
+    /// package" (issue #877).
     private static func hasPackageArtifact(in artifacts: Any?) -> Bool {
         guard let artifacts = artifacts as? [Any] else { return false }
         for artifact in artifacts {
             guard let dict = artifact as? [String: Any] else { continue }
-            if dict["pkg"] != nil || dict["installer"] != nil { return true }
+            if dict["pkg"] != nil { return true }
+            if let installer = dict["installer"] {
+                // Anything but a list of unprivileged scripts stays on the
+                // package route, as every `installer` did before.
+                guard let entries = installer as? [Any] else { return true }
+                if !entries.allSatisfy(isUnprivilegedScript) { return true }
+            }
         }
         return false
+    }
+
+    /// `{"script": {"executable": …}}` without `sudo: true`, or the bare
+    /// `{"script": "path"}` form brew also accepts (which cannot ask for sudo).
+    private static func isUnprivilegedScript(_ entry: Any) -> Bool {
+        guard let script = (entry as? [String: Any])?["script"] else { return false }
+        if script is String { return true }
+        guard let options = script as? [String: Any] else { return false }
+        return (options["sudo"] as? Bool) != true
     }
 
     /// Extract bundle identifiers a cask declares in its `uninstall: quit:`

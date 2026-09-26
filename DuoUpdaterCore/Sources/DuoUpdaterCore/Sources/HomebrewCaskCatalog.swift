@@ -354,7 +354,15 @@ public actor HomebrewCaskCatalog {
             guard
                 let token = cask["token"] as? String,
                 let version = cask["version"] as? String,
-                version != "latest"
+                version != "latest",
+                // A disabled cask is one brew will not update: `brew upgrade`
+                // skips every one, and `brew install --cask --force` (our
+                // one-click) raises on it — unless the cask is also deprecated,
+                // which brew checks first and only warns about. Dropped whole,
+                // not kept for detection: its version is frozen, and a frozen
+                // answer from this source would shadow Sparkle and everything
+                // after it. `docs/engine-notes/homebrew-cask-catalog.md` §5.
+                (cask["disabled"] as? Bool) != true
             else { continue }
 
             let entry = CaskEntry(

@@ -1142,5 +1142,318 @@
       "big_sur",
       "arm64_big_sur"
     ]
+  },
+  {
+    "token": "fxfactory",
+    "full_token": "fxfactory",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "FxFactory"
+    ],
+    "desc": "Browse, install and purchase effects and plugins from a huge catalogue",
+    "homepage": "https://fxfactory.com/",
+    "url": "https://files.fxfactory.com/fxfactory/FxFactory-9.0.6-8711.zip",
+    "url_specs": {},
+    "version": "9.0.6,8711",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": "com.fxfactory.FxFactory.helper",
+            "quit": "com.fxfactory.FxFactory",
+            "pkgutil": "com.fxfactory.pkg",
+            "delete": [
+              "/Library/Application Support/FxFactory",
+              "/Library/LaunchDaemons/com.fxfactory.FxFactory.helper.plist",
+              "/Library/PrivilegedHelperTools/com.fxfactory.FxFactory.helper"
+            ]
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "Install FxFactory 9.0.6.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/com.fxfactory.FxFactoryService.pluginkit",
+              "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/com.fxfactory.fxfactory.sfl*",
+              "~/Library/Caches/com.fxfactory.FxFactory",
+              "~/Library/Preferences/com.fxfactory.FxFactory.plist",
+              "~/Movies/Motion Templates.localized"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "12"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/f/fxfactory.rb",
+    "ruby_source_checksum": {
+      "sha256": "b4fcc68358873bb7fb571901e8f874fe70fb73a2f326a4a829e446947e3974d4"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey"
+    ]
+  },
+  {
+    "token": "wch-ch34x-usb-serial-driver",
+    "full_token": "wch-ch34x-usb-serial-driver",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "WCH USB serial driver for CH340/CH341/CH342/CH343/CH344/CH9101/CH9102/CH9103/CH9143"
+    ],
+    "desc": "USB serial driver",
+    "homepage": "https://www.wch.cn/downloads/CH34XSER_MAC_ZIP.html",
+    "url": "https://file.wch.cn/download/file?id=369",
+    "url_specs": {},
+    "version": "2.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "cn.wch.CH34xVCPDriver",
+            "kext": [
+              "cn.wch.CH34xVCPControlDriver",
+              "cn.wch.CH34xVCPDriver"
+            ],
+            "pkgutil": "cn.wch.pkg.CH34xVCPDriver"
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "CH341SER_MAC/CH34xVCPDriver.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/cn.wch.CH34xVCPDriver",
+              "~/Library/Containers/cn.wch.CH34xVCPDriver"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": "wch-ch34x-usb-serial-driver requires a kernel extension to work.\nIf the installation fails, retry after you enable it in:\n  System Settings → Privacy & Security\n\nFor more information, refer to vendor documentation or this Apple Technical Note:\n  https://developer.apple.com/library/content/technotes/tn2459/_index.html\n\nYou must reboot for the installation of wch-ch34x-usb-serial-driver to take effect.\n",
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/w/wch-ch34x-usb-serial-driver.rb",
+    "ruby_source_checksum": {
+      "sha256": "cdc3815b32ca953e5d6a046f1801e266ad9073c4c11b831cfa2b7505fca0bf5f"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "meta-quest-remote-desktop",
+    "full_token": "meta-quest-remote-desktop",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Meta Quest Remote Desktop"
+    ],
+    "desc": "Remote desktop companion app for Meta Quest headsets",
+    "homepage": "https://www.meta.com/quest/",
+    "url": "https://securecdn.oculus.com/binaries/download/?id=27556227337372775",
+    "url_specs": {},
+    "version": "97.0.0.1.109,27556227337372775",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "e3fa9986f40fe715b5408921c29a791651f9b8cfd2ca942e8f44bbfacce73857",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "com.meta.virtualdesktop",
+            "pkgutil": "com.meta.virtualdesktop"
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "Meta Quest Remote Desktop.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Meta Quest Remote Desktop",
+              "~/Library/Application Support/Oculus Remote Desktop",
+              "~/Library/Caches/com.meta.virtualdesktop",
+              "~/Library/Caches/com.oculus.xr2dsd",
+              "~/Library/HTTPStorages/com.meta.virtualdesktop",
+              "~/Library/Preferences/com.meta.virtualdesktop.plist",
+              "~/Library/Preferences/com.oculus.remotedesktop.plist",
+              "~/Library/Preferences/com.oculus.xr2ds.remotedesktop.plist",
+              "~/Library/Preferences/com.oculus.xr2dsd.plist",
+              "~/Library/Preferences/com.oculus.xr2dsd.telemetry",
+              "~/Library/Saved Application State/com.meta.virtualdesktop.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "13"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": {
+      "type": "naked"
+    },
+    "rename": [
+      {
+        "from": "download",
+        "to": "Meta Quest Remote Desktop.pkg"
+      }
+    ],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/m/meta-quest-remote-desktop.rb",
+    "ruby_source_checksum": {
+      "sha256": "b00d279cb9cf4df2c6c2be2034f8c0fb24ba0dd8f6ba7aa2644c95e1a5ff7436"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura"
+    ]
   }
 ]

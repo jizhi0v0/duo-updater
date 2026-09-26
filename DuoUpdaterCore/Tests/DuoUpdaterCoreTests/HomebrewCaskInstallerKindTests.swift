@@ -10,7 +10,11 @@ import Foundation
 /// `PackageInstaller` can reach; the rest are detection-only, where they used to
 /// download in full and then fail the same way.
 ///
-/// Fixture: `Fixtures/homebrew-cask-installer-kinds.json`, seven entries copied
+/// A `pkg` artifact is held to the same test: brew runs its `installer` under
+/// sudo, which has no terminal here either, and a package in a `.zip` failed
+/// the same way after the whole download.
+///
+/// Fixture: `Fixtures/homebrew-cask-installer-kinds.json`, ten entries copied
 /// verbatim from `https://formulae.brew.sh/api/cask.json` on 2026-09-26
 /// (`analytics` dropped), one per shape:
 ///
@@ -23,6 +27,9 @@ import Foundation
 /// | pivy-app | `installer: [{manual: "pivy-….pkg"}]` | `.pkg` | package — the download is the package |
 /// | qsync-client | `installer: [{manual: "Qsync Client.pkg"}]` | `.dmg` | package — at the image's root |
 /// | autofirma | `installer: [{manual: "AutoFirma_….pkg"}]` | `.zip` | detection-only — only a `.dmg` is opened |
+/// | fxfactory | `pkg` | `.zip` | detection-only — only a `.dmg` is opened |
+/// | wch-ch34x-usb-serial-driver | `pkg: CH341SER_MAC/….pkg` | none | detection-only — in a folder |
+/// | meta-quest-remote-desktop | `pkg` | none | package — the server names it `.pkg` |
 struct HomebrewCaskInstallerKindTests {
 
     private static let fixtureURL = URL(fileURLWithPath: #filePath)
@@ -65,6 +72,26 @@ struct HomebrewCaskInstallerKindTests {
     /// `PackageInstaller` hands to `verifyOpenable` unopened.
     @Test func aManualPackageInsideAZipIsDetectionOnly() throws {
         #expect(try Self.entry(bundleID: "es.gob.afirma").installKind == .detectionOnly)
+    }
+
+    /// The package route used to be taken for every `pkg` artifact; FxFactory's
+    /// is inside a `.zip`, which `PackageInstaller` never opens.
+    @Test func aPkgArtifactInsideAZipIsDetectionOnly() throws {
+        #expect(try Self.entry(bundleID: "com.fxfactory.fxfactory").installKind == .detectionOnly)
+    }
+
+    /// The url has no extension; the server named the file `CH34XSER_MAC.ZIP`
+    /// on 2026-09-26. The catalog cannot say that, but the package's folder
+    /// does: a folder is in neither a bare package nor an image's top level.
+    @Test func aPkgArtifactInAFolderBehindAnExtensionlessURLIsDetectionOnly() throws {
+        #expect(try Self.entry(bundleID: "cn.wch.ch34xvcpdriver").installKind == .detectionOnly)
+    }
+
+    /// The url has no extension and the server names the download
+    /// `Meta Quest Remote Desktop.pkg` (HEAD on 2026-09-26), which
+    /// `PackageInstaller` opens.
+    @Test func aPkgArtifactBehindAnExtensionlessURLStaysAPackage() throws {
+        #expect(try Self.entry(bundleID: "com.meta.virtualdesktop").installKind == .package)
     }
 
     /// The issue's path end to end: a brew-installed Quark resolves through
@@ -152,6 +179,33 @@ struct HomebrewCaskInstallerKindTests {
             requiresInstaller: requiresInstaller, stagedFileName: nil,
             hasAppStoreAvailability: false, appStoreManagedHere: false, appStoreGate: .none
         )) == .detectionOnly)
+    }
+
+    /// A brew-installed FxFactory, which went to the system installer and failed
+    /// there after the download, is detection-only now.
+    @Test func aBrewInstalledFxFactoryIsDetectionOnly() async throws {
+        let path = "/Applications/ZZFixture-877/FxFactory.app"
+        #expect(!FileManager.default.fileExists(atPath: path))
+        let app = InstalledApp(
+            name: "FxFactory", bundleID: "com.fxfactory.FxFactory",
+            shortVersion: "9.0.0", buildVersion: nil, path: URL(fileURLWithPath: path),
+            isMASApp: false, sparkleFeedURL: nil)
+        let remote = try #require(try await HomebrewCaskSource(
+            catalog: HomebrewCaskCatalog(testIndex: Self.index()),
+            inventory: BrewLocalInventory(installedTokens: ["fxfactory"]),
+            hostOSVersion: "26.0"
+        ).latestVersion(for: app))
+        #expect(remote.shortVersion == "9.0.6")
+        #expect(remote.downloadURL == nil)
+
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "9.0.6"))
+        let environment = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        #expect(!UpdatePolicy.requiresInstaller(result, environment: environment))
+        #expect(!UpdatePolicy.canAutoInstall(
+            result,
+            settings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite),
+            environment: environment))
     }
 
     /// The package route is unchanged for a cask that has one: the URL is carried

@@ -410,14 +410,16 @@ public actor HomebrewCaskCatalog {
         return names
     }
 
-    /// `.package` for a `pkg` artifact. For an `installer` brew cannot run for us
-    /// unattended — `manual` (brew only prints "open …", and `brew upgrade` skips
-    /// such casks outright) or a `script` with `sudo: true` (brew runs it under
-    /// `/usr/bin/sudo`, which has no terminal to ask on here and gets `-A` only
-    /// when `SUDO_ASKPASS` is set) — `.package` only when `PackageInstaller` can
-    /// reach a package in the download, else `.detectionOnly`. Everything else,
-    /// `.brew`. Read in brew 7.0.6: `cask/artifact/installer.rb`,
-    /// `cask/upgrade.rb`, `system_command.rb`.
+    /// For what brew cannot install for us unattended — a `pkg` artifact (brew
+    /// runs `/usr/sbin/installer` under `/usr/bin/sudo`), an `installer` that is
+    /// `manual` (brew only prints "open …", and `brew upgrade` skips such casks
+    /// outright) or a `script` with `sudo: true` — `.package` only when
+    /// `PackageInstaller` can reach a package in the download, else
+    /// `.detectionOnly`. Everything else, `.brew`. The sudo there has no terminal
+    /// to ask on, gets `-A` only when `SUDO_ASKPASS` is set, and finds no cached
+    /// credential, because `brew.sh` runs `sudo --reset-timestamp` first. Read in
+    /// brew 7.0.6: `cask/artifact/pkg.rb`, `cask/artifact/installer.rb`,
+    /// `cask/upgrade.rb`, `system_command.rb`, `brew.sh`.
     ///
     /// A `script` without `sudo` is `.brew`: brew runs it itself in the
     /// installer artifact's `install_phase`, on `brew install --cask` as on
@@ -434,13 +436,23 @@ public actor HomebrewCaskCatalog {
     /// artifact, and 3 of them named a package `packageIsReachable` accepts —
     /// pivy-app, datadog-agent, qsync-client (read off the catalog; the downloads
     /// were not opened).
+    ///
+    /// And for a `pkg` artifact, which used to be `.package` whatever the url:
+    /// on 2026-09-26, 12 of the 110 such casks (same filter) are out of reach —
+    /// nine in a `.zip`, one in a `.7z`, wch-ch34x-usb-serial-driver's in a
+    /// folder, paragon-extfs's inside an installer `.app` on its `.dmg`. Their
+    /// updates downloaded in full, then failed with "did not contain an
+    /// installer package" (read off the catalog; the downloads were not opened).
     private static func installKind(artifacts: Any?, url: String?) -> CaskInstallKind {
         guard let artifacts = artifacts as? [Any] else { return .brew }
         var needsPerson = false
-        var manualTargets: [String] = []
+        var packages: [String] = []
         for artifact in artifacts {
             guard let dict = artifact as? [String: Any] else { continue }
-            if dict["pkg"] != nil { return .package }
+            if let pkg = dict["pkg"] {
+                needsPerson = true
+                packages += (pkg as? [Any])?.compactMap { $0 as? String } ?? []
+            }
             if let installer = dict["installer"] {
                 // Anything but a list of unprivileged scripts needs a person, as
                 // every `installer` was taken to before #877.
@@ -449,13 +461,13 @@ public actor HomebrewCaskCatalog {
                     continue
                 }
                 if !entries.allSatisfy(isUnprivilegedScript) { needsPerson = true }
-                manualTargets += entries.compactMap {
+                packages += entries.compactMap {
                     ($0 as? [String: Any])?["manual"] as? String
                 }
             }
         }
         guard needsPerson else { return .brew }
-        return packageIsReachable(url: url, manualTargets: manualTargets)
+        return packageIsReachable(url: url, packages: packages)
             ? .package : .detectionOnly
     }
 
@@ -463,15 +475,25 @@ public actor HomebrewCaskCatalog {
     /// the download itself is one, or it is a disk image with one at its top
     /// level. `resolveInstaller` mounts a `.dmg` and nothing else (a `.zip` is
     /// handed on as is and refused by `verifyOpenable`), and `preferredPackage`
-    /// lists only the image's root — so a `manual` path with a `/` in it is out
-    /// of reach even inside a `.dmg`. What the catalog *names*: whether the
-    /// image really holds that file is only known after the download.
-    private static func packageIsReachable(url: String?, manualTargets: [String]) -> Bool {
+    /// lists only the image's root — so a `pkg` or `manual` path with a `/` in it
+    /// is out of reach even inside a `.dmg`. What the catalog *names*: whether
+    /// the image really holds that file is only known after the download.
+    ///
+    /// A url with no extension is judged like a `.dmg`: the file is named by
+    /// the server's `Content-Disposition`, which the catalog does not carry, so
+    /// only a package with no folder in its path can be reached, whether it
+    /// arrives bare or at an image's top level. On 2026-09-26, HEAD on the five
+    /// such `pkg` casks gave three that arrive as a `.pkg` or `.dmg`
+    /// (ecodms-client, meta-quest-remote-desktop, infocert-sign) and two as a
+    /// `.zip`. wch-ch34x-usb-serial-driver names its package inside a folder,
+    /// so it is detection-only. lg-onscreen-control does not, so it stays on
+    /// the package route, where its update still fails after the download.
+    private static func packageIsReachable(url: String?, packages: [String]) -> Bool {
         guard let ext = url.flatMap(URL.init(string:))?.pathExtension.lowercased()
         else { return false }
         if packageExtensions.contains(ext) { return true }
-        guard ext == "dmg" else { return false }
-        return manualTargets.contains {
+        guard ext == "dmg" || ext.isEmpty else { return false }
+        return packages.contains {
             !$0.contains("/")
                 && packageExtensions.contains(($0 as NSString).pathExtension.lowercased())
         }

@@ -400,16 +400,21 @@ public actor HomebrewCaskCatalog {
     }
 
     /// True when a cask installs via a `pkg` artifact, or an `installer` that brew
-    /// cannot run for us unattended: `manual` (brew only prints "open …") or a
-    /// `script` with `sudo: true` (no terminal for the password).
+    /// cannot run for us unattended: `manual` (brew only prints "open …", and
+    /// `brew upgrade` skips such casks outright) or a `script` with `sudo: true`
+    /// (brew runs it under `/usr/bin/sudo`, which has no terminal to ask on here
+    /// and gets `-A` only when `SUDO_ASKPASS` is set). Read in brew 7.0.6:
+    /// `cask/artifact/installer.rb`, `cask/upgrade.rb`, `system_command.rb`.
     ///
-    /// A `script` without `sudo` is NOT one: brew runs it itself during
-    /// `brew install --cask`, which is how `brew upgrade` updates it. Counting it
-    /// here routed it to `PackageInstaller`, which looks for a `.pkg` in the
-    /// download — and none of the catalog's unprivileged script casks ships one
-    /// (checked 2026-09-26: all 24 run an installer `.app` or a shell script), so
-    /// every such update failed with "did not contain an installer package"
-    /// (quarkclouddrive, issue #877).
+    /// A `script` without `sudo` is NOT one: brew runs it itself in the
+    /// installer artifact's `install_phase`, on `brew install --cask` as on
+    /// `brew upgrade`. Counting it here routed it to `PackageInstaller`, which
+    /// looks for a `.pkg` in the download — while what the cask installs through
+    /// is the script's executable: an installer `.app`, a shell script or a
+    /// program in the archive, never a `.pkg`, for all 24 such casks on
+    /// 2026-09-26 (read off the catalog; the downloads were not opened).
+    /// quarkclouddrive's dmg has no `.pkg`, so its every update failed with "did
+    /// not contain an installer package" (issue #877).
     private static func hasPackageArtifact(in artifacts: Any?) -> Bool {
         guard let artifacts = artifacts as? [Any] else { return false }
         for artifact in artifacts {

@@ -438,20 +438,18 @@
     ]
   },
   {
-    "token": "pivy-app",
-    "full_token": "pivy-app",
-    "old_tokens": [
-      "pivy"
-    ],
+    "token": "gyazo",
+    "full_token": "gyazo",
+    "old_tokens": [],
     "tap": "homebrew/cask",
     "name": [
-      "pivy"
+      "Nota Gyazo GIF"
     ],
-    "desc": "Client for PIV cards",
-    "homepage": "https://github.com/joyent/pivy",
-    "url": "https://github.com/joyent/pivy/releases/download/v0.12.1/pivy-0.12.1-macos12.pkg",
+    "desc": "Screenshot and screen recording tool",
+    "homepage": "https://gyazo.com/",
+    "url": "https://files.gyazo.com/setup/Gyazo-11.2.0.pkg",
     "url_specs": {},
-    "version": "0.12.1",
+    "version": "11.2.0",
     "autobump": true,
     "no_autobump_message": null,
     "skip_livecheck": false,
@@ -462,26 +460,43 @@
     "pinned": false,
     "pinned_version": null,
     "outdated": false,
-    "sha256": "78340ec28f4e7d6870ebb167059ac21beb00729d300a092f8f6774c2c6ae33fa",
+    "sha256": "c201ad45449c560a4e00d0c2bc79abbde9e9289c5b2b4fe31ddd101ef9e6a9e9",
     "artifacts": [
       {
         "uninstall": [
           {
-            "launchctl": "net.cooperi.pivy-agent",
-            "quit": "net.cooperi.pivy-agent",
-            "pkgutil": "net.cooperi.pivy"
+            "launchctl": "com.gyazo.menu.helper",
+            "quit": "com.gyazo.menu",
+            "pkgutil": "com.gyazo.pkg",
+            "delete": [
+              "/Applications/Gyazo Menu.app",
+              "/Applications/Gyazo Video.app",
+              "/Applications/Gyazo.app"
+            ]
           }
         ]
       },
       {
         "installer": [
           {
-            "manual": "pivy-0.12.1-macos12.pkg"
+            "manual": "Gyazo-11.2.0.pkg"
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Caches/com.gyazo.gif",
+              "~/Library/Caches/com.gyazo.mac",
+              "~/Library/Preferences/com.gyazo.gif.plist",
+              "~/Library/Preferences/com.gyazo.mac.plist"
+            ]
           }
         ]
       }
     ],
-    "caveats": "The installer will prompt you to insert a YubiKey or other PIV token via a dialog box.\n",
+    "caveats": null,
     "caveats_rosetta": null,
     "depends_on": {
       "macos": {}
@@ -489,29 +504,24 @@
     "conflicts_with": null,
     "container": null,
     "rename": [],
-    "auto_updates": null,
+    "auto_updates": true,
     "deprecated": false,
     "deprecation_date": null,
     "deprecation_reason": null,
     "deprecation_replacement_formula": null,
     "deprecation_replacement_cask": null,
     "deprecate_args": null,
-    "disabled": true,
-    "disable_date": "2026-09-01",
-    "disable_reason": "fails_gatekeeper_check",
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
     "disable_replacement_formula": null,
     "disable_replacement_cask": null,
-    "disable_args": {
-      "date": "2026-09-01",
-      "because": "fails_gatekeeper_check",
-      "replacement_formula": null,
-      "replacement_cask": null
-    },
+    "disable_args": null,
     "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
     "languages": [],
-    "ruby_source_path": "Casks/p/pivy-app.rb",
+    "ruby_source_path": "Casks/g/gyazo.rb",
     "ruby_source_checksum": {
-      "sha256": "fc1daff13f1a359031e16fd7ea4d0955298348b11f0989618d4392daa2fa04b5"
+      "sha256": "c60ab5d83af973ba133c5b59073dada9a4283cc732ce7c9b7c891ac5de690ce7"
     },
     "variations": {},
     "supported_platforms": [
@@ -1141,6 +1151,319 @@
       "arm64_monterey",
       "big_sur",
       "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "fxfactory",
+    "full_token": "fxfactory",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "FxFactory"
+    ],
+    "desc": "Browse, install and purchase effects and plugins from a huge catalogue",
+    "homepage": "https://fxfactory.com/",
+    "url": "https://files.fxfactory.com/fxfactory/FxFactory-9.0.6-8711.zip",
+    "url_specs": {},
+    "version": "9.0.6,8711",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": "com.fxfactory.FxFactory.helper",
+            "quit": "com.fxfactory.FxFactory",
+            "pkgutil": "com.fxfactory.pkg",
+            "delete": [
+              "/Library/Application Support/FxFactory",
+              "/Library/LaunchDaemons/com.fxfactory.FxFactory.helper.plist",
+              "/Library/PrivilegedHelperTools/com.fxfactory.FxFactory.helper"
+            ]
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "Install FxFactory 9.0.6.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/com.fxfactory.FxFactoryService.pluginkit",
+              "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/com.fxfactory.fxfactory.sfl*",
+              "~/Library/Caches/com.fxfactory.FxFactory",
+              "~/Library/Preferences/com.fxfactory.FxFactory.plist",
+              "~/Movies/Motion Templates.localized"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "12"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/f/fxfactory.rb",
+    "ruby_source_checksum": {
+      "sha256": "b4fcc68358873bb7fb571901e8f874fe70fb73a2f326a4a829e446947e3974d4"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey"
+    ]
+  },
+  {
+    "token": "wch-ch34x-usb-serial-driver",
+    "full_token": "wch-ch34x-usb-serial-driver",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "WCH USB serial driver for CH340/CH341/CH342/CH343/CH344/CH9101/CH9102/CH9103/CH9143"
+    ],
+    "desc": "USB serial driver",
+    "homepage": "https://www.wch.cn/downloads/CH34XSER_MAC_ZIP.html",
+    "url": "https://file.wch.cn/download/file?id=369",
+    "url_specs": {},
+    "version": "2.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "cn.wch.CH34xVCPDriver",
+            "kext": [
+              "cn.wch.CH34xVCPControlDriver",
+              "cn.wch.CH34xVCPDriver"
+            ],
+            "pkgutil": "cn.wch.pkg.CH34xVCPDriver"
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "CH341SER_MAC/CH34xVCPDriver.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/cn.wch.CH34xVCPDriver",
+              "~/Library/Containers/cn.wch.CH34xVCPDriver"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": "wch-ch34x-usb-serial-driver requires a kernel extension to work.\nIf the installation fails, retry after you enable it in:\n  System Settings → Privacy & Security\n\nFor more information, refer to vendor documentation or this Apple Technical Note:\n  https://developer.apple.com/library/content/technotes/tn2459/_index.html\n\nYou must reboot for the installation of wch-ch34x-usb-serial-driver to take effect.\n",
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/w/wch-ch34x-usb-serial-driver.rb",
+    "ruby_source_checksum": {
+      "sha256": "cdc3815b32ca953e5d6a046f1801e266ad9073c4c11b831cfa2b7505fca0bf5f"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "meta-quest-remote-desktop",
+    "full_token": "meta-quest-remote-desktop",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Meta Quest Remote Desktop"
+    ],
+    "desc": "Remote desktop companion app for Meta Quest headsets",
+    "homepage": "https://www.meta.com/quest/",
+    "url": "https://securecdn.oculus.com/binaries/download/?id=27556227337372775",
+    "url_specs": {},
+    "version": "97.0.0.1.109,27556227337372775",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "e3fa9986f40fe715b5408921c29a791651f9b8cfd2ca942e8f44bbfacce73857",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "com.meta.virtualdesktop",
+            "pkgutil": "com.meta.virtualdesktop"
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "Meta Quest Remote Desktop.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Meta Quest Remote Desktop",
+              "~/Library/Application Support/Oculus Remote Desktop",
+              "~/Library/Caches/com.meta.virtualdesktop",
+              "~/Library/Caches/com.oculus.xr2dsd",
+              "~/Library/HTTPStorages/com.meta.virtualdesktop",
+              "~/Library/Preferences/com.meta.virtualdesktop.plist",
+              "~/Library/Preferences/com.oculus.remotedesktop.plist",
+              "~/Library/Preferences/com.oculus.xr2ds.remotedesktop.plist",
+              "~/Library/Preferences/com.oculus.xr2dsd.plist",
+              "~/Library/Preferences/com.oculus.xr2dsd.telemetry",
+              "~/Library/Saved Application State/com.meta.virtualdesktop.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "13"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": {
+      "type": "naked"
+    },
+    "rename": [
+      {
+        "from": "download",
+        "to": "Meta Quest Remote Desktop.pkg"
+      }
+    ],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/m/meta-quest-remote-desktop.rb",
+    "ruby_source_checksum": {
+      "sha256": "b00d279cb9cf4df2c6c2be2034f8c0fb24ba0dd8f6ba7aa2644c95e1a5ff7436"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura"
     ]
   }
 ]

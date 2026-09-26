@@ -1,0 +1,440 @@
+[
+  {
+    "token": "quarkclouddrive",
+    "full_token": "quarkclouddrive",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Quark Cloud Drive",
+      "夸克网盘"
+    ],
+    "desc": "Cloud storage and file management platform",
+    "homepage": "https://pan.quark.cn/",
+    "url": "https://umcdn.quark.cn/download/37213/quarkclouddrivemac/pckk@product_guanwang_macmini/QuarkCloudDriveMac_V7.3.5.810_mac_pf30003_(zh-cn)_releasemini_(Build3004627).dmg",
+    "url_specs": {},
+    "version": "7.3.5.810,3004627",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "b8cd730e9e5ae570d562e6c9d5041b0b65e2962d6711b2a04870c050310bfb8f",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": "application.com.quark.clouddrive.desktop.*",
+            "quit": "com.quark.clouddrive.desktop",
+            "trash": "/Applications/QuarkCloudDrive.app"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "script": {
+              "executable": "QuarkCloudDrive.app/Contents/MacOS/QuarkCloudDrive",
+              "args": [
+                "--quark-install",
+                "--install-from=mini_install",
+                "--quark-ch=pckk@product_guanwang_macmini"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/QuarkCloudDrive",
+              "~/Library/Caches/com.quark.clouddrive.desktop",
+              "~/Library/Caches/com.quark.clouddrive.macinstaller",
+              "~/Library/Caches/QuarkCloudDriveInstaller",
+              "~/Library/Logs/QuarkCloudDrive",
+              "~/Library/Preferences/com.quark.clouddrive.desktop.plist",
+              "~/Library/Saved Application State/com.quark.clouddrive.desktop.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "6f36afd2b6dd2c8900fa86142abd9ab25caf49c7",
+    "languages": [],
+    "ruby_source_path": "Casks/q/quarkclouddrive.rb",
+    "ruby_source_checksum": {
+      "sha256": "b6fdb8c1ef9024cafeb82b6efa472d29c3fa8c3626241ed4400f02d01c1fd9df"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "expressvpn",
+    "full_token": "expressvpn",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "ExpressVPN"
+    ],
+    "desc": "VPN client for secure and private internet access",
+    "homepage": "https://www.expressvpn.works/",
+    "url": "https://www.expressvpn.works/clients/mac/expressvpn-macos-universal-14.3.1.15429_release.zip",
+    "url_specs": {},
+    "version": "14.3.1.15429",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "27403401df75ae32aeb8e7621164ef949a40c8f6858e84c05a34f33665ffb7e4",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": [
+              "com.express.vpn.client",
+              "com.express.vpn.daemon",
+              "com.express.vpn.installhelper"
+            ],
+            "quit": "com.express.vpn",
+            "delete": "/Applications/ExpressVPN.app"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "script": {
+              "executable": "$HOMEBREW_PREFIX/Caskroom/expressvpn/14.3.1.15429/ExpressVPN Installer.app/Contents/MacOS/ExpressVPN",
+              "sudo": true
+            }
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "/Library/Application Support/com.express.vpn",
+              "/Library/Preferences/com.express.vpn",
+              "~/Library/Application Support/com.express.vpn",
+              "~/Library/Caches/com.express.vpn",
+              "~/Library/Preferences/com.express.vpn"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "6f36afd2b6dd2c8900fa86142abd9ab25caf49c7",
+    "languages": [],
+    "ruby_source_path": "Casks/e/expressvpn.rb",
+    "ruby_source_checksum": {
+      "sha256": "b886165fdf4f62cfd18847bb91037781c2850a9e2a4ac76fe353612ffab04ae7"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "figma-agent",
+    "full_token": "figma-agent",
+    "old_tokens": [
+      "figmadaemon"
+    ],
+    "tap": "homebrew/cask",
+    "name": [
+      "Figma Agent"
+    ],
+    "desc": "Font installers for Figma.app",
+    "homepage": "https://www.figma.com/",
+    "url": "https://desktop.figma.com/agent/mac/InstallFigmaAgent.dmg",
+    "url_specs": {},
+    "version": "126.8.18",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "com.figma.agent",
+            "delete": "~/Library/Application Support/Figma/FigmaAgent.app"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "manual": "Install Figma Agent.app"
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Caches/com.figma.agent",
+              "~/Library/HTTPStorages/com.figma.agent"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "6f36afd2b6dd2c8900fa86142abd9ab25caf49c7",
+    "languages": [],
+    "ruby_source_path": "Casks/f/figma-agent.rb",
+    "ruby_source_checksum": {
+      "sha256": "88bdc97f21c2a20efa05ebd1197fbe30130818e57749135ac0a9b42483d98783"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "adguard",
+    "full_token": "adguard",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "AdGuard"
+    ],
+    "desc": "Stand alone ad blocker",
+    "homepage": "https://adguard.com/",
+    "url": "https://static.adguard.com/mac/release/AdGuard-2.19.0.2258.dmg",
+    "url_specs": {},
+    "version": "2.19.0.2258",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "149344c273968ab48ceac5de6025fb5219480899fb3520c101e1ce86e83d3804",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": [
+              "com.adguard.mac.adguard.helper",
+              "com.adguard.mac.adguard.pac",
+              "com.adguard.mac.adguard.tun-helper",
+              "com.adguard.mac.adguard.xpcgate2"
+            ],
+            "quit": "com.adguard.mac.adguard",
+            "pkgutil": "com.adguard.mac.adguard-pkg",
+            "delete": [
+              "/Library/Application Support/AdGuard Software/com.adguard.mac.adguard",
+              "/Library/Application Support/com.adguard.Adguard",
+              "/Library/com.adguard.mac.adguard.pac"
+            ],
+            "rmdir": "/Library/Application Support/AdGuard Software"
+          }
+        ]
+      },
+      {
+        "pkg": [
+          "AdGuard.pkg"
+        ]
+      },
+      {
+        "zap": [
+          {
+            "delete": "/Library/Logs/com.adguard.mac.adguard",
+            "trash": [
+              "~/Library/Application Scripts/*com.adguard.mac*",
+              "~/Library/Application Support/Adguard",
+              "~/Library/Application Support/com.adguard.*",
+              "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/com.adguard.mac.adguard.loginhelper.sfl*",
+              "~/Library/Caches/com.adguard.*",
+              "~/Library/Containers/com.adguard.mac.*",
+              "~/Library/Cookies/com.adguard.Adguard.binarycookies",
+              "~/Library/Group Containers/*.com.adguard.mac",
+              "~/Library/HTTPStorages/com.adguard.mac.*",
+              "~/Library/Logs/Adguard",
+              "~/Library/Preferences/com.adguard.*.plist",
+              "~/Library/Saved Application State/com.adguard.mac.adguard.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "12"
+        ]
+      }
+    },
+    "conflicts_with": {
+      "cask": [
+        "adguard@nightly"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "6f36afd2b6dd2c8900fa86142abd9ab25caf49c7",
+    "languages": [],
+    "ruby_source_path": "Casks/a/adguard.rb",
+    "ruby_source_checksum": {
+      "sha256": "bd83fceea28827fa6f6aa98e23bb2035d4a138ceb8e7bc3b7f26cb60e52269f2"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey"
+    ]
+  }
+]
